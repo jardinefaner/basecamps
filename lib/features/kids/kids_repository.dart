@@ -32,6 +32,13 @@ class KidsRepository {
         .getSingleOrNull();
   }
 
+  /// Stream a single kid. Backs a StreamProvider so the detail screen
+  /// reflects edits (rename, avatar change, pod change) live.
+  Stream<Kid?> watchKid(String id) {
+    return (_db.select(_db.kids)..where((k) => k.id.equals(id)))
+        .watchSingleOrNull();
+  }
+
   Future<Pod?> getPod(String id) {
     return (_db.select(_db.pods)..where((p) => p.id.equals(id)))
         .getSingleOrNull();
@@ -54,6 +61,7 @@ class KidsRepository {
     String? lastName,
     String? podId,
     String? notes,
+    String? avatarPath,
   }) async {
     final id = newId();
     await _db.into(_db.kids).insert(
@@ -63,6 +71,7 @@ class KidsRepository {
             lastName: Value(lastName),
             podId: Value(podId),
             notes: Value(notes),
+            avatarPath: Value(avatarPath),
           ),
         );
     return id;
@@ -78,6 +87,44 @@ class KidsRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+  }
+
+  /// Partial kid edit. Anything left `null` (or not passed) is
+  /// untouched. Use `clearAvatarPath: true` to remove the photo —
+  /// passing `avatarPath: null` alone is "don't change it", matching
+  /// the same convention the observations repo uses.
+  Future<void> updateKid({
+    required String id,
+    String? firstName,
+    String? lastName,
+    bool clearLastName = false,
+    String? podId,
+    bool clearPodId = false,
+    String? notes,
+    bool clearNotes = false,
+    String? avatarPath,
+    bool clearAvatarPath = false,
+  }) async {
+    final companion = KidsCompanion(
+      firstName:
+          firstName == null ? const Value.absent() : Value(firstName),
+      lastName: clearLastName
+          ? const Value<String?>(null)
+          : (lastName == null ? const Value.absent() : Value(lastName)),
+      podId: clearPodId
+          ? const Value<String?>(null)
+          : (podId == null ? const Value.absent() : Value(podId)),
+      notes: clearNotes
+          ? const Value<String?>(null)
+          : (notes == null ? const Value.absent() : Value(notes)),
+      avatarPath: clearAvatarPath
+          ? const Value<String?>(null)
+          : (avatarPath == null
+              ? const Value.absent()
+              : Value(avatarPath)),
+      updatedAt: Value(DateTime.now()),
+    );
+    await (_db.update(_db.kids)..where((k) => k.id.equals(id))).write(companion);
   }
 
   Future<void> deletePod(String id) async {
@@ -103,8 +150,8 @@ final kidsProvider = StreamProvider<List<Kid>>((ref) {
 
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types
-final kidProvider = FutureProvider.family<Kid?, String>((ref, id) {
-  return ref.watch(kidsRepositoryProvider).getKid(id);
+final kidProvider = StreamProvider.family<Kid?, String>((ref, id) {
+  return ref.watch(kidsRepositoryProvider).watchKid(id);
 });
 
 // Riverpod family return type is complex; inference is intentional.

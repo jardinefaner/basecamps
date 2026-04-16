@@ -3,6 +3,7 @@ import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/features/specialists/widgets/edit_specialist_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
+import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -73,15 +74,11 @@ class _SpecialistTile extends StatelessWidget {
       onTap: onTap,
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 20,
+          SmallAvatar(
+            path: specialist.avatarPath,
+            fallbackInitial: initial,
             backgroundColor: theme.colorScheme.secondaryContainer,
-            child: Text(
-              initial,
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onSecondaryContainer,
-              ),
-            ),
+            foregroundColor: theme.colorScheme.onSecondaryContainer,
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(

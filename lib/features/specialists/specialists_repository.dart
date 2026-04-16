@@ -19,10 +19,17 @@ class SpecialistsRepository {
         .getSingleOrNull();
   }
 
+  /// Stream a single specialist so tiles/detail rebuild on edit.
+  Stream<Specialist?> watchSpecialist(String id) {
+    return (_db.select(_db.specialists)..where((s) => s.id.equals(id)))
+        .watchSingleOrNull();
+  }
+
   Future<String> addSpecialist({
     required String name,
     String? role,
     String? notes,
+    String? avatarPath,
   }) async {
     final id = newId();
     await _db.into(_db.specialists).insert(
@@ -31,6 +38,7 @@ class SpecialistsRepository {
             name: name,
             role: Value(role),
             notes: Value(notes),
+            avatarPath: Value(avatarPath),
           ),
         );
     return id;
@@ -41,12 +49,19 @@ class SpecialistsRepository {
     required String name,
     String? role,
     String? notes,
+    String? avatarPath,
+    bool clearAvatarPath = false,
   }) async {
     await (_db.update(_db.specialists)..where((s) => s.id.equals(id))).write(
       SpecialistsCompanion(
         name: Value(name),
         role: Value(role),
         notes: Value(notes),
+        avatarPath: clearAvatarPath
+            ? const Value<String?>(null)
+            : (avatarPath == null
+                ? const Value.absent()
+                : Value(avatarPath)),
         updatedAt: Value(DateTime.now()),
       ),
     );
@@ -68,6 +83,6 @@ final specialistsProvider = StreamProvider<List<Specialist>>((ref) {
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types
 final specialistProvider =
-    FutureProvider.family<Specialist?, String>((ref, id) {
-  return ref.watch(specialistsRepositoryProvider).getSpecialist(id);
+    StreamProvider.family<Specialist?, String>((ref, id) {
+  return ref.watch(specialistsRepositoryProvider).watchSpecialist(id);
 });

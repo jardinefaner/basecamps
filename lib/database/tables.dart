@@ -22,6 +22,8 @@ class Kids extends Table {
   DateTimeColumn get birthDate => dateTime().nullable()();
   TextColumn get pin => text().nullable()();
   TextColumn get notes => text().nullable()();
+  // Local file path for the kid's photo. Remote upload comes later.
+  TextColumn get avatarPath => text().nullable()();
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -189,6 +191,8 @@ class Specialists extends Table {
   TextColumn get name => text()();
   TextColumn get role => text().nullable()();
   TextColumn get notes => text().nullable()();
+  // Local file path for the specialist's photo. Remote upload comes later.
+  TextColumn get avatarPath => text().nullable()();
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>

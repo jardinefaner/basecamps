@@ -436,6 +436,17 @@ class $KidsTable extends Kids with TableInfo<$KidsTable, Kid> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _avatarPathMeta = const VerificationMeta(
+    'avatarPath',
+  );
+  @override
+  late final GeneratedColumn<String> avatarPath = GeneratedColumn<String>(
+    'avatar_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -469,6 +480,7 @@ class $KidsTable extends Kids with TableInfo<$KidsTable, Kid> {
     birthDate,
     pin,
     notes,
+    avatarPath,
     createdAt,
     updatedAt,
   ];
@@ -527,6 +539,12 @@ class $KidsTable extends Kids with TableInfo<$KidsTable, Kid> {
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('avatar_path')) {
+      context.handle(
+        _avatarPathMeta,
+        avatarPath.isAcceptableOrUnknown(data['avatar_path']!, _avatarPathMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -576,6 +594,10 @@ class $KidsTable extends Kids with TableInfo<$KidsTable, Kid> {
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      avatarPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}avatar_path'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -601,6 +623,7 @@ class Kid extends DataClass implements Insertable<Kid> {
   final DateTime? birthDate;
   final String? pin;
   final String? notes;
+  final String? avatarPath;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Kid({
@@ -611,6 +634,7 @@ class Kid extends DataClass implements Insertable<Kid> {
     this.birthDate,
     this.pin,
     this.notes,
+    this.avatarPath,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -634,6 +658,9 @@ class Kid extends DataClass implements Insertable<Kid> {
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
     }
+    if (!nullToAbsent || avatarPath != null) {
+      map['avatar_path'] = Variable<String>(avatarPath);
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -656,6 +683,9 @@ class Kid extends DataClass implements Insertable<Kid> {
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      avatarPath: avatarPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(avatarPath),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -674,6 +704,7 @@ class Kid extends DataClass implements Insertable<Kid> {
       birthDate: serializer.fromJson<DateTime?>(json['birthDate']),
       pin: serializer.fromJson<String?>(json['pin']),
       notes: serializer.fromJson<String?>(json['notes']),
+      avatarPath: serializer.fromJson<String?>(json['avatarPath']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -689,6 +720,7 @@ class Kid extends DataClass implements Insertable<Kid> {
       'birthDate': serializer.toJson<DateTime?>(birthDate),
       'pin': serializer.toJson<String?>(pin),
       'notes': serializer.toJson<String?>(notes),
+      'avatarPath': serializer.toJson<String?>(avatarPath),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -702,6 +734,7 @@ class Kid extends DataClass implements Insertable<Kid> {
     Value<DateTime?> birthDate = const Value.absent(),
     Value<String?> pin = const Value.absent(),
     Value<String?> notes = const Value.absent(),
+    Value<String?> avatarPath = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Kid(
@@ -712,6 +745,7 @@ class Kid extends DataClass implements Insertable<Kid> {
     birthDate: birthDate.present ? birthDate.value : this.birthDate,
     pin: pin.present ? pin.value : this.pin,
     notes: notes.present ? notes.value : this.notes,
+    avatarPath: avatarPath.present ? avatarPath.value : this.avatarPath,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -724,6 +758,9 @@ class Kid extends DataClass implements Insertable<Kid> {
       birthDate: data.birthDate.present ? data.birthDate.value : this.birthDate,
       pin: data.pin.present ? data.pin.value : this.pin,
       notes: data.notes.present ? data.notes.value : this.notes,
+      avatarPath: data.avatarPath.present
+          ? data.avatarPath.value
+          : this.avatarPath,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -739,6 +776,7 @@ class Kid extends DataClass implements Insertable<Kid> {
           ..write('birthDate: $birthDate, ')
           ..write('pin: $pin, ')
           ..write('notes: $notes, ')
+          ..write('avatarPath: $avatarPath, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -754,6 +792,7 @@ class Kid extends DataClass implements Insertable<Kid> {
     birthDate,
     pin,
     notes,
+    avatarPath,
     createdAt,
     updatedAt,
   );
@@ -768,6 +807,7 @@ class Kid extends DataClass implements Insertable<Kid> {
           other.birthDate == this.birthDate &&
           other.pin == this.pin &&
           other.notes == this.notes &&
+          other.avatarPath == this.avatarPath &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -780,6 +820,7 @@ class KidsCompanion extends UpdateCompanion<Kid> {
   final Value<DateTime?> birthDate;
   final Value<String?> pin;
   final Value<String?> notes;
+  final Value<String?> avatarPath;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -791,6 +832,7 @@ class KidsCompanion extends UpdateCompanion<Kid> {
     this.birthDate = const Value.absent(),
     this.pin = const Value.absent(),
     this.notes = const Value.absent(),
+    this.avatarPath = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -803,6 +845,7 @@ class KidsCompanion extends UpdateCompanion<Kid> {
     this.birthDate = const Value.absent(),
     this.pin = const Value.absent(),
     this.notes = const Value.absent(),
+    this.avatarPath = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -816,6 +859,7 @@ class KidsCompanion extends UpdateCompanion<Kid> {
     Expression<DateTime>? birthDate,
     Expression<String>? pin,
     Expression<String>? notes,
+    Expression<String>? avatarPath,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -828,6 +872,7 @@ class KidsCompanion extends UpdateCompanion<Kid> {
       if (birthDate != null) 'birth_date': birthDate,
       if (pin != null) 'pin': pin,
       if (notes != null) 'notes': notes,
+      if (avatarPath != null) 'avatar_path': avatarPath,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -842,6 +887,7 @@ class KidsCompanion extends UpdateCompanion<Kid> {
     Value<DateTime?>? birthDate,
     Value<String?>? pin,
     Value<String?>? notes,
+    Value<String?>? avatarPath,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -854,6 +900,7 @@ class KidsCompanion extends UpdateCompanion<Kid> {
       birthDate: birthDate ?? this.birthDate,
       pin: pin ?? this.pin,
       notes: notes ?? this.notes,
+      avatarPath: avatarPath ?? this.avatarPath,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -884,6 +931,9 @@ class KidsCompanion extends UpdateCompanion<Kid> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (avatarPath.present) {
+      map['avatar_path'] = Variable<String>(avatarPath.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -906,6 +956,7 @@ class KidsCompanion extends UpdateCompanion<Kid> {
           ..write('birthDate: $birthDate, ')
           ..write('pin: $pin, ')
           ..write('notes: $notes, ')
+          ..write('avatarPath: $avatarPath, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -4163,6 +4214,17 @@ class $SpecialistsTable extends Specialists
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _avatarPathMeta = const VerificationMeta(
+    'avatarPath',
+  );
+  @override
+  late final GeneratedColumn<String> avatarPath = GeneratedColumn<String>(
+    'avatar_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -4193,6 +4255,7 @@ class $SpecialistsTable extends Specialists
     name,
     role,
     notes,
+    avatarPath,
     createdAt,
     updatedAt,
   ];
@@ -4233,6 +4296,12 @@ class $SpecialistsTable extends Specialists
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('avatar_path')) {
+      context.handle(
+        _avatarPathMeta,
+        avatarPath.isAcceptableOrUnknown(data['avatar_path']!, _avatarPathMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -4270,6 +4339,10 @@ class $SpecialistsTable extends Specialists
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      avatarPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}avatar_path'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -4292,6 +4365,7 @@ class Specialist extends DataClass implements Insertable<Specialist> {
   final String name;
   final String? role;
   final String? notes;
+  final String? avatarPath;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Specialist({
@@ -4299,6 +4373,7 @@ class Specialist extends DataClass implements Insertable<Specialist> {
     required this.name,
     this.role,
     this.notes,
+    this.avatarPath,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -4313,6 +4388,9 @@ class Specialist extends DataClass implements Insertable<Specialist> {
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
     }
+    if (!nullToAbsent || avatarPath != null) {
+      map['avatar_path'] = Variable<String>(avatarPath);
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -4326,6 +4404,9 @@ class Specialist extends DataClass implements Insertable<Specialist> {
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      avatarPath: avatarPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(avatarPath),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -4341,6 +4422,7 @@ class Specialist extends DataClass implements Insertable<Specialist> {
       name: serializer.fromJson<String>(json['name']),
       role: serializer.fromJson<String?>(json['role']),
       notes: serializer.fromJson<String?>(json['notes']),
+      avatarPath: serializer.fromJson<String?>(json['avatarPath']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -4353,6 +4435,7 @@ class Specialist extends DataClass implements Insertable<Specialist> {
       'name': serializer.toJson<String>(name),
       'role': serializer.toJson<String?>(role),
       'notes': serializer.toJson<String?>(notes),
+      'avatarPath': serializer.toJson<String?>(avatarPath),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -4363,6 +4446,7 @@ class Specialist extends DataClass implements Insertable<Specialist> {
     String? name,
     Value<String?> role = const Value.absent(),
     Value<String?> notes = const Value.absent(),
+    Value<String?> avatarPath = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Specialist(
@@ -4370,6 +4454,7 @@ class Specialist extends DataClass implements Insertable<Specialist> {
     name: name ?? this.name,
     role: role.present ? role.value : this.role,
     notes: notes.present ? notes.value : this.notes,
+    avatarPath: avatarPath.present ? avatarPath.value : this.avatarPath,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -4379,6 +4464,9 @@ class Specialist extends DataClass implements Insertable<Specialist> {
       name: data.name.present ? data.name.value : this.name,
       role: data.role.present ? data.role.value : this.role,
       notes: data.notes.present ? data.notes.value : this.notes,
+      avatarPath: data.avatarPath.present
+          ? data.avatarPath.value
+          : this.avatarPath,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -4391,6 +4479,7 @@ class Specialist extends DataClass implements Insertable<Specialist> {
           ..write('name: $name, ')
           ..write('role: $role, ')
           ..write('notes: $notes, ')
+          ..write('avatarPath: $avatarPath, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -4398,7 +4487,8 @@ class Specialist extends DataClass implements Insertable<Specialist> {
   }
 
   @override
-  int get hashCode => Object.hash(id, name, role, notes, createdAt, updatedAt);
+  int get hashCode =>
+      Object.hash(id, name, role, notes, avatarPath, createdAt, updatedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -4407,6 +4497,7 @@ class Specialist extends DataClass implements Insertable<Specialist> {
           other.name == this.name &&
           other.role == this.role &&
           other.notes == this.notes &&
+          other.avatarPath == this.avatarPath &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -4416,6 +4507,7 @@ class SpecialistsCompanion extends UpdateCompanion<Specialist> {
   final Value<String> name;
   final Value<String?> role;
   final Value<String?> notes;
+  final Value<String?> avatarPath;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -4424,6 +4516,7 @@ class SpecialistsCompanion extends UpdateCompanion<Specialist> {
     this.name = const Value.absent(),
     this.role = const Value.absent(),
     this.notes = const Value.absent(),
+    this.avatarPath = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -4433,6 +4526,7 @@ class SpecialistsCompanion extends UpdateCompanion<Specialist> {
     required String name,
     this.role = const Value.absent(),
     this.notes = const Value.absent(),
+    this.avatarPath = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -4443,6 +4537,7 @@ class SpecialistsCompanion extends UpdateCompanion<Specialist> {
     Expression<String>? name,
     Expression<String>? role,
     Expression<String>? notes,
+    Expression<String>? avatarPath,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -4452,6 +4547,7 @@ class SpecialistsCompanion extends UpdateCompanion<Specialist> {
       if (name != null) 'name': name,
       if (role != null) 'role': role,
       if (notes != null) 'notes': notes,
+      if (avatarPath != null) 'avatar_path': avatarPath,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -4463,6 +4559,7 @@ class SpecialistsCompanion extends UpdateCompanion<Specialist> {
     Value<String>? name,
     Value<String?>? role,
     Value<String?>? notes,
+    Value<String?>? avatarPath,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -4472,6 +4569,7 @@ class SpecialistsCompanion extends UpdateCompanion<Specialist> {
       name: name ?? this.name,
       role: role ?? this.role,
       notes: notes ?? this.notes,
+      avatarPath: avatarPath ?? this.avatarPath,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -4493,6 +4591,9 @@ class SpecialistsCompanion extends UpdateCompanion<Specialist> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (avatarPath.present) {
+      map['avatar_path'] = Variable<String>(avatarPath.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -4512,6 +4613,7 @@ class SpecialistsCompanion extends UpdateCompanion<Specialist> {
           ..write('name: $name, ')
           ..write('role: $role, ')
           ..write('notes: $notes, ')
+          ..write('avatarPath: $avatarPath, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -8353,6 +8455,7 @@ typedef $$KidsTableCreateCompanionBuilder =
       Value<DateTime?> birthDate,
       Value<String?> pin,
       Value<String?> notes,
+      Value<String?> avatarPath,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -8366,6 +8469,7 @@ typedef $$KidsTableUpdateCompanionBuilder =
       Value<DateTime?> birthDate,
       Value<String?> pin,
       Value<String?> notes,
+      Value<String?> avatarPath,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -8484,6 +8588,11 @@ class $$KidsTableFilterComposer extends Composer<_$AppDatabase, $KidsTable> {
 
   ColumnFilters<String> get notes => $composableBuilder(
     column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get avatarPath => $composableBuilder(
+    column: $table.avatarPath,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8634,6 +8743,11 @@ class $$KidsTableOrderingComposer extends Composer<_$AppDatabase, $KidsTable> {
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get avatarPath => $composableBuilder(
+    column: $table.avatarPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -8694,6 +8808,11 @@ class $$KidsTableAnnotationComposer
 
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<String> get avatarPath => $composableBuilder(
+    column: $table.avatarPath,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -8840,6 +8959,7 @@ class $$KidsTableTableManager
                 Value<DateTime?> birthDate = const Value.absent(),
                 Value<String?> pin = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<String?> avatarPath = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -8851,6 +8971,7 @@ class $$KidsTableTableManager
                 birthDate: birthDate,
                 pin: pin,
                 notes: notes,
+                avatarPath: avatarPath,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -8864,6 +8985,7 @@ class $$KidsTableTableManager
                 Value<DateTime?> birthDate = const Value.absent(),
                 Value<String?> pin = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<String?> avatarPath = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -8875,6 +8997,7 @@ class $$KidsTableTableManager
                 birthDate: birthDate,
                 pin: pin,
                 notes: notes,
+                avatarPath: avatarPath,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -12857,6 +12980,7 @@ typedef $$SpecialistsTableCreateCompanionBuilder =
       required String name,
       Value<String?> role,
       Value<String?> notes,
+      Value<String?> avatarPath,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -12867,6 +12991,7 @@ typedef $$SpecialistsTableUpdateCompanionBuilder =
       Value<String> name,
       Value<String?> role,
       Value<String?> notes,
+      Value<String?> avatarPath,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -12973,6 +13098,11 @@ class $$SpecialistsTableFilterComposer
 
   ColumnFilters<String> get notes => $composableBuilder(
     column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get avatarPath => $composableBuilder(
+    column: $table.avatarPath,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -13091,6 +13221,11 @@ class $$SpecialistsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get avatarPath => $composableBuilder(
+    column: $table.avatarPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -13122,6 +13257,11 @@ class $$SpecialistsTableAnnotationComposer
 
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<String> get avatarPath => $composableBuilder(
+    column: $table.avatarPath,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -13242,6 +13382,7 @@ class $$SpecialistsTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<String?> role = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<String?> avatarPath = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -13250,6 +13391,7 @@ class $$SpecialistsTableTableManager
                 name: name,
                 role: role,
                 notes: notes,
+                avatarPath: avatarPath,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -13260,6 +13402,7 @@ class $$SpecialistsTableTableManager
                 required String name,
                 Value<String?> role = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<String?> avatarPath = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -13268,6 +13411,7 @@ class $$SpecialistsTableTableManager
                 name: name,
                 role: role,
                 notes: notes,
+                avatarPath: avatarPath,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,

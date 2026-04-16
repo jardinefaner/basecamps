@@ -3,6 +3,7 @@ import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,6 +25,9 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
       TextEditingController(text: widget.specialist?.role ?? '');
   late final _notesController =
       TextEditingController(text: widget.specialist?.notes ?? '');
+
+  late String? _avatarPath = widget.specialist?.avatarPath;
+
   bool _submitting = false;
 
   bool get _isEdit => widget.specialist != null;
@@ -49,14 +53,23 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
         : _notesController.text.trim();
 
     if (_isEdit) {
+      final existing = widget.specialist!;
       await repo.updateSpecialist(
-        id: widget.specialist!.id,
+        id: existing.id,
         name: name,
         role: role,
         notes: notes,
+        avatarPath: _avatarPath,
+        clearAvatarPath:
+            _avatarPath == null && existing.avatarPath != null,
       );
     } else {
-      await repo.addSpecialist(name: name, role: role, notes: notes);
+      await repo.addSpecialist(
+        name: name,
+        role: role,
+        notes: notes,
+        avatarPath: _avatarPath,
+      );
     }
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -95,6 +108,16 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Center(
+            child: AvatarPicker(
+              currentPath: _avatarPath,
+              fallbackInitial: _nameController.text.trim().isNotEmpty
+                  ? _nameController.text.trim().characters.first.toUpperCase()
+                  : '?',
+              onChanged: (path) => setState(() => _avatarPath = path),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
           AppTextField(
             controller: _nameController,
             label: 'Name',

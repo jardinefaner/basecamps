@@ -1,7 +1,7 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/kids/kids_repository.dart';
-import 'package:basecamp/features/kids/widgets/add_kid_sheet.dart';
 import 'package:basecamp/features/kids/widgets/add_pod_sheet.dart';
+import 'package:basecamp/features/kids/widgets/edit_kid_sheet.dart';
 import 'package:basecamp/features/kids/widgets/kid_tile.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
@@ -67,7 +67,7 @@ class KidsScreen extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => AddKidSheet(pods: pods),
+      builder: (_) => EditKidSheet(pods: pods),
     );
   }
 }

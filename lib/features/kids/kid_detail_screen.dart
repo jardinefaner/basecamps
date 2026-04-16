@@ -1,10 +1,12 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/kids/kids_repository.dart';
+import 'package:basecamp/features/kids/widgets/edit_kid_sheet.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
+import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,13 +15,42 @@ class KidDetailScreen extends ConsumerWidget {
 
   final String kidId;
 
+  Future<void> _openEditSheet(
+    BuildContext context,
+    WidgetRef ref,
+    Kid kid,
+  ) async {
+    final pods = await ref.read(kidsRepositoryProvider).watchPods().first;
+    if (!context.mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (_) => EditKidSheet(pods: pods, kid: kid),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final kidAsync = ref.watch(kidProvider(kidId));
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(
+        actions: [
+          kidAsync.maybeWhen(
+            data: (kid) => kid == null
+                ? const SizedBox.shrink()
+                : IconButton(
+                    tooltip: 'Edit kid',
+                    icon: const Icon(Icons.edit_outlined),
+                    onPressed: () => _openEditSheet(context, ref, kid),
+                  ),
+            orElse: () => const SizedBox.shrink(),
+          ),
+        ],
+      ),
       body: kidAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => Center(child: Text('Error: $err')),
@@ -29,41 +60,48 @@ class KidDetailScreen extends ConsumerWidget {
           }
           final fullName =
               [kid.firstName, kid.lastName].whereType<String>().join(' ');
+          final initial = kid.firstName.characters.first.toUpperCase();
 
           return ListView(
             padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 32,
-                    backgroundColor: theme.colorScheme.primaryContainer,
-                    child: Text(
-                      kid.firstName.characters.first.toUpperCase(),
-                      style: theme.textTheme.displaySmall?.copyWith(
-                        color: theme.colorScheme.onPrimaryContainer,
+              InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => _openEditSheet(context, ref, kid),
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.xs),
+                  child: Row(
+                    children: [
+                      SmallAvatar(
+                        path: kid.avatarPath,
+                        fallbackInitial: initial,
+                        radius: 32,
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.lg),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(fullName, style: theme.textTheme.headlineMedium),
-                        if (kid.podId != null)
-                          _PodLabel(podId: kid.podId!)
-                        else
-                          Text(
-                            'Unassigned',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                      const SizedBox(width: AppSpacing.lg),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              fullName,
+                              style: theme.textTheme.headlineMedium,
                             ),
-                          ),
-                      ],
-                    ),
+                            if (kid.podId != null)
+                              _PodLabel(podId: kid.podId!)
+                            else
+                              Text(
+                                'Unassigned',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color:
+                                      theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
               const SizedBox(height: AppSpacing.xl),
               _TodayTimeline(kid: kid),

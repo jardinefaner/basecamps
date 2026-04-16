@@ -1,6 +1,7 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
+import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
 
 class KidTile extends StatelessWidget {
@@ -25,15 +26,9 @@ class KidTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: theme.colorScheme.primaryContainer,
-            child: Text(
-              initial,
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onPrimaryContainer,
-              ),
-            ),
+          SmallAvatar(
+            path: kid.avatarPath,
+            fallbackInitial: initial,
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(

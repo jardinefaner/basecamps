@@ -36,7 +36,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -221,6 +221,17 @@ class AppDatabase extends _$AppDatabase {
                 (observation_id, domain)
               SELECT id, domain FROM observations WHERE domain IS NOT NULL
             ''');
+          }
+          if (from < 15) {
+            // Avatar support for kids and specialists — local file paths
+            // only for now; the image moves to remote storage once a
+            // sync story exists.
+            await _addColumnIfMissing(m, kids, kids.avatarPath);
+            await _addColumnIfMissing(
+              m,
+              specialists,
+              specialists.avatarPath,
+            );
           }
         },
       );
