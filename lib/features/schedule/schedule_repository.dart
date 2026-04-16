@@ -330,6 +330,95 @@ class ScheduleRepository {
         .go();
   }
 
+  Future<ScheduleEntry?> getEntry(String id) {
+    return (_db.select(_db.scheduleEntries)..where((e) => e.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  /// Merged schedule stream for every day in the week starting at the given
+  /// Monday. Returns a map keyed by ISO day-of-week (1..7).
+  Stream<Map<int, List<ScheduleItem>>> watchScheduleForWeek(
+    DateTime weekStart,
+  ) {
+    final monday = _dayOnly(weekStart);
+    final nextMonday = monday.add(const Duration(days: 7));
+
+    final templatesStream = _db.select(_db.scheduleTemplates).watch();
+    final entriesStream = (_db.select(_db.scheduleEntries)
+          ..where(
+            (e) =>
+                e.date.isBiggerOrEqualValue(monday) &
+                e.date.isSmallerThanValue(nextMonday),
+          ))
+        .watch();
+
+    return Stream<Map<int, List<ScheduleItem>>>.multi((controller) {
+      List<ScheduleTemplate>? templates;
+      List<ScheduleEntry>? entries;
+
+      Future<void> recompute() async {
+        final t = templates;
+        final e = entries;
+        if (t == null || e == null) return;
+        try {
+          final templatePodMap = <String, List<String>>{};
+          for (final tpl in t) {
+            templatePodMap[tpl.id] = await podsForTemplate(tpl.id);
+          }
+          final entryPodMap = <String, List<String>>{};
+          for (final en in e) {
+            entryPodMap[en.id] = await podsForEntry(en.id);
+          }
+
+          final result = <int, List<ScheduleItem>>{};
+          for (var offset = 0; offset < 7; offset++) {
+            final date = monday.add(Duration(days: offset));
+            final dayOfWeek = date.weekday;
+
+            final dayTemplates = t.where((tpl) {
+              if (tpl.dayOfWeek != dayOfWeek) return false;
+              final s = tpl.startDate;
+              final en = tpl.endDate;
+              if (s != null && s.isAfter(date)) return false;
+              if (en != null && en.isBefore(date)) return false;
+              return true;
+            }).toList();
+
+            final dayEntries = e.where((en) {
+              return en.date.year == date.year &&
+                  en.date.month == date.month &&
+                  en.date.day == date.day;
+            }).toList();
+
+            result[dayOfWeek] = _merge(
+              templates: dayTemplates,
+              entries: dayEntries,
+              templatePods: templatePodMap,
+              entryPods: entryPodMap,
+            );
+          }
+          if (!controller.isClosed) controller.add(result);
+        } on Object catch (err, st) {
+          if (!controller.isClosed) controller.addError(err, st);
+        }
+      }
+
+      final sub1 = templatesStream.listen((val) {
+        templates = val;
+        unawaited(recompute());
+      }, onError: controller.addError);
+      final sub2 = entriesStream.listen((val) {
+        entries = val;
+        unawaited(recompute());
+      }, onError: controller.addError);
+
+      controller.onCancel = () async {
+        await sub1.cancel();
+        await sub2.cancel();
+      };
+    });
+  }
+
   /// Merged schedule stream for a specific date. Re-emits whenever either
   /// the templates table OR the entries table changes — so a newly added
   /// full-day event (which lives in entries) correctly triggers an update.
@@ -510,6 +599,21 @@ final templateItemsByDayProvider =
     StreamProvider<Map<int, List<ScheduleItem>>>((ref) {
   return ref.watch(scheduleRepositoryProvider).watchTemplateItemsByDay();
 });
+
+/// Stream of the effective schedule for the week starting at a given Monday
+/// midnight. Each entry in the returned map keys on the ISO day-of-week
+/// (1..7) and carries the merged schedule for that specific date — templates
+/// filtered by date bounds plus any per-date entries.
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final scheduleForWeekProvider =
+    StreamProvider.family<Map<int, List<ScheduleItem>>, DateTime>(
+  (ref, weekStart) {
+    return ref
+        .watch(scheduleRepositoryProvider)
+        .watchScheduleForWeek(weekStart);
+  },
+);
 
 final todayScheduleProvider = StreamProvider<List<ScheduleItem>>((ref) {
   return ref
