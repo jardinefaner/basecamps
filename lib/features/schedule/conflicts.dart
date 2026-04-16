@@ -1,18 +1,16 @@
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 
 /// Returns the ids of schedule items that conflict with at least one other
-/// item in [items]. Two items conflict when their time ranges overlap AND
-/// they share either a pod or a specialist.
+/// item in [items]. See [_detect] for the rules.
 Set<String> detectConflictingIds(List<ScheduleItem> items) {
   final conflicts = <String>{};
   for (var i = 0; i < items.length; i++) {
     for (var j = i + 1; j < items.length; j++) {
-      final a = items[i];
-      final b = items[j];
-      if (_overlap(a, b) && (_sharePod(a, b) || _shareSpecialist(a, b))) {
+      final res = _detect(items[i], items[j]);
+      if (res.isConflict) {
         conflicts
-          ..add(a.id)
-          ..add(b.id);
+          ..add(items[i].id)
+          ..add(items[j].id);
       }
     }
   }
@@ -20,8 +18,7 @@ Set<String> detectConflictingIds(List<ScheduleItem> items) {
 }
 
 /// For each item in [items] that conflicts with at least one other item,
-/// returns the list of conflicting counterparts and why they clash. The
-/// map is keyed by the item's id.
+/// returns the counterparts and why they clash. Map keyed by item id.
 Map<String, List<ConflictInfo>> conflictsByItemId(List<ScheduleItem> items) {
   final result = <String, List<ConflictInfo>>{};
   for (var i = 0; i < items.length; i++) {
@@ -29,17 +26,14 @@ Map<String, List<ConflictInfo>> conflictsByItemId(List<ScheduleItem> items) {
       if (i == j) continue;
       final a = items[i];
       final b = items[j];
-      if (!_overlap(a, b)) continue;
-      final sharedPods = _sharedPodIds(a, b);
-      final podClash = sharedPods.isNotEmpty || _allPodsClash(a, b);
-      final specialistClash = _shareSpecialist(a, b);
-      if (!podClash && !specialistClash) continue;
+      final res = _detect(a, b);
+      if (!res.isConflict) continue;
       result.putIfAbsent(a.id, () => <ConflictInfo>[]).add(
             ConflictInfo(
               other: b,
-              podClash: podClash,
-              specialistClash: specialistClash,
-              sharedPodIds: sharedPods,
+              podClash: res.podClash,
+              specialistClash: res.specialistClash,
+              sharedPodIds: _sharedPodIds(a, b),
             ),
           );
     }
@@ -60,11 +54,90 @@ class ConflictInfo {
   final bool specialistClash;
 
   /// Pod ids that both activities target directly. Empty when the clash
-  /// comes from one side being "all pods".
+  /// comes from one side being "all pods" (broadcast).
   final Set<String> sharedPodIds;
 }
 
-bool _overlap(ScheduleItem a, ScheduleItem b) {
+/// Conflict rules, per pair of items on the same day:
+///
+/// - **Specialists**: if both items target the same specialist, they conflict
+///   whenever their time ranges could actually overlap (a full-day item is
+///   treated as covering every time slot for this rule).
+/// - **Pods (timed ↔ timed)**: overlapping times + any shared pod clash.
+///   "All pods" (empty list) is treated as a wildcard that shares with any
+///   other targeted pod set.
+/// - **Pods (full-day ↔ full-day)**: two whole-day events sharing pods on
+///   the same date is a conflict (can't have two camp-wide events overlap).
+/// - **Pods (full-day ↔ timed)**: NOT a conflict on its own. A full-day
+///   label (e.g. "Tax Day", "Teacher appreciation") doesn't block timed
+///   activities unless it also needs the same specialist.
+_DetectionResult _detect(ScheduleItem a, ScheduleItem b) {
+  final specialistClash =
+      a.specialistId != null && a.specialistId == b.specialistId;
+  final sharedPods = _sharePod(a, b);
+
+  if (specialistClash) {
+    final timeOverlap = _timeOverlaps(a, b);
+    if (timeOverlap) {
+      return _DetectionResult(
+        isConflict: true,
+        podClash: sharedPods && (!a.isFullDay && !b.isFullDay),
+        specialistClash: true,
+      );
+    }
+    return const _DetectionResult(
+      isConflict: false,
+      podClash: false,
+      specialistClash: false,
+    );
+  }
+
+  // No specialist overlap. Any pod-based clash then requires time overlap.
+  if (a.isFullDay && b.isFullDay) {
+    return _DetectionResult(
+      isConflict: sharedPods,
+      podClash: sharedPods,
+      specialistClash: false,
+    );
+  }
+  if (a.isFullDay || b.isFullDay) {
+    return const _DetectionResult(
+      isConflict: false,
+      podClash: false,
+      specialistClash: false,
+    );
+  }
+
+  // Both timed, no specialist clash.
+  final timeOverlap =
+      a.startMinutes < b.endMinutes && b.startMinutes < a.endMinutes;
+  if (timeOverlap && sharedPods) {
+    return const _DetectionResult(
+      isConflict: true,
+      podClash: true,
+      specialistClash: false,
+    );
+  }
+  return const _DetectionResult(
+    isConflict: false,
+    podClash: false,
+    specialistClash: false,
+  );
+}
+
+class _DetectionResult {
+  const _DetectionResult({
+    required this.isConflict,
+    required this.podClash,
+    required this.specialistClash,
+  });
+
+  final bool isConflict;
+  final bool podClash;
+  final bool specialistClash;
+}
+
+bool _timeOverlaps(ScheduleItem a, ScheduleItem b) {
   if (a.isFullDay || b.isFullDay) return true;
   return a.startMinutes < b.endMinutes && b.startMinutes < a.endMinutes;
 }
@@ -74,19 +147,7 @@ bool _sharePod(ScheduleItem a, ScheduleItem b) {
   return a.podIds.toSet().intersection(b.podIds.toSet()).isNotEmpty;
 }
 
-bool _shareSpecialist(ScheduleItem a, ScheduleItem b) {
-  return a.specialistId != null && a.specialistId == b.specialistId;
-}
-
 Set<String> _sharedPodIds(ScheduleItem a, ScheduleItem b) {
   if (a.podIds.isEmpty || b.podIds.isEmpty) return const <String>{};
   return a.podIds.toSet().intersection(b.podIds.toSet());
-}
-
-bool _allPodsClash(ScheduleItem a, ScheduleItem b) {
-  // One side "all pods" and the other has specific pods → every kid in
-  // those pods is double-booked by the broadcast activity.
-  if (a.podIds.isEmpty && b.podIds.isEmpty) return true;
-  if (a.podIds.isEmpty || b.podIds.isEmpty) return true;
-  return false;
 }
