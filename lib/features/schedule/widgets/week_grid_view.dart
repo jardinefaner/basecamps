@@ -1,11 +1,18 @@
+import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-const _dayHeaders = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+const _dayShortLabels = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
-/// Week grid: 7 columns (Mon–Sun) with time axis on the left, activity
-/// blocks positioned by start/end time. Tap a block to edit.
+/// Week grid laid out as day-rows × time-columns. Each cell is an AppCard
+/// matching the list view's styling. When an activity is identical on
+/// consecutive days (same title/time/pods/specialist/location), the cells
+/// merge into a single card that spans those rows — so "Morning Circle"
+/// every day shows up once as a tall block instead of seven duplicates.
 class WeekGridView extends StatelessWidget {
   const WeekGridView({
     required this.itemsByDay,
@@ -22,339 +29,354 @@ class WeekGridView extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // Figure out the time range based on content, padded outward to whole
-    // hours. Fall back to a useful default if there's nothing scheduled.
-    var minHour = 8;
-    var maxHour = 17;
+    // 1. Collect the distinct (startTime, endTime) pairs across the week.
+    final slotSet = <_TimeSlot>{};
     for (final items in itemsByDay.values) {
       for (final item in items) {
         if (item.isFullDay) continue;
-        final sh = item.startMinutes ~/ 60;
-        final eh = (item.endMinutes + 59) ~/ 60;
-        if (sh < minHour) minHour = sh;
-        if (eh > maxHour) maxHour = eh;
+        slotSet.add(_TimeSlot(item.startTime, item.endTime));
       }
     }
-    if (minHour >= maxHour) {
-      minHour = 8;
-      maxHour = 17;
+    final slots = slotSet.toList()
+      ..sort((a, b) => a.startMinutes.compareTo(b.startMinutes));
+
+    if (slots.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Text(
+            'Nothing scheduled yet. Add some recurring activities to see\n'
+            'them laid out as a week.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
     }
-    final hours = [for (var h = minHour; h <= maxHour; h++) h];
-    const pxPerHour = 64.0;
-    const timeAxisWidth = 44.0;
-    final totalHeight = (maxHour - minHour) * pxPerHour;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Ensure each day column has a minimum readable width; if the screen
-        // is narrow, allow horizontal scroll instead of squishing further.
-        const minColumnWidth = 88.0;
-        final desiredColumnWidth =
-            (constraints.maxWidth - timeAxisWidth) / 7;
-        final columnWidth = desiredColumnWidth < minColumnWidth
-            ? minColumnWidth
-            : desiredColumnWidth;
-        final gridWidth = timeAxisWidth + columnWidth * 7;
+    // 2. Build the (day × slot) matrix.
+    final matrix = List.generate(
+      7,
+      (_) => List<ScheduleItem?>.filled(slots.length, null),
+    );
+    for (var d = 0; d < 7; d++) {
+      final items = itemsByDay[d + 1] ?? const <ScheduleItem>[];
+      for (final item in items) {
+        if (item.isFullDay) continue;
+        final idx = slots.indexOf(_TimeSlot(item.startTime, item.endTime));
+        if (idx >= 0) matrix[d][idx] = item;
+      }
+    }
 
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: gridWidth,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _DayHeaderRow(
-                  columnWidth: columnWidth,
-                  timeAxisWidth: timeAxisWidth,
-                  itemsByDay: itemsByDay,
-                ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: SizedBox(
-                      height: totalHeight,
-                      child: Row(
-                        children: [
-                          _TimeAxis(
-                            hours: hours,
-                            pxPerHour: pxPerHour,
-                            width: timeAxisWidth,
-                          ),
-                          for (var day = 1; day <= 7; day++)
-                            _DayColumn(
-                              width: columnWidth,
-                              height: totalHeight,
-                              hours: hours,
-                              pxPerHour: pxPerHour,
-                              items: itemsByDay[day] ?? const [],
-                              conflictingIds:
-                                  conflictsByDay[day] ?? const {},
-                              onEditById: onEditById,
-                              showLeftBorder: day > 1,
-                              showRightBorder: day == 7,
-                              outlineColor: theme.colorScheme.outlineVariant,
-                            ),
-                        ],
+    // 3. Compute merge blocks per column. A run of consecutive days with
+    //    equivalent items in the same slot becomes one block.
+    final blocks = <_Block>[];
+    for (var slot = 0; slot < slots.length; slot++) {
+      var d = 0;
+      while (d < 7) {
+        final item = matrix[d][slot];
+        if (item == null) {
+          d++;
+          continue;
+        }
+        var end = d;
+        while (end + 1 < 7) {
+          final next = matrix[end + 1][slot];
+          if (next == null || !_areEquivalent(item, next)) break;
+          end++;
+        }
+        final spannedItems = <ScheduleItem>[
+          for (var i = d; i <= end; i++) matrix[i][slot]!,
+        ];
+        final inConflict = spannedItems.any(
+          (it) => (conflictsByDay[_rowToDay(d, end, spannedItems, it)] ??
+                  const <String>{})
+              .contains(it.id),
+        );
+        blocks.add(
+          _Block(
+            slotIdx: slot,
+            startDay: d,
+            endDay: end,
+            items: spannedItems,
+            inConflict: _blockHasConflict(
+              conflictsByDay: conflictsByDay,
+              startDay: d,
+              items: spannedItems,
+            ) ||
+                inConflict,
+          ),
+        );
+        d = end + 1;
+      }
+    }
+
+    // 4. Render: Stack with positioned cards. Left column = day labels,
+    //    top row = time slot headers.
+    const dayLabelWidth = 52.0;
+    const headerHeight = 32.0;
+    const cellWidth = 160.0;
+    const cellHeight = 64.0;
+    const gutter = 6.0;
+    const totalHeightBase = headerHeight + 7 * cellHeight;
+    final totalWidth = dayLabelWidth + slots.length * cellWidth;
+    const totalHeight = totalHeightBase;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SingleChildScrollView(
+        child: SizedBox(
+          width: totalWidth,
+          height: totalHeight,
+          child: Stack(
+            children: [
+              // Time slot headers.
+              for (var i = 0; i < slots.length; i++)
+                Positioned(
+                  top: 0,
+                  left: dayLabelWidth + i * cellWidth,
+                  width: cellWidth,
+                  height: headerHeight,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '${_formatTime(slots[i].start)} – ${_formatTime(slots[i].end)}',
+                        style: theme.textTheme.labelMedium,
                       ),
                     ),
                   ),
                 ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
 
-class _DayHeaderRow extends StatelessWidget {
-  const _DayHeaderRow({
-    required this.columnWidth,
-    required this.timeAxisWidth,
-    required this.itemsByDay,
-  });
+              // Day row labels.
+              for (var d = 0; d < 7; d++)
+                Positioned(
+                  top: headerHeight + d * cellHeight,
+                  left: 0,
+                  width: dayLabelWidth,
+                  height: cellHeight,
+                  child: Center(
+                    child: Text(
+                      _dayShortLabels[d],
+                      style: theme.textTheme.labelMedium,
+                    ),
+                  ),
+                ),
 
-  final double columnWidth;
-  final double timeAxisWidth;
-  final Map<int, List<ScheduleItem>> itemsByDay;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: theme.colorScheme.outlineVariant,
-            width: 0.5,
+              // Merged activity blocks.
+              for (final block in blocks)
+                Positioned(
+                  top: headerHeight +
+                      block.startDay * cellHeight +
+                      gutter / 2,
+                  left: dayLabelWidth +
+                      block.slotIdx * cellWidth +
+                      gutter / 2,
+                  width: cellWidth - gutter,
+                  height: (block.endDay - block.startDay + 1) * cellHeight -
+                      gutter,
+                  child: _GridBlockCard(
+                    block: block,
+                    onTap: () => onEditById(
+                      block.items.first.templateId ?? block.items.first.id,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
-      child: Row(
-        children: [
-          SizedBox(width: timeAxisWidth),
-          for (var day = 1; day <= 7; day++)
-            SizedBox(
-              width: columnWidth,
-              child: Column(
-                children: [
-                  Text(
-                    _dayHeaders[day - 1],
-                    style: theme.textTheme.labelMedium,
-                  ),
-                  Text(
-                    '${(itemsByDay[day] ?? const []).length}',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
     );
+  }
+
+  int? _rowToDay(
+    int start,
+    int end,
+    List<ScheduleItem> items,
+    ScheduleItem it,
+  ) {
+    final idx = items.indexOf(it);
+    if (idx < 0) return null;
+    return start + idx + 1; // ISO day 1..7
+  }
+
+  bool _blockHasConflict({
+    required Map<int, Set<String>> conflictsByDay,
+    required int startDay,
+    required List<ScheduleItem> items,
+  }) {
+    for (var i = 0; i < items.length; i++) {
+      final day = startDay + i + 1;
+      if ((conflictsByDay[day] ?? const <String>{}).contains(items[i].id)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _areEquivalent(ScheduleItem a, ScheduleItem b) {
+    if (a.title != b.title) return false;
+    if (a.startTime != b.startTime) return false;
+    if (a.endTime != b.endTime) return false;
+    if (a.isFullDay != b.isFullDay) return false;
+    if (a.specialistId != b.specialistId) return false;
+    if (a.location != b.location) return false;
+    final aPods = a.podIds.toSet();
+    final bPods = b.podIds.toSet();
+    if (aPods.length != bPods.length) return false;
+    for (final id in aPods) {
+      if (!bPods.contains(id)) return false;
+    }
+    return true;
   }
 }
 
-class _TimeAxis extends StatelessWidget {
-  const _TimeAxis({
-    required this.hours,
-    required this.pxPerHour,
-    required this.width,
-  });
+@immutable
+class _TimeSlot {
+  const _TimeSlot(this.start, this.end);
 
-  final List<int> hours;
-  final double pxPerHour;
-  final double width;
+  final String start;
+  final String end;
+
+  int get startMinutes => _minutes(start);
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SizedBox(
-      width: width,
-      child: Stack(
-        children: [
-          for (var i = 0; i < hours.length - 1; i++)
-            Positioned(
-              top: i * pxPerHour - 6,
-              right: 4,
-              child: Text(
-                _formatHour(hours[i]),
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  String _formatHour(int h) {
-    final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-    final period = h < 12 ? 'a' : 'p';
-    return '$hour12$period';
-  }
-}
-
-class _DayColumn extends StatelessWidget {
-  const _DayColumn({
-    required this.width,
-    required this.height,
-    required this.hours,
-    required this.pxPerHour,
-    required this.items,
-    required this.conflictingIds,
-    required this.onEditById,
-    required this.showLeftBorder,
-    required this.showRightBorder,
-    required this.outlineColor,
-  });
-
-  final double width;
-  final double height;
-  final List<int> hours;
-  final double pxPerHour;
-  final List<ScheduleItem> items;
-  final Set<String> conflictingIds;
-  final ValueChanged<String> onEditById;
-  final bool showLeftBorder;
-  final bool showRightBorder;
-  final Color outlineColor;
+  bool operator ==(Object other) =>
+      other is _TimeSlot && start == other.start && end == other.end;
 
   @override
-  Widget build(BuildContext context) {
-    final minHour = hours.first;
-    final timed = items.where((i) => !i.isFullDay).toList();
+  int get hashCode => Object.hash(start, end);
 
-    return SizedBox(
-      width: width,
-      height: height,
-      child: Stack(
-        children: [
-          // Column borders + hour grid lines.
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                border: Border(
-                  left: showLeftBorder
-                      ? BorderSide(color: outlineColor, width: 0.5)
-                      : BorderSide.none,
-                  right: showRightBorder
-                      ? BorderSide(color: outlineColor, width: 0.5)
-                      : BorderSide.none,
-                ),
-              ),
-            ),
-          ),
-          for (var i = 1; i < hours.length; i++)
-            Positioned(
-              top: i * pxPerHour,
-              left: 0,
-              right: 0,
-              child: Container(
-                height: 0.5,
-                color: outlineColor,
-              ),
-            ),
-          // Activity blocks.
-          for (final item in timed)
-            Positioned(
-              top: (item.startMinutes - minHour * 60) / 60 * pxPerHour,
-              left: 2,
-              right: 2,
-              height: ((item.endMinutes - item.startMinutes) / 60 * pxPerHour)
-                  .clamp(32.0, double.infinity),
-              child: _Block(
-                item: item,
-                inConflict: conflictingIds.contains(item.id),
-                onTap: () => onEditById(item.templateId ?? item.id),
-              ),
-            ),
-        ],
-      ),
-    );
+  static int _minutes(String hhmm) {
+    final parts = hhmm.split(':');
+    return int.parse(parts[0]) * 60 + int.parse(parts[1]);
   }
 }
 
-class _Block extends StatelessWidget {
+class _Block {
   const _Block({
-    required this.item,
+    required this.slotIdx,
+    required this.startDay,
+    required this.endDay,
+    required this.items,
     required this.inConflict,
-    required this.onTap,
   });
 
-  final ScheduleItem item;
+  final int slotIdx;
+  final int startDay; // 0..6
+  final int endDay; // inclusive
+  final List<ScheduleItem> items;
   final bool inConflict;
+
+  bool get isMerged => endDay > startDay;
+  ScheduleItem get first => items.first;
+
+  String get dayRangeLabel {
+    if (!isMerged) return _dayShortLabels[startDay];
+    return '${_dayShortLabels[startDay]} – ${_dayShortLabels[endDay]}';
+  }
+}
+
+class _GridBlockCard extends ConsumerWidget {
+  const _GridBlockCard({required this.block, required this.onTap});
+
+  final _Block block;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final bg = inConflict
-        ? theme.colorScheme.errorContainer
-        : theme.colorScheme.primaryContainer;
-    final fg = inConflict
-        ? theme.colorScheme.onErrorContainer
-        : theme.colorScheme.onPrimaryContainer;
-    final borderColor =
-        inConflict ? theme.colorScheme.error : theme.colorScheme.primary;
+    final first = block.first;
 
-    return InkWell(
+    final subtitleParts = <String>[];
+    if (first.podIds.isNotEmpty) {
+      final names = <String>[];
+      for (final podId in first.podIds) {
+        final pod = ref.watch(podProvider(podId)).asData?.value;
+        if (pod != null) names.add(pod.name);
+      }
+      if (names.isNotEmpty) subtitleParts.add(names.join(' + '));
+    }
+    if (first.specialistId != null) {
+      final specialist =
+          ref.watch(specialistProvider(first.specialistId!)).asData?.value;
+      if (specialist != null) subtitleParts.add(specialist.name);
+    }
+    if (first.location != null && first.location!.isNotEmpty) {
+      subtitleParts.add(first.location!);
+    }
+
+    final titleStyle = theme.textTheme.titleMedium;
+    final subStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+
+    return AppCard(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(6),
-          border: Border(
-            left: BorderSide(color: borderColor, width: 3),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  first.title,
+                  style: titleStyle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (block.inConflict)
+                Icon(
+                  Icons.warning_amber_rounded,
+                  size: 16,
+                  color: theme.colorScheme.error,
+                ),
+            ],
           ),
-        ),
-        child: ClipRect(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final showTime = constraints.maxHeight >= 40;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    item.title,
-                    maxLines: showTime ? 2 : 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: fg,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (showTime)
-                    Text(
-                      _formatTime(item.startTime),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: fg.withValues(alpha: 0.75),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-        ),
+          if (subtitleParts.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                subtitleParts.join(' · '),
+                style: subStyle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          if (block.isMerged)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                block.dayRangeLabel,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
+}
 
-  String _formatTime(String hhmm) {
-    final parts = hhmm.split(':');
-    final h = int.parse(parts[0]);
-    final m = parts[1];
-    final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-    final period = h < 12 ? 'a' : 'p';
-    return m == '00' ? '$hour12$period' : '$hour12:$m$period';
-  }
+String _formatTime(String hhmm) {
+  final parts = hhmm.split(':');
+  final h = int.parse(parts[0]);
+  final m = parts[1];
+  final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+  final period = h < 12 ? 'a' : 'p';
+  return m == '00' ? '$hour12$period' : '$hour12:$m$period';
 }
