@@ -193,6 +193,7 @@ class _ScheduleEditorScreenState
         context: context,
         isScrollControlled: true,
         showDragHandle: true,
+        isDismissible: false,
         builder: (_) => EditTemplateSheet(template: template),
       );
       return;

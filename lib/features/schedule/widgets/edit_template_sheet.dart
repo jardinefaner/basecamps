@@ -6,6 +6,7 @@ import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -235,164 +236,145 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final insets = MediaQuery.of(context).viewInsets.bottom;
     final theme = Theme.of(context);
     final podsAsync = ref.watch(podsProvider);
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: AppSpacing.xl,
-        right: AppSpacing.xl,
-        top: AppSpacing.md,
-        bottom: AppSpacing.xl + insets,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _isEdit ? 'Edit activity' : 'New activity',
-                    style: theme.textTheme.titleLarge,
-                  ),
-                ),
-                if (_isEdit)
-                  IconButton(
-                    onPressed: _delete,
-                    icon: Icon(
-                      Icons.delete_outline,
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            if (!_isEdit) ...[
-              OutlinedButton.icon(
-                onPressed: _openLibrary,
-                icon: const Icon(Icons.bookmark_outline, size: 18),
-                label: const Text('From library...'),
+    return StickyActionSheet(
+      title: _isEdit ? 'Edit activity' : 'New activity',
+      titleTrailing: _isEdit
+          ? IconButton(
+              onPressed: _delete,
+              icon: Icon(
+                Icons.delete_outline,
+                color: theme.colorScheme.error,
               ),
-              const SizedBox(height: AppSpacing.md),
-            ],
-            AppTextField(
-              controller: _titleController,
-              label: 'Activity',
-              hint: 'e.g. Art · Swim · Field trip',
-              onChanged: (_) => setState(() {}),
+            )
+          : null,
+      actionBar: AppButton.primary(
+        onPressed: _isValid ? _submit : null,
+        label: _isEdit
+            ? 'Save'
+            : _selectedDays.length > 1
+                ? 'Add to ${_selectedDays.length} days'
+                : 'Add activity',
+        isLoading: _submitting,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (!_isEdit) ...[
+            OutlinedButton.icon(
+              onPressed: _openLibrary,
+              icon: const Icon(Icons.bookmark_outline, size: 18),
+              label: const Text('From library...'),
             ),
-            const SizedBox(height: AppSpacing.lg),
-            _DayPicker(
-              selected: _selectedDays,
-              singleSelect: _isEdit,
-              onToggle: (day) => setState(() {
-                if (_isEdit) {
-                  _selectedDays
-                    ..clear()
-                    ..add(day);
-                } else if (!_selectedDays.add(day)) {
-                  if (_selectedDays.length > 1) _selectedDays.remove(day);
-                }
-              }),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Row(
-              children: [
-                Expanded(
-                  child: _TimeField(
-                    label: 'Start',
-                    time: _start,
-                    onPressed: _pickStart,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: _TimeField(
-                    label: 'End',
-                    time: _end,
-                    onPressed: _pickEnd,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Wrap(
-              spacing: AppSpacing.sm,
-              children: [
-                _DurationChip(
-                  label: '30m',
-                  onTap: () =>
-                      _applyDurationPreset(const Duration(minutes: 30)),
-                ),
-                _DurationChip(
-                  label: '1h',
-                  onTap: () => _applyDurationPreset(const Duration(hours: 1)),
-                ),
-                _DurationChip(
-                  label: '90m',
-                  onTap: () =>
-                      _applyDurationPreset(const Duration(minutes: 90)),
-                ),
-                _DurationChip(
-                  label: '2h',
-                  onTap: () => _applyDurationPreset(const Duration(hours: 2)),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text('Pods', style: theme.textTheme.titleSmall),
-            const SizedBox(height: AppSpacing.sm),
-            podsAsync.when(
-              loading: () => const LinearProgressIndicator(),
-              error: (err, _) => Text('Error: $err'),
-              data: (pods) {
-                if (!_podsLoaded) return const LinearProgressIndicator();
-                return _PodSelector(
-                  pods: pods,
-                  selectedPodIds: _selectedPodIds,
-                  onAllToggle: () => setState(_selectedPodIds.clear),
-                  onPodToggle: (id) => setState(() {
-                    if (!_selectedPodIds.add(id)) {
-                      _selectedPodIds.remove(id);
-                    }
-                  }),
-                );
-              },
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            _SpecialistPicker(
-              selectedId: _specialistId,
-              onChanged: (id) => setState(() => _specialistId = id),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            AppTextField(
-              controller: _locationController,
-              label: 'Location (optional)',
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            _DateRangeSection(
-              rangeStart: _rangeStart,
-              rangeEnd: _rangeEnd,
-              onPickStart: _pickRangeStart,
-              onPickEnd: _pickRangeEnd,
-              onClearStart: () => setState(() => _rangeStart = null),
-              onClearEnd: () => setState(() => _rangeEnd = null),
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            AppButton.primary(
-              onPressed: _isValid ? _submit : null,
-              label: _isEdit
-                  ? 'Save'
-                  : _selectedDays.length > 1
-                      ? 'Add to ${_selectedDays.length} days'
-                      : 'Add activity',
-              isLoading: _submitting,
-            ),
+            const SizedBox(height: AppSpacing.md),
           ],
-        ),
+          AppTextField(
+            controller: _titleController,
+            label: 'Activity',
+            hint: 'e.g. Art · Swim · Field trip',
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          _DayPicker(
+            selected: _selectedDays,
+            singleSelect: _isEdit,
+            onToggle: (day) => setState(() {
+              if (_isEdit) {
+                _selectedDays
+                  ..clear()
+                  ..add(day);
+              } else if (!_selectedDays.add(day)) {
+                if (_selectedDays.length > 1) _selectedDays.remove(day);
+              }
+            }),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            children: [
+              Expanded(
+                child: _TimeField(
+                  label: 'Start',
+                  time: _start,
+                  onPressed: _pickStart,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: _TimeField(
+                  label: 'End',
+                  time: _end,
+                  onPressed: _pickEnd,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: AppSpacing.sm,
+            children: [
+              _DurationChip(
+                label: '30m',
+                onTap: () =>
+                    _applyDurationPreset(const Duration(minutes: 30)),
+              ),
+              _DurationChip(
+                label: '1h',
+                onTap: () => _applyDurationPreset(const Duration(hours: 1)),
+              ),
+              _DurationChip(
+                label: '90m',
+                onTap: () =>
+                    _applyDurationPreset(const Duration(minutes: 90)),
+              ),
+              _DurationChip(
+                label: '2h',
+                onTap: () => _applyDurationPreset(const Duration(hours: 2)),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text('Pods', style: theme.textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.sm),
+          podsAsync.when(
+            loading: () => const LinearProgressIndicator(),
+            error: (err, _) => Text('Error: $err'),
+            data: (pods) {
+              if (!_podsLoaded) return const LinearProgressIndicator();
+              return _PodSelector(
+                pods: pods,
+                selectedPodIds: _selectedPodIds,
+                onAllToggle: () => setState(_selectedPodIds.clear),
+                onPodToggle: (id) => setState(() {
+                  if (!_selectedPodIds.add(id)) {
+                    _selectedPodIds.remove(id);
+                  }
+                }),
+              );
+            },
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          _SpecialistPicker(
+            selectedId: _specialistId,
+            onChanged: (id) => setState(() => _specialistId = id),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          AppTextField(
+            controller: _locationController,
+            label: 'Location (optional)',
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          _DateRangeSection(
+            rangeStart: _rangeStart,
+            rangeEnd: _rangeEnd,
+            onPickStart: _pickRangeStart,
+            onPickEnd: _pickRangeEnd,
+            onClearStart: () => setState(() => _rangeStart = null),
+            onClearEnd: () => setState(() => _rangeEnd = null),
+          ),
+        ],
       ),
     );
   }

@@ -6,6 +6,7 @@ import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -102,91 +103,78 @@ class _AddFullDayEventSheetState extends ConsumerState<AddFullDayEventSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final insets = MediaQuery.of(context).viewInsets.bottom;
     final theme = Theme.of(context);
     final podsAsync = ref.watch(podsProvider);
     final dateLabel = DateFormat.yMMMMEEEEd().format(_date);
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: AppSpacing.xl,
-        right: AppSpacing.xl,
-        top: AppSpacing.md,
-        bottom: AppSpacing.xl + insets,
+    return StickyActionSheet(
+      title: 'Full-day event',
+      subtitle: const Text(
+        'Field trip, closure, or special day for a specific date.',
       ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Full-day event', style: theme.textTheme.titleLarge),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              'Field trip, closure, or special day for a specific date.',
-              style: theme.textTheme.bodySmall,
+      actionBar: AppButton.primary(
+        onPressed: _isValid ? _submit : null,
+        label: 'Add event',
+        isLoading: _submitting,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          OutlinedButton.icon(
+            onPressed: _openLibrary,
+            icon: const Icon(Icons.bookmark_outline, size: 18),
+            label: const Text('From library...'),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _titleController,
+            label: 'What is it?',
+            hint: 'e.g. Aquarium trip · Staff training · 4th of July',
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text('Date', style: theme.textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.sm),
+          OutlinedButton.icon(
+            onPressed: _pickDate,
+            icon: const Icon(Icons.calendar_today_outlined),
+            label: Text(dateLabel),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text('Pods', style: theme.textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.sm),
+          podsAsync.when(
+            loading: () => const LinearProgressIndicator(),
+            error: (err, _) => Text('Error: $err'),
+            data: (pods) => _PodSelector(
+              pods: pods,
+              selectedPodIds: _selectedPodIds,
+              onAllToggle: () => setState(_selectedPodIds.clear),
+              onPodToggle: (id) => setState(() {
+                if (!_selectedPodIds.add(id)) {
+                  _selectedPodIds.remove(id);
+                }
+              }),
             ),
-            const SizedBox(height: AppSpacing.xl),
-            OutlinedButton.icon(
-              onPressed: _openLibrary,
-              icon: const Icon(Icons.bookmark_outline, size: 18),
-              label: const Text('From library...'),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            AppTextField(
-              controller: _titleController,
-              label: 'What is it?',
-              hint: 'e.g. Aquarium trip · Staff training · 4th of July',
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text('Date', style: theme.textTheme.titleSmall),
-            const SizedBox(height: AppSpacing.sm),
-            OutlinedButton.icon(
-              onPressed: _pickDate,
-              icon: const Icon(Icons.calendar_today_outlined),
-              label: Text(dateLabel),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text('Pods', style: theme.textTheme.titleSmall),
-            const SizedBox(height: AppSpacing.sm),
-            podsAsync.when(
-              loading: () => const LinearProgressIndicator(),
-              error: (err, _) => Text('Error: $err'),
-              data: (pods) => _PodSelector(
-                pods: pods,
-                selectedPodIds: _selectedPodIds,
-                onAllToggle: () => setState(_selectedPodIds.clear),
-                onPodToggle: (id) => setState(() {
-                  if (!_selectedPodIds.add(id)) {
-                    _selectedPodIds.remove(id);
-                  }
-                }),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            _SpecialistPicker(
-              selectedId: _specialistId,
-              onChanged: (id) => setState(() => _specialistId = id),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            AppTextField(
-              controller: _locationController,
-              label: 'Location (optional)',
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            AppTextField(
-              controller: _notesController,
-              label: 'Notes (optional)',
-              maxLines: 3,
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            AppButton.primary(
-              onPressed: _isValid ? _submit : null,
-              label: 'Add event',
-              isLoading: _submitting,
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          _SpecialistPicker(
+            selectedId: _specialistId,
+            onChanged: (id) => setState(() => _specialistId = id),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          AppTextField(
+            controller: _locationController,
+            label: 'Location (optional)',
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          AppTextField(
+            controller: _notesController,
+            label: 'Notes (optional)',
+            maxLines: 3,
+          ),
+        ],
       ),
     );
   }

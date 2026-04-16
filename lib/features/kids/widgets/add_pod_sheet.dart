@@ -2,6 +2,7 @@ import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -33,33 +34,24 @@ class _AddPodSheetState extends ConsumerState<AddPodSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final insets = MediaQuery.of(context).viewInsets.bottom;
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: EdgeInsets.only(
-        left: AppSpacing.xl,
-        right: AppSpacing.xl,
-        top: AppSpacing.md,
-        bottom: AppSpacing.xl + insets,
+    return StickyActionSheet(
+      title: 'New pod',
+      actionBar: AppButton.primary(
+        onPressed: _submit,
+        label: 'Create pod',
+        isLoading: _submitting,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('New pod', style: theme.textTheme.titleLarge),
-          const SizedBox(height: AppSpacing.xl),
           AppTextField(
             controller: _nameController,
             label: 'Pod name',
             hint: 'e.g. Dolphins',
+            onChanged: (_) => setState(() {}),
           ),
-          const SizedBox(height: AppSpacing.xl),
-          AppButton.primary(
-            onPressed: _submit,
-            label: 'Create pod',
-            isLoading: _submitting,
-          ),
+          const SizedBox(height: AppSpacing.sm),
         ],
       ),
     );

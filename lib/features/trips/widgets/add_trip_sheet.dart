@@ -4,6 +4,7 @@ import 'package:basecamp/features/trips/trips_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -90,116 +91,103 @@ class _AddTripSheetState extends ConsumerState<AddTripSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final insets = MediaQuery.of(context).viewInsets.bottom;
     final theme = Theme.of(context);
     final podsAsync = ref.watch(podsProvider);
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: AppSpacing.xl,
-        right: AppSpacing.xl,
-        top: AppSpacing.md,
-        bottom: AppSpacing.xl + insets,
+    return StickyActionSheet(
+      title: 'New trip',
+      subtitle: const Text(
+        'The trip will be added to the calendar for the selected pods.',
       ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('New trip', style: theme.textTheme.titleLarge),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              'The trip will be added to the calendar for the selected pods.',
-              style: theme.textTheme.bodySmall,
+      actionBar: AppButton.primary(
+        onPressed: _isValid ? _submit : null,
+        label: 'Create trip',
+        isLoading: _submitting,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppTextField(
+            controller: _nameController,
+            label: 'Trip name',
+            hint: 'e.g. Aquarium',
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text('Date', style: theme.textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.sm),
+          OutlinedButton.icon(
+            onPressed: _pickDate,
+            icon: const Icon(Icons.calendar_today_outlined),
+            label: Text(
+              _date == null
+                  ? 'Pick a date'
+                  : DateFormat.yMMMMEEEEd().format(_date!),
             ),
-            const SizedBox(height: AppSpacing.xl),
-            AppTextField(
-              controller: _nameController,
-              label: 'Trip name',
-              hint: 'e.g. Aquarium',
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text('Date', style: theme.textTheme.titleSmall),
-            const SizedBox(height: AppSpacing.sm),
-            OutlinedButton.icon(
-              onPressed: _pickDate,
-              icon: const Icon(Icons.calendar_today_outlined),
-              label: Text(
-                _date == null
-                    ? 'Pick a date'
-                    : DateFormat.yMMMMEEEEd().format(_date!),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Row(
-              children: [
-                Expanded(
-                  child: _TimeField(
-                    label: 'Departure (optional)',
-                    time: _departure,
-                    onPick: _pickDeparture,
-                    onClear: _departure == null
-                        ? null
-                        : () => setState(() => _departure = null),
-                  ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            children: [
+              Expanded(
+                child: _TimeField(
+                  label: 'Departure (optional)',
+                  time: _departure,
+                  onPick: _pickDeparture,
+                  onClear: _departure == null
+                      ? null
+                      : () => setState(() => _departure = null),
                 ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: _TimeField(
-                    label: 'Return (optional)',
-                    time: _return,
-                    onPick: _pickReturn,
-                    onClear: _return == null
-                        ? null
-                        : () => setState(() => _return = null),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              _departure == null && _return == null
-                  ? 'No times → shows as an all-day event on the calendar.'
-                  : 'Shows as a timed event on the calendar.',
-              style: theme.textTheme.bodySmall,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            AppTextField(
-              controller: _locationController,
-              label: 'Location (optional)',
-              hint: 'e.g. Monterey Bay Aquarium',
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text('Pods going', style: theme.textTheme.titleSmall),
-            const SizedBox(height: AppSpacing.sm),
-            podsAsync.when(
-              loading: () => const LinearProgressIndicator(),
-              error: (err, _) => Text('Error: $err'),
-              data: (pods) => _PodSelector(
-                pods: pods,
-                selectedPodIds: _selectedPodIds,
-                onAllToggle: () => setState(_selectedPodIds.clear),
-                onPodToggle: (id) => setState(() {
-                  if (!_selectedPodIds.add(id)) _selectedPodIds.remove(id);
-                }),
               ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: _TimeField(
+                  label: 'Return (optional)',
+                  time: _return,
+                  onPick: _pickReturn,
+                  onClear: _return == null
+                      ? null
+                      : () => setState(() => _return = null),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            _departure == null && _return == null
+                ? 'No times → shows as an all-day event on the calendar.'
+                : 'Shows as a timed event on the calendar.',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          AppTextField(
+            controller: _locationController,
+            label: 'Location (optional)',
+            hint: 'e.g. Monterey Bay Aquarium',
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text('Pods going', style: theme.textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.sm),
+          podsAsync.when(
+            loading: () => const LinearProgressIndicator(),
+            error: (err, _) => Text('Error: $err'),
+            data: (pods) => _PodSelector(
+              pods: pods,
+              selectedPodIds: _selectedPodIds,
+              onAllToggle: () => setState(_selectedPodIds.clear),
+              onPodToggle: (id) => setState(() {
+                if (!_selectedPodIds.add(id)) _selectedPodIds.remove(id);
+              }),
             ),
-            const SizedBox(height: AppSpacing.lg),
-            AppTextField(
-              controller: _notesController,
-              label: 'Notes (optional)',
-              hint: 'Bring a backpack, water bottle, sunscreen…',
-              maxLines: 3,
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            AppButton.primary(
-              onPressed: _isValid ? _submit : null,
-              label: 'Create trip',
-              isLoading: _submitting,
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          AppTextField(
+            controller: _notesController,
+            label: 'Notes (optional)',
+            hint: 'Bring a backpack, water bottle, sunscreen…',
+            maxLines: 3,
+          ),
+        ],
       ),
     );
   }

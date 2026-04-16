@@ -6,6 +6,7 @@ import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -98,160 +99,139 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final insets = MediaQuery.of(context).viewInsets.bottom;
     final theme = Theme.of(context);
     final kidsAsync = ref.watch(kidsProvider);
     final attachmentsAsync =
         ref.watch(observationAttachmentsProvider(widget.observation.id));
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: AppSpacing.xl,
-        right: AppSpacing.xl,
-        top: AppSpacing.md,
-        bottom: AppSpacing.xl + insets,
+    return StickyActionSheet(
+      title: 'Edit observation',
+      titleTrailing: IconButton(
+        icon: Icon(
+          Icons.delete_outline,
+          color: theme.colorScheme.error,
+        ),
+        tooltip: 'Delete',
+        onPressed: _delete,
       ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Edit observation',
-                    style: theme.textTheme.titleLarge,
+      actionBar: AppButton.primary(
+        onPressed: _submitting ? null : _save,
+        label: 'Save changes',
+        isLoading: _submitting,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppTextField(
+            controller: _noteController,
+            label: 'Note',
+            maxLines: 6,
+          ),
+          attachmentsAsync.maybeWhen(
+            data: (atts) => atts.isEmpty
+                ? const SizedBox.shrink()
+                : Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.md),
+                    child: _AttachmentStrip(attachments: atts),
                   ),
+            orElse: () => const SizedBox.shrink(),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text('Domain', style: theme.textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              for (final d in ObservationDomain.values)
+                ChoiceChip(
+                  label: Text(d.label),
+                  selected: _domain == d,
+                  onSelected: (_) => setState(() => _domain = d),
                 ),
-                IconButton(
-                  icon: Icon(
-                    Icons.delete_outline,
-                    color: theme.colorScheme.error,
-                  ),
-                  tooltip: 'Delete',
-                  onPressed: _delete,
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            AppTextField(
-              controller: _noteController,
-              label: 'Note',
-              maxLines: 6,
-            ),
-            attachmentsAsync.maybeWhen(
-              data: (atts) => atts.isEmpty
-                  ? const SizedBox.shrink()
-                  : Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.md),
-                      child: _AttachmentStrip(attachments: atts),
-                    ),
-              orElse: () => const SizedBox.shrink(),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text('Domain', style: theme.textTheme.titleSmall),
-            const SizedBox(height: AppSpacing.sm),
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                for (final d in ObservationDomain.values)
-                  ChoiceChip(
-                    label: Text(d.label),
-                    selected: _domain == d,
-                    onSelected: (_) => setState(() => _domain = d),
-                  ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text('Sentiment', style: theme.textTheme.titleSmall),
-            const SizedBox(height: AppSpacing.sm),
-            SegmentedButton<ObservationSentiment>(
-              segments: const [
-                ButtonSegment(
-                  value: ObservationSentiment.positive,
-                  label: Text('Positive'),
-                  icon: Icon(Icons.sentiment_satisfied_outlined),
-                ),
-                ButtonSegment(
-                  value: ObservationSentiment.neutral,
-                  label: Text('Neutral'),
-                  icon: Icon(Icons.sentiment_neutral_outlined),
-                ),
-                ButtonSegment(
-                  value: ObservationSentiment.concern,
-                  label: Text('Concern'),
-                  icon: Icon(Icons.flag_outlined),
-                ),
-              ],
-              selected: {_sentiment},
-              onSelectionChanged: (s) =>
-                  setState(() => _sentiment = s.first),
-              showSelectedIcon: false,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text('Kids tagged', style: theme.textTheme.titleSmall),
-            const SizedBox(height: AppSpacing.sm),
-            kidsAsync.when(
-              loading: () => const LinearProgressIndicator(),
-              error: (err, _) => Text('Error: $err'),
-              data: (kids) {
-                if (!_kidsLoaded) return const LinearProgressIndicator();
-                if (kids.isEmpty) {
-                  return Text(
-                    'No kids yet — add some in the Kids tab.',
-                    style: theme.textTheme.bodySmall,
-                  );
-                }
-                return Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.sm,
-                  children: [
-                    for (final kid in kids)
-                      FilterChip(
-                        label: Text(_kidLabel(kid)),
-                        selected: _selectedKidIds.contains(kid.id),
-                        onSelected: (_) => setState(() {
-                          if (!_selectedKidIds.add(kid.id)) {
-                            _selectedKidIds.remove(kid.id);
-                          }
-                        }),
-                      ),
-                  ],
-                );
-              },
-            ),
-            if (widget.observation.activityLabel != null &&
-                widget.observation.activityLabel!.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.lg),
-              Row(
-                children: [
-                  Icon(
-                    Icons.link,
-                    size: 14,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  Expanded(
-                    child: Text(
-                      'Linked to: ${widget.observation.activityLabel}',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ],
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text('Sentiment', style: theme.textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.sm),
+          SegmentedButton<ObservationSentiment>(
+            segments: const [
+              ButtonSegment(
+                value: ObservationSentiment.positive,
+                label: Text('Positive'),
+                icon: Icon(Icons.sentiment_satisfied_outlined),
+              ),
+              ButtonSegment(
+                value: ObservationSentiment.neutral,
+                label: Text('Neutral'),
+                icon: Icon(Icons.sentiment_neutral_outlined),
+              ),
+              ButtonSegment(
+                value: ObservationSentiment.concern,
+                label: Text('Concern'),
+                icon: Icon(Icons.flag_outlined),
               ),
             ],
-            const SizedBox(height: AppSpacing.xl),
-            AppButton.primary(
-              onPressed: _submitting ? null : _save,
-              label: 'Save changes',
-              isLoading: _submitting,
+            selected: {_sentiment},
+            onSelectionChanged: (s) => setState(() => _sentiment = s.first),
+            showSelectedIcon: false,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text('Kids tagged', style: theme.textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.sm),
+          kidsAsync.when(
+            loading: () => const LinearProgressIndicator(),
+            error: (err, _) => Text('Error: $err'),
+            data: (kids) {
+              if (!_kidsLoaded) return const LinearProgressIndicator();
+              if (kids.isEmpty) {
+                return Text(
+                  'No kids yet — add some in the Kids tab.',
+                  style: theme.textTheme.bodySmall,
+                );
+              }
+              return Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  for (final kid in kids)
+                    FilterChip(
+                      label: Text(_kidLabel(kid)),
+                      selected: _selectedKidIds.contains(kid.id),
+                      onSelected: (_) => setState(() {
+                        if (!_selectedKidIds.add(kid.id)) {
+                          _selectedKidIds.remove(kid.id);
+                        }
+                      }),
+                    ),
+                ],
+              );
+            },
+          ),
+          if (widget.observation.activityLabel != null &&
+              widget.observation.activityLabel!.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.lg),
+            Row(
+              children: [
+                Icon(
+                  Icons.link,
+                  size: 14,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: Text(
+                    'Linked to: ${widget.observation.activityLabel}',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
-        ),
+        ],
       ),
     );
   }

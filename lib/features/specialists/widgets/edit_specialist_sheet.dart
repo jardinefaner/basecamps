@@ -3,6 +3,7 @@ import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -72,39 +73,28 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final insets = MediaQuery.of(context).viewInsets.bottom;
     final theme = Theme.of(context);
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: AppSpacing.xl,
-        right: AppSpacing.xl,
-        top: AppSpacing.md,
-        bottom: AppSpacing.xl + insets,
+    return StickyActionSheet(
+      title: _isEdit ? 'Edit specialist' : 'New specialist',
+      titleTrailing: _isEdit
+          ? IconButton(
+              onPressed: _delete,
+              icon: Icon(
+                Icons.delete_outline,
+                color: theme.colorScheme.error,
+              ),
+            )
+          : null,
+      actionBar: AppButton.primary(
+        onPressed: _isValid ? _submit : null,
+        label: _isEdit ? 'Save' : 'Add specialist',
+        isLoading: _submitting,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  _isEdit ? 'Edit specialist' : 'New specialist',
-                  style: theme.textTheme.titleLarge,
-                ),
-              ),
-              if (_isEdit)
-                IconButton(
-                  onPressed: _delete,
-                  icon: Icon(
-                    Icons.delete_outline,
-                    color: theme.colorScheme.error,
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xl),
           AppTextField(
             controller: _nameController,
             label: 'Name',
@@ -122,12 +112,6 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
             controller: _notesController,
             label: 'Notes (optional)',
             maxLines: 3,
-          ),
-          const SizedBox(height: AppSpacing.xl),
-          AppButton.primary(
-            onPressed: _isValid ? _submit : null,
-            label: _isEdit ? 'Save' : 'Add specialist',
-            isLoading: _submitting,
           ),
         ],
       ),

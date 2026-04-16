@@ -3,6 +3,7 @@ import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -46,22 +47,18 @@ class _AddKidSheetState extends ConsumerState<AddKidSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final insets = MediaQuery.of(context).viewInsets.bottom;
     final theme = Theme.of(context);
-
-    return Padding(
-      padding: EdgeInsets.only(
-        left: AppSpacing.xl,
-        right: AppSpacing.xl,
-        top: AppSpacing.md,
-        bottom: AppSpacing.xl + insets,
+    return StickyActionSheet(
+      title: 'New kid',
+      actionBar: AppButton.primary(
+        onPressed: _submit,
+        label: 'Add kid',
+        isLoading: _submitting,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('New kid', style: theme.textTheme.titleLarge),
-          const SizedBox(height: AppSpacing.xl),
           AppTextField(
             controller: _firstNameController,
             label: 'First name',
@@ -82,12 +79,6 @@ class _AddKidSheetState extends ConsumerState<AddKidSheet> {
                 DropdownMenuItem(value: pod.id, child: Text(pod.name)),
             ],
             onChanged: (value) => setState(() => _selectedPodId = value),
-          ),
-          const SizedBox(height: AppSpacing.xl),
-          AppButton.primary(
-            onPressed: _submit,
-            label: 'Add kid',
-            isLoading: _submitting,
           ),
         ],
       ),

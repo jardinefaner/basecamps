@@ -1,6 +1,7 @@
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
+import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -52,31 +53,25 @@ class _CopyDaySheetState extends ConsumerState<CopyDaySheet> {
 
   @override
   Widget build(BuildContext context) {
-    final insets = MediaQuery.of(context).viewInsets.bottom;
     final theme = Theme.of(context);
     final sourceLabel = _dayLabels[widget.sourceDay - 1];
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: AppSpacing.xl,
-        right: AppSpacing.xl,
-        top: AppSpacing.md,
-        bottom: AppSpacing.xl + insets,
+    return StickyActionSheet(
+      title: "Copy $sourceLabel's schedule",
+      subtitle: Text(
+        '${widget.sourceCount} ${widget.sourceCount == 1 ? "activity" : "activities"} will be duplicated to each selected day.',
+      ),
+      actionBar: AppButton.primary(
+        onPressed: _isValid ? _submit : null,
+        label: _targetDays.isEmpty
+            ? 'Copy'
+            : 'Copy to ${_targetDays.length} ${_targetDays.length == 1 ? "day" : "days"}',
+        isLoading: _submitting,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            "Copy $sourceLabel's schedule",
-            style: theme.textTheme.titleLarge,
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            '${widget.sourceCount} ${widget.sourceCount == 1 ? "activity" : "activities"} will be duplicated to each selected day.',
-            style: theme.textTheme.bodySmall,
-          ),
-          const SizedBox(height: AppSpacing.xl),
           Text('Copy to', style: theme.textTheme.titleSmall),
           const SizedBox(height: AppSpacing.sm),
           Row(
@@ -117,14 +112,6 @@ class _CopyDaySheetState extends ConsumerState<CopyDaySheet> {
                 }),
               ),
             ],
-          ),
-          const SizedBox(height: AppSpacing.xl),
-          AppButton.primary(
-            onPressed: _isValid ? _submit : null,
-            label: _targetDays.isEmpty
-                ? 'Copy'
-                : 'Copy to ${_targetDays.length} ${_targetDays.length == 1 ? "day" : "days"}',
-            isLoading: _submitting,
           ),
         ],
       ),
