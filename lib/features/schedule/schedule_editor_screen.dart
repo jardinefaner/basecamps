@@ -3,6 +3,7 @@ import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/add_activity_picker.dart';
 import 'package:basecamp/features/schedule/widgets/copy_day_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/edit_template_sheet.dart';
+import 'package:basecamp/features/schedule/widgets/week_grid_view.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
@@ -20,15 +21,42 @@ const _dayLabels = [
 
 const _dayShortLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-class ScheduleEditorScreen extends ConsumerWidget {
+enum _ViewMode { list, grid }
+
+class ScheduleEditorScreen extends ConsumerStatefulWidget {
   const ScheduleEditorScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ScheduleEditorScreen> createState() =>
+      _ScheduleEditorScreenState();
+}
+
+class _ScheduleEditorScreenState
+    extends ConsumerState<ScheduleEditorScreen> {
+  _ViewMode _mode = _ViewMode.list;
+
+  @override
+  Widget build(BuildContext context) {
     final itemsAsync = ref.watch(templateItemsByDayProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Weekly schedule')),
+      appBar: AppBar(
+        title: const Text('Weekly schedule'),
+        actions: [
+          IconButton(
+            tooltip: _mode == _ViewMode.list ? 'Grid view' : 'List view',
+            icon: Icon(
+              _mode == _ViewMode.list
+                  ? Icons.grid_view_outlined
+                  : Icons.view_agenda_outlined,
+            ),
+            onPressed: () => setState(() {
+              _mode = _mode == _ViewMode.list ? _ViewMode.grid : _ViewMode.list;
+            }),
+          ),
+          const SizedBox(width: AppSpacing.xs),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openPicker(context),
         icon: const Icon(Icons.add),
@@ -38,6 +66,26 @@ class ScheduleEditorScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => Center(child: Text('Error: $err')),
         data: (byDay) {
+          final conflicts = <int, Set<String>>{
+            for (var d = 1; d <= 7; d++)
+              d: detectConflictingIds(byDay[d] ?? const <ScheduleItem>[]),
+          };
+          if (_mode == _ViewMode.grid) {
+            return Padding(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.md,
+                right: AppSpacing.md,
+                top: AppSpacing.sm,
+                bottom: AppSpacing.xxxl * 2,
+              ),
+              child: WeekGridView(
+                itemsByDay: byDay,
+                conflictsByDay: conflicts,
+                onEditById: (id) => _editById(context, ref, id),
+              ),
+            );
+          }
+
           return ListView(
             padding: const EdgeInsets.only(
               left: AppSpacing.lg,
@@ -46,23 +94,20 @@ class ScheduleEditorScreen extends ConsumerWidget {
               bottom: AppSpacing.xxxl * 2,
             ),
             children: [
-              for (var day = 1; day <= 7; day++) ...[
-                Builder(
-                  builder: (context) {
-                    final items = byDay[day] ?? const <ScheduleItem>[];
-                    final conflictSet = detectConflictingIds(items);
-                    return _DaySection(
-                      day: day,
-                      items: items,
-                      conflictingIds: conflictSet,
-                      onAdd: () =>
-                          _openRecurring(context, initialDays: {day}),
-                      onEditById: (id) => _editById(context, ref, id),
-                      onCopy: () => _openCopy(context, ref, day, items.length),
-                    );
-                  },
+              for (var day = 1; day <= 7; day++)
+                _DaySection(
+                  day: day,
+                  items: byDay[day] ?? const <ScheduleItem>[],
+                  conflictingIds: conflicts[day] ?? const {},
+                  onAdd: () => _openRecurring(context, initialDays: {day}),
+                  onEditById: (id) => _editById(context, ref, id),
+                  onCopy: () => _openCopy(
+                    context,
+                    ref,
+                    day,
+                    (byDay[day] ?? const <ScheduleItem>[]).length,
+                  ),
                 ),
-              ],
             ],
           );
         },
@@ -116,8 +161,9 @@ class ScheduleEditorScreen extends ConsumerWidget {
     if (sourceCount == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content:
-              Text('${_dayLabels[sourceDay - 1]} has no activities to copy.'),
+          content: Text(
+            '${_dayLabels[sourceDay - 1]} has no activities to copy.',
+          ),
         ),
       );
       return;
