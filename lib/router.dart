@@ -1,0 +1,88 @@
+import 'package:basecamp/features/kids/kid_detail_screen.dart';
+import 'package:basecamp/features/kids/kids_screen.dart';
+import 'package:basecamp/features/more/more_screen.dart';
+import 'package:basecamp/features/observations/observations_screen.dart';
+import 'package:basecamp/features/schedule/schedule_editor_screen.dart';
+import 'package:basecamp/features/today/today_screen.dart';
+import 'package:basecamp/features/trips/trip_detail_screen.dart';
+import 'package:basecamp/features/trips/trips_screen.dart';
+import 'package:basecamp/ui/app_scaffold.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+final routerProvider = Provider<GoRouter>((ref) {
+  return GoRouter(
+    initialLocation: '/today',
+    routes: [
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) {
+          return AppScaffold(navigationShell: navigationShell);
+        },
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/today',
+                builder: (_, _) => const TodayScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'schedule',
+                    builder: (_, _) => const ScheduleEditorScreen(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/observations',
+                builder: (_, _) => const ObservationsScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/kids',
+                builder: (_, _) => const KidsScreen(),
+                routes: [
+                  GoRoute(
+                    path: ':id',
+                    builder: (_, state) => KidDetailScreen(
+                      kidId: state.pathParameters['id']!,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/trips',
+                builder: (_, _) => const TripsScreen(),
+                routes: [
+                  GoRoute(
+                    path: ':id',
+                    builder: (_, state) => TripDetailScreen(
+                      tripId: state.pathParameters['id']!,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/more',
+                builder: (_, _) => const MoreScreen(),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+});

@@ -1,0 +1,147 @@
+import 'package:drift/drift.dart';
+
+class Pods extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get colorHex => text().nullable()();
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class Kids extends Table {
+  TextColumn get id => text()();
+  TextColumn get firstName => text()();
+  TextColumn get lastName => text().nullable()();
+  TextColumn get podId =>
+      text().nullable().references(Pods, #id, onDelete: KeyAction.setNull)();
+  DateTimeColumn get birthDate => dateTime().nullable()();
+  TextColumn get pin => text().nullable()();
+  TextColumn get notes => text().nullable()();
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class Trips extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  DateTimeColumn get date => dateTime()();
+  DateTimeColumn get endDate => dateTime().nullable()();
+  TextColumn get location => text().nullable()();
+  TextColumn get notes => text().nullable()();
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class Captures extends Table {
+  TextColumn get id => text()();
+  TextColumn get kind => text()();
+  TextColumn get caption => text().nullable()();
+  TextColumn get imagePath => text().nullable()();
+  TextColumn get tripId =>
+      text().nullable().references(Trips, #id, onDelete: KeyAction.setNull)();
+  TextColumn get authorName => text().nullable()();
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class CaptureKids extends Table {
+  TextColumn get captureId =>
+      text().references(Captures, #id, onDelete: KeyAction.cascade)();
+  TextColumn get kidId =>
+      text().references(Kids, #id, onDelete: KeyAction.cascade)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {captureId, kidId};
+}
+
+class Observations extends Table {
+  TextColumn get id => text()();
+  TextColumn get targetKind => text()();
+  TextColumn get kidId =>
+      text().nullable().references(Kids, #id, onDelete: KeyAction.setNull)();
+  TextColumn get podId =>
+      text().nullable().references(Pods, #id, onDelete: KeyAction.setNull)();
+  TextColumn get activityLabel => text().nullable()();
+  TextColumn get domain => text()();
+  TextColumn get sentiment => text()();
+  TextColumn get note => text()();
+  TextColumn get tripId =>
+      text().nullable().references(Trips, #id, onDelete: KeyAction.setNull)();
+  TextColumn get authorName => text().nullable()();
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Recurring weekly schedule items. `dayOfWeek` uses ISO 1..7 (Mon..Sun).
+/// Times are stored as "HH:mm" strings so they survive timezone shifts.
+class ScheduleTemplates extends Table {
+  TextColumn get id => text()();
+  IntColumn get dayOfWeek => integer()();
+  TextColumn get startTime => text()();
+  TextColumn get endTime => text()();
+  TextColumn get title => text()();
+  TextColumn get podId =>
+      text().nullable().references(Pods, #id, onDelete: KeyAction.setNull)();
+  TextColumn get specialistName => text().nullable()();
+  TextColumn get location => text().nullable()();
+  TextColumn get notes => text().nullable()();
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Per-date schedule entries. `kind` is 'addition' | 'override' | 'cancellation'.
+/// When 'override' or 'cancellation', `overridesTemplateId` points to the template
+/// that this entry modifies for the given `date`.
+class ScheduleEntries extends Table {
+  TextColumn get id => text()();
+  DateTimeColumn get date => dateTime()();
+  TextColumn get startTime => text()();
+  TextColumn get endTime => text()();
+  TextColumn get title => text()();
+  TextColumn get podId =>
+      text().nullable().references(Pods, #id, onDelete: KeyAction.setNull)();
+  TextColumn get specialistName => text().nullable()();
+  TextColumn get location => text().nullable()();
+  TextColumn get notes => text().nullable()();
+  TextColumn get kind => text()();
+  TextColumn get overridesTemplateId => text().nullable().references(
+        ScheduleTemplates,
+        #id,
+        onDelete: KeyAction.setNull,
+      )();
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}

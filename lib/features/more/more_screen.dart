@@ -1,0 +1,74 @@
+import 'package:basecamp/theme/spacing.dart';
+import 'package:flutter/material.dart';
+
+class MoreScreen extends StatelessWidget {
+  const MoreScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text('More')),
+      body: ListView(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        children: [
+          _MoreTile(
+            icon: Icons.assignment_outlined,
+            label: 'Forms & surveys',
+            subtitle: 'Attendance, incidents, parent concerns',
+            onTap: () {},
+          ),
+          _MoreTile(
+            icon: Icons.person_outline,
+            label: 'Profile',
+            subtitle: 'Your account',
+            onTap: () {},
+          ),
+          _MoreTile(
+            icon: Icons.settings_outlined,
+            label: 'Settings',
+            subtitle: 'Notifications, theme, sync',
+            onTap: () {},
+          ),
+          const Divider(),
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Text(
+              'Basecamp · v0.1',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MoreTile extends StatelessWidget {
+  const _MoreTile({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      leading: Icon(icon, color: theme.colorScheme.onSurfaceVariant),
+      title: Text(label, style: theme.textTheme.titleMedium),
+      subtitle: Text(subtitle, style: theme.textTheme.bodySmall),
+      trailing: Icon(
+        Icons.chevron_right,
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+      onTap: onTap,
+    );
+  }
+}
