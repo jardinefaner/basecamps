@@ -38,48 +38,63 @@ class AppDatabase extends _$AppDatabase {
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
+          // All steps below are idempotent — safe to re-run if an earlier
+          // migration partially completed but the schema version wasn't
+          // advanced. We swallow "already exists" / "duplicate column" errors
+          // so dev databases in inconsistent intermediate states recover.
           if (from < 2) {
-            await m.createTable(pods);
-            await m.createTable(kids);
+            await _createTableIfMissing(m, pods);
+            await _createTableIfMissing(m, kids);
           }
           if (from < 3) {
-            await m.createTable(trips);
-            await m.createTable(captures);
-            await m.createTable(captureKids);
-            await m.createTable(observations);
+            await _createTableIfMissing(m, trips);
+            await _createTableIfMissing(m, captures);
+            await _createTableIfMissing(m, captureKids);
+            await _createTableIfMissing(m, observations);
           }
           if (from < 4) {
-            await m.createTable(scheduleTemplates);
-            await m.createTable(scheduleEntries);
+            await _createTableIfMissing(m, scheduleTemplates);
+            await _createTableIfMissing(m, scheduleEntries);
           }
           if (from < 5) {
-            await m.addColumn(scheduleTemplates, scheduleTemplates.isFullDay);
-            await m.addColumn(scheduleEntries, scheduleEntries.isFullDay);
+            await _addColumnIfMissing(
+              m,
+              scheduleTemplates,
+              scheduleTemplates.isFullDay,
+            );
+            await _addColumnIfMissing(
+              m,
+              scheduleEntries,
+              scheduleEntries.isFullDay,
+            );
           }
           if (from < 6) {
-            await m.createTable(templatePods);
-            await m.createTable(entryPods);
+            await _createTableIfMissing(m, templatePods);
+            await _createTableIfMissing(m, entryPods);
             await customStatement('''
-              INSERT INTO template_pods (template_id, pod_id)
+              INSERT OR IGNORE INTO template_pods (template_id, pod_id)
               SELECT id, pod_id FROM schedule_templates WHERE pod_id IS NOT NULL
             ''');
             await customStatement('''
-              INSERT INTO entry_pods (entry_id, pod_id)
+              INSERT OR IGNORE INTO entry_pods (entry_id, pod_id)
               SELECT id, pod_id FROM schedule_entries WHERE pod_id IS NOT NULL
             ''');
           }
           if (from < 7) {
-            await m.createTable(specialists);
-            await m.addColumn(
+            await _createTableIfMissing(m, specialists);
+            await _addColumnIfMissing(
+              m,
               scheduleTemplates,
               scheduleTemplates.specialistId,
             );
-            await m.addColumn(
+            await _addColumnIfMissing(
+              m,
               scheduleEntries,
               scheduleEntries.specialistId,
             );
             // Backfill: promote each distinct legacy specialist_name string
             // into a Specialists row and update referring schedule items.
+            // Skip names that already map to a specialist (re-run safety).
             final templateRows = await (select(scheduleTemplates)
                   ..where((t) => t.specialistName.isNotNull()))
                 .get();
@@ -91,19 +106,32 @@ class AppDatabase extends _$AppDatabase {
               ...entryRows.map((e) => e.specialistName!),
             };
             for (final name in uniqueNames) {
-              final specialistId = newId();
-              await into(specialists).insert(
-                SpecialistsCompanion.insert(id: specialistId, name: name),
-              );
+              final existing = await (select(specialists)
+                    ..where((s) => s.name.equals(name)))
+                  .getSingleOrNull();
+              final specialistId = existing?.id ?? newId();
+              if (existing == null) {
+                await into(specialists).insert(
+                  SpecialistsCompanion.insert(id: specialistId, name: name),
+                );
+              }
               await (update(scheduleTemplates)
-                    ..where((t) => t.specialistName.equals(name)))
+                    ..where(
+                      (t) =>
+                          t.specialistName.equals(name) &
+                          t.specialistId.isNull(),
+                    ))
                   .write(
                 ScheduleTemplatesCompanion(
                   specialistId: Value(specialistId),
                 ),
               );
               await (update(scheduleEntries)
-                    ..where((e) => e.specialistName.equals(name)))
+                    ..where(
+                      (e) =>
+                          e.specialistName.equals(name) &
+                          e.specialistId.isNull(),
+                    ))
                   .write(
                 ScheduleEntriesCompanion(
                   specialistId: Value(specialistId),
@@ -112,10 +140,45 @@ class AppDatabase extends _$AppDatabase {
             }
           }
           if (from < 8) {
-            await m.createTable(activityLibrary);
+            await _createTableIfMissing(m, activityLibrary);
           }
         },
       );
+
+  // Drift's Migrator lacks direct "if exists" helpers. These wrappers catch
+  // "table already exists" / "duplicate column name" so upgrades recover from
+  // partial runs gracefully.
+
+  static Future<void> _createTableIfMissing(
+    Migrator m,
+    TableInfo<Table, Object?> table,
+  ) async {
+    try {
+      await m.createTable(table);
+    } on Object catch (e) {
+      if (_isAlreadyExistsError(e)) return;
+      rethrow;
+    }
+  }
+
+  static Future<void> _addColumnIfMissing(
+    Migrator m,
+    TableInfo<Table, Object?> table,
+    GeneratedColumn<Object> column,
+  ) async {
+    try {
+      await m.addColumn(table, column);
+    } on Object catch (e) {
+      if (_isAlreadyExistsError(e)) return;
+      rethrow;
+    }
+  }
+
+  static bool _isAlreadyExistsError(Object e) {
+    final msg = e.toString().toLowerCase();
+    return msg.contains('already exists') ||
+        msg.contains('duplicate column');
+  }
 }
 
 final databaseProvider = Provider<AppDatabase>((ref) {
