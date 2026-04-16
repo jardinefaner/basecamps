@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:basecamp/database/database.dart';
@@ -10,6 +11,7 @@ import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 /// Full editor for an observation. Opens after a teacher taps a saved
 /// observation on the list — this is where tagging, tuning, and cleanup
@@ -34,6 +36,15 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
   final Set<String> _selectedKidIds = <String>{};
   bool _kidsLoaded = false;
   bool _submitting = false;
+
+  final _picker = ImagePicker();
+
+  /// Ids of existing attachments the teacher removed in this edit session.
+  /// Deleted when Save is tapped.
+  final Set<String> _removedAttachmentIds = <String>{};
+
+  /// New attachments added in this edit session. Inserted on Save.
+  final List<_PendingAttachment> _newAttachments = [];
 
   @override
   void initState() {
@@ -60,13 +71,23 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
 
   Future<void> _save() async {
     setState(() => _submitting = true);
-    await ref.read(observationsRepositoryProvider).updateObservation(
-          id: widget.observation.id,
-          note: _noteController.text.trim(),
-          domain: _domain,
-          sentiment: _sentiment,
-          kidIds: _selectedKidIds.toList(),
-        );
+    final repo = ref.read(observationsRepositoryProvider);
+    await repo.updateObservation(
+      id: widget.observation.id,
+      note: _noteController.text.trim(),
+      domain: _domain,
+      sentiment: _sentiment,
+      kidIds: _selectedKidIds.toList(),
+    );
+    for (final id in _removedAttachmentIds) {
+      await repo.deleteAttachment(id);
+    }
+    for (final a in _newAttachments) {
+      await repo.addAttachment(
+        observationId: widget.observation.id,
+        input: ObservationAttachmentInput(kind: a.kind, localPath: a.path),
+      );
+    }
     if (!mounted) return;
     Navigator.of(context).pop();
   }
@@ -95,6 +116,87 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
         .deleteObservation(widget.observation.id);
     if (!mounted) return;
     Navigator.of(context).pop();
+  }
+
+  Future<void> _pickPhoto({required ImageSource source}) async {
+    try {
+      final file = await _picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 2400,
+      );
+      if (file != null && mounted) {
+        setState(() {
+          _newAttachments.add(
+            _PendingAttachment(kind: 'photo', path: file.path),
+          );
+        });
+      }
+    } on Object catch (e) {
+      _snack("Couldn't attach photo: $e");
+    }
+  }
+
+  Future<void> _pickVideo({required ImageSource source}) async {
+    try {
+      final file = await _picker.pickVideo(
+        source: source,
+        maxDuration: const Duration(minutes: 5),
+      );
+      if (file != null && mounted) {
+        setState(() {
+          _newAttachments.add(
+            _PendingAttachment(kind: 'video', path: file.path),
+          );
+        });
+      }
+    } on Object catch (e) {
+      _snack("Couldn't attach video: $e");
+    }
+  }
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _showAttachSheet({required bool photo}) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!kIsWeb)
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: Text(photo ? 'Take a photo' : 'Record a video'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  if (photo) {
+                    unawaited(_pickPhoto(source: ImageSource.camera));
+                  } else {
+                    unawaited(_pickVideo(source: ImageSource.camera));
+                  }
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: Text(photo ? 'Pick from library' : 'Pick a video'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                if (photo) {
+                  unawaited(_pickPhoto(source: ImageSource.gallery));
+                } else {
+                  unawaited(_pickVideo(source: ImageSource.gallery));
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -128,15 +230,57 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
             label: 'Note',
             maxLines: 6,
           ),
-          attachmentsAsync.maybeWhen(
-            data: (atts) => atts.isEmpty
-                ? const SizedBox.shrink()
-                : Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.md),
-                    child: _AttachmentStrip(attachments: atts),
-                  ),
-            orElse: () => const SizedBox.shrink(),
+
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            children: [
+              Expanded(
+                child: Text('Attachments', style: theme.textTheme.titleSmall),
+              ),
+              IconButton(
+                tooltip: 'Add photo',
+                icon: const Icon(Icons.photo_camera_outlined),
+                onPressed: () => _showAttachSheet(photo: true),
+              ),
+              IconButton(
+                tooltip: 'Add video',
+                icon: const Icon(Icons.videocam_outlined),
+                onPressed: () => _showAttachSheet(photo: false),
+              ),
+            ],
           ),
+          attachmentsAsync.when(
+            loading: () => const LinearProgressIndicator(),
+            error: (err, _) => Text('Error: $err'),
+            data: (existing) {
+              final visibleExisting = existing
+                  .where((a) => !_removedAttachmentIds.contains(a.id))
+                  .toList();
+              if (visibleExisting.isEmpty && _newAttachments.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.xs),
+                  child: Text(
+                    'No attachments.',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                );
+              }
+              return Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.sm),
+                child: _EditableAttachmentStrip(
+                  existing: visibleExisting,
+                  pending: _newAttachments,
+                  onRemoveExisting: (id) => setState(() {
+                    _removedAttachmentIds.add(id);
+                  }),
+                  onRemovePending: (i) => setState(() {
+                    _newAttachments.removeAt(i);
+                  }),
+                ),
+              );
+            },
+          ),
+
           const SizedBox(height: AppSpacing.lg),
           Text('Domain', style: theme.textTheme.titleSmall),
           const SizedBox(height: AppSpacing.sm),
@@ -235,6 +379,12 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
   }
 }
 
+class _PendingAttachment {
+  _PendingAttachment({required this.kind, required this.path});
+  final String kind;
+  final String path;
+}
+
 class _DomainSelector extends StatelessWidget {
   const _DomainSelector({required this.selected, required this.onSelected});
 
@@ -297,49 +447,116 @@ class _DomainSelector extends StatelessWidget {
   }
 }
 
-class _AttachmentStrip extends StatelessWidget {
-  const _AttachmentStrip({required this.attachments});
+class _EditableAttachmentStrip extends StatelessWidget {
+  const _EditableAttachmentStrip({
+    required this.existing,
+    required this.pending,
+    required this.onRemoveExisting,
+    required this.onRemovePending,
+  });
 
-  final List<ObservationAttachment> attachments;
+  final List<ObservationAttachment> existing;
+  final List<_PendingAttachment> pending;
+  final ValueChanged<String> onRemoveExisting;
+  final ValueChanged<int> onRemovePending;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final total = existing.length + pending.length;
     return SizedBox(
-      height: 80,
+      height: 88,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: attachments.length,
+        itemCount: total,
         separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
-        itemBuilder: (_, i) {
-          final att = attachments[i];
-          return Container(
-            width: 80,
-            height: 80,
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: att.kind == 'photo' && !kIsWeb
-                ? Image.file(
-                    File(att.localPath),
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Center(
+        itemBuilder: (context, i) {
+          final isExisting = i < existing.length;
+          final kind = isExisting
+              ? existing[i].kind
+              : pending[i - existing.length].kind;
+          final path = isExisting
+              ? existing[i].localPath
+              : pending[i - existing.length].path;
+          final isPhoto = kind == 'photo';
+
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: isPhoto && !kIsWeb
+                    ? Image.file(
+                        File(path),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => Center(
+                          child: Icon(
+                            Icons.image_outlined,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      )
+                    : Center(
+                        child: Icon(
+                          isPhoto
+                              ? Icons.image_outlined
+                              : Icons.play_circle_outline,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+              ),
+              if (!isExisting)
+                Positioned(
+                  bottom: 4,
+                  left: 4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'NEW',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onPrimary,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+              Positioned(
+                top: -4,
+                right: -4,
+                child: Material(
+                  color: theme.colorScheme.surface,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: isExisting
+                        ? () => onRemoveExisting(existing[i].id)
+                        : () => onRemovePending(i - existing.length),
+                    child: Padding(
+                      padding: const EdgeInsets.all(2),
                       child: Icon(
-                        Icons.image_outlined,
+                        Icons.cancel,
+                        size: 20,
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
-                  )
-                : Center(
-                    child: Icon(
-                      att.kind == 'video'
-                          ? Icons.play_circle_outline
-                          : Icons.image_outlined,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
                   ),
+                ),
+              ),
+            ],
           );
         },
       ),

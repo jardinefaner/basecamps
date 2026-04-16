@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -23,6 +26,8 @@ class ObservationCard extends ConsumerWidget {
     final domain = ObservationDomain.fromName(observation.domain);
     final sentiment = ObservationSentiment.fromName(observation.sentiment);
     final time = DateFormat.MMMd().add_jm().format(observation.createdAt);
+    final attachmentsAsync =
+        ref.watch(observationAttachmentsProvider(observation.id));
 
     return AppCard(
       onTap: onTap,
@@ -56,6 +61,15 @@ class ObservationCard extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(observation.note, style: theme.textTheme.bodyMedium),
+          attachmentsAsync.maybeWhen(
+            data: (atts) => atts.isEmpty
+                ? const SizedBox.shrink()
+                : Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.md),
+                    child: _AttachmentStrip(attachments: atts),
+                  ),
+            orElse: () => const SizedBox.shrink(),
+          ),
           if (observation.activityLabel != null &&
               observation.activityLabel!.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.xs),
@@ -81,6 +95,114 @@ class ObservationCard extends ConsumerWidget {
           Text(time, style: theme.textTheme.labelMedium),
         ],
       ),
+    );
+  }
+}
+
+class _AttachmentStrip extends StatelessWidget {
+  const _AttachmentStrip({required this.attachments});
+
+  final List<ObservationAttachment> attachments;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const visibleLimit = 4;
+    final visible = attachments.take(visibleLimit).toList();
+    final remaining = attachments.length - visible.length;
+
+    return SizedBox(
+      height: 84,
+      child: Row(
+        children: [
+          for (var i = 0; i < visible.length; i++) ...[
+            _AttachmentThumb(attachment: visible[i]),
+            if (i < visible.length - 1 || remaining > 0)
+              const SizedBox(width: AppSpacing.sm),
+          ],
+          if (remaining > 0)
+            Container(
+              width: 64,
+              height: 84,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: theme.colorScheme.outlineVariant,
+                  width: 0.5,
+                ),
+              ),
+              child: Text(
+                '+$remaining',
+                style: theme.textTheme.labelMedium,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AttachmentThumb extends StatelessWidget {
+  const _AttachmentThumb({required this.attachment});
+
+  final ObservationAttachment attachment;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isPhoto = attachment.kind == 'photo';
+    return Container(
+      width: 84,
+      height: 84,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (isPhoto && !kIsWeb)
+            Image.file(
+              File(attachment.localPath),
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => _placeholder(theme, Icons.image_outlined),
+            )
+          else
+            _placeholder(
+              theme,
+              isPhoto ? Icons.image_outlined : Icons.play_circle_outline,
+            ),
+          if (!isPhoto)
+            Positioned(
+              right: 4,
+              bottom: 4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Icon(
+                  Icons.videocam,
+                  color: Colors.white,
+                  size: 12,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeholder(ThemeData theme, IconData icon) {
+    return Center(
+      child: Icon(icon, color: theme.colorScheme.onSurfaceVariant),
     );
   }
 }

@@ -5,10 +5,26 @@ import 'package:flutter/material.dart';
 /// action bar along the bottom edge. Use as the direct child of a
 /// [showModalBottomSheet] builder.
 ///
-/// The content area's max height is explicitly capped so the pinned
-/// action bar is always visible — a plain `Flexible` inside a
-/// `mainAxisSize.min` Column doesn't bound its child, which lets long
-/// forms push the action button off-screen.
+/// Layout:
+/// ┌───────────────────────────────┐
+/// │ Header (intrinsic)            │
+/// ├───────────────────────────────┤
+/// │ Expanded scrollable body      │
+/// ├───────────────────────────────┤
+/// │ Action bar (intrinsic)        │
+/// └───────────────────────────────┘
+///
+/// Implementation note: we use `Column(mainAxisSize.max)` + `Expanded`
+/// inside a size-bounded ConstrainedBox. `mainAxisSize.min` + `Flexible`
+/// looks right but doesn't actually bound the child — Flutter gives
+/// Flexible its intrinsic size in that configuration, so long forms push
+/// the action bar off-screen. Column-max + Expanded inside a bounded
+/// container gives proper flex distribution.
+///
+/// The sheet will fill the available height. That's fine for modal form
+/// sheets — teachers expect the action bar at the bottom edge. Short
+/// forms just show extra whitespace between the last field and the
+/// action bar.
 class StickyActionSheet extends StatelessWidget {
   const StickyActionSheet({
     required this.title,
@@ -44,100 +60,100 @@ class StickyActionSheet extends StatelessWidget {
       );
     }
 
-    // Sheet structure:
-    // ┌───────────────────────────────┐
-    // │ Header (fixed intrinsic)      │
-    // ├───────────────────────────────┤
-    // │ Scrollable body               │  ← capped by ConstrainedBox
-    // ├───────────────────────────────┤
-    // │ Action bar (fixed intrinsic)  │
-    // └───────────────────────────────┘
-    //
-    // `maxBodyHeight` leaves enough room for header + action bar +
-    // keyboard inset so nothing clips, then lets the content scroll.
-    final availableHeight = mq.size.height - mq.padding.top;
-    final maxBodyHeight = (availableHeight - mq.viewInsets.bottom) * 0.62;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final keyboard = mq.viewInsets.bottom;
+        final availableHeight = (constraints.maxHeight.isFinite
+                ? constraints.maxHeight
+                : mq.size.height) -
+            keyboard;
+        final maxHeight = availableHeight.clamp(220.0, double.infinity);
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.md,
-              AppSpacing.sm,
-              0,
-            ),
+        return Padding(
+          padding: EdgeInsets.only(bottom: keyboard),
+          child: SizedBox(
+            height: maxHeight,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(title, style: theme.textTheme.titleLarge),
-                    ),
-                    ...trailingWidgets,
-                  ],
+                // Header
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.xl,
+                    AppSpacing.md,
+                    AppSpacing.sm,
+                    0,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              title,
+                              style: theme.textTheme.titleLarge,
+                            ),
+                          ),
+                          ...trailingWidgets,
+                        ],
+                      ),
+                      if (subtitle != null)
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            right: AppSpacing.lg,
+                            top: AppSpacing.xs,
+                          ),
+                          child: DefaultTextStyle(
+                            style: theme.textTheme.bodySmall!,
+                            child: subtitle!,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-                if (subtitle != null)
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      right: AppSpacing.lg,
-                      top: AppSpacing.xs,
+
+                // Scrollable body in the middle — takes all leftover space.
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.xl,
+                      AppSpacing.lg,
+                      AppSpacing.xl,
+                      AppSpacing.lg,
                     ),
-                    child: DefaultTextStyle(
-                      style: theme.textTheme.bodySmall!,
-                      child: subtitle!,
+                    child: child,
+                  ),
+                ),
+
+                // Pinned action bar
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    border: Border(
+                      top: BorderSide(
+                        color: theme.colorScheme.outlineVariant,
+                        width: 0.5,
+                      ),
                     ),
                   ),
+                  child: SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.xl,
+                        AppSpacing.md,
+                        AppSpacing.xl,
+                        AppSpacing.md,
+                      ),
+                      child: actionBar,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
-
-          // Scrollable body, bounded by an explicit max height so the
-          // action bar below can never be pushed off screen.
-          ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: maxBodyHeight),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.lg,
-                AppSpacing.xl,
-                AppSpacing.lg,
-              ),
-              child: child,
-            ),
-          ),
-
-          // Pinned action bar
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              border: Border(
-                top: BorderSide(
-                  color: theme.colorScheme.outlineVariant,
-                  width: 0.5,
-                ),
-              ),
-            ),
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.xl,
-                  AppSpacing.md,
-                  AppSpacing.xl,
-                  AppSpacing.md,
-                ),
-                child: actionBar,
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

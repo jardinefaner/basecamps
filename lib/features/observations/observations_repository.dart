@@ -224,6 +224,40 @@ class ObservationsRepository {
         .get();
   }
 
+  /// Watch attachments for an observation so the list rebuilds when an
+  /// edit adds or removes a photo/video.
+  Stream<List<ObservationAttachment>> watchAttachmentsForObservation(
+    String observationId,
+  ) {
+    return (_db.select(_db.observationAttachments)
+          ..where((a) => a.observationId.equals(observationId))
+          ..orderBy([(a) => OrderingTerm.asc(a.createdAt)]))
+        .watch();
+  }
+
+  Future<String> addAttachment({
+    required String observationId,
+    required ObservationAttachmentInput input,
+  }) async {
+    final id = newId();
+    await _db.into(_db.observationAttachments).insert(
+          ObservationAttachmentsCompanion.insert(
+            id: id,
+            observationId: observationId,
+            kind: input.kind,
+            localPath: input.localPath,
+            durationMs: Value(input.durationMs),
+          ),
+        );
+    return id;
+  }
+
+  Future<void> deleteAttachment(String id) async {
+    await (_db.delete(_db.observationAttachments)
+          ..where((a) => a.id.equals(id)))
+        .go();
+  }
+
   /// Partial update. Anything left as `null` (or not passed) is left
   /// untouched in the row. Kid tagging is replaced wholesale when
   /// [kidIds] is non-null; pass `const []` to clear.
@@ -336,9 +370,9 @@ final observationKidsProvider =
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types
 final observationAttachmentsProvider =
-    FutureProvider.family<List<ObservationAttachment>, String>(
+    StreamProvider.family<List<ObservationAttachment>, String>(
         (ref, observationId) {
   return ref
       .watch(observationsRepositoryProvider)
-      .attachmentsForObservation(observationId);
+      .watchAttachmentsForObservation(observationId);
 });
