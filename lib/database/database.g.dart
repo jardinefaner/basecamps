@@ -3133,6 +3133,233 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
   }
 }
 
+class $ObservationKidsTable extends ObservationKids
+    with TableInfo<$ObservationKidsTable, ObservationKid> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ObservationKidsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _observationIdMeta = const VerificationMeta(
+    'observationId',
+  );
+  @override
+  late final GeneratedColumn<String> observationId = GeneratedColumn<String>(
+    'observation_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES observations (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _kidIdMeta = const VerificationMeta('kidId');
+  @override
+  late final GeneratedColumn<String> kidId = GeneratedColumn<String>(
+    'kid_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES kids (id) ON DELETE CASCADE',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [observationId, kidId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'observation_kids';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ObservationKid> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('observation_id')) {
+      context.handle(
+        _observationIdMeta,
+        observationId.isAcceptableOrUnknown(
+          data['observation_id']!,
+          _observationIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_observationIdMeta);
+    }
+    if (data.containsKey('kid_id')) {
+      context.handle(
+        _kidIdMeta,
+        kidId.isAcceptableOrUnknown(data['kid_id']!, _kidIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kidIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {observationId, kidId};
+  @override
+  ObservationKid map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ObservationKid(
+      observationId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}observation_id'],
+      )!,
+      kidId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kid_id'],
+      )!,
+    );
+  }
+
+  @override
+  $ObservationKidsTable createAlias(String alias) {
+    return $ObservationKidsTable(attachedDatabase, alias);
+  }
+}
+
+class ObservationKid extends DataClass implements Insertable<ObservationKid> {
+  final String observationId;
+  final String kidId;
+  const ObservationKid({required this.observationId, required this.kidId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['observation_id'] = Variable<String>(observationId);
+    map['kid_id'] = Variable<String>(kidId);
+    return map;
+  }
+
+  ObservationKidsCompanion toCompanion(bool nullToAbsent) {
+    return ObservationKidsCompanion(
+      observationId: Value(observationId),
+      kidId: Value(kidId),
+    );
+  }
+
+  factory ObservationKid.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ObservationKid(
+      observationId: serializer.fromJson<String>(json['observationId']),
+      kidId: serializer.fromJson<String>(json['kidId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'observationId': serializer.toJson<String>(observationId),
+      'kidId': serializer.toJson<String>(kidId),
+    };
+  }
+
+  ObservationKid copyWith({String? observationId, String? kidId}) =>
+      ObservationKid(
+        observationId: observationId ?? this.observationId,
+        kidId: kidId ?? this.kidId,
+      );
+  ObservationKid copyWithCompanion(ObservationKidsCompanion data) {
+    return ObservationKid(
+      observationId: data.observationId.present
+          ? data.observationId.value
+          : this.observationId,
+      kidId: data.kidId.present ? data.kidId.value : this.kidId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ObservationKid(')
+          ..write('observationId: $observationId, ')
+          ..write('kidId: $kidId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(observationId, kidId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ObservationKid &&
+          other.observationId == this.observationId &&
+          other.kidId == this.kidId);
+}
+
+class ObservationKidsCompanion extends UpdateCompanion<ObservationKid> {
+  final Value<String> observationId;
+  final Value<String> kidId;
+  final Value<int> rowid;
+  const ObservationKidsCompanion({
+    this.observationId = const Value.absent(),
+    this.kidId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ObservationKidsCompanion.insert({
+    required String observationId,
+    required String kidId,
+    this.rowid = const Value.absent(),
+  }) : observationId = Value(observationId),
+       kidId = Value(kidId);
+  static Insertable<ObservationKid> custom({
+    Expression<String>? observationId,
+    Expression<String>? kidId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (observationId != null) 'observation_id': observationId,
+      if (kidId != null) 'kid_id': kidId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ObservationKidsCompanion copyWith({
+    Value<String>? observationId,
+    Value<String>? kidId,
+    Value<int>? rowid,
+  }) {
+    return ObservationKidsCompanion(
+      observationId: observationId ?? this.observationId,
+      kidId: kidId ?? this.kidId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (observationId.present) {
+      map['observation_id'] = Variable<String>(observationId.value);
+    }
+    if (kidId.present) {
+      map['kid_id'] = Variable<String>(kidId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ObservationKidsCompanion(')
+          ..write('observationId: $observationId, ')
+          ..write('kidId: $kidId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $SpecialistsTable extends Specialists
     with TableInfo<$SpecialistsTable, Specialist> {
   @override
@@ -6301,6 +6528,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $CapturesTable captures = $CapturesTable(this);
   late final $CaptureKidsTable captureKids = $CaptureKidsTable(this);
   late final $ObservationsTable observations = $ObservationsTable(this);
+  late final $ObservationKidsTable observationKids = $ObservationKidsTable(
+    this,
+  );
   late final $SpecialistsTable specialists = $SpecialistsTable(this);
   late final $ActivityLibraryTable activityLibrary = $ActivityLibraryTable(
     this,
@@ -6324,6 +6554,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     captures,
     captureKids,
     observations,
+    observationKids,
     specialists,
     activityLibrary,
     scheduleTemplates,
@@ -6395,6 +6626,20 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('observations', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'observations',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('observation_kids', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'kids',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('observation_kids', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -7401,6 +7646,26 @@ final class $$KidsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$ObservationKidsTable, List<ObservationKid>>
+  _observationKidsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.observationKids,
+    aliasName: $_aliasNameGenerator(db.kids.id, db.observationKids.kidId),
+  );
+
+  $$ObservationKidsTableProcessedTableManager get observationKidsRefs {
+    final manager = $$ObservationKidsTableTableManager(
+      $_db,
+      $_db.observationKids,
+    ).filter((f) => f.kidId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _observationKidsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$KidsTableFilterComposer extends Composer<_$AppDatabase, $KidsTable> {
@@ -7515,6 +7780,31 @@ class $$KidsTableFilterComposer extends Composer<_$AppDatabase, $KidsTable> {
           }) => $$ObservationsTableFilterComposer(
             $db: $db,
             $table: $db.observations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> observationKidsRefs(
+    Expression<bool> Function($$ObservationKidsTableFilterComposer f) f,
+  ) {
+    final $$ObservationKidsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.observationKids,
+      getReferencedColumn: (t) => t.kidId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ObservationKidsTableFilterComposer(
+            $db: $db,
+            $table: $db.observationKids,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -7702,6 +7992,31 @@ class $$KidsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> observationKidsRefs<T extends Object>(
+    Expression<T> Function($$ObservationKidsTableAnnotationComposer a) f,
+  ) {
+    final $$ObservationKidsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.observationKids,
+      getReferencedColumn: (t) => t.kidId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ObservationKidsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.observationKids,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$KidsTableTableManager
@@ -7721,6 +8036,7 @@ class $$KidsTableTableManager
             bool podId,
             bool captureKidsRefs,
             bool observationsRefs,
+            bool observationKidsRefs,
           })
         > {
   $$KidsTableTableManager(_$AppDatabase db, $KidsTable table)
@@ -7793,12 +8109,14 @@ class $$KidsTableTableManager
                 podId = false,
                 captureKidsRefs = false,
                 observationsRefs = false,
+                observationKidsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (captureKidsRefs) db.captureKids,
                     if (observationsRefs) db.observations,
+                    if (observationKidsRefs) db.observationKids,
                   ],
                   addJoins:
                       <
@@ -7866,6 +8184,26 @@ class $$KidsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (observationKidsRefs)
+                        await $_getPrefetchedData<
+                          Kid,
+                          $KidsTable,
+                          ObservationKid
+                        >(
+                          currentTable: table,
+                          referencedTable: $$KidsTableReferences
+                              ._observationKidsRefsTable(db),
+                          managerFromTypedResult: (p0) => $$KidsTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).observationKidsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.kidId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -7890,6 +8228,7 @@ typedef $$KidsTableProcessedTableManager =
         bool podId,
         bool captureKidsRefs,
         bool observationsRefs,
+        bool observationKidsRefs,
       })
     >;
 typedef $$TripsTableCreateCompanionBuilder =
@@ -9806,6 +10145,29 @@ final class $$ObservationsTableReferences
       manager.$state.copyWith(prefetchedData: [item]),
     );
   }
+
+  static MultiTypedResultKey<$ObservationKidsTable, List<ObservationKid>>
+  _observationKidsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.observationKids,
+    aliasName: $_aliasNameGenerator(
+      db.observations.id,
+      db.observationKids.observationId,
+    ),
+  );
+
+  $$ObservationKidsTableProcessedTableManager get observationKidsRefs {
+    final manager = $$ObservationKidsTableTableManager(
+      $_db,
+      $_db.observationKids,
+    ).filter((f) => f.observationId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _observationKidsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$ObservationsTableFilterComposer
@@ -9929,6 +10291,31 @@ class $$ObservationsTableFilterComposer
           ),
     );
     return composer;
+  }
+
+  Expression<bool> observationKidsRefs(
+    Expression<bool> Function($$ObservationKidsTableFilterComposer f) f,
+  ) {
+    final $$ObservationKidsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.observationKids,
+      getReferencedColumn: (t) => t.observationId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ObservationKidsTableFilterComposer(
+            $db: $db,
+            $table: $db.observationKids,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
   }
 }
 
@@ -10166,6 +10553,31 @@ class $$ObservationsTableAnnotationComposer
     );
     return composer;
   }
+
+  Expression<T> observationKidsRefs<T extends Object>(
+    Expression<T> Function($$ObservationKidsTableAnnotationComposer a) f,
+  ) {
+    final $$ObservationKidsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.observationKids,
+      getReferencedColumn: (t) => t.observationId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ObservationKidsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.observationKids,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ObservationsTableTableManager
@@ -10181,7 +10593,12 @@ class $$ObservationsTableTableManager
           $$ObservationsTableUpdateCompanionBuilder,
           (Observation, $$ObservationsTableReferences),
           Observation,
-          PrefetchHooks Function({bool kidId, bool podId, bool tripId})
+          PrefetchHooks Function({
+            bool kidId,
+            bool podId,
+            bool tripId,
+            bool observationKidsRefs,
+          })
         > {
   $$ObservationsTableTableManager(_$AppDatabase db, $ObservationsTable table)
     : super(
@@ -10263,10 +10680,17 @@ class $$ObservationsTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({kidId = false, podId = false, tripId = false}) {
+              ({
+                kidId = false,
+                podId = false,
+                tripId = false,
+                observationKidsRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
-                  explicitlyWatchedTables: [],
+                  explicitlyWatchedTables: [
+                    if (observationKidsRefs) db.observationKids,
+                  ],
                   addJoins:
                       <
                         T extends TableManagerState<
@@ -10332,7 +10756,29 @@ class $$ObservationsTableTableManager
                         return state;
                       },
                   getPrefetchedDataCallback: (items) async {
-                    return [];
+                    return [
+                      if (observationKidsRefs)
+                        await $_getPrefetchedData<
+                          Observation,
+                          $ObservationsTable,
+                          ObservationKid
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ObservationsTableReferences
+                              ._observationKidsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ObservationsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).observationKidsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.observationId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
                   },
                 );
               },
@@ -10352,7 +10798,375 @@ typedef $$ObservationsTableProcessedTableManager =
       $$ObservationsTableUpdateCompanionBuilder,
       (Observation, $$ObservationsTableReferences),
       Observation,
-      PrefetchHooks Function({bool kidId, bool podId, bool tripId})
+      PrefetchHooks Function({
+        bool kidId,
+        bool podId,
+        bool tripId,
+        bool observationKidsRefs,
+      })
+    >;
+typedef $$ObservationKidsTableCreateCompanionBuilder =
+    ObservationKidsCompanion Function({
+      required String observationId,
+      required String kidId,
+      Value<int> rowid,
+    });
+typedef $$ObservationKidsTableUpdateCompanionBuilder =
+    ObservationKidsCompanion Function({
+      Value<String> observationId,
+      Value<String> kidId,
+      Value<int> rowid,
+    });
+
+final class $$ObservationKidsTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $ObservationKidsTable, ObservationKid> {
+  $$ObservationKidsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ObservationsTable _observationIdTable(_$AppDatabase db) =>
+      db.observations.createAlias(
+        $_aliasNameGenerator(
+          db.observationKids.observationId,
+          db.observations.id,
+        ),
+      );
+
+  $$ObservationsTableProcessedTableManager get observationId {
+    final $_column = $_itemColumn<String>('observation_id')!;
+
+    final manager = $$ObservationsTableTableManager(
+      $_db,
+      $_db.observations,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_observationIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $KidsTable _kidIdTable(_$AppDatabase db) => db.kids.createAlias(
+    $_aliasNameGenerator(db.observationKids.kidId, db.kids.id),
+  );
+
+  $$KidsTableProcessedTableManager get kidId {
+    final $_column = $_itemColumn<String>('kid_id')!;
+
+    final manager = $$KidsTableTableManager(
+      $_db,
+      $_db.kids,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_kidIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ObservationKidsTableFilterComposer
+    extends Composer<_$AppDatabase, $ObservationKidsTable> {
+  $$ObservationKidsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$ObservationsTableFilterComposer get observationId {
+    final $$ObservationsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.observationId,
+      referencedTable: $db.observations,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ObservationsTableFilterComposer(
+            $db: $db,
+            $table: $db.observations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$KidsTableFilterComposer get kidId {
+    final $$KidsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.kidId,
+      referencedTable: $db.kids,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$KidsTableFilterComposer(
+            $db: $db,
+            $table: $db.kids,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ObservationKidsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ObservationKidsTable> {
+  $$ObservationKidsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$ObservationsTableOrderingComposer get observationId {
+    final $$ObservationsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.observationId,
+      referencedTable: $db.observations,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ObservationsTableOrderingComposer(
+            $db: $db,
+            $table: $db.observations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$KidsTableOrderingComposer get kidId {
+    final $$KidsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.kidId,
+      referencedTable: $db.kids,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$KidsTableOrderingComposer(
+            $db: $db,
+            $table: $db.kids,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ObservationKidsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ObservationKidsTable> {
+  $$ObservationKidsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$ObservationsTableAnnotationComposer get observationId {
+    final $$ObservationsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.observationId,
+      referencedTable: $db.observations,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ObservationsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.observations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$KidsTableAnnotationComposer get kidId {
+    final $$KidsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.kidId,
+      referencedTable: $db.kids,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$KidsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.kids,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ObservationKidsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ObservationKidsTable,
+          ObservationKid,
+          $$ObservationKidsTableFilterComposer,
+          $$ObservationKidsTableOrderingComposer,
+          $$ObservationKidsTableAnnotationComposer,
+          $$ObservationKidsTableCreateCompanionBuilder,
+          $$ObservationKidsTableUpdateCompanionBuilder,
+          (ObservationKid, $$ObservationKidsTableReferences),
+          ObservationKid,
+          PrefetchHooks Function({bool observationId, bool kidId})
+        > {
+  $$ObservationKidsTableTableManager(
+    _$AppDatabase db,
+    $ObservationKidsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ObservationKidsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ObservationKidsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ObservationKidsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> observationId = const Value.absent(),
+                Value<String> kidId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ObservationKidsCompanion(
+                observationId: observationId,
+                kidId: kidId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String observationId,
+                required String kidId,
+                Value<int> rowid = const Value.absent(),
+              }) => ObservationKidsCompanion.insert(
+                observationId: observationId,
+                kidId: kidId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ObservationKidsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({observationId = false, kidId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (observationId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.observationId,
+                                referencedTable:
+                                    $$ObservationKidsTableReferences
+                                        ._observationIdTable(db),
+                                referencedColumn:
+                                    $$ObservationKidsTableReferences
+                                        ._observationIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (kidId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.kidId,
+                                referencedTable:
+                                    $$ObservationKidsTableReferences
+                                        ._kidIdTable(db),
+                                referencedColumn:
+                                    $$ObservationKidsTableReferences
+                                        ._kidIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ObservationKidsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ObservationKidsTable,
+      ObservationKid,
+      $$ObservationKidsTableFilterComposer,
+      $$ObservationKidsTableOrderingComposer,
+      $$ObservationKidsTableAnnotationComposer,
+      $$ObservationKidsTableCreateCompanionBuilder,
+      $$ObservationKidsTableUpdateCompanionBuilder,
+      (ObservationKid, $$ObservationKidsTableReferences),
+      ObservationKid,
+      PrefetchHooks Function({bool observationId, bool kidId})
     >;
 typedef $$SpecialistsTableCreateCompanionBuilder =
     SpecialistsCompanion Function({
@@ -13752,6 +14566,8 @@ class $AppDatabaseManager {
       $$CaptureKidsTableTableManager(_db, _db.captureKids);
   $$ObservationsTableTableManager get observations =>
       $$ObservationsTableTableManager(_db, _db.observations);
+  $$ObservationKidsTableTableManager get observationKids =>
+      $$ObservationKidsTableTableManager(_db, _db.observationKids);
   $$SpecialistsTableTableManager get specialists =>
       $$SpecialistsTableTableManager(_db, _db.specialists);
   $$ActivityLibraryTableTableManager get activityLibrary =>

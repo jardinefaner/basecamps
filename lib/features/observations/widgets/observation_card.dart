@@ -45,6 +45,27 @@ class ObservationCard extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(observation.note, style: theme.textTheme.bodyMedium),
+          if (observation.activityLabel != null &&
+              observation.activityLabel!.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Row(
+              children: [
+                Icon(
+                  Icons.schedule_outlined,
+                  size: 14,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    'During ${observation.activityLabel!}',
+                    style: theme.textTheme.labelSmall,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: AppSpacing.sm),
           Text(time, style: theme.textTheme.labelMedium),
         ],
@@ -88,36 +109,63 @@ class _TargetLabel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
-    final kidId = observation.kidId;
-    final podId = observation.podId;
-    final activity = observation.activityLabel;
-
-    if (kidId != null) {
-      final kidAsync = ref.watch(kidProvider(kidId));
-      return kidAsync.maybeWhen(
-        data: (k) => Text(
-          k == null ? 'Unknown kid' : _kidName(k),
+    final kidsAsync = ref.watch(observationKidsProvider(observation.id));
+    return kidsAsync.when(
+      loading: () => Text('…', style: theme.textTheme.titleMedium),
+      error: (err, _) =>
+          Text('Error', style: theme.textTheme.titleMedium),
+      data: (kids) {
+        if (kids.isNotEmpty) {
+          return Text(
+            _formatKidList(kids),
+            style: theme.textTheme.titleMedium,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          );
+        }
+        // Fallbacks for legacy single-kid or pod/activity-scoped observations.
+        final legacyKidId = observation.kidId;
+        if (legacyKidId != null) {
+          final kidAsync = ref.watch(kidProvider(legacyKidId));
+          return kidAsync.maybeWhen(
+            data: (k) => Text(
+              k == null ? 'Unknown kid' : _singleKidLabel(k),
+              style: theme.textTheme.titleMedium,
+            ),
+            orElse: () => Text('…', style: theme.textTheme.titleMedium),
+          );
+        }
+        final podId = observation.podId;
+        if (podId != null) {
+          final podAsync = ref.watch(podProvider(podId));
+          return podAsync.maybeWhen(
+            data: (p) => Text(
+              p?.name ?? 'Unknown pod',
+              style: theme.textTheme.titleMedium,
+            ),
+            orElse: () => Text('…', style: theme.textTheme.titleMedium),
+          );
+        }
+        return Text(
+          observation.activityLabel ?? 'General note',
           style: theme.textTheme.titleMedium,
-        ),
-        orElse: () => Text('…', style: theme.textTheme.titleMedium),
-      );
-    }
-    if (podId != null) {
-      final podAsync = ref.watch(podProvider(podId));
-      return podAsync.maybeWhen(
-        data: (p) => Text(
-          p?.name ?? 'Unknown pod',
-          style: theme.textTheme.titleMedium,
-        ),
-        orElse: () => Text('…', style: theme.textTheme.titleMedium),
-      );
-    }
-    return Text(activity ?? 'Activity', style: theme.textTheme.titleMedium);
+        );
+      },
+    );
   }
 
-  String _kidName(Kid kid) {
+  String _singleKidLabel(Kid kid) {
     final last = kid.lastName;
     if (last == null || last.isEmpty) return kid.firstName;
     return '${kid.firstName} ${last[0]}.';
+  }
+
+  String _formatKidList(List<Kid> kids) {
+    if (kids.length == 1) return _singleKidLabel(kids.first);
+    if (kids.length == 2) {
+      return '${_singleKidLabel(kids[0])} & ${_singleKidLabel(kids[1])}';
+    }
+    final firstTwo = kids.take(2).map(_singleKidLabel).join(', ');
+    return '$firstTwo + ${kids.length - 2} more';
   }
 }

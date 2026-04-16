@@ -87,6 +87,19 @@ class CaptureKids extends Table {
   Set<Column<Object>> get primaryKey => {captureId, kidId};
 }
 
+/// Maps an observation to 0..N kids. Observations primarily target kids
+/// via this join table; the legacy single [Observations.kidId] column is
+/// kept for older rows.
+class ObservationKids extends Table {
+  TextColumn get observationId => text()
+      .references(Observations, #id, onDelete: KeyAction.cascade)();
+  TextColumn get kidId =>
+      text().references(Kids, #id, onDelete: KeyAction.cascade)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {observationId, kidId};
+}
+
 class Observations extends Table {
   TextColumn get id => text()();
   TextColumn get targetKind => text()();

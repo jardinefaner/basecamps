@@ -19,6 +19,7 @@ QueryExecutor _openConnection() {
     Captures,
     CaptureKids,
     Observations,
+    ObservationKids,
     Specialists,
     ActivityLibrary,
     ScheduleTemplates,
@@ -33,7 +34,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -172,6 +173,14 @@ class AppDatabase extends _$AppDatabase {
               scheduleEntries,
               scheduleEntries.sourceTripId,
             );
+          }
+          if (from < 11) {
+            await _createTableIfMissing(m, observationKids);
+            // Backfill: legacy single-kid observations → join rows.
+            await customStatement('''
+              INSERT OR IGNORE INTO observation_kids (observation_id, kid_id)
+              SELECT id, kid_id FROM observations WHERE kid_id IS NOT NULL
+            ''');
           }
         },
       );

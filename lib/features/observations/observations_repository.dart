@@ -61,38 +61,77 @@ class ObservationsRepository {
   }
 
   Stream<List<Observation>> watchForKid(String kidId) {
-    final query = _db.select(_db.observations)
-      ..where((o) => o.kidId.equals(kidId))
-      ..orderBy([(o) => OrderingTerm.desc(o.createdAt)]);
-    return query.watch();
+    // Pulls observations via the join table (multi-kid) PLUS any legacy
+    // single-kid rows where kidId matches.
+    final joinQuery = _db.select(_db.observations).join([
+      innerJoin(
+        _db.observationKids,
+        _db.observationKids.observationId.equalsExp(_db.observations.id),
+      ),
+    ])
+      ..where(_db.observationKids.kidId.equals(kidId))
+      ..orderBy([OrderingTerm.desc(_db.observations.createdAt)]);
+
+    return joinQuery.watch().map(
+          (rows) => rows.map((r) => r.readTable(_db.observations)).toList(),
+        );
+  }
+
+  Future<List<Kid>> kidsForObservation(String observationId) async {
+    final rows = await (_db.select(_db.kids).join([
+      innerJoin(
+        _db.observationKids,
+        _db.observationKids.kidId.equalsExp(_db.kids.id),
+      ),
+    ])
+          ..where(_db.observationKids.observationId.equals(observationId))
+          ..orderBy([OrderingTerm.asc(_db.kids.firstName)]))
+        .get();
+    return rows.map((r) => r.readTable(_db.kids)).toList();
   }
 
   Future<String> addObservation({
-    required String targetKind,
     required ObservationDomain domain,
     required ObservationSentiment sentiment,
     required String note,
-    String? kidId,
+    List<String> kidIds = const [],
     String? podId,
     String? activityLabel,
     String? tripId,
     String? authorName,
   }) async {
     final id = newId();
-    await _db.into(_db.observations).insert(
-          ObservationsCompanion.insert(
-            id: id,
-            targetKind: targetKind,
-            kidId: Value(kidId),
-            podId: Value(podId),
-            activityLabel: Value(activityLabel),
-            domain: domain.name,
-            sentiment: sentiment.name,
-            note: note,
-            tripId: Value(tripId),
-            authorName: Value(authorName),
-          ),
-        );
+    final targetKind = kidIds.isNotEmpty
+        ? 'kids'
+        : podId != null
+            ? 'pod'
+            : activityLabel != null && activityLabel.isNotEmpty
+                ? 'activity'
+                : 'general';
+
+    await _db.transaction(() async {
+      await _db.into(_db.observations).insert(
+            ObservationsCompanion.insert(
+              id: id,
+              targetKind: targetKind,
+              podId: Value(podId),
+              activityLabel: Value(activityLabel),
+              domain: domain.name,
+              sentiment: sentiment.name,
+              note: note,
+              tripId: Value(tripId),
+              authorName: Value(authorName),
+            ),
+          );
+      for (final kidId in kidIds) {
+        await _db.into(_db.observationKids).insert(
+              ObservationKidsCompanion.insert(
+                observationId: id,
+                kidId: kidId,
+              ),
+            );
+      }
+    });
     return id;
   }
 
@@ -115,4 +154,13 @@ final observationsProvider = StreamProvider<List<Observation>>((ref) {
 final kidObservationsProvider =
     StreamProvider.family<List<Observation>, String>((ref, kidId) {
   return ref.watch(observationsRepositoryProvider).watchForKid(kidId);
+});
+
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final observationKidsProvider =
+    FutureProvider.family<List<Kid>, String>((ref, observationId) {
+  return ref
+      .watch(observationsRepositoryProvider)
+      .kidsForObservation(observationId);
 });
