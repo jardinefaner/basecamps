@@ -12,6 +12,7 @@ class ScheduleItemCard extends ConsumerWidget {
     required this.isNow,
     required this.isPast,
     this.hasConflict = false,
+    this.onTap,
     super.key,
   });
 
@@ -19,6 +20,7 @@ class ScheduleItemCard extends ConsumerWidget {
   final bool isNow;
   final bool isPast;
   final bool hasConflict;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -28,6 +30,7 @@ class ScheduleItemCard extends ConsumerWidget {
         : theme.colorScheme.onSurface;
 
     return AppCard(
+      onTap: onTap,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

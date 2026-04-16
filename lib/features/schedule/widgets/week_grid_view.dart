@@ -266,7 +266,7 @@ class _DayColumn extends StatelessWidget {
               left: 2,
               right: 2,
               height: ((item.endMinutes - item.startMinutes) / 60 * pxPerHour)
-                  .clamp(20.0, double.infinity),
+                  .clamp(32.0, double.infinity),
               child: _Block(
                 item: item,
                 inConflict: conflictingIds.contains(item.id),
@@ -314,26 +314,36 @@ class _Block extends StatelessWidget {
             left: BorderSide(color: borderColor, width: 3),
           ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              item.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: fg,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            Text(
-              _formatTime(item.startTime),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: fg.withValues(alpha: 0.75),
-              ),
-            ),
-          ],
+        child: ClipRect(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final showTime = constraints.maxHeight >= 40;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    item.title,
+                    maxLines: showTime ? 2 : 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: fg,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (showTime)
+                    Text(
+                      _formatTime(item.startTime),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: fg.withValues(alpha: 0.75),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
 import 'package:basecamp/features/today/widgets/schedule_item_card.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,15 @@ import 'package:intl/intl.dart';
 
 class TodayScreen extends ConsumerWidget {
   const TodayScreen({super.key});
+
+  Future<void> _openDetail(BuildContext context, ScheduleItem item) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => ActivityDetailSheet(item: item),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -75,6 +85,7 @@ class TodayScreen extends ConsumerWidget {
                       isNow: i == currentIndex,
                       isPast: currentIndex != null && i < currentIndex,
                       hasConflict: conflicts.contains(items[i].id),
+                      onTap: () => _openDetail(context, items[i]),
                     ),
                   ),
                 ],
