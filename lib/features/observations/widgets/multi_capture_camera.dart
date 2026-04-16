@@ -454,14 +454,37 @@ class _PreviewArea extends StatelessWidget {
         child: CircularProgressIndicator(color: Colors.white),
       );
     }
+
+    // The camera plugin reports `aspectRatio` in the sensor's native
+    // landscape orientation (width > height). CameraPreview, meanwhile,
+    // is just a Texture — it stretches to fill whatever bounds we give
+    // it and doesn't auto-correct for orientation. So in portrait we
+    // flip the ratio, then scale the preview up with a cover-fill so
+    // the viewfinder fills the whole screen like a native camera app
+    // (cropping the overflow edges rather than showing black bars).
+    final size = MediaQuery.sizeOf(context);
+    final isPortrait = size.height >= size.width;
+    final sensorRatio = c.value.aspectRatio;
+    final previewRatio = isPortrait ? 1 / sensorRatio : sensorRatio;
+    final screenRatio = size.width / size.height;
+
+    final scale = screenRatio > previewRatio
+        ? screenRatio / previewRatio
+        : previewRatio / screenRatio;
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onScaleStart: onScaleStart,
       onScaleUpdate: onScaleUpdate,
-      child: Center(
-        child: AspectRatio(
-          aspectRatio: c.value.aspectRatio,
-          child: CameraPreview(c),
+      child: ClipRect(
+        child: Transform.scale(
+          scale: scale,
+          child: Center(
+            child: AspectRatio(
+              aspectRatio: previewRatio,
+              child: CameraPreview(c),
+            ),
+          ),
         ),
       ),
     );
@@ -499,14 +522,17 @@ class _ShutterButton extends StatelessWidget {
                 ),
               ),
             ),
+            // AnimatedContainer interpolates shape + borderRadius in
+            // lockstep, which trips the "circle + borderRadius" assertion
+            // mid-tween. Keep the shape as a rectangle and animate the
+            // radius instead: half-size = circle, 6px = rounded square.
             AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               width: recording ? 30 : 60,
               height: recording ? 30 : 60,
               decoration: BoxDecoration(
                 color: isVideo || recording ? Colors.red : Colors.white,
-                shape: recording ? BoxShape.rectangle : BoxShape.circle,
-                borderRadius: recording ? BorderRadius.circular(6) : null,
+                borderRadius: BorderRadius.circular(recording ? 6 : 30),
               ),
             ),
           ],

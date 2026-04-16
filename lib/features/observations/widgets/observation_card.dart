@@ -123,53 +123,57 @@ class _AttachmentStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Show up to 4 inline, rest collapse into a "+N" tile. Horizontal
+    // scroll handles the rare case where 4 thumbs + the +N tile still
+    // don't fit on very narrow phones (SE, etc).
     const visibleLimit = 4;
     final visible = attachments.take(visibleLimit).toList();
     final remaining = attachments.length - visible.length;
+    final total = visible.length + (remaining > 0 ? 1 : 0);
 
     return SizedBox(
       height: 84,
-      child: Row(
-        children: [
-          for (var i = 0; i < visible.length; i++) ...[
-            _AttachmentThumb(
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        // With a full row of 4 + overflow tile most screens don't need
+        // scrolling; the physics fire only when width is tight.
+        physics: const ClampingScrollPhysics(),
+        itemCount: total,
+        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
+        itemBuilder: (context, i) {
+          if (i < visible.length) {
+            return _AttachmentThumb(
               attachment: visible[i],
               onTap: () => AttachmentViewer.open(
                 context,
                 attachments,
                 initialIndex: i,
               ),
+            );
+          }
+          return InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => AttachmentViewer.open(
+              context,
+              attachments,
+              initialIndex: visible.length,
             ),
-            if (i < visible.length - 1 || remaining > 0)
-              const SizedBox(width: AppSpacing.sm),
-          ],
-          if (remaining > 0)
-            InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: () => AttachmentViewer.open(
-                context,
-                attachments,
-                initialIndex: visible.length,
-              ),
-              child: Container(
-                width: 64,
-                height: 84,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: theme.colorScheme.outlineVariant,
-                    width: 0.5,
-                  ),
-                ),
-                child: Text(
-                  '+$remaining',
-                  style: theme.textTheme.labelMedium,
+            child: Container(
+              width: 64,
+              height: 84,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: theme.colorScheme.outlineVariant,
+                  width: 0.5,
                 ),
               ),
+              child: Text('+$remaining', style: theme.textTheme.labelMedium),
             ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -253,9 +257,10 @@ class _AttachmentThumb extends StatelessWidget {
   }
 }
 
-/// Stack of domain chips rendered in the card header. Shows up to two
-/// chips inline; any extras collapse into a "+N" pill so the header
-/// stays on one line for long kid names.
+/// Primary domain chip + an optional "+N" collapsing the rest. Keep
+/// the header to a single inline pill so the kid-name column keeps as
+/// much space as possible — tapping the card opens the editor where
+/// every tagged domain is visible.
 class _DomainChipList extends StatelessWidget {
   const _DomainChipList({required this.domains});
 
@@ -264,9 +269,8 @@ class _DomainChipList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    const inlineLimit = 2;
-    final visible = domains.take(inlineLimit).toList();
-    final extra = domains.length - visible.length;
+    final primary = domains.first;
+    final extra = domains.length - 1;
 
     Widget chip(String text) => Container(
           margin: const EdgeInsets.only(left: AppSpacing.xs),
@@ -284,8 +288,7 @@ class _DomainChipList extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (final d in visible)
-          chip(d == ObservationDomain.other ? d.label : d.code),
+        chip(primary == ObservationDomain.other ? primary.label : primary.code),
         if (extra > 0) chip('+$extra'),
       ],
     );
