@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:basecamp/features/observations/ai_classifier.dart';
 import 'package:basecamp/features/observations/classifier.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/observations/voice_service.dart';
@@ -65,24 +66,30 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
     setState(() => _submitting = true);
     final currentActivity = _currentActivity();
     final note = _noteController.text.trim();
-    final suggestion = suggestTags(note);
-    await ref.read(observationsRepositoryProvider).addObservation(
-          note: note,
-          domain: suggestion.domain,
-          sentiment: suggestion.sentiment,
-          attachments: _attachments
-              .map(
-                (a) => ObservationAttachmentInput(
-                  kind: a.kind,
-                  localPath: a.path,
-                ),
-              )
-              .toList(),
-          activityLabel: currentActivity?.title,
-          podId: currentActivity != null && currentActivity.podIds.length == 1
-              ? currentActivity.podIds.first
-              : null,
-        );
+    // Save immediately with the local heuristic tags so the card shows up
+    // without delay. If OpenAI is configured, we refine the tags in the
+    // background once the classification call returns.
+    final localSuggestion = suggestTags(note);
+    final repo = ref.read(observationsRepositoryProvider);
+    final observationId = await repo.addObservation(
+      note: note,
+      domain: localSuggestion.domain,
+      sentiment: localSuggestion.sentiment,
+      attachments: _attachments
+          .map(
+            (a) => ObservationAttachmentInput(
+              kind: a.kind,
+              localPath: a.path,
+            ),
+          )
+          .toList(),
+      activityLabel: currentActivity?.title,
+      podId: currentActivity != null && currentActivity.podIds.length == 1
+          ? currentActivity.podIds.first
+          : null,
+    );
+    unawaited(_refineTagsWithAi(observationId, note));
+
     if (!mounted) return;
     _noteController.clear();
     setState(() {
@@ -96,6 +103,23 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
         duration: Duration(seconds: 2),
       ),
     );
+  }
+
+  Future<void> _refineTagsWithAi(String observationId, String note) async {
+    final refined = await classifyObservationWithAi(note);
+    // Use ref (not the widget's context) — this widget may have been
+    // disposed by the time the API call returns. Riverpod's ref stays
+    // valid, the observation's row in the DB doesn't care about UI state.
+    try {
+      await ref.read(observationsRepositoryProvider).updateObservation(
+            id: observationId,
+            domain: refined.domain,
+            sentiment: refined.sentiment,
+          );
+    } on Object {
+      // Silent: the locally-suggested tags are still there, teacher
+      // can override in the edit sheet.
+    }
   }
 
   ScheduleItem? _currentActivity() {

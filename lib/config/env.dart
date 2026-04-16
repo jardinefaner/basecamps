@@ -15,4 +15,11 @@ abstract final class Env {
       String.fromEnvironment('DEEPGRAM_API_KEY');
 
   static bool get hasDeepgram => deepgramApiKey.isNotEmpty;
+
+  /// OpenAI API key used to classify observations (domain + sentiment)
+  /// when the teacher saves. Client-side for now — will move behind a
+  /// Supabase edge function before any non-dev release.
+  static const String openaiApiKey = String.fromEnvironment('OPENAI_API_KEY');
+
+  static bool get hasOpenAi => openaiApiKey.isNotEmpty;
 }
