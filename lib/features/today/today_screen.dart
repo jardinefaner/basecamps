@@ -1,3 +1,4 @@
+import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/today/widgets/schedule_item_card.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -43,6 +44,7 @@ class TodayScreen extends ConsumerWidget {
               break;
             }
           }
+          final conflicts = detectConflictingIds(items);
 
           return ListView(
             padding: const EdgeInsets.only(
@@ -72,6 +74,7 @@ class TodayScreen extends ConsumerWidget {
                       item: items[i],
                       isNow: i == currentIndex,
                       isPast: currentIndex != null && i < currentIndex,
+                      hasConflict: conflicts.contains(items[i].id),
                     ),
                   ),
                 ],

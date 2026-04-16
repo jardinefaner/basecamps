@@ -11,12 +11,14 @@ class ScheduleItemCard extends ConsumerWidget {
     required this.item,
     required this.isNow,
     required this.isPast,
+    this.hasConflict = false,
     super.key,
   });
 
   final ScheduleItem item;
   final bool isNow;
   final bool isPast;
+  final bool hasConflict;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -81,6 +83,14 @@ class ScheduleItemCard extends ConsumerWidget {
                         ),
                       ),
                     ),
+                    if (hasConflict) ...[
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        size: 18,
+                        color: theme.colorScheme.error,
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                    ],
                     if (isNow)
                       _StatusBadge(
                         label: 'NOW',

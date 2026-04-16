@@ -1,4 +1,4 @@
-import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/add_activity_picker.dart';
 import 'package:basecamp/features/schedule/widgets/copy_day_sheet.dart';
@@ -25,7 +25,7 @@ class ScheduleEditorScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final templatesAsync = ref.watch(templatesProvider);
+    final itemsAsync = ref.watch(templateItemsByDayProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Weekly schedule')),
@@ -34,15 +34,10 @@ class ScheduleEditorScreen extends ConsumerWidget {
         icon: const Icon(Icons.add),
         label: const Text('Add'),
       ),
-      body: templatesAsync.when(
+      body: itemsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => Center(child: Text('Error: $err')),
-        data: (templates) {
-          final byDay = <int, List<ScheduleTemplate>>{};
-          for (final t in templates) {
-            byDay.putIfAbsent(t.dayOfWeek, () => []).add(t);
-          }
-
+        data: (byDay) {
           return ListView(
             padding: const EdgeInsets.only(
               left: AppSpacing.lg,
@@ -51,14 +46,23 @@ class ScheduleEditorScreen extends ConsumerWidget {
               bottom: AppSpacing.xxxl * 2,
             ),
             children: [
-              for (var day = 1; day <= 7; day++)
-                _DaySection(
-                  day: day,
-                  items: byDay[day] ?? const [],
-                  onAdd: () => _openRecurring(context, initialDays: {day}),
-                  onEdit: (t) => _openRecurring(context, template: t),
-                  onCopy: () => _openCopy(context, day, byDay[day] ?? const []),
+              for (var day = 1; day <= 7; day++) ...[
+                Builder(
+                  builder: (context) {
+                    final items = byDay[day] ?? const <ScheduleItem>[];
+                    final conflictSet = detectConflictingIds(items);
+                    return _DaySection(
+                      day: day,
+                      items: items,
+                      conflictingIds: conflictSet,
+                      onAdd: () =>
+                          _openRecurring(context, initialDays: {day}),
+                      onEditById: (id) => _editById(context, ref, id),
+                      onCopy: () => _openCopy(context, ref, day, items.length),
+                    );
+                  },
                 ),
+              ],
             ],
           );
         },
@@ -77,29 +81,43 @@ class ScheduleEditorScreen extends ConsumerWidget {
 
   Future<void> _openRecurring(
     BuildContext context, {
-    ScheduleTemplate? template,
     Set<int>? initialDays,
   }) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => EditTemplateSheet(
-        template: template,
-        initialDays: initialDays,
-      ),
+      builder: (_) => EditTemplateSheet(initialDays: initialDays),
+    );
+  }
+
+  Future<void> _editById(
+    BuildContext context,
+    WidgetRef ref,
+    String templateId,
+  ) async {
+    final template =
+        await ref.read(scheduleRepositoryProvider).getTemplate(templateId);
+    if (template == null || !context.mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => EditTemplateSheet(template: template),
     );
   }
 
   Future<void> _openCopy(
     BuildContext context,
+    WidgetRef ref,
     int sourceDay,
-    List<ScheduleTemplate> items,
+    int sourceCount,
   ) async {
-    if (items.isEmpty) {
+    if (sourceCount == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${_dayLabels[sourceDay - 1]} has no activities to copy.'),
+          content:
+              Text('${_dayLabels[sourceDay - 1]} has no activities to copy.'),
         ),
       );
       return;
@@ -111,7 +129,7 @@ class ScheduleEditorScreen extends ConsumerWidget {
       showDragHandle: true,
       builder: (_) => CopyDaySheet(
         sourceDay: sourceDay,
-        sourceCount: items.length,
+        sourceCount: sourceCount,
         onCopied: (targetDays, countPerDay) {
           final sortedNames = (targetDays.toList()..sort())
               .map((d) => _dayShortLabels[d - 1])
@@ -134,15 +152,17 @@ class _DaySection extends StatelessWidget {
   const _DaySection({
     required this.day,
     required this.items,
+    required this.conflictingIds,
     required this.onAdd,
-    required this.onEdit,
+    required this.onEditById,
     required this.onCopy,
   });
 
   final int day;
-  final List<ScheduleTemplate> items;
+  final List<ScheduleItem> items;
+  final Set<String> conflictingIds;
   final VoidCallback onAdd;
-  final ValueChanged<ScheduleTemplate> onEdit;
+  final ValueChanged<String> onEditById;
   final VoidCallback onCopy;
 
   @override
@@ -172,6 +192,14 @@ class _DaySection extends StatelessWidget {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
+                if (conflictingIds.isNotEmpty) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    size: 14,
+                    color: theme.colorScheme.error,
+                  ),
+                ],
                 const Spacer(),
                 IconButton(
                   onPressed: onAdd,
@@ -214,19 +242,19 @@ class _DaySection extends StatelessWidget {
               ),
             )
           else
-            for (final t in items)
+            for (final item in items)
               Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                 child: AppCard(
-                  onTap: () => onEdit(t),
+                  onTap: () => onEditById(item.templateId ?? item.id),
                   child: Row(
                     children: [
                       SizedBox(
                         width: 80,
                         child: Text(
-                          t.isFullDay
+                          item.isFullDay
                               ? 'All day'
-                              : '${_formatTime(t.startTime)}–${_formatTime(t.endTime)}',
+                              : '${_formatTime(item.startTime)}–${_formatTime(item.endTime)}',
                           style: theme.textTheme.labelMedium,
                         ),
                       ),
@@ -235,15 +263,28 @@ class _DaySection extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(t.title, style: theme.textTheme.titleMedium),
-                            if (t.location != null && t.location!.isNotEmpty)
+                            Text(
+                              item.title,
+                              style: theme.textTheme.titleMedium,
+                            ),
+                            if (item.location != null &&
+                                item.location!.isNotEmpty)
                               Text(
-                                t.location!,
+                                item.location!,
                                 style: theme.textTheme.bodySmall,
                               ),
                           ],
                         ),
                       ),
+                      if (conflictingIds.contains(item.id))
+                        Padding(
+                          padding: const EdgeInsets.only(right: AppSpacing.sm),
+                          child: Icon(
+                            Icons.warning_amber_rounded,
+                            size: 18,
+                            color: theme.colorScheme.error,
+                          ),
+                        ),
                       Icon(
                         Icons.chevron_right,
                         color: theme.colorScheme.onSurfaceVariant,

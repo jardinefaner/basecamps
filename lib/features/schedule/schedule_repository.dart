@@ -73,6 +73,44 @@ class ScheduleRepository {
     return query.get();
   }
 
+  Future<ScheduleTemplate?> getTemplate(String id) {
+    return (_db.select(_db.scheduleTemplates)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  /// Stream of all templates mapped to [ScheduleItem]s (with their pod ids
+  /// resolved) grouped by weekday. Used by the editor for display and for
+  /// conflict detection.
+  Stream<Map<int, List<ScheduleItem>>> watchTemplateItemsByDay() {
+    return watchTemplates().asyncMap((templates) async {
+      final byDay = <int, List<ScheduleItem>>{};
+      for (final t in templates) {
+        final pods = await podsForTemplate(t.id);
+        final item = ScheduleItem(
+          id: t.id,
+          startTime: t.startTime,
+          endTime: t.endTime,
+          isFullDay: t.isFullDay,
+          title: t.title,
+          podIds: pods,
+          specialistId: t.specialistId,
+          location: t.location,
+          notes: t.notes,
+          isFromTemplate: true,
+          templateId: t.id,
+        );
+        byDay.putIfAbsent(t.dayOfWeek, () => []).add(item);
+      }
+      for (final list in byDay.values) {
+        list.sort((a, b) {
+          if (a.isFullDay != b.isFullDay) return a.isFullDay ? -1 : 1;
+          return a.startMinutes.compareTo(b.startMinutes);
+        });
+      }
+      return byDay;
+    });
+  }
+
   Future<List<String>> podsForTemplate(String templateId) async {
     final rows = await (_db.select(_db.templatePods)
           ..where((p) => p.templateId.equals(templateId)))
@@ -413,6 +451,11 @@ final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
 
 final templatesProvider = StreamProvider<List<ScheduleTemplate>>((ref) {
   return ref.watch(scheduleRepositoryProvider).watchTemplates();
+});
+
+final templateItemsByDayProvider =
+    StreamProvider<Map<int, List<ScheduleItem>>>((ref) {
+  return ref.watch(scheduleRepositoryProvider).watchTemplateItemsByDay();
 });
 
 final todayScheduleProvider = StreamProvider<List<ScheduleItem>>((ref) {
