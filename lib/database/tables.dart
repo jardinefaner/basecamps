@@ -262,6 +262,66 @@ class EntryPods extends Table {
   Set<Column<Object>> get primaryKey => {entryId, podId};
 }
 
+/// Parent concern notes — the first form type. Staff fill one out when a
+/// parent raises a concern; the form is broken into sections and can be
+/// saved mid-fill and returned to. Most fields are optional (and default
+/// to empty strings / nulls) so partial drafts save cleanly.
+class ParentConcernNotes extends Table {
+  TextColumn get id => text()();
+
+  // Header
+  TextColumn get childNames => text().withDefault(const Constant(''))();
+  TextColumn get parentName => text().withDefault(const Constant(''))();
+  DateTimeColumn get concernDate => dateTime().nullable()();
+  TextColumn get staffReceiving => text().withDefault(const Constant(''))();
+  TextColumn get supervisorNotified => text().nullable()();
+
+  // Method of communication — a concern can come in through more than
+  // one channel in the same conversation, so these are independent
+  // flags rather than a single enum.
+  BoolColumn get methodInPerson =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get methodPhone => boolean().withDefault(const Constant(false))();
+  BoolColumn get methodEmail => boolean().withDefault(const Constant(false))();
+  TextColumn get methodOther => text().nullable()();
+
+  // Narrative
+  TextColumn get concernDescription =>
+      text().withDefault(const Constant(''))();
+  TextColumn get immediateResponse =>
+      text().withDefault(const Constant(''))();
+
+  // Follow-up plan — same shape as method of communication.
+  BoolColumn get followUpMonitor =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get followUpStaffCheckIns =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get followUpSupervisorReview =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get followUpParentConversation =>
+      boolean().withDefault(const Constant(false))();
+  TextColumn get followUpOther => text().nullable()();
+  DateTimeColumn get followUpDate => dateTime().nullable()();
+
+  TextColumn get additionalNotes => text().nullable()();
+
+  // Signatures — typed name + timestamp. A real drawn signature can
+  // swap in later without a schema change (we'd just treat the string
+  // as a file path).
+  TextColumn get staffSignature => text().nullable()();
+  DateTimeColumn get staffSignatureDate => dateTime().nullable()();
+  TextColumn get supervisorSignature => text().nullable()();
+  DateTimeColumn get supervisorSignatureDate => dateTime().nullable()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 /// Per-date schedule entries. `kind` is 'addition' | 'override' | 'cancellation'.
 /// When 'override' or 'cancellation', `overridesTemplateId` points to the template
 /// that this entry modifies for the given `date`.

@@ -29,7 +29,7 @@ class MoreScreen extends StatelessWidget {
             icon: Icons.assignment_outlined,
             label: 'Forms & surveys',
             subtitle: 'Attendance, incidents, parent concerns',
-            onTap: () {},
+            onTap: () => context.push('/more/forms'),
           ),
           _MoreTile(
             icon: Icons.person_outline,

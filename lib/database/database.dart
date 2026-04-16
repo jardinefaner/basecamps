@@ -28,6 +28,7 @@ QueryExecutor _openConnection() {
     ScheduleEntries,
     TemplatePods,
     EntryPods,
+    ParentConcernNotes,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -36,7 +37,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -232,6 +233,10 @@ class AppDatabase extends _$AppDatabase {
               specialists,
               specialists.avatarPath,
             );
+          }
+          if (from < 16) {
+            // First structured form: parent concern notes.
+            await _createTableIfMissing(m, parentConcernNotes);
           }
         },
       );

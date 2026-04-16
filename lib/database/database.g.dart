@@ -7381,6 +7381,1507 @@ class EntryPodsCompanion extends UpdateCompanion<EntryPod> {
   }
 }
 
+class $ParentConcernNotesTable extends ParentConcernNotes
+    with TableInfo<$ParentConcernNotesTable, ParentConcernNote> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ParentConcernNotesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _childNamesMeta = const VerificationMeta(
+    'childNames',
+  );
+  @override
+  late final GeneratedColumn<String> childNames = GeneratedColumn<String>(
+    'child_names',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _parentNameMeta = const VerificationMeta(
+    'parentName',
+  );
+  @override
+  late final GeneratedColumn<String> parentName = GeneratedColumn<String>(
+    'parent_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _concernDateMeta = const VerificationMeta(
+    'concernDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> concernDate = GeneratedColumn<DateTime>(
+    'concern_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _staffReceivingMeta = const VerificationMeta(
+    'staffReceiving',
+  );
+  @override
+  late final GeneratedColumn<String> staffReceiving = GeneratedColumn<String>(
+    'staff_receiving',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _supervisorNotifiedMeta =
+      const VerificationMeta('supervisorNotified');
+  @override
+  late final GeneratedColumn<String> supervisorNotified =
+      GeneratedColumn<String>(
+        'supervisor_notified',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _methodInPersonMeta = const VerificationMeta(
+    'methodInPerson',
+  );
+  @override
+  late final GeneratedColumn<bool> methodInPerson = GeneratedColumn<bool>(
+    'method_in_person',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("method_in_person" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _methodPhoneMeta = const VerificationMeta(
+    'methodPhone',
+  );
+  @override
+  late final GeneratedColumn<bool> methodPhone = GeneratedColumn<bool>(
+    'method_phone',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("method_phone" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _methodEmailMeta = const VerificationMeta(
+    'methodEmail',
+  );
+  @override
+  late final GeneratedColumn<bool> methodEmail = GeneratedColumn<bool>(
+    'method_email',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("method_email" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _methodOtherMeta = const VerificationMeta(
+    'methodOther',
+  );
+  @override
+  late final GeneratedColumn<String> methodOther = GeneratedColumn<String>(
+    'method_other',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _concernDescriptionMeta =
+      const VerificationMeta('concernDescription');
+  @override
+  late final GeneratedColumn<String> concernDescription =
+      GeneratedColumn<String>(
+        'concern_description',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(''),
+      );
+  static const VerificationMeta _immediateResponseMeta = const VerificationMeta(
+    'immediateResponse',
+  );
+  @override
+  late final GeneratedColumn<String> immediateResponse =
+      GeneratedColumn<String>(
+        'immediate_response',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(''),
+      );
+  static const VerificationMeta _followUpMonitorMeta = const VerificationMeta(
+    'followUpMonitor',
+  );
+  @override
+  late final GeneratedColumn<bool> followUpMonitor = GeneratedColumn<bool>(
+    'follow_up_monitor',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("follow_up_monitor" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _followUpStaffCheckInsMeta =
+      const VerificationMeta('followUpStaffCheckIns');
+  @override
+  late final GeneratedColumn<bool> followUpStaffCheckIns =
+      GeneratedColumn<bool>(
+        'follow_up_staff_check_ins',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("follow_up_staff_check_ins" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
+  static const VerificationMeta _followUpSupervisorReviewMeta =
+      const VerificationMeta('followUpSupervisorReview');
+  @override
+  late final GeneratedColumn<bool> followUpSupervisorReview =
+      GeneratedColumn<bool>(
+        'follow_up_supervisor_review',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("follow_up_supervisor_review" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
+  static const VerificationMeta _followUpParentConversationMeta =
+      const VerificationMeta('followUpParentConversation');
+  @override
+  late final GeneratedColumn<bool> followUpParentConversation =
+      GeneratedColumn<bool>(
+        'follow_up_parent_conversation',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("follow_up_parent_conversation" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
+  static const VerificationMeta _followUpOtherMeta = const VerificationMeta(
+    'followUpOther',
+  );
+  @override
+  late final GeneratedColumn<String> followUpOther = GeneratedColumn<String>(
+    'follow_up_other',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _followUpDateMeta = const VerificationMeta(
+    'followUpDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> followUpDate = GeneratedColumn<DateTime>(
+    'follow_up_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _additionalNotesMeta = const VerificationMeta(
+    'additionalNotes',
+  );
+  @override
+  late final GeneratedColumn<String> additionalNotes = GeneratedColumn<String>(
+    'additional_notes',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _staffSignatureMeta = const VerificationMeta(
+    'staffSignature',
+  );
+  @override
+  late final GeneratedColumn<String> staffSignature = GeneratedColumn<String>(
+    'staff_signature',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _staffSignatureDateMeta =
+      const VerificationMeta('staffSignatureDate');
+  @override
+  late final GeneratedColumn<DateTime> staffSignatureDate =
+      GeneratedColumn<DateTime>(
+        'staff_signature_date',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _supervisorSignatureMeta =
+      const VerificationMeta('supervisorSignature');
+  @override
+  late final GeneratedColumn<String> supervisorSignature =
+      GeneratedColumn<String>(
+        'supervisor_signature',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _supervisorSignatureDateMeta =
+      const VerificationMeta('supervisorSignatureDate');
+  @override
+  late final GeneratedColumn<DateTime> supervisorSignatureDate =
+      GeneratedColumn<DateTime>(
+        'supervisor_signature_date',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    childNames,
+    parentName,
+    concernDate,
+    staffReceiving,
+    supervisorNotified,
+    methodInPerson,
+    methodPhone,
+    methodEmail,
+    methodOther,
+    concernDescription,
+    immediateResponse,
+    followUpMonitor,
+    followUpStaffCheckIns,
+    followUpSupervisorReview,
+    followUpParentConversation,
+    followUpOther,
+    followUpDate,
+    additionalNotes,
+    staffSignature,
+    staffSignatureDate,
+    supervisorSignature,
+    supervisorSignatureDate,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'parent_concern_notes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ParentConcernNote> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('child_names')) {
+      context.handle(
+        _childNamesMeta,
+        childNames.isAcceptableOrUnknown(data['child_names']!, _childNamesMeta),
+      );
+    }
+    if (data.containsKey('parent_name')) {
+      context.handle(
+        _parentNameMeta,
+        parentName.isAcceptableOrUnknown(data['parent_name']!, _parentNameMeta),
+      );
+    }
+    if (data.containsKey('concern_date')) {
+      context.handle(
+        _concernDateMeta,
+        concernDate.isAcceptableOrUnknown(
+          data['concern_date']!,
+          _concernDateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('staff_receiving')) {
+      context.handle(
+        _staffReceivingMeta,
+        staffReceiving.isAcceptableOrUnknown(
+          data['staff_receiving']!,
+          _staffReceivingMeta,
+        ),
+      );
+    }
+    if (data.containsKey('supervisor_notified')) {
+      context.handle(
+        _supervisorNotifiedMeta,
+        supervisorNotified.isAcceptableOrUnknown(
+          data['supervisor_notified']!,
+          _supervisorNotifiedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('method_in_person')) {
+      context.handle(
+        _methodInPersonMeta,
+        methodInPerson.isAcceptableOrUnknown(
+          data['method_in_person']!,
+          _methodInPersonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('method_phone')) {
+      context.handle(
+        _methodPhoneMeta,
+        methodPhone.isAcceptableOrUnknown(
+          data['method_phone']!,
+          _methodPhoneMeta,
+        ),
+      );
+    }
+    if (data.containsKey('method_email')) {
+      context.handle(
+        _methodEmailMeta,
+        methodEmail.isAcceptableOrUnknown(
+          data['method_email']!,
+          _methodEmailMeta,
+        ),
+      );
+    }
+    if (data.containsKey('method_other')) {
+      context.handle(
+        _methodOtherMeta,
+        methodOther.isAcceptableOrUnknown(
+          data['method_other']!,
+          _methodOtherMeta,
+        ),
+      );
+    }
+    if (data.containsKey('concern_description')) {
+      context.handle(
+        _concernDescriptionMeta,
+        concernDescription.isAcceptableOrUnknown(
+          data['concern_description']!,
+          _concernDescriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('immediate_response')) {
+      context.handle(
+        _immediateResponseMeta,
+        immediateResponse.isAcceptableOrUnknown(
+          data['immediate_response']!,
+          _immediateResponseMeta,
+        ),
+      );
+    }
+    if (data.containsKey('follow_up_monitor')) {
+      context.handle(
+        _followUpMonitorMeta,
+        followUpMonitor.isAcceptableOrUnknown(
+          data['follow_up_monitor']!,
+          _followUpMonitorMeta,
+        ),
+      );
+    }
+    if (data.containsKey('follow_up_staff_check_ins')) {
+      context.handle(
+        _followUpStaffCheckInsMeta,
+        followUpStaffCheckIns.isAcceptableOrUnknown(
+          data['follow_up_staff_check_ins']!,
+          _followUpStaffCheckInsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('follow_up_supervisor_review')) {
+      context.handle(
+        _followUpSupervisorReviewMeta,
+        followUpSupervisorReview.isAcceptableOrUnknown(
+          data['follow_up_supervisor_review']!,
+          _followUpSupervisorReviewMeta,
+        ),
+      );
+    }
+    if (data.containsKey('follow_up_parent_conversation')) {
+      context.handle(
+        _followUpParentConversationMeta,
+        followUpParentConversation.isAcceptableOrUnknown(
+          data['follow_up_parent_conversation']!,
+          _followUpParentConversationMeta,
+        ),
+      );
+    }
+    if (data.containsKey('follow_up_other')) {
+      context.handle(
+        _followUpOtherMeta,
+        followUpOther.isAcceptableOrUnknown(
+          data['follow_up_other']!,
+          _followUpOtherMeta,
+        ),
+      );
+    }
+    if (data.containsKey('follow_up_date')) {
+      context.handle(
+        _followUpDateMeta,
+        followUpDate.isAcceptableOrUnknown(
+          data['follow_up_date']!,
+          _followUpDateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('additional_notes')) {
+      context.handle(
+        _additionalNotesMeta,
+        additionalNotes.isAcceptableOrUnknown(
+          data['additional_notes']!,
+          _additionalNotesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('staff_signature')) {
+      context.handle(
+        _staffSignatureMeta,
+        staffSignature.isAcceptableOrUnknown(
+          data['staff_signature']!,
+          _staffSignatureMeta,
+        ),
+      );
+    }
+    if (data.containsKey('staff_signature_date')) {
+      context.handle(
+        _staffSignatureDateMeta,
+        staffSignatureDate.isAcceptableOrUnknown(
+          data['staff_signature_date']!,
+          _staffSignatureDateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('supervisor_signature')) {
+      context.handle(
+        _supervisorSignatureMeta,
+        supervisorSignature.isAcceptableOrUnknown(
+          data['supervisor_signature']!,
+          _supervisorSignatureMeta,
+        ),
+      );
+    }
+    if (data.containsKey('supervisor_signature_date')) {
+      context.handle(
+        _supervisorSignatureDateMeta,
+        supervisorSignatureDate.isAcceptableOrUnknown(
+          data['supervisor_signature_date']!,
+          _supervisorSignatureDateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ParentConcernNote map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ParentConcernNote(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      childNames: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}child_names'],
+      )!,
+      parentName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}parent_name'],
+      )!,
+      concernDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}concern_date'],
+      ),
+      staffReceiving: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}staff_receiving'],
+      )!,
+      supervisorNotified: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}supervisor_notified'],
+      ),
+      methodInPerson: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}method_in_person'],
+      )!,
+      methodPhone: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}method_phone'],
+      )!,
+      methodEmail: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}method_email'],
+      )!,
+      methodOther: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}method_other'],
+      ),
+      concernDescription: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}concern_description'],
+      )!,
+      immediateResponse: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}immediate_response'],
+      )!,
+      followUpMonitor: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}follow_up_monitor'],
+      )!,
+      followUpStaffCheckIns: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}follow_up_staff_check_ins'],
+      )!,
+      followUpSupervisorReview: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}follow_up_supervisor_review'],
+      )!,
+      followUpParentConversation: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}follow_up_parent_conversation'],
+      )!,
+      followUpOther: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}follow_up_other'],
+      ),
+      followUpDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}follow_up_date'],
+      ),
+      additionalNotes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}additional_notes'],
+      ),
+      staffSignature: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}staff_signature'],
+      ),
+      staffSignatureDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}staff_signature_date'],
+      ),
+      supervisorSignature: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}supervisor_signature'],
+      ),
+      supervisorSignatureDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}supervisor_signature_date'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ParentConcernNotesTable createAlias(String alias) {
+    return $ParentConcernNotesTable(attachedDatabase, alias);
+  }
+}
+
+class ParentConcernNote extends DataClass
+    implements Insertable<ParentConcernNote> {
+  final String id;
+  final String childNames;
+  final String parentName;
+  final DateTime? concernDate;
+  final String staffReceiving;
+  final String? supervisorNotified;
+  final bool methodInPerson;
+  final bool methodPhone;
+  final bool methodEmail;
+  final String? methodOther;
+  final String concernDescription;
+  final String immediateResponse;
+  final bool followUpMonitor;
+  final bool followUpStaffCheckIns;
+  final bool followUpSupervisorReview;
+  final bool followUpParentConversation;
+  final String? followUpOther;
+  final DateTime? followUpDate;
+  final String? additionalNotes;
+  final String? staffSignature;
+  final DateTime? staffSignatureDate;
+  final String? supervisorSignature;
+  final DateTime? supervisorSignatureDate;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const ParentConcernNote({
+    required this.id,
+    required this.childNames,
+    required this.parentName,
+    this.concernDate,
+    required this.staffReceiving,
+    this.supervisorNotified,
+    required this.methodInPerson,
+    required this.methodPhone,
+    required this.methodEmail,
+    this.methodOther,
+    required this.concernDescription,
+    required this.immediateResponse,
+    required this.followUpMonitor,
+    required this.followUpStaffCheckIns,
+    required this.followUpSupervisorReview,
+    required this.followUpParentConversation,
+    this.followUpOther,
+    this.followUpDate,
+    this.additionalNotes,
+    this.staffSignature,
+    this.staffSignatureDate,
+    this.supervisorSignature,
+    this.supervisorSignatureDate,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['child_names'] = Variable<String>(childNames);
+    map['parent_name'] = Variable<String>(parentName);
+    if (!nullToAbsent || concernDate != null) {
+      map['concern_date'] = Variable<DateTime>(concernDate);
+    }
+    map['staff_receiving'] = Variable<String>(staffReceiving);
+    if (!nullToAbsent || supervisorNotified != null) {
+      map['supervisor_notified'] = Variable<String>(supervisorNotified);
+    }
+    map['method_in_person'] = Variable<bool>(methodInPerson);
+    map['method_phone'] = Variable<bool>(methodPhone);
+    map['method_email'] = Variable<bool>(methodEmail);
+    if (!nullToAbsent || methodOther != null) {
+      map['method_other'] = Variable<String>(methodOther);
+    }
+    map['concern_description'] = Variable<String>(concernDescription);
+    map['immediate_response'] = Variable<String>(immediateResponse);
+    map['follow_up_monitor'] = Variable<bool>(followUpMonitor);
+    map['follow_up_staff_check_ins'] = Variable<bool>(followUpStaffCheckIns);
+    map['follow_up_supervisor_review'] = Variable<bool>(
+      followUpSupervisorReview,
+    );
+    map['follow_up_parent_conversation'] = Variable<bool>(
+      followUpParentConversation,
+    );
+    if (!nullToAbsent || followUpOther != null) {
+      map['follow_up_other'] = Variable<String>(followUpOther);
+    }
+    if (!nullToAbsent || followUpDate != null) {
+      map['follow_up_date'] = Variable<DateTime>(followUpDate);
+    }
+    if (!nullToAbsent || additionalNotes != null) {
+      map['additional_notes'] = Variable<String>(additionalNotes);
+    }
+    if (!nullToAbsent || staffSignature != null) {
+      map['staff_signature'] = Variable<String>(staffSignature);
+    }
+    if (!nullToAbsent || staffSignatureDate != null) {
+      map['staff_signature_date'] = Variable<DateTime>(staffSignatureDate);
+    }
+    if (!nullToAbsent || supervisorSignature != null) {
+      map['supervisor_signature'] = Variable<String>(supervisorSignature);
+    }
+    if (!nullToAbsent || supervisorSignatureDate != null) {
+      map['supervisor_signature_date'] = Variable<DateTime>(
+        supervisorSignatureDate,
+      );
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  ParentConcernNotesCompanion toCompanion(bool nullToAbsent) {
+    return ParentConcernNotesCompanion(
+      id: Value(id),
+      childNames: Value(childNames),
+      parentName: Value(parentName),
+      concernDate: concernDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(concernDate),
+      staffReceiving: Value(staffReceiving),
+      supervisorNotified: supervisorNotified == null && nullToAbsent
+          ? const Value.absent()
+          : Value(supervisorNotified),
+      methodInPerson: Value(methodInPerson),
+      methodPhone: Value(methodPhone),
+      methodEmail: Value(methodEmail),
+      methodOther: methodOther == null && nullToAbsent
+          ? const Value.absent()
+          : Value(methodOther),
+      concernDescription: Value(concernDescription),
+      immediateResponse: Value(immediateResponse),
+      followUpMonitor: Value(followUpMonitor),
+      followUpStaffCheckIns: Value(followUpStaffCheckIns),
+      followUpSupervisorReview: Value(followUpSupervisorReview),
+      followUpParentConversation: Value(followUpParentConversation),
+      followUpOther: followUpOther == null && nullToAbsent
+          ? const Value.absent()
+          : Value(followUpOther),
+      followUpDate: followUpDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(followUpDate),
+      additionalNotes: additionalNotes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(additionalNotes),
+      staffSignature: staffSignature == null && nullToAbsent
+          ? const Value.absent()
+          : Value(staffSignature),
+      staffSignatureDate: staffSignatureDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(staffSignatureDate),
+      supervisorSignature: supervisorSignature == null && nullToAbsent
+          ? const Value.absent()
+          : Value(supervisorSignature),
+      supervisorSignatureDate: supervisorSignatureDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(supervisorSignatureDate),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory ParentConcernNote.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ParentConcernNote(
+      id: serializer.fromJson<String>(json['id']),
+      childNames: serializer.fromJson<String>(json['childNames']),
+      parentName: serializer.fromJson<String>(json['parentName']),
+      concernDate: serializer.fromJson<DateTime?>(json['concernDate']),
+      staffReceiving: serializer.fromJson<String>(json['staffReceiving']),
+      supervisorNotified: serializer.fromJson<String?>(
+        json['supervisorNotified'],
+      ),
+      methodInPerson: serializer.fromJson<bool>(json['methodInPerson']),
+      methodPhone: serializer.fromJson<bool>(json['methodPhone']),
+      methodEmail: serializer.fromJson<bool>(json['methodEmail']),
+      methodOther: serializer.fromJson<String?>(json['methodOther']),
+      concernDescription: serializer.fromJson<String>(
+        json['concernDescription'],
+      ),
+      immediateResponse: serializer.fromJson<String>(json['immediateResponse']),
+      followUpMonitor: serializer.fromJson<bool>(json['followUpMonitor']),
+      followUpStaffCheckIns: serializer.fromJson<bool>(
+        json['followUpStaffCheckIns'],
+      ),
+      followUpSupervisorReview: serializer.fromJson<bool>(
+        json['followUpSupervisorReview'],
+      ),
+      followUpParentConversation: serializer.fromJson<bool>(
+        json['followUpParentConversation'],
+      ),
+      followUpOther: serializer.fromJson<String?>(json['followUpOther']),
+      followUpDate: serializer.fromJson<DateTime?>(json['followUpDate']),
+      additionalNotes: serializer.fromJson<String?>(json['additionalNotes']),
+      staffSignature: serializer.fromJson<String?>(json['staffSignature']),
+      staffSignatureDate: serializer.fromJson<DateTime?>(
+        json['staffSignatureDate'],
+      ),
+      supervisorSignature: serializer.fromJson<String?>(
+        json['supervisorSignature'],
+      ),
+      supervisorSignatureDate: serializer.fromJson<DateTime?>(
+        json['supervisorSignatureDate'],
+      ),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'childNames': serializer.toJson<String>(childNames),
+      'parentName': serializer.toJson<String>(parentName),
+      'concernDate': serializer.toJson<DateTime?>(concernDate),
+      'staffReceiving': serializer.toJson<String>(staffReceiving),
+      'supervisorNotified': serializer.toJson<String?>(supervisorNotified),
+      'methodInPerson': serializer.toJson<bool>(methodInPerson),
+      'methodPhone': serializer.toJson<bool>(methodPhone),
+      'methodEmail': serializer.toJson<bool>(methodEmail),
+      'methodOther': serializer.toJson<String?>(methodOther),
+      'concernDescription': serializer.toJson<String>(concernDescription),
+      'immediateResponse': serializer.toJson<String>(immediateResponse),
+      'followUpMonitor': serializer.toJson<bool>(followUpMonitor),
+      'followUpStaffCheckIns': serializer.toJson<bool>(followUpStaffCheckIns),
+      'followUpSupervisorReview': serializer.toJson<bool>(
+        followUpSupervisorReview,
+      ),
+      'followUpParentConversation': serializer.toJson<bool>(
+        followUpParentConversation,
+      ),
+      'followUpOther': serializer.toJson<String?>(followUpOther),
+      'followUpDate': serializer.toJson<DateTime?>(followUpDate),
+      'additionalNotes': serializer.toJson<String?>(additionalNotes),
+      'staffSignature': serializer.toJson<String?>(staffSignature),
+      'staffSignatureDate': serializer.toJson<DateTime?>(staffSignatureDate),
+      'supervisorSignature': serializer.toJson<String?>(supervisorSignature),
+      'supervisorSignatureDate': serializer.toJson<DateTime?>(
+        supervisorSignatureDate,
+      ),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  ParentConcernNote copyWith({
+    String? id,
+    String? childNames,
+    String? parentName,
+    Value<DateTime?> concernDate = const Value.absent(),
+    String? staffReceiving,
+    Value<String?> supervisorNotified = const Value.absent(),
+    bool? methodInPerson,
+    bool? methodPhone,
+    bool? methodEmail,
+    Value<String?> methodOther = const Value.absent(),
+    String? concernDescription,
+    String? immediateResponse,
+    bool? followUpMonitor,
+    bool? followUpStaffCheckIns,
+    bool? followUpSupervisorReview,
+    bool? followUpParentConversation,
+    Value<String?> followUpOther = const Value.absent(),
+    Value<DateTime?> followUpDate = const Value.absent(),
+    Value<String?> additionalNotes = const Value.absent(),
+    Value<String?> staffSignature = const Value.absent(),
+    Value<DateTime?> staffSignatureDate = const Value.absent(),
+    Value<String?> supervisorSignature = const Value.absent(),
+    Value<DateTime?> supervisorSignatureDate = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => ParentConcernNote(
+    id: id ?? this.id,
+    childNames: childNames ?? this.childNames,
+    parentName: parentName ?? this.parentName,
+    concernDate: concernDate.present ? concernDate.value : this.concernDate,
+    staffReceiving: staffReceiving ?? this.staffReceiving,
+    supervisorNotified: supervisorNotified.present
+        ? supervisorNotified.value
+        : this.supervisorNotified,
+    methodInPerson: methodInPerson ?? this.methodInPerson,
+    methodPhone: methodPhone ?? this.methodPhone,
+    methodEmail: methodEmail ?? this.methodEmail,
+    methodOther: methodOther.present ? methodOther.value : this.methodOther,
+    concernDescription: concernDescription ?? this.concernDescription,
+    immediateResponse: immediateResponse ?? this.immediateResponse,
+    followUpMonitor: followUpMonitor ?? this.followUpMonitor,
+    followUpStaffCheckIns: followUpStaffCheckIns ?? this.followUpStaffCheckIns,
+    followUpSupervisorReview:
+        followUpSupervisorReview ?? this.followUpSupervisorReview,
+    followUpParentConversation:
+        followUpParentConversation ?? this.followUpParentConversation,
+    followUpOther: followUpOther.present
+        ? followUpOther.value
+        : this.followUpOther,
+    followUpDate: followUpDate.present ? followUpDate.value : this.followUpDate,
+    additionalNotes: additionalNotes.present
+        ? additionalNotes.value
+        : this.additionalNotes,
+    staffSignature: staffSignature.present
+        ? staffSignature.value
+        : this.staffSignature,
+    staffSignatureDate: staffSignatureDate.present
+        ? staffSignatureDate.value
+        : this.staffSignatureDate,
+    supervisorSignature: supervisorSignature.present
+        ? supervisorSignature.value
+        : this.supervisorSignature,
+    supervisorSignatureDate: supervisorSignatureDate.present
+        ? supervisorSignatureDate.value
+        : this.supervisorSignatureDate,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  ParentConcernNote copyWithCompanion(ParentConcernNotesCompanion data) {
+    return ParentConcernNote(
+      id: data.id.present ? data.id.value : this.id,
+      childNames: data.childNames.present
+          ? data.childNames.value
+          : this.childNames,
+      parentName: data.parentName.present
+          ? data.parentName.value
+          : this.parentName,
+      concernDate: data.concernDate.present
+          ? data.concernDate.value
+          : this.concernDate,
+      staffReceiving: data.staffReceiving.present
+          ? data.staffReceiving.value
+          : this.staffReceiving,
+      supervisorNotified: data.supervisorNotified.present
+          ? data.supervisorNotified.value
+          : this.supervisorNotified,
+      methodInPerson: data.methodInPerson.present
+          ? data.methodInPerson.value
+          : this.methodInPerson,
+      methodPhone: data.methodPhone.present
+          ? data.methodPhone.value
+          : this.methodPhone,
+      methodEmail: data.methodEmail.present
+          ? data.methodEmail.value
+          : this.methodEmail,
+      methodOther: data.methodOther.present
+          ? data.methodOther.value
+          : this.methodOther,
+      concernDescription: data.concernDescription.present
+          ? data.concernDescription.value
+          : this.concernDescription,
+      immediateResponse: data.immediateResponse.present
+          ? data.immediateResponse.value
+          : this.immediateResponse,
+      followUpMonitor: data.followUpMonitor.present
+          ? data.followUpMonitor.value
+          : this.followUpMonitor,
+      followUpStaffCheckIns: data.followUpStaffCheckIns.present
+          ? data.followUpStaffCheckIns.value
+          : this.followUpStaffCheckIns,
+      followUpSupervisorReview: data.followUpSupervisorReview.present
+          ? data.followUpSupervisorReview.value
+          : this.followUpSupervisorReview,
+      followUpParentConversation: data.followUpParentConversation.present
+          ? data.followUpParentConversation.value
+          : this.followUpParentConversation,
+      followUpOther: data.followUpOther.present
+          ? data.followUpOther.value
+          : this.followUpOther,
+      followUpDate: data.followUpDate.present
+          ? data.followUpDate.value
+          : this.followUpDate,
+      additionalNotes: data.additionalNotes.present
+          ? data.additionalNotes.value
+          : this.additionalNotes,
+      staffSignature: data.staffSignature.present
+          ? data.staffSignature.value
+          : this.staffSignature,
+      staffSignatureDate: data.staffSignatureDate.present
+          ? data.staffSignatureDate.value
+          : this.staffSignatureDate,
+      supervisorSignature: data.supervisorSignature.present
+          ? data.supervisorSignature.value
+          : this.supervisorSignature,
+      supervisorSignatureDate: data.supervisorSignatureDate.present
+          ? data.supervisorSignatureDate.value
+          : this.supervisorSignatureDate,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ParentConcernNote(')
+          ..write('id: $id, ')
+          ..write('childNames: $childNames, ')
+          ..write('parentName: $parentName, ')
+          ..write('concernDate: $concernDate, ')
+          ..write('staffReceiving: $staffReceiving, ')
+          ..write('supervisorNotified: $supervisorNotified, ')
+          ..write('methodInPerson: $methodInPerson, ')
+          ..write('methodPhone: $methodPhone, ')
+          ..write('methodEmail: $methodEmail, ')
+          ..write('methodOther: $methodOther, ')
+          ..write('concernDescription: $concernDescription, ')
+          ..write('immediateResponse: $immediateResponse, ')
+          ..write('followUpMonitor: $followUpMonitor, ')
+          ..write('followUpStaffCheckIns: $followUpStaffCheckIns, ')
+          ..write('followUpSupervisorReview: $followUpSupervisorReview, ')
+          ..write('followUpParentConversation: $followUpParentConversation, ')
+          ..write('followUpOther: $followUpOther, ')
+          ..write('followUpDate: $followUpDate, ')
+          ..write('additionalNotes: $additionalNotes, ')
+          ..write('staffSignature: $staffSignature, ')
+          ..write('staffSignatureDate: $staffSignatureDate, ')
+          ..write('supervisorSignature: $supervisorSignature, ')
+          ..write('supervisorSignatureDate: $supervisorSignatureDate, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    id,
+    childNames,
+    parentName,
+    concernDate,
+    staffReceiving,
+    supervisorNotified,
+    methodInPerson,
+    methodPhone,
+    methodEmail,
+    methodOther,
+    concernDescription,
+    immediateResponse,
+    followUpMonitor,
+    followUpStaffCheckIns,
+    followUpSupervisorReview,
+    followUpParentConversation,
+    followUpOther,
+    followUpDate,
+    additionalNotes,
+    staffSignature,
+    staffSignatureDate,
+    supervisorSignature,
+    supervisorSignatureDate,
+    createdAt,
+    updatedAt,
+  ]);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ParentConcernNote &&
+          other.id == this.id &&
+          other.childNames == this.childNames &&
+          other.parentName == this.parentName &&
+          other.concernDate == this.concernDate &&
+          other.staffReceiving == this.staffReceiving &&
+          other.supervisorNotified == this.supervisorNotified &&
+          other.methodInPerson == this.methodInPerson &&
+          other.methodPhone == this.methodPhone &&
+          other.methodEmail == this.methodEmail &&
+          other.methodOther == this.methodOther &&
+          other.concernDescription == this.concernDescription &&
+          other.immediateResponse == this.immediateResponse &&
+          other.followUpMonitor == this.followUpMonitor &&
+          other.followUpStaffCheckIns == this.followUpStaffCheckIns &&
+          other.followUpSupervisorReview == this.followUpSupervisorReview &&
+          other.followUpParentConversation == this.followUpParentConversation &&
+          other.followUpOther == this.followUpOther &&
+          other.followUpDate == this.followUpDate &&
+          other.additionalNotes == this.additionalNotes &&
+          other.staffSignature == this.staffSignature &&
+          other.staffSignatureDate == this.staffSignatureDate &&
+          other.supervisorSignature == this.supervisorSignature &&
+          other.supervisorSignatureDate == this.supervisorSignatureDate &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ParentConcernNotesCompanion extends UpdateCompanion<ParentConcernNote> {
+  final Value<String> id;
+  final Value<String> childNames;
+  final Value<String> parentName;
+  final Value<DateTime?> concernDate;
+  final Value<String> staffReceiving;
+  final Value<String?> supervisorNotified;
+  final Value<bool> methodInPerson;
+  final Value<bool> methodPhone;
+  final Value<bool> methodEmail;
+  final Value<String?> methodOther;
+  final Value<String> concernDescription;
+  final Value<String> immediateResponse;
+  final Value<bool> followUpMonitor;
+  final Value<bool> followUpStaffCheckIns;
+  final Value<bool> followUpSupervisorReview;
+  final Value<bool> followUpParentConversation;
+  final Value<String?> followUpOther;
+  final Value<DateTime?> followUpDate;
+  final Value<String?> additionalNotes;
+  final Value<String?> staffSignature;
+  final Value<DateTime?> staffSignatureDate;
+  final Value<String?> supervisorSignature;
+  final Value<DateTime?> supervisorSignatureDate;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const ParentConcernNotesCompanion({
+    this.id = const Value.absent(),
+    this.childNames = const Value.absent(),
+    this.parentName = const Value.absent(),
+    this.concernDate = const Value.absent(),
+    this.staffReceiving = const Value.absent(),
+    this.supervisorNotified = const Value.absent(),
+    this.methodInPerson = const Value.absent(),
+    this.methodPhone = const Value.absent(),
+    this.methodEmail = const Value.absent(),
+    this.methodOther = const Value.absent(),
+    this.concernDescription = const Value.absent(),
+    this.immediateResponse = const Value.absent(),
+    this.followUpMonitor = const Value.absent(),
+    this.followUpStaffCheckIns = const Value.absent(),
+    this.followUpSupervisorReview = const Value.absent(),
+    this.followUpParentConversation = const Value.absent(),
+    this.followUpOther = const Value.absent(),
+    this.followUpDate = const Value.absent(),
+    this.additionalNotes = const Value.absent(),
+    this.staffSignature = const Value.absent(),
+    this.staffSignatureDate = const Value.absent(),
+    this.supervisorSignature = const Value.absent(),
+    this.supervisorSignatureDate = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ParentConcernNotesCompanion.insert({
+    required String id,
+    this.childNames = const Value.absent(),
+    this.parentName = const Value.absent(),
+    this.concernDate = const Value.absent(),
+    this.staffReceiving = const Value.absent(),
+    this.supervisorNotified = const Value.absent(),
+    this.methodInPerson = const Value.absent(),
+    this.methodPhone = const Value.absent(),
+    this.methodEmail = const Value.absent(),
+    this.methodOther = const Value.absent(),
+    this.concernDescription = const Value.absent(),
+    this.immediateResponse = const Value.absent(),
+    this.followUpMonitor = const Value.absent(),
+    this.followUpStaffCheckIns = const Value.absent(),
+    this.followUpSupervisorReview = const Value.absent(),
+    this.followUpParentConversation = const Value.absent(),
+    this.followUpOther = const Value.absent(),
+    this.followUpDate = const Value.absent(),
+    this.additionalNotes = const Value.absent(),
+    this.staffSignature = const Value.absent(),
+    this.staffSignatureDate = const Value.absent(),
+    this.supervisorSignature = const Value.absent(),
+    this.supervisorSignatureDate = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id);
+  static Insertable<ParentConcernNote> custom({
+    Expression<String>? id,
+    Expression<String>? childNames,
+    Expression<String>? parentName,
+    Expression<DateTime>? concernDate,
+    Expression<String>? staffReceiving,
+    Expression<String>? supervisorNotified,
+    Expression<bool>? methodInPerson,
+    Expression<bool>? methodPhone,
+    Expression<bool>? methodEmail,
+    Expression<String>? methodOther,
+    Expression<String>? concernDescription,
+    Expression<String>? immediateResponse,
+    Expression<bool>? followUpMonitor,
+    Expression<bool>? followUpStaffCheckIns,
+    Expression<bool>? followUpSupervisorReview,
+    Expression<bool>? followUpParentConversation,
+    Expression<String>? followUpOther,
+    Expression<DateTime>? followUpDate,
+    Expression<String>? additionalNotes,
+    Expression<String>? staffSignature,
+    Expression<DateTime>? staffSignatureDate,
+    Expression<String>? supervisorSignature,
+    Expression<DateTime>? supervisorSignatureDate,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (childNames != null) 'child_names': childNames,
+      if (parentName != null) 'parent_name': parentName,
+      if (concernDate != null) 'concern_date': concernDate,
+      if (staffReceiving != null) 'staff_receiving': staffReceiving,
+      if (supervisorNotified != null) 'supervisor_notified': supervisorNotified,
+      if (methodInPerson != null) 'method_in_person': methodInPerson,
+      if (methodPhone != null) 'method_phone': methodPhone,
+      if (methodEmail != null) 'method_email': methodEmail,
+      if (methodOther != null) 'method_other': methodOther,
+      if (concernDescription != null) 'concern_description': concernDescription,
+      if (immediateResponse != null) 'immediate_response': immediateResponse,
+      if (followUpMonitor != null) 'follow_up_monitor': followUpMonitor,
+      if (followUpStaffCheckIns != null)
+        'follow_up_staff_check_ins': followUpStaffCheckIns,
+      if (followUpSupervisorReview != null)
+        'follow_up_supervisor_review': followUpSupervisorReview,
+      if (followUpParentConversation != null)
+        'follow_up_parent_conversation': followUpParentConversation,
+      if (followUpOther != null) 'follow_up_other': followUpOther,
+      if (followUpDate != null) 'follow_up_date': followUpDate,
+      if (additionalNotes != null) 'additional_notes': additionalNotes,
+      if (staffSignature != null) 'staff_signature': staffSignature,
+      if (staffSignatureDate != null)
+        'staff_signature_date': staffSignatureDate,
+      if (supervisorSignature != null)
+        'supervisor_signature': supervisorSignature,
+      if (supervisorSignatureDate != null)
+        'supervisor_signature_date': supervisorSignatureDate,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ParentConcernNotesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? childNames,
+    Value<String>? parentName,
+    Value<DateTime?>? concernDate,
+    Value<String>? staffReceiving,
+    Value<String?>? supervisorNotified,
+    Value<bool>? methodInPerson,
+    Value<bool>? methodPhone,
+    Value<bool>? methodEmail,
+    Value<String?>? methodOther,
+    Value<String>? concernDescription,
+    Value<String>? immediateResponse,
+    Value<bool>? followUpMonitor,
+    Value<bool>? followUpStaffCheckIns,
+    Value<bool>? followUpSupervisorReview,
+    Value<bool>? followUpParentConversation,
+    Value<String?>? followUpOther,
+    Value<DateTime?>? followUpDate,
+    Value<String?>? additionalNotes,
+    Value<String?>? staffSignature,
+    Value<DateTime?>? staffSignatureDate,
+    Value<String?>? supervisorSignature,
+    Value<DateTime?>? supervisorSignatureDate,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return ParentConcernNotesCompanion(
+      id: id ?? this.id,
+      childNames: childNames ?? this.childNames,
+      parentName: parentName ?? this.parentName,
+      concernDate: concernDate ?? this.concernDate,
+      staffReceiving: staffReceiving ?? this.staffReceiving,
+      supervisorNotified: supervisorNotified ?? this.supervisorNotified,
+      methodInPerson: methodInPerson ?? this.methodInPerson,
+      methodPhone: methodPhone ?? this.methodPhone,
+      methodEmail: methodEmail ?? this.methodEmail,
+      methodOther: methodOther ?? this.methodOther,
+      concernDescription: concernDescription ?? this.concernDescription,
+      immediateResponse: immediateResponse ?? this.immediateResponse,
+      followUpMonitor: followUpMonitor ?? this.followUpMonitor,
+      followUpStaffCheckIns:
+          followUpStaffCheckIns ?? this.followUpStaffCheckIns,
+      followUpSupervisorReview:
+          followUpSupervisorReview ?? this.followUpSupervisorReview,
+      followUpParentConversation:
+          followUpParentConversation ?? this.followUpParentConversation,
+      followUpOther: followUpOther ?? this.followUpOther,
+      followUpDate: followUpDate ?? this.followUpDate,
+      additionalNotes: additionalNotes ?? this.additionalNotes,
+      staffSignature: staffSignature ?? this.staffSignature,
+      staffSignatureDate: staffSignatureDate ?? this.staffSignatureDate,
+      supervisorSignature: supervisorSignature ?? this.supervisorSignature,
+      supervisorSignatureDate:
+          supervisorSignatureDate ?? this.supervisorSignatureDate,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (childNames.present) {
+      map['child_names'] = Variable<String>(childNames.value);
+    }
+    if (parentName.present) {
+      map['parent_name'] = Variable<String>(parentName.value);
+    }
+    if (concernDate.present) {
+      map['concern_date'] = Variable<DateTime>(concernDate.value);
+    }
+    if (staffReceiving.present) {
+      map['staff_receiving'] = Variable<String>(staffReceiving.value);
+    }
+    if (supervisorNotified.present) {
+      map['supervisor_notified'] = Variable<String>(supervisorNotified.value);
+    }
+    if (methodInPerson.present) {
+      map['method_in_person'] = Variable<bool>(methodInPerson.value);
+    }
+    if (methodPhone.present) {
+      map['method_phone'] = Variable<bool>(methodPhone.value);
+    }
+    if (methodEmail.present) {
+      map['method_email'] = Variable<bool>(methodEmail.value);
+    }
+    if (methodOther.present) {
+      map['method_other'] = Variable<String>(methodOther.value);
+    }
+    if (concernDescription.present) {
+      map['concern_description'] = Variable<String>(concernDescription.value);
+    }
+    if (immediateResponse.present) {
+      map['immediate_response'] = Variable<String>(immediateResponse.value);
+    }
+    if (followUpMonitor.present) {
+      map['follow_up_monitor'] = Variable<bool>(followUpMonitor.value);
+    }
+    if (followUpStaffCheckIns.present) {
+      map['follow_up_staff_check_ins'] = Variable<bool>(
+        followUpStaffCheckIns.value,
+      );
+    }
+    if (followUpSupervisorReview.present) {
+      map['follow_up_supervisor_review'] = Variable<bool>(
+        followUpSupervisorReview.value,
+      );
+    }
+    if (followUpParentConversation.present) {
+      map['follow_up_parent_conversation'] = Variable<bool>(
+        followUpParentConversation.value,
+      );
+    }
+    if (followUpOther.present) {
+      map['follow_up_other'] = Variable<String>(followUpOther.value);
+    }
+    if (followUpDate.present) {
+      map['follow_up_date'] = Variable<DateTime>(followUpDate.value);
+    }
+    if (additionalNotes.present) {
+      map['additional_notes'] = Variable<String>(additionalNotes.value);
+    }
+    if (staffSignature.present) {
+      map['staff_signature'] = Variable<String>(staffSignature.value);
+    }
+    if (staffSignatureDate.present) {
+      map['staff_signature_date'] = Variable<DateTime>(
+        staffSignatureDate.value,
+      );
+    }
+    if (supervisorSignature.present) {
+      map['supervisor_signature'] = Variable<String>(supervisorSignature.value);
+    }
+    if (supervisorSignatureDate.present) {
+      map['supervisor_signature_date'] = Variable<DateTime>(
+        supervisorSignatureDate.value,
+      );
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ParentConcernNotesCompanion(')
+          ..write('id: $id, ')
+          ..write('childNames: $childNames, ')
+          ..write('parentName: $parentName, ')
+          ..write('concernDate: $concernDate, ')
+          ..write('staffReceiving: $staffReceiving, ')
+          ..write('supervisorNotified: $supervisorNotified, ')
+          ..write('methodInPerson: $methodInPerson, ')
+          ..write('methodPhone: $methodPhone, ')
+          ..write('methodEmail: $methodEmail, ')
+          ..write('methodOther: $methodOther, ')
+          ..write('concernDescription: $concernDescription, ')
+          ..write('immediateResponse: $immediateResponse, ')
+          ..write('followUpMonitor: $followUpMonitor, ')
+          ..write('followUpStaffCheckIns: $followUpStaffCheckIns, ')
+          ..write('followUpSupervisorReview: $followUpSupervisorReview, ')
+          ..write('followUpParentConversation: $followUpParentConversation, ')
+          ..write('followUpOther: $followUpOther, ')
+          ..write('followUpDate: $followUpDate, ')
+          ..write('additionalNotes: $additionalNotes, ')
+          ..write('staffSignature: $staffSignature, ')
+          ..write('staffSignatureDate: $staffSignatureDate, ')
+          ..write('supervisorSignature: $supervisorSignature, ')
+          ..write('supervisorSignatureDate: $supervisorSignatureDate, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -7409,6 +8910,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $TemplatePodsTable templatePods = $TemplatePodsTable(this);
   late final $EntryPodsTable entryPods = $EntryPodsTable(this);
+  late final $ParentConcernNotesTable parentConcernNotes =
+      $ParentConcernNotesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -7430,6 +8933,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     scheduleEntries,
     templatePods,
     entryPods,
+    parentConcernNotes,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -16377,6 +17881,643 @@ typedef $$EntryPodsTableProcessedTableManager =
       EntryPod,
       PrefetchHooks Function({bool entryId, bool podId})
     >;
+typedef $$ParentConcernNotesTableCreateCompanionBuilder =
+    ParentConcernNotesCompanion Function({
+      required String id,
+      Value<String> childNames,
+      Value<String> parentName,
+      Value<DateTime?> concernDate,
+      Value<String> staffReceiving,
+      Value<String?> supervisorNotified,
+      Value<bool> methodInPerson,
+      Value<bool> methodPhone,
+      Value<bool> methodEmail,
+      Value<String?> methodOther,
+      Value<String> concernDescription,
+      Value<String> immediateResponse,
+      Value<bool> followUpMonitor,
+      Value<bool> followUpStaffCheckIns,
+      Value<bool> followUpSupervisorReview,
+      Value<bool> followUpParentConversation,
+      Value<String?> followUpOther,
+      Value<DateTime?> followUpDate,
+      Value<String?> additionalNotes,
+      Value<String?> staffSignature,
+      Value<DateTime?> staffSignatureDate,
+      Value<String?> supervisorSignature,
+      Value<DateTime?> supervisorSignatureDate,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$ParentConcernNotesTableUpdateCompanionBuilder =
+    ParentConcernNotesCompanion Function({
+      Value<String> id,
+      Value<String> childNames,
+      Value<String> parentName,
+      Value<DateTime?> concernDate,
+      Value<String> staffReceiving,
+      Value<String?> supervisorNotified,
+      Value<bool> methodInPerson,
+      Value<bool> methodPhone,
+      Value<bool> methodEmail,
+      Value<String?> methodOther,
+      Value<String> concernDescription,
+      Value<String> immediateResponse,
+      Value<bool> followUpMonitor,
+      Value<bool> followUpStaffCheckIns,
+      Value<bool> followUpSupervisorReview,
+      Value<bool> followUpParentConversation,
+      Value<String?> followUpOther,
+      Value<DateTime?> followUpDate,
+      Value<String?> additionalNotes,
+      Value<String?> staffSignature,
+      Value<DateTime?> staffSignatureDate,
+      Value<String?> supervisorSignature,
+      Value<DateTime?> supervisorSignatureDate,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$ParentConcernNotesTableFilterComposer
+    extends Composer<_$AppDatabase, $ParentConcernNotesTable> {
+  $$ParentConcernNotesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get childNames => $composableBuilder(
+    column: $table.childNames,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get parentName => $composableBuilder(
+    column: $table.parentName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get concernDate => $composableBuilder(
+    column: $table.concernDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get staffReceiving => $composableBuilder(
+    column: $table.staffReceiving,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get supervisorNotified => $composableBuilder(
+    column: $table.supervisorNotified,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get methodInPerson => $composableBuilder(
+    column: $table.methodInPerson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get methodPhone => $composableBuilder(
+    column: $table.methodPhone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get methodEmail => $composableBuilder(
+    column: $table.methodEmail,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get methodOther => $composableBuilder(
+    column: $table.methodOther,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get concernDescription => $composableBuilder(
+    column: $table.concernDescription,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get immediateResponse => $composableBuilder(
+    column: $table.immediateResponse,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get followUpMonitor => $composableBuilder(
+    column: $table.followUpMonitor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get followUpStaffCheckIns => $composableBuilder(
+    column: $table.followUpStaffCheckIns,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get followUpSupervisorReview => $composableBuilder(
+    column: $table.followUpSupervisorReview,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get followUpParentConversation => $composableBuilder(
+    column: $table.followUpParentConversation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get followUpOther => $composableBuilder(
+    column: $table.followUpOther,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get followUpDate => $composableBuilder(
+    column: $table.followUpDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get additionalNotes => $composableBuilder(
+    column: $table.additionalNotes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get staffSignature => $composableBuilder(
+    column: $table.staffSignature,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get staffSignatureDate => $composableBuilder(
+    column: $table.staffSignatureDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get supervisorSignature => $composableBuilder(
+    column: $table.supervisorSignature,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get supervisorSignatureDate => $composableBuilder(
+    column: $table.supervisorSignatureDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ParentConcernNotesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ParentConcernNotesTable> {
+  $$ParentConcernNotesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get childNames => $composableBuilder(
+    column: $table.childNames,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get parentName => $composableBuilder(
+    column: $table.parentName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get concernDate => $composableBuilder(
+    column: $table.concernDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get staffReceiving => $composableBuilder(
+    column: $table.staffReceiving,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get supervisorNotified => $composableBuilder(
+    column: $table.supervisorNotified,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get methodInPerson => $composableBuilder(
+    column: $table.methodInPerson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get methodPhone => $composableBuilder(
+    column: $table.methodPhone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get methodEmail => $composableBuilder(
+    column: $table.methodEmail,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get methodOther => $composableBuilder(
+    column: $table.methodOther,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get concernDescription => $composableBuilder(
+    column: $table.concernDescription,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get immediateResponse => $composableBuilder(
+    column: $table.immediateResponse,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get followUpMonitor => $composableBuilder(
+    column: $table.followUpMonitor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get followUpStaffCheckIns => $composableBuilder(
+    column: $table.followUpStaffCheckIns,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get followUpSupervisorReview => $composableBuilder(
+    column: $table.followUpSupervisorReview,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get followUpParentConversation => $composableBuilder(
+    column: $table.followUpParentConversation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get followUpOther => $composableBuilder(
+    column: $table.followUpOther,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get followUpDate => $composableBuilder(
+    column: $table.followUpDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get additionalNotes => $composableBuilder(
+    column: $table.additionalNotes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get staffSignature => $composableBuilder(
+    column: $table.staffSignature,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get staffSignatureDate => $composableBuilder(
+    column: $table.staffSignatureDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get supervisorSignature => $composableBuilder(
+    column: $table.supervisorSignature,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get supervisorSignatureDate => $composableBuilder(
+    column: $table.supervisorSignatureDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ParentConcernNotesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ParentConcernNotesTable> {
+  $$ParentConcernNotesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get childNames => $composableBuilder(
+    column: $table.childNames,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get parentName => $composableBuilder(
+    column: $table.parentName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get concernDate => $composableBuilder(
+    column: $table.concernDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get staffReceiving => $composableBuilder(
+    column: $table.staffReceiving,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get supervisorNotified => $composableBuilder(
+    column: $table.supervisorNotified,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get methodInPerson => $composableBuilder(
+    column: $table.methodInPerson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get methodPhone => $composableBuilder(
+    column: $table.methodPhone,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get methodEmail => $composableBuilder(
+    column: $table.methodEmail,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get methodOther => $composableBuilder(
+    column: $table.methodOther,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get concernDescription => $composableBuilder(
+    column: $table.concernDescription,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get immediateResponse => $composableBuilder(
+    column: $table.immediateResponse,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get followUpMonitor => $composableBuilder(
+    column: $table.followUpMonitor,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get followUpStaffCheckIns => $composableBuilder(
+    column: $table.followUpStaffCheckIns,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get followUpSupervisorReview => $composableBuilder(
+    column: $table.followUpSupervisorReview,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get followUpParentConversation => $composableBuilder(
+    column: $table.followUpParentConversation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get followUpOther => $composableBuilder(
+    column: $table.followUpOther,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get followUpDate => $composableBuilder(
+    column: $table.followUpDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get additionalNotes => $composableBuilder(
+    column: $table.additionalNotes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get staffSignature => $composableBuilder(
+    column: $table.staffSignature,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get staffSignatureDate => $composableBuilder(
+    column: $table.staffSignatureDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get supervisorSignature => $composableBuilder(
+    column: $table.supervisorSignature,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get supervisorSignatureDate => $composableBuilder(
+    column: $table.supervisorSignatureDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$ParentConcernNotesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ParentConcernNotesTable,
+          ParentConcernNote,
+          $$ParentConcernNotesTableFilterComposer,
+          $$ParentConcernNotesTableOrderingComposer,
+          $$ParentConcernNotesTableAnnotationComposer,
+          $$ParentConcernNotesTableCreateCompanionBuilder,
+          $$ParentConcernNotesTableUpdateCompanionBuilder,
+          (
+            ParentConcernNote,
+            BaseReferences<
+              _$AppDatabase,
+              $ParentConcernNotesTable,
+              ParentConcernNote
+            >,
+          ),
+          ParentConcernNote,
+          PrefetchHooks Function()
+        > {
+  $$ParentConcernNotesTableTableManager(
+    _$AppDatabase db,
+    $ParentConcernNotesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ParentConcernNotesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ParentConcernNotesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ParentConcernNotesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> childNames = const Value.absent(),
+                Value<String> parentName = const Value.absent(),
+                Value<DateTime?> concernDate = const Value.absent(),
+                Value<String> staffReceiving = const Value.absent(),
+                Value<String?> supervisorNotified = const Value.absent(),
+                Value<bool> methodInPerson = const Value.absent(),
+                Value<bool> methodPhone = const Value.absent(),
+                Value<bool> methodEmail = const Value.absent(),
+                Value<String?> methodOther = const Value.absent(),
+                Value<String> concernDescription = const Value.absent(),
+                Value<String> immediateResponse = const Value.absent(),
+                Value<bool> followUpMonitor = const Value.absent(),
+                Value<bool> followUpStaffCheckIns = const Value.absent(),
+                Value<bool> followUpSupervisorReview = const Value.absent(),
+                Value<bool> followUpParentConversation = const Value.absent(),
+                Value<String?> followUpOther = const Value.absent(),
+                Value<DateTime?> followUpDate = const Value.absent(),
+                Value<String?> additionalNotes = const Value.absent(),
+                Value<String?> staffSignature = const Value.absent(),
+                Value<DateTime?> staffSignatureDate = const Value.absent(),
+                Value<String?> supervisorSignature = const Value.absent(),
+                Value<DateTime?> supervisorSignatureDate = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ParentConcernNotesCompanion(
+                id: id,
+                childNames: childNames,
+                parentName: parentName,
+                concernDate: concernDate,
+                staffReceiving: staffReceiving,
+                supervisorNotified: supervisorNotified,
+                methodInPerson: methodInPerson,
+                methodPhone: methodPhone,
+                methodEmail: methodEmail,
+                methodOther: methodOther,
+                concernDescription: concernDescription,
+                immediateResponse: immediateResponse,
+                followUpMonitor: followUpMonitor,
+                followUpStaffCheckIns: followUpStaffCheckIns,
+                followUpSupervisorReview: followUpSupervisorReview,
+                followUpParentConversation: followUpParentConversation,
+                followUpOther: followUpOther,
+                followUpDate: followUpDate,
+                additionalNotes: additionalNotes,
+                staffSignature: staffSignature,
+                staffSignatureDate: staffSignatureDate,
+                supervisorSignature: supervisorSignature,
+                supervisorSignatureDate: supervisorSignatureDate,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String> childNames = const Value.absent(),
+                Value<String> parentName = const Value.absent(),
+                Value<DateTime?> concernDate = const Value.absent(),
+                Value<String> staffReceiving = const Value.absent(),
+                Value<String?> supervisorNotified = const Value.absent(),
+                Value<bool> methodInPerson = const Value.absent(),
+                Value<bool> methodPhone = const Value.absent(),
+                Value<bool> methodEmail = const Value.absent(),
+                Value<String?> methodOther = const Value.absent(),
+                Value<String> concernDescription = const Value.absent(),
+                Value<String> immediateResponse = const Value.absent(),
+                Value<bool> followUpMonitor = const Value.absent(),
+                Value<bool> followUpStaffCheckIns = const Value.absent(),
+                Value<bool> followUpSupervisorReview = const Value.absent(),
+                Value<bool> followUpParentConversation = const Value.absent(),
+                Value<String?> followUpOther = const Value.absent(),
+                Value<DateTime?> followUpDate = const Value.absent(),
+                Value<String?> additionalNotes = const Value.absent(),
+                Value<String?> staffSignature = const Value.absent(),
+                Value<DateTime?> staffSignatureDate = const Value.absent(),
+                Value<String?> supervisorSignature = const Value.absent(),
+                Value<DateTime?> supervisorSignatureDate = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ParentConcernNotesCompanion.insert(
+                id: id,
+                childNames: childNames,
+                parentName: parentName,
+                concernDate: concernDate,
+                staffReceiving: staffReceiving,
+                supervisorNotified: supervisorNotified,
+                methodInPerson: methodInPerson,
+                methodPhone: methodPhone,
+                methodEmail: methodEmail,
+                methodOther: methodOther,
+                concernDescription: concernDescription,
+                immediateResponse: immediateResponse,
+                followUpMonitor: followUpMonitor,
+                followUpStaffCheckIns: followUpStaffCheckIns,
+                followUpSupervisorReview: followUpSupervisorReview,
+                followUpParentConversation: followUpParentConversation,
+                followUpOther: followUpOther,
+                followUpDate: followUpDate,
+                additionalNotes: additionalNotes,
+                staffSignature: staffSignature,
+                staffSignatureDate: staffSignatureDate,
+                supervisorSignature: supervisorSignature,
+                supervisorSignatureDate: supervisorSignatureDate,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ParentConcernNotesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ParentConcernNotesTable,
+      ParentConcernNote,
+      $$ParentConcernNotesTableFilterComposer,
+      $$ParentConcernNotesTableOrderingComposer,
+      $$ParentConcernNotesTableAnnotationComposer,
+      $$ParentConcernNotesTableCreateCompanionBuilder,
+      $$ParentConcernNotesTableUpdateCompanionBuilder,
+      (
+        ParentConcernNote,
+        BaseReferences<
+          _$AppDatabase,
+          $ParentConcernNotesTable,
+          ParentConcernNote
+        >,
+      ),
+      ParentConcernNote,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -16414,4 +18555,6 @@ class $AppDatabaseManager {
       $$TemplatePodsTableTableManager(_db, _db.templatePods);
   $$EntryPodsTableTableManager get entryPods =>
       $$EntryPodsTableTableManager(_db, _db.entryPods);
+  $$ParentConcernNotesTableTableManager get parentConcernNotes =>
+      $$ParentConcernNotesTableTableManager(_db, _db.parentConcernNotes);
 }

@@ -1,4 +1,7 @@
 import 'package:basecamp/features/activity_library/activity_library_screen.dart';
+import 'package:basecamp/features/forms/forms_hub_screen.dart';
+import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
+import 'package:basecamp/features/forms/parent_concern/parent_concern_notes_screen.dart';
 import 'package:basecamp/features/kids/kid_detail_screen.dart';
 import 'package:basecamp/features/kids/kids_screen.dart';
 import 'package:basecamp/features/more/more_screen.dart';
@@ -88,6 +91,31 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'library',
                     builder: (_, _) => const ActivityLibraryScreen(),
+                  ),
+                  GoRoute(
+                    path: 'forms',
+                    builder: (_, _) => const FormsHubScreen(),
+                    routes: [
+                      GoRoute(
+                        path: 'parent-concern',
+                        builder: (_, _) =>
+                            const ParentConcernNotesScreen(),
+                        routes: [
+                          GoRoute(
+                            path: 'new',
+                            builder: (_, _) =>
+                                const ParentConcernFormScreen(),
+                          ),
+                          GoRoute(
+                            path: ':id',
+                            builder: (_, state) =>
+                                ParentConcernFormScreen(
+                              noteId: state.pathParameters['id'],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ],
               ),
