@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
+import 'package:basecamp/features/observations/widgets/attachment_viewer.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
@@ -118,10 +119,10 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
     Navigator.of(context).pop();
   }
 
-  Future<void> _pickPhoto({required ImageSource source}) async {
+  Future<void> _takePhotoWithCamera() async {
     try {
       final file = await _picker.pickImage(
-        source: source,
+        source: ImageSource.camera,
         imageQuality: 85,
         maxWidth: 2400,
       );
@@ -137,10 +138,10 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
     }
   }
 
-  Future<void> _pickVideo({required ImageSource source}) async {
+  Future<void> _recordVideoWithCamera() async {
     try {
       final file = await _picker.pickVideo(
-        source: source,
+        source: ImageSource.camera,
         maxDuration: const Duration(minutes: 5),
       );
       if (file != null && mounted) {
@@ -155,12 +156,42 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
     }
   }
 
+  /// Gallery multi-pick — photos + videos in one pass. File extension
+  /// decides which `kind` we save.
+  Future<void> _pickFromLibrary() async {
+    try {
+      final files = await _picker.pickMultipleMedia(
+        imageQuality: 85,
+        maxWidth: 2400,
+      );
+      if (files.isEmpty || !mounted) return;
+      setState(() {
+        for (final f in files) {
+          _newAttachments.add(
+            _PendingAttachment(
+              kind: _isVideoPath(f.path) ? 'video' : 'photo',
+              path: f.path,
+            ),
+          );
+        }
+      });
+    } on Object catch (e) {
+      _snack("Couldn't attach media: $e");
+    }
+  }
+
+  bool _isVideoPath(String p) {
+    final l = p.toLowerCase();
+    return const ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv', '.3gp']
+        .any(l.endsWith);
+  }
+
   void _snack(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  Future<void> _showAttachSheet({required bool photo}) async {
+  Future<void> _showAttachSheet() async {
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -168,29 +199,31 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (!kIsWeb)
+            if (!kIsWeb) ...[
               ListTile(
                 leading: const Icon(Icons.photo_camera_outlined),
-                title: Text(photo ? 'Take a photo' : 'Record a video'),
+                title: const Text('Take a photo'),
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  if (photo) {
-                    unawaited(_pickPhoto(source: ImageSource.camera));
-                  } else {
-                    unawaited(_pickVideo(source: ImageSource.camera));
-                  }
+                  unawaited(_takePhotoWithCamera());
                 },
               ),
+              ListTile(
+                leading: const Icon(Icons.videocam_outlined),
+                title: const Text('Record a video'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  unawaited(_recordVideoWithCamera());
+                },
+              ),
+            ],
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: Text(photo ? 'Pick from library' : 'Pick a video'),
+              title: const Text('Pick from library'),
+              subtitle: const Text('Select multiple photos and videos'),
               onTap: () {
                 Navigator.of(ctx).pop();
-                if (photo) {
-                  unawaited(_pickPhoto(source: ImageSource.gallery));
-                } else {
-                  unawaited(_pickVideo(source: ImageSource.gallery));
-                }
+                unawaited(_pickFromLibrary());
               },
             ),
           ],
@@ -238,14 +271,9 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
                 child: Text('Attachments', style: theme.textTheme.titleSmall),
               ),
               IconButton(
-                tooltip: 'Add photo',
-                icon: const Icon(Icons.photo_camera_outlined),
-                onPressed: () => _showAttachSheet(photo: true),
-              ),
-              IconButton(
-                tooltip: 'Add video',
-                icon: const Icon(Icons.videocam_outlined),
-                onPressed: () => _showAttachSheet(photo: false),
+                tooltip: 'Attach photo or video',
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                onPressed: _showAttachSheet,
               ),
             ],
           ),
@@ -480,37 +508,53 @@ class _EditableAttachmentStrip extends StatelessWidget {
               : pending[i - existing.length].path;
           final isPhoto = kind == 'photo';
 
+          final thumb = Container(
+            width: 80,
+            height: 80,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: isPhoto && !kIsWeb
+                ? Image.file(
+                    File(path),
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => Center(
+                      child: Icon(
+                        Icons.image_outlined,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  )
+                : Center(
+                    child: Icon(
+                      isPhoto
+                          ? Icons.image_outlined
+                          : Icons.play_circle_outline,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+          );
+
           return Stack(
             clipBehavior: Clip.none,
             children: [
-              Container(
-                width: 80,
-                height: 80,
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: isPhoto && !kIsWeb
-                    ? Image.file(
-                        File(path),
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Center(
-                          child: Icon(
-                            Icons.image_outlined,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      )
-                    : Center(
-                        child: Icon(
-                          isPhoto
-                              ? Icons.image_outlined
-                              : Icons.play_circle_outline,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-              ),
+              // Only existing (saved) attachments open the full-screen
+              // viewer on tap — pending ones live only in the edit sheet
+              // until Save.
+              if (isExisting)
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => AttachmentViewer.open(
+                    context,
+                    existing,
+                    initialIndex: i,
+                  ),
+                  child: thumb,
+                )
+              else
+                thumb,
               if (!isExisting)
                 Positioned(
                   bottom: 4,

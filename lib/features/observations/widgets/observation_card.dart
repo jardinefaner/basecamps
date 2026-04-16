@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
+import 'package:basecamp/features/observations/widgets/attachment_viewer.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/foundation.dart';
@@ -14,11 +15,16 @@ class ObservationCard extends ConsumerWidget {
   const ObservationCard({
     required this.observation,
     this.onTap,
+    this.hideAttachments = false,
     super.key,
   });
 
   final Observation observation;
   final VoidCallback? onTap;
+
+  /// Strip the attachment thumbnails off the card — used by the Notes
+  /// filter on the Observe tab so teachers can scan text at a glance.
+  final bool hideAttachments;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -61,15 +67,16 @@ class ObservationCard extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(observation.note, style: theme.textTheme.bodyMedium),
-          attachmentsAsync.maybeWhen(
-            data: (atts) => atts.isEmpty
-                ? const SizedBox.shrink()
-                : Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.md),
-                    child: _AttachmentStrip(attachments: atts),
-                  ),
-            orElse: () => const SizedBox.shrink(),
-          ),
+          if (!hideAttachments)
+            attachmentsAsync.maybeWhen(
+              data: (atts) => atts.isEmpty
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsets.only(top: AppSpacing.md),
+                      child: _AttachmentStrip(attachments: atts),
+                    ),
+              orElse: () => const SizedBox.shrink(),
+            ),
           if (observation.activityLabel != null &&
               observation.activityLabel!.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.xs),
@@ -116,26 +123,41 @@ class _AttachmentStrip extends StatelessWidget {
       child: Row(
         children: [
           for (var i = 0; i < visible.length; i++) ...[
-            _AttachmentThumb(attachment: visible[i]),
+            _AttachmentThumb(
+              attachment: visible[i],
+              onTap: () => AttachmentViewer.open(
+                context,
+                attachments,
+                initialIndex: i,
+              ),
+            ),
             if (i < visible.length - 1 || remaining > 0)
               const SizedBox(width: AppSpacing.sm),
           ],
           if (remaining > 0)
-            Container(
-              width: 64,
-              height: 84,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: theme.colorScheme.outlineVariant,
-                  width: 0.5,
-                ),
+            InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => AttachmentViewer.open(
+                context,
+                attachments,
+                initialIndex: visible.length,
               ),
-              child: Text(
-                '+$remaining',
-                style: theme.textTheme.labelMedium,
+              child: Container(
+                width: 64,
+                height: 84,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: theme.colorScheme.outlineVariant,
+                    width: 0.5,
+                  ),
+                ),
+                child: Text(
+                  '+$remaining',
+                  style: theme.textTheme.labelMedium,
+                ),
               ),
             ),
         ],
@@ -145,15 +167,16 @@ class _AttachmentStrip extends StatelessWidget {
 }
 
 class _AttachmentThumb extends StatelessWidget {
-  const _AttachmentThumb({required this.attachment});
+  const _AttachmentThumb({required this.attachment, this.onTap});
 
   final ObservationAttachment attachment;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isPhoto = attachment.kind == 'photo';
-    return Container(
+    final thumb = Container(
       width: 84,
       height: 84,
       clipBehavior: Clip.antiAlias,
@@ -168,7 +191,8 @@ class _AttachmentThumb extends StatelessWidget {
             Image.file(
               File(attachment.localPath),
               fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => _placeholder(theme, Icons.image_outlined),
+              errorBuilder: (_, _, _) =>
+                  _placeholder(theme, Icons.image_outlined),
             )
           else
             _placeholder(
@@ -197,6 +221,15 @@ class _AttachmentThumb extends StatelessWidget {
             ),
         ],
       ),
+    );
+
+    if (onTap == null) return thumb;
+    return GestureDetector(
+      onTap: onTap,
+      // Swallow other gesture signals so the card's onTap doesn't fire
+      // when the user is specifically tapping a thumbnail.
+      behavior: HitTestBehavior.opaque,
+      child: thumb,
     );
   }
 

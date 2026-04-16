@@ -235,6 +235,14 @@ class ObservationsRepository {
         .watch();
   }
 
+  /// Watch every attachment in the DB, newest first. Feeds the
+  /// media-only filter on the Observe tab.
+  Stream<List<ObservationAttachment>> watchAllAttachments() {
+    return (_db.select(_db.observationAttachments)
+          ..orderBy([(a) => OrderingTerm.desc(a.createdAt)]))
+        .watch();
+  }
+
   Future<String> addAttachment({
     required String observationId,
     required ObservationAttachmentInput input,
@@ -375,4 +383,11 @@ final observationAttachmentsProvider =
   return ref
       .watch(observationsRepositoryProvider)
       .watchAttachmentsForObservation(observationId);
+});
+
+/// Every attachment across every observation — the Observe tab's media
+/// filter shows these in a grid.
+final allAttachmentsProvider =
+    StreamProvider<List<ObservationAttachment>>((ref) {
+  return ref.watch(observationsRepositoryProvider).watchAllAttachments();
 });

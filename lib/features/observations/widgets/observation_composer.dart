@@ -228,10 +228,10 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
 
   // -- Attachments --
 
-  Future<void> _pickPhoto({required ImageSource source}) async {
+  Future<void> _takePhotoWithCamera() async {
     try {
       final file = await _picker.pickImage(
-        source: source,
+        source: ImageSource.camera,
         imageQuality: 85,
         maxWidth: 2400,
       );
@@ -245,10 +245,10 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
     }
   }
 
-  Future<void> _pickVideo({required ImageSource source}) async {
+  Future<void> _recordVideoWithCamera() async {
     try {
       final file = await _picker.pickVideo(
-        source: source,
+        source: ImageSource.camera,
         maxDuration: const Duration(minutes: 5),
       );
       if (file != null && mounted) {
@@ -261,12 +261,42 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
     }
   }
 
+  /// Gallery multi-pick — photos + videos in a single gesture. Each item
+  /// is classified by file extension so we store the right `kind`.
+  Future<void> _pickFromLibrary() async {
+    try {
+      final files = await _picker.pickMultipleMedia(
+        imageQuality: 85,
+        maxWidth: 2400,
+      );
+      if (files.isEmpty || !mounted) return;
+      setState(() {
+        for (final f in files) {
+          _attachments.add(
+            _PendingAttachment(
+              kind: _isVideoPath(f.path) ? 'video' : 'photo',
+              path: f.path,
+            ),
+          );
+        }
+      });
+    } on Object catch (e) {
+      _snack("Couldn't attach media: $e");
+    }
+  }
+
+  bool _isVideoPath(String p) {
+    final l = p.toLowerCase();
+    return const ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv', '.3gp']
+        .any(l.endsWith);
+  }
+
   void _snack(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  Future<void> _showAttachSheet({required bool photo}) async {
+  Future<void> _showAttachSheet() async {
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -274,29 +304,31 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (!kIsWeb)
+            if (!kIsWeb) ...[
               ListTile(
                 leading: const Icon(Icons.photo_camera_outlined),
-                title: Text(photo ? 'Take a photo' : 'Record a video'),
+                title: const Text('Take a photo'),
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  if (photo) {
-                    unawaited(_pickPhoto(source: ImageSource.camera));
-                  } else {
-                    unawaited(_pickVideo(source: ImageSource.camera));
-                  }
+                  unawaited(_takePhotoWithCamera());
                 },
               ),
+              ListTile(
+                leading: const Icon(Icons.videocam_outlined),
+                title: const Text('Record a video'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  unawaited(_recordVideoWithCamera());
+                },
+              ),
+            ],
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: Text(photo ? 'Pick from library' : 'Pick a video'),
+              title: const Text('Pick from library'),
+              subtitle: const Text('Select multiple photos and videos'),
               onTap: () {
                 Navigator.of(ctx).pop();
-                if (photo) {
-                  unawaited(_pickPhoto(source: ImageSource.gallery));
-                } else {
-                  unawaited(_pickVideo(source: ImageSource.gallery));
-                }
+                unawaited(_pickFromLibrary());
               },
             ),
           ],
@@ -403,14 +435,9 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
               child: Row(
                 children: [
                   IconButton(
-                    onPressed: () => _showAttachSheet(photo: true),
-                    icon: const Icon(Icons.photo_camera_outlined),
-                    tooltip: 'Add photo',
-                  ),
-                  IconButton(
-                    onPressed: () => _showAttachSheet(photo: false),
-                    icon: const Icon(Icons.videocam_outlined),
-                    tooltip: 'Add video',
+                    onPressed: _showAttachSheet,
+                    icon: const Icon(Icons.add_photo_alternate_outlined),
+                    tooltip: 'Attach photo or video',
                   ),
                   IconButton(
                     onPressed: _onMicPressed,
