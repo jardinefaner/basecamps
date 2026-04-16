@@ -8,13 +8,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 const _dayShortLabels = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
-/// Week grid: day-columns across the top, time-slot rows down. Consecutive
-/// days with an identical activity merge into a single card that spans those
-/// columns (the span is self-evident from the calendar — no day-range label
-/// needed). Nothing truncates: cells grow to fit the content, and the whole
-/// grid is inside an [InteractiveViewer] so you can zoom out for a full-week
-/// glance or zoom in to read detail without tapping anything.
-class WeekGridView extends StatelessWidget {
+/// Week grid with a frozen time column on the left and horizontally
+/// scrollable day columns on the right. Each time-slot row keeps its time
+/// label pinned (outside the scroll view) and renders the seven day cells
+/// in a horizontal scroll view. Every row's horizontal scroll view shares
+/// state via a small linked-controller group, so scrolling any row scrolls
+/// the header and every other row in lock-step. Cells are 180 px wide and
+/// let text wrap — the idea is "list view minus the time column, laid out
+/// as a grid".
+class WeekGridView extends StatefulWidget {
   const WeekGridView({
     required this.weekStart,
     required this.itemsByDay,
@@ -29,12 +31,36 @@ class WeekGridView extends StatelessWidget {
   final ValueChanged<ScheduleItem> onItemTap;
 
   @override
+  State<WeekGridView> createState() => _WeekGridViewState();
+}
+
+class _WeekGridViewState extends State<WeekGridView> {
+  static const _cellWidth = 180.0;
+  static const _timeColumnWidth = 64.0;
+  static const _headerHeight = 44.0;
+
+  final _LinkedScrollGroup _group = _LinkedScrollGroup();
+  late final ScrollController _headerCtrl = _group.newController();
+  late final ScrollController _fullDayCtrl = _group.newController();
+  final Map<int, ScrollController> _rowCtrls = {};
+
+  ScrollController _ctrlForRow(int index) {
+    return _rowCtrls.putIfAbsent(index, _group.newController);
+  }
+
+  @override
+  void dispose() {
+    _group.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // 1. Distinct (startTime, endTime) pairs across the week.
+    // Distinct (startTime, endTime) pairs across the week, sorted.
     final slotSet = <_TimeSlot>{};
-    for (final items in itemsByDay.values) {
+    for (final items in widget.itemsByDay.values) {
       for (final item in items) {
         if (item.isFullDay) continue;
         slotSet.add(_TimeSlot(item.startTime, item.endTime));
@@ -43,10 +69,10 @@ class WeekGridView extends StatelessWidget {
     final slots = slotSet.toList()
       ..sort((a, b) => a.startMinutes.compareTo(b.startMinutes));
 
-    // 2. Full-day items (per day) — rendered in a dedicated strip.
+    // Full-day items per day (rendered in the all-day strip).
     final fullDayByDay = <int, List<ScheduleItem>>{};
     for (var d = 1; d <= 7; d++) {
-      final items = itemsByDay[d] ?? const <ScheduleItem>[];
+      final items = widget.itemsByDay[d] ?? const <ScheduleItem>[];
       final full = items.where((i) => i.isFullDay).toList();
       if (full.isNotEmpty) fullDayByDay[d] = full;
     }
@@ -56,8 +82,7 @@ class WeekGridView extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.xl),
           child: Text(
-            'Nothing scheduled this week. Add activities to see\n'
-            'the pattern laid out here.',
+            'Nothing scheduled this week.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
@@ -67,24 +92,22 @@ class WeekGridView extends StatelessWidget {
       );
     }
 
-    // 3. Build day-of-week × slot matrix of items for merge detection.
+    // (Day × slot) matrix → merge runs per row.
     final matrix = List.generate(
       7,
       (_) => List<ScheduleItem?>.filled(slots.length, null),
     );
     for (var d = 0; d < 7; d++) {
-      final items = itemsByDay[d + 1] ?? const <ScheduleItem>[];
+      final items = widget.itemsByDay[d + 1] ?? const <ScheduleItem>[];
       for (final item in items) {
         if (item.isFullDay) continue;
         final idx = slots.indexOf(_TimeSlot(item.startTime, item.endTime));
         if (idx >= 0) matrix[d][idx] = item;
       }
     }
-
-    // 4. Compute merge runs per slot.
     final blocksBySlot = <int, List<_Block>>{};
     for (var slot = 0; slot < slots.length; slot++) {
-      final rowBlocks = <_Block>[];
+      final row = <_Block>[];
       var d = 0;
       while (d < 7) {
         final item = matrix[d][slot];
@@ -98,56 +121,63 @@ class WeekGridView extends StatelessWidget {
           if (next == null || !_areEquivalent(item, next)) break;
           end++;
         }
-        final spannedItems = <ScheduleItem>[
+        final spanned = <ScheduleItem>[
           for (var i = d; i <= end; i++) matrix[i][slot]!,
         ];
-        rowBlocks.add(
+        row.add(
           _Block(
             startDay: d,
             endDay: end,
-            items: spannedItems,
+            items: spanned,
             inConflict: _blockHasConflict(
-              conflictsByDay: conflictsByDay,
+              conflictsByDay: widget.conflictsByDay,
               startDay: d,
-              items: spannedItems,
+              items: spanned,
             ),
           ),
         );
         d = end + 1;
       }
-      if (rowBlocks.isNotEmpty) blocksBySlot[slot] = rowBlocks;
+      if (row.isNotEmpty) blocksBySlot[slot] = row;
     }
 
-    const timeColumnWidth = 72.0;
-
-    final grid = Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _HeaderRow(
-          weekStart: weekStart,
-          timeColumnWidth: timeColumnWidth,
+          controller: _headerCtrl,
+          weekStart: widget.weekStart,
+          cellWidth: _cellWidth,
+          timeColumnWidth: _timeColumnWidth,
+          height: _headerHeight,
         ),
         if (fullDayByDay.isNotEmpty)
           _FullDayRow(
+            controller: _fullDayCtrl,
             fullDayByDay: fullDayByDay,
-            timeColumnWidth: timeColumnWidth,
-            onTap: onItemTap,
+            cellWidth: _cellWidth,
+            timeColumnWidth: _timeColumnWidth,
+            onTap: widget.onItemTap,
           ),
-        for (var slot = 0; slot < slots.length; slot++)
-          _SlotRow(
-            time: slots[slot],
-            timeColumnWidth: timeColumnWidth,
-            blocks: blocksBySlot[slot] ?? const [],
-            onTap: onItemTap,
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var slot = 0; slot < slots.length; slot++)
+                  _SlotRow(
+                    time: slots[slot],
+                    blocks: blocksBySlot[slot] ?? const [],
+                    controller: _ctrlForRow(slot),
+                    cellWidth: _cellWidth,
+                    timeColumnWidth: _timeColumnWidth,
+                    onTap: widget.onItemTap,
+                  ),
+              ],
+            ),
           ),
+        ),
       ],
-    );
-
-    return InteractiveViewer(
-      minScale: 0.4,
-      maxScale: 3,
-      boundaryMargin: const EdgeInsets.all(200),
-      child: grid,
     );
   }
 
@@ -182,19 +212,63 @@ class WeekGridView extends StatelessWidget {
   }
 }
 
+// ---------- Linked scroll group ----------
+
+/// Small helper: creates ScrollControllers that all mirror each other's
+/// offset. When any one of them scrolls, the rest jump to the same offset.
+class _LinkedScrollGroup {
+  final List<ScrollController> _controllers = [];
+  bool _syncing = false;
+
+  ScrollController newController() {
+    final c = ScrollController();
+    c.addListener(() => _sync(c));
+    _controllers.add(c);
+    return c;
+  }
+
+  void _sync(ScrollController leader) {
+    if (_syncing) return;
+    _syncing = true;
+    for (final c in _controllers) {
+      if (c == leader) continue;
+      if (!c.hasClients) continue;
+      if (c.offset == leader.offset) continue;
+      c.jumpTo(leader.offset);
+    }
+    _syncing = false;
+  }
+
+  void dispose() {
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    _controllers.clear();
+  }
+}
+
 // ---------- Row widgets ----------
 
 class _HeaderRow extends StatelessWidget {
-  const _HeaderRow({required this.weekStart, required this.timeColumnWidth});
+  const _HeaderRow({
+    required this.controller,
+    required this.weekStart,
+    required this.cellWidth,
+    required this.timeColumnWidth,
+    required this.height,
+  });
 
+  final ScrollController controller;
   final DateTime weekStart;
+  final double cellWidth;
   final double timeColumnWidth;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      height: height,
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
@@ -206,24 +280,43 @@ class _HeaderRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(width: timeColumnWidth),
-          for (var d = 0; d < 7; d++)
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _dayShortLabels[d],
-                    style: theme.textTheme.labelMedium,
-                  ),
-                  Text(
-                    '${weekStart.add(Duration(days: d)).day}',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+          Expanded(
+            child: SingleChildScrollView(
+              controller: controller,
+              scrollDirection: Axis.horizontal,
+              physics: const ClampingScrollPhysics(),
+              child: SizedBox(
+                width: cellWidth * 7,
+                height: height,
+                child: Row(
+                  children: [
+                    for (var d = 0; d < 7; d++)
+                      SizedBox(
+                        width: cellWidth,
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _dayShortLabels[d],
+                                style: theme.textTheme.labelMedium,
+                              ),
+                              Text(
+                                '${weekStart.add(Duration(days: d)).day}',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color:
+                                      theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
+          ),
         ],
       ),
     );
@@ -232,12 +325,16 @@ class _HeaderRow extends StatelessWidget {
 
 class _FullDayRow extends StatelessWidget {
   const _FullDayRow({
+    required this.controller,
     required this.fullDayByDay,
+    required this.cellWidth,
     required this.timeColumnWidth,
     required this.onTap,
   });
 
+  final ScrollController controller;
   final Map<int, List<ScheduleItem>> fullDayByDay;
+  final double cellWidth;
   final double timeColumnWidth;
   final ValueChanged<ScheduleItem> onTap;
 
@@ -255,24 +352,38 @@ class _FullDayRow extends StatelessWidget {
                 horizontal: AppSpacing.sm,
                 vertical: AppSpacing.sm,
               ),
-              child: Text(
-                'All day',
-                style: theme.textTheme.labelMedium,
+              child: Text('All day', style: theme.textTheme.labelMedium),
+            ),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              controller: controller,
+              physics: const ClampingScrollPhysics(),
+              child: SizedBox(
+                width: cellWidth * 7,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var d = 0; d < 7; d++)
+                      SizedBox(
+                        width: cellWidth,
+                        child: Padding(
+                          padding: const EdgeInsets.all(3),
+                          child: (fullDayByDay[d + 1] ?? const []).isEmpty
+                              ? const _EmptyCell()
+                              : _FullDayCard(
+                                  items: fullDayByDay[d + 1]!,
+                                  onTap: () =>
+                                      onTap(fullDayByDay[d + 1]!.first),
+                                ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
-          for (var d = 0; d < 7; d++)
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(3),
-                child: (fullDayByDay[d + 1] ?? const []).isEmpty
-                    ? const _EmptyCell()
-                    : _FullDayCard(
-                        items: fullDayByDay[d + 1]!,
-                        onTap: () => onTap(fullDayByDay[d + 1]!.first),
-                      ),
-              ),
-            ),
         ],
       ),
     );
@@ -282,14 +393,18 @@ class _FullDayRow extends StatelessWidget {
 class _SlotRow extends StatelessWidget {
   const _SlotRow({
     required this.time,
-    required this.timeColumnWidth,
     required this.blocks,
+    required this.controller,
+    required this.cellWidth,
+    required this.timeColumnWidth,
     required this.onTap,
   });
 
   final _TimeSlot time;
-  final double timeColumnWidth;
   final List<_Block> blocks;
+  final ScrollController controller;
+  final double cellWidth;
+  final double timeColumnWidth;
   final ValueChanged<ScheduleItem> onTap;
 
   @override
@@ -302,9 +417,11 @@ class _SlotRow extends StatelessWidget {
           SizedBox(
             width: timeColumnWidth,
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.sm,
-                vertical: AppSpacing.sm,
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.sm,
+                AppSpacing.sm,
+                AppSpacing.sm,
+                AppSpacing.sm,
               ),
               child: Text(
                 '${_formatTime(time.start)}\n${_formatTime(time.end)}',
@@ -312,7 +429,20 @@ class _SlotRow extends StatelessWidget {
               ),
             ),
           ),
-          ..._buildCells(),
+          Expanded(
+            child: SingleChildScrollView(
+              controller: controller,
+              scrollDirection: Axis.horizontal,
+              physics: const ClampingScrollPhysics(),
+              child: SizedBox(
+                width: cellWidth * 7,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: _buildCells(),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -324,9 +454,10 @@ class _SlotRow extends StatelessWidget {
     while (d < 7) {
       final block = _blockStartingAt(d);
       if (block != null) {
+        final span = block.endDay - block.startDay + 1;
         cells.add(
-          Expanded(
-            flex: block.endDay - block.startDay + 1,
+          SizedBox(
+            width: cellWidth * span,
             child: Padding(
               padding: const EdgeInsets.all(3),
               child: _GridBlockCard(
@@ -339,8 +470,9 @@ class _SlotRow extends StatelessWidget {
         d = block.endDay + 1;
       } else {
         cells.add(
-          const Expanded(
-            child: Padding(
+          SizedBox(
+            width: cellWidth,
+            child: const Padding(
               padding: EdgeInsets.all(3),
               child: _EmptyCell(),
             ),
@@ -397,23 +529,26 @@ class _FullDayCard extends StatelessWidget {
     return AppCard(
       onTap: onTap,
       padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             first.title,
-            style: theme.textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+            style: theme.textTheme.titleMedium,
+            softWrap: true,
           ),
           if (items.length > 1)
-            Text(
-              '+${items.length - 1} more',
-              style: theme.textTheme.labelSmall,
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                '+${items.length - 1} more',
+                style: theme.textTheme.bodySmall,
+              ),
             ),
         ],
       ),
@@ -421,6 +556,9 @@ class _FullDayCard extends StatelessWidget {
   }
 }
 
+/// Same visual language as the list-view card — title + pods/specialist/
+/// location stacked, no truncation. Time is intentionally absent because
+/// the frozen left column already shows it.
 class _GridBlockCard extends ConsumerWidget {
   const _GridBlockCard({required this.block, required this.onTap});
 
@@ -450,15 +588,11 @@ class _GridBlockCard extends ConsumerWidget {
       subtitleParts.add(first.location!);
     }
 
-    final subStyle = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
-    );
-
     return AppCard(
       onTap: onTap,
       padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -471,7 +605,7 @@ class _GridBlockCard extends ConsumerWidget {
               Expanded(
                 child: Text(
                   first.title,
-                  style: theme.textTheme.titleSmall,
+                  style: theme.textTheme.titleMedium,
                   softWrap: true,
                 ),
               ),
@@ -479,7 +613,7 @@ class _GridBlockCard extends ConsumerWidget {
                 const SizedBox(width: 2),
                 Icon(
                   Icons.warning_amber_rounded,
-                  size: 14,
+                  size: 16,
                   color: theme.colorScheme.error,
                 ),
               ],
@@ -487,10 +621,12 @@ class _GridBlockCard extends ConsumerWidget {
           ),
           if (subtitleParts.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 2),
+              padding: const EdgeInsets.only(top: 4),
               child: Text(
                 subtitleParts.join(' · '),
-                style: subStyle,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
                 softWrap: true,
               ),
             ),
