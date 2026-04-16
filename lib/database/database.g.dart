@@ -3212,6 +3212,530 @@ class SpecialistsCompanion extends UpdateCompanion<Specialist> {
   }
 }
 
+class $ActivityLibraryTable extends ActivityLibrary
+    with TableInfo<$ActivityLibraryTable, ActivityLibraryData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ActivityLibraryTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _defaultDurationMinMeta =
+      const VerificationMeta('defaultDurationMin');
+  @override
+  late final GeneratedColumn<int> defaultDurationMin = GeneratedColumn<int>(
+    'default_duration_min',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _specialistIdMeta = const VerificationMeta(
+    'specialistId',
+  );
+  @override
+  late final GeneratedColumn<String> specialistId = GeneratedColumn<String>(
+    'specialist_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES specialists (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _locationMeta = const VerificationMeta(
+    'location',
+  );
+  @override
+  late final GeneratedColumn<String> location = GeneratedColumn<String>(
+    'location',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+    'notes',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    title,
+    defaultDurationMin,
+    specialistId,
+    location,
+    notes,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'activity_library';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ActivityLibraryData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('default_duration_min')) {
+      context.handle(
+        _defaultDurationMinMeta,
+        defaultDurationMin.isAcceptableOrUnknown(
+          data['default_duration_min']!,
+          _defaultDurationMinMeta,
+        ),
+      );
+    }
+    if (data.containsKey('specialist_id')) {
+      context.handle(
+        _specialistIdMeta,
+        specialistId.isAcceptableOrUnknown(
+          data['specialist_id']!,
+          _specialistIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('location')) {
+      context.handle(
+        _locationMeta,
+        location.isAcceptableOrUnknown(data['location']!, _locationMeta),
+      );
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+        _notesMeta,
+        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ActivityLibraryData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ActivityLibraryData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      defaultDurationMin: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}default_duration_min'],
+      ),
+      specialistId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}specialist_id'],
+      ),
+      location: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}location'],
+      ),
+      notes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ActivityLibraryTable createAlias(String alias) {
+    return $ActivityLibraryTable(attachedDatabase, alias);
+  }
+}
+
+class ActivityLibraryData extends DataClass
+    implements Insertable<ActivityLibraryData> {
+  final String id;
+  final String title;
+  final int? defaultDurationMin;
+  final String? specialistId;
+  final String? location;
+  final String? notes;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const ActivityLibraryData({
+    required this.id,
+    required this.title,
+    this.defaultDurationMin,
+    this.specialistId,
+    this.location,
+    this.notes,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || defaultDurationMin != null) {
+      map['default_duration_min'] = Variable<int>(defaultDurationMin);
+    }
+    if (!nullToAbsent || specialistId != null) {
+      map['specialist_id'] = Variable<String>(specialistId);
+    }
+    if (!nullToAbsent || location != null) {
+      map['location'] = Variable<String>(location);
+    }
+    if (!nullToAbsent || notes != null) {
+      map['notes'] = Variable<String>(notes);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  ActivityLibraryCompanion toCompanion(bool nullToAbsent) {
+    return ActivityLibraryCompanion(
+      id: Value(id),
+      title: Value(title),
+      defaultDurationMin: defaultDurationMin == null && nullToAbsent
+          ? const Value.absent()
+          : Value(defaultDurationMin),
+      specialistId: specialistId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(specialistId),
+      location: location == null && nullToAbsent
+          ? const Value.absent()
+          : Value(location),
+      notes: notes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notes),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory ActivityLibraryData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ActivityLibraryData(
+      id: serializer.fromJson<String>(json['id']),
+      title: serializer.fromJson<String>(json['title']),
+      defaultDurationMin: serializer.fromJson<int?>(json['defaultDurationMin']),
+      specialistId: serializer.fromJson<String?>(json['specialistId']),
+      location: serializer.fromJson<String?>(json['location']),
+      notes: serializer.fromJson<String?>(json['notes']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'title': serializer.toJson<String>(title),
+      'defaultDurationMin': serializer.toJson<int?>(defaultDurationMin),
+      'specialistId': serializer.toJson<String?>(specialistId),
+      'location': serializer.toJson<String?>(location),
+      'notes': serializer.toJson<String?>(notes),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  ActivityLibraryData copyWith({
+    String? id,
+    String? title,
+    Value<int?> defaultDurationMin = const Value.absent(),
+    Value<String?> specialistId = const Value.absent(),
+    Value<String?> location = const Value.absent(),
+    Value<String?> notes = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => ActivityLibraryData(
+    id: id ?? this.id,
+    title: title ?? this.title,
+    defaultDurationMin: defaultDurationMin.present
+        ? defaultDurationMin.value
+        : this.defaultDurationMin,
+    specialistId: specialistId.present ? specialistId.value : this.specialistId,
+    location: location.present ? location.value : this.location,
+    notes: notes.present ? notes.value : this.notes,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  ActivityLibraryData copyWithCompanion(ActivityLibraryCompanion data) {
+    return ActivityLibraryData(
+      id: data.id.present ? data.id.value : this.id,
+      title: data.title.present ? data.title.value : this.title,
+      defaultDurationMin: data.defaultDurationMin.present
+          ? data.defaultDurationMin.value
+          : this.defaultDurationMin,
+      specialistId: data.specialistId.present
+          ? data.specialistId.value
+          : this.specialistId,
+      location: data.location.present ? data.location.value : this.location,
+      notes: data.notes.present ? data.notes.value : this.notes,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ActivityLibraryData(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('defaultDurationMin: $defaultDurationMin, ')
+          ..write('specialistId: $specialistId, ')
+          ..write('location: $location, ')
+          ..write('notes: $notes, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    title,
+    defaultDurationMin,
+    specialistId,
+    location,
+    notes,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ActivityLibraryData &&
+          other.id == this.id &&
+          other.title == this.title &&
+          other.defaultDurationMin == this.defaultDurationMin &&
+          other.specialistId == this.specialistId &&
+          other.location == this.location &&
+          other.notes == this.notes &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ActivityLibraryCompanion extends UpdateCompanion<ActivityLibraryData> {
+  final Value<String> id;
+  final Value<String> title;
+  final Value<int?> defaultDurationMin;
+  final Value<String?> specialistId;
+  final Value<String?> location;
+  final Value<String?> notes;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const ActivityLibraryCompanion({
+    this.id = const Value.absent(),
+    this.title = const Value.absent(),
+    this.defaultDurationMin = const Value.absent(),
+    this.specialistId = const Value.absent(),
+    this.location = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ActivityLibraryCompanion.insert({
+    required String id,
+    required String title,
+    this.defaultDurationMin = const Value.absent(),
+    this.specialistId = const Value.absent(),
+    this.location = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       title = Value(title);
+  static Insertable<ActivityLibraryData> custom({
+    Expression<String>? id,
+    Expression<String>? title,
+    Expression<int>? defaultDurationMin,
+    Expression<String>? specialistId,
+    Expression<String>? location,
+    Expression<String>? notes,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (defaultDurationMin != null)
+        'default_duration_min': defaultDurationMin,
+      if (specialistId != null) 'specialist_id': specialistId,
+      if (location != null) 'location': location,
+      if (notes != null) 'notes': notes,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ActivityLibraryCompanion copyWith({
+    Value<String>? id,
+    Value<String>? title,
+    Value<int?>? defaultDurationMin,
+    Value<String?>? specialistId,
+    Value<String?>? location,
+    Value<String?>? notes,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return ActivityLibraryCompanion(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      defaultDurationMin: defaultDurationMin ?? this.defaultDurationMin,
+      specialistId: specialistId ?? this.specialistId,
+      location: location ?? this.location,
+      notes: notes ?? this.notes,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (defaultDurationMin.present) {
+      map['default_duration_min'] = Variable<int>(defaultDurationMin.value);
+    }
+    if (specialistId.present) {
+      map['specialist_id'] = Variable<String>(specialistId.value);
+    }
+    if (location.present) {
+      map['location'] = Variable<String>(location.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ActivityLibraryCompanion(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('defaultDurationMin: $defaultDurationMin, ')
+          ..write('specialistId: $specialistId, ')
+          ..write('location: $location, ')
+          ..write('notes: $notes, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ScheduleTemplatesTable extends ScheduleTemplates
     with TableInfo<$ScheduleTemplatesTable, ScheduleTemplate> {
   @override
@@ -5302,6 +5826,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $CaptureKidsTable captureKids = $CaptureKidsTable(this);
   late final $ObservationsTable observations = $ObservationsTable(this);
   late final $SpecialistsTable specialists = $SpecialistsTable(this);
+  late final $ActivityLibraryTable activityLibrary = $ActivityLibraryTable(
+    this,
+  );
   late final $ScheduleTemplatesTable scheduleTemplates =
       $ScheduleTemplatesTable(this);
   late final $ScheduleEntriesTable scheduleEntries = $ScheduleEntriesTable(
@@ -5321,6 +5848,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     captureKids,
     observations,
     specialists,
+    activityLibrary,
     scheduleTemplates,
     scheduleEntries,
     templatePods,
@@ -5376,6 +5904,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('observations', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'specialists',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('activity_library', kind: UpdateKind.update)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -8677,6 +9212,29 @@ final class $$SpecialistsTableReferences
     extends BaseReferences<_$AppDatabase, $SpecialistsTable, Specialist> {
   $$SpecialistsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
+  static MultiTypedResultKey<$ActivityLibraryTable, List<ActivityLibraryData>>
+  _activityLibraryRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.activityLibrary,
+    aliasName: $_aliasNameGenerator(
+      db.specialists.id,
+      db.activityLibrary.specialistId,
+    ),
+  );
+
+  $$ActivityLibraryTableProcessedTableManager get activityLibraryRefs {
+    final manager = $$ActivityLibraryTableTableManager(
+      $_db,
+      $_db.activityLibrary,
+    ).filter((f) => f.specialistId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _activityLibraryRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
   static MultiTypedResultKey<$ScheduleTemplatesTable, List<ScheduleTemplate>>
   _scheduleTemplatesRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
@@ -8763,6 +9321,31 @@ class $$SpecialistsTableFilterComposer
     column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
   );
+
+  Expression<bool> activityLibraryRefs(
+    Expression<bool> Function($$ActivityLibraryTableFilterComposer f) f,
+  ) {
+    final $$ActivityLibraryTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.activityLibrary,
+      getReferencedColumn: (t) => t.specialistId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ActivityLibraryTableFilterComposer(
+            $db: $db,
+            $table: $db.activityLibrary,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 
   Expression<bool> scheduleTemplatesRefs(
     Expression<bool> Function($$ScheduleTemplatesTableFilterComposer f) f,
@@ -8882,6 +9465,31 @@ class $$SpecialistsTableAnnotationComposer
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
+  Expression<T> activityLibraryRefs<T extends Object>(
+    Expression<T> Function($$ActivityLibraryTableAnnotationComposer a) f,
+  ) {
+    final $$ActivityLibraryTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.activityLibrary,
+      getReferencedColumn: (t) => t.specialistId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ActivityLibraryTableAnnotationComposer(
+            $db: $db,
+            $table: $db.activityLibrary,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
   Expression<T> scheduleTemplatesRefs<T extends Object>(
     Expression<T> Function($$ScheduleTemplatesTableAnnotationComposer a) f,
   ) {
@@ -8948,6 +9556,7 @@ class $$SpecialistsTableTableManager
           (Specialist, $$SpecialistsTableReferences),
           Specialist,
           PrefetchHooks Function({
+            bool activityLibraryRefs,
             bool scheduleTemplatesRefs,
             bool scheduleEntriesRefs,
           })
@@ -9008,16 +9617,42 @@ class $$SpecialistsTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({scheduleTemplatesRefs = false, scheduleEntriesRefs = false}) {
+              ({
+                activityLibraryRefs = false,
+                scheduleTemplatesRefs = false,
+                scheduleEntriesRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
+                    if (activityLibraryRefs) db.activityLibrary,
                     if (scheduleTemplatesRefs) db.scheduleTemplates,
                     if (scheduleEntriesRefs) db.scheduleEntries,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
                     return [
+                      if (activityLibraryRefs)
+                        await $_getPrefetchedData<
+                          Specialist,
+                          $SpecialistsTable,
+                          ActivityLibraryData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SpecialistsTableReferences
+                              ._activityLibraryRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SpecialistsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).activityLibraryRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.specialistId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                       if (scheduleTemplatesRefs)
                         await $_getPrefetchedData<
                           Specialist,
@@ -9081,9 +9716,404 @@ typedef $$SpecialistsTableProcessedTableManager =
       (Specialist, $$SpecialistsTableReferences),
       Specialist,
       PrefetchHooks Function({
+        bool activityLibraryRefs,
         bool scheduleTemplatesRefs,
         bool scheduleEntriesRefs,
       })
+    >;
+typedef $$ActivityLibraryTableCreateCompanionBuilder =
+    ActivityLibraryCompanion Function({
+      required String id,
+      required String title,
+      Value<int?> defaultDurationMin,
+      Value<String?> specialistId,
+      Value<String?> location,
+      Value<String?> notes,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$ActivityLibraryTableUpdateCompanionBuilder =
+    ActivityLibraryCompanion Function({
+      Value<String> id,
+      Value<String> title,
+      Value<int?> defaultDurationMin,
+      Value<String?> specialistId,
+      Value<String?> location,
+      Value<String?> notes,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$ActivityLibraryTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $ActivityLibraryTable,
+          ActivityLibraryData
+        > {
+  $$ActivityLibraryTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $SpecialistsTable _specialistIdTable(_$AppDatabase db) =>
+      db.specialists.createAlias(
+        $_aliasNameGenerator(
+          db.activityLibrary.specialistId,
+          db.specialists.id,
+        ),
+      );
+
+  $$SpecialistsTableProcessedTableManager? get specialistId {
+    final $_column = $_itemColumn<String>('specialist_id');
+    if ($_column == null) return null;
+    final manager = $$SpecialistsTableTableManager(
+      $_db,
+      $_db.specialists,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_specialistIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ActivityLibraryTableFilterComposer
+    extends Composer<_$AppDatabase, $ActivityLibraryTable> {
+  $$ActivityLibraryTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get defaultDurationMin => $composableBuilder(
+    column: $table.defaultDurationMin,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get location => $composableBuilder(
+    column: $table.location,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$SpecialistsTableFilterComposer get specialistId {
+    final $$SpecialistsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.specialistId,
+      referencedTable: $db.specialists,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SpecialistsTableFilterComposer(
+            $db: $db,
+            $table: $db.specialists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ActivityLibraryTableOrderingComposer
+    extends Composer<_$AppDatabase, $ActivityLibraryTable> {
+  $$ActivityLibraryTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get defaultDurationMin => $composableBuilder(
+    column: $table.defaultDurationMin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get location => $composableBuilder(
+    column: $table.location,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$SpecialistsTableOrderingComposer get specialistId {
+    final $$SpecialistsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.specialistId,
+      referencedTable: $db.specialists,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SpecialistsTableOrderingComposer(
+            $db: $db,
+            $table: $db.specialists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ActivityLibraryTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ActivityLibraryTable> {
+  $$ActivityLibraryTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<int> get defaultDurationMin => $composableBuilder(
+    column: $table.defaultDurationMin,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get location =>
+      $composableBuilder(column: $table.location, builder: (column) => column);
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$SpecialistsTableAnnotationComposer get specialistId {
+    final $$SpecialistsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.specialistId,
+      referencedTable: $db.specialists,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SpecialistsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.specialists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ActivityLibraryTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ActivityLibraryTable,
+          ActivityLibraryData,
+          $$ActivityLibraryTableFilterComposer,
+          $$ActivityLibraryTableOrderingComposer,
+          $$ActivityLibraryTableAnnotationComposer,
+          $$ActivityLibraryTableCreateCompanionBuilder,
+          $$ActivityLibraryTableUpdateCompanionBuilder,
+          (ActivityLibraryData, $$ActivityLibraryTableReferences),
+          ActivityLibraryData,
+          PrefetchHooks Function({bool specialistId})
+        > {
+  $$ActivityLibraryTableTableManager(
+    _$AppDatabase db,
+    $ActivityLibraryTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ActivityLibraryTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ActivityLibraryTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ActivityLibraryTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<int?> defaultDurationMin = const Value.absent(),
+                Value<String?> specialistId = const Value.absent(),
+                Value<String?> location = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ActivityLibraryCompanion(
+                id: id,
+                title: title,
+                defaultDurationMin: defaultDurationMin,
+                specialistId: specialistId,
+                location: location,
+                notes: notes,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String title,
+                Value<int?> defaultDurationMin = const Value.absent(),
+                Value<String?> specialistId = const Value.absent(),
+                Value<String?> location = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ActivityLibraryCompanion.insert(
+                id: id,
+                title: title,
+                defaultDurationMin: defaultDurationMin,
+                specialistId: specialistId,
+                location: location,
+                notes: notes,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ActivityLibraryTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({specialistId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (specialistId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.specialistId,
+                                referencedTable:
+                                    $$ActivityLibraryTableReferences
+                                        ._specialistIdTable(db),
+                                referencedColumn:
+                                    $$ActivityLibraryTableReferences
+                                        ._specialistIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ActivityLibraryTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ActivityLibraryTable,
+      ActivityLibraryData,
+      $$ActivityLibraryTableFilterComposer,
+      $$ActivityLibraryTableOrderingComposer,
+      $$ActivityLibraryTableAnnotationComposer,
+      $$ActivityLibraryTableCreateCompanionBuilder,
+      $$ActivityLibraryTableUpdateCompanionBuilder,
+      (ActivityLibraryData, $$ActivityLibraryTableReferences),
+      ActivityLibraryData,
+      PrefetchHooks Function({bool specialistId})
     >;
 typedef $$ScheduleTemplatesTableCreateCompanionBuilder =
     ScheduleTemplatesCompanion Function({
@@ -11405,6 +12435,8 @@ class $AppDatabaseManager {
       $$ObservationsTableTableManager(_db, _db.observations);
   $$SpecialistsTableTableManager get specialists =>
       $$SpecialistsTableTableManager(_db, _db.specialists);
+  $$ActivityLibraryTableTableManager get activityLibrary =>
+      $$ActivityLibraryTableTableManager(_db, _db.activityLibrary);
   $$ScheduleTemplatesTableTableManager get scheduleTemplates =>
       $$ScheduleTemplatesTableTableManager(_db, _db.scheduleTemplates);
   $$ScheduleEntriesTableTableManager get scheduleEntries =>

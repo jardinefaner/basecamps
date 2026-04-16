@@ -20,6 +20,12 @@ class MoreScreen extends StatelessWidget {
             onTap: () => context.push('/more/specialists'),
           ),
           _MoreTile(
+            icon: Icons.bookmarks_outlined,
+            label: 'Activity library',
+            subtitle: 'Reusable activities for the schedule',
+            onTap: () => context.push('/more/library'),
+          ),
+          _MoreTile(
             icon: Icons.assignment_outlined,
             label: 'Forms & surveys',
             subtitle: 'Attendance, incidents, parent concerns',

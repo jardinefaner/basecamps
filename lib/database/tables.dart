@@ -95,6 +95,27 @@ class Observations extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Reusable activity definitions. Picking one from the library during
+/// schedule creation prefills the title, default duration, specialist,
+/// location and notes.
+class ActivityLibrary extends Table {
+  TextColumn get id => text()();
+  TextColumn get title => text()();
+  IntColumn get defaultDurationMin => integer().nullable()();
+  TextColumn get specialistId => text()
+      .nullable()
+      .references(Specialists, #id, onDelete: KeyAction.setNull)();
+  TextColumn get location => text().nullable()();
+  TextColumn get notes => text().nullable()();
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 /// Named people who run activities (art teacher, swim instructor, etc.).
 /// Not user accounts yet — just named entities linked from schedule items.
 class Specialists extends Table {

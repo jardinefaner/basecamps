@@ -1,4 +1,5 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/activity_library/widgets/library_picker_sheet.dart';
 import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
@@ -49,6 +50,28 @@ class _AddFullDayEventSheetState extends ConsumerState<AddFullDayEventSheet> {
       lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
     );
     if (picked != null) setState(() => _date = picked);
+  }
+
+  Future<void> _openLibrary() async {
+    final picked = await showModalBottomSheet<ActivityLibraryData>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => const LibraryPickerSheet(),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _titleController.text = picked.title;
+      if (picked.location != null) {
+        _locationController.text = picked.location!;
+      }
+      if (picked.notes != null) {
+        _notesController.text = picked.notes!;
+      }
+      if (picked.specialistId != null) {
+        _specialistId = picked.specialistId;
+      }
+    });
   }
 
   Future<void> _submit() async {
@@ -103,6 +126,12 @@ class _AddFullDayEventSheetState extends ConsumerState<AddFullDayEventSheet> {
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: AppSpacing.xl),
+            OutlinedButton.icon(
+              onPressed: _openLibrary,
+              icon: const Icon(Icons.bookmark_outline, size: 18),
+              label: const Text('From library...'),
+            ),
+            const SizedBox(height: AppSpacing.md),
             AppTextField(
               controller: _titleController,
               label: 'What is it?',

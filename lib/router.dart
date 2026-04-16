@@ -1,3 +1,4 @@
+import 'package:basecamp/features/activity_library/activity_library_screen.dart';
 import 'package:basecamp/features/kids/kid_detail_screen.dart';
 import 'package:basecamp/features/kids/kids_screen.dart';
 import 'package:basecamp/features/more/more_screen.dart';
@@ -83,6 +84,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'specialists',
                     builder: (_, _) => const SpecialistsScreen(),
+                  ),
+                  GoRoute(
+                    path: 'library',
+                    builder: (_, _) => const ActivityLibraryScreen(),
                   ),
                 ],
               ),

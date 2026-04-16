@@ -1,4 +1,5 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/activity_library/widgets/library_picker_sheet.dart';
 import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
@@ -178,6 +179,31 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     });
   }
 
+  Future<void> _openLibrary() async {
+    final picked = await showModalBottomSheet<ActivityLibraryData>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => const LibraryPickerSheet(),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _titleController.text = picked.title;
+      if (picked.location != null) {
+        _locationController.text = picked.location!;
+      }
+      if (picked.specialistId != null) {
+        _specialistId = picked.specialistId;
+      }
+      final dur = picked.defaultDurationMin;
+      if (dur != null) {
+        final startDt = DateTime(2000, 1, 1, _start.hour, _start.minute);
+        final endDt = startDt.add(Duration(minutes: dur));
+        _end = TimeOfDay(hour: endDt.hour, minute: endDt.minute);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final insets = MediaQuery.of(context).viewInsets.bottom;
@@ -215,6 +241,14 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
               ],
             ),
             const SizedBox(height: AppSpacing.xl),
+            if (!_isEdit) ...[
+              OutlinedButton.icon(
+                onPressed: _openLibrary,
+                icon: const Icon(Icons.bookmark_outline, size: 18),
+                label: const Text('From library...'),
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
             AppTextField(
               controller: _titleController,
               label: 'Activity',
