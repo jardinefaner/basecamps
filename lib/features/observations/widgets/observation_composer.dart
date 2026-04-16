@@ -5,6 +5,7 @@ import 'package:basecamp/features/observations/ai_classifier.dart';
 import 'package:basecamp/features/observations/classifier.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/observations/voice_service.dart';
+import 'package:basecamp/features/observations/widgets/multi_capture_camera.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/foundation.dart';
@@ -234,36 +235,21 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
 
   // -- Attachments --
 
-  Future<void> _takePhotoWithCamera() async {
+  /// Opens the in-app multi-capture camera. Teachers take as many
+  /// photos and videos as they want in one session — pinch to zoom,
+  /// toggle photo/video mode inline — and the whole batch lands as
+  /// pending attachments when they tap Done.
+  Future<void> _openCamera() async {
     try {
-      final file = await _picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 85,
-        maxWidth: 2400,
-      );
-      if (file != null && mounted) {
-        setState(() {
-          _attachments.add(_PendingAttachment(kind: 'photo', path: file.path));
-        });
-      }
+      final items = await MultiCaptureCamera.open(context);
+      if (items.isEmpty || !mounted) return;
+      setState(() {
+        for (final m in items) {
+          _attachments.add(_PendingAttachment(kind: m.kind, path: m.path));
+        }
+      });
     } on Object catch (e) {
-      _snack("Couldn't attach photo: $e");
-    }
-  }
-
-  Future<void> _recordVideoWithCamera() async {
-    try {
-      final file = await _picker.pickVideo(
-        source: ImageSource.camera,
-        maxDuration: const Duration(minutes: 5),
-      );
-      if (file != null && mounted) {
-        setState(() {
-          _attachments.add(_PendingAttachment(kind: 'video', path: file.path));
-        });
-      }
-    } on Object catch (e) {
-      _snack("Couldn't attach video: $e");
+      _snack("Couldn't open camera: $e");
     }
   }
 
@@ -310,24 +296,18 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (!kIsWeb) ...[
+            if (!kIsWeb)
               ListTile(
                 leading: const Icon(Icons.photo_camera_outlined),
-                title: const Text('Take a photo'),
+                title: const Text('Open camera'),
+                subtitle: const Text(
+                  'Stay in — snap multiple photos, record video, pinch to zoom',
+                ),
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  unawaited(_takePhotoWithCamera());
+                  unawaited(_openCamera());
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.videocam_outlined),
-                title: const Text('Record a video'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  unawaited(_recordVideoWithCamera());
-                },
-              ),
-            ],
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
               title: const Text('Pick from library'),
@@ -521,6 +501,8 @@ class _AttachmentCarousel extends StatelessWidget {
                     ? Image.file(
                         File(att.path),
                         fit: BoxFit.cover,
+                        // 68dp thumbnail × 2 for retina.
+                        cacheWidth: 136,
                         errorBuilder: (_, _, _) => Center(
                           child: Icon(
                             Icons.image_outlined,

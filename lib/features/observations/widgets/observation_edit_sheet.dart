@@ -5,6 +5,7 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/observations/widgets/attachment_viewer.dart';
+import 'package:basecamp/features/observations/widgets/multi_capture_camera.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
@@ -156,40 +157,21 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
     Navigator.of(context).pop();
   }
 
-  Future<void> _takePhotoWithCamera() async {
+  /// Opens the in-app multi-capture camera. Same flow as the composer:
+  /// stay open between shots, Photo/Video toggle, pinch to zoom.
+  Future<void> _openCamera() async {
     try {
-      final file = await _picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 85,
-        maxWidth: 2400,
-      );
-      if (file != null && mounted) {
-        setState(() {
+      final items = await MultiCaptureCamera.open(context);
+      if (items.isEmpty || !mounted) return;
+      setState(() {
+        for (final m in items) {
           _newAttachments.add(
-            _PendingAttachment(kind: 'photo', path: file.path),
+            _PendingAttachment(kind: m.kind, path: m.path),
           );
-        });
-      }
+        }
+      });
     } on Object catch (e) {
-      _snack("Couldn't attach photo: $e");
-    }
-  }
-
-  Future<void> _recordVideoWithCamera() async {
-    try {
-      final file = await _picker.pickVideo(
-        source: ImageSource.camera,
-        maxDuration: const Duration(minutes: 5),
-      );
-      if (file != null && mounted) {
-        setState(() {
-          _newAttachments.add(
-            _PendingAttachment(kind: 'video', path: file.path),
-          );
-        });
-      }
-    } on Object catch (e) {
-      _snack("Couldn't attach video: $e");
+      _snack("Couldn't open camera: $e");
     }
   }
 
@@ -236,24 +218,18 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (!kIsWeb) ...[
+            if (!kIsWeb)
               ListTile(
                 leading: const Icon(Icons.photo_camera_outlined),
-                title: const Text('Take a photo'),
+                title: const Text('Open camera'),
+                subtitle: const Text(
+                  'Stay in — snap multiple photos, record video, pinch to zoom',
+                ),
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  unawaited(_takePhotoWithCamera());
+                  unawaited(_openCamera());
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.videocam_outlined),
-                title: const Text('Record a video'),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  unawaited(_recordVideoWithCamera());
-                },
-              ),
-            ],
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
               title: const Text('Pick from library'),
@@ -570,6 +546,8 @@ class _EditableAttachmentStrip extends StatelessWidget {
                 ? Image.file(
                     File(path),
                     fit: BoxFit.cover,
+                    // 80dp thumb × 2 for retina.
+                    cacheWidth: 160,
                     errorBuilder: (_, _, _) => Center(
                       child: Icon(
                         Icons.image_outlined,

@@ -258,6 +258,10 @@ class _GalleryTile extends StatelessWidget {
               Image.file(
                 File(attachment.localPath),
                 fit: BoxFit.cover,
+                // 3-col grid tiles render around ~130dp on phones; 2x
+                // for retina. Decodes at thumbnail size so a hundred
+                // photos don't blow up memory.
+                cacheWidth: 260,
                 errorBuilder: (_, _, _) => Center(
                   child: Icon(
                     Icons.broken_image_outlined,

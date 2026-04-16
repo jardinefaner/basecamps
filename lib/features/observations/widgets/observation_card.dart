@@ -31,8 +31,14 @@ class ObservationCard extends ConsumerWidget {
     final theme = Theme.of(context);
     final sentiment = ObservationSentiment.fromName(observation.sentiment);
     final time = DateFormat.MMMd().add_jm().format(observation.createdAt);
-    final attachmentsAsync =
-        ref.watch(observationAttachmentsProvider(observation.id));
+
+    // Perf: only subscribe to the attachments stream when we actually
+    // render them. The Notes filter hides thumbnails, so we save one
+    // stream listener per card on large feeds.
+    final attachmentsAsync = hideAttachments
+        ? null
+        : ref.watch(observationAttachmentsProvider(observation.id));
+
     final domainsAsync = ref.watch(
       observationDomainsProvider(observation.id),
     );
@@ -70,7 +76,7 @@ class ObservationCard extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(observation.note, style: theme.textTheme.bodyMedium),
-          if (!hideAttachments)
+          if (!hideAttachments && attachmentsAsync != null)
             attachmentsAsync.maybeWhen(
               data: (atts) => atts.isEmpty
                   ? const SizedBox.shrink()
@@ -194,6 +200,10 @@ class _AttachmentThumb extends StatelessWidget {
             Image.file(
               File(attachment.localPath),
               fit: BoxFit.cover,
+              // Decode at ~thumbnail resolution (card thumb is 84px;
+              // 2x for retina). Saves hundreds of MB per feed when a
+              // teacher has been snapping 12MP photos.
+              cacheWidth: 168,
               errorBuilder: (_, _, _) =>
                   _placeholder(theme, Icons.image_outlined),
             )

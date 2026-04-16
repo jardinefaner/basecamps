@@ -6,6 +6,12 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Basecamp uses the microphone to transcribe observations while you're on the go.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Basecamp uses the camera so teachers can capture photos and videos of moments with kids.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Basecamp attaches photos and videos from your library to observations.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Basecamp saves captured photos and videos to your library.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
