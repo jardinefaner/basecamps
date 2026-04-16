@@ -27,7 +27,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -46,6 +46,10 @@ class AppDatabase extends _$AppDatabase {
           if (from < 4) {
             await m.createTable(scheduleTemplates);
             await m.createTable(scheduleEntries);
+          }
+          if (from < 5) {
+            await m.addColumn(scheduleTemplates, scheduleTemplates.isFullDay);
+            await m.addColumn(scheduleEntries, scheduleEntries.isFullDay);
           }
         },
       );

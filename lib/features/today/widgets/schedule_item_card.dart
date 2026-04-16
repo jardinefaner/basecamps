@@ -30,22 +30,29 @@ class ScheduleItemCard extends ConsumerWidget {
         children: [
           SizedBox(
             width: 60,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _formatTime(item.startTime),
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: isNow ? theme.colorScheme.primary : textColor,
-                    fontWeight: isNow ? FontWeight.w700 : null,
+            child: item.isFullDay
+                ? Text(
+                    'All\nday',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: isNow ? theme.colorScheme.primary : textColor,
+                    ),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _formatTime(item.startTime),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: isNow ? theme.colorScheme.primary : textColor,
+                          fontWeight: isNow ? FontWeight.w700 : null,
+                        ),
+                      ),
+                      Text(
+                        _formatTime(item.endTime),
+                        style: theme.textTheme.labelMedium,
+                      ),
+                    ],
                   ),
-                ),
-                Text(
-                  _formatTime(item.endTime),
-                  style: theme.textTheme.labelMedium,
-                ),
-              ],
-            ),
           ),
           const SizedBox(width: AppSpacing.md),
           Container(
@@ -74,22 +81,16 @@ class ScheduleItemCard extends ConsumerWidget {
                       ),
                     ),
                     if (isNow)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.sm,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'NOW',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.onPrimary,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                      _StatusBadge(
+                        label: 'NOW',
+                        color: theme.colorScheme.primary,
+                        textColor: theme.colorScheme.onPrimary,
+                      )
+                    else if (item.isOneOff)
+                      _StatusBadge(
+                        label: 'TODAY ONLY',
+                        color: theme.colorScheme.tertiaryContainer,
+                        textColor: theme.colorScheme.onTertiaryContainer,
                       ),
                   ],
                 ),
@@ -135,5 +136,40 @@ class ScheduleItemCard extends ConsumerWidget {
     final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
     final period = h < 12 ? 'a' : 'p';
     return m == '00' ? '$hour12$period' : '$hour12:$m$period';
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({
+    required this.label,
+    required this.color,
+    required this.textColor,
+  });
+
+  final String label;
+  final Color color;
+  final Color textColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 2,
+      ),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: textColor,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
   }
 }

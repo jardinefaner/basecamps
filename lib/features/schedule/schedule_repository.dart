@@ -11,6 +11,7 @@ class ScheduleItem {
     required this.id,
     required this.startTime,
     required this.endTime,
+    required this.isFullDay,
     required this.title,
     required this.isFromTemplate,
     this.podId,
@@ -24,26 +25,24 @@ class ScheduleItem {
   final String id;
   final String startTime; // "HH:mm"
   final String endTime;
+  final bool isFullDay;
   final String title;
   final String? podId;
   final String? specialistName;
   final String? location;
   final String? notes;
-
-  /// True when this item came from a recurring template (possibly overridden).
   final bool isFromTemplate;
-
-  /// The source template id (set if this item came from a template, or if
-  /// a per-date entry overrides/cancels a template).
   final String? templateId;
-
-  /// The per-date entry id (set when an override or addition produced this item).
   final String? entryId;
+
+  /// True when this item is a one-off addition (not sourced from a template).
+  bool get isOneOff => !isFromTemplate;
 
   TimeOfDay get startTimeOfDay => _parseTime(startTime);
   TimeOfDay get endTimeOfDay => _parseTime(endTime);
 
   int get startMinutes => startTimeOfDay.hour * 60 + startTimeOfDay.minute;
+  int get endMinutes => endTimeOfDay.hour * 60 + endTimeOfDay.minute;
 
   static TimeOfDay _parseTime(String hhmm) {
     final parts = hhmm.split(':');
@@ -70,11 +69,29 @@ class ScheduleRepository {
     return query.watch();
   }
 
+  Future<List<ScheduleTemplate>> templatesForDay(int dayOfWeek) {
+    final query = _db.select(_db.scheduleTemplates)
+      ..where((t) => t.dayOfWeek.equals(dayOfWeek))
+      ..orderBy([(t) => OrderingTerm.asc(t.startTime)]);
+    return query.get();
+  }
+
+  /// Latest end time (HH:mm) among timed templates for the given day, or null
+  /// if the day has no timed activities yet. Used for back-to-back auto-fill.
+  Future<String?> latestEndTimeForDay(int dayOfWeek) async {
+    final templates = await templatesForDay(dayOfWeek);
+    final timed = templates.where((t) => !t.isFullDay).toList();
+    if (timed.isEmpty) return null;
+    timed.sort((a, b) => _compareTime(b.endTime, a.endTime));
+    return timed.first.endTime;
+  }
+
   Future<String> addTemplate({
     required int dayOfWeek,
     required String startTime,
     required String endTime,
     required String title,
+    bool isFullDay = false,
     String? podId,
     String? specialistName,
     String? location,
@@ -87,6 +104,7 @@ class ScheduleRepository {
             dayOfWeek: dayOfWeek,
             startTime: startTime,
             endTime: endTime,
+            isFullDay: Value(isFullDay),
             title: title,
             podId: Value(podId),
             specialistName: Value(specialistName),
@@ -103,6 +121,7 @@ class ScheduleRepository {
     required String startTime,
     required String endTime,
     required String title,
+    bool isFullDay = false,
     String? podId,
     String? specialistName,
     String? location,
@@ -114,6 +133,7 @@ class ScheduleRepository {
         dayOfWeek: Value(dayOfWeek),
         startTime: Value(startTime),
         endTime: Value(endTime),
+        isFullDay: Value(isFullDay),
         title: Value(title),
         podId: Value(podId),
         specialistName: Value(specialistName),
@@ -129,13 +149,14 @@ class ScheduleRepository {
         .go();
   }
 
-  // -- Entries (per-date overrides/additions/cancellations) --
+  // -- Entries --
 
   Future<String> addOneOffEntry({
     required DateTime date,
     required String startTime,
     required String endTime,
     required String title,
+    bool isFullDay = false,
     String? podId,
     String? specialistName,
     String? location,
@@ -148,6 +169,7 @@ class ScheduleRepository {
             date: _dayOnly(date),
             startTime: startTime,
             endTime: endTime,
+            isFullDay: Value(isFullDay),
             title: title,
             podId: Value(podId),
             specialistName: Value(specialistName),
@@ -172,6 +194,7 @@ class ScheduleRepository {
             date: _dayOnly(date),
             startTime: template.startTime,
             endTime: template.endTime,
+            isFullDay: Value(template.isFullDay),
             title: template.title,
             kind: 'cancellation',
             overridesTemplateId: Value(templateId),
@@ -184,11 +207,11 @@ class ScheduleRepository {
         .go();
   }
 
-  // -- Merged view for a date --
+  // -- Merged view --
 
   Stream<List<ScheduleItem>> watchScheduleForDate(DateTime date) {
     final day = _dayOnly(date);
-    final dayOfWeek = date.weekday; // ISO 1..7
+    final dayOfWeek = date.weekday;
     final nextDay = day.add(const Duration(days: 1));
 
     final templatesQuery = _db.select(_db.scheduleTemplates)
@@ -232,6 +255,7 @@ class ScheduleRepository {
             id: override.id,
             startTime: override.startTime,
             endTime: override.endTime,
+            isFullDay: override.isFullDay,
             title: override.title,
             podId: override.podId,
             specialistName: override.specialistName,
@@ -248,6 +272,7 @@ class ScheduleRepository {
             id: t.id,
             startTime: t.startTime,
             endTime: t.endTime,
+            isFullDay: t.isFullDay,
             title: t.title,
             podId: t.podId,
             specialistName: t.specialistName,
@@ -267,6 +292,7 @@ class ScheduleRepository {
             id: e.id,
             startTime: e.startTime,
             endTime: e.endTime,
+            isFullDay: e.isFullDay,
             title: e.title,
             podId: e.podId,
             specialistName: e.specialistName,
@@ -279,8 +305,20 @@ class ScheduleRepository {
       }
     }
 
-    items.sort((a, b) => a.startMinutes.compareTo(b.startMinutes));
+    // Full-day items come first, then timed items in time order.
+    items.sort((a, b) {
+      if (a.isFullDay != b.isFullDay) return a.isFullDay ? -1 : 1;
+      return a.startMinutes.compareTo(b.startMinutes);
+    });
     return items;
+  }
+
+  int _compareTime(String a, String b) {
+    final aParts = a.split(':').map(int.parse).toList();
+    final bParts = b.split(':').map(int.parse).toList();
+    final aMin = aParts[0] * 60 + aParts[1];
+    final bMin = bParts[0] * 60 + bParts[1];
+    return aMin.compareTo(bMin);
   }
 
   DateTime _dayOnly(DateTime d) => DateTime(d.year, d.month, d.day);

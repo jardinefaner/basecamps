@@ -27,8 +27,6 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
   late final _locationController =
       TextEditingController(text: widget.template?.location ?? '');
 
-  // When editing: the single day of the template being edited.
-  // When creating: each selected day becomes its own template row.
   late final Set<int> _selectedDays = widget.template != null
       ? {widget.template!.dayOfWeek}
       : (widget.initialDays ?? {DateTime.now().weekday});
@@ -39,8 +37,10 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
   late TimeOfDay _end = widget.template != null
       ? _parseTime(widget.template!.endTime)
       : const TimeOfDay(hour: 10, minute: 0);
+  late bool _isFullDay = widget.template?.isFullDay ?? false;
   late String? _podId = widget.template?.podId;
   bool _submitting = false;
+  bool _didAutofillStart = false;
 
   bool get _isEdit => widget.template != null;
 
@@ -54,6 +54,36 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
 
   static String _formatTime(TimeOfDay t) =>
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_isEdit) {
+      // Back-to-back: default start to end of last activity on the primary day.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _tryAutofillStart());
+    }
+  }
+
+  Future<void> _tryAutofillStart() async {
+    if (_didAutofillStart) return;
+    _didAutofillStart = true;
+    final primaryDay = _selectedDays.first;
+    final last = await ref
+        .read(scheduleRepositoryProvider)
+        .latestEndTimeForDay(primaryDay);
+    if (last == null || !mounted) return;
+    final newStart = _parseTime(last);
+    // Only nudge if the user hasn't already changed the default
+    if (_start.hour == 9 && _start.minute == 0) {
+      setState(() {
+        _start = newStart;
+        // Keep a 1h duration by default
+        final endDt = DateTime(2000, 1, 1, newStart.hour, newStart.minute)
+            .add(const Duration(hours: 1));
+        _end = TimeOfDay(hour: endDt.hour, minute: endDt.minute);
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -87,17 +117,17 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     final location = _locationController.text.trim().isEmpty
         ? null
         : _locationController.text.trim();
-    final startHhmm = _formatTime(_start);
-    final endHhmm = _formatTime(_end);
+    // When full day, normalize time values; they're hidden in the UI anyway.
+    final startHhmm = _isFullDay ? '00:00' : _formatTime(_start);
+    final endHhmm = _isFullDay ? '23:59' : _formatTime(_end);
 
     if (_isEdit) {
-      // Edit is scoped to the single template. Pick whichever day is selected
-      // (should be exactly one — sheet forces a single selection in edit mode).
       await repo.updateTemplate(
         id: widget.template!.id,
         dayOfWeek: _selectedDays.first,
         startTime: startHhmm,
         endTime: endHhmm,
+        isFullDay: _isFullDay,
         title: title,
         podId: _podId,
         specialistName: specialist,
@@ -109,6 +139,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
           dayOfWeek: day,
           startTime: startHhmm,
           endTime: endHhmm,
+          isFullDay: _isFullDay,
           title: title,
           podId: _podId,
           specialistName: specialist,
@@ -177,7 +208,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
             AppTextField(
               controller: _titleController,
               label: 'Activity',
-              hint: 'e.g. Art · Swim · Snack',
+              hint: 'e.g. Art · Swim · Field trip',
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: AppSpacing.lg),
@@ -195,49 +226,61 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
               }),
             ),
             const SizedBox(height: AppSpacing.lg),
-            Row(
-              children: [
-                Expanded(
-                  child: _TimeField(
-                    label: 'Start',
-                    time: _start,
-                    onPressed: _pickStart,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: _TimeField(
-                    label: 'End',
-                    time: _end,
-                    onPressed: _pickEnd,
-                  ),
-                ),
-              ],
+            SwitchListTile(
+              title: const Text('Full day'),
+              subtitle: const Text('No specific time — like a field trip'),
+              value: _isFullDay,
+              onChanged: (v) => setState(() => _isFullDay = v),
+              contentPadding: EdgeInsets.zero,
             ),
-            const SizedBox(height: AppSpacing.sm),
-            Wrap(
-              spacing: AppSpacing.sm,
-              children: [
-                _DurationChip(
-                  label: '30m',
-                  onTap: () =>
-                      _applyDurationPreset(const Duration(minutes: 30)),
-                ),
-                _DurationChip(
-                  label: '1h',
-                  onTap: () => _applyDurationPreset(const Duration(hours: 1)),
-                ),
-                _DurationChip(
-                  label: '90m',
-                  onTap: () =>
-                      _applyDurationPreset(const Duration(minutes: 90)),
-                ),
-                _DurationChip(
-                  label: '2h',
-                  onTap: () => _applyDurationPreset(const Duration(hours: 2)),
-                ),
-              ],
-            ),
+            if (!_isFullDay) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  Expanded(
+                    child: _TimeField(
+                      label: 'Start',
+                      time: _start,
+                      onPressed: _pickStart,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: _TimeField(
+                      label: 'End',
+                      time: _end,
+                      onPressed: _pickEnd,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Wrap(
+                spacing: AppSpacing.sm,
+                children: [
+                  _DurationChip(
+                    label: '30m',
+                    onTap: () =>
+                        _applyDurationPreset(const Duration(minutes: 30)),
+                  ),
+                  _DurationChip(
+                    label: '1h',
+                    onTap: () =>
+                        _applyDurationPreset(const Duration(hours: 1)),
+                  ),
+                  _DurationChip(
+                    label: '90m',
+                    onTap: () =>
+                        _applyDurationPreset(const Duration(minutes: 90)),
+                  ),
+                  _DurationChip(
+                    label: '2h',
+                    onTap: () =>
+                        _applyDurationPreset(const Duration(hours: 2)),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: AppSpacing.lg),
             Text('Pod', style: theme.textTheme.titleSmall),
             const SizedBox(height: AppSpacing.sm),

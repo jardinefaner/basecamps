@@ -150,7 +150,9 @@ class _DaySection extends StatelessWidget {
                       SizedBox(
                         width: 80,
                         child: Text(
-                          '${_formatTime(t.startTime)}–${_formatTime(t.endTime)}',
+                          t.isFullDay
+                              ? 'All day'
+                              : '${_formatTime(t.startTime)}–${_formatTime(t.endTime)}',
                           style: theme.textTheme.labelMedium,
                         ),
                       ),

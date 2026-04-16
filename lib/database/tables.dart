@@ -102,6 +102,7 @@ class ScheduleTemplates extends Table {
   IntColumn get dayOfWeek => integer()();
   TextColumn get startTime => text()();
   TextColumn get endTime => text()();
+  BoolColumn get isFullDay => boolean().withDefault(const Constant(false))();
   TextColumn get title => text()();
   TextColumn get podId =>
       text().nullable().references(Pods, #id, onDelete: KeyAction.setNull)();
@@ -125,6 +126,7 @@ class ScheduleEntries extends Table {
   DateTimeColumn get date => dateTime()();
   TextColumn get startTime => text()();
   TextColumn get endTime => text()();
+  BoolColumn get isFullDay => boolean().withDefault(const Constant(false))();
   TextColumn get title => text()();
   TextColumn get podId =>
       text().nullable().references(Pods, #id, onDelete: KeyAction.setNull)();
