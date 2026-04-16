@@ -8,11 +8,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 const _dayShortLabels = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
-/// Week grid laid out as day-rows × time-columns. Each cell is an AppCard
-/// matching the list view's styling. When an activity is identical on
-/// consecutive days (same title/time/pods/specialist/location), the cells
-/// merge into a single card that spans those rows — so "Morning Circle"
-/// every day shows up once as a tall block instead of seven duplicates.
+/// Week grid laid out as day-columns × time-slot-rows. Each cell is an
+/// AppCard matching the list view's styling. When an activity is identical
+/// across consecutive days (same title, time, pods, specialist, location),
+/// the cells merge into a single wide card that spans those columns — so
+/// "Morning Circle" every day reads as one horizontal block like
+/// `[ Morning Circle ——————————— MON – FRI ]` rather than five tall stubs.
 class WeekGridView extends StatelessWidget {
   const WeekGridView({
     required this.itemsByDay,
@@ -70,8 +71,9 @@ class WeekGridView extends StatelessWidget {
       }
     }
 
-    // 3. Compute merge blocks per column. A run of consecutive days with
-    //    equivalent items in the same slot becomes one block.
+    // 3. Compute merge blocks per row (slot). A run of consecutive days with
+    //    equivalent items in the same slot becomes one horizontally-spanning
+    //    block.
     final blocks = <_Block>[];
     for (var slot = 0; slot < slots.length; slot++) {
       var d = 0;
@@ -90,11 +92,6 @@ class WeekGridView extends StatelessWidget {
         final spannedItems = <ScheduleItem>[
           for (var i = d; i <= end; i++) matrix[i][slot]!,
         ];
-        final inConflict = spannedItems.any(
-          (it) => (conflictsByDay[_rowToDay(d, end, spannedItems, it)] ??
-                  const <String>{})
-              .contains(it.id),
-        );
         blocks.add(
           _Block(
             slotIdx: slot,
@@ -105,24 +102,22 @@ class WeekGridView extends StatelessWidget {
               conflictsByDay: conflictsByDay,
               startDay: d,
               items: spannedItems,
-            ) ||
-                inConflict,
+            ),
           ),
         );
         d = end + 1;
       }
     }
 
-    // 4. Render: Stack with positioned cards. Left column = day labels,
-    //    top row = time slot headers.
-    const dayLabelWidth = 52.0;
+    // 4. Render: day columns across the top, time-slot rows down the left,
+    //    positioned cards filling the matrix. Merged blocks span columns.
+    const timeColumnWidth = 92.0;
     const headerHeight = 32.0;
-    const cellWidth = 160.0;
-    const cellHeight = 64.0;
+    const cellWidth = 132.0;
+    const cellHeight = 72.0;
     const gutter = 6.0;
-    const totalHeightBase = headerHeight + 7 * cellHeight;
-    final totalWidth = dayLabelWidth + slots.length * cellWidth;
-    const totalHeight = totalHeightBase;
+    const totalWidth = timeColumnWidth + 7 * cellWidth;
+    final totalHeight = headerHeight + slots.length * cellHeight;
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -132,34 +127,13 @@ class WeekGridView extends StatelessWidget {
           height: totalHeight,
           child: Stack(
             children: [
-              // Time slot headers.
-              for (var i = 0; i < slots.length; i++)
-                Positioned(
-                  top: 0,
-                  left: dayLabelWidth + i * cellWidth,
-                  width: cellWidth,
-                  height: headerHeight,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm,
-                    ),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        '${_formatTime(slots[i].start)} – ${_formatTime(slots[i].end)}',
-                        style: theme.textTheme.labelMedium,
-                      ),
-                    ),
-                  ),
-                ),
-
-              // Day row labels.
+              // Day column headers.
               for (var d = 0; d < 7; d++)
                 Positioned(
-                  top: headerHeight + d * cellHeight,
-                  left: 0,
-                  width: dayLabelWidth,
-                  height: cellHeight,
+                  top: 0,
+                  left: timeColumnWidth + d * cellWidth,
+                  width: cellWidth,
+                  height: headerHeight,
                   child: Center(
                     child: Text(
                       _dayShortLabels[d],
@@ -168,18 +142,39 @@ class WeekGridView extends StatelessWidget {
                   ),
                 ),
 
+              // Time slot row labels.
+              for (var i = 0; i < slots.length; i++)
+                Positioned(
+                  top: headerHeight + i * cellHeight,
+                  left: 0,
+                  width: timeColumnWidth,
+                  height: cellHeight,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '${_formatTime(slots[i].start)}\n${_formatTime(slots[i].end)}',
+                        style: theme.textTheme.labelMedium,
+                      ),
+                    ),
+                  ),
+                ),
+
               // Merged activity blocks.
               for (final block in blocks)
                 Positioned(
                   top: headerHeight +
-                      block.startDay * cellHeight +
+                      block.slotIdx * cellHeight +
                       gutter / 2,
-                  left: dayLabelWidth +
-                      block.slotIdx * cellWidth +
+                  left: timeColumnWidth +
+                      block.startDay * cellWidth +
                       gutter / 2,
-                  width: cellWidth - gutter,
-                  height: (block.endDay - block.startDay + 1) * cellHeight -
-                      gutter,
+                  width:
+                      (block.endDay - block.startDay + 1) * cellWidth - gutter,
+                  height: cellHeight - gutter,
                   child: _GridBlockCard(
                     block: block,
                     onTap: () => onEditById(
@@ -192,17 +187,6 @@ class WeekGridView extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  int? _rowToDay(
-    int start,
-    int end,
-    List<ScheduleItem> items,
-    ScheduleItem it,
-  ) {
-    final idx = items.indexOf(it);
-    if (idx < 0) return null;
-    return start + idx + 1; // ISO day 1..7
   }
 
   bool _blockHasConflict({
@@ -311,7 +295,6 @@ class _GridBlockCard extends ConsumerWidget {
       subtitleParts.add(first.location!);
     }
 
-    final titleStyle = theme.textTheme.titleMedium;
     final subStyle = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
@@ -331,17 +314,30 @@ class _GridBlockCard extends ConsumerWidget {
               Expanded(
                 child: Text(
                   first.title,
-                  style: titleStyle,
+                  style: theme.textTheme.titleMedium,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (block.inConflict)
+              if (block.isMerged) ...[
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  block.dayRangeLabel,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+              if (block.inConflict) ...[
+                const SizedBox(width: AppSpacing.xs),
                 Icon(
                   Icons.warning_amber_rounded,
                   size: 16,
                   color: theme.colorScheme.error,
                 ),
+              ],
             ],
           ),
           if (subtitleParts.isNotEmpty)
@@ -352,18 +348,6 @@ class _GridBlockCard extends ConsumerWidget {
                 style: subStyle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          if (block.isMerged)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                block.dayRangeLabel,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
-                ),
               ),
             ),
         ],
