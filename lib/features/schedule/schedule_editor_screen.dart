@@ -1,6 +1,7 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/add_activity_picker.dart';
+import 'package:basecamp/features/schedule/widgets/copy_day_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/edit_template_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -16,6 +17,8 @@ const _dayLabels = [
   'Saturday',
   'Sunday',
 ];
+
+const _dayShortLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 class ScheduleEditorScreen extends ConsumerWidget {
   const ScheduleEditorScreen({super.key});
@@ -54,6 +57,7 @@ class ScheduleEditorScreen extends ConsumerWidget {
                   items: byDay[day] ?? const [],
                   onAdd: () => _openRecurring(context, initialDays: {day}),
                   onEdit: (t) => _openRecurring(context, template: t),
+                  onCopy: () => _openCopy(context, day, byDay[day] ?? const []),
                 ),
             ],
           );
@@ -86,6 +90,44 @@ class ScheduleEditorScreen extends ConsumerWidget {
       ),
     );
   }
+
+  Future<void> _openCopy(
+    BuildContext context,
+    int sourceDay,
+    List<ScheduleTemplate> items,
+  ) async {
+    if (items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${_dayLabels[sourceDay - 1]} has no activities to copy.'),
+        ),
+      );
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => CopyDaySheet(
+        sourceDay: sourceDay,
+        sourceCount: items.length,
+        onCopied: (targetDays, countPerDay) {
+          final sortedNames = (targetDays.toList()..sort())
+              .map((d) => _dayShortLabels[d - 1])
+              .join(', ');
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                'Copied $countPerDay '
+                '${countPerDay == 1 ? "activity" : "activities"} to $sortedNames',
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 }
 
 class _DaySection extends StatelessWidget {
@@ -94,12 +136,14 @@ class _DaySection extends StatelessWidget {
     required this.items,
     required this.onAdd,
     required this.onEdit,
+    required this.onCopy,
   });
 
   final int day;
   final List<ScheduleTemplate> items;
   final VoidCallback onAdd;
   final ValueChanged<ScheduleTemplate> onEdit;
+  final VoidCallback onCopy;
 
   @override
   Widget build(BuildContext context) {
@@ -135,6 +179,26 @@ class _DaySection extends StatelessWidget {
                   tooltip: 'Add to ${_dayLabels[day - 1]}',
                   visualDensity: VisualDensity.compact,
                 ),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_horiz, size: 20),
+                  tooltip: 'More',
+                  onSelected: (value) {
+                    if (value == 'copy') onCopy();
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'copy',
+                      enabled: items.isNotEmpty,
+                      child: const Row(
+                        children: [
+                          Icon(Icons.copy_outlined, size: 18),
+                          SizedBox(width: AppSpacing.sm),
+                          Text('Copy to...'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -160,7 +224,9 @@ class _DaySection extends StatelessWidget {
                       SizedBox(
                         width: 80,
                         child: Text(
-                          '${_formatTime(t.startTime)}–${_formatTime(t.endTime)}',
+                          t.isFullDay
+                              ? 'All day'
+                              : '${_formatTime(t.startTime)}–${_formatTime(t.endTime)}',
                           style: theme.textTheme.labelMedium,
                         ),
                       ),

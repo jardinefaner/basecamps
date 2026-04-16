@@ -174,6 +174,50 @@ class ScheduleRepository {
         .go();
   }
 
+  /// Duplicates all templates from [sourceDay] into each of [targetDays].
+  /// Copies pod assignments. Returns the count of templates copied per day
+  /// (same count for every target day).
+  Future<int> copyDayTemplates({
+    required int sourceDay,
+    required Set<int> targetDays,
+  }) async {
+    if (targetDays.isEmpty) return 0;
+    final sources = await templatesForDay(sourceDay);
+    if (sources.isEmpty) return 0;
+
+    await _db.transaction(() async {
+      for (final target in targetDays) {
+        if (target == sourceDay) continue;
+        for (final src in sources) {
+          final newTemplateId = newId();
+          await _db.into(_db.scheduleTemplates).insert(
+                ScheduleTemplatesCompanion.insert(
+                  id: newTemplateId,
+                  dayOfWeek: target,
+                  startTime: src.startTime,
+                  endTime: src.endTime,
+                  isFullDay: Value(src.isFullDay),
+                  title: src.title,
+                  specialistId: Value(src.specialistId),
+                  location: Value(src.location),
+                  notes: Value(src.notes),
+                ),
+              );
+          final podIds = await podsForTemplate(src.id);
+          for (final podId in podIds) {
+            await _db.into(_db.templatePods).insert(
+                  TemplatePodsCompanion.insert(
+                    templateId: newTemplateId,
+                    podId: podId,
+                  ),
+                );
+          }
+        }
+      }
+    });
+    return sources.length;
+  }
+
   Future<String> addOneOffEntry({
     required DateTime date,
     required String startTime,
