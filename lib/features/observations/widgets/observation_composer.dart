@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:basecamp/database/database.dart';
-import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/observations/classifier.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/observations/voice_service.dart';
@@ -14,15 +12,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
-/// Persistent chat-style capture surface that lives at the bottom of the
-/// Observations screen. Always visible: typing starts the moment the tab
-/// is open. Supports photos, videos, voice-to-text, multi-kid tagging, and
-/// auto-suggested domain/sentiment. No modal, no FAB — this IS the entry
-/// point to a new observation.
+/// Minimal, focused capture surface. Text + voice + attachments + send —
+/// nothing else on screen while the teacher is writing. Tagging (kids,
+/// domain, sentiment) happens later by tapping the saved entry in the
+/// list above. The classifier still runs at submit time so the saved row
+/// has sensible auto-tags the teacher can accept or override later.
 class ObservationComposer extends ConsumerStatefulWidget {
-  const ObservationComposer({super.key, this.initialKidIds});
-
-  final List<String>? initialKidIds;
+  const ObservationComposer({super.key});
 
   @override
   ConsumerState<ObservationComposer> createState() =>
@@ -34,14 +30,8 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
   final _noteFocus = FocusNode();
   final _picker = ImagePicker();
 
-  late final Set<String> _selectedKidIds =
-      (widget.initialKidIds ?? const <String>[]).toSet();
-  ObservationDomain _domain = ObservationDomain.other;
-  ObservationSentiment _sentiment = ObservationSentiment.neutral;
-  bool _tagsAutoSet = true;
-  bool _submitting = false;
-
   final List<_PendingAttachment> _attachments = [];
+  bool _submitting = false;
 
   DeepgramVoiceSession? _voice;
   bool _voiceActive = false;
@@ -56,7 +46,7 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
   @override
   void initState() {
     super.initState();
-    _noteController.addListener(_onNoteChanged);
+    _noteController.addListener(() => setState(() {}));
   }
 
   @override
@@ -70,32 +60,16 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
     super.dispose();
   }
 
-  void _onNoteChanged() {
-    if (!_tagsAutoSet) {
-      setState(() {});
-      return;
-    }
-    final suggestion = suggestTags(_noteController.text);
-    if (suggestion.domain != _domain ||
-        suggestion.sentiment != _sentiment) {
-      setState(() {
-        _domain = suggestion.domain;
-        _sentiment = suggestion.sentiment;
-      });
-    } else {
-      setState(() {});
-    }
-  }
-
   Future<void> _submit() async {
     if (!_hasContent) return;
     setState(() => _submitting = true);
     final currentActivity = _currentActivity();
+    final note = _noteController.text.trim();
+    final suggestion = suggestTags(note);
     await ref.read(observationsRepositoryProvider).addObservation(
-          note: _noteController.text.trim(),
-          domain: _domain,
-          sentiment: _sentiment,
-          kidIds: _selectedKidIds.toList(),
+          note: note,
+          domain: suggestion.domain,
+          sentiment: suggestion.sentiment,
           attachments: _attachments
               .map(
                 (a) => ObservationAttachmentInput(
@@ -110,21 +84,16 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
               : null,
         );
     if (!mounted) return;
-    // Reset for the next observation — no dismiss, we stay where we are.
     _noteController.clear();
     setState(() {
       _attachments.clear();
-      _selectedKidIds.clear();
-      _domain = ObservationDomain.other;
-      _sentiment = ObservationSentiment.neutral;
-      _tagsAutoSet = true;
       _submitting = false;
       _livePartial = '';
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Saved'),
-        duration: Duration(seconds: 1),
+        content: Text('Saved — tap the entry above to tag or edit.'),
+        duration: Duration(seconds: 2),
       ),
     );
   }
@@ -273,51 +242,6 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  Future<void> _pickDomain() async {
-    final picked = await showModalBottomSheet<ObservationDomain>(
-      context: context,
-      showDragHandle: true,
-      builder: (_) => _DomainPicker(selected: _domain),
-    );
-    if (picked != null) {
-      setState(() {
-        _domain = picked;
-        _tagsAutoSet = false;
-      });
-    }
-  }
-
-  Future<void> _pickSentiment() async {
-    final picked = await showModalBottomSheet<ObservationSentiment>(
-      context: context,
-      showDragHandle: true,
-      builder: (_) => _SentimentPicker(selected: _sentiment),
-    );
-    if (picked != null) {
-      setState(() {
-        _sentiment = picked;
-        _tagsAutoSet = false;
-      });
-    }
-  }
-
-  Future<void> _pickKids() async {
-    final kids = ref.read(kidsProvider).asData?.value ?? const <Kid>[];
-    final picked = await showModalBottomSheet<Set<String>>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => _KidPicker(kids: kids, initial: _selectedKidIds),
-    );
-    if (picked != null) {
-      setState(() {
-        _selectedKidIds
-          ..clear()
-          ..addAll(picked);
-      });
-    }
-  }
-
   Future<void> _showAttachSheet({required bool photo}) async {
     await showModalBottomSheet<void>(
       context: context,
@@ -377,7 +301,6 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _CurrentActivityBanner(activity: _currentActivity()),
             if (_attachments.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(
@@ -409,7 +332,7 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
                   LengthLimitingTextInputFormatter(4000),
                 ],
                 decoration: const InputDecoration(
-                  hintText: 'Capture a moment — type, mic, or attach…',
+                  hintText: 'Capture a moment…',
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
@@ -444,40 +367,6 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
                       ),
                     ),
                   ],
-                ),
-              ),
-            if (_hasContent)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.sm,
-                  AppSpacing.lg,
-                  0,
-                ),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _TagPill(
-                        icon: Icons.category_outlined,
-                        label: _domain.label,
-                        trailingLabel: _tagsAutoSet ? 'auto' : null,
-                        onTap: _pickDomain,
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      _TagPill(
-                        icon: _sentimentIcon(_sentiment),
-                        label: _sentiment.label,
-                        color: _sentimentColor(context, _sentiment),
-                        onTap: _pickSentiment,
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      _KidsPill(
-                        count: _selectedKidIds.length,
-                        onTap: _pickKids,
-                      ),
-                    ],
-                  ),
                 ),
               ),
             Padding(
@@ -533,21 +422,6 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
       ),
     );
   }
-
-  IconData _sentimentIcon(ObservationSentiment s) => switch (s) {
-        ObservationSentiment.positive => Icons.sentiment_satisfied_outlined,
-        ObservationSentiment.neutral => Icons.sentiment_neutral_outlined,
-        ObservationSentiment.concern => Icons.flag_outlined,
-      };
-
-  Color? _sentimentColor(BuildContext context, ObservationSentiment s) {
-    final theme = Theme.of(context);
-    return switch (s) {
-      ObservationSentiment.positive => theme.colorScheme.primary,
-      ObservationSentiment.neutral => null,
-      ObservationSentiment.concern => theme.colorScheme.error,
-    };
-  }
 }
 
 class _PendingAttachment {
@@ -590,14 +464,20 @@ class _AttachmentCarousel extends StatelessWidget {
                     ? Image.file(
                         File(att.path),
                         fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => const _AttachmentPlaceholder(
-                          icon: Icons.image_outlined,
+                        errorBuilder: (_, _, _) => Center(
+                          child: Icon(
+                            Icons.image_outlined,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       )
-                    : _AttachmentPlaceholder(
-                        icon: att.kind == 'video'
-                            ? Icons.play_circle_outline
-                            : Icons.image_outlined,
+                    : Center(
+                        child: Icon(
+                          att.kind == 'video'
+                              ? Icons.play_circle_outline
+                              : Icons.image_outlined,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
               ),
               Positioned(
@@ -625,361 +505,5 @@ class _AttachmentCarousel extends StatelessWidget {
         },
       ),
     );
-  }
-}
-
-class _AttachmentPlaceholder extends StatelessWidget {
-  const _AttachmentPlaceholder({required this.icon});
-
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Icon(icon, color: theme.colorScheme.onSurfaceVariant),
-    );
-  }
-}
-
-class _TagPill extends StatelessWidget {
-  const _TagPill({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.color,
-    this.trailingLabel,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final Color? color;
-  final String? trailingLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final fg = color ?? theme.colorScheme.onSurface;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.xs,
-        ),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: theme.colorScheme.outline,
-            width: 0.5,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: fg),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: theme.textTheme.labelMedium?.copyWith(color: fg),
-            ),
-            if (trailingLabel != null) ...[
-              const SizedBox(width: 4),
-              Text(
-                trailingLabel!,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _KidsPill extends StatelessWidget {
-  const _KidsPill({required this.count, required this.onTap});
-
-  final int count;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final empty = count == 0;
-    final bg = empty
-        ? theme.colorScheme.surfaceContainer
-        : theme.colorScheme.primaryContainer;
-    final fg = empty
-        ? theme.colorScheme.onSurface
-        : theme.colorScheme.onPrimaryContainer;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.xs,
-        ),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: empty
-                ? theme.colorScheme.outline
-                : theme.colorScheme.primary,
-            width: 0.5,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.people_alt_outlined, size: 14, color: fg),
-            const SizedBox(width: 4),
-            Text(
-              count == 0
-                  ? 'Tag kids'
-                  : count == 1
-                      ? '1 kid'
-                      : '$count kids',
-              style: theme.textTheme.labelMedium?.copyWith(color: fg),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CurrentActivityBanner extends ConsumerWidget {
-  const _CurrentActivityBanner({required this.activity});
-
-  final ScheduleItem? activity;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    if (activity == null) return const SizedBox.shrink();
-    final a = activity!;
-    final parts = <String>[];
-    if (a.podIds.isNotEmpty) {
-      final names = <String>[];
-      for (final podId in a.podIds) {
-        final pod = ref.watch(podProvider(podId)).asData?.value;
-        if (pod != null) names.add(pod.name);
-      }
-      if (names.isNotEmpty) parts.add(names.join(' + '));
-    }
-    if (a.location != null && a.location!.isNotEmpty) parts.add(a.location!);
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.sm,
-        AppSpacing.lg,
-        0,
-      ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-              vertical: 2,
-            ),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              'NOW',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onPrimary,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(
-              '${a.title}${parts.isEmpty ? "" : " · ${parts.join(" · ")}"}',
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.onPrimaryContainer,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Icon(
-            Icons.link,
-            size: 14,
-            color: theme.colorScheme.onPrimaryContainer,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DomainPicker extends StatelessWidget {
-  const _DomainPicker({required this.selected});
-
-  final ObservationDomain selected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.md,
-        AppSpacing.xl,
-        AppSpacing.xl,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('Domain', style: theme.textTheme.titleLarge),
-          const SizedBox(height: AppSpacing.lg),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              for (final d in ObservationDomain.values)
-                ChoiceChip(
-                  label: Text(d.label),
-                  selected: d == selected,
-                  onSelected: (_) => Navigator.of(context).pop(d),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SentimentPicker extends StatelessWidget {
-  const _SentimentPicker({required this.selected});
-
-  final ObservationSentiment selected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.md,
-        AppSpacing.xl,
-        AppSpacing.xl,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('Sentiment', style: theme.textTheme.titleLarge),
-          const SizedBox(height: AppSpacing.lg),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              for (final s in ObservationSentiment.values)
-                ChoiceChip(
-                  label: Text(s.label),
-                  selected: s == selected,
-                  onSelected: (_) => Navigator.of(context).pop(s),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _KidPicker extends StatefulWidget {
-  const _KidPicker({required this.kids, required this.initial});
-
-  final List<Kid> kids;
-  final Set<String> initial;
-
-  @override
-  State<_KidPicker> createState() => _KidPickerState();
-}
-
-class _KidPickerState extends State<_KidPicker> {
-  late final Set<String> _selected = {...widget.initial};
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final insets = MediaQuery.of(context).viewInsets.bottom;
-    return Padding(
-      padding: EdgeInsets.only(
-        left: AppSpacing.xl,
-        right: AppSpacing.xl,
-        top: AppSpacing.md,
-        bottom: AppSpacing.xl + insets,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text('Tag kids', style: theme.textTheme.titleLarge),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(_selected),
-                child: const Text('Done'),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          if (widget.kids.isEmpty)
-            Text(
-              'No kids yet — add some in the Kids tab.',
-              style: theme.textTheme.bodySmall,
-            )
-          else
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                for (final kid in widget.kids)
-                  FilterChip(
-                    label: Text(_kidLabel(kid)),
-                    selected: _selected.contains(kid.id),
-                    onSelected: (_) => setState(() {
-                      if (!_selected.add(kid.id)) _selected.remove(kid.id);
-                    }),
-                  ),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-
-  String _kidLabel(Kid kid) {
-    final last = kid.lastName;
-    if (last == null || last.isEmpty) return kid.firstName;
-    return '${kid.firstName} ${last[0]}.';
   }
 }

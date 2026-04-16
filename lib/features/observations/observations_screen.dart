@@ -1,12 +1,27 @@
+import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/observations/widgets/observation_card.dart';
 import 'package:basecamp/features/observations/widgets/observation_composer.dart';
+import 'package:basecamp/features/observations/widgets/observation_edit_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class ObservationsScreen extends ConsumerWidget {
   const ObservationsScreen({super.key});
+
+  Future<void> _openEditSheet(
+    BuildContext context,
+    Observation observation,
+  ) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (_) => ObservationEditSheet(observation: observation),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -35,8 +50,10 @@ class ObservationsScreen extends ConsumerWidget {
                   itemCount: items.length,
                   separatorBuilder: (_, _) =>
                       const SizedBox(height: AppSpacing.md),
-                  itemBuilder: (_, i) =>
-                      ObservationCard(observation: items[i]),
+                  itemBuilder: (_, i) => ObservationCard(
+                    observation: items[i],
+                    onTap: () => _openEditSheet(context, items[i]),
+                  ),
                 );
               },
             ),

@@ -156,6 +156,70 @@ class ObservationsRepository {
         .get();
   }
 
+  /// Partial update. Anything left as `null` (or not passed) is left
+  /// untouched in the row. Kid tagging is replaced wholesale when
+  /// [kidIds] is non-null; pass `const []` to clear.
+  Future<void> updateObservation({
+    required String id,
+    String? note,
+    ObservationDomain? domain,
+    ObservationSentiment? sentiment,
+    List<String>? kidIds,
+    String? podId,
+    bool clearPodId = false,
+    String? activityLabel,
+    bool clearActivityLabel = false,
+  }) async {
+    await _db.transaction(() async {
+      final companion = ObservationsCompanion(
+        note: note == null ? const Value.absent() : Value(note),
+        domain: domain == null ? const Value.absent() : Value(domain.name),
+        sentiment:
+            sentiment == null ? const Value.absent() : Value(sentiment.name),
+        podId: clearPodId
+            ? const Value<String?>(null)
+            : (podId == null ? const Value.absent() : Value(podId)),
+        activityLabel: clearActivityLabel
+            ? const Value<String?>(null)
+            : (activityLabel == null
+                ? const Value.absent()
+                : Value(activityLabel)),
+        updatedAt: Value(DateTime.now()),
+      );
+      // Recompute targetKind if the target mix changes.
+      String? nextTargetKind;
+      if (kidIds != null) {
+        nextTargetKind = kidIds.isNotEmpty
+            ? 'kids'
+            : (clearPodId || podId == null) &&
+                    (clearActivityLabel || activityLabel == null)
+                ? 'general'
+                : null;
+      }
+
+      await (_db.update(_db.observations)..where((o) => o.id.equals(id)))
+          .write(
+        nextTargetKind == null
+            ? companion
+            : companion.copyWith(targetKind: Value(nextTargetKind)),
+      );
+
+      if (kidIds != null) {
+        await (_db.delete(_db.observationKids)
+              ..where((k) => k.observationId.equals(id)))
+            .go();
+        for (final kidId in kidIds) {
+          await _db.into(_db.observationKids).insert(
+                ObservationKidsCompanion.insert(
+                  observationId: id,
+                  kidId: kidId,
+                ),
+              );
+        }
+      }
+    });
+  }
+
   Future<void> deleteObservation(String id) async {
     await (_db.delete(_db.observations)..where((o) => o.id.equals(id))).go();
   }

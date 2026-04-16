@@ -8,9 +8,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 class ObservationCard extends ConsumerWidget {
-  const ObservationCard({required this.observation, super.key});
+  const ObservationCard({
+    required this.observation,
+    this.onTap,
+    super.key,
+  });
 
   final Observation observation;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -20,6 +25,7 @@ class ObservationCard extends ConsumerWidget {
     final time = DateFormat.MMMd().add_jm().format(observation.createdAt);
 
     return AppCard(
+      onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
