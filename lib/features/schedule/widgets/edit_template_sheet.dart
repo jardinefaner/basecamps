@@ -7,11 +7,13 @@ import 'package:basecamp/ui/app_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+const _dayShortLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
 class EditTemplateSheet extends ConsumerStatefulWidget {
-  const EditTemplateSheet({super.key, this.template, this.initialDayOfWeek});
+  const EditTemplateSheet({super.key, this.template, this.initialDays});
 
   final ScheduleTemplate? template;
-  final int? initialDayOfWeek;
+  final Set<int>? initialDays;
 
   @override
   ConsumerState<EditTemplateSheet> createState() => _EditTemplateSheetState();
@@ -24,9 +26,13 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
       TextEditingController(text: widget.template?.specialistName ?? '');
   late final _locationController =
       TextEditingController(text: widget.template?.location ?? '');
-  late int _dayOfWeek = widget.template?.dayOfWeek ??
-      widget.initialDayOfWeek ??
-      DateTime.now().weekday;
+
+  // When editing: the single day of the template being edited.
+  // When creating: each selected day becomes its own template row.
+  late final Set<int> _selectedDays = widget.template != null
+      ? {widget.template!.dayOfWeek}
+      : (widget.initialDays ?? {DateTime.now().weekday});
+
   late TimeOfDay _start = widget.template != null
       ? _parseTime(widget.template!.startTime)
       : const TimeOfDay(hour: 9, minute: 0);
@@ -35,6 +41,8 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
       : const TimeOfDay(hour: 10, minute: 0);
   late String? _podId = widget.template?.podId;
   bool _submitting = false;
+
+  bool get _isEdit => widget.template != null;
 
   static TimeOfDay _parseTime(String hhmm) {
     final parts = hhmm.split(':');
@@ -55,7 +63,8 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     super.dispose();
   }
 
-  bool get _isValid => _titleController.text.trim().isNotEmpty;
+  bool get _isValid =>
+      _titleController.text.trim().isNotEmpty && _selectedDays.isNotEmpty;
 
   Future<void> _pickStart() async {
     final picked = await showTimePicker(context: context, initialTime: _start);
@@ -72,49 +81,66 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     setState(() => _submitting = true);
     final repo = ref.read(scheduleRepositoryProvider);
     final title = _titleController.text.trim();
-    final specialist = _specialistController.text.trim();
-    final location = _locationController.text.trim();
+    final specialist = _specialistController.text.trim().isEmpty
+        ? null
+        : _specialistController.text.trim();
+    final location = _locationController.text.trim().isEmpty
+        ? null
+        : _locationController.text.trim();
+    final startHhmm = _formatTime(_start);
+    final endHhmm = _formatTime(_end);
 
-    if (widget.template == null) {
-      await repo.addTemplate(
-        dayOfWeek: _dayOfWeek,
-        startTime: _formatTime(_start),
-        endTime: _formatTime(_end),
-        title: title,
-        podId: _podId,
-        specialistName: specialist.isEmpty ? null : specialist,
-        location: location.isEmpty ? null : location,
-      );
-    } else {
+    if (_isEdit) {
+      // Edit is scoped to the single template. Pick whichever day is selected
+      // (should be exactly one — sheet forces a single selection in edit mode).
       await repo.updateTemplate(
         id: widget.template!.id,
-        dayOfWeek: _dayOfWeek,
-        startTime: _formatTime(_start),
-        endTime: _formatTime(_end),
+        dayOfWeek: _selectedDays.first,
+        startTime: startHhmm,
+        endTime: endHhmm,
         title: title,
         podId: _podId,
-        specialistName: specialist.isEmpty ? null : specialist,
-        location: location.isEmpty ? null : location,
+        specialistName: specialist,
+        location: location,
       );
+    } else {
+      for (final day in _selectedDays) {
+        await repo.addTemplate(
+          dayOfWeek: day,
+          startTime: startHhmm,
+          endTime: endHhmm,
+          title: title,
+          podId: _podId,
+          specialistName: specialist,
+          location: location,
+        );
+      }
     }
     if (!mounted) return;
     Navigator.of(context).pop();
   }
 
   Future<void> _delete() async {
-    if (widget.template == null) return;
-    await ref.read(scheduleRepositoryProvider).deleteTemplate(
-          widget.template!.id,
-        );
+    if (!_isEdit) return;
+    await ref
+        .read(scheduleRepositoryProvider)
+        .deleteTemplate(widget.template!.id);
     if (!mounted) return;
     Navigator.of(context).pop();
+  }
+
+  void _applyDurationPreset(Duration duration) {
+    final startDt = DateTime(2000, 1, 1, _start.hour, _start.minute);
+    final endDt = startDt.add(duration);
+    setState(() {
+      _end = TimeOfDay(hour: endDt.hour, minute: endDt.minute);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final insets = MediaQuery.of(context).viewInsets.bottom;
     final theme = Theme.of(context);
-    final isEdit = widget.template != null;
     final podsAsync = ref.watch(podsProvider);
 
     return Padding(
@@ -133,11 +159,11 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
               children: [
                 Expanded(
                   child: Text(
-                    isEdit ? 'Edit activity' : 'New activity',
+                    _isEdit ? 'Edit activity' : 'New activity',
                     style: theme.textTheme.titleLarge,
                   ),
                 ),
-                if (isEdit)
+                if (_isEdit)
                   IconButton(
                     onPressed: _delete,
                     icon: Icon(
@@ -155,20 +181,18 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: AppSpacing.lg),
-            Text('Day', style: theme.textTheme.titleSmall),
-            const SizedBox(height: AppSpacing.sm),
-            DropdownButtonFormField<int>(
-              initialValue: _dayOfWeek,
-              items: const [
-                DropdownMenuItem(value: 1, child: Text('Monday')),
-                DropdownMenuItem(value: 2, child: Text('Tuesday')),
-                DropdownMenuItem(value: 3, child: Text('Wednesday')),
-                DropdownMenuItem(value: 4, child: Text('Thursday')),
-                DropdownMenuItem(value: 5, child: Text('Friday')),
-                DropdownMenuItem(value: 6, child: Text('Saturday')),
-                DropdownMenuItem(value: 7, child: Text('Sunday')),
-              ],
-              onChanged: (v) => setState(() => _dayOfWeek = v ?? _dayOfWeek),
+            _DayPicker(
+              selected: _selectedDays,
+              singleSelect: _isEdit,
+              onToggle: (day) => setState(() {
+                if (_isEdit) {
+                  _selectedDays
+                    ..clear()
+                    ..add(day);
+                } else if (!_selectedDays.add(day)) {
+                  if (_selectedDays.length > 1) _selectedDays.remove(day);
+                }
+              }),
             ),
             const SizedBox(height: AppSpacing.lg),
             Row(
@@ -187,6 +211,30 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
                     time: _end,
                     onPressed: _pickEnd,
                   ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.sm,
+              children: [
+                _DurationChip(
+                  label: '30m',
+                  onTap: () =>
+                      _applyDurationPreset(const Duration(minutes: 30)),
+                ),
+                _DurationChip(
+                  label: '1h',
+                  onTap: () => _applyDurationPreset(const Duration(hours: 1)),
+                ),
+                _DurationChip(
+                  label: '90m',
+                  onTap: () =>
+                      _applyDurationPreset(const Duration(minutes: 90)),
+                ),
+                _DurationChip(
+                  label: '2h',
+                  onTap: () => _applyDurationPreset(const Duration(hours: 2)),
                 ),
               ],
             ),
@@ -221,10 +269,103 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
             const SizedBox(height: AppSpacing.xl),
             AppButton.primary(
               onPressed: _isValid ? _submit : null,
-              label: isEdit ? 'Save' : 'Add activity',
+              label: _isEdit
+                  ? 'Save'
+                  : _selectedDays.length > 1
+                      ? 'Add to ${_selectedDays.length} days'
+                      : 'Add activity',
               isLoading: _submitting,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DayPicker extends StatelessWidget {
+  const _DayPicker({
+    required this.selected,
+    required this.onToggle,
+    required this.singleSelect,
+  });
+
+  final Set<int> selected;
+  final ValueChanged<int> onToggle;
+  final bool singleSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          singleSelect ? 'Day' : 'Days',
+          style: theme.textTheme.titleSmall,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            for (var day = 1; day <= 7; day++) ...[
+              _DayChip(
+                label: _dayShortLabels[day - 1],
+                selected: selected.contains(day),
+                onTap: () => onToggle(day),
+              ),
+              if (day < 7) const SizedBox(width: AppSpacing.xs),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _DayChip extends StatelessWidget {
+  const _DayChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bg = selected
+        ? theme.colorScheme.primary
+        : theme.colorScheme.surfaceContainer;
+    final fg = selected
+        ? theme.colorScheme.onPrimary
+        : theme.colorScheme.onSurface;
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          height: 44,
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: selected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outline,
+              width: 0.5,
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: fg,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
         ),
       ),
     );
@@ -256,6 +397,22 @@ class _TimeField extends StatelessWidget {
           label: Text(time.format(context)),
         ),
       ],
+    );
+  }
+}
+
+class _DurationChip extends StatelessWidget {
+  const _DurationChip({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(
+      label: Text(label),
+      onPressed: onTap,
+      visualDensity: VisualDensity.compact,
     );
   }
 }

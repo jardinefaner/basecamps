@@ -51,7 +51,7 @@ class ScheduleEditorScreen extends ConsumerWidget {
                 _DaySection(
                   day: day,
                   items: byDay[day] ?? const [],
-                  onAdd: () => _openSheet(context, initialDayOfWeek: day),
+                  onAdd: () => _openSheet(context, initialDays: {day}),
                   onEdit: (t) => _openSheet(context, template: t),
                 ),
             ],
@@ -64,7 +64,7 @@ class ScheduleEditorScreen extends ConsumerWidget {
   Future<void> _openSheet(
     BuildContext context, {
     ScheduleTemplate? template,
-    int? initialDayOfWeek,
+    Set<int>? initialDays,
   }) async {
     await showModalBottomSheet<void>(
       context: context,
@@ -72,7 +72,7 @@ class ScheduleEditorScreen extends ConsumerWidget {
       showDragHandle: true,
       builder: (_) => EditTemplateSheet(
         template: template,
-        initialDayOfWeek: initialDayOfWeek,
+        initialDays: initialDays,
       ),
     );
   }
