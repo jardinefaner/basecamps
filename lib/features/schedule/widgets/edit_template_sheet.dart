@@ -1,11 +1,13 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 const _dayShortLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -22,10 +24,9 @@ class EditTemplateSheet extends ConsumerStatefulWidget {
 class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
   late final _titleController =
       TextEditingController(text: widget.template?.title ?? '');
-  late final _specialistController =
-      TextEditingController(text: widget.template?.specialistName ?? '');
   late final _locationController =
       TextEditingController(text: widget.template?.location ?? '');
+  late String? _specialistId = widget.template?.specialistId;
 
   late final Set<int> _selectedDays = widget.template != null
       ? {widget.template!.dayOfWeek}
@@ -103,7 +104,6 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
   @override
   void dispose() {
     _titleController.dispose();
-    _specialistController.dispose();
     _locationController.dispose();
     super.dispose();
   }
@@ -126,9 +126,6 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     setState(() => _submitting = true);
     final repo = ref.read(scheduleRepositoryProvider);
     final title = _titleController.text.trim();
-    final specialist = _specialistController.text.trim().isEmpty
-        ? null
-        : _specialistController.text.trim();
     final location = _locationController.text.trim().isEmpty
         ? null
         : _locationController.text.trim();
@@ -144,7 +141,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
         endTime: endHhmm,
         title: title,
         podIds: podIds,
-        specialistName: specialist,
+        specialistId: _specialistId,
         location: location,
       );
     } else {
@@ -155,7 +152,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
           endTime: endHhmm,
           title: title,
           podIds: podIds,
-          specialistName: specialist,
+          specialistId: _specialistId,
           location: location,
         );
       }
@@ -303,10 +300,9 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
               },
             ),
             const SizedBox(height: AppSpacing.lg),
-            AppTextField(
-              controller: _specialistController,
-              label: 'Specialist (optional)',
-              hint: 'Who runs this?',
+            _SpecialistPicker(
+              selectedId: _specialistId,
+              onChanged: (id) => setState(() => _specialistId = id),
             ),
             const SizedBox(height: AppSpacing.lg),
             AppTextField(
@@ -485,6 +481,72 @@ class _TimeField extends StatelessWidget {
           onPressed: onPressed,
           icon: const Icon(Icons.schedule_outlined),
           label: Text(time.format(context)),
+        ),
+      ],
+    );
+  }
+}
+
+class _SpecialistPicker extends ConsumerWidget {
+  const _SpecialistPicker({
+    required this.selectedId,
+    required this.onChanged,
+  });
+
+  final String? selectedId;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final specialistsAsync = ref.watch(specialistsProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text('Specialist', style: theme.textTheme.titleSmall),
+            ),
+            TextButton.icon(
+              onPressed: () => context.push('/more/specialists'),
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('Manage'),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        specialistsAsync.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (err, _) => Text('Error: $err'),
+          data: (specialists) {
+            if (specialists.isEmpty) {
+              return Text(
+                'No specialists yet — add one in More → Specialists.',
+                style: theme.textTheme.bodySmall,
+              );
+            }
+            return DropdownButtonFormField<String?>(
+              initialValue: selectedId,
+              items: [
+                const DropdownMenuItem<String?>(child: Text('None')),
+                for (final s in specialists)
+                  DropdownMenuItem(
+                    value: s.id,
+                    child: Text(
+                      s.role == null || s.role!.isEmpty
+                          ? s.name
+                          : '${s.name} · ${s.role}',
+                    ),
+                  ),
+              ],
+              onChanged: onChanged,
+            );
+          },
         ),
       ],
     );

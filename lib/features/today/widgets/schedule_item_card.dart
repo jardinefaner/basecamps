@@ -1,5 +1,6 @@
 import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
@@ -114,9 +115,7 @@ class ScheduleItemCard extends ConsumerWidget {
 
   String? _subtitle(WidgetRef ref) {
     final parts = <String>[];
-    if (item.podIds.isEmpty) {
-      // "All pods" — don't surface this in the card, it's the default.
-    } else {
+    if (item.podIds.isNotEmpty) {
       final names = <String>[];
       for (final podId in item.podIds) {
         final pod = ref.watch(podProvider(podId)).asData?.value;
@@ -124,8 +123,11 @@ class ScheduleItemCard extends ConsumerWidget {
       }
       if (names.isNotEmpty) parts.add(names.join(' + '));
     }
-    if (item.specialistName != null && item.specialistName!.isNotEmpty) {
-      parts.add(item.specialistName!);
+    final specialistId = item.specialistId;
+    if (specialistId != null) {
+      final specialist =
+          ref.watch(specialistProvider(specialistId)).asData?.value;
+      if (specialist != null) parts.add(specialist.name);
     }
     if (item.location != null && item.location!.isNotEmpty) {
       parts.add(item.location!);

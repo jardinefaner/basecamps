@@ -2813,6 +2813,405 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
   }
 }
 
+class $SpecialistsTable extends Specialists
+    with TableInfo<$SpecialistsTable, Specialist> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SpecialistsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _roleMeta = const VerificationMeta('role');
+  @override
+  late final GeneratedColumn<String> role = GeneratedColumn<String>(
+    'role',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+    'notes',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    role,
+    notes,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'specialists';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Specialist> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('role')) {
+      context.handle(
+        _roleMeta,
+        role.isAcceptableOrUnknown(data['role']!, _roleMeta),
+      );
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+        _notesMeta,
+        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Specialist map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Specialist(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      role: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}role'],
+      ),
+      notes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $SpecialistsTable createAlias(String alias) {
+    return $SpecialistsTable(attachedDatabase, alias);
+  }
+}
+
+class Specialist extends DataClass implements Insertable<Specialist> {
+  final String id;
+  final String name;
+  final String? role;
+  final String? notes;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const Specialist({
+    required this.id,
+    required this.name,
+    this.role,
+    this.notes,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || role != null) {
+      map['role'] = Variable<String>(role);
+    }
+    if (!nullToAbsent || notes != null) {
+      map['notes'] = Variable<String>(notes);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  SpecialistsCompanion toCompanion(bool nullToAbsent) {
+    return SpecialistsCompanion(
+      id: Value(id),
+      name: Value(name),
+      role: role == null && nullToAbsent ? const Value.absent() : Value(role),
+      notes: notes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notes),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory Specialist.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Specialist(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      role: serializer.fromJson<String?>(json['role']),
+      notes: serializer.fromJson<String?>(json['notes']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'role': serializer.toJson<String?>(role),
+      'notes': serializer.toJson<String?>(notes),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  Specialist copyWith({
+    String? id,
+    String? name,
+    Value<String?> role = const Value.absent(),
+    Value<String?> notes = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => Specialist(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    role: role.present ? role.value : this.role,
+    notes: notes.present ? notes.value : this.notes,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  Specialist copyWithCompanion(SpecialistsCompanion data) {
+    return Specialist(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      role: data.role.present ? data.role.value : this.role,
+      notes: data.notes.present ? data.notes.value : this.notes,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Specialist(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('role: $role, ')
+          ..write('notes: $notes, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, role, notes, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Specialist &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.role == this.role &&
+          other.notes == this.notes &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class SpecialistsCompanion extends UpdateCompanion<Specialist> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String?> role;
+  final Value<String?> notes;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const SpecialistsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.role = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SpecialistsCompanion.insert({
+    required String id,
+    required String name,
+    this.role = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name);
+  static Insertable<Specialist> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? role,
+    Expression<String>? notes,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (role != null) 'role': role,
+      if (notes != null) 'notes': notes,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SpecialistsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String?>? role,
+    Value<String?>? notes,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return SpecialistsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      role: role ?? this.role,
+      notes: notes ?? this.notes,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (role.present) {
+      map['role'] = Variable<String>(role.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SpecialistsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('role: $role, ')
+          ..write('notes: $notes, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ScheduleTemplatesTable extends ScheduleTemplates
     with TableInfo<$ScheduleTemplatesTable, ScheduleTemplate> {
   @override
@@ -2908,6 +3307,20 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _specialistIdMeta = const VerificationMeta(
+    'specialistId',
+  );
+  @override
+  late final GeneratedColumn<String> specialistId = GeneratedColumn<String>(
+    'specialist_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES specialists (id) ON DELETE SET NULL',
+    ),
+  );
   static const VerificationMeta _locationMeta = const VerificationMeta(
     'location',
   );
@@ -2962,6 +3375,7 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
     title,
     podId,
     specialistName,
+    specialistId,
     location,
     notes,
     createdAt,
@@ -3037,6 +3451,15 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
         ),
       );
     }
+    if (data.containsKey('specialist_id')) {
+      context.handle(
+        _specialistIdMeta,
+        specialistId.isAcceptableOrUnknown(
+          data['specialist_id']!,
+          _specialistIdMeta,
+        ),
+      );
+    }
     if (data.containsKey('location')) {
       context.handle(
         _locationMeta,
@@ -3102,6 +3525,10 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
         DriftSqlType.string,
         data['${effectivePrefix}specialist_name'],
       ),
+      specialistId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}specialist_id'],
+      ),
       location: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}location'],
@@ -3137,6 +3564,7 @@ class ScheduleTemplate extends DataClass
   final String title;
   final String? podId;
   final String? specialistName;
+  final String? specialistId;
   final String? location;
   final String? notes;
   final DateTime createdAt;
@@ -3150,6 +3578,7 @@ class ScheduleTemplate extends DataClass
     required this.title,
     this.podId,
     this.specialistName,
+    this.specialistId,
     this.location,
     this.notes,
     required this.createdAt,
@@ -3169,6 +3598,9 @@ class ScheduleTemplate extends DataClass
     }
     if (!nullToAbsent || specialistName != null) {
       map['specialist_name'] = Variable<String>(specialistName);
+    }
+    if (!nullToAbsent || specialistId != null) {
+      map['specialist_id'] = Variable<String>(specialistId);
     }
     if (!nullToAbsent || location != null) {
       map['location'] = Variable<String>(location);
@@ -3195,6 +3627,9 @@ class ScheduleTemplate extends DataClass
       specialistName: specialistName == null && nullToAbsent
           ? const Value.absent()
           : Value(specialistName),
+      specialistId: specialistId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(specialistId),
       location: location == null && nullToAbsent
           ? const Value.absent()
           : Value(location),
@@ -3220,6 +3655,7 @@ class ScheduleTemplate extends DataClass
       title: serializer.fromJson<String>(json['title']),
       podId: serializer.fromJson<String?>(json['podId']),
       specialistName: serializer.fromJson<String?>(json['specialistName']),
+      specialistId: serializer.fromJson<String?>(json['specialistId']),
       location: serializer.fromJson<String?>(json['location']),
       notes: serializer.fromJson<String?>(json['notes']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -3238,6 +3674,7 @@ class ScheduleTemplate extends DataClass
       'title': serializer.toJson<String>(title),
       'podId': serializer.toJson<String?>(podId),
       'specialistName': serializer.toJson<String?>(specialistName),
+      'specialistId': serializer.toJson<String?>(specialistId),
       'location': serializer.toJson<String?>(location),
       'notes': serializer.toJson<String?>(notes),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -3254,6 +3691,7 @@ class ScheduleTemplate extends DataClass
     String? title,
     Value<String?> podId = const Value.absent(),
     Value<String?> specialistName = const Value.absent(),
+    Value<String?> specialistId = const Value.absent(),
     Value<String?> location = const Value.absent(),
     Value<String?> notes = const Value.absent(),
     DateTime? createdAt,
@@ -3269,6 +3707,7 @@ class ScheduleTemplate extends DataClass
     specialistName: specialistName.present
         ? specialistName.value
         : this.specialistName,
+    specialistId: specialistId.present ? specialistId.value : this.specialistId,
     location: location.present ? location.value : this.location,
     notes: notes.present ? notes.value : this.notes,
     createdAt: createdAt ?? this.createdAt,
@@ -3286,6 +3725,9 @@ class ScheduleTemplate extends DataClass
       specialistName: data.specialistName.present
           ? data.specialistName.value
           : this.specialistName,
+      specialistId: data.specialistId.present
+          ? data.specialistId.value
+          : this.specialistId,
       location: data.location.present ? data.location.value : this.location,
       notes: data.notes.present ? data.notes.value : this.notes,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
@@ -3304,6 +3746,7 @@ class ScheduleTemplate extends DataClass
           ..write('title: $title, ')
           ..write('podId: $podId, ')
           ..write('specialistName: $specialistName, ')
+          ..write('specialistId: $specialistId, ')
           ..write('location: $location, ')
           ..write('notes: $notes, ')
           ..write('createdAt: $createdAt, ')
@@ -3322,6 +3765,7 @@ class ScheduleTemplate extends DataClass
     title,
     podId,
     specialistName,
+    specialistId,
     location,
     notes,
     createdAt,
@@ -3339,6 +3783,7 @@ class ScheduleTemplate extends DataClass
           other.title == this.title &&
           other.podId == this.podId &&
           other.specialistName == this.specialistName &&
+          other.specialistId == this.specialistId &&
           other.location == this.location &&
           other.notes == this.notes &&
           other.createdAt == this.createdAt &&
@@ -3354,6 +3799,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
   final Value<String> title;
   final Value<String?> podId;
   final Value<String?> specialistName;
+  final Value<String?> specialistId;
   final Value<String?> location;
   final Value<String?> notes;
   final Value<DateTime> createdAt;
@@ -3368,6 +3814,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     this.title = const Value.absent(),
     this.podId = const Value.absent(),
     this.specialistName = const Value.absent(),
+    this.specialistId = const Value.absent(),
     this.location = const Value.absent(),
     this.notes = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -3383,6 +3830,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     required String title,
     this.podId = const Value.absent(),
     this.specialistName = const Value.absent(),
+    this.specialistId = const Value.absent(),
     this.location = const Value.absent(),
     this.notes = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -3402,6 +3850,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     Expression<String>? title,
     Expression<String>? podId,
     Expression<String>? specialistName,
+    Expression<String>? specialistId,
     Expression<String>? location,
     Expression<String>? notes,
     Expression<DateTime>? createdAt,
@@ -3417,6 +3866,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
       if (title != null) 'title': title,
       if (podId != null) 'pod_id': podId,
       if (specialistName != null) 'specialist_name': specialistName,
+      if (specialistId != null) 'specialist_id': specialistId,
       if (location != null) 'location': location,
       if (notes != null) 'notes': notes,
       if (createdAt != null) 'created_at': createdAt,
@@ -3434,6 +3884,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     Value<String>? title,
     Value<String?>? podId,
     Value<String?>? specialistName,
+    Value<String?>? specialistId,
     Value<String?>? location,
     Value<String?>? notes,
     Value<DateTime>? createdAt,
@@ -3449,6 +3900,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
       title: title ?? this.title,
       podId: podId ?? this.podId,
       specialistName: specialistName ?? this.specialistName,
+      specialistId: specialistId ?? this.specialistId,
       location: location ?? this.location,
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
@@ -3484,6 +3936,9 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     if (specialistName.present) {
       map['specialist_name'] = Variable<String>(specialistName.value);
     }
+    if (specialistId.present) {
+      map['specialist_id'] = Variable<String>(specialistId.value);
+    }
     if (location.present) {
       map['location'] = Variable<String>(location.value);
     }
@@ -3513,6 +3968,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
           ..write('title: $title, ')
           ..write('podId: $podId, ')
           ..write('specialistName: $specialistName, ')
+          ..write('specialistId: $specialistId, ')
           ..write('location: $location, ')
           ..write('notes: $notes, ')
           ..write('createdAt: $createdAt, ')
@@ -3616,6 +4072,20 @@ class $ScheduleEntriesTable extends ScheduleEntries
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _specialistIdMeta = const VerificationMeta(
+    'specialistId',
+  );
+  @override
+  late final GeneratedColumn<String> specialistId = GeneratedColumn<String>(
+    'specialist_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES specialists (id) ON DELETE SET NULL',
+    ),
+  );
   static const VerificationMeta _locationMeta = const VerificationMeta(
     'location',
   );
@@ -3693,6 +4163,7 @@ class $ScheduleEntriesTable extends ScheduleEntries
     title,
     podId,
     specialistName,
+    specialistId,
     location,
     notes,
     kind,
@@ -3767,6 +4238,15 @@ class $ScheduleEntriesTable extends ScheduleEntries
         specialistName.isAcceptableOrUnknown(
           data['specialist_name']!,
           _specialistNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('specialist_id')) {
+      context.handle(
+        _specialistIdMeta,
+        specialistId.isAcceptableOrUnknown(
+          data['specialist_id']!,
+          _specialistIdMeta,
         ),
       );
     }
@@ -3852,6 +4332,10 @@ class $ScheduleEntriesTable extends ScheduleEntries
         DriftSqlType.string,
         data['${effectivePrefix}specialist_name'],
       ),
+      specialistId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}specialist_id'],
+      ),
       location: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}location'],
@@ -3894,6 +4378,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
   final String title;
   final String? podId;
   final String? specialistName;
+  final String? specialistId;
   final String? location;
   final String? notes;
   final String kind;
@@ -3909,6 +4394,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     required this.title,
     this.podId,
     this.specialistName,
+    this.specialistId,
     this.location,
     this.notes,
     required this.kind,
@@ -3930,6 +4416,9 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     }
     if (!nullToAbsent || specialistName != null) {
       map['specialist_name'] = Variable<String>(specialistName);
+    }
+    if (!nullToAbsent || specialistId != null) {
+      map['specialist_id'] = Variable<String>(specialistId);
     }
     if (!nullToAbsent || location != null) {
       map['location'] = Variable<String>(location);
@@ -3960,6 +4449,9 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       specialistName: specialistName == null && nullToAbsent
           ? const Value.absent()
           : Value(specialistName),
+      specialistId: specialistId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(specialistId),
       location: location == null && nullToAbsent
           ? const Value.absent()
           : Value(location),
@@ -3989,6 +4481,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       title: serializer.fromJson<String>(json['title']),
       podId: serializer.fromJson<String?>(json['podId']),
       specialistName: serializer.fromJson<String?>(json['specialistName']),
+      specialistId: serializer.fromJson<String?>(json['specialistId']),
       location: serializer.fromJson<String?>(json['location']),
       notes: serializer.fromJson<String?>(json['notes']),
       kind: serializer.fromJson<String>(json['kind']),
@@ -4011,6 +4504,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       'title': serializer.toJson<String>(title),
       'podId': serializer.toJson<String?>(podId),
       'specialistName': serializer.toJson<String?>(specialistName),
+      'specialistId': serializer.toJson<String?>(specialistId),
       'location': serializer.toJson<String?>(location),
       'notes': serializer.toJson<String?>(notes),
       'kind': serializer.toJson<String>(kind),
@@ -4029,6 +4523,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     String? title,
     Value<String?> podId = const Value.absent(),
     Value<String?> specialistName = const Value.absent(),
+    Value<String?> specialistId = const Value.absent(),
     Value<String?> location = const Value.absent(),
     Value<String?> notes = const Value.absent(),
     String? kind,
@@ -4046,6 +4541,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     specialistName: specialistName.present
         ? specialistName.value
         : this.specialistName,
+    specialistId: specialistId.present ? specialistId.value : this.specialistId,
     location: location.present ? location.value : this.location,
     notes: notes.present ? notes.value : this.notes,
     kind: kind ?? this.kind,
@@ -4067,6 +4563,9 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       specialistName: data.specialistName.present
           ? data.specialistName.value
           : this.specialistName,
+      specialistId: data.specialistId.present
+          ? data.specialistId.value
+          : this.specialistId,
       location: data.location.present ? data.location.value : this.location,
       notes: data.notes.present ? data.notes.value : this.notes,
       kind: data.kind.present ? data.kind.value : this.kind,
@@ -4089,6 +4588,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
           ..write('title: $title, ')
           ..write('podId: $podId, ')
           ..write('specialistName: $specialistName, ')
+          ..write('specialistId: $specialistId, ')
           ..write('location: $location, ')
           ..write('notes: $notes, ')
           ..write('kind: $kind, ')
@@ -4109,6 +4609,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     title,
     podId,
     specialistName,
+    specialistId,
     location,
     notes,
     kind,
@@ -4128,6 +4629,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
           other.title == this.title &&
           other.podId == this.podId &&
           other.specialistName == this.specialistName &&
+          other.specialistId == this.specialistId &&
           other.location == this.location &&
           other.notes == this.notes &&
           other.kind == this.kind &&
@@ -4145,6 +4647,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
   final Value<String> title;
   final Value<String?> podId;
   final Value<String?> specialistName;
+  final Value<String?> specialistId;
   final Value<String?> location;
   final Value<String?> notes;
   final Value<String> kind;
@@ -4161,6 +4664,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     this.title = const Value.absent(),
     this.podId = const Value.absent(),
     this.specialistName = const Value.absent(),
+    this.specialistId = const Value.absent(),
     this.location = const Value.absent(),
     this.notes = const Value.absent(),
     this.kind = const Value.absent(),
@@ -4178,6 +4682,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     required String title,
     this.podId = const Value.absent(),
     this.specialistName = const Value.absent(),
+    this.specialistId = const Value.absent(),
     this.location = const Value.absent(),
     this.notes = const Value.absent(),
     required String kind,
@@ -4200,6 +4705,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     Expression<String>? title,
     Expression<String>? podId,
     Expression<String>? specialistName,
+    Expression<String>? specialistId,
     Expression<String>? location,
     Expression<String>? notes,
     Expression<String>? kind,
@@ -4217,6 +4723,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
       if (title != null) 'title': title,
       if (podId != null) 'pod_id': podId,
       if (specialistName != null) 'specialist_name': specialistName,
+      if (specialistId != null) 'specialist_id': specialistId,
       if (location != null) 'location': location,
       if (notes != null) 'notes': notes,
       if (kind != null) 'kind': kind,
@@ -4237,6 +4744,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     Value<String>? title,
     Value<String?>? podId,
     Value<String?>? specialistName,
+    Value<String?>? specialistId,
     Value<String?>? location,
     Value<String?>? notes,
     Value<String>? kind,
@@ -4254,6 +4762,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
       title: title ?? this.title,
       podId: podId ?? this.podId,
       specialistName: specialistName ?? this.specialistName,
+      specialistId: specialistId ?? this.specialistId,
       location: location ?? this.location,
       notes: notes ?? this.notes,
       kind: kind ?? this.kind,
@@ -4290,6 +4799,9 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     }
     if (specialistName.present) {
       map['specialist_name'] = Variable<String>(specialistName.value);
+    }
+    if (specialistId.present) {
+      map['specialist_id'] = Variable<String>(specialistId.value);
     }
     if (location.present) {
       map['location'] = Variable<String>(location.value);
@@ -4328,6 +4840,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
           ..write('title: $title, ')
           ..write('podId: $podId, ')
           ..write('specialistName: $specialistName, ')
+          ..write('specialistId: $specialistId, ')
           ..write('location: $location, ')
           ..write('notes: $notes, ')
           ..write('kind: $kind, ')
@@ -4788,6 +5301,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $CapturesTable captures = $CapturesTable(this);
   late final $CaptureKidsTable captureKids = $CaptureKidsTable(this);
   late final $ObservationsTable observations = $ObservationsTable(this);
+  late final $SpecialistsTable specialists = $SpecialistsTable(this);
   late final $ScheduleTemplatesTable scheduleTemplates =
       $ScheduleTemplatesTable(this);
   late final $ScheduleEntriesTable scheduleEntries = $ScheduleEntriesTable(
@@ -4806,6 +5320,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     captures,
     captureKids,
     observations,
+    specialists,
     scheduleTemplates,
     scheduleEntries,
     templatePods,
@@ -4871,7 +5386,21 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
+        'specialists',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('schedule_templates', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
         'pods',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('schedule_entries', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'specialists',
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('schedule_entries', kind: UpdateKind.update)],
@@ -8123,6 +8652,439 @@ typedef $$ObservationsTableProcessedTableManager =
       Observation,
       PrefetchHooks Function({bool kidId, bool podId, bool tripId})
     >;
+typedef $$SpecialistsTableCreateCompanionBuilder =
+    SpecialistsCompanion Function({
+      required String id,
+      required String name,
+      Value<String?> role,
+      Value<String?> notes,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$SpecialistsTableUpdateCompanionBuilder =
+    SpecialistsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String?> role,
+      Value<String?> notes,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$SpecialistsTableReferences
+    extends BaseReferences<_$AppDatabase, $SpecialistsTable, Specialist> {
+  $$SpecialistsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$ScheduleTemplatesTable, List<ScheduleTemplate>>
+  _scheduleTemplatesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.scheduleTemplates,
+        aliasName: $_aliasNameGenerator(
+          db.specialists.id,
+          db.scheduleTemplates.specialistId,
+        ),
+      );
+
+  $$ScheduleTemplatesTableProcessedTableManager get scheduleTemplatesRefs {
+    final manager = $$ScheduleTemplatesTableTableManager(
+      $_db,
+      $_db.scheduleTemplates,
+    ).filter((f) => f.specialistId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _scheduleTemplatesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ScheduleEntriesTable, List<ScheduleEntry>>
+  _scheduleEntriesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.scheduleEntries,
+    aliasName: $_aliasNameGenerator(
+      db.specialists.id,
+      db.scheduleEntries.specialistId,
+    ),
+  );
+
+  $$ScheduleEntriesTableProcessedTableManager get scheduleEntriesRefs {
+    final manager = $$ScheduleEntriesTableTableManager(
+      $_db,
+      $_db.scheduleEntries,
+    ).filter((f) => f.specialistId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _scheduleEntriesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$SpecialistsTableFilterComposer
+    extends Composer<_$AppDatabase, $SpecialistsTable> {
+  $$SpecialistsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> scheduleTemplatesRefs(
+    Expression<bool> Function($$ScheduleTemplatesTableFilterComposer f) f,
+  ) {
+    final $$ScheduleTemplatesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleTemplates,
+      getReferencedColumn: (t) => t.specialistId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleTemplatesTableFilterComposer(
+            $db: $db,
+            $table: $db.scheduleTemplates,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> scheduleEntriesRefs(
+    Expression<bool> Function($$ScheduleEntriesTableFilterComposer f) f,
+  ) {
+    final $$ScheduleEntriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleEntries,
+      getReferencedColumn: (t) => t.specialistId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleEntriesTableFilterComposer(
+            $db: $db,
+            $table: $db.scheduleEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$SpecialistsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SpecialistsTable> {
+  $$SpecialistsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SpecialistsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SpecialistsTable> {
+  $$SpecialistsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get role =>
+      $composableBuilder(column: $table.role, builder: (column) => column);
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  Expression<T> scheduleTemplatesRefs<T extends Object>(
+    Expression<T> Function($$ScheduleTemplatesTableAnnotationComposer a) f,
+  ) {
+    final $$ScheduleTemplatesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.scheduleTemplates,
+          getReferencedColumn: (t) => t.specialistId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ScheduleTemplatesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.scheduleTemplates,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> scheduleEntriesRefs<T extends Object>(
+    Expression<T> Function($$ScheduleEntriesTableAnnotationComposer a) f,
+  ) {
+    final $$ScheduleEntriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleEntries,
+      getReferencedColumn: (t) => t.specialistId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleEntriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.scheduleEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$SpecialistsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SpecialistsTable,
+          Specialist,
+          $$SpecialistsTableFilterComposer,
+          $$SpecialistsTableOrderingComposer,
+          $$SpecialistsTableAnnotationComposer,
+          $$SpecialistsTableCreateCompanionBuilder,
+          $$SpecialistsTableUpdateCompanionBuilder,
+          (Specialist, $$SpecialistsTableReferences),
+          Specialist,
+          PrefetchHooks Function({
+            bool scheduleTemplatesRefs,
+            bool scheduleEntriesRefs,
+          })
+        > {
+  $$SpecialistsTableTableManager(_$AppDatabase db, $SpecialistsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SpecialistsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SpecialistsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SpecialistsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String?> role = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SpecialistsCompanion(
+                id: id,
+                name: name,
+                role: role,
+                notes: notes,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                Value<String?> role = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SpecialistsCompanion.insert(
+                id: id,
+                name: name,
+                role: role,
+                notes: notes,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$SpecialistsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({scheduleTemplatesRefs = false, scheduleEntriesRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (scheduleTemplatesRefs) db.scheduleTemplates,
+                    if (scheduleEntriesRefs) db.scheduleEntries,
+                  ],
+                  addJoins: null,
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (scheduleTemplatesRefs)
+                        await $_getPrefetchedData<
+                          Specialist,
+                          $SpecialistsTable,
+                          ScheduleTemplate
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SpecialistsTableReferences
+                              ._scheduleTemplatesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SpecialistsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scheduleTemplatesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.specialistId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (scheduleEntriesRefs)
+                        await $_getPrefetchedData<
+                          Specialist,
+                          $SpecialistsTable,
+                          ScheduleEntry
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SpecialistsTableReferences
+                              ._scheduleEntriesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SpecialistsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scheduleEntriesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.specialistId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$SpecialistsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SpecialistsTable,
+      Specialist,
+      $$SpecialistsTableFilterComposer,
+      $$SpecialistsTableOrderingComposer,
+      $$SpecialistsTableAnnotationComposer,
+      $$SpecialistsTableCreateCompanionBuilder,
+      $$SpecialistsTableUpdateCompanionBuilder,
+      (Specialist, $$SpecialistsTableReferences),
+      Specialist,
+      PrefetchHooks Function({
+        bool scheduleTemplatesRefs,
+        bool scheduleEntriesRefs,
+      })
+    >;
 typedef $$ScheduleTemplatesTableCreateCompanionBuilder =
     ScheduleTemplatesCompanion Function({
       required String id,
@@ -8133,6 +9095,7 @@ typedef $$ScheduleTemplatesTableCreateCompanionBuilder =
       required String title,
       Value<String?> podId,
       Value<String?> specialistName,
+      Value<String?> specialistId,
       Value<String?> location,
       Value<String?> notes,
       Value<DateTime> createdAt,
@@ -8149,6 +9112,7 @@ typedef $$ScheduleTemplatesTableUpdateCompanionBuilder =
       Value<String> title,
       Value<String?> podId,
       Value<String?> specialistName,
+      Value<String?> specialistId,
       Value<String?> location,
       Value<String?> notes,
       Value<DateTime> createdAt,
@@ -8181,6 +9145,28 @@ final class $$ScheduleTemplatesTableReferences
       $_db.pods,
     ).filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_podIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $SpecialistsTable _specialistIdTable(_$AppDatabase db) =>
+      db.specialists.createAlias(
+        $_aliasNameGenerator(
+          db.scheduleTemplates.specialistId,
+          db.specialists.id,
+        ),
+      );
+
+  $$SpecialistsTableProcessedTableManager? get specialistId {
+    final $_column = $_itemColumn<String>('specialist_id');
+    if ($_column == null) return null;
+    final manager = $$SpecialistsTableTableManager(
+      $_db,
+      $_db.specialists,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_specialistIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -8311,6 +9297,29 @@ class $$ScheduleTemplatesTableFilterComposer
           }) => $$PodsTableFilterComposer(
             $db: $db,
             $table: $db.pods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SpecialistsTableFilterComposer get specialistId {
+    final $$SpecialistsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.specialistId,
+      referencedTable: $db.specialists,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SpecialistsTableFilterComposer(
+            $db: $db,
+            $table: $db.specialists,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -8457,6 +9466,29 @@ class $$ScheduleTemplatesTableOrderingComposer
     );
     return composer;
   }
+
+  $$SpecialistsTableOrderingComposer get specialistId {
+    final $$SpecialistsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.specialistId,
+      referencedTable: $db.specialists,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SpecialistsTableOrderingComposer(
+            $db: $db,
+            $table: $db.specialists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$ScheduleTemplatesTableAnnotationComposer
@@ -8517,6 +9549,29 @@ class $$ScheduleTemplatesTableAnnotationComposer
           }) => $$PodsTableAnnotationComposer(
             $db: $db,
             $table: $db.pods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SpecialistsTableAnnotationComposer get specialistId {
+    final $$SpecialistsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.specialistId,
+      referencedTable: $db.specialists,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SpecialistsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.specialists,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -8592,6 +9647,7 @@ class $$ScheduleTemplatesTableTableManager
           ScheduleTemplate,
           PrefetchHooks Function({
             bool podId,
+            bool specialistId,
             bool scheduleEntriesRefs,
             bool templatePodsRefs,
           })
@@ -8622,6 +9678,7 @@ class $$ScheduleTemplatesTableTableManager
                 Value<String> title = const Value.absent(),
                 Value<String?> podId = const Value.absent(),
                 Value<String?> specialistName = const Value.absent(),
+                Value<String?> specialistId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -8636,6 +9693,7 @@ class $$ScheduleTemplatesTableTableManager
                 title: title,
                 podId: podId,
                 specialistName: specialistName,
+                specialistId: specialistId,
                 location: location,
                 notes: notes,
                 createdAt: createdAt,
@@ -8652,6 +9710,7 @@ class $$ScheduleTemplatesTableTableManager
                 required String title,
                 Value<String?> podId = const Value.absent(),
                 Value<String?> specialistName = const Value.absent(),
+                Value<String?> specialistId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -8666,6 +9725,7 @@ class $$ScheduleTemplatesTableTableManager
                 title: title,
                 podId: podId,
                 specialistName: specialistName,
+                specialistId: specialistId,
                 location: location,
                 notes: notes,
                 createdAt: createdAt,
@@ -8683,6 +9743,7 @@ class $$ScheduleTemplatesTableTableManager
           prefetchHooksCallback:
               ({
                 podId = false,
+                specialistId = false,
                 scheduleEntriesRefs = false,
                 templatePodsRefs = false,
               }) {
@@ -8719,6 +9780,21 @@ class $$ScheduleTemplatesTableTableManager
                                     referencedColumn:
                                         $$ScheduleTemplatesTableReferences
                                             ._podIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (specialistId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.specialistId,
+                                    referencedTable:
+                                        $$ScheduleTemplatesTableReferences
+                                            ._specialistIdTable(db),
+                                    referencedColumn:
+                                        $$ScheduleTemplatesTableReferences
+                                            ._specialistIdTable(db)
                                             .id,
                                   )
                                   as T;
@@ -8792,6 +9868,7 @@ typedef $$ScheduleTemplatesTableProcessedTableManager =
       ScheduleTemplate,
       PrefetchHooks Function({
         bool podId,
+        bool specialistId,
         bool scheduleEntriesRefs,
         bool templatePodsRefs,
       })
@@ -8806,6 +9883,7 @@ typedef $$ScheduleEntriesTableCreateCompanionBuilder =
       required String title,
       Value<String?> podId,
       Value<String?> specialistName,
+      Value<String?> specialistId,
       Value<String?> location,
       Value<String?> notes,
       required String kind,
@@ -8824,6 +9902,7 @@ typedef $$ScheduleEntriesTableUpdateCompanionBuilder =
       Value<String> title,
       Value<String?> podId,
       Value<String?> specialistName,
+      Value<String?> specialistId,
       Value<String?> location,
       Value<String?> notes,
       Value<String> kind,
@@ -8854,6 +9933,28 @@ final class $$ScheduleEntriesTableReferences
       $_db.pods,
     ).filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_podIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $SpecialistsTable _specialistIdTable(_$AppDatabase db) =>
+      db.specialists.createAlias(
+        $_aliasNameGenerator(
+          db.scheduleEntries.specialistId,
+          db.specialists.id,
+        ),
+      );
+
+  $$SpecialistsTableProcessedTableManager? get specialistId {
+    final $_column = $_itemColumn<String>('specialist_id');
+    if ($_column == null) return null;
+    final manager = $$SpecialistsTableTableManager(
+      $_db,
+      $_db.specialists,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_specialistIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -8987,6 +10088,29 @@ class $$ScheduleEntriesTableFilterComposer
           }) => $$PodsTableFilterComposer(
             $db: $db,
             $table: $db.pods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SpecialistsTableFilterComposer get specialistId {
+    final $$SpecialistsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.specialistId,
+      referencedTable: $db.specialists,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SpecialistsTableFilterComposer(
+            $db: $db,
+            $table: $db.specialists,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -9137,6 +10261,29 @@ class $$ScheduleEntriesTableOrderingComposer
     return composer;
   }
 
+  $$SpecialistsTableOrderingComposer get specialistId {
+    final $$SpecialistsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.specialistId,
+      referencedTable: $db.specialists,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SpecialistsTableOrderingComposer(
+            $db: $db,
+            $table: $db.specialists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
   $$ScheduleTemplatesTableOrderingComposer get overridesTemplateId {
     final $$ScheduleTemplatesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -9231,6 +10378,29 @@ class $$ScheduleEntriesTableAnnotationComposer
     return composer;
   }
 
+  $$SpecialistsTableAnnotationComposer get specialistId {
+    final $$SpecialistsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.specialistId,
+      referencedTable: $db.specialists,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SpecialistsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.specialists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
   $$ScheduleTemplatesTableAnnotationComposer get overridesTemplateId {
     final $$ScheduleTemplatesTableAnnotationComposer composer =
         $composerBuilder(
@@ -9296,6 +10466,7 @@ class $$ScheduleEntriesTableTableManager
           ScheduleEntry,
           PrefetchHooks Function({
             bool podId,
+            bool specialistId,
             bool overridesTemplateId,
             bool entryPodsRefs,
           })
@@ -9323,6 +10494,7 @@ class $$ScheduleEntriesTableTableManager
                 Value<String> title = const Value.absent(),
                 Value<String?> podId = const Value.absent(),
                 Value<String?> specialistName = const Value.absent(),
+                Value<String?> specialistId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<String> kind = const Value.absent(),
@@ -9339,6 +10511,7 @@ class $$ScheduleEntriesTableTableManager
                 title: title,
                 podId: podId,
                 specialistName: specialistName,
+                specialistId: specialistId,
                 location: location,
                 notes: notes,
                 kind: kind,
@@ -9357,6 +10530,7 @@ class $$ScheduleEntriesTableTableManager
                 required String title,
                 Value<String?> podId = const Value.absent(),
                 Value<String?> specialistName = const Value.absent(),
+                Value<String?> specialistId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 required String kind,
@@ -9373,6 +10547,7 @@ class $$ScheduleEntriesTableTableManager
                 title: title,
                 podId: podId,
                 specialistName: specialistName,
+                specialistId: specialistId,
                 location: location,
                 notes: notes,
                 kind: kind,
@@ -9392,6 +10567,7 @@ class $$ScheduleEntriesTableTableManager
           prefetchHooksCallback:
               ({
                 podId = false,
+                specialistId = false,
                 overridesTemplateId = false,
                 entryPodsRefs = false,
               }) {
@@ -9425,6 +10601,21 @@ class $$ScheduleEntriesTableTableManager
                                     referencedColumn:
                                         $$ScheduleEntriesTableReferences
                                             ._podIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (specialistId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.specialistId,
+                                    referencedTable:
+                                        $$ScheduleEntriesTableReferences
+                                            ._specialistIdTable(db),
+                                    referencedColumn:
+                                        $$ScheduleEntriesTableReferences
+                                            ._specialistIdTable(db)
                                             .id,
                                   )
                                   as T;
@@ -9492,6 +10683,7 @@ typedef $$ScheduleEntriesTableProcessedTableManager =
       ScheduleEntry,
       PrefetchHooks Function({
         bool podId,
+        bool specialistId,
         bool overridesTemplateId,
         bool entryPodsRefs,
       })
@@ -10211,6 +11403,8 @@ class $AppDatabaseManager {
       $$CaptureKidsTableTableManager(_db, _db.captureKids);
   $$ObservationsTableTableManager get observations =>
       $$ObservationsTableTableManager(_db, _db.observations);
+  $$SpecialistsTableTableManager get specialists =>
+      $$SpecialistsTableTableManager(_db, _db.specialists);
   $$ScheduleTemplatesTableTableManager get scheduleTemplates =>
       $$ScheduleTemplatesTableTableManager(_db, _db.scheduleTemplates);
   $$ScheduleEntriesTableTableManager get scheduleEntries =>

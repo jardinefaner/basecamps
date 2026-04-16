@@ -1,5 +1,6 @@
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
@@ -12,6 +13,12 @@ class MoreScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
         children: [
+          _MoreTile(
+            icon: Icons.badge_outlined,
+            label: 'Specialists',
+            subtitle: 'Staff who run specific activities',
+            onTap: () => context.push('/more/specialists'),
+          ),
           _MoreTile(
             icon: Icons.assignment_outlined,
             label: 'Forms & surveys',

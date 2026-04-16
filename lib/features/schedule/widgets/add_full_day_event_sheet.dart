@@ -1,11 +1,13 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 /// A dedicated sheet for creating one-off, full-day events (field trips,
@@ -26,6 +28,7 @@ class _AddFullDayEventSheetState extends ConsumerState<AddFullDayEventSheet> {
   final _notesController = TextEditingController();
   late DateTime _date = widget.initialDate ?? DateTime.now();
   final Set<String> _selectedPodIds = <String>{};
+  String? _specialistId;
   bool _submitting = false;
 
   @override
@@ -66,6 +69,7 @@ class _AddFullDayEventSheetState extends ConsumerState<AddFullDayEventSheet> {
           isFullDay: true,
           title: title,
           podIds: _selectedPodIds.toList(),
+          specialistId: _specialistId,
           location: location,
           notes: notes,
         );
@@ -131,6 +135,11 @@ class _AddFullDayEventSheetState extends ConsumerState<AddFullDayEventSheet> {
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
+            _SpecialistPicker(
+              selectedId: _specialistId,
+              onChanged: (id) => setState(() => _specialistId = id),
+            ),
+            const SizedBox(height: AppSpacing.lg),
             AppTextField(
               controller: _locationController,
               label: 'Location (optional)',
@@ -150,6 +159,72 @@ class _AddFullDayEventSheetState extends ConsumerState<AddFullDayEventSheet> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SpecialistPicker extends ConsumerWidget {
+  const _SpecialistPicker({
+    required this.selectedId,
+    required this.onChanged,
+  });
+
+  final String? selectedId;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final specialistsAsync = ref.watch(specialistsProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text('Specialist', style: theme.textTheme.titleSmall),
+            ),
+            TextButton.icon(
+              onPressed: () => context.push('/more/specialists'),
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('Manage'),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        specialistsAsync.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (err, _) => Text('Error: $err'),
+          data: (specialists) {
+            if (specialists.isEmpty) {
+              return Text(
+                'No specialists yet — add one in More → Specialists.',
+                style: theme.textTheme.bodySmall,
+              );
+            }
+            return DropdownButtonFormField<String?>(
+              initialValue: selectedId,
+              items: [
+                const DropdownMenuItem<String?>(child: Text('None')),
+                for (final s in specialists)
+                  DropdownMenuItem(
+                    value: s.id,
+                    child: Text(
+                      s.role == null || s.role!.isEmpty
+                          ? s.name
+                          : '${s.name} · ${s.role}',
+                    ),
+                  ),
+              ],
+              onChanged: onChanged,
+            );
+          },
+        ),
+      ],
     );
   }
 }

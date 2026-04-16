@@ -95,6 +95,22 @@ class Observations extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Named people who run activities (art teacher, swim instructor, etc.).
+/// Not user accounts yet — just named entities linked from schedule items.
+class Specialists extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get role => text().nullable()();
+  TextColumn get notes => text().nullable()();
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 /// Recurring weekly schedule items. `dayOfWeek` uses ISO 1..7 (Mon..Sun).
 /// Times are stored as "HH:mm" strings so they survive timezone shifts.
 class ScheduleTemplates extends Table {
@@ -106,7 +122,11 @@ class ScheduleTemplates extends Table {
   TextColumn get title => text()();
   TextColumn get podId =>
       text().nullable().references(Pods, #id, onDelete: KeyAction.setNull)();
+  // Deprecated: use specialistId instead. Retained for migration backfill only.
   TextColumn get specialistName => text().nullable()();
+  TextColumn get specialistId => text()
+      .nullable()
+      .references(Specialists, #id, onDelete: KeyAction.setNull)();
   TextColumn get location => text().nullable()();
   TextColumn get notes => text().nullable()();
   DateTimeColumn get createdAt =>
@@ -158,7 +178,11 @@ class ScheduleEntries extends Table {
   TextColumn get title => text()();
   TextColumn get podId =>
       text().nullable().references(Pods, #id, onDelete: KeyAction.setNull)();
+  // Deprecated: use specialistId instead. Retained for migration backfill only.
   TextColumn get specialistName => text().nullable()();
+  TextColumn get specialistId => text()
+      .nullable()
+      .references(Specialists, #id, onDelete: KeyAction.setNull)();
   TextColumn get location => text().nullable()();
   TextColumn get notes => text().nullable()();
   TextColumn get kind => text()();

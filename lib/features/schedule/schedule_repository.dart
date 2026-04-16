@@ -15,7 +15,7 @@ class ScheduleItem {
     required this.title,
     required this.isFromTemplate,
     required this.podIds,
-    this.specialistName,
+    this.specialistId,
     this.location,
     this.notes,
     this.templateId,
@@ -23,14 +23,12 @@ class ScheduleItem {
   });
 
   final String id;
-  final String startTime; // "HH:mm"
+  final String startTime;
   final String endTime;
   final bool isFullDay;
   final String title;
-
-  /// Pods this item targets. Empty list = "all pods".
   final List<String> podIds;
-  final String? specialistName;
+  final String? specialistId;
   final String? location;
   final String? notes;
   final bool isFromTemplate;
@@ -59,8 +57,6 @@ class ScheduleRepository {
 
   final AppDatabase _db;
 
-  // -- Templates --
-
   Stream<List<ScheduleTemplate>> watchTemplates() {
     final query = _db.select(_db.scheduleTemplates)
       ..orderBy([
@@ -77,7 +73,6 @@ class ScheduleRepository {
     return query.get();
   }
 
-  /// Pod ids assigned to a given template. Empty = all pods.
   Future<List<String>> podsForTemplate(String templateId) async {
     final rows = await (_db.select(_db.templatePods)
           ..where((p) => p.templateId.equals(templateId)))
@@ -85,7 +80,6 @@ class ScheduleRepository {
     return rows.map((r) => r.podId).toList();
   }
 
-  /// Pod ids assigned to a given per-date entry. Empty = all pods.
   Future<List<String>> podsForEntry(String entryId) async {
     final rows = await (_db.select(_db.entryPods)
           ..where((p) => p.entryId.equals(entryId)))
@@ -108,7 +102,7 @@ class ScheduleRepository {
     required String title,
     List<String> podIds = const [],
     bool isFullDay = false,
-    String? specialistName,
+    String? specialistId,
     String? location,
     String? notes,
   }) async {
@@ -122,7 +116,7 @@ class ScheduleRepository {
               endTime: endTime,
               isFullDay: Value(isFullDay),
               title: title,
-              specialistName: Value(specialistName),
+              specialistId: Value(specialistId),
               location: Value(location),
               notes: Value(notes),
             ),
@@ -144,7 +138,7 @@ class ScheduleRepository {
     required String title,
     List<String> podIds = const [],
     bool isFullDay = false,
-    String? specialistName,
+    String? specialistId,
     String? location,
     String? notes,
   }) async {
@@ -158,7 +152,7 @@ class ScheduleRepository {
           endTime: Value(endTime),
           isFullDay: Value(isFullDay),
           title: Value(title),
-          specialistName: Value(specialistName),
+          specialistId: Value(specialistId),
           location: Value(location),
           notes: Value(notes),
           updatedAt: Value(DateTime.now()),
@@ -180,8 +174,6 @@ class ScheduleRepository {
         .go();
   }
 
-  // -- Entries --
-
   Future<String> addOneOffEntry({
     required DateTime date,
     required String startTime,
@@ -189,7 +181,7 @@ class ScheduleRepository {
     required String title,
     List<String> podIds = const [],
     bool isFullDay = false,
-    String? specialistName,
+    String? specialistId,
     String? location,
     String? notes,
   }) async {
@@ -203,7 +195,7 @@ class ScheduleRepository {
               endTime: endTime,
               isFullDay: Value(isFullDay),
               title: title,
-              specialistName: Value(specialistName),
+              specialistId: Value(specialistId),
               location: Value(location),
               notes: Value(notes),
               kind: 'addition',
@@ -243,8 +235,6 @@ class ScheduleRepository {
     await (_db.delete(_db.scheduleEntries)..where((e) => e.id.equals(id)))
         .go();
   }
-
-  // -- Merged view --
 
   Stream<List<ScheduleItem>> watchScheduleForDate(DateTime date) {
     final day = _dayOnly(date);
@@ -310,7 +300,7 @@ class ScheduleRepository {
             isFullDay: override.isFullDay,
             title: override.title,
             podIds: entryPods[override.id] ?? const [],
-            specialistName: override.specialistName,
+            specialistId: override.specialistId,
             location: override.location,
             notes: override.notes,
             isFromTemplate: true,
@@ -327,7 +317,7 @@ class ScheduleRepository {
             isFullDay: t.isFullDay,
             title: t.title,
             podIds: templatePods[t.id] ?? const [],
-            specialistName: t.specialistName,
+            specialistId: t.specialistId,
             location: t.location,
             notes: t.notes,
             isFromTemplate: true,
@@ -347,7 +337,7 @@ class ScheduleRepository {
             isFullDay: e.isFullDay,
             title: e.title,
             podIds: entryPods[e.id] ?? const [],
-            specialistName: e.specialistName,
+            specialistId: e.specialistId,
             location: e.location,
             notes: e.notes,
             isFromTemplate: false,

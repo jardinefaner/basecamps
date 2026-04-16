@@ -1,3 +1,4 @@
+import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/tables.dart';
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
@@ -17,6 +18,7 @@ QueryExecutor _openConnection() {
     Captures,
     CaptureKids,
     Observations,
+    Specialists,
     ScheduleTemplates,
     ScheduleEntries,
     TemplatePods,
@@ -29,7 +31,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -56,7 +58,6 @@ class AppDatabase extends _$AppDatabase {
           if (from < 6) {
             await m.createTable(templatePods);
             await m.createTable(entryPods);
-            // Backfill from the legacy single-pod column.
             await customStatement('''
               INSERT INTO template_pods (template_id, pod_id)
               SELECT id, pod_id FROM schedule_templates WHERE pod_id IS NOT NULL
@@ -65,6 +66,49 @@ class AppDatabase extends _$AppDatabase {
               INSERT INTO entry_pods (entry_id, pod_id)
               SELECT id, pod_id FROM schedule_entries WHERE pod_id IS NOT NULL
             ''');
+          }
+          if (from < 7) {
+            await m.createTable(specialists);
+            await m.addColumn(
+              scheduleTemplates,
+              scheduleTemplates.specialistId,
+            );
+            await m.addColumn(
+              scheduleEntries,
+              scheduleEntries.specialistId,
+            );
+            // Backfill: promote each distinct legacy specialist_name string
+            // into a Specialists row and update referring schedule items.
+            final templateRows = await (select(scheduleTemplates)
+                  ..where((t) => t.specialistName.isNotNull()))
+                .get();
+            final entryRows = await (select(scheduleEntries)
+                  ..where((e) => e.specialistName.isNotNull()))
+                .get();
+            final uniqueNames = <String>{
+              ...templateRows.map((r) => r.specialistName!),
+              ...entryRows.map((e) => e.specialistName!),
+            };
+            for (final name in uniqueNames) {
+              final specialistId = newId();
+              await into(specialists).insert(
+                SpecialistsCompanion.insert(id: specialistId, name: name),
+              );
+              await (update(scheduleTemplates)
+                    ..where((t) => t.specialistName.equals(name)))
+                  .write(
+                ScheduleTemplatesCompanion(
+                  specialistId: Value(specialistId),
+                ),
+              );
+              await (update(scheduleEntries)
+                    ..where((e) => e.specialistName.equals(name)))
+                  .write(
+                ScheduleEntriesCompanion(
+                  specialistId: Value(specialistId),
+                ),
+              );
+            }
           }
         },
       );
