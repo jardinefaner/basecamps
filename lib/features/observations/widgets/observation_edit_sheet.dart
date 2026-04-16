@@ -140,17 +140,9 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
           const SizedBox(height: AppSpacing.lg),
           Text('Domain', style: theme.textTheme.titleSmall),
           const SizedBox(height: AppSpacing.sm),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              for (final d in ObservationDomain.values)
-                ChoiceChip(
-                  label: Text(d.label),
-                  selected: _domain == d,
-                  onSelected: (_) => setState(() => _domain = d),
-                ),
-            ],
+          _DomainSelector(
+            selected: _domain,
+            onSelected: (d) => setState(() => _domain = d),
           ),
           const SizedBox(height: AppSpacing.lg),
           Text('Sentiment', style: theme.textTheme.titleSmall),
@@ -240,6 +232,68 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
     final last = kid.lastName;
     if (last == null || last.isEmpty) return kid.firstName;
     return '${kid.firstName} ${last[0]}.';
+  }
+}
+
+class _DomainSelector extends StatelessWidget {
+  const _DomainSelector({required this.selected, required this.onSelected});
+
+  final ObservationDomain selected;
+  final ValueChanged<ObservationDomain> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final byCategory = <ObservationDomainCategory, List<ObservationDomain>>{};
+    for (final d in ObservationDomain.values) {
+      byCategory.putIfAbsent(d.category, () => []).add(d);
+    }
+
+    Widget section(ObservationDomainCategory cat) {
+      final domains = byCategory[cat] ?? const [];
+      if (domains.isEmpty) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              cat.label.toUpperCase(),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final d in domains)
+                  ChoiceChip(
+                    label: Text(
+                      d == ObservationDomain.other
+                          ? d.label
+                          : '${d.code} · ${d.label}',
+                    ),
+                    selected: selected == d,
+                    onSelected: (_) => onSelected(d),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        section(ObservationDomainCategory.socialSelfDev),
+        section(ObservationDomainCategory.health),
+        section(ObservationDomainCategory.other),
+      ],
+    );
   }
 }
 

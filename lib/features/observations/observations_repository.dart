@@ -3,23 +3,78 @@ import 'package:basecamp/database/database.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+/// Domains that align with the program's observation taxonomy.
+/// The SSD* values cover social & self-development; HLTH* cover health.
 enum ObservationDomain {
-  social,
-  physical,
-  creative,
-  cognitive,
-  behavior,
-  milestone,
+  ssd1,
+  ssd2,
+  ssd3,
+  ssd4,
+  ssd5,
+  ssd6,
+  ssd7,
+  ssd8,
+  ssd9,
+  hlth1,
+  hlth2,
+  hlth3,
+  hlth4,
   other;
 
+  /// Compact curriculum code for display ("SSD1", "HLTH3", etc.).
+  String get code => switch (this) {
+        ObservationDomain.ssd1 => 'SSD1',
+        ObservationDomain.ssd2 => 'SSD2',
+        ObservationDomain.ssd3 => 'SSD3',
+        ObservationDomain.ssd4 => 'SSD4',
+        ObservationDomain.ssd5 => 'SSD5',
+        ObservationDomain.ssd6 => 'SSD6',
+        ObservationDomain.ssd7 => 'SSD7',
+        ObservationDomain.ssd8 => 'SSD8',
+        ObservationDomain.ssd9 => 'SSD9',
+        ObservationDomain.hlth1 => 'HLTH1',
+        ObservationDomain.hlth2 => 'HLTH2',
+        ObservationDomain.hlth3 => 'HLTH3',
+        ObservationDomain.hlth4 => 'HLTH4',
+        ObservationDomain.other => '—',
+      };
+
+  /// Short human label — the one used on chips and cards.
   String get label => switch (this) {
-        ObservationDomain.social => 'Social',
-        ObservationDomain.physical => 'Physical',
-        ObservationDomain.creative => 'Creative',
-        ObservationDomain.cognitive => 'Cognitive',
-        ObservationDomain.behavior => 'Behavior',
-        ObservationDomain.milestone => 'Milestone',
+        ObservationDomain.ssd1 => 'Identity & connection',
+        ObservationDomain.ssd2 => 'Self-esteem',
+        ObservationDomain.ssd3 => 'Empathy',
+        ObservationDomain.ssd4 => 'Impulse control',
+        ObservationDomain.ssd5 => 'Follow rules',
+        ObservationDomain.ssd6 => 'Awareness of diversity',
+        ObservationDomain.ssd7 => 'Interactions with adults',
+        ObservationDomain.ssd8 => 'Friendship',
+        ObservationDomain.ssd9 => 'Conflict negotiation',
+        ObservationDomain.hlth1 => 'Safety',
+        ObservationDomain.hlth2 => 'Healthy lifestyle',
+        ObservationDomain.hlth3 => 'Personal care routine',
+        ObservationDomain.hlth4 => 'Exercise & fitness',
         ObservationDomain.other => 'Other',
+      };
+
+  /// Group for section headers in pickers.
+  ObservationDomainCategory get category => switch (this) {
+        ObservationDomain.ssd1 ||
+        ObservationDomain.ssd2 ||
+        ObservationDomain.ssd3 ||
+        ObservationDomain.ssd4 ||
+        ObservationDomain.ssd5 ||
+        ObservationDomain.ssd6 ||
+        ObservationDomain.ssd7 ||
+        ObservationDomain.ssd8 ||
+        ObservationDomain.ssd9 =>
+          ObservationDomainCategory.socialSelfDev,
+        ObservationDomain.hlth1 ||
+        ObservationDomain.hlth2 ||
+        ObservationDomain.hlth3 ||
+        ObservationDomain.hlth4 =>
+          ObservationDomainCategory.health,
+        ObservationDomain.other => ObservationDomainCategory.other,
       };
 
   static ObservationDomain fromName(String name) {
@@ -28,6 +83,19 @@ enum ObservationDomain {
       orElse: () => ObservationDomain.other,
     );
   }
+}
+
+enum ObservationDomainCategory {
+  socialSelfDev,
+  health,
+  other;
+
+  String get label => switch (this) {
+        ObservationDomainCategory.socialSelfDev =>
+          'Social & self-development',
+        ObservationDomainCategory.health => 'Health',
+        ObservationDomainCategory.other => 'Other',
+      };
 }
 
 enum ObservationSentiment {

@@ -45,7 +45,12 @@ class ObservationCard extends ConsumerWidget {
                   color: theme.colorScheme.surfaceContainerHigh,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(domain.label, style: theme.textTheme.labelMedium),
+                child: Text(
+                  domain == ObservationDomain.other
+                      ? domain.label
+                      : domain.code,
+                  style: theme.textTheme.labelMedium,
+                ),
               ),
             ],
           ),

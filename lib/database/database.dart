@@ -35,7 +35,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -185,6 +185,29 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 12) {
             await _createTableIfMissing(m, observationAttachments);
+          }
+          if (from < 13) {
+            // Remap legacy free-form domains to the SSD / HLTH taxonomy.
+            // Unmapped values fall back to 'other'.
+            await customStatement(
+              "UPDATE observations SET domain = 'ssd8' "
+              "WHERE domain = 'social'",
+            );
+            await customStatement(
+              "UPDATE observations SET domain = 'hlth4' "
+              "WHERE domain = 'physical'",
+            );
+            await customStatement(
+              "UPDATE observations SET domain = 'ssd4' "
+              "WHERE domain = 'behavior'",
+            );
+            await customStatement(
+              "UPDATE observations SET domain = 'other' "
+              'WHERE domain NOT IN '
+              "('ssd1', 'ssd2', 'ssd3', 'ssd4', 'ssd5', 'ssd6', "
+              "'ssd7', 'ssd8', 'ssd9', "
+              "'hlth1', 'hlth2', 'hlth3', 'hlth4', 'other')",
+            );
           }
         },
       );
