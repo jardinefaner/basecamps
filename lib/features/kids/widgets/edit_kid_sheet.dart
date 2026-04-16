@@ -39,6 +39,8 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
       TextEditingController(text: widget.kid?.lastName ?? '');
   late final _notesController =
       TextEditingController(text: widget.kid?.notes ?? '');
+  late final _parentNameController =
+      TextEditingController(text: widget.kid?.parentName ?? '');
 
   late String? _selectedPodId = widget.kid?.podId ??
       widget.initialPodId ??
@@ -58,6 +60,7 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _notesController.dispose();
+    _parentNameController.dispose();
     super.dispose();
   }
 
@@ -69,6 +72,7 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
     final lastName = _lastNameController.text.trim();
     final notes = _notesController.text.trim();
 
+    final parentName = _parentNameController.text.trim();
     final existing = widget.kid;
     if (existing == null) {
       await repo.addKid(
@@ -77,6 +81,7 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
         podId: _selectedPodId,
         notes: notes.isEmpty ? null : notes,
         avatarPath: _avatarPath,
+        parentName: parentName.isEmpty ? null : parentName,
       );
     } else {
       await repo.updateKid(
@@ -91,6 +96,9 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
         avatarPath: _avatarPath,
         clearAvatarPath:
             _avatarPath == null && existing.avatarPath != null,
+        parentName: parentName.isEmpty ? null : parentName,
+        clearParentName:
+            parentName.isEmpty && existing.parentName != null,
       );
     }
     if (!mounted) return;
@@ -187,6 +195,12 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
                 ),
             ],
             onChanged: (value) => setState(() => _selectedPodId = value),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          AppTextField(
+            controller: _parentNameController,
+            label: 'Parent or guardian (optional)',
+            hint: 'Name — pre-fills parent concern notes',
           ),
           const SizedBox(height: AppSpacing.lg),
           AppTextField(

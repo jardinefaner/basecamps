@@ -436,6 +436,17 @@ class $KidsTable extends Kids with TableInfo<$KidsTable, Kid> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _parentNameMeta = const VerificationMeta(
+    'parentName',
+  );
+  @override
+  late final GeneratedColumn<String> parentName = GeneratedColumn<String>(
+    'parent_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _avatarPathMeta = const VerificationMeta(
     'avatarPath',
   );
@@ -480,6 +491,7 @@ class $KidsTable extends Kids with TableInfo<$KidsTable, Kid> {
     birthDate,
     pin,
     notes,
+    parentName,
     avatarPath,
     createdAt,
     updatedAt,
@@ -539,6 +551,12 @@ class $KidsTable extends Kids with TableInfo<$KidsTable, Kid> {
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('parent_name')) {
+      context.handle(
+        _parentNameMeta,
+        parentName.isAcceptableOrUnknown(data['parent_name']!, _parentNameMeta),
+      );
+    }
     if (data.containsKey('avatar_path')) {
       context.handle(
         _avatarPathMeta,
@@ -594,6 +612,10 @@ class $KidsTable extends Kids with TableInfo<$KidsTable, Kid> {
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      parentName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}parent_name'],
+      ),
       avatarPath: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}avatar_path'],
@@ -623,6 +645,7 @@ class Kid extends DataClass implements Insertable<Kid> {
   final DateTime? birthDate;
   final String? pin;
   final String? notes;
+  final String? parentName;
   final String? avatarPath;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -634,6 +657,7 @@ class Kid extends DataClass implements Insertable<Kid> {
     this.birthDate,
     this.pin,
     this.notes,
+    this.parentName,
     this.avatarPath,
     required this.createdAt,
     required this.updatedAt,
@@ -657,6 +681,9 @@ class Kid extends DataClass implements Insertable<Kid> {
     }
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
+    }
+    if (!nullToAbsent || parentName != null) {
+      map['parent_name'] = Variable<String>(parentName);
     }
     if (!nullToAbsent || avatarPath != null) {
       map['avatar_path'] = Variable<String>(avatarPath);
@@ -683,6 +710,9 @@ class Kid extends DataClass implements Insertable<Kid> {
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      parentName: parentName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(parentName),
       avatarPath: avatarPath == null && nullToAbsent
           ? const Value.absent()
           : Value(avatarPath),
@@ -704,6 +734,7 @@ class Kid extends DataClass implements Insertable<Kid> {
       birthDate: serializer.fromJson<DateTime?>(json['birthDate']),
       pin: serializer.fromJson<String?>(json['pin']),
       notes: serializer.fromJson<String?>(json['notes']),
+      parentName: serializer.fromJson<String?>(json['parentName']),
       avatarPath: serializer.fromJson<String?>(json['avatarPath']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -720,6 +751,7 @@ class Kid extends DataClass implements Insertable<Kid> {
       'birthDate': serializer.toJson<DateTime?>(birthDate),
       'pin': serializer.toJson<String?>(pin),
       'notes': serializer.toJson<String?>(notes),
+      'parentName': serializer.toJson<String?>(parentName),
       'avatarPath': serializer.toJson<String?>(avatarPath),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -734,6 +766,7 @@ class Kid extends DataClass implements Insertable<Kid> {
     Value<DateTime?> birthDate = const Value.absent(),
     Value<String?> pin = const Value.absent(),
     Value<String?> notes = const Value.absent(),
+    Value<String?> parentName = const Value.absent(),
     Value<String?> avatarPath = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -745,6 +778,7 @@ class Kid extends DataClass implements Insertable<Kid> {
     birthDate: birthDate.present ? birthDate.value : this.birthDate,
     pin: pin.present ? pin.value : this.pin,
     notes: notes.present ? notes.value : this.notes,
+    parentName: parentName.present ? parentName.value : this.parentName,
     avatarPath: avatarPath.present ? avatarPath.value : this.avatarPath,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -758,6 +792,9 @@ class Kid extends DataClass implements Insertable<Kid> {
       birthDate: data.birthDate.present ? data.birthDate.value : this.birthDate,
       pin: data.pin.present ? data.pin.value : this.pin,
       notes: data.notes.present ? data.notes.value : this.notes,
+      parentName: data.parentName.present
+          ? data.parentName.value
+          : this.parentName,
       avatarPath: data.avatarPath.present
           ? data.avatarPath.value
           : this.avatarPath,
@@ -776,6 +813,7 @@ class Kid extends DataClass implements Insertable<Kid> {
           ..write('birthDate: $birthDate, ')
           ..write('pin: $pin, ')
           ..write('notes: $notes, ')
+          ..write('parentName: $parentName, ')
           ..write('avatarPath: $avatarPath, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -792,6 +830,7 @@ class Kid extends DataClass implements Insertable<Kid> {
     birthDate,
     pin,
     notes,
+    parentName,
     avatarPath,
     createdAt,
     updatedAt,
@@ -807,6 +846,7 @@ class Kid extends DataClass implements Insertable<Kid> {
           other.birthDate == this.birthDate &&
           other.pin == this.pin &&
           other.notes == this.notes &&
+          other.parentName == this.parentName &&
           other.avatarPath == this.avatarPath &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -820,6 +860,7 @@ class KidsCompanion extends UpdateCompanion<Kid> {
   final Value<DateTime?> birthDate;
   final Value<String?> pin;
   final Value<String?> notes;
+  final Value<String?> parentName;
   final Value<String?> avatarPath;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -832,6 +873,7 @@ class KidsCompanion extends UpdateCompanion<Kid> {
     this.birthDate = const Value.absent(),
     this.pin = const Value.absent(),
     this.notes = const Value.absent(),
+    this.parentName = const Value.absent(),
     this.avatarPath = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -845,6 +887,7 @@ class KidsCompanion extends UpdateCompanion<Kid> {
     this.birthDate = const Value.absent(),
     this.pin = const Value.absent(),
     this.notes = const Value.absent(),
+    this.parentName = const Value.absent(),
     this.avatarPath = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -859,6 +902,7 @@ class KidsCompanion extends UpdateCompanion<Kid> {
     Expression<DateTime>? birthDate,
     Expression<String>? pin,
     Expression<String>? notes,
+    Expression<String>? parentName,
     Expression<String>? avatarPath,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -872,6 +916,7 @@ class KidsCompanion extends UpdateCompanion<Kid> {
       if (birthDate != null) 'birth_date': birthDate,
       if (pin != null) 'pin': pin,
       if (notes != null) 'notes': notes,
+      if (parentName != null) 'parent_name': parentName,
       if (avatarPath != null) 'avatar_path': avatarPath,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -887,6 +932,7 @@ class KidsCompanion extends UpdateCompanion<Kid> {
     Value<DateTime?>? birthDate,
     Value<String?>? pin,
     Value<String?>? notes,
+    Value<String?>? parentName,
     Value<String?>? avatarPath,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -900,6 +946,7 @@ class KidsCompanion extends UpdateCompanion<Kid> {
       birthDate: birthDate ?? this.birthDate,
       pin: pin ?? this.pin,
       notes: notes ?? this.notes,
+      parentName: parentName ?? this.parentName,
       avatarPath: avatarPath ?? this.avatarPath,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -931,6 +978,9 @@ class KidsCompanion extends UpdateCompanion<Kid> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (parentName.present) {
+      map['parent_name'] = Variable<String>(parentName.value);
+    }
     if (avatarPath.present) {
       map['avatar_path'] = Variable<String>(avatarPath.value);
     }
@@ -956,6 +1006,7 @@ class KidsCompanion extends UpdateCompanion<Kid> {
           ..write('birthDate: $birthDate, ')
           ..write('pin: $pin, ')
           ..write('notes: $notes, ')
+          ..write('parentName: $parentName, ')
           ..write('avatarPath: $avatarPath, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -7639,6 +7690,17 @@ class $ParentConcernNotesTable extends ParentConcernNotes
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _staffSignaturePathMeta =
+      const VerificationMeta('staffSignaturePath');
+  @override
+  late final GeneratedColumn<String> staffSignaturePath =
+      GeneratedColumn<String>(
+        'staff_signature_path',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _staffSignatureDateMeta =
       const VerificationMeta('staffSignatureDate');
   @override
@@ -7656,6 +7718,17 @@ class $ParentConcernNotesTable extends ParentConcernNotes
   late final GeneratedColumn<String> supervisorSignature =
       GeneratedColumn<String>(
         'supervisor_signature',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _supervisorSignaturePathMeta =
+      const VerificationMeta('supervisorSignaturePath');
+  @override
+  late final GeneratedColumn<String> supervisorSignaturePath =
+      GeneratedColumn<String>(
+        'supervisor_signature_path',
         aliasedName,
         true,
         type: DriftSqlType.string,
@@ -7718,8 +7791,10 @@ class $ParentConcernNotesTable extends ParentConcernNotes
     followUpDate,
     additionalNotes,
     staffSignature,
+    staffSignaturePath,
     staffSignatureDate,
     supervisorSignature,
+    supervisorSignaturePath,
     supervisorSignatureDate,
     createdAt,
     updatedAt,
@@ -7906,6 +7981,15 @@ class $ParentConcernNotesTable extends ParentConcernNotes
         ),
       );
     }
+    if (data.containsKey('staff_signature_path')) {
+      context.handle(
+        _staffSignaturePathMeta,
+        staffSignaturePath.isAcceptableOrUnknown(
+          data['staff_signature_path']!,
+          _staffSignaturePathMeta,
+        ),
+      );
+    }
     if (data.containsKey('staff_signature_date')) {
       context.handle(
         _staffSignatureDateMeta,
@@ -7921,6 +8005,15 @@ class $ParentConcernNotesTable extends ParentConcernNotes
         supervisorSignature.isAcceptableOrUnknown(
           data['supervisor_signature']!,
           _supervisorSignatureMeta,
+        ),
+      );
+    }
+    if (data.containsKey('supervisor_signature_path')) {
+      context.handle(
+        _supervisorSignaturePathMeta,
+        supervisorSignaturePath.isAcceptableOrUnknown(
+          data['supervisor_signature_path']!,
+          _supervisorSignaturePathMeta,
         ),
       );
     }
@@ -8034,6 +8127,10 @@ class $ParentConcernNotesTable extends ParentConcernNotes
         DriftSqlType.string,
         data['${effectivePrefix}staff_signature'],
       ),
+      staffSignaturePath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}staff_signature_path'],
+      ),
       staffSignatureDate: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}staff_signature_date'],
@@ -8041,6 +8138,10 @@ class $ParentConcernNotesTable extends ParentConcernNotes
       supervisorSignature: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}supervisor_signature'],
+      ),
+      supervisorSignaturePath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}supervisor_signature_path'],
       ),
       supervisorSignatureDate: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -8085,8 +8186,10 @@ class ParentConcernNote extends DataClass
   final DateTime? followUpDate;
   final String? additionalNotes;
   final String? staffSignature;
+  final String? staffSignaturePath;
   final DateTime? staffSignatureDate;
   final String? supervisorSignature;
+  final String? supervisorSignaturePath;
   final DateTime? supervisorSignatureDate;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -8111,8 +8214,10 @@ class ParentConcernNote extends DataClass
     this.followUpDate,
     this.additionalNotes,
     this.staffSignature,
+    this.staffSignaturePath,
     this.staffSignatureDate,
     this.supervisorSignature,
+    this.supervisorSignaturePath,
     this.supervisorSignatureDate,
     required this.createdAt,
     required this.updatedAt,
@@ -8158,11 +8263,19 @@ class ParentConcernNote extends DataClass
     if (!nullToAbsent || staffSignature != null) {
       map['staff_signature'] = Variable<String>(staffSignature);
     }
+    if (!nullToAbsent || staffSignaturePath != null) {
+      map['staff_signature_path'] = Variable<String>(staffSignaturePath);
+    }
     if (!nullToAbsent || staffSignatureDate != null) {
       map['staff_signature_date'] = Variable<DateTime>(staffSignatureDate);
     }
     if (!nullToAbsent || supervisorSignature != null) {
       map['supervisor_signature'] = Variable<String>(supervisorSignature);
+    }
+    if (!nullToAbsent || supervisorSignaturePath != null) {
+      map['supervisor_signature_path'] = Variable<String>(
+        supervisorSignaturePath,
+      );
     }
     if (!nullToAbsent || supervisorSignatureDate != null) {
       map['supervisor_signature_date'] = Variable<DateTime>(
@@ -8210,12 +8323,18 @@ class ParentConcernNote extends DataClass
       staffSignature: staffSignature == null && nullToAbsent
           ? const Value.absent()
           : Value(staffSignature),
+      staffSignaturePath: staffSignaturePath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(staffSignaturePath),
       staffSignatureDate: staffSignatureDate == null && nullToAbsent
           ? const Value.absent()
           : Value(staffSignatureDate),
       supervisorSignature: supervisorSignature == null && nullToAbsent
           ? const Value.absent()
           : Value(supervisorSignature),
+      supervisorSignaturePath: supervisorSignaturePath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(supervisorSignaturePath),
       supervisorSignatureDate: supervisorSignatureDate == null && nullToAbsent
           ? const Value.absent()
           : Value(supervisorSignatureDate),
@@ -8260,11 +8379,17 @@ class ParentConcernNote extends DataClass
       followUpDate: serializer.fromJson<DateTime?>(json['followUpDate']),
       additionalNotes: serializer.fromJson<String?>(json['additionalNotes']),
       staffSignature: serializer.fromJson<String?>(json['staffSignature']),
+      staffSignaturePath: serializer.fromJson<String?>(
+        json['staffSignaturePath'],
+      ),
       staffSignatureDate: serializer.fromJson<DateTime?>(
         json['staffSignatureDate'],
       ),
       supervisorSignature: serializer.fromJson<String?>(
         json['supervisorSignature'],
+      ),
+      supervisorSignaturePath: serializer.fromJson<String?>(
+        json['supervisorSignaturePath'],
       ),
       supervisorSignatureDate: serializer.fromJson<DateTime?>(
         json['supervisorSignatureDate'],
@@ -8301,8 +8426,12 @@ class ParentConcernNote extends DataClass
       'followUpDate': serializer.toJson<DateTime?>(followUpDate),
       'additionalNotes': serializer.toJson<String?>(additionalNotes),
       'staffSignature': serializer.toJson<String?>(staffSignature),
+      'staffSignaturePath': serializer.toJson<String?>(staffSignaturePath),
       'staffSignatureDate': serializer.toJson<DateTime?>(staffSignatureDate),
       'supervisorSignature': serializer.toJson<String?>(supervisorSignature),
+      'supervisorSignaturePath': serializer.toJson<String?>(
+        supervisorSignaturePath,
+      ),
       'supervisorSignatureDate': serializer.toJson<DateTime?>(
         supervisorSignatureDate,
       ),
@@ -8332,8 +8461,10 @@ class ParentConcernNote extends DataClass
     Value<DateTime?> followUpDate = const Value.absent(),
     Value<String?> additionalNotes = const Value.absent(),
     Value<String?> staffSignature = const Value.absent(),
+    Value<String?> staffSignaturePath = const Value.absent(),
     Value<DateTime?> staffSignatureDate = const Value.absent(),
     Value<String?> supervisorSignature = const Value.absent(),
+    Value<String?> supervisorSignaturePath = const Value.absent(),
     Value<DateTime?> supervisorSignatureDate = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -8368,12 +8499,18 @@ class ParentConcernNote extends DataClass
     staffSignature: staffSignature.present
         ? staffSignature.value
         : this.staffSignature,
+    staffSignaturePath: staffSignaturePath.present
+        ? staffSignaturePath.value
+        : this.staffSignaturePath,
     staffSignatureDate: staffSignatureDate.present
         ? staffSignatureDate.value
         : this.staffSignatureDate,
     supervisorSignature: supervisorSignature.present
         ? supervisorSignature.value
         : this.supervisorSignature,
+    supervisorSignaturePath: supervisorSignaturePath.present
+        ? supervisorSignaturePath.value
+        : this.supervisorSignaturePath,
     supervisorSignatureDate: supervisorSignatureDate.present
         ? supervisorSignatureDate.value
         : this.supervisorSignatureDate,
@@ -8440,12 +8577,18 @@ class ParentConcernNote extends DataClass
       staffSignature: data.staffSignature.present
           ? data.staffSignature.value
           : this.staffSignature,
+      staffSignaturePath: data.staffSignaturePath.present
+          ? data.staffSignaturePath.value
+          : this.staffSignaturePath,
       staffSignatureDate: data.staffSignatureDate.present
           ? data.staffSignatureDate.value
           : this.staffSignatureDate,
       supervisorSignature: data.supervisorSignature.present
           ? data.supervisorSignature.value
           : this.supervisorSignature,
+      supervisorSignaturePath: data.supervisorSignaturePath.present
+          ? data.supervisorSignaturePath.value
+          : this.supervisorSignaturePath,
       supervisorSignatureDate: data.supervisorSignatureDate.present
           ? data.supervisorSignatureDate.value
           : this.supervisorSignatureDate,
@@ -8477,8 +8620,10 @@ class ParentConcernNote extends DataClass
           ..write('followUpDate: $followUpDate, ')
           ..write('additionalNotes: $additionalNotes, ')
           ..write('staffSignature: $staffSignature, ')
+          ..write('staffSignaturePath: $staffSignaturePath, ')
           ..write('staffSignatureDate: $staffSignatureDate, ')
           ..write('supervisorSignature: $supervisorSignature, ')
+          ..write('supervisorSignaturePath: $supervisorSignaturePath, ')
           ..write('supervisorSignatureDate: $supervisorSignatureDate, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -8508,8 +8653,10 @@ class ParentConcernNote extends DataClass
     followUpDate,
     additionalNotes,
     staffSignature,
+    staffSignaturePath,
     staffSignatureDate,
     supervisorSignature,
+    supervisorSignaturePath,
     supervisorSignatureDate,
     createdAt,
     updatedAt,
@@ -8538,8 +8685,10 @@ class ParentConcernNote extends DataClass
           other.followUpDate == this.followUpDate &&
           other.additionalNotes == this.additionalNotes &&
           other.staffSignature == this.staffSignature &&
+          other.staffSignaturePath == this.staffSignaturePath &&
           other.staffSignatureDate == this.staffSignatureDate &&
           other.supervisorSignature == this.supervisorSignature &&
+          other.supervisorSignaturePath == this.supervisorSignaturePath &&
           other.supervisorSignatureDate == this.supervisorSignatureDate &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -8566,8 +8715,10 @@ class ParentConcernNotesCompanion extends UpdateCompanion<ParentConcernNote> {
   final Value<DateTime?> followUpDate;
   final Value<String?> additionalNotes;
   final Value<String?> staffSignature;
+  final Value<String?> staffSignaturePath;
   final Value<DateTime?> staffSignatureDate;
   final Value<String?> supervisorSignature;
+  final Value<String?> supervisorSignaturePath;
   final Value<DateTime?> supervisorSignatureDate;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -8593,8 +8744,10 @@ class ParentConcernNotesCompanion extends UpdateCompanion<ParentConcernNote> {
     this.followUpDate = const Value.absent(),
     this.additionalNotes = const Value.absent(),
     this.staffSignature = const Value.absent(),
+    this.staffSignaturePath = const Value.absent(),
     this.staffSignatureDate = const Value.absent(),
     this.supervisorSignature = const Value.absent(),
+    this.supervisorSignaturePath = const Value.absent(),
     this.supervisorSignatureDate = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -8621,8 +8774,10 @@ class ParentConcernNotesCompanion extends UpdateCompanion<ParentConcernNote> {
     this.followUpDate = const Value.absent(),
     this.additionalNotes = const Value.absent(),
     this.staffSignature = const Value.absent(),
+    this.staffSignaturePath = const Value.absent(),
     this.staffSignatureDate = const Value.absent(),
     this.supervisorSignature = const Value.absent(),
+    this.supervisorSignaturePath = const Value.absent(),
     this.supervisorSignatureDate = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -8649,8 +8804,10 @@ class ParentConcernNotesCompanion extends UpdateCompanion<ParentConcernNote> {
     Expression<DateTime>? followUpDate,
     Expression<String>? additionalNotes,
     Expression<String>? staffSignature,
+    Expression<String>? staffSignaturePath,
     Expression<DateTime>? staffSignatureDate,
     Expression<String>? supervisorSignature,
+    Expression<String>? supervisorSignaturePath,
     Expression<DateTime>? supervisorSignatureDate,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -8680,10 +8837,14 @@ class ParentConcernNotesCompanion extends UpdateCompanion<ParentConcernNote> {
       if (followUpDate != null) 'follow_up_date': followUpDate,
       if (additionalNotes != null) 'additional_notes': additionalNotes,
       if (staffSignature != null) 'staff_signature': staffSignature,
+      if (staffSignaturePath != null)
+        'staff_signature_path': staffSignaturePath,
       if (staffSignatureDate != null)
         'staff_signature_date': staffSignatureDate,
       if (supervisorSignature != null)
         'supervisor_signature': supervisorSignature,
+      if (supervisorSignaturePath != null)
+        'supervisor_signature_path': supervisorSignaturePath,
       if (supervisorSignatureDate != null)
         'supervisor_signature_date': supervisorSignatureDate,
       if (createdAt != null) 'created_at': createdAt,
@@ -8713,8 +8874,10 @@ class ParentConcernNotesCompanion extends UpdateCompanion<ParentConcernNote> {
     Value<DateTime?>? followUpDate,
     Value<String?>? additionalNotes,
     Value<String?>? staffSignature,
+    Value<String?>? staffSignaturePath,
     Value<DateTime?>? staffSignatureDate,
     Value<String?>? supervisorSignature,
+    Value<String?>? supervisorSignaturePath,
     Value<DateTime?>? supervisorSignatureDate,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -8744,8 +8907,11 @@ class ParentConcernNotesCompanion extends UpdateCompanion<ParentConcernNote> {
       followUpDate: followUpDate ?? this.followUpDate,
       additionalNotes: additionalNotes ?? this.additionalNotes,
       staffSignature: staffSignature ?? this.staffSignature,
+      staffSignaturePath: staffSignaturePath ?? this.staffSignaturePath,
       staffSignatureDate: staffSignatureDate ?? this.staffSignatureDate,
       supervisorSignature: supervisorSignature ?? this.supervisorSignature,
+      supervisorSignaturePath:
+          supervisorSignaturePath ?? this.supervisorSignaturePath,
       supervisorSignatureDate:
           supervisorSignatureDate ?? this.supervisorSignatureDate,
       createdAt: createdAt ?? this.createdAt,
@@ -8823,6 +8989,9 @@ class ParentConcernNotesCompanion extends UpdateCompanion<ParentConcernNote> {
     if (staffSignature.present) {
       map['staff_signature'] = Variable<String>(staffSignature.value);
     }
+    if (staffSignaturePath.present) {
+      map['staff_signature_path'] = Variable<String>(staffSignaturePath.value);
+    }
     if (staffSignatureDate.present) {
       map['staff_signature_date'] = Variable<DateTime>(
         staffSignatureDate.value,
@@ -8830,6 +8999,11 @@ class ParentConcernNotesCompanion extends UpdateCompanion<ParentConcernNote> {
     }
     if (supervisorSignature.present) {
       map['supervisor_signature'] = Variable<String>(supervisorSignature.value);
+    }
+    if (supervisorSignaturePath.present) {
+      map['supervisor_signature_path'] = Variable<String>(
+        supervisorSignaturePath.value,
+      );
     }
     if (supervisorSignatureDate.present) {
       map['supervisor_signature_date'] = Variable<DateTime>(
@@ -8871,8 +9045,10 @@ class ParentConcernNotesCompanion extends UpdateCompanion<ParentConcernNote> {
           ..write('followUpDate: $followUpDate, ')
           ..write('additionalNotes: $additionalNotes, ')
           ..write('staffSignature: $staffSignature, ')
+          ..write('staffSignaturePath: $staffSignaturePath, ')
           ..write('staffSignatureDate: $staffSignatureDate, ')
           ..write('supervisorSignature: $supervisorSignature, ')
+          ..write('supervisorSignaturePath: $supervisorSignaturePath, ')
           ..write('supervisorSignatureDate: $supervisorSignatureDate, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -9959,6 +10135,7 @@ typedef $$KidsTableCreateCompanionBuilder =
       Value<DateTime?> birthDate,
       Value<String?> pin,
       Value<String?> notes,
+      Value<String?> parentName,
       Value<String?> avatarPath,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -9973,6 +10150,7 @@ typedef $$KidsTableUpdateCompanionBuilder =
       Value<DateTime?> birthDate,
       Value<String?> pin,
       Value<String?> notes,
+      Value<String?> parentName,
       Value<String?> avatarPath,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -10092,6 +10270,11 @@ class $$KidsTableFilterComposer extends Composer<_$AppDatabase, $KidsTable> {
 
   ColumnFilters<String> get notes => $composableBuilder(
     column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get parentName => $composableBuilder(
+    column: $table.parentName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -10247,6 +10430,11 @@ class $$KidsTableOrderingComposer extends Composer<_$AppDatabase, $KidsTable> {
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get parentName => $composableBuilder(
+    column: $table.parentName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get avatarPath => $composableBuilder(
     column: $table.avatarPath,
     builder: (column) => ColumnOrderings(column),
@@ -10312,6 +10500,11 @@ class $$KidsTableAnnotationComposer
 
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<String> get parentName => $composableBuilder(
+    column: $table.parentName,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get avatarPath => $composableBuilder(
     column: $table.avatarPath,
@@ -10463,6 +10656,7 @@ class $$KidsTableTableManager
                 Value<DateTime?> birthDate = const Value.absent(),
                 Value<String?> pin = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<String?> parentName = const Value.absent(),
                 Value<String?> avatarPath = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -10475,6 +10669,7 @@ class $$KidsTableTableManager
                 birthDate: birthDate,
                 pin: pin,
                 notes: notes,
+                parentName: parentName,
                 avatarPath: avatarPath,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -10489,6 +10684,7 @@ class $$KidsTableTableManager
                 Value<DateTime?> birthDate = const Value.absent(),
                 Value<String?> pin = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<String?> parentName = const Value.absent(),
                 Value<String?> avatarPath = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -10501,6 +10697,7 @@ class $$KidsTableTableManager
                 birthDate: birthDate,
                 pin: pin,
                 notes: notes,
+                parentName: parentName,
                 avatarPath: avatarPath,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -17903,8 +18100,10 @@ typedef $$ParentConcernNotesTableCreateCompanionBuilder =
       Value<DateTime?> followUpDate,
       Value<String?> additionalNotes,
       Value<String?> staffSignature,
+      Value<String?> staffSignaturePath,
       Value<DateTime?> staffSignatureDate,
       Value<String?> supervisorSignature,
+      Value<String?> supervisorSignaturePath,
       Value<DateTime?> supervisorSignatureDate,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -17932,8 +18131,10 @@ typedef $$ParentConcernNotesTableUpdateCompanionBuilder =
       Value<DateTime?> followUpDate,
       Value<String?> additionalNotes,
       Value<String?> staffSignature,
+      Value<String?> staffSignaturePath,
       Value<DateTime?> staffSignatureDate,
       Value<String?> supervisorSignature,
+      Value<String?> supervisorSignaturePath,
       Value<DateTime?> supervisorSignatureDate,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -18049,6 +18250,11 @@ class $$ParentConcernNotesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get staffSignaturePath => $composableBuilder(
+    column: $table.staffSignaturePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<DateTime> get staffSignatureDate => $composableBuilder(
     column: $table.staffSignatureDate,
     builder: (column) => ColumnFilters(column),
@@ -18056,6 +18262,11 @@ class $$ParentConcernNotesTableFilterComposer
 
   ColumnFilters<String> get supervisorSignature => $composableBuilder(
     column: $table.supervisorSignature,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get supervisorSignaturePath => $composableBuilder(
+    column: $table.supervisorSignaturePath,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -18184,6 +18395,11 @@ class $$ParentConcernNotesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get staffSignaturePath => $composableBuilder(
+    column: $table.staffSignaturePath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get staffSignatureDate => $composableBuilder(
     column: $table.staffSignatureDate,
     builder: (column) => ColumnOrderings(column),
@@ -18191,6 +18407,11 @@ class $$ParentConcernNotesTableOrderingComposer
 
   ColumnOrderings<String> get supervisorSignature => $composableBuilder(
     column: $table.supervisorSignature,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get supervisorSignaturePath => $composableBuilder(
+    column: $table.supervisorSignaturePath,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -18317,6 +18538,11 @@ class $$ParentConcernNotesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get staffSignaturePath => $composableBuilder(
+    column: $table.staffSignaturePath,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get staffSignatureDate => $composableBuilder(
     column: $table.staffSignatureDate,
     builder: (column) => column,
@@ -18324,6 +18550,11 @@ class $$ParentConcernNotesTableAnnotationComposer
 
   GeneratedColumn<String> get supervisorSignature => $composableBuilder(
     column: $table.supervisorSignature,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get supervisorSignaturePath => $composableBuilder(
+    column: $table.supervisorSignaturePath,
     builder: (column) => column,
   );
 
@@ -18399,8 +18630,10 @@ class $$ParentConcernNotesTableTableManager
                 Value<DateTime?> followUpDate = const Value.absent(),
                 Value<String?> additionalNotes = const Value.absent(),
                 Value<String?> staffSignature = const Value.absent(),
+                Value<String?> staffSignaturePath = const Value.absent(),
                 Value<DateTime?> staffSignatureDate = const Value.absent(),
                 Value<String?> supervisorSignature = const Value.absent(),
+                Value<String?> supervisorSignaturePath = const Value.absent(),
                 Value<DateTime?> supervisorSignatureDate = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -18426,8 +18659,10 @@ class $$ParentConcernNotesTableTableManager
                 followUpDate: followUpDate,
                 additionalNotes: additionalNotes,
                 staffSignature: staffSignature,
+                staffSignaturePath: staffSignaturePath,
                 staffSignatureDate: staffSignatureDate,
                 supervisorSignature: supervisorSignature,
+                supervisorSignaturePath: supervisorSignaturePath,
                 supervisorSignatureDate: supervisorSignatureDate,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -18455,8 +18690,10 @@ class $$ParentConcernNotesTableTableManager
                 Value<DateTime?> followUpDate = const Value.absent(),
                 Value<String?> additionalNotes = const Value.absent(),
                 Value<String?> staffSignature = const Value.absent(),
+                Value<String?> staffSignaturePath = const Value.absent(),
                 Value<DateTime?> staffSignatureDate = const Value.absent(),
                 Value<String?> supervisorSignature = const Value.absent(),
+                Value<String?> supervisorSignaturePath = const Value.absent(),
                 Value<DateTime?> supervisorSignatureDate = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -18482,8 +18719,10 @@ class $$ParentConcernNotesTableTableManager
                 followUpDate: followUpDate,
                 additionalNotes: additionalNotes,
                 staffSignature: staffSignature,
+                staffSignaturePath: staffSignaturePath,
                 staffSignatureDate: staffSignatureDate,
                 supervisorSignature: supervisorSignature,
+                supervisorSignaturePath: supervisorSignaturePath,
                 supervisorSignatureDate: supervisorSignatureDate,
                 createdAt: createdAt,
                 updatedAt: updatedAt,

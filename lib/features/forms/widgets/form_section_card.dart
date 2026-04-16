@@ -76,9 +76,9 @@ class FormSectionCard extends StatelessWidget {
   }
 }
 
-/// A small tappable row that opens a date picker. Formats the current
-/// date or shows a hint when no date is set. Use inside [FormSectionCard]
-/// with a Field label above it.
+/// A tappable row that opens a date picker (and, with [includeTime],
+/// also a time picker right after). Shows the chosen value or a hint,
+/// with an X-to-clear on the right when populated.
 class FormDateField extends StatelessWidget {
   const FormDateField({
     required this.value,
@@ -86,6 +86,7 @@ class FormDateField extends StatelessWidget {
     this.hint = 'Pick a date',
     this.firstDate,
     this.lastDate,
+    this.includeTime = false,
     super.key,
   });
 
@@ -95,15 +96,39 @@ class FormDateField extends StatelessWidget {
   final DateTime? firstDate;
   final DateTime? lastDate;
 
+  /// When true, the widget chains a time picker after the date picker
+  /// so a single tap gets you both.
+  final bool includeTime;
+
   Future<void> _pick(BuildContext context) async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
+    final pickedDate = await showDatePicker(
       context: context,
       initialDate: value ?? now,
       firstDate: firstDate ?? DateTime(now.year - 5),
       lastDate: lastDate ?? DateTime(now.year + 5),
     );
-    if (picked != null) onChanged(picked);
+    if (pickedDate == null) return;
+
+    if (!includeTime) {
+      onChanged(pickedDate);
+      return;
+    }
+
+    if (!context.mounted) return;
+    final initialTime = TimeOfDay.fromDateTime(value ?? pickedDate);
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+    );
+    final time = pickedTime ?? initialTime;
+    onChanged(DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      time.hour,
+      time.minute,
+    ));
   }
 
   @override
@@ -111,7 +136,7 @@ class FormDateField extends StatelessWidget {
     final theme = Theme.of(context);
     final hasValue = value != null;
     final label = hasValue
-        ? _formatDate(value!)
+        ? (includeTime ? _formatDateTime(value!) : _formatDate(value!))
         : hint;
 
     return InkWell(
@@ -129,7 +154,9 @@ class FormDateField extends StatelessWidget {
         child: Row(
           children: [
             Icon(
-              Icons.event_outlined,
+              includeTime
+                  ? Icons.schedule_outlined
+                  : Icons.event_outlined,
               size: 18,
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -179,4 +206,11 @@ String _formatDate(DateTime d) {
     'Dec',
   ];
   return '${months[d.month - 1]} ${d.day}, ${d.year}';
+}
+
+String _formatDateTime(DateTime d) {
+  final hour12 = d.hour == 0 ? 12 : (d.hour > 12 ? d.hour - 12 : d.hour);
+  final period = d.hour < 12 ? 'a' : 'p';
+  final minutes = d.minute.toString().padLeft(2, '0');
+  return '${_formatDate(d)} · $hour12:$minutes$period';
 }

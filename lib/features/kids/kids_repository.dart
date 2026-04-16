@@ -62,6 +62,7 @@ class KidsRepository {
     String? podId,
     String? notes,
     String? avatarPath,
+    String? parentName,
   }) async {
     final id = newId();
     await _db.into(_db.kids).insert(
@@ -72,6 +73,7 @@ class KidsRepository {
             podId: Value(podId),
             notes: Value(notes),
             avatarPath: Value(avatarPath),
+            parentName: Value(parentName),
           ),
         );
     return id;
@@ -104,6 +106,8 @@ class KidsRepository {
     bool clearNotes = false,
     String? avatarPath,
     bool clearAvatarPath = false,
+    String? parentName,
+    bool clearParentName = false,
   }) async {
     final companion = KidsCompanion(
       firstName:
@@ -122,6 +126,11 @@ class KidsRepository {
           : (avatarPath == null
               ? const Value.absent()
               : Value(avatarPath)),
+      parentName: clearParentName
+          ? const Value<String?>(null)
+          : (parentName == null
+              ? const Value.absent()
+              : Value(parentName)),
       updatedAt: Value(DateTime.now()),
     );
     await (_db.update(_db.kids)..where((k) => k.id.equals(id))).write(companion);

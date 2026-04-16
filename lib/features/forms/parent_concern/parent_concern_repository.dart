@@ -27,8 +27,10 @@ class ParentConcernInput {
     this.followUpDate,
     this.additionalNotes,
     this.staffSignature,
+    this.staffSignaturePath,
     this.staffSignatureDate,
     this.supervisorSignature,
+    this.supervisorSignaturePath,
     this.supervisorSignatureDate,
   });
 
@@ -55,8 +57,10 @@ class ParentConcernInput {
       followUpDate: row.followUpDate,
       additionalNotes: row.additionalNotes,
       staffSignature: row.staffSignature,
+      staffSignaturePath: row.staffSignaturePath,
       staffSignatureDate: row.staffSignatureDate,
       supervisorSignature: row.supervisorSignature,
+      supervisorSignaturePath: row.supervisorSignaturePath,
       supervisorSignatureDate: row.supervisorSignatureDate,
     );
   }
@@ -85,8 +89,10 @@ class ParentConcernInput {
   String? additionalNotes;
 
   String? staffSignature;
+  String? staffSignaturePath;
   DateTime? staffSignatureDate;
   String? supervisorSignature;
+  String? supervisorSignaturePath;
   DateTime? supervisorSignatureDate;
 }
 
@@ -162,8 +168,10 @@ class ParentConcernRepository {
       followUpDate: Value(input.followUpDate),
       additionalNotes: Value(input.additionalNotes),
       staffSignature: Value(input.staffSignature),
+      staffSignaturePath: Value(input.staffSignaturePath),
       staffSignatureDate: Value(input.staffSignatureDate),
       supervisorSignature: Value(input.supervisorSignature),
+      supervisorSignaturePath: Value(input.supervisorSignaturePath),
       supervisorSignatureDate: Value(input.supervisorSignatureDate),
       // Insert path writes createdAt via the table default; update path
       // must refresh updatedAt only.

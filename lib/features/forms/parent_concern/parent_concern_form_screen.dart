@@ -1,17 +1,25 @@
+import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_repository.dart';
 import 'package:basecamp/features/forms/widgets/form_section_card.dart';
+import 'package:basecamp/features/forms/widgets/inline_signature_pad.dart';
+import 'package:basecamp/features/forms/widgets/kid_chip_picker.dart';
+import 'package:basecamp/features/forms/widgets/specialist_chip_picker.dart';
+import 'package:basecamp/features/forms/widgets/voice_dictation_field.dart';
+import 'package:basecamp/features/kids/kids_repository.dart';
+import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Full-screen editor for a Parent Concern Note. The form is broken
-/// into seven cards so each section looks and feels self-contained —
-/// staff can fill them in whatever order makes sense while the
-/// conversation is fresh, save once, and come back to finish later.
+/// Full-screen editor for a Parent Concern Note. Broken into seven
+/// self-contained cards so staff can fill them in any order, save,
+/// and come back to finish later. Each card mirrors a paper-form
+/// section; fields that take narrative text expose a mic button for
+/// Deepgram dictation, and the signatures card expands an inline
+/// signature pad when the teacher taps "Sign now".
 ///
-/// Pass [noteId] to edit an existing row; leave null for a brand-new
-/// note. Saving pops back to the list.
+/// Pass [noteId] to edit an existing row; leave null to start fresh.
 class ParentConcernFormScreen extends ConsumerStatefulWidget {
   const ParentConcernFormScreen({this.noteId, super.key});
 
@@ -24,11 +32,12 @@ class ParentConcernFormScreen extends ConsumerStatefulWidget {
 
 class _ParentConcernFormScreenState
     extends ConsumerState<ParentConcernFormScreen> {
-  // Controllers for every text input. Booleans and dates live on [_input].
-  final _childNames = TextEditingController();
+  // Controllers for every text input. Booleans, dates, selected ids,
+  // and signature paths live on [_input].
+  final _childNamesExtra = TextEditingController();
   final _parentName = TextEditingController();
-  final _staffReceiving = TextEditingController();
-  final _supervisorNotified = TextEditingController();
+  final _staffReceivingExtra = TextEditingController();
+  final _supervisorNotifiedExtra = TextEditingController();
   final _methodOther = TextEditingController();
   final _concernDescription = TextEditingController();
   final _immediateResponse = TextEditingController();
@@ -38,8 +47,27 @@ class _ParentConcernFormScreenState
   final _supervisorSignature = TextEditingController();
 
   final _input = ParentConcernInput();
+
+  /// Kids selected via the avatar picker. Combined with
+  /// [_childNamesExtra] on save — picker names come first, extras are
+  /// appended comma-separated.
+  final List<String> _selectedKidIds = [];
+
+  /// Specialist picker values — null when staff typed a name by hand
+  /// instead of picking from the list.
+  String? _selectedStaffId;
+  String? _selectedSupervisorId;
+
+  /// Last auto-filled value for the parent field. Tracked so we only
+  /// overwrite the parent name when the teacher hasn't hand-edited it
+  /// since our last write.
+  String _lastAutoParentText = '';
+
   bool _loaded = false;
   bool _submitting = false;
+
+  bool _showStaffSigPad = false;
+  bool _showSupervisorSigPad = false;
 
   bool get _isEdit => widget.noteId != null;
 
@@ -50,8 +78,6 @@ class _ParentConcernFormScreenState
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadExisting());
     } else {
       _loaded = true;
-      // Seed the "concern date" with today so the common case is one
-      // tap fewer.
       _input.concernDate = DateTime.now();
     }
   }
@@ -63,10 +89,10 @@ class _ParentConcernFormScreenState
     if (!mounted || note == null) return;
     final fromRow = ParentConcernInput.fromRow(note);
     setState(() {
-      _childNames.text = fromRow.childNames;
+      _childNamesExtra.text = fromRow.childNames;
       _parentName.text = fromRow.parentName;
-      _staffReceiving.text = fromRow.staffReceiving;
-      _supervisorNotified.text = fromRow.supervisorNotified ?? '';
+      _staffReceivingExtra.text = fromRow.staffReceiving;
+      _supervisorNotifiedExtra.text = fromRow.supervisorNotified ?? '';
       _methodOther.text = fromRow.methodOther ?? '';
       _concernDescription.text = fromRow.concernDescription;
       _immediateResponse.text = fromRow.immediateResponse;
@@ -85,7 +111,9 @@ class _ParentConcernFormScreenState
         ..followUpSupervisorReview = fromRow.followUpSupervisorReview
         ..followUpParentConversation = fromRow.followUpParentConversation
         ..followUpDate = fromRow.followUpDate
+        ..staffSignaturePath = fromRow.staffSignaturePath
         ..staffSignatureDate = fromRow.staffSignatureDate
+        ..supervisorSignaturePath = fromRow.supervisorSignaturePath
         ..supervisorSignatureDate = fromRow.supervisorSignatureDate;
       _loaded = true;
     });
@@ -93,10 +121,10 @@ class _ParentConcernFormScreenState
 
   @override
   void dispose() {
-    _childNames.dispose();
+    _childNamesExtra.dispose();
     _parentName.dispose();
-    _staffReceiving.dispose();
-    _supervisorNotified.dispose();
+    _staffReceivingExtra.dispose();
+    _supervisorNotifiedExtra.dispose();
     _methodOther.dispose();
     _concernDescription.dispose();
     _immediateResponse.dispose();
@@ -107,12 +135,93 @@ class _ParentConcernFormScreenState
     super.dispose();
   }
 
+  // ---- kid / parent sync ----
+
+  /// Combine selected kid names (in picker order) with anything the
+  /// teacher typed into the extras field, for the serialized column.
+  String _composeChildNames() {
+    final kidsState = ref.read(kidsProvider).asData?.value ?? const <Kid>[];
+    final selectedNames = <String>[
+      for (final id in _selectedKidIds)
+        if (kidsState.any((k) => k.id == id))
+          _nameOf(kidsState.firstWhere((k) => k.id == id))
+        else
+          '',
+    ];
+    final extras = _childNamesExtra.text.trim();
+    final parts = [
+      ...selectedNames.where((n) => n.isNotEmpty),
+      if (extras.isNotEmpty) extras,
+    ];
+    return parts.join(', ');
+  }
+
+  String _composeStaff() {
+    final specialists =
+        ref.read(specialistsProvider).asData?.value ?? const [];
+    final picked = _selectedStaffId == null
+        ? null
+        : specialists
+            .where((s) => s.id == _selectedStaffId)
+            .map((s) => s.name)
+            .firstOrNull;
+    final extra = _staffReceivingExtra.text.trim();
+    if (picked != null && extra.isNotEmpty) return '$picked · $extra';
+    return picked ?? extra;
+  }
+
+  String? _composeSupervisor() {
+    final specialists =
+        ref.read(specialistsProvider).asData?.value ?? const [];
+    final picked = _selectedSupervisorId == null
+        ? null
+        : specialists
+            .where((s) => s.id == _selectedSupervisorId)
+            .map((s) => s.name)
+            .firstOrNull;
+    final extra = _supervisorNotifiedExtra.text.trim();
+    if (picked != null && extra.isNotEmpty) return '$picked · $extra';
+    final out = picked ?? extra;
+    return out.isEmpty ? null : out;
+  }
+
+  String _nameOf(Kid kid) {
+    final last = kid.lastName;
+    if (last == null || last.isEmpty) return kid.firstName;
+    return '${kid.firstName} ${last[0]}.';
+  }
+
+  /// Pulls every selected kid's parent_name, dedupes, joins. If the
+  /// teacher hasn't hand-edited the parent field (its current text
+  /// matches what we last wrote), we overwrite; otherwise we leave
+  /// their edit alone.
+  void _autoFillParent(List<String> selectedIds) {
+    final kidsState = ref.read(kidsProvider).asData?.value ?? const <Kid>[];
+    final parents = <String>{};
+    for (final id in selectedIds) {
+      final kid = kidsState.where((k) => k.id == id).firstOrNull;
+      final pn = kid?.parentName?.trim();
+      if (pn != null && pn.isNotEmpty) parents.add(pn);
+    }
+    final next = parents.join(', ');
+    final current = _parentName.text.trim();
+    final manuallyEdited = current.isNotEmpty &&
+        current != _lastAutoParentText;
+
+    if (!manuallyEdited) {
+      _parentName.text = next;
+      _lastAutoParentText = next;
+    }
+  }
+
+  // ---- save / delete ----
+
   void _syncControllersToInput() {
     _input
-      ..childNames = _childNames.text.trim()
+      ..childNames = _composeChildNames()
       ..parentName = _parentName.text.trim()
-      ..staffReceiving = _staffReceiving.text.trim()
-      ..supervisorNotified = _nullIfEmpty(_supervisorNotified.text)
+      ..staffReceiving = _composeStaff()
+      ..supervisorNotified = _composeSupervisor()
       ..methodOther = _nullIfEmpty(_methodOther.text)
       ..concernDescription = _concernDescription.text.trim()
       ..immediateResponse = _immediateResponse.text.trim()
@@ -177,18 +286,6 @@ class _ParentConcernFormScreenState
     Navigator.of(context).pop();
   }
 
-  /// Stamp in the current moment for a signature date. Keeps signing
-  /// quick — teacher types their name, taps "Sign now", done.
-  void _signNow({required bool staff}) {
-    setState(() {
-      if (staff) {
-        _input.staffSignatureDate = DateTime.now();
-      } else {
-        _input.supervisorSignatureDate = DateTime.now();
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -248,9 +345,10 @@ class _ParentConcernFormScreenState
     );
   }
 
-  // -------- cards --------
+  // ---- cards ----
 
   Widget _buildAboutCard() {
+    final theme = Theme.of(context);
     return FormSectionCard(
       icon: Icons.info_outline,
       title: 'About this concern',
@@ -258,33 +356,68 @@ class _ParentConcernFormScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Text('Child / children', style: theme.textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.sm),
+          KidChipPicker(
+            selectedIds: _selectedKidIds,
+            onChanged: (ids) {
+              setState(() {
+                _selectedKidIds
+                  ..clear()
+                  ..addAll(ids);
+              });
+              _autoFillParent(ids);
+            },
+          ),
+          const SizedBox(height: AppSpacing.sm),
           AppTextField(
-            controller: _childNames,
-            label: 'Child / children',
-            hint: 'One or more kids involved',
+            controller: _childNamesExtra,
+            hint: 'Add other names (comma-separated)',
           ),
           const SizedBox(height: AppSpacing.lg),
           AppTextField(
             controller: _parentName,
             label: 'Parent or guardian',
+            hint: _selectedKidIds.isEmpty
+                ? 'Their name'
+                : 'Auto-filled from kid record — edit if needed',
           ),
           const SizedBox(height: AppSpacing.lg),
-          Text('Date of concern',
-              style: Theme.of(context).textTheme.titleSmall),
+          Text('Date of concern', style: theme.textTheme.titleSmall),
           const SizedBox(height: AppSpacing.sm),
           FormDateField(
             value: _input.concernDate,
             onChanged: (d) => setState(() => _input.concernDate = d),
           ),
           const SizedBox(height: AppSpacing.lg),
+          Text(
+            'Staff receiving the concern',
+            style: theme.textTheme.titleSmall,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          SpecialistChipPicker(
+            selectedId: _selectedStaffId,
+            onChanged: (id) => setState(() => _selectedStaffId = id),
+          ),
+          const SizedBox(height: AppSpacing.sm),
           AppTextField(
-            controller: _staffReceiving,
-            label: 'Staff receiving the concern',
+            controller: _staffReceivingExtra,
+            hint: 'Or type another name',
           ),
           const SizedBox(height: AppSpacing.lg),
+          Text(
+            'Supervisor notified',
+            style: theme.textTheme.titleSmall,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          SpecialistChipPicker(
+            selectedId: _selectedSupervisorId,
+            onChanged: (id) => setState(() => _selectedSupervisorId = id),
+          ),
+          const SizedBox(height: AppSpacing.sm),
           AppTextField(
-            controller: _supervisorNotified,
-            label: 'Supervisor notified (optional)',
+            controller: _supervisorNotifiedExtra,
+            hint: 'Or type another name (optional)',
           ),
         ],
       ),
@@ -340,10 +473,9 @@ class _ParentConcernFormScreenState
       icon: Icons.flag_outlined,
       title: 'Concern reported',
       subtitle: "Brief description in the parent or guardian's words",
-      child: AppTextField(
+      child: VoiceDictationField(
         controller: _concernDescription,
         hint: 'Briefly describe the concern shared…',
-        maxLines: 6,
       ),
     );
   }
@@ -353,10 +485,9 @@ class _ParentConcernFormScreenState
       icon: Icons.reply_outlined,
       title: 'Immediate response / actions taken',
       subtitle: 'What you communicated and did at the time',
-      child: AppTextField(
+      child: VoiceDictationField(
         controller: _immediateResponse,
         hint: 'How it was handled in the moment…',
-        maxLines: 6,
       ),
     );
   }
@@ -406,12 +537,13 @@ class _ParentConcernFormScreenState
           ),
           const SizedBox(height: AppSpacing.lg),
           Text(
-            'Follow-up date (optional)',
+            'Follow-up date & time (optional)',
             style: Theme.of(context).textTheme.titleSmall,
           ),
           const SizedBox(height: AppSpacing.sm),
           FormDateField(
             value: _input.followUpDate,
+            includeTime: true,
             onChanged: (d) => setState(() => _input.followUpDate = d),
           ),
         ],
@@ -424,10 +556,9 @@ class _ParentConcernFormScreenState
       icon: Icons.note_outlined,
       title: 'Additional notes',
       subtitle: 'Anything else worth logging',
-      child: AppTextField(
+      child: VoiceDictationField(
         controller: _additionalNotes,
         hint: 'Context, background, related observations…',
-        maxLines: 4,
       ),
     );
   }
@@ -437,78 +568,129 @@ class _ParentConcernFormScreenState
     return FormSectionCard(
       icon: Icons.draw_outlined,
       title: 'Signatures',
-      subtitle: "Type the signer's name, then tap Sign now",
+      subtitle: 'Type the signer\u2019s name, then draw your signature',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Staff
           AppTextField(
             controller: _staffSignature,
             label: 'Staff signature',
             hint: 'Printed name',
           ),
           const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  _input.staffSignatureDate == null
-                      ? 'Not signed yet'
-                      : 'Signed ${_formatDateTime(_input.staffSignatureDate!)}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-              TextButton.icon(
-                onPressed: () => _signNow(staff: true),
-                icon: const Icon(Icons.edit_calendar_outlined, size: 18),
-                label: const Text('Sign now'),
-              ),
-              if (_input.staffSignatureDate != null)
-                IconButton(
-                  tooltip: 'Clear signature date',
-                  icon: const Icon(Icons.close, size: 18),
-                  onPressed: () =>
-                      setState(() => _input.staffSignatureDate = null),
-                ),
-            ],
+          _signatureRow(
+            theme: theme,
+            signedAt: _input.staffSignatureDate,
+            signaturePath: _input.staffSignaturePath,
+            expanded: _showStaffSigPad,
+            onToggle: () => setState(
+              () => _showStaffSigPad = !_showStaffSigPad,
+            ),
+            onClear: () => setState(() {
+              _input.staffSignaturePath = null;
+              _input.staffSignatureDate = null;
+            }),
           ),
+          if (_showStaffSigPad)
+            InlineSignaturePad(
+              onSigned: (path, at) {
+                setState(() {
+                  _input.staffSignaturePath = path;
+                  _input.staffSignatureDate = at;
+                  _showStaffSigPad = false;
+                });
+              },
+              onCancel: () => setState(() => _showStaffSigPad = false),
+            ),
+
           const Divider(height: AppSpacing.xxl),
+
+          // Supervisor
           AppTextField(
             controller: _supervisorSignature,
             label: 'Supervisor signature',
             hint: 'Printed name',
           ),
           const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  _input.supervisorSignatureDate == null
-                      ? 'Not signed yet'
-                      : 'Signed ${_formatDateTime(_input.supervisorSignatureDate!)}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-              TextButton.icon(
-                onPressed: () => _signNow(staff: false),
-                icon: const Icon(Icons.edit_calendar_outlined, size: 18),
-                label: const Text('Sign now'),
-              ),
-              if (_input.supervisorSignatureDate != null)
-                IconButton(
-                  tooltip: 'Clear signature date',
-                  icon: const Icon(Icons.close, size: 18),
-                  onPressed: () => setState(
-                    () => _input.supervisorSignatureDate = null,
-                  ),
-                ),
-            ],
+          _signatureRow(
+            theme: theme,
+            signedAt: _input.supervisorSignatureDate,
+            signaturePath: _input.supervisorSignaturePath,
+            expanded: _showSupervisorSigPad,
+            onToggle: () => setState(
+              () => _showSupervisorSigPad = !_showSupervisorSigPad,
+            ),
+            onClear: () => setState(() {
+              _input.supervisorSignaturePath = null;
+              _input.supervisorSignatureDate = null;
+            }),
           ),
+          if (_showSupervisorSigPad)
+            InlineSignaturePad(
+              onSigned: (path, at) {
+                setState(() {
+                  _input.supervisorSignaturePath = path;
+                  _input.supervisorSignatureDate = at;
+                  _showSupervisorSigPad = false;
+                });
+              },
+              onCancel: () =>
+                  setState(() => _showSupervisorSigPad = false),
+            ),
         ],
       ),
+    );
+  }
+
+  Widget _signatureRow({
+    required ThemeData theme,
+    required DateTime? signedAt,
+    required String? signaturePath,
+    required bool expanded,
+    required VoidCallback onToggle,
+    required VoidCallback onClear,
+  }) {
+    final signed = signedAt != null && signaturePath != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                signed
+                    ? 'Signed ${_formatDateTime(signedAt)}'
+                    : 'Not signed yet',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: onToggle,
+              icon: Icon(
+                expanded
+                    ? Icons.keyboard_arrow_up
+                    : Icons.edit_calendar_outlined,
+                size: 18,
+              ),
+              label: Text(
+                expanded
+                    ? 'Hide pad'
+                    : (signed ? 'Re-sign' : 'Sign now'),
+              ),
+            ),
+            if (signed)
+              IconButton(
+                tooltip: 'Clear signature',
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: onClear,
+              ),
+          ],
+        ),
+        if (signed) SignaturePreview(path: signaturePath),
+      ],
     );
   }
 

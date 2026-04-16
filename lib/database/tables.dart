@@ -22,6 +22,10 @@ class Kids extends Table {
   DateTimeColumn get birthDate => dateTime().nullable()();
   TextColumn get pin => text().nullable()();
   TextColumn get notes => text().nullable()();
+  // Primary parent/guardian name, used to pre-fill the parent concern
+  // note form when a kid is selected. Free-form for now; if we add
+  // formal Parent records later these kids can be joined against them.
+  TextColumn get parentName => text().nullable()();
   // Local file path for the kid's photo. Remote upload comes later.
   TextColumn get avatarPath => text().nullable()();
   DateTimeColumn get createdAt =>
@@ -305,12 +309,16 @@ class ParentConcernNotes extends Table {
 
   TextColumn get additionalNotes => text().nullable()();
 
-  // Signatures — typed name + timestamp. A real drawn signature can
-  // swap in later without a schema change (we'd just treat the string
-  // as a file path).
+  // Signatures. [staffSignature] / [supervisorSignature] hold the
+  // typed printed name; the *Path columns hold a local PNG exported
+  // from the in-form signature pad. Both can be set independently —
+  // printed name without drawing is "typed signature", drawing alone
+  // is anonymous, and both is the full paper-form equivalent.
   TextColumn get staffSignature => text().nullable()();
+  TextColumn get staffSignaturePath => text().nullable()();
   DateTimeColumn get staffSignatureDate => dateTime().nullable()();
   TextColumn get supervisorSignature => text().nullable()();
+  TextColumn get supervisorSignaturePath => text().nullable()();
   DateTimeColumn get supervisorSignatureDate => dateTime().nullable()();
 
   DateTimeColumn get createdAt =>

@@ -37,7 +37,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 17;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -237,6 +237,21 @@ class AppDatabase extends _$AppDatabase {
           if (from < 16) {
             // First structured form: parent concern notes.
             await _createTableIfMissing(m, parentConcernNotes);
+          }
+          if (from < 17) {
+            // Primary guardian name on a kid (used by the concern note
+            // form) + drawn signature paths on each concern note.
+            await _addColumnIfMissing(m, kids, kids.parentName);
+            await _addColumnIfMissing(
+              m,
+              parentConcernNotes,
+              parentConcernNotes.staffSignaturePath,
+            );
+            await _addColumnIfMissing(
+              m,
+              parentConcernNotes,
+              parentConcernNotes.supervisorSignaturePath,
+            );
           }
         },
       );
