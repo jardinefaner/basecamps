@@ -143,6 +143,8 @@ class ScheduleRepository {
     String? specialistId,
     String? location,
     String? notes,
+    DateTime? startDate,
+    DateTime? endDate,
   }) async {
     final id = newId();
     await _db.transaction(() async {
@@ -157,6 +159,8 @@ class ScheduleRepository {
               specialistId: Value(specialistId),
               location: Value(location),
               notes: Value(notes),
+              startDate: Value(startDate == null ? null : _dayOnly(startDate)),
+              endDate: Value(endDate == null ? null : _dayOnly(endDate)),
             ),
           );
       for (final podId in podIds) {
@@ -179,6 +183,8 @@ class ScheduleRepository {
     String? specialistId,
     String? location,
     String? notes,
+    DateTime? startDate,
+    DateTime? endDate,
   }) async {
     await _db.transaction(() async {
       await (_db.update(_db.scheduleTemplates)
@@ -193,6 +199,8 @@ class ScheduleRepository {
           specialistId: Value(specialistId),
           location: Value(location),
           notes: Value(notes),
+          startDate: Value(startDate == null ? null : _dayOnly(startDate)),
+          endDate: Value(endDate == null ? null : _dayOnly(endDate)),
           updatedAt: Value(DateTime.now()),
         ),
       );
@@ -239,6 +247,8 @@ class ScheduleRepository {
                   specialistId: Value(src.specialistId),
                   location: Value(src.location),
                   notes: Value(src.notes),
+                  startDate: Value(src.startDate),
+                  endDate: Value(src.endDate),
                 ),
               );
           final podIds = await podsForTemplate(src.id);
@@ -324,7 +334,13 @@ class ScheduleRepository {
     final nextDay = day.add(const Duration(days: 1));
 
     final templatesQuery = _db.select(_db.scheduleTemplates)
-      ..where((t) => t.dayOfWeek.equals(dayOfWeek));
+      ..where((t) => t.dayOfWeek.equals(dayOfWeek))
+      ..where(
+        (t) => t.startDate.isNull() | t.startDate.isSmallerOrEqualValue(day),
+      )
+      ..where(
+        (t) => t.endDate.isNull() | t.endDate.isBiggerOrEqualValue(day),
+      );
     final entriesQuery = _db.select(_db.scheduleEntries)
       ..where(
         (e) =>

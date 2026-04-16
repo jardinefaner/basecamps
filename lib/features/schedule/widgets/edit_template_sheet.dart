@@ -9,6 +9,7 @@ import 'package:basecamp/ui/app_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 const _dayShortLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -39,6 +40,8 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
   late TimeOfDay _end = widget.template != null
       ? _parseTime(widget.template!.endTime)
       : const TimeOfDay(hour: 10, minute: 0);
+  late DateTime? _rangeStart = widget.template?.startDate;
+  late DateTime? _rangeEnd = widget.template?.endDate;
 
   /// Empty = "All pods" (no restriction). Non-empty = specific pods.
   final Set<String> _selectedPodIds = <String>{};
@@ -144,6 +147,8 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
         podIds: podIds,
         specialistId: _specialistId,
         location: location,
+        startDate: _rangeStart,
+        endDate: _rangeEnd,
       );
     } else {
       for (final day in _selectedDays) {
@@ -155,6 +160,8 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
           podIds: podIds,
           specialistId: _specialistId,
           location: location,
+          startDate: _rangeStart,
+          endDate: _rangeEnd,
         );
       }
     }
@@ -177,6 +184,28 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     setState(() {
       _end = TimeOfDay(hour: endDt.hour, minute: endDt.minute);
     });
+  }
+
+  Future<void> _pickRangeStart() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _rangeStart ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 3),
+    );
+    if (picked != null) setState(() => _rangeStart = picked);
+  }
+
+  Future<void> _pickRangeEnd() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _rangeEnd ?? _rangeStart ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 3),
+    );
+    if (picked != null) setState(() => _rangeEnd = picked);
   }
 
   Future<void> _openLibrary() async {
@@ -342,6 +371,15 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
             AppTextField(
               controller: _locationController,
               label: 'Location (optional)',
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            _DateRangeSection(
+              rangeStart: _rangeStart,
+              rangeEnd: _rangeEnd,
+              onPickStart: _pickRangeStart,
+              onPickEnd: _pickRangeEnd,
+              onClearStart: () => setState(() => _rangeStart = null),
+              onClearEnd: () => setState(() => _rangeEnd = null),
             ),
             const SizedBox(height: AppSpacing.xl),
             AppButton.primary(
@@ -581,6 +619,118 @@ class _SpecialistPicker extends ConsumerWidget {
               onChanged: onChanged,
             );
           },
+        ),
+      ],
+    );
+  }
+}
+
+class _DateRangeSection extends StatelessWidget {
+  const _DateRangeSection({
+    required this.rangeStart,
+    required this.rangeEnd,
+    required this.onPickStart,
+    required this.onPickEnd,
+    required this.onClearStart,
+    required this.onClearEnd,
+  });
+
+  final DateTime? rangeStart;
+  final DateTime? rangeEnd;
+  final VoidCallback onPickStart;
+  final VoidCallback onPickEnd;
+  final VoidCallback onClearStart;
+  final VoidCallback onClearEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Date range (optional)',
+          style: theme.textTheme.titleSmall,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Limits when this recurring activity is active. Leave blank for no bounds.',
+          style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Expanded(
+              child: _DateField(
+                label: 'Starts on',
+                date: rangeStart,
+                placeholder: 'Any time',
+                onPick: onPickStart,
+                onClear: rangeStart == null ? null : onClearStart,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _DateField(
+                label: 'Ends on',
+                date: rangeEnd,
+                placeholder: 'Any time',
+                onPick: onPickEnd,
+                onClear: rangeEnd == null ? null : onClearEnd,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _DateField extends StatelessWidget {
+  const _DateField({
+    required this.label,
+    required this.date,
+    required this.placeholder,
+    required this.onPick,
+    required this.onClear,
+  });
+
+  final String label;
+  final DateTime? date;
+  final String placeholder;
+  final VoidCallback onPick;
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final formatted =
+        date == null ? placeholder : DateFormat.MMMd().format(date!);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: theme.textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: onPick,
+                icon: const Icon(Icons.calendar_today_outlined, size: 16),
+                label: Text(
+                  formatted,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            if (onClear != null)
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.close, size: 18),
+                tooltip: 'Clear',
+                onPressed: onClear,
+              ),
+          ],
         ),
       ],
     );

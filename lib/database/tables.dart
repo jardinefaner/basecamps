@@ -134,6 +134,9 @@ class Specialists extends Table {
 
 /// Recurring weekly schedule items. `dayOfWeek` uses ISO 1..7 (Mon..Sun).
 /// Times are stored as "HH:mm" strings so they survive timezone shifts.
+///
+/// [startDate] / [endDate] are optional inclusive date bounds. When set, the
+/// template only applies on dates within that range.
 class ScheduleTemplates extends Table {
   TextColumn get id => text()();
   IntColumn get dayOfWeek => integer()();
@@ -150,6 +153,8 @@ class ScheduleTemplates extends Table {
       .references(Specialists, #id, onDelete: KeyAction.setNull)();
   TextColumn get location => text().nullable()();
   TextColumn get notes => text().nullable()();
+  DateTimeColumn get startDate => dateTime().nullable()();
+  DateTimeColumn get endDate => dateTime().nullable()();
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>

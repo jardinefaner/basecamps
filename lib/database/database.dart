@@ -32,7 +32,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -141,6 +141,18 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 8) {
             await _createTableIfMissing(m, activityLibrary);
+          }
+          if (from < 9) {
+            await _addColumnIfMissing(
+              m,
+              scheduleTemplates,
+              scheduleTemplates.startDate,
+            );
+            await _addColumnIfMissing(
+              m,
+              scheduleTemplates,
+              scheduleTemplates.endDate,
+            );
           }
         },
       );

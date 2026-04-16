@@ -3865,6 +3865,28 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _startDateMeta = const VerificationMeta(
+    'startDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> startDate = GeneratedColumn<DateTime>(
+    'start_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _endDateMeta = const VerificationMeta(
+    'endDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> endDate = GeneratedColumn<DateTime>(
+    'end_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -3902,6 +3924,8 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
     specialistId,
     location,
     notes,
+    startDate,
+    endDate,
     createdAt,
     updatedAt,
   ];
@@ -3996,6 +4020,18 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('start_date')) {
+      context.handle(
+        _startDateMeta,
+        startDate.isAcceptableOrUnknown(data['start_date']!, _startDateMeta),
+      );
+    }
+    if (data.containsKey('end_date')) {
+      context.handle(
+        _endDateMeta,
+        endDate.isAcceptableOrUnknown(data['end_date']!, _endDateMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -4061,6 +4097,14 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      startDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}start_date'],
+      ),
+      endDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}end_date'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -4091,6 +4135,8 @@ class ScheduleTemplate extends DataClass
   final String? specialistId;
   final String? location;
   final String? notes;
+  final DateTime? startDate;
+  final DateTime? endDate;
   final DateTime createdAt;
   final DateTime updatedAt;
   const ScheduleTemplate({
@@ -4105,6 +4151,8 @@ class ScheduleTemplate extends DataClass
     this.specialistId,
     this.location,
     this.notes,
+    this.startDate,
+    this.endDate,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -4131,6 +4179,12 @@ class ScheduleTemplate extends DataClass
     }
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
+    }
+    if (!nullToAbsent || startDate != null) {
+      map['start_date'] = Variable<DateTime>(startDate);
+    }
+    if (!nullToAbsent || endDate != null) {
+      map['end_date'] = Variable<DateTime>(endDate);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -4160,6 +4214,12 @@ class ScheduleTemplate extends DataClass
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      startDate: startDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(startDate),
+      endDate: endDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endDate),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -4182,6 +4242,8 @@ class ScheduleTemplate extends DataClass
       specialistId: serializer.fromJson<String?>(json['specialistId']),
       location: serializer.fromJson<String?>(json['location']),
       notes: serializer.fromJson<String?>(json['notes']),
+      startDate: serializer.fromJson<DateTime?>(json['startDate']),
+      endDate: serializer.fromJson<DateTime?>(json['endDate']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -4201,6 +4263,8 @@ class ScheduleTemplate extends DataClass
       'specialistId': serializer.toJson<String?>(specialistId),
       'location': serializer.toJson<String?>(location),
       'notes': serializer.toJson<String?>(notes),
+      'startDate': serializer.toJson<DateTime?>(startDate),
+      'endDate': serializer.toJson<DateTime?>(endDate),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -4218,6 +4282,8 @@ class ScheduleTemplate extends DataClass
     Value<String?> specialistId = const Value.absent(),
     Value<String?> location = const Value.absent(),
     Value<String?> notes = const Value.absent(),
+    Value<DateTime?> startDate = const Value.absent(),
+    Value<DateTime?> endDate = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => ScheduleTemplate(
@@ -4234,6 +4300,8 @@ class ScheduleTemplate extends DataClass
     specialistId: specialistId.present ? specialistId.value : this.specialistId,
     location: location.present ? location.value : this.location,
     notes: notes.present ? notes.value : this.notes,
+    startDate: startDate.present ? startDate.value : this.startDate,
+    endDate: endDate.present ? endDate.value : this.endDate,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -4254,6 +4322,8 @@ class ScheduleTemplate extends DataClass
           : this.specialistId,
       location: data.location.present ? data.location.value : this.location,
       notes: data.notes.present ? data.notes.value : this.notes,
+      startDate: data.startDate.present ? data.startDate.value : this.startDate,
+      endDate: data.endDate.present ? data.endDate.value : this.endDate,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -4273,6 +4343,8 @@ class ScheduleTemplate extends DataClass
           ..write('specialistId: $specialistId, ')
           ..write('location: $location, ')
           ..write('notes: $notes, ')
+          ..write('startDate: $startDate, ')
+          ..write('endDate: $endDate, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -4292,6 +4364,8 @@ class ScheduleTemplate extends DataClass
     specialistId,
     location,
     notes,
+    startDate,
+    endDate,
     createdAt,
     updatedAt,
   );
@@ -4310,6 +4384,8 @@ class ScheduleTemplate extends DataClass
           other.specialistId == this.specialistId &&
           other.location == this.location &&
           other.notes == this.notes &&
+          other.startDate == this.startDate &&
+          other.endDate == this.endDate &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -4326,6 +4402,8 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
   final Value<String?> specialistId;
   final Value<String?> location;
   final Value<String?> notes;
+  final Value<DateTime?> startDate;
+  final Value<DateTime?> endDate;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -4341,6 +4419,8 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     this.specialistId = const Value.absent(),
     this.location = const Value.absent(),
     this.notes = const Value.absent(),
+    this.startDate = const Value.absent(),
+    this.endDate = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -4357,6 +4437,8 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     this.specialistId = const Value.absent(),
     this.location = const Value.absent(),
     this.notes = const Value.absent(),
+    this.startDate = const Value.absent(),
+    this.endDate = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -4377,6 +4459,8 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     Expression<String>? specialistId,
     Expression<String>? location,
     Expression<String>? notes,
+    Expression<DateTime>? startDate,
+    Expression<DateTime>? endDate,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -4393,6 +4477,8 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
       if (specialistId != null) 'specialist_id': specialistId,
       if (location != null) 'location': location,
       if (notes != null) 'notes': notes,
+      if (startDate != null) 'start_date': startDate,
+      if (endDate != null) 'end_date': endDate,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -4411,6 +4497,8 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     Value<String?>? specialistId,
     Value<String?>? location,
     Value<String?>? notes,
+    Value<DateTime?>? startDate,
+    Value<DateTime?>? endDate,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -4427,6 +4515,8 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
       specialistId: specialistId ?? this.specialistId,
       location: location ?? this.location,
       notes: notes ?? this.notes,
+      startDate: startDate ?? this.startDate,
+      endDate: endDate ?? this.endDate,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -4469,6 +4559,12 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (startDate.present) {
+      map['start_date'] = Variable<DateTime>(startDate.value);
+    }
+    if (endDate.present) {
+      map['end_date'] = Variable<DateTime>(endDate.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -4495,6 +4591,8 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
           ..write('specialistId: $specialistId, ')
           ..write('location: $location, ')
           ..write('notes: $notes, ')
+          ..write('startDate: $startDate, ')
+          ..write('endDate: $endDate, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -10128,6 +10226,8 @@ typedef $$ScheduleTemplatesTableCreateCompanionBuilder =
       Value<String?> specialistId,
       Value<String?> location,
       Value<String?> notes,
+      Value<DateTime?> startDate,
+      Value<DateTime?> endDate,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -10145,6 +10245,8 @@ typedef $$ScheduleTemplatesTableUpdateCompanionBuilder =
       Value<String?> specialistId,
       Value<String?> location,
       Value<String?> notes,
+      Value<DateTime?> startDate,
+      Value<DateTime?> endDate,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -10300,6 +10402,16 @@ class $$ScheduleTemplatesTableFilterComposer
 
   ColumnFilters<String> get notes => $composableBuilder(
     column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get startDate => $composableBuilder(
+    column: $table.startDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get endDate => $composableBuilder(
+    column: $table.endDate,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -10464,6 +10576,16 @@ class $$ScheduleTemplatesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get startDate => $composableBuilder(
+    column: $table.startDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get endDate => $composableBuilder(
+    column: $table.endDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -10558,6 +10680,12 @@ class $$ScheduleTemplatesTableAnnotationComposer
 
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get startDate =>
+      $composableBuilder(column: $table.startDate, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get endDate =>
+      $composableBuilder(column: $table.endDate, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -10711,6 +10839,8 @@ class $$ScheduleTemplatesTableTableManager
                 Value<String?> specialistId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<DateTime?> startDate = const Value.absent(),
+                Value<DateTime?> endDate = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -10726,6 +10856,8 @@ class $$ScheduleTemplatesTableTableManager
                 specialistId: specialistId,
                 location: location,
                 notes: notes,
+                startDate: startDate,
+                endDate: endDate,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -10743,6 +10875,8 @@ class $$ScheduleTemplatesTableTableManager
                 Value<String?> specialistId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<DateTime?> startDate = const Value.absent(),
+                Value<DateTime?> endDate = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -10758,6 +10892,8 @@ class $$ScheduleTemplatesTableTableManager
                 specialistId: specialistId,
                 location: location,
                 notes: notes,
+                startDate: startDate,
+                endDate: endDate,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
