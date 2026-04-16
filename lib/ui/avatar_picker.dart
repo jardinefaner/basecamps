@@ -99,10 +99,13 @@ class AvatarPicker extends StatelessWidget {
       backgroundImage: (currentPath != null && !kIsWeb)
           ? ResizeImage(
               FileImage(File(currentPath!)),
-              // Decode at 2× display size so zoomed retina looks good
-              // without consuming full 12MP memory.
+              // Cap the decode size (2× display for retina) but don't
+              // pin both axes — ResizeImage with both width AND height
+              // resizes to that exact box and squishes the source's
+              // native aspect ratio. We only clamp the width; the
+              // height scales proportionally, then CircleAvatar's
+              // BoxFit.cover crops to the circle cleanly.
               width: decodeSize,
-              height: decodeSize,
             )
           : null,
       child: currentPath == null
@@ -178,8 +181,8 @@ class SmallAvatar extends StatelessWidget {
       backgroundImage: (path != null && !kIsWeb)
           ? ResizeImage(
               FileImage(File(path!)),
+              // Clamp width only — see note in AvatarPicker for why.
               width: decodeSize,
-              height: decodeSize,
             )
           : null,
       child: path == null
