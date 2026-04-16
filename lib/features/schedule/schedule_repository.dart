@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:drift/drift.dart';
@@ -328,42 +330,77 @@ class ScheduleRepository {
         .go();
   }
 
+  /// Merged schedule stream for a specific date. Re-emits whenever either
+  /// the templates table OR the entries table changes — so a newly added
+  /// full-day event (which lives in entries) correctly triggers an update.
   Stream<List<ScheduleItem>> watchScheduleForDate(DateTime date) {
     final day = _dayOnly(date);
     final dayOfWeek = date.weekday;
     final nextDay = day.add(const Duration(days: 1));
 
-    final templatesQuery = _db.select(_db.scheduleTemplates)
-      ..where((t) => t.dayOfWeek.equals(dayOfWeek))
-      ..where(
-        (t) => t.startDate.isNull() | t.startDate.isSmallerOrEqualValue(day),
-      )
-      ..where(
-        (t) => t.endDate.isNull() | t.endDate.isBiggerOrEqualValue(day),
-      );
-    final entriesQuery = _db.select(_db.scheduleEntries)
-      ..where(
-        (e) =>
-            e.date.isBiggerOrEqualValue(day) &
-            e.date.isSmallerThanValue(nextDay),
-      );
+    final templatesStream = (_db.select(_db.scheduleTemplates)
+          ..where((t) => t.dayOfWeek.equals(dayOfWeek)))
+        .watch();
+    final entriesStream = (_db.select(_db.scheduleEntries)
+          ..where(
+            (e) =>
+                e.date.isBiggerOrEqualValue(day) &
+                e.date.isSmallerThanValue(nextDay),
+          ))
+        .watch();
 
-    return templatesQuery.watch().asyncMap((templates) async {
-      final entries = await entriesQuery.get();
-      final templatePodMap = <String, List<String>>{};
-      for (final t in templates) {
-        templatePodMap[t.id] = await podsForTemplate(t.id);
+    return Stream<List<ScheduleItem>>.multi((controller) {
+      List<ScheduleTemplate>? templates;
+      List<ScheduleEntry>? entries;
+
+      Future<void> recompute() async {
+        final t = templates;
+        final e = entries;
+        if (t == null || e == null) return;
+
+        // Date-range filter in Dart — null-safe and unambiguous.
+        final filteredTemplates = t.where((tpl) {
+          final start = tpl.startDate;
+          final end = tpl.endDate;
+          if (start != null && start.isAfter(day)) return false;
+          if (end != null && end.isBefore(day)) return false;
+          return true;
+        }).toList();
+
+        try {
+          final templatePodMap = <String, List<String>>{};
+          for (final tpl in filteredTemplates) {
+            templatePodMap[tpl.id] = await podsForTemplate(tpl.id);
+          }
+          final entryPodMap = <String, List<String>>{};
+          for (final en in e) {
+            entryPodMap[en.id] = await podsForEntry(en.id);
+          }
+          final merged = _merge(
+            templates: filteredTemplates,
+            entries: e,
+            templatePods: templatePodMap,
+            entryPods: entryPodMap,
+          );
+          if (!controller.isClosed) controller.add(merged);
+        } on Object catch (err, st) {
+          if (!controller.isClosed) controller.addError(err, st);
+        }
       }
-      final entryPodMap = <String, List<String>>{};
-      for (final e in entries) {
-        entryPodMap[e.id] = await podsForEntry(e.id);
-      }
-      return _merge(
-        templates: templates,
-        entries: entries,
-        templatePods: templatePodMap,
-        entryPods: entryPodMap,
-      );
+
+      final sub1 = templatesStream.listen((val) {
+        templates = val;
+        unawaited(recompute());
+      }, onError: controller.addError);
+      final sub2 = entriesStream.listen((val) {
+        entries = val;
+        unawaited(recompute());
+      }, onError: controller.addError);
+
+      controller.onCancel = () async {
+        await sub1.cancel();
+        await sub2.cancel();
+      };
     });
   }
 

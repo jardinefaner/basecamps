@@ -54,7 +54,7 @@ class TodayScreen extends ConsumerWidget {
               break;
             }
           }
-          final conflicts = detectConflictingIds(items);
+          final conflicts = conflictsByItemId(items);
 
           return ListView(
             padding: const EdgeInsets.only(
@@ -84,7 +84,7 @@ class TodayScreen extends ConsumerWidget {
                       item: items[i],
                       isNow: i == currentIndex,
                       isPast: currentIndex != null && i < currentIndex,
-                      hasConflict: conflicts.contains(items[i].id),
+                      conflicts: conflicts[items[i].id] ?? const [],
                       onTap: () => _openDetail(context, items[i]),
                     ),
                   ),

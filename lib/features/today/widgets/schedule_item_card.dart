@@ -1,5 +1,7 @@
 import 'package:basecamp/features/kids/kids_repository.dart';
+import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/schedule/widgets/conflict_sheet.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -11,7 +13,7 @@ class ScheduleItemCard extends ConsumerWidget {
     required this.item,
     required this.isNow,
     required this.isPast,
-    this.hasConflict = false,
+    this.conflicts = const [],
     this.onTap,
     super.key,
   });
@@ -19,8 +21,10 @@ class ScheduleItemCard extends ConsumerWidget {
   final ScheduleItem item;
   final bool isNow;
   final bool isPast;
-  final bool hasConflict;
+  final List<ConflictInfo> conflicts;
   final VoidCallback? onTap;
+
+  bool get _hasConflict => conflicts.isNotEmpty;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -86,11 +90,21 @@ class ScheduleItemCard extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    if (hasConflict) ...[
-                      Icon(
-                        Icons.warning_amber_rounded,
-                        size: 18,
-                        color: theme.colorScheme.error,
+                    if (_hasConflict) ...[
+                      Tooltip(
+                        message: 'Tap to see conflict',
+                        child: InkResponse(
+                          radius: 18,
+                          onTap: () => _openConflictSheet(context),
+                          child: Padding(
+                            padding: const EdgeInsets.all(2),
+                            child: Icon(
+                              Icons.warning_amber_rounded,
+                              size: 18,
+                              color: theme.colorScheme.error,
+                            ),
+                          ),
+                        ),
                       ),
                       const SizedBox(width: AppSpacing.xs),
                     ],
@@ -123,6 +137,15 @@ class ScheduleItemCard extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _openConflictSheet(BuildContext context) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => ConflictSheet(item: item, conflicts: conflicts),
     );
   }
 
