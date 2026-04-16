@@ -14,20 +14,22 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
-/// Chat-style capture. One editable thought per sheet: attachments up top
-/// (thumbnails), a big text surface (auto-focused, grows as you type),
-/// live voice-to-text partials underneath, and a fixed action dock at the
-/// bottom with attach / voice / send plus auto-filled tag chips.
-class ObservationSheet extends ConsumerStatefulWidget {
-  const ObservationSheet({super.key, this.initialKidIds});
+/// Persistent chat-style capture surface that lives at the bottom of the
+/// Observations screen. Always visible: typing starts the moment the tab
+/// is open. Supports photos, videos, voice-to-text, multi-kid tagging, and
+/// auto-suggested domain/sentiment. No modal, no FAB — this IS the entry
+/// point to a new observation.
+class ObservationComposer extends ConsumerStatefulWidget {
+  const ObservationComposer({super.key, this.initialKidIds});
 
   final List<String>? initialKidIds;
 
   @override
-  ConsumerState<ObservationSheet> createState() => _ObservationSheetState();
+  ConsumerState<ObservationComposer> createState() =>
+      _ObservationComposerState();
 }
 
-class _ObservationSheetState extends ConsumerState<ObservationSheet> {
+class _ObservationComposerState extends ConsumerState<ObservationComposer> {
   final _noteController = TextEditingController();
   final _noteFocus = FocusNode();
   final _picker = ImagePicker();
@@ -55,9 +57,6 @@ class _ObservationSheetState extends ConsumerState<ObservationSheet> {
   void initState() {
     super.initState();
     _noteController.addListener(_onNoteChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _noteFocus.requestFocus();
-    });
   }
 
   @override
@@ -73,7 +72,7 @@ class _ObservationSheetState extends ConsumerState<ObservationSheet> {
 
   void _onNoteChanged() {
     if (!_tagsAutoSet) {
-      setState(() {}); // refresh Send enabled state
+      setState(() {});
       return;
     }
     final suggestion = suggestTags(_noteController.text);
@@ -111,7 +110,23 @@ class _ObservationSheetState extends ConsumerState<ObservationSheet> {
               : null,
         );
     if (!mounted) return;
-    Navigator.of(context).pop();
+    // Reset for the next observation — no dismiss, we stay where we are.
+    _noteController.clear();
+    setState(() {
+      _attachments.clear();
+      _selectedKidIds.clear();
+      _domain = ObservationDomain.other;
+      _sentiment = ObservationSentiment.neutral;
+      _tagsAutoSet = true;
+      _submitting = false;
+      _livePartial = '';
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Saved'),
+        duration: Duration(seconds: 1),
+      ),
+    );
   }
 
   ScheduleItem? _currentActivity() {
@@ -258,8 +273,6 @@ class _ObservationSheetState extends ConsumerState<ObservationSheet> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  // -- Tag pickers --
-
   Future<void> _pickDomain() async {
     final picked = await showModalBottomSheet<ObservationDomain>(
       context: context,
@@ -294,10 +307,7 @@ class _ObservationSheetState extends ConsumerState<ObservationSheet> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => _KidPicker(
-        kids: kids,
-        initial: _selectedKidIds,
-      ),
+      builder: (_) => _KidPicker(kids: kids, initial: _selectedKidIds),
     );
     if (picked != null) {
       setState(() {
@@ -306,133 +316,6 @@ class _ObservationSheetState extends ConsumerState<ObservationSheet> {
           ..addAll(picked);
       });
     }
-  }
-
-  // -- Build --
-
-  @override
-  Widget build(BuildContext context) {
-    final insets = MediaQuery.of(context).viewInsets.bottom;
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: insets),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Title row
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.md,
-              AppSpacing.xl,
-              AppSpacing.xs,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'New observation',
-                    style: theme.textTheme.titleLarge,
-                  ),
-                ),
-                IconButton(
-                  onPressed: _submitting
-                      ? null
-                      : () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-          ),
-
-          // Scrollable content area
-          Flexible(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _CurrentActivityBanner(activity: _currentActivity()),
-                  if (_attachments.isNotEmpty) ...[
-                    _AttachmentCarousel(
-                      attachments: _attachments,
-                      onRemove: (i) =>
-                          setState(() => _attachments.removeAt(i)),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                  ],
-                  TextField(
-                    controller: _noteController,
-                    focusNode: _noteFocus,
-                    minLines: 4,
-                    maxLines: 12,
-                    autofocus: true,
-                    textInputAction: TextInputAction.newline,
-                    textCapitalization: TextCapitalization.sentences,
-                    inputFormatters: [
-                      LengthLimitingTextInputFormatter(4000),
-                    ],
-                    decoration: const InputDecoration(
-                      hintText: 'What happened? Tap the mic to dictate, or '
-                          'add a photo/video.',
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      filled: false,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ),
-                  if (_voiceActive)
-                    Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.xs),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.graphic_eq,
-                            size: 14,
-                            color: theme.colorScheme.error,
-                          ),
-                          const SizedBox(width: AppSpacing.xs),
-                          Expanded(
-                            child: Text(
-                              _livePartial.isEmpty
-                                  ? 'Listening…'
-                                  : _livePartial,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  const SizedBox(height: AppSpacing.lg),
-                ],
-              ),
-            ),
-          ),
-
-          // Fixed bottom dock: tag chips + action row
-          _BottomDock(
-            domain: _domain,
-            sentiment: _sentiment,
-            isAuto: _tagsAutoSet,
-            selectedKidIds: _selectedKidIds,
-            onPickDomain: _pickDomain,
-            onPickSentiment: _pickSentiment,
-            onPickKids: _pickKids,
-            onAttachPhoto: () => _showAttachSheet(photo: true),
-            onAttachVideo: () => _showAttachSheet(photo: false),
-            onMic: _onMicPressed,
-            onSend: _hasContent && !_submitting ? _submit : null,
-            voiceActive: _voiceActive,
-            submitting: _submitting,
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _showAttachSheet({required bool photo}) async {
@@ -473,11 +356,203 @@ class _ObservationSheetState extends ConsumerState<ObservationSheet> {
       ),
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          border: Border(
+            top: BorderSide(
+              color: theme.colorScheme.outlineVariant,
+              width: 0.5,
+            ),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _CurrentActivityBanner(activity: _currentActivity()),
+            if (_attachments.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.sm,
+                  AppSpacing.lg,
+                  0,
+                ),
+                child: _AttachmentCarousel(
+                  attachments: _attachments,
+                  onRemove: (i) => setState(() => _attachments.removeAt(i)),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.sm,
+                AppSpacing.lg,
+                0,
+              ),
+              child: TextField(
+                controller: _noteController,
+                focusNode: _noteFocus,
+                minLines: 1,
+                maxLines: 6,
+                textInputAction: TextInputAction.newline,
+                textCapitalization: TextCapitalization.sentences,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(4000),
+                ],
+                decoration: const InputDecoration(
+                  hintText: 'Capture a moment — type, mic, or attach…',
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  filled: false,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ),
+            if (_voiceActive)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  0,
+                  AppSpacing.lg,
+                  0,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.graphic_eq,
+                      size: 14,
+                      color: theme.colorScheme.error,
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: Text(
+                        _livePartial.isEmpty ? 'Listening…' : _livePartial,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (_hasContent)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.sm,
+                  AppSpacing.lg,
+                  0,
+                ),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _TagPill(
+                        icon: Icons.category_outlined,
+                        label: _domain.label,
+                        trailingLabel: _tagsAutoSet ? 'auto' : null,
+                        onTap: _pickDomain,
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      _TagPill(
+                        icon: _sentimentIcon(_sentiment),
+                        label: _sentiment.label,
+                        color: _sentimentColor(context, _sentiment),
+                        onTap: _pickSentiment,
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      _KidsPill(
+                        count: _selectedKidIds.length,
+                        onTap: _pickKids,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.sm,
+                AppSpacing.xs,
+                AppSpacing.sm,
+                AppSpacing.sm,
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () => _showAttachSheet(photo: true),
+                    icon: const Icon(Icons.photo_camera_outlined),
+                    tooltip: 'Add photo',
+                  ),
+                  IconButton(
+                    onPressed: () => _showAttachSheet(photo: false),
+                    icon: const Icon(Icons.videocam_outlined),
+                    tooltip: 'Add video',
+                  ),
+                  IconButton(
+                    onPressed: _onMicPressed,
+                    style: _voiceActive
+                        ? IconButton.styleFrom(
+                            backgroundColor: theme.colorScheme.errorContainer,
+                            foregroundColor:
+                                theme.colorScheme.onErrorContainer,
+                          )
+                        : null,
+                    icon: Icon(
+                      _voiceActive ? Icons.stop : Icons.mic_none_outlined,
+                    ),
+                    tooltip: _voiceActive ? 'Stop' : 'Voice input',
+                  ),
+                  const Spacer(),
+                  FilledButton.icon(
+                    onPressed: _hasContent && !_submitting ? _submit : null,
+                    icon: _submitting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.arrow_upward, size: 18),
+                    label: const Text('Send'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _sentimentIcon(ObservationSentiment s) => switch (s) {
+        ObservationSentiment.positive => Icons.sentiment_satisfied_outlined,
+        ObservationSentiment.neutral => Icons.sentiment_neutral_outlined,
+        ObservationSentiment.concern => Icons.flag_outlined,
+      };
+
+  Color? _sentimentColor(BuildContext context, ObservationSentiment s) {
+    final theme = Theme.of(context);
+    return switch (s) {
+      ObservationSentiment.positive => theme.colorScheme.primary,
+      ObservationSentiment.neutral => null,
+      ObservationSentiment.concern => theme.colorScheme.error,
+    };
+  }
 }
 
 class _PendingAttachment {
   _PendingAttachment({required this.kind, required this.path});
-  final String kind; // 'photo' | 'video'
+  final String kind;
   final String path;
 }
 
@@ -494,7 +569,7 @@ class _AttachmentCarousel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return SizedBox(
-      height: 92,
+      height: 68,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: attachments.length,
@@ -504,8 +579,8 @@ class _AttachmentCarousel extends StatelessWidget {
           return Stack(
             children: [
               Container(
-                width: 92,
-                height: 92,
+                width: 68,
+                height: 68,
                 decoration: BoxDecoration(
                   color: theme.colorScheme.surfaceContainerHigh,
                   borderRadius: BorderRadius.circular(10),
@@ -538,7 +613,7 @@ class _AttachmentCarousel extends StatelessWidget {
                       padding: const EdgeInsets.all(2),
                       child: Icon(
                         Icons.cancel,
-                        size: 20,
+                        size: 18,
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
@@ -564,146 +639,6 @@ class _AttachmentPlaceholder extends StatelessWidget {
     return Center(
       child: Icon(icon, color: theme.colorScheme.onSurfaceVariant),
     );
-  }
-}
-
-class _BottomDock extends ConsumerWidget {
-  const _BottomDock({
-    required this.domain,
-    required this.sentiment,
-    required this.isAuto,
-    required this.selectedKidIds,
-    required this.onPickDomain,
-    required this.onPickSentiment,
-    required this.onPickKids,
-    required this.onAttachPhoto,
-    required this.onAttachVideo,
-    required this.onMic,
-    required this.onSend,
-    required this.voiceActive,
-    required this.submitting,
-  });
-
-  final ObservationDomain domain;
-  final ObservationSentiment sentiment;
-  final bool isAuto;
-  final Set<String> selectedKidIds;
-  final VoidCallback onPickDomain;
-  final VoidCallback onPickSentiment;
-  final VoidCallback onPickKids;
-  final Future<void> Function() onAttachPhoto;
-  final Future<void> Function() onAttachVideo;
-  final Future<void> Function() onMic;
-  final VoidCallback? onSend;
-  final bool voiceActive;
-  final bool submitting;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.sm,
-        AppSpacing.xl,
-        AppSpacing.md,
-      ),
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(
-            color: theme.colorScheme.outlineVariant,
-            width: 0.5,
-          ),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Tag chips row (domain + sentiment + kids)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _TagPill(
-                  icon: Icons.category_outlined,
-                  label: isAuto ? '${domain.label} ·' : domain.label,
-                  trailingLabel: isAuto ? 'auto' : null,
-                  onTap: onPickDomain,
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                _TagPill(
-                  icon: _sentimentIcon(sentiment),
-                  label: sentiment.label,
-                  color: _sentimentColor(context, sentiment),
-                  onTap: onPickSentiment,
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                _KidsPill(
-                  count: selectedKidIds.length,
-                  onTap: onPickKids,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          // Action row
-          Row(
-            children: [
-              IconButton(
-                onPressed: onAttachPhoto,
-                icon: const Icon(Icons.photo_camera_outlined),
-                tooltip: 'Add photo',
-              ),
-              IconButton(
-                onPressed: onAttachVideo,
-                icon: const Icon(Icons.videocam_outlined),
-                tooltip: 'Add video',
-              ),
-              IconButton(
-                onPressed: onMic,
-                style: voiceActive
-                    ? IconButton.styleFrom(
-                        backgroundColor: theme.colorScheme.errorContainer,
-                        foregroundColor: theme.colorScheme.onErrorContainer,
-                      )
-                    : null,
-                icon: Icon(
-                  voiceActive ? Icons.stop_circle : Icons.mic_none_outlined,
-                ),
-                tooltip: voiceActive ? 'Stop' : 'Voice input',
-              ),
-              const Spacer(),
-              FilledButton.icon(
-                onPressed: onSend,
-                icon: submitting
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.arrow_upward, size: 18),
-                label: const Text('Send'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  IconData _sentimentIcon(ObservationSentiment s) => switch (s) {
-        ObservationSentiment.positive => Icons.sentiment_satisfied_outlined,
-        ObservationSentiment.neutral => Icons.sentiment_neutral_outlined,
-        ObservationSentiment.concern => Icons.flag_outlined,
-      };
-
-  Color? _sentimentColor(BuildContext context, ObservationSentiment s) {
-    final theme = Theme.of(context);
-    return switch (s) {
-      ObservationSentiment.positive => theme.colorScheme.primary,
-      ObservationSentiment.neutral => null,
-      ObservationSentiment.concern => theme.colorScheme.error,
-    };
   }
 }
 
@@ -843,10 +778,15 @@ class _CurrentActivityBanner extends ConsumerWidget {
     if (a.location != null && a.location!.isNotEmpty) parts.add(a.location!);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.lg,
+        0,
+      ),
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm,
+        vertical: AppSpacing.xs,
       ),
       decoration: BoxDecoration(
         color: theme.colorScheme.primaryContainer,
@@ -874,32 +814,19 @@ class _CurrentActivityBanner extends ConsumerWidget {
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  a.title,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: theme.colorScheme.onPrimaryContainer,
-                  ),
-                ),
-                if (parts.isNotEmpty)
-                  Text(
-                    parts.join(' · '),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onPrimaryContainer,
-                    ),
-                  ),
-              ],
+            child: Text(
+              '${a.title}${parts.isEmpty ? "" : " · ${parts.join(" · ")}"}',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          Tooltip(
-            message: 'This observation will be linked to this activity',
-            child: Icon(
-              Icons.link,
-              size: 16,
-              color: theme.colorScheme.onPrimaryContainer,
-            ),
+          Icon(
+            Icons.link,
+            size: 14,
+            color: theme.colorScheme.onPrimaryContainer,
           ),
         ],
       ),
