@@ -15,6 +15,7 @@ QueryExecutor _openConnection() {
     Pods,
     Kids,
     Trips,
+    TripPods,
     Captures,
     CaptureKids,
     Observations,
@@ -32,7 +33,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -152,6 +153,24 @@ class AppDatabase extends _$AppDatabase {
               m,
               scheduleTemplates,
               scheduleTemplates.endDate,
+            );
+          }
+          if (from < 10) {
+            await _addColumnIfMissing(
+              m,
+              trips,
+              trips.departureTime,
+            );
+            await _addColumnIfMissing(
+              m,
+              trips,
+              trips.returnTime,
+            );
+            await _createTableIfMissing(m, tripPods);
+            await _addColumnIfMissing(
+              m,
+              scheduleEntries,
+              scheduleEntries.sourceTripId,
             );
           }
         },

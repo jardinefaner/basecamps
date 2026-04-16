@@ -1,3 +1,4 @@
+import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/trips/trips_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -16,7 +17,19 @@ class TripDetailScreen extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(
+        actions: [
+          IconButton(
+            icon: Icon(
+              Icons.delete_outline,
+              color: theme.colorScheme.error,
+            ),
+            tooltip: 'Delete trip',
+            onPressed: () => _confirmDelete(context, ref),
+          ),
+          const SizedBox(width: AppSpacing.xs),
+        ],
+      ),
       body: tripAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => Center(child: Text('Error: $err')),
@@ -31,32 +44,34 @@ class TripDetailScreen extends ConsumerWidget {
             children: [
               Text(trip.name, style: theme.textTheme.displaySmall),
               const SizedBox(height: AppSpacing.sm),
-              Row(
-                children: [
-                  Icon(
-                    Icons.calendar_today_outlined,
-                    size: 16,
-                    color: theme.colorScheme.onSurfaceVariant,
+              _MetaRow(icon: Icons.calendar_today_outlined, text: dateLabel),
+              if (trip.departureTime != null || trip.returnTime != null)
+                _MetaRow(
+                  icon: Icons.schedule_outlined,
+                  text: _formatRange(
+                    trip.departureTime,
+                    trip.returnTime,
                   ),
-                  const SizedBox(width: AppSpacing.xs),
-                  Text(dateLabel, style: theme.textTheme.bodyMedium),
-                ],
-              ),
-              if (trip.location != null) ...[
-                const SizedBox(height: AppSpacing.xs),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.place_outlined,
-                      size: 16,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                    Text(trip.location!, style: theme.textTheme.bodyMedium),
-                  ],
                 ),
-              ],
+              if (trip.location != null)
+                _MetaRow(icon: Icons.place_outlined, text: trip.location!),
+              _PodsRow(tripId: trip.id),
               const SizedBox(height: AppSpacing.xl),
+              if (trip.notes != null && trip.notes!.isNotEmpty) ...[
+                AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Notes', style: theme.textTheme.titleMedium),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(trip.notes!, style: theme.textTheme.bodyMedium),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+              ],
+              _RosterCard(tripId: trip.id),
+              const SizedBox(height: AppSpacing.md),
               AppCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -64,7 +79,7 @@ class TripDetailScreen extends ConsumerWidget {
                     Text('Itinerary', style: theme.textTheme.titleMedium),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
-                      'Coming soon — stops, times, and headcounts.',
+                      'Coming soon — ordered stops with times and notes.',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -88,25 +103,162 @@ class TripDetailScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: AppSpacing.md),
-              AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Participants', style: theme.textTheme.titleMedium),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      'Coming soon — assigned pods and check-ins.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           );
         },
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete trip?'),
+        content: const Text(
+          'This also removes the trip from the calendar. '
+          'Photos and observations tagged to this trip are kept.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await ref.read(tripsRepositoryProvider).deleteTrip(tripId);
+    if (context.mounted) Navigator.of(context).pop();
+  }
+
+  String _formatRange(String? start, String? end) {
+    String format(String hhmm) {
+      final parts = hhmm.split(':');
+      final h = int.parse(parts[0]);
+      final m = parts[1];
+      final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+      final period = h < 12 ? 'a' : 'p';
+      return m == '00' ? '$hour12$period' : '$hour12:$m$period';
+    }
+
+    if (start != null && end != null) {
+      return '${format(start)} – ${format(end)}';
+    }
+    if (start != null) return 'From ${format(start)}';
+    if (end != null) return 'Back by ${format(end)}';
+    return 'All day';
+  }
+}
+
+class _MetaRow extends StatelessWidget {
+  const _MetaRow({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
+        ],
+      ),
+    );
+  }
+}
+
+class _PodsRow extends ConsumerWidget {
+  const _PodsRow({required this.tripId});
+
+  final String tripId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final podIdsAsync = ref.watch(tripPodsProvider(tripId));
+    return podIdsAsync.maybeWhen(
+      data: (podIds) {
+        if (podIds.isEmpty) {
+          return const _MetaRow(
+            icon: Icons.groups_outlined,
+            text: 'All pods',
+          );
+        }
+        final names = <String>[];
+        for (final id in podIds) {
+          final pod = ref.watch(podProvider(id)).asData?.value;
+          if (pod != null) names.add(pod.name);
+        }
+        if (names.isEmpty) return const SizedBox.shrink();
+        return _MetaRow(
+          icon: Icons.groups_outlined,
+          text: names.join(' + '),
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
+class _RosterCard extends ConsumerWidget {
+  const _RosterCard({required this.tripId});
+
+  final String tripId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final podIdsAsync = ref.watch(tripPodsProvider(tripId));
+    final kidsAsync = ref.watch(kidsProvider);
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("Who's going", style: theme.textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.sm),
+          podIdsAsync.when(
+            loading: () => const LinearProgressIndicator(),
+            error: (err, _) => Text('Error: $err'),
+            data: (podIds) {
+              return kidsAsync.when(
+                loading: () => const LinearProgressIndicator(),
+                error: (err, _) => Text('Error: $err'),
+                data: (kids) {
+                  final attending = kids
+                      .where(
+                        (k) =>
+                            podIds.isEmpty ||
+                            (k.podId != null && podIds.contains(k.podId)),
+                      )
+                      .toList();
+                  if (attending.isEmpty) {
+                    return Text(
+                      'No kids assigned to these pods yet.',
+                      style: theme.textTheme.bodySmall,
+                    );
+                  }
+                  return Text(
+                    '${attending.length} '
+                    '${attending.length == 1 ? "kid" : "kids"}: '
+                    '${attending.take(3).map((k) => k.firstName).join(", ")}'
+                    '${attending.length > 3 ? " + ${attending.length - 3} more" : ""}',
+                    style: theme.textTheme.bodyMedium,
+                  );
+                },
+              );
+            },
+          ),
+        ],
       ),
     );
   }

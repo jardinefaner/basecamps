@@ -38,6 +38,10 @@ class Trips extends Table {
   DateTimeColumn get endDate => dateTime().nullable()();
   TextColumn get location => text().nullable()();
   TextColumn get notes => text().nullable()();
+  // Optional "HH:mm" times bounding the trip within its date. Nullable means
+  // the trip is considered full-day.
+  TextColumn get departureTime => text().nullable()();
+  TextColumn get returnTime => text().nullable()();
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -45,6 +49,17 @@ class Trips extends Table {
 
   @override
   Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Pods going on a given trip. Empty set is interpreted as "all pods".
+class TripPods extends Table {
+  TextColumn get tripId =>
+      text().references(Trips, #id, onDelete: KeyAction.cascade)();
+  TextColumn get podId =>
+      text().references(Pods, #id, onDelete: KeyAction.cascade)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {tripId, podId};
 }
 
 class Captures extends Table {
@@ -212,6 +227,10 @@ class ScheduleEntries extends Table {
   TextColumn get location => text().nullable()();
   TextColumn get notes => text().nullable()();
   TextColumn get kind => text()();
+  // Backreference to a Trip that spawned this entry. When set, deleting the
+  // trip cascades and removes the entry, keeping the calendar in sync.
+  TextColumn get sourceTripId =>
+      text().nullable().references(Trips, #id, onDelete: KeyAction.cascade)();
   TextColumn get overridesTemplateId => text().nullable().references(
         ScheduleTemplates,
         #id,

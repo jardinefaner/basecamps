@@ -977,6 +977,28 @@ class $TripsTable extends Trips with TableInfo<$TripsTable, Trip> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _departureTimeMeta = const VerificationMeta(
+    'departureTime',
+  );
+  @override
+  late final GeneratedColumn<String> departureTime = GeneratedColumn<String>(
+    'departure_time',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _returnTimeMeta = const VerificationMeta(
+    'returnTime',
+  );
+  @override
+  late final GeneratedColumn<String> returnTime = GeneratedColumn<String>(
+    'return_time',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -1009,6 +1031,8 @@ class $TripsTable extends Trips with TableInfo<$TripsTable, Trip> {
     endDate,
     location,
     notes,
+    departureTime,
+    returnTime,
     createdAt,
     updatedAt,
   ];
@@ -1063,6 +1087,21 @@ class $TripsTable extends Trips with TableInfo<$TripsTable, Trip> {
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('departure_time')) {
+      context.handle(
+        _departureTimeMeta,
+        departureTime.isAcceptableOrUnknown(
+          data['departure_time']!,
+          _departureTimeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('return_time')) {
+      context.handle(
+        _returnTimeMeta,
+        returnTime.isAcceptableOrUnknown(data['return_time']!, _returnTimeMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -1108,6 +1147,14 @@ class $TripsTable extends Trips with TableInfo<$TripsTable, Trip> {
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      departureTime: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}departure_time'],
+      ),
+      returnTime: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}return_time'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -1132,6 +1179,8 @@ class Trip extends DataClass implements Insertable<Trip> {
   final DateTime? endDate;
   final String? location;
   final String? notes;
+  final String? departureTime;
+  final String? returnTime;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Trip({
@@ -1141,6 +1190,8 @@ class Trip extends DataClass implements Insertable<Trip> {
     this.endDate,
     this.location,
     this.notes,
+    this.departureTime,
+    this.returnTime,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -1158,6 +1209,12 @@ class Trip extends DataClass implements Insertable<Trip> {
     }
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
+    }
+    if (!nullToAbsent || departureTime != null) {
+      map['departure_time'] = Variable<String>(departureTime);
+    }
+    if (!nullToAbsent || returnTime != null) {
+      map['return_time'] = Variable<String>(returnTime);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -1178,6 +1235,12 @@ class Trip extends DataClass implements Insertable<Trip> {
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      departureTime: departureTime == null && nullToAbsent
+          ? const Value.absent()
+          : Value(departureTime),
+      returnTime: returnTime == null && nullToAbsent
+          ? const Value.absent()
+          : Value(returnTime),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -1195,6 +1258,8 @@ class Trip extends DataClass implements Insertable<Trip> {
       endDate: serializer.fromJson<DateTime?>(json['endDate']),
       location: serializer.fromJson<String?>(json['location']),
       notes: serializer.fromJson<String?>(json['notes']),
+      departureTime: serializer.fromJson<String?>(json['departureTime']),
+      returnTime: serializer.fromJson<String?>(json['returnTime']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -1209,6 +1274,8 @@ class Trip extends DataClass implements Insertable<Trip> {
       'endDate': serializer.toJson<DateTime?>(endDate),
       'location': serializer.toJson<String?>(location),
       'notes': serializer.toJson<String?>(notes),
+      'departureTime': serializer.toJson<String?>(departureTime),
+      'returnTime': serializer.toJson<String?>(returnTime),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -1221,6 +1288,8 @@ class Trip extends DataClass implements Insertable<Trip> {
     Value<DateTime?> endDate = const Value.absent(),
     Value<String?> location = const Value.absent(),
     Value<String?> notes = const Value.absent(),
+    Value<String?> departureTime = const Value.absent(),
+    Value<String?> returnTime = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Trip(
@@ -1230,6 +1299,10 @@ class Trip extends DataClass implements Insertable<Trip> {
     endDate: endDate.present ? endDate.value : this.endDate,
     location: location.present ? location.value : this.location,
     notes: notes.present ? notes.value : this.notes,
+    departureTime: departureTime.present
+        ? departureTime.value
+        : this.departureTime,
+    returnTime: returnTime.present ? returnTime.value : this.returnTime,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -1241,6 +1314,12 @@ class Trip extends DataClass implements Insertable<Trip> {
       endDate: data.endDate.present ? data.endDate.value : this.endDate,
       location: data.location.present ? data.location.value : this.location,
       notes: data.notes.present ? data.notes.value : this.notes,
+      departureTime: data.departureTime.present
+          ? data.departureTime.value
+          : this.departureTime,
+      returnTime: data.returnTime.present
+          ? data.returnTime.value
+          : this.returnTime,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -1255,6 +1334,8 @@ class Trip extends DataClass implements Insertable<Trip> {
           ..write('endDate: $endDate, ')
           ..write('location: $location, ')
           ..write('notes: $notes, ')
+          ..write('departureTime: $departureTime, ')
+          ..write('returnTime: $returnTime, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -1269,6 +1350,8 @@ class Trip extends DataClass implements Insertable<Trip> {
     endDate,
     location,
     notes,
+    departureTime,
+    returnTime,
     createdAt,
     updatedAt,
   );
@@ -1282,6 +1365,8 @@ class Trip extends DataClass implements Insertable<Trip> {
           other.endDate == this.endDate &&
           other.location == this.location &&
           other.notes == this.notes &&
+          other.departureTime == this.departureTime &&
+          other.returnTime == this.returnTime &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -1293,6 +1378,8 @@ class TripsCompanion extends UpdateCompanion<Trip> {
   final Value<DateTime?> endDate;
   final Value<String?> location;
   final Value<String?> notes;
+  final Value<String?> departureTime;
+  final Value<String?> returnTime;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -1303,6 +1390,8 @@ class TripsCompanion extends UpdateCompanion<Trip> {
     this.endDate = const Value.absent(),
     this.location = const Value.absent(),
     this.notes = const Value.absent(),
+    this.departureTime = const Value.absent(),
+    this.returnTime = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1314,6 +1403,8 @@ class TripsCompanion extends UpdateCompanion<Trip> {
     this.endDate = const Value.absent(),
     this.location = const Value.absent(),
     this.notes = const Value.absent(),
+    this.departureTime = const Value.absent(),
+    this.returnTime = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1327,6 +1418,8 @@ class TripsCompanion extends UpdateCompanion<Trip> {
     Expression<DateTime>? endDate,
     Expression<String>? location,
     Expression<String>? notes,
+    Expression<String>? departureTime,
+    Expression<String>? returnTime,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -1338,6 +1431,8 @@ class TripsCompanion extends UpdateCompanion<Trip> {
       if (endDate != null) 'end_date': endDate,
       if (location != null) 'location': location,
       if (notes != null) 'notes': notes,
+      if (departureTime != null) 'departure_time': departureTime,
+      if (returnTime != null) 'return_time': returnTime,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -1351,6 +1446,8 @@ class TripsCompanion extends UpdateCompanion<Trip> {
     Value<DateTime?>? endDate,
     Value<String?>? location,
     Value<String?>? notes,
+    Value<String?>? departureTime,
+    Value<String?>? returnTime,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -1362,6 +1459,8 @@ class TripsCompanion extends UpdateCompanion<Trip> {
       endDate: endDate ?? this.endDate,
       location: location ?? this.location,
       notes: notes ?? this.notes,
+      departureTime: departureTime ?? this.departureTime,
+      returnTime: returnTime ?? this.returnTime,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -1389,6 +1488,12 @@ class TripsCompanion extends UpdateCompanion<Trip> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (departureTime.present) {
+      map['departure_time'] = Variable<String>(departureTime.value);
+    }
+    if (returnTime.present) {
+      map['return_time'] = Variable<String>(returnTime.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -1410,8 +1515,223 @@ class TripsCompanion extends UpdateCompanion<Trip> {
           ..write('endDate: $endDate, ')
           ..write('location: $location, ')
           ..write('notes: $notes, ')
+          ..write('departureTime: $departureTime, ')
+          ..write('returnTime: $returnTime, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TripPodsTable extends TripPods with TableInfo<$TripPodsTable, TripPod> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TripPodsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _tripIdMeta = const VerificationMeta('tripId');
+  @override
+  late final GeneratedColumn<String> tripId = GeneratedColumn<String>(
+    'trip_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES trips (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _podIdMeta = const VerificationMeta('podId');
+  @override
+  late final GeneratedColumn<String> podId = GeneratedColumn<String>(
+    'pod_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES pods (id) ON DELETE CASCADE',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [tripId, podId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'trip_pods';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TripPod> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('trip_id')) {
+      context.handle(
+        _tripIdMeta,
+        tripId.isAcceptableOrUnknown(data['trip_id']!, _tripIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_tripIdMeta);
+    }
+    if (data.containsKey('pod_id')) {
+      context.handle(
+        _podIdMeta,
+        podId.isAcceptableOrUnknown(data['pod_id']!, _podIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_podIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {tripId, podId};
+  @override
+  TripPod map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TripPod(
+      tripId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trip_id'],
+      )!,
+      podId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pod_id'],
+      )!,
+    );
+  }
+
+  @override
+  $TripPodsTable createAlias(String alias) {
+    return $TripPodsTable(attachedDatabase, alias);
+  }
+}
+
+class TripPod extends DataClass implements Insertable<TripPod> {
+  final String tripId;
+  final String podId;
+  const TripPod({required this.tripId, required this.podId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['trip_id'] = Variable<String>(tripId);
+    map['pod_id'] = Variable<String>(podId);
+    return map;
+  }
+
+  TripPodsCompanion toCompanion(bool nullToAbsent) {
+    return TripPodsCompanion(tripId: Value(tripId), podId: Value(podId));
+  }
+
+  factory TripPod.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TripPod(
+      tripId: serializer.fromJson<String>(json['tripId']),
+      podId: serializer.fromJson<String>(json['podId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'tripId': serializer.toJson<String>(tripId),
+      'podId': serializer.toJson<String>(podId),
+    };
+  }
+
+  TripPod copyWith({String? tripId, String? podId}) =>
+      TripPod(tripId: tripId ?? this.tripId, podId: podId ?? this.podId);
+  TripPod copyWithCompanion(TripPodsCompanion data) {
+    return TripPod(
+      tripId: data.tripId.present ? data.tripId.value : this.tripId,
+      podId: data.podId.present ? data.podId.value : this.podId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TripPod(')
+          ..write('tripId: $tripId, ')
+          ..write('podId: $podId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(tripId, podId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TripPod &&
+          other.tripId == this.tripId &&
+          other.podId == this.podId);
+}
+
+class TripPodsCompanion extends UpdateCompanion<TripPod> {
+  final Value<String> tripId;
+  final Value<String> podId;
+  final Value<int> rowid;
+  const TripPodsCompanion({
+    this.tripId = const Value.absent(),
+    this.podId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TripPodsCompanion.insert({
+    required String tripId,
+    required String podId,
+    this.rowid = const Value.absent(),
+  }) : tripId = Value(tripId),
+       podId = Value(podId);
+  static Insertable<TripPod> custom({
+    Expression<String>? tripId,
+    Expression<String>? podId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (tripId != null) 'trip_id': tripId,
+      if (podId != null) 'pod_id': podId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TripPodsCompanion copyWith({
+    Value<String>? tripId,
+    Value<String>? podId,
+    Value<int>? rowid,
+  }) {
+    return TripPodsCompanion(
+      tripId: tripId ?? this.tripId,
+      podId: podId ?? this.podId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (tripId.present) {
+      map['trip_id'] = Variable<String>(tripId.value);
+    }
+    if (podId.present) {
+      map['pod_id'] = Variable<String>(podId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TripPodsCompanion(')
+          ..write('tripId: $tripId, ')
+          ..write('podId: $podId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4737,6 +5057,20 @@ class $ScheduleEntriesTable extends ScheduleEntries
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _sourceTripIdMeta = const VerificationMeta(
+    'sourceTripId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceTripId = GeneratedColumn<String>(
+    'source_trip_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES trips (id) ON DELETE CASCADE',
+    ),
+  );
   static const VerificationMeta _overridesTemplateIdMeta =
       const VerificationMeta('overridesTemplateId');
   @override
@@ -4789,6 +5123,7 @@ class $ScheduleEntriesTable extends ScheduleEntries
     location,
     notes,
     kind,
+    sourceTripId,
     overridesTemplateId,
     createdAt,
     updatedAt,
@@ -4892,6 +5227,15 @@ class $ScheduleEntriesTable extends ScheduleEntries
     } else if (isInserting) {
       context.missing(_kindMeta);
     }
+    if (data.containsKey('source_trip_id')) {
+      context.handle(
+        _sourceTripIdMeta,
+        sourceTripId.isAcceptableOrUnknown(
+          data['source_trip_id']!,
+          _sourceTripIdMeta,
+        ),
+      );
+    }
     if (data.containsKey('overrides_template_id')) {
       context.handle(
         _overridesTemplateIdMeta,
@@ -4970,6 +5314,10 @@ class $ScheduleEntriesTable extends ScheduleEntries
         DriftSqlType.string,
         data['${effectivePrefix}kind'],
       )!,
+      sourceTripId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_trip_id'],
+      ),
       overridesTemplateId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}overrides_template_id'],
@@ -5004,6 +5352,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
   final String? location;
   final String? notes;
   final String kind;
+  final String? sourceTripId;
   final String? overridesTemplateId;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -5020,6 +5369,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     this.location,
     this.notes,
     required this.kind,
+    this.sourceTripId,
     this.overridesTemplateId,
     required this.createdAt,
     required this.updatedAt,
@@ -5049,6 +5399,9 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       map['notes'] = Variable<String>(notes);
     }
     map['kind'] = Variable<String>(kind);
+    if (!nullToAbsent || sourceTripId != null) {
+      map['source_trip_id'] = Variable<String>(sourceTripId);
+    }
     if (!nullToAbsent || overridesTemplateId != null) {
       map['overrides_template_id'] = Variable<String>(overridesTemplateId);
     }
@@ -5081,6 +5434,9 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
           ? const Value.absent()
           : Value(notes),
       kind: Value(kind),
+      sourceTripId: sourceTripId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceTripId),
       overridesTemplateId: overridesTemplateId == null && nullToAbsent
           ? const Value.absent()
           : Value(overridesTemplateId),
@@ -5107,6 +5463,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       location: serializer.fromJson<String?>(json['location']),
       notes: serializer.fromJson<String?>(json['notes']),
       kind: serializer.fromJson<String>(json['kind']),
+      sourceTripId: serializer.fromJson<String?>(json['sourceTripId']),
       overridesTemplateId: serializer.fromJson<String?>(
         json['overridesTemplateId'],
       ),
@@ -5130,6 +5487,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       'location': serializer.toJson<String?>(location),
       'notes': serializer.toJson<String?>(notes),
       'kind': serializer.toJson<String>(kind),
+      'sourceTripId': serializer.toJson<String?>(sourceTripId),
       'overridesTemplateId': serializer.toJson<String?>(overridesTemplateId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -5149,6 +5507,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     Value<String?> location = const Value.absent(),
     Value<String?> notes = const Value.absent(),
     String? kind,
+    Value<String?> sourceTripId = const Value.absent(),
     Value<String?> overridesTemplateId = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -5167,6 +5526,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     location: location.present ? location.value : this.location,
     notes: notes.present ? notes.value : this.notes,
     kind: kind ?? this.kind,
+    sourceTripId: sourceTripId.present ? sourceTripId.value : this.sourceTripId,
     overridesTemplateId: overridesTemplateId.present
         ? overridesTemplateId.value
         : this.overridesTemplateId,
@@ -5191,6 +5551,9 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       location: data.location.present ? data.location.value : this.location,
       notes: data.notes.present ? data.notes.value : this.notes,
       kind: data.kind.present ? data.kind.value : this.kind,
+      sourceTripId: data.sourceTripId.present
+          ? data.sourceTripId.value
+          : this.sourceTripId,
       overridesTemplateId: data.overridesTemplateId.present
           ? data.overridesTemplateId.value
           : this.overridesTemplateId,
@@ -5214,6 +5577,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
           ..write('location: $location, ')
           ..write('notes: $notes, ')
           ..write('kind: $kind, ')
+          ..write('sourceTripId: $sourceTripId, ')
           ..write('overridesTemplateId: $overridesTemplateId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -5235,6 +5599,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     location,
     notes,
     kind,
+    sourceTripId,
     overridesTemplateId,
     createdAt,
     updatedAt,
@@ -5255,6 +5620,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
           other.location == this.location &&
           other.notes == this.notes &&
           other.kind == this.kind &&
+          other.sourceTripId == this.sourceTripId &&
           other.overridesTemplateId == this.overridesTemplateId &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -5273,6 +5639,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
   final Value<String?> location;
   final Value<String?> notes;
   final Value<String> kind;
+  final Value<String?> sourceTripId;
   final Value<String?> overridesTemplateId;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -5290,6 +5657,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     this.location = const Value.absent(),
     this.notes = const Value.absent(),
     this.kind = const Value.absent(),
+    this.sourceTripId = const Value.absent(),
     this.overridesTemplateId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -5308,6 +5676,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     this.location = const Value.absent(),
     this.notes = const Value.absent(),
     required String kind,
+    this.sourceTripId = const Value.absent(),
     this.overridesTemplateId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -5331,6 +5700,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     Expression<String>? location,
     Expression<String>? notes,
     Expression<String>? kind,
+    Expression<String>? sourceTripId,
     Expression<String>? overridesTemplateId,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -5349,6 +5719,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
       if (location != null) 'location': location,
       if (notes != null) 'notes': notes,
       if (kind != null) 'kind': kind,
+      if (sourceTripId != null) 'source_trip_id': sourceTripId,
       if (overridesTemplateId != null)
         'overrides_template_id': overridesTemplateId,
       if (createdAt != null) 'created_at': createdAt,
@@ -5370,6 +5741,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     Value<String?>? location,
     Value<String?>? notes,
     Value<String>? kind,
+    Value<String?>? sourceTripId,
     Value<String?>? overridesTemplateId,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -5388,6 +5760,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
       location: location ?? this.location,
       notes: notes ?? this.notes,
       kind: kind ?? this.kind,
+      sourceTripId: sourceTripId ?? this.sourceTripId,
       overridesTemplateId: overridesTemplateId ?? this.overridesTemplateId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -5434,6 +5807,9 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     if (kind.present) {
       map['kind'] = Variable<String>(kind.value);
     }
+    if (sourceTripId.present) {
+      map['source_trip_id'] = Variable<String>(sourceTripId.value);
+    }
     if (overridesTemplateId.present) {
       map['overrides_template_id'] = Variable<String>(
         overridesTemplateId.value,
@@ -5466,6 +5842,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
           ..write('location: $location, ')
           ..write('notes: $notes, ')
           ..write('kind: $kind, ')
+          ..write('sourceTripId: $sourceTripId, ')
           ..write('overridesTemplateId: $overridesTemplateId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -5920,6 +6297,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $PodsTable pods = $PodsTable(this);
   late final $KidsTable kids = $KidsTable(this);
   late final $TripsTable trips = $TripsTable(this);
+  late final $TripPodsTable tripPods = $TripPodsTable(this);
   late final $CapturesTable captures = $CapturesTable(this);
   late final $CaptureKidsTable captureKids = $CaptureKidsTable(this);
   late final $ObservationsTable observations = $ObservationsTable(this);
@@ -5942,6 +6320,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     pods,
     kids,
     trips,
+    tripPods,
     captures,
     captureKids,
     observations,
@@ -5960,6 +6339,20 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('kids', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'trips',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('trip_pods', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'pods',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('trip_pods', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -6040,6 +6433,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
+        'trips',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('schedule_entries', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
         'schedule_templates',
         limitUpdateKind: UpdateKind.delete,
       ),
@@ -6113,6 +6513,25 @@ final class $$PodsTableReferences
     ).filter((f) => f.podId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_kidsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$TripPodsTable, List<TripPod>> _tripPodsRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.tripPods,
+    aliasName: $_aliasNameGenerator(db.pods.id, db.tripPods.podId),
+  );
+
+  $$TripPodsTableProcessedTableManager get tripPodsRefs {
+    final manager = $$TripPodsTableTableManager(
+      $_db,
+      $_db.tripPods,
+    ).filter((f) => f.podId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_tripPodsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -6263,6 +6682,31 @@ class $$PodsTableFilterComposer extends Composer<_$AppDatabase, $PodsTable> {
           }) => $$KidsTableFilterComposer(
             $db: $db,
             $table: $db.kids,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> tripPodsRefs(
+    Expression<bool> Function($$TripPodsTableFilterComposer f) f,
+  ) {
+    final $$TripPodsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.tripPods,
+      getReferencedColumn: (t) => t.podId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TripPodsTableFilterComposer(
+            $db: $db,
+            $table: $db.tripPods,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -6481,6 +6925,31 @@ class $$PodsTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> tripPodsRefs<T extends Object>(
+    Expression<T> Function($$TripPodsTableAnnotationComposer a) f,
+  ) {
+    final $$TripPodsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.tripPods,
+      getReferencedColumn: (t) => t.podId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TripPodsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.tripPods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
   Expression<T> observationsRefs<T extends Object>(
     Expression<T> Function($$ObservationsTableAnnotationComposer a) f,
   ) {
@@ -6623,6 +7092,7 @@ class $$PodsTableTableManager
           Pod,
           PrefetchHooks Function({
             bool kidsRefs,
+            bool tripPodsRefs,
             bool observationsRefs,
             bool scheduleTemplatesRefs,
             bool scheduleEntriesRefs,
@@ -6682,6 +7152,7 @@ class $$PodsTableTableManager
           prefetchHooksCallback:
               ({
                 kidsRefs = false,
+                tripPodsRefs = false,
                 observationsRefs = false,
                 scheduleTemplatesRefs = false,
                 scheduleEntriesRefs = false,
@@ -6692,6 +7163,7 @@ class $$PodsTableTableManager
                   db: db,
                   explicitlyWatchedTables: [
                     if (kidsRefs) db.kids,
+                    if (tripPodsRefs) db.tripPods,
                     if (observationsRefs) db.observations,
                     if (scheduleTemplatesRefs) db.scheduleTemplates,
                     if (scheduleEntriesRefs) db.scheduleEntries,
@@ -6709,6 +7181,19 @@ class $$PodsTableTableManager
                           ),
                           managerFromTypedResult: (p0) =>
                               $$PodsTableReferences(db, table, p0).kidsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.podId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (tripPodsRefs)
+                        await $_getPrefetchedData<Pod, $PodsTable, TripPod>(
+                          currentTable: table,
+                          referencedTable: $$PodsTableReferences
+                              ._tripPodsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PodsTableReferences(db, table, p0).tripPodsRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.podId == item.id,
@@ -6825,6 +7310,7 @@ typedef $$PodsTableProcessedTableManager =
       Pod,
       PrefetchHooks Function({
         bool kidsRefs,
+        bool tripPodsRefs,
         bool observationsRefs,
         bool scheduleTemplatesRefs,
         bool scheduleEntriesRefs,
@@ -7414,6 +7900,8 @@ typedef $$TripsTableCreateCompanionBuilder =
       Value<DateTime?> endDate,
       Value<String?> location,
       Value<String?> notes,
+      Value<String?> departureTime,
+      Value<String?> returnTime,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -7426,6 +7914,8 @@ typedef $$TripsTableUpdateCompanionBuilder =
       Value<DateTime?> endDate,
       Value<String?> location,
       Value<String?> notes,
+      Value<String?> departureTime,
+      Value<String?> returnTime,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -7434,6 +7924,25 @@ typedef $$TripsTableUpdateCompanionBuilder =
 final class $$TripsTableReferences
     extends BaseReferences<_$AppDatabase, $TripsTable, Trip> {
   $$TripsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$TripPodsTable, List<TripPod>> _tripPodsRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.tripPods,
+    aliasName: $_aliasNameGenerator(db.trips.id, db.tripPods.tripId),
+  );
+
+  $$TripPodsTableProcessedTableManager get tripPodsRefs {
+    final manager = $$TripPodsTableTableManager(
+      $_db,
+      $_db.tripPods,
+    ).filter((f) => f.tripId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_tripPodsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 
   static MultiTypedResultKey<$CapturesTable, List<Capture>> _capturesRefsTable(
     _$AppDatabase db,
@@ -7467,6 +7976,29 @@ final class $$TripsTableReferences
     ).filter((f) => f.tripId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_observationsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ScheduleEntriesTable, List<ScheduleEntry>>
+  _scheduleEntriesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.scheduleEntries,
+    aliasName: $_aliasNameGenerator(
+      db.trips.id,
+      db.scheduleEntries.sourceTripId,
+    ),
+  );
+
+  $$ScheduleEntriesTableProcessedTableManager get scheduleEntriesRefs {
+    final manager = $$ScheduleEntriesTableTableManager(
+      $_db,
+      $_db.scheduleEntries,
+    ).filter((f) => f.sourceTripId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _scheduleEntriesRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -7511,6 +8043,16 @@ class $$TripsTableFilterComposer extends Composer<_$AppDatabase, $TripsTable> {
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get departureTime => $composableBuilder(
+    column: $table.departureTime,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get returnTime => $composableBuilder(
+    column: $table.returnTime,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnFilters(column),
@@ -7520,6 +8062,31 @@ class $$TripsTableFilterComposer extends Composer<_$AppDatabase, $TripsTable> {
     column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
   );
+
+  Expression<bool> tripPodsRefs(
+    Expression<bool> Function($$TripPodsTableFilterComposer f) f,
+  ) {
+    final $$TripPodsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.tripPods,
+      getReferencedColumn: (t) => t.tripId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TripPodsTableFilterComposer(
+            $db: $db,
+            $table: $db.tripPods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 
   Expression<bool> capturesRefs(
     Expression<bool> Function($$CapturesTableFilterComposer f) f,
@@ -7570,6 +8137,31 @@ class $$TripsTableFilterComposer extends Composer<_$AppDatabase, $TripsTable> {
     );
     return f(composer);
   }
+
+  Expression<bool> scheduleEntriesRefs(
+    Expression<bool> Function($$ScheduleEntriesTableFilterComposer f) f,
+  ) {
+    final $$ScheduleEntriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleEntries,
+      getReferencedColumn: (t) => t.sourceTripId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleEntriesTableFilterComposer(
+            $db: $db,
+            $table: $db.scheduleEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$TripsTableOrderingComposer
@@ -7611,6 +8203,16 @@ class $$TripsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get departureTime => $composableBuilder(
+    column: $table.departureTime,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get returnTime => $composableBuilder(
+    column: $table.returnTime,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -7649,11 +8251,46 @@ class $$TripsTableAnnotationComposer
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
 
+  GeneratedColumn<String> get departureTime => $composableBuilder(
+    column: $table.departureTime,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get returnTime => $composableBuilder(
+    column: $table.returnTime,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  Expression<T> tripPodsRefs<T extends Object>(
+    Expression<T> Function($$TripPodsTableAnnotationComposer a) f,
+  ) {
+    final $$TripPodsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.tripPods,
+      getReferencedColumn: (t) => t.tripId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TripPodsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.tripPods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 
   Expression<T> capturesRefs<T extends Object>(
     Expression<T> Function($$CapturesTableAnnotationComposer a) f,
@@ -7704,6 +8341,31 @@ class $$TripsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> scheduleEntriesRefs<T extends Object>(
+    Expression<T> Function($$ScheduleEntriesTableAnnotationComposer a) f,
+  ) {
+    final $$ScheduleEntriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleEntries,
+      getReferencedColumn: (t) => t.sourceTripId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleEntriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.scheduleEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$TripsTableTableManager
@@ -7719,7 +8381,12 @@ class $$TripsTableTableManager
           $$TripsTableUpdateCompanionBuilder,
           (Trip, $$TripsTableReferences),
           Trip,
-          PrefetchHooks Function({bool capturesRefs, bool observationsRefs})
+          PrefetchHooks Function({
+            bool tripPodsRefs,
+            bool capturesRefs,
+            bool observationsRefs,
+            bool scheduleEntriesRefs,
+          })
         > {
   $$TripsTableTableManager(_$AppDatabase db, $TripsTable table)
     : super(
@@ -7740,6 +8407,8 @@ class $$TripsTableTableManager
                 Value<DateTime?> endDate = const Value.absent(),
                 Value<String?> location = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<String?> departureTime = const Value.absent(),
+                Value<String?> returnTime = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -7750,6 +8419,8 @@ class $$TripsTableTableManager
                 endDate: endDate,
                 location: location,
                 notes: notes,
+                departureTime: departureTime,
+                returnTime: returnTime,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -7762,6 +8433,8 @@ class $$TripsTableTableManager
                 Value<DateTime?> endDate = const Value.absent(),
                 Value<String?> location = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<String?> departureTime = const Value.absent(),
+                Value<String?> returnTime = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -7772,6 +8445,8 @@ class $$TripsTableTableManager
                 endDate: endDate,
                 location: location,
                 notes: notes,
+                departureTime: departureTime,
+                returnTime: returnTime,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -7783,16 +8458,40 @@ class $$TripsTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({capturesRefs = false, observationsRefs = false}) {
+              ({
+                tripPodsRefs = false,
+                capturesRefs = false,
+                observationsRefs = false,
+                scheduleEntriesRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
+                    if (tripPodsRefs) db.tripPods,
                     if (capturesRefs) db.captures,
                     if (observationsRefs) db.observations,
+                    if (scheduleEntriesRefs) db.scheduleEntries,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
                     return [
+                      if (tripPodsRefs)
+                        await $_getPrefetchedData<Trip, $TripsTable, TripPod>(
+                          currentTable: table,
+                          referencedTable: $$TripsTableReferences
+                              ._tripPodsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$TripsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).tripPodsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.tripId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                       if (capturesRefs)
                         await $_getPrefetchedData<Trip, $TripsTable, Capture>(
                           currentTable: table,
@@ -7831,6 +8530,27 @@ class $$TripsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (scheduleEntriesRefs)
+                        await $_getPrefetchedData<
+                          Trip,
+                          $TripsTable,
+                          ScheduleEntry
+                        >(
+                          currentTable: table,
+                          referencedTable: $$TripsTableReferences
+                              ._scheduleEntriesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$TripsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scheduleEntriesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.sourceTripId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -7851,7 +8571,356 @@ typedef $$TripsTableProcessedTableManager =
       $$TripsTableUpdateCompanionBuilder,
       (Trip, $$TripsTableReferences),
       Trip,
-      PrefetchHooks Function({bool capturesRefs, bool observationsRefs})
+      PrefetchHooks Function({
+        bool tripPodsRefs,
+        bool capturesRefs,
+        bool observationsRefs,
+        bool scheduleEntriesRefs,
+      })
+    >;
+typedef $$TripPodsTableCreateCompanionBuilder =
+    TripPodsCompanion Function({
+      required String tripId,
+      required String podId,
+      Value<int> rowid,
+    });
+typedef $$TripPodsTableUpdateCompanionBuilder =
+    TripPodsCompanion Function({
+      Value<String> tripId,
+      Value<String> podId,
+      Value<int> rowid,
+    });
+
+final class $$TripPodsTableReferences
+    extends BaseReferences<_$AppDatabase, $TripPodsTable, TripPod> {
+  $$TripPodsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $TripsTable _tripIdTable(_$AppDatabase db) => db.trips.createAlias(
+    $_aliasNameGenerator(db.tripPods.tripId, db.trips.id),
+  );
+
+  $$TripsTableProcessedTableManager get tripId {
+    final $_column = $_itemColumn<String>('trip_id')!;
+
+    final manager = $$TripsTableTableManager(
+      $_db,
+      $_db.trips,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_tripIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $PodsTable _podIdTable(_$AppDatabase db) =>
+      db.pods.createAlias($_aliasNameGenerator(db.tripPods.podId, db.pods.id));
+
+  $$PodsTableProcessedTableManager get podId {
+    final $_column = $_itemColumn<String>('pod_id')!;
+
+    final manager = $$PodsTableTableManager(
+      $_db,
+      $_db.pods,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_podIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$TripPodsTableFilterComposer
+    extends Composer<_$AppDatabase, $TripPodsTable> {
+  $$TripPodsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$TripsTableFilterComposer get tripId {
+    final $$TripsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.tripId,
+      referencedTable: $db.trips,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TripsTableFilterComposer(
+            $db: $db,
+            $table: $db.trips,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PodsTableFilterComposer get podId {
+    final $$PodsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.podId,
+      referencedTable: $db.pods,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PodsTableFilterComposer(
+            $db: $db,
+            $table: $db.pods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TripPodsTableOrderingComposer
+    extends Composer<_$AppDatabase, $TripPodsTable> {
+  $$TripPodsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$TripsTableOrderingComposer get tripId {
+    final $$TripsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.tripId,
+      referencedTable: $db.trips,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TripsTableOrderingComposer(
+            $db: $db,
+            $table: $db.trips,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PodsTableOrderingComposer get podId {
+    final $$PodsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.podId,
+      referencedTable: $db.pods,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PodsTableOrderingComposer(
+            $db: $db,
+            $table: $db.pods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TripPodsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TripPodsTable> {
+  $$TripPodsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$TripsTableAnnotationComposer get tripId {
+    final $$TripsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.tripId,
+      referencedTable: $db.trips,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TripsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.trips,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PodsTableAnnotationComposer get podId {
+    final $$PodsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.podId,
+      referencedTable: $db.pods,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PodsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.pods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TripPodsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TripPodsTable,
+          TripPod,
+          $$TripPodsTableFilterComposer,
+          $$TripPodsTableOrderingComposer,
+          $$TripPodsTableAnnotationComposer,
+          $$TripPodsTableCreateCompanionBuilder,
+          $$TripPodsTableUpdateCompanionBuilder,
+          (TripPod, $$TripPodsTableReferences),
+          TripPod,
+          PrefetchHooks Function({bool tripId, bool podId})
+        > {
+  $$TripPodsTableTableManager(_$AppDatabase db, $TripPodsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TripPodsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TripPodsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TripPodsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> tripId = const Value.absent(),
+                Value<String> podId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) =>
+                  TripPodsCompanion(tripId: tripId, podId: podId, rowid: rowid),
+          createCompanionCallback:
+              ({
+                required String tripId,
+                required String podId,
+                Value<int> rowid = const Value.absent(),
+              }) => TripPodsCompanion.insert(
+                tripId: tripId,
+                podId: podId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$TripPodsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({tripId = false, podId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (tripId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.tripId,
+                                referencedTable: $$TripPodsTableReferences
+                                    ._tripIdTable(db),
+                                referencedColumn: $$TripPodsTableReferences
+                                    ._tripIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+                    if (podId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.podId,
+                                referencedTable: $$TripPodsTableReferences
+                                    ._podIdTable(db),
+                                referencedColumn: $$TripPodsTableReferences
+                                    ._podIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$TripPodsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TripPodsTable,
+      TripPod,
+      $$TripPodsTableFilterComposer,
+      $$TripPodsTableOrderingComposer,
+      $$TripPodsTableAnnotationComposer,
+      $$TripPodsTableCreateCompanionBuilder,
+      $$TripPodsTableUpdateCompanionBuilder,
+      (TripPod, $$TripPodsTableReferences),
+      TripPod,
+      PrefetchHooks Function({bool tripId, bool podId})
     >;
 typedef $$CapturesTableCreateCompanionBuilder =
     CapturesCompanion Function({
@@ -11053,6 +12122,7 @@ typedef $$ScheduleEntriesTableCreateCompanionBuilder =
       Value<String?> location,
       Value<String?> notes,
       required String kind,
+      Value<String?> sourceTripId,
       Value<String?> overridesTemplateId,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -11072,6 +12142,7 @@ typedef $$ScheduleEntriesTableUpdateCompanionBuilder =
       Value<String?> location,
       Value<String?> notes,
       Value<String> kind,
+      Value<String?> sourceTripId,
       Value<String?> overridesTemplateId,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -11121,6 +12192,25 @@ final class $$ScheduleEntriesTableReferences
       $_db.specialists,
     ).filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_specialistIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $TripsTable _sourceTripIdTable(_$AppDatabase db) =>
+      db.trips.createAlias(
+        $_aliasNameGenerator(db.scheduleEntries.sourceTripId, db.trips.id),
+      );
+
+  $$TripsTableProcessedTableManager? get sourceTripId {
+    final $_column = $_itemColumn<String>('source_trip_id');
+    if ($_column == null) return null;
+    final manager = $$TripsTableTableManager(
+      $_db,
+      $_db.trips,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_sourceTripIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -11277,6 +12367,29 @@ class $$ScheduleEntriesTableFilterComposer
           }) => $$SpecialistsTableFilterComposer(
             $db: $db,
             $table: $db.specialists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$TripsTableFilterComposer get sourceTripId {
+    final $$TripsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceTripId,
+      referencedTable: $db.trips,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TripsTableFilterComposer(
+            $db: $db,
+            $table: $db.trips,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -11450,6 +12563,29 @@ class $$ScheduleEntriesTableOrderingComposer
     return composer;
   }
 
+  $$TripsTableOrderingComposer get sourceTripId {
+    final $$TripsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceTripId,
+      referencedTable: $db.trips,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TripsTableOrderingComposer(
+            $db: $db,
+            $table: $db.trips,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
   $$ScheduleTemplatesTableOrderingComposer get overridesTemplateId {
     final $$ScheduleTemplatesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -11567,6 +12703,29 @@ class $$ScheduleEntriesTableAnnotationComposer
     return composer;
   }
 
+  $$TripsTableAnnotationComposer get sourceTripId {
+    final $$TripsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceTripId,
+      referencedTable: $db.trips,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TripsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.trips,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
   $$ScheduleTemplatesTableAnnotationComposer get overridesTemplateId {
     final $$ScheduleTemplatesTableAnnotationComposer composer =
         $composerBuilder(
@@ -11633,6 +12792,7 @@ class $$ScheduleEntriesTableTableManager
           PrefetchHooks Function({
             bool podId,
             bool specialistId,
+            bool sourceTripId,
             bool overridesTemplateId,
             bool entryPodsRefs,
           })
@@ -11664,6 +12824,7 @@ class $$ScheduleEntriesTableTableManager
                 Value<String?> location = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<String> kind = const Value.absent(),
+                Value<String?> sourceTripId = const Value.absent(),
                 Value<String?> overridesTemplateId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -11681,6 +12842,7 @@ class $$ScheduleEntriesTableTableManager
                 location: location,
                 notes: notes,
                 kind: kind,
+                sourceTripId: sourceTripId,
                 overridesTemplateId: overridesTemplateId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -11700,6 +12862,7 @@ class $$ScheduleEntriesTableTableManager
                 Value<String?> location = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 required String kind,
+                Value<String?> sourceTripId = const Value.absent(),
                 Value<String?> overridesTemplateId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -11717,6 +12880,7 @@ class $$ScheduleEntriesTableTableManager
                 location: location,
                 notes: notes,
                 kind: kind,
+                sourceTripId: sourceTripId,
                 overridesTemplateId: overridesTemplateId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -11734,6 +12898,7 @@ class $$ScheduleEntriesTableTableManager
               ({
                 podId = false,
                 specialistId = false,
+                sourceTripId = false,
                 overridesTemplateId = false,
                 entryPodsRefs = false,
               }) {
@@ -11782,6 +12947,21 @@ class $$ScheduleEntriesTableTableManager
                                     referencedColumn:
                                         $$ScheduleEntriesTableReferences
                                             ._specialistIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (sourceTripId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.sourceTripId,
+                                    referencedTable:
+                                        $$ScheduleEntriesTableReferences
+                                            ._sourceTripIdTable(db),
+                                    referencedColumn:
+                                        $$ScheduleEntriesTableReferences
+                                            ._sourceTripIdTable(db)
                                             .id,
                                   )
                                   as T;
@@ -11850,6 +13030,7 @@ typedef $$ScheduleEntriesTableProcessedTableManager =
       PrefetchHooks Function({
         bool podId,
         bool specialistId,
+        bool sourceTripId,
         bool overridesTemplateId,
         bool entryPodsRefs,
       })
@@ -12563,6 +13744,8 @@ class $AppDatabaseManager {
   $$KidsTableTableManager get kids => $$KidsTableTableManager(_db, _db.kids);
   $$TripsTableTableManager get trips =>
       $$TripsTableTableManager(_db, _db.trips);
+  $$TripPodsTableTableManager get tripPods =>
+      $$TripPodsTableTableManager(_db, _db.tripPods);
   $$CapturesTableTableManager get captures =>
       $$CapturesTableTableManager(_db, _db.captures);
   $$CaptureKidsTableTableManager get captureKids =>
