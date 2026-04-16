@@ -120,6 +120,24 @@ class ObservationKids extends Table {
   Set<Column<Object>> get primaryKey => {observationId, kidId};
 }
 
+/// One row per (observation, domain) pair. Observations can span several
+/// curriculum domains — a "shared with a friend" moment touches SSD3
+/// (empathy), SSD8 (friendship), and sometimes SSD9 (conflict). The
+/// legacy single [Observations.domain] column is still written as the
+/// "primary" (first-selected) domain so older queries keep working.
+///
+/// Named `Tags` (not just `Domains`) so Drift's generated row dataclass
+/// `ObservationDomainTag` doesn't collide with the `ObservationDomain`
+/// enum in observations_repository.dart.
+class ObservationDomainTags extends Table {
+  TextColumn get observationId => text()
+      .references(Observations, #id, onDelete: KeyAction.cascade)();
+  TextColumn get domain => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {observationId, domain};
+}
+
 class Observations extends Table {
   TextColumn get id => text()();
   TextColumn get targetKind => text()();

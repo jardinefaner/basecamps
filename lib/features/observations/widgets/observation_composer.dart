@@ -63,6 +63,12 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
 
   Future<void> _submit() async {
     if (!_hasContent) return;
+    // Stop voice first so any lingering partials land in the note before
+    // we read it. Teachers forget the mic is on — make Send do the
+    // obvious right thing.
+    if (_voiceActive) {
+      await _stopVoice();
+    }
     setState(() => _submitting = true);
     final currentActivity = _currentActivity();
     final note = _noteController.text.trim();
@@ -73,7 +79,7 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
     final repo = ref.read(observationsRepositoryProvider);
     final observationId = await repo.addObservation(
       note: note,
-      domain: localSuggestion.domain,
+      domains: localSuggestion.domains,
       sentiment: localSuggestion.sentiment,
       attachments: _attachments
           .map(
@@ -113,7 +119,7 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
     try {
       await ref.read(observationsRepositoryProvider).updateObservation(
             id: observationId,
-            domain: refined.domain,
+            domains: refined.domains,
             sentiment: refined.sentiment,
           );
     } on Object {

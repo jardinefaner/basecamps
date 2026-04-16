@@ -1,6 +1,6 @@
 import 'package:basecamp/features/observations/observations_repository.dart';
 
-/// A rough local classifier that suggests a domain + sentiment from the
+/// A rough local classifier that suggests domains + sentiment from the
 /// text of an observation. Teachers accept the suggestion or override it
 /// with a tap in the edit sheet. Nothing here is definitive.
 ///
@@ -8,10 +8,15 @@ import 'package:basecamp/features/observations/observations_repository.dart';
 /// later. Keeping the [Suggestion] surface stable means the UI doesn't
 /// change when we swap the backend.
 class Suggestion {
-  const Suggestion({required this.domain, required this.sentiment});
+  const Suggestion({required this.domains, required this.sentiment});
 
-  final ObservationDomain domain;
+  /// One or more relevant curriculum domains. Always non-empty — the
+  /// first entry is the "primary" tag written to the legacy single
+  /// column. Fallback for a blank classifier is `[ObservationDomain.other]`.
+  final List<ObservationDomain> domains;
   final ObservationSentiment sentiment;
+
+  ObservationDomain get primaryDomain => domains.first;
 }
 
 Suggestion suggestTags(String note) {
@@ -268,15 +273,20 @@ Suggestion suggestTags(String note) {
     if (text.contains(w)) addSentiment(ObservationSentiment.concern, 2);
   }
 
-  // Pick winners. Ties resolve to Other / Neutral.
-  var domain = ObservationDomain.other;
-  var bestDomain = 0;
-  for (final entry in domainScores.entries) {
-    if (entry.value > bestDomain) {
-      bestDomain = entry.value;
-      domain = entry.key;
+  // Pick domain winners. Keep any domain that hit the top score OR that
+  // scored within 1 step of the top (so closely-matching signals both
+  // surface). Cap at 3 so the card doesn't become a chip wall. If nothing
+  // scored, fall back to [ObservationDomain.other].
+  final domains = <ObservationDomain>[];
+  if (domainScores.isNotEmpty) {
+    final sorted = domainScores.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final top = sorted.first.value;
+    for (final e in sorted) {
+      if (e.value >= top - 1 && domains.length < 3) domains.add(e.key);
     }
   }
+  if (domains.isEmpty) domains.add(ObservationDomain.other);
 
   var sentiment = ObservationSentiment.neutral;
   var bestSentiment = 0;
@@ -287,5 +297,5 @@ Suggestion suggestTags(String note) {
     }
   }
 
-  return Suggestion(domain: domain, sentiment: sentiment);
+  return Suggestion(domains: domains, sentiment: sentiment);
 }

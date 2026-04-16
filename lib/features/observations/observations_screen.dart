@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:basecamp/database/database.dart';
@@ -109,7 +110,11 @@ class _ObservationsScreenState extends ConsumerState<ObservationsScreen> {
 
 /// Normal list view. Pass `notesOnly: true` to strip attachment strips
 /// off the cards so teachers can scan pure-text observations.
-class _ListFeed extends ConsumerWidget {
+///
+/// Stateful so we can keep a [ScrollController] for the auto-scroll that
+/// runs after every send. In reverse-mode the newest row lives at offset
+/// 0, so "scroll to top" = animate back to 0.
+class _ListFeed extends ConsumerStatefulWidget {
   const _ListFeed({
     required this.onTapObservation,
     required this.notesOnly,
@@ -119,7 +124,51 @@ class _ListFeed extends ConsumerWidget {
   final bool notesOnly;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ListFeed> createState() => _ListFeedState();
+}
+
+class _ListFeedState extends ConsumerState<_ListFeed> {
+  final _controller = ScrollController();
+  int _lastCount = 0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _scrollToNewest() {
+    if (!_controller.hasClients) return;
+    // Reverse-mode list: offset 0 renders at the bottom of the viewport,
+    // which is where items[0] (newest) lives. Jumping short distances
+    // feels cheap — use a quick animate.
+    unawaited(
+      _controller.animateTo(
+        0,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOut,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen<AsyncValue<List<Observation>>>(
+      observationsProvider,
+      (prev, next) {
+        final count = next.asData?.value.length ?? 0;
+        if (count > _lastCount && _lastCount != 0) {
+          // An observation was added (not the initial hydration). Snap
+          // the feed back to the newest so the teacher sees what just
+          // landed.
+          WidgetsBinding.instance.addPostFrameCallback(
+            (_) => _scrollToNewest(),
+          );
+        }
+        _lastCount = count;
+      },
+    );
+
     final observationsAsync = ref.watch(observationsProvider);
 
     return observationsAsync.when(
@@ -130,6 +179,7 @@ class _ListFeed extends ConsumerWidget {
           return const _EmptyState();
         }
         return ListView.separated(
+          controller: _controller,
           reverse: true,
           padding: const EdgeInsets.only(
             left: AppSpacing.lg,
@@ -141,8 +191,8 @@ class _ListFeed extends ConsumerWidget {
           separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
           itemBuilder: (_, i) => ObservationCard(
             observation: items[i],
-            hideAttachments: notesOnly,
-            onTap: () => onTapObservation(items[i]),
+            hideAttachments: widget.notesOnly,
+            onTap: () => widget.onTapObservation(items[i]),
           ),
         );
       },
@@ -197,10 +247,10 @@ class _GalleryTile extends StatelessWidget {
     final isPhoto = attachment.kind == 'photo';
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        color: theme.colorScheme.surfaceContainerHigh,
-        clipBehavior: Clip.hardEdge,
-        decoration: const BoxDecoration(),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHigh,
+        ),
         child: Stack(
           fit: StackFit.expand,
           children: [

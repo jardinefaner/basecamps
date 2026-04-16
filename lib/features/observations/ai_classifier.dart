@@ -39,31 +39,38 @@ Future<Suggestion> classifyObservationWithAi(String note) async {
             'schema': {
               'type': 'object',
               'properties': {
-                'domain': {
-                  'type': 'string',
-                  'enum': [
-                    'ssd1',
-                    'ssd2',
-                    'ssd3',
-                    'ssd4',
-                    'ssd5',
-                    'ssd6',
-                    'ssd7',
-                    'ssd8',
-                    'ssd9',
-                    'hlth1',
-                    'hlth2',
-                    'hlth3',
-                    'hlth4',
-                    'other',
-                  ],
+                'domains': {
+                  'type': 'array',
+                  // Order matters: the first entry becomes the primary
+                  // tag on the card. Cap at 3 to keep chips readable.
+                  'minItems': 1,
+                  'maxItems': 3,
+                  'items': {
+                    'type': 'string',
+                    'enum': [
+                      'ssd1',
+                      'ssd2',
+                      'ssd3',
+                      'ssd4',
+                      'ssd5',
+                      'ssd6',
+                      'ssd7',
+                      'ssd8',
+                      'ssd9',
+                      'hlth1',
+                      'hlth2',
+                      'hlth3',
+                      'hlth4',
+                      'other',
+                    ],
+                  },
                 },
                 'sentiment': {
                   'type': 'string',
                   'enum': ['positive', 'neutral', 'concern'],
                 },
               },
-              'required': ['domain', 'sentiment'],
+              'required': ['domains', 'sentiment'],
               'additionalProperties': false,
             },
           },
@@ -84,11 +91,20 @@ Future<Suggestion> classifyObservationWithAi(String note) async {
     if (content == null) return suggestTags(note);
 
     final parsed = jsonDecode(content) as Map<String, dynamic>;
-    final domainName = parsed['domain'] as String? ?? 'other';
+    final rawDomains = (parsed['domains'] as List<dynamic>?) ?? const [];
+    final domains = <ObservationDomain>[
+      for (final raw in rawDomains)
+        ObservationDomain.fromName(raw as String),
+    ];
+    // Dedupe but keep first-seen order — that's the primary.
+    final uniqueDomains = <ObservationDomain>{...domains}.toList();
+    final finalDomains = uniqueDomains.isEmpty
+        ? const [ObservationDomain.other]
+        : uniqueDomains;
     final sentimentName = parsed['sentiment'] as String? ?? 'neutral';
 
     return Suggestion(
-      domain: ObservationDomain.fromName(domainName),
+      domains: finalDomains,
       sentiment: ObservationSentiment.fromName(sentimentName),
     );
   } on Object {
@@ -97,7 +113,7 @@ Future<Suggestion> classifyObservationWithAi(String note) async {
 }
 
 const String _systemPrompt = '''
-You classify brief teacher observations from a summer program for children into one of these curriculum domains. Pick the single best match based on the most prominent behavior or moment in the note.
+You classify brief teacher observations from a summer program for children using this curriculum domain taxonomy. One note often touches several domains — for example, "Mia shared her snack with Leo when she saw he had none" is both SSD3 (empathy) and SSD8 (friendship). Return an ordered list: put the single most prominent domain first, then add any other domains clearly evidenced by the note. Cap at 3. Do not pad with weak matches — if only one domain fits, return just one.
 
 Domains:
 - ssd1: Identity of self and connection to others — a child expressing who they are, cultural identity, family ties, sense of belonging.
@@ -120,5 +136,5 @@ Sentiment:
 - neutral: a factual note without clear positive or negative tone.
 - concern: a struggle, incident, red flag, or distress.
 
-Return only the JSON matching the schema. No prose.
+Return only the JSON matching the schema. The `domains` array must have 1–3 entries, most prominent first. No prose.
 ''';

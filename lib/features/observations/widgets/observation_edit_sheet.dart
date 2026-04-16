@@ -30,8 +30,15 @@ class ObservationEditSheet extends ConsumerStatefulWidget {
 class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
   late final _noteController =
       TextEditingController(text: widget.observation.note);
-  late ObservationDomain _domain =
-      ObservationDomain.fromName(widget.observation.domain);
+
+  /// Domains selected by the teacher, order preserved (first = primary).
+  /// Populated from the DB after [_loadDomains] — seeded with the legacy
+  /// single-domain column so the UI isn't empty for one frame.
+  late final List<ObservationDomain> _domains = [
+    ObservationDomain.fromName(widget.observation.domain),
+  ];
+  bool _domainsLoaded = false;
+
   late ObservationSentiment _sentiment =
       ObservationSentiment.fromName(widget.observation.sentiment);
   final Set<String> _selectedKidIds = <String>{};
@@ -50,7 +57,10 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadKids());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_loadKids());
+      unawaited(_loadDomains());
+    });
   }
 
   Future<void> _loadKids() async {
@@ -61,6 +71,33 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
     setState(() {
       _selectedKidIds.addAll(kids.map((k) => k.id));
       _kidsLoaded = true;
+    });
+  }
+
+  Future<void> _loadDomains() async {
+    final fromDb = await ref
+        .read(observationsRepositoryProvider)
+        .domainsForObservation(widget.observation.id);
+    if (!mounted) return;
+    setState(() {
+      if (fromDb.isNotEmpty) {
+        _domains
+          ..clear()
+          ..addAll(fromDb);
+      }
+      _domainsLoaded = true;
+    });
+  }
+
+  void _toggleDomain(ObservationDomain d) {
+    setState(() {
+      if (_domains.contains(d)) {
+        // Guard against clearing to empty — at least one domain is
+        // required; just keep the last one.
+        if (_domains.length > 1) _domains.remove(d);
+      } else {
+        _domains.add(d);
+      }
     });
   }
 
@@ -76,7 +113,7 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
     await repo.updateObservation(
       id: widget.observation.id,
       note: _noteController.text.trim(),
-      domain: _domain,
+      domains: _domains.toList(),
       sentiment: _sentiment,
       kidIds: _selectedKidIds.toList(),
     );
@@ -310,11 +347,24 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
           ),
 
           const SizedBox(height: AppSpacing.lg),
-          Text('Domain', style: theme.textTheme.titleSmall),
+          Row(
+            children: [
+              Expanded(
+                child: Text('Domains', style: theme.textTheme.titleSmall),
+              ),
+              if (_domainsLoaded)
+                Text(
+                  '${_domains.length} selected',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+            ],
+          ),
           const SizedBox(height: AppSpacing.sm),
           _DomainSelector(
-            selected: _domain,
-            onSelected: (d) => setState(() => _domain = d),
+            selected: _domains.toSet(),
+            onToggle: _toggleDomain,
           ),
           const SizedBox(height: AppSpacing.lg),
           Text('Sentiment', style: theme.textTheme.titleSmall),
@@ -414,10 +464,10 @@ class _PendingAttachment {
 }
 
 class _DomainSelector extends StatelessWidget {
-  const _DomainSelector({required this.selected, required this.onSelected});
+  const _DomainSelector({required this.selected, required this.onToggle});
 
-  final ObservationDomain selected;
-  final ValueChanged<ObservationDomain> onSelected;
+  final Set<ObservationDomain> selected;
+  final ValueChanged<ObservationDomain> onToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -448,14 +498,14 @@ class _DomainSelector extends StatelessWidget {
               runSpacing: AppSpacing.sm,
               children: [
                 for (final d in domains)
-                  ChoiceChip(
+                  FilterChip(
                     label: Text(
                       d == ObservationDomain.other
                           ? d.label
                           : '${d.code} · ${d.label}',
                     ),
-                    selected: selected == d,
-                    onSelected: (_) => onSelected(d),
+                    selected: selected.contains(d),
+                    onSelected: (_) => onToggle(d),
                   ),
               ],
             ),

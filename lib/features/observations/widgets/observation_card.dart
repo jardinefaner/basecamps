@@ -29,11 +29,22 @@ class ObservationCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final domain = ObservationDomain.fromName(observation.domain);
     final sentiment = ObservationSentiment.fromName(observation.sentiment);
     final time = DateFormat.MMMd().add_jm().format(observation.createdAt);
     final attachmentsAsync =
         ref.watch(observationAttachmentsProvider(observation.id));
+    final domainsAsync = ref.watch(
+      observationDomainsProvider(observation.id),
+    );
+
+    // Fall back to the legacy single-column value on the initial frame
+    // before the stream has resolved — keeps the UI from flashing empty.
+    final domains = domainsAsync.maybeWhen(
+      data: (list) => list.isEmpty
+          ? [ObservationDomain.fromName(observation.domain)]
+          : list,
+      orElse: () => [ObservationDomain.fromName(observation.domain)],
+    );
 
     return AppCard(
       onTap: onTap,
@@ -41,27 +52,19 @@ class ObservationCard extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _SentimentIcon(sentiment: sentiment),
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: _SentimentIcon(sentiment: sentiment),
+              ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: _TargetLabel(observation: observation),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: AppSpacing.xs,
-                ),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  domain == ObservationDomain.other
-                      ? domain.label
-                      : domain.code,
-                  style: theme.textTheme.labelMedium,
-                ),
+              Flexible(
+                flex: 0,
+                child: _DomainChipList(domains: domains),
               ),
             ],
           ),
@@ -236,6 +239,45 @@ class _AttachmentThumb extends StatelessWidget {
   Widget _placeholder(ThemeData theme, IconData icon) {
     return Center(
       child: Icon(icon, color: theme.colorScheme.onSurfaceVariant),
+    );
+  }
+}
+
+/// Stack of domain chips rendered in the card header. Shows up to two
+/// chips inline; any extras collapse into a "+N" pill so the header
+/// stays on one line for long kid names.
+class _DomainChipList extends StatelessWidget {
+  const _DomainChipList({required this.domains});
+
+  final List<ObservationDomain> domains;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const inlineLimit = 2;
+    final visible = domains.take(inlineLimit).toList();
+    final extra = domains.length - visible.length;
+
+    Widget chip(String text) => Container(
+          margin: const EdgeInsets.only(left: AppSpacing.xs),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(text, style: theme.textTheme.labelMedium),
+        );
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final d in visible)
+          chip(d == ObservationDomain.other ? d.label : d.code),
+        if (extra > 0) chip('+$extra'),
+      ],
     );
   }
 }

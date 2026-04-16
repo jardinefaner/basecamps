@@ -3892,6 +3892,235 @@ class ObservationAttachmentsCompanion
   }
 }
 
+class $ObservationDomainTagsTable extends ObservationDomainTags
+    with TableInfo<$ObservationDomainTagsTable, ObservationDomainTag> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ObservationDomainTagsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _observationIdMeta = const VerificationMeta(
+    'observationId',
+  );
+  @override
+  late final GeneratedColumn<String> observationId = GeneratedColumn<String>(
+    'observation_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES observations (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _domainMeta = const VerificationMeta('domain');
+  @override
+  late final GeneratedColumn<String> domain = GeneratedColumn<String>(
+    'domain',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [observationId, domain];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'observation_domain_tags';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ObservationDomainTag> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('observation_id')) {
+      context.handle(
+        _observationIdMeta,
+        observationId.isAcceptableOrUnknown(
+          data['observation_id']!,
+          _observationIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_observationIdMeta);
+    }
+    if (data.containsKey('domain')) {
+      context.handle(
+        _domainMeta,
+        domain.isAcceptableOrUnknown(data['domain']!, _domainMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_domainMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {observationId, domain};
+  @override
+  ObservationDomainTag map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ObservationDomainTag(
+      observationId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}observation_id'],
+      )!,
+      domain: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}domain'],
+      )!,
+    );
+  }
+
+  @override
+  $ObservationDomainTagsTable createAlias(String alias) {
+    return $ObservationDomainTagsTable(attachedDatabase, alias);
+  }
+}
+
+class ObservationDomainTag extends DataClass
+    implements Insertable<ObservationDomainTag> {
+  final String observationId;
+  final String domain;
+  const ObservationDomainTag({
+    required this.observationId,
+    required this.domain,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['observation_id'] = Variable<String>(observationId);
+    map['domain'] = Variable<String>(domain);
+    return map;
+  }
+
+  ObservationDomainTagsCompanion toCompanion(bool nullToAbsent) {
+    return ObservationDomainTagsCompanion(
+      observationId: Value(observationId),
+      domain: Value(domain),
+    );
+  }
+
+  factory ObservationDomainTag.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ObservationDomainTag(
+      observationId: serializer.fromJson<String>(json['observationId']),
+      domain: serializer.fromJson<String>(json['domain']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'observationId': serializer.toJson<String>(observationId),
+      'domain': serializer.toJson<String>(domain),
+    };
+  }
+
+  ObservationDomainTag copyWith({String? observationId, String? domain}) =>
+      ObservationDomainTag(
+        observationId: observationId ?? this.observationId,
+        domain: domain ?? this.domain,
+      );
+  ObservationDomainTag copyWithCompanion(ObservationDomainTagsCompanion data) {
+    return ObservationDomainTag(
+      observationId: data.observationId.present
+          ? data.observationId.value
+          : this.observationId,
+      domain: data.domain.present ? data.domain.value : this.domain,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ObservationDomainTag(')
+          ..write('observationId: $observationId, ')
+          ..write('domain: $domain')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(observationId, domain);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ObservationDomainTag &&
+          other.observationId == this.observationId &&
+          other.domain == this.domain);
+}
+
+class ObservationDomainTagsCompanion
+    extends UpdateCompanion<ObservationDomainTag> {
+  final Value<String> observationId;
+  final Value<String> domain;
+  final Value<int> rowid;
+  const ObservationDomainTagsCompanion({
+    this.observationId = const Value.absent(),
+    this.domain = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ObservationDomainTagsCompanion.insert({
+    required String observationId,
+    required String domain,
+    this.rowid = const Value.absent(),
+  }) : observationId = Value(observationId),
+       domain = Value(domain);
+  static Insertable<ObservationDomainTag> custom({
+    Expression<String>? observationId,
+    Expression<String>? domain,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (observationId != null) 'observation_id': observationId,
+      if (domain != null) 'domain': domain,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ObservationDomainTagsCompanion copyWith({
+    Value<String>? observationId,
+    Value<String>? domain,
+    Value<int>? rowid,
+  }) {
+    return ObservationDomainTagsCompanion(
+      observationId: observationId ?? this.observationId,
+      domain: domain ?? this.domain,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (observationId.present) {
+      map['observation_id'] = Variable<String>(observationId.value);
+    }
+    if (domain.present) {
+      map['domain'] = Variable<String>(domain.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ObservationDomainTagsCompanion(')
+          ..write('observationId: $observationId, ')
+          ..write('domain: $domain, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $SpecialistsTable extends Specialists
     with TableInfo<$SpecialistsTable, Specialist> {
   @override
@@ -7065,6 +7294,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $ObservationAttachmentsTable observationAttachments =
       $ObservationAttachmentsTable(this);
+  late final $ObservationDomainTagsTable observationDomainTags =
+      $ObservationDomainTagsTable(this);
   late final $SpecialistsTable specialists = $SpecialistsTable(this);
   late final $ActivityLibraryTable activityLibrary = $ActivityLibraryTable(
     this,
@@ -7090,6 +7321,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     observations,
     observationKids,
     observationAttachments,
+    observationDomainTags,
     specialists,
     activityLibrary,
     scheduleTemplates,
@@ -7182,6 +7414,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('observation_attachments', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'observations',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('observation_domain_tags', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -10738,6 +10977,34 @@ final class $$ObservationsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<
+    $ObservationDomainTagsTable,
+    List<ObservationDomainTag>
+  >
+  _observationDomainTagsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.observationDomainTags,
+        aliasName: $_aliasNameGenerator(
+          db.observations.id,
+          db.observationDomainTags.observationId,
+        ),
+      );
+
+  $$ObservationDomainTagsTableProcessedTableManager
+  get observationDomainTagsRefs {
+    final manager = $$ObservationDomainTagsTableTableManager(
+      $_db,
+      $_db.observationDomainTags,
+    ).filter((f) => f.observationId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _observationDomainTagsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$ObservationsTableFilterComposer
@@ -10905,6 +11172,32 @@ class $$ObservationsTableFilterComposer
               }) => $$ObservationAttachmentsTableFilterComposer(
                 $db: $db,
                 $table: $db.observationAttachments,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> observationDomainTagsRefs(
+    Expression<bool> Function($$ObservationDomainTagsTableFilterComposer f) f,
+  ) {
+    final $$ObservationDomainTagsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.observationDomainTags,
+          getReferencedColumn: (t) => t.observationId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ObservationDomainTagsTableFilterComposer(
+                $db: $db,
+                $table: $db.observationDomainTags,
                 $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
                 joinBuilder: joinBuilder,
                 $removeJoinBuilderFromRootComposer:
@@ -11200,6 +11493,32 @@ class $$ObservationsTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> observationDomainTagsRefs<T extends Object>(
+    Expression<T> Function($$ObservationDomainTagsTableAnnotationComposer a) f,
+  ) {
+    final $$ObservationDomainTagsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.observationDomainTags,
+          getReferencedColumn: (t) => t.observationId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ObservationDomainTagsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.observationDomainTags,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$ObservationsTableTableManager
@@ -11221,6 +11540,7 @@ class $$ObservationsTableTableManager
             bool tripId,
             bool observationKidsRefs,
             bool observationAttachmentsRefs,
+            bool observationDomainTagsRefs,
           })
         > {
   $$ObservationsTableTableManager(_$AppDatabase db, $ObservationsTable table)
@@ -11309,12 +11629,14 @@ class $$ObservationsTableTableManager
                 tripId = false,
                 observationKidsRefs = false,
                 observationAttachmentsRefs = false,
+                observationDomainTagsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (observationKidsRefs) db.observationKids,
                     if (observationAttachmentsRefs) db.observationAttachments,
+                    if (observationDomainTagsRefs) db.observationDomainTags,
                   ],
                   addJoins:
                       <
@@ -11424,6 +11746,27 @@ class $$ObservationsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (observationDomainTagsRefs)
+                        await $_getPrefetchedData<
+                          Observation,
+                          $ObservationsTable,
+                          ObservationDomainTag
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ObservationsTableReferences
+                              ._observationDomainTagsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ObservationsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).observationDomainTagsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.observationId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -11450,6 +11793,7 @@ typedef $$ObservationsTableProcessedTableManager =
         bool tripId,
         bool observationKidsRefs,
         bool observationAttachmentsRefs,
+        bool observationDomainTagsRefs,
       })
     >;
 typedef $$ObservationKidsTableCreateCompanionBuilder =
@@ -12218,6 +12562,293 @@ typedef $$ObservationAttachmentsTableProcessedTableManager =
       $$ObservationAttachmentsTableUpdateCompanionBuilder,
       (ObservationAttachment, $$ObservationAttachmentsTableReferences),
       ObservationAttachment,
+      PrefetchHooks Function({bool observationId})
+    >;
+typedef $$ObservationDomainTagsTableCreateCompanionBuilder =
+    ObservationDomainTagsCompanion Function({
+      required String observationId,
+      required String domain,
+      Value<int> rowid,
+    });
+typedef $$ObservationDomainTagsTableUpdateCompanionBuilder =
+    ObservationDomainTagsCompanion Function({
+      Value<String> observationId,
+      Value<String> domain,
+      Value<int> rowid,
+    });
+
+final class $$ObservationDomainTagsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $ObservationDomainTagsTable,
+          ObservationDomainTag
+        > {
+  $$ObservationDomainTagsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ObservationsTable _observationIdTable(_$AppDatabase db) =>
+      db.observations.createAlias(
+        $_aliasNameGenerator(
+          db.observationDomainTags.observationId,
+          db.observations.id,
+        ),
+      );
+
+  $$ObservationsTableProcessedTableManager get observationId {
+    final $_column = $_itemColumn<String>('observation_id')!;
+
+    final manager = $$ObservationsTableTableManager(
+      $_db,
+      $_db.observations,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_observationIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ObservationDomainTagsTableFilterComposer
+    extends Composer<_$AppDatabase, $ObservationDomainTagsTable> {
+  $$ObservationDomainTagsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get domain => $composableBuilder(
+    column: $table.domain,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ObservationsTableFilterComposer get observationId {
+    final $$ObservationsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.observationId,
+      referencedTable: $db.observations,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ObservationsTableFilterComposer(
+            $db: $db,
+            $table: $db.observations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ObservationDomainTagsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ObservationDomainTagsTable> {
+  $$ObservationDomainTagsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get domain => $composableBuilder(
+    column: $table.domain,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ObservationsTableOrderingComposer get observationId {
+    final $$ObservationsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.observationId,
+      referencedTable: $db.observations,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ObservationsTableOrderingComposer(
+            $db: $db,
+            $table: $db.observations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ObservationDomainTagsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ObservationDomainTagsTable> {
+  $$ObservationDomainTagsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get domain =>
+      $composableBuilder(column: $table.domain, builder: (column) => column);
+
+  $$ObservationsTableAnnotationComposer get observationId {
+    final $$ObservationsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.observationId,
+      referencedTable: $db.observations,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ObservationsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.observations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ObservationDomainTagsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ObservationDomainTagsTable,
+          ObservationDomainTag,
+          $$ObservationDomainTagsTableFilterComposer,
+          $$ObservationDomainTagsTableOrderingComposer,
+          $$ObservationDomainTagsTableAnnotationComposer,
+          $$ObservationDomainTagsTableCreateCompanionBuilder,
+          $$ObservationDomainTagsTableUpdateCompanionBuilder,
+          (ObservationDomainTag, $$ObservationDomainTagsTableReferences),
+          ObservationDomainTag,
+          PrefetchHooks Function({bool observationId})
+        > {
+  $$ObservationDomainTagsTableTableManager(
+    _$AppDatabase db,
+    $ObservationDomainTagsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ObservationDomainTagsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ObservationDomainTagsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ObservationDomainTagsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> observationId = const Value.absent(),
+                Value<String> domain = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ObservationDomainTagsCompanion(
+                observationId: observationId,
+                domain: domain,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String observationId,
+                required String domain,
+                Value<int> rowid = const Value.absent(),
+              }) => ObservationDomainTagsCompanion.insert(
+                observationId: observationId,
+                domain: domain,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ObservationDomainTagsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({observationId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (observationId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.observationId,
+                                referencedTable:
+                                    $$ObservationDomainTagsTableReferences
+                                        ._observationIdTable(db),
+                                referencedColumn:
+                                    $$ObservationDomainTagsTableReferences
+                                        ._observationIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ObservationDomainTagsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ObservationDomainTagsTable,
+      ObservationDomainTag,
+      $$ObservationDomainTagsTableFilterComposer,
+      $$ObservationDomainTagsTableOrderingComposer,
+      $$ObservationDomainTagsTableAnnotationComposer,
+      $$ObservationDomainTagsTableCreateCompanionBuilder,
+      $$ObservationDomainTagsTableUpdateCompanionBuilder,
+      (ObservationDomainTag, $$ObservationDomainTagsTableReferences),
+      ObservationDomainTag,
       PrefetchHooks Function({bool observationId})
     >;
 typedef $$SpecialistsTableCreateCompanionBuilder =
@@ -15625,6 +16256,8 @@ class $AppDatabaseManager {
         _db,
         _db.observationAttachments,
       );
+  $$ObservationDomainTagsTableTableManager get observationDomainTags =>
+      $$ObservationDomainTagsTableTableManager(_db, _db.observationDomainTags);
   $$SpecialistsTableTableManager get specialists =>
       $$SpecialistsTableTableManager(_db, _db.specialists);
   $$ActivityLibraryTableTableManager get activityLibrary =>

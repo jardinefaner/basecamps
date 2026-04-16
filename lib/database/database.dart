@@ -21,6 +21,7 @@ QueryExecutor _openConnection() {
     Observations,
     ObservationKids,
     ObservationAttachments,
+    ObservationDomainTags,
     Specialists,
     ActivityLibrary,
     ScheduleTemplates,
@@ -35,7 +36,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -208,6 +209,18 @@ class AppDatabase extends _$AppDatabase {
               "'ssd7', 'ssd8', 'ssd9', "
               "'hlth1', 'hlth2', 'hlth3', 'hlth4', 'other')",
             );
+          }
+          if (from < 14) {
+            // Multi-domain tagging. Create the join table, then backfill
+            // one row per existing observation so the UI has a list to
+            // render immediately — the legacy single-column stays as the
+            // "primary" domain written on every save.
+            await _createTableIfMissing(m, observationDomainTags);
+            await customStatement('''
+              INSERT OR IGNORE INTO observation_domain_tags
+                (observation_id, domain)
+              SELECT id, domain FROM observations WHERE domain IS NOT NULL
+            ''');
           }
         },
       );
