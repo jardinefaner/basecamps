@@ -5,14 +5,10 @@ import 'package:flutter/material.dart';
 /// action bar along the bottom edge. Use as the direct child of a
 /// [showModalBottomSheet] builder.
 ///
-/// - Content scrolls independently of the action bar, so the primary
-///   button is always reachable without scrolling through the form.
-/// - Bottom safe-area and keyboard insets are respected.
-/// - A subtle divider line sits between content and action bar.
-/// - A close (✕) button is rendered in the top-right by default so the
-///   user has an explicit way out when the sheet is opened with
-///   `isDismissible: false` (which we use to avoid accidental dismisses
-///   from stray taps outside the sheet).
+/// The content area's max height is explicitly capped so the pinned
+/// action bar is always visible — a plain `Flexible` inside a
+/// `mainAxisSize.min` Column doesn't bound its child, which lets long
+/// forms push the action button off-screen.
 class StickyActionSheet extends StatelessWidget {
   const StickyActionSheet({
     required this.title,
@@ -34,7 +30,7 @@ class StickyActionSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final insets = MediaQuery.of(context).viewInsets.bottom;
+    final mq = MediaQuery.of(context);
 
     final trailingWidgets = <Widget>[];
     if (titleTrailing != null) trailingWidgets.add(titleTrailing!);
@@ -48,8 +44,22 @@ class StickyActionSheet extends StatelessWidget {
       );
     }
 
+    // Sheet structure:
+    // ┌───────────────────────────────┐
+    // │ Header (fixed intrinsic)      │
+    // ├───────────────────────────────┤
+    // │ Scrollable body               │  ← capped by ConstrainedBox
+    // ├───────────────────────────────┤
+    // │ Action bar (fixed intrinsic)  │
+    // └───────────────────────────────┘
+    //
+    // `maxBodyHeight` leaves enough room for header + action bar +
+    // keyboard inset so nothing clips, then lets the content scroll.
+    final availableHeight = mq.size.height - mq.padding.top;
+    final maxBodyHeight = (availableHeight - mq.viewInsets.bottom) * 0.62;
+
     return Padding(
-      padding: EdgeInsets.only(bottom: insets),
+      padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -87,8 +97,10 @@ class StickyActionSheet extends StatelessWidget {
             ),
           ),
 
-          // Scrollable body
-          Flexible(
+          // Scrollable body, bounded by an explicit max height so the
+          // action bar below can never be pushed off screen.
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxBodyHeight),
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.xl,
