@@ -20,6 +20,7 @@ QueryExecutor _openConnection() {
     CaptureKids,
     Observations,
     ObservationKids,
+    ObservationAttachments,
     Specialists,
     ActivityLibrary,
     ScheduleTemplates,
@@ -34,7 +35,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -181,6 +182,9 @@ class AppDatabase extends _$AppDatabase {
               INSERT OR IGNORE INTO observation_kids (observation_id, kid_id)
               SELECT id, kid_id FROM observations WHERE kid_id IS NOT NULL
             ''');
+          }
+          if (from < 12) {
+            await _createTableIfMissing(m, observationAttachments);
           }
         },
       );

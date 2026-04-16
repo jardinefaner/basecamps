@@ -3360,6 +3360,538 @@ class ObservationKidsCompanion extends UpdateCompanion<ObservationKid> {
   }
 }
 
+class $ObservationAttachmentsTable extends ObservationAttachments
+    with TableInfo<$ObservationAttachmentsTable, ObservationAttachment> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ObservationAttachmentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _observationIdMeta = const VerificationMeta(
+    'observationId',
+  );
+  @override
+  late final GeneratedColumn<String> observationId = GeneratedColumn<String>(
+    'observation_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES observations (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _localPathMeta = const VerificationMeta(
+    'localPath',
+  );
+  @override
+  late final GeneratedColumn<String> localPath = GeneratedColumn<String>(
+    'local_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _remoteUrlMeta = const VerificationMeta(
+    'remoteUrl',
+  );
+  @override
+  late final GeneratedColumn<String> remoteUrl = GeneratedColumn<String>(
+    'remote_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _thumbnailPathMeta = const VerificationMeta(
+    'thumbnailPath',
+  );
+  @override
+  late final GeneratedColumn<String> thumbnailPath = GeneratedColumn<String>(
+    'thumbnail_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _durationMsMeta = const VerificationMeta(
+    'durationMs',
+  );
+  @override
+  late final GeneratedColumn<int> durationMs = GeneratedColumn<int>(
+    'duration_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    observationId,
+    kind,
+    localPath,
+    remoteUrl,
+    thumbnailPath,
+    durationMs,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'observation_attachments';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ObservationAttachment> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('observation_id')) {
+      context.handle(
+        _observationIdMeta,
+        observationId.isAcceptableOrUnknown(
+          data['observation_id']!,
+          _observationIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_observationIdMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('local_path')) {
+      context.handle(
+        _localPathMeta,
+        localPath.isAcceptableOrUnknown(data['local_path']!, _localPathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_localPathMeta);
+    }
+    if (data.containsKey('remote_url')) {
+      context.handle(
+        _remoteUrlMeta,
+        remoteUrl.isAcceptableOrUnknown(data['remote_url']!, _remoteUrlMeta),
+      );
+    }
+    if (data.containsKey('thumbnail_path')) {
+      context.handle(
+        _thumbnailPathMeta,
+        thumbnailPath.isAcceptableOrUnknown(
+          data['thumbnail_path']!,
+          _thumbnailPathMeta,
+        ),
+      );
+    }
+    if (data.containsKey('duration_ms')) {
+      context.handle(
+        _durationMsMeta,
+        durationMs.isAcceptableOrUnknown(data['duration_ms']!, _durationMsMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ObservationAttachment map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ObservationAttachment(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      observationId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}observation_id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      localPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}local_path'],
+      )!,
+      remoteUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}remote_url'],
+      ),
+      thumbnailPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}thumbnail_path'],
+      ),
+      durationMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration_ms'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ObservationAttachmentsTable createAlias(String alias) {
+    return $ObservationAttachmentsTable(attachedDatabase, alias);
+  }
+}
+
+class ObservationAttachment extends DataClass
+    implements Insertable<ObservationAttachment> {
+  final String id;
+  final String observationId;
+  final String kind;
+  final String localPath;
+  final String? remoteUrl;
+  final String? thumbnailPath;
+  final int? durationMs;
+  final DateTime createdAt;
+  const ObservationAttachment({
+    required this.id,
+    required this.observationId,
+    required this.kind,
+    required this.localPath,
+    this.remoteUrl,
+    this.thumbnailPath,
+    this.durationMs,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['observation_id'] = Variable<String>(observationId);
+    map['kind'] = Variable<String>(kind);
+    map['local_path'] = Variable<String>(localPath);
+    if (!nullToAbsent || remoteUrl != null) {
+      map['remote_url'] = Variable<String>(remoteUrl);
+    }
+    if (!nullToAbsent || thumbnailPath != null) {
+      map['thumbnail_path'] = Variable<String>(thumbnailPath);
+    }
+    if (!nullToAbsent || durationMs != null) {
+      map['duration_ms'] = Variable<int>(durationMs);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  ObservationAttachmentsCompanion toCompanion(bool nullToAbsent) {
+    return ObservationAttachmentsCompanion(
+      id: Value(id),
+      observationId: Value(observationId),
+      kind: Value(kind),
+      localPath: Value(localPath),
+      remoteUrl: remoteUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(remoteUrl),
+      thumbnailPath: thumbnailPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(thumbnailPath),
+      durationMs: durationMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(durationMs),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory ObservationAttachment.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ObservationAttachment(
+      id: serializer.fromJson<String>(json['id']),
+      observationId: serializer.fromJson<String>(json['observationId']),
+      kind: serializer.fromJson<String>(json['kind']),
+      localPath: serializer.fromJson<String>(json['localPath']),
+      remoteUrl: serializer.fromJson<String?>(json['remoteUrl']),
+      thumbnailPath: serializer.fromJson<String?>(json['thumbnailPath']),
+      durationMs: serializer.fromJson<int?>(json['durationMs']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'observationId': serializer.toJson<String>(observationId),
+      'kind': serializer.toJson<String>(kind),
+      'localPath': serializer.toJson<String>(localPath),
+      'remoteUrl': serializer.toJson<String?>(remoteUrl),
+      'thumbnailPath': serializer.toJson<String?>(thumbnailPath),
+      'durationMs': serializer.toJson<int?>(durationMs),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  ObservationAttachment copyWith({
+    String? id,
+    String? observationId,
+    String? kind,
+    String? localPath,
+    Value<String?> remoteUrl = const Value.absent(),
+    Value<String?> thumbnailPath = const Value.absent(),
+    Value<int?> durationMs = const Value.absent(),
+    DateTime? createdAt,
+  }) => ObservationAttachment(
+    id: id ?? this.id,
+    observationId: observationId ?? this.observationId,
+    kind: kind ?? this.kind,
+    localPath: localPath ?? this.localPath,
+    remoteUrl: remoteUrl.present ? remoteUrl.value : this.remoteUrl,
+    thumbnailPath: thumbnailPath.present
+        ? thumbnailPath.value
+        : this.thumbnailPath,
+    durationMs: durationMs.present ? durationMs.value : this.durationMs,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  ObservationAttachment copyWithCompanion(
+    ObservationAttachmentsCompanion data,
+  ) {
+    return ObservationAttachment(
+      id: data.id.present ? data.id.value : this.id,
+      observationId: data.observationId.present
+          ? data.observationId.value
+          : this.observationId,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      localPath: data.localPath.present ? data.localPath.value : this.localPath,
+      remoteUrl: data.remoteUrl.present ? data.remoteUrl.value : this.remoteUrl,
+      thumbnailPath: data.thumbnailPath.present
+          ? data.thumbnailPath.value
+          : this.thumbnailPath,
+      durationMs: data.durationMs.present
+          ? data.durationMs.value
+          : this.durationMs,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ObservationAttachment(')
+          ..write('id: $id, ')
+          ..write('observationId: $observationId, ')
+          ..write('kind: $kind, ')
+          ..write('localPath: $localPath, ')
+          ..write('remoteUrl: $remoteUrl, ')
+          ..write('thumbnailPath: $thumbnailPath, ')
+          ..write('durationMs: $durationMs, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    observationId,
+    kind,
+    localPath,
+    remoteUrl,
+    thumbnailPath,
+    durationMs,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ObservationAttachment &&
+          other.id == this.id &&
+          other.observationId == this.observationId &&
+          other.kind == this.kind &&
+          other.localPath == this.localPath &&
+          other.remoteUrl == this.remoteUrl &&
+          other.thumbnailPath == this.thumbnailPath &&
+          other.durationMs == this.durationMs &&
+          other.createdAt == this.createdAt);
+}
+
+class ObservationAttachmentsCompanion
+    extends UpdateCompanion<ObservationAttachment> {
+  final Value<String> id;
+  final Value<String> observationId;
+  final Value<String> kind;
+  final Value<String> localPath;
+  final Value<String?> remoteUrl;
+  final Value<String?> thumbnailPath;
+  final Value<int?> durationMs;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const ObservationAttachmentsCompanion({
+    this.id = const Value.absent(),
+    this.observationId = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.localPath = const Value.absent(),
+    this.remoteUrl = const Value.absent(),
+    this.thumbnailPath = const Value.absent(),
+    this.durationMs = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ObservationAttachmentsCompanion.insert({
+    required String id,
+    required String observationId,
+    required String kind,
+    required String localPath,
+    this.remoteUrl = const Value.absent(),
+    this.thumbnailPath = const Value.absent(),
+    this.durationMs = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       observationId = Value(observationId),
+       kind = Value(kind),
+       localPath = Value(localPath);
+  static Insertable<ObservationAttachment> custom({
+    Expression<String>? id,
+    Expression<String>? observationId,
+    Expression<String>? kind,
+    Expression<String>? localPath,
+    Expression<String>? remoteUrl,
+    Expression<String>? thumbnailPath,
+    Expression<int>? durationMs,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (observationId != null) 'observation_id': observationId,
+      if (kind != null) 'kind': kind,
+      if (localPath != null) 'local_path': localPath,
+      if (remoteUrl != null) 'remote_url': remoteUrl,
+      if (thumbnailPath != null) 'thumbnail_path': thumbnailPath,
+      if (durationMs != null) 'duration_ms': durationMs,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ObservationAttachmentsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? observationId,
+    Value<String>? kind,
+    Value<String>? localPath,
+    Value<String?>? remoteUrl,
+    Value<String?>? thumbnailPath,
+    Value<int?>? durationMs,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return ObservationAttachmentsCompanion(
+      id: id ?? this.id,
+      observationId: observationId ?? this.observationId,
+      kind: kind ?? this.kind,
+      localPath: localPath ?? this.localPath,
+      remoteUrl: remoteUrl ?? this.remoteUrl,
+      thumbnailPath: thumbnailPath ?? this.thumbnailPath,
+      durationMs: durationMs ?? this.durationMs,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (observationId.present) {
+      map['observation_id'] = Variable<String>(observationId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (localPath.present) {
+      map['local_path'] = Variable<String>(localPath.value);
+    }
+    if (remoteUrl.present) {
+      map['remote_url'] = Variable<String>(remoteUrl.value);
+    }
+    if (thumbnailPath.present) {
+      map['thumbnail_path'] = Variable<String>(thumbnailPath.value);
+    }
+    if (durationMs.present) {
+      map['duration_ms'] = Variable<int>(durationMs.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ObservationAttachmentsCompanion(')
+          ..write('id: $id, ')
+          ..write('observationId: $observationId, ')
+          ..write('kind: $kind, ')
+          ..write('localPath: $localPath, ')
+          ..write('remoteUrl: $remoteUrl, ')
+          ..write('thumbnailPath: $thumbnailPath, ')
+          ..write('durationMs: $durationMs, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $SpecialistsTable extends Specialists
     with TableInfo<$SpecialistsTable, Specialist> {
   @override
@@ -6531,6 +7063,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ObservationKidsTable observationKids = $ObservationKidsTable(
     this,
   );
+  late final $ObservationAttachmentsTable observationAttachments =
+      $ObservationAttachmentsTable(this);
   late final $SpecialistsTable specialists = $SpecialistsTable(this);
   late final $ActivityLibraryTable activityLibrary = $ActivityLibraryTable(
     this,
@@ -6555,6 +7089,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     captureKids,
     observations,
     observationKids,
+    observationAttachments,
     specialists,
     activityLibrary,
     scheduleTemplates,
@@ -6640,6 +7175,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('observation_kids', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'observations',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('observation_attachments', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -10168,6 +10710,34 @@ final class $$ObservationsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<
+    $ObservationAttachmentsTable,
+    List<ObservationAttachment>
+  >
+  _observationAttachmentsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.observationAttachments,
+        aliasName: $_aliasNameGenerator(
+          db.observations.id,
+          db.observationAttachments.observationId,
+        ),
+      );
+
+  $$ObservationAttachmentsTableProcessedTableManager
+  get observationAttachmentsRefs {
+    final manager = $$ObservationAttachmentsTableTableManager(
+      $_db,
+      $_db.observationAttachments,
+    ).filter((f) => f.observationId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _observationAttachmentsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$ObservationsTableFilterComposer
@@ -10315,6 +10885,32 @@ class $$ObservationsTableFilterComposer
                 $removeJoinBuilderFromRootComposer,
           ),
     );
+    return f(composer);
+  }
+
+  Expression<bool> observationAttachmentsRefs(
+    Expression<bool> Function($$ObservationAttachmentsTableFilterComposer f) f,
+  ) {
+    final $$ObservationAttachmentsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.observationAttachments,
+          getReferencedColumn: (t) => t.observationId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ObservationAttachmentsTableFilterComposer(
+                $db: $db,
+                $table: $db.observationAttachments,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 }
@@ -10578,6 +11174,32 @@ class $$ObservationsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> observationAttachmentsRefs<T extends Object>(
+    Expression<T> Function($$ObservationAttachmentsTableAnnotationComposer a) f,
+  ) {
+    final $$ObservationAttachmentsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.observationAttachments,
+          getReferencedColumn: (t) => t.observationId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ObservationAttachmentsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.observationAttachments,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$ObservationsTableTableManager
@@ -10598,6 +11220,7 @@ class $$ObservationsTableTableManager
             bool podId,
             bool tripId,
             bool observationKidsRefs,
+            bool observationAttachmentsRefs,
           })
         > {
   $$ObservationsTableTableManager(_$AppDatabase db, $ObservationsTable table)
@@ -10685,11 +11308,13 @@ class $$ObservationsTableTableManager
                 podId = false,
                 tripId = false,
                 observationKidsRefs = false,
+                observationAttachmentsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (observationKidsRefs) db.observationKids,
+                    if (observationAttachmentsRefs) db.observationAttachments,
                   ],
                   addJoins:
                       <
@@ -10778,6 +11403,27 @@ class $$ObservationsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (observationAttachmentsRefs)
+                        await $_getPrefetchedData<
+                          Observation,
+                          $ObservationsTable,
+                          ObservationAttachment
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ObservationsTableReferences
+                              ._observationAttachmentsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ObservationsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).observationAttachmentsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.observationId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -10803,6 +11449,7 @@ typedef $$ObservationsTableProcessedTableManager =
         bool podId,
         bool tripId,
         bool observationKidsRefs,
+        bool observationAttachmentsRefs,
       })
     >;
 typedef $$ObservationKidsTableCreateCompanionBuilder =
@@ -11167,6 +11814,411 @@ typedef $$ObservationKidsTableProcessedTableManager =
       (ObservationKid, $$ObservationKidsTableReferences),
       ObservationKid,
       PrefetchHooks Function({bool observationId, bool kidId})
+    >;
+typedef $$ObservationAttachmentsTableCreateCompanionBuilder =
+    ObservationAttachmentsCompanion Function({
+      required String id,
+      required String observationId,
+      required String kind,
+      required String localPath,
+      Value<String?> remoteUrl,
+      Value<String?> thumbnailPath,
+      Value<int?> durationMs,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+typedef $$ObservationAttachmentsTableUpdateCompanionBuilder =
+    ObservationAttachmentsCompanion Function({
+      Value<String> id,
+      Value<String> observationId,
+      Value<String> kind,
+      Value<String> localPath,
+      Value<String?> remoteUrl,
+      Value<String?> thumbnailPath,
+      Value<int?> durationMs,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+final class $$ObservationAttachmentsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $ObservationAttachmentsTable,
+          ObservationAttachment
+        > {
+  $$ObservationAttachmentsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ObservationsTable _observationIdTable(_$AppDatabase db) =>
+      db.observations.createAlias(
+        $_aliasNameGenerator(
+          db.observationAttachments.observationId,
+          db.observations.id,
+        ),
+      );
+
+  $$ObservationsTableProcessedTableManager get observationId {
+    final $_column = $_itemColumn<String>('observation_id')!;
+
+    final manager = $$ObservationsTableTableManager(
+      $_db,
+      $_db.observations,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_observationIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ObservationAttachmentsTableFilterComposer
+    extends Composer<_$AppDatabase, $ObservationAttachmentsTable> {
+  $$ObservationAttachmentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get localPath => $composableBuilder(
+    column: $table.localPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get remoteUrl => $composableBuilder(
+    column: $table.remoteUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get thumbnailPath => $composableBuilder(
+    column: $table.thumbnailPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ObservationsTableFilterComposer get observationId {
+    final $$ObservationsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.observationId,
+      referencedTable: $db.observations,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ObservationsTableFilterComposer(
+            $db: $db,
+            $table: $db.observations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ObservationAttachmentsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ObservationAttachmentsTable> {
+  $$ObservationAttachmentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get localPath => $composableBuilder(
+    column: $table.localPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get remoteUrl => $composableBuilder(
+    column: $table.remoteUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get thumbnailPath => $composableBuilder(
+    column: $table.thumbnailPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ObservationsTableOrderingComposer get observationId {
+    final $$ObservationsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.observationId,
+      referencedTable: $db.observations,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ObservationsTableOrderingComposer(
+            $db: $db,
+            $table: $db.observations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ObservationAttachmentsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ObservationAttachmentsTable> {
+  $$ObservationAttachmentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get localPath =>
+      $composableBuilder(column: $table.localPath, builder: (column) => column);
+
+  GeneratedColumn<String> get remoteUrl =>
+      $composableBuilder(column: $table.remoteUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get thumbnailPath => $composableBuilder(
+    column: $table.thumbnailPath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$ObservationsTableAnnotationComposer get observationId {
+    final $$ObservationsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.observationId,
+      referencedTable: $db.observations,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ObservationsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.observations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ObservationAttachmentsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ObservationAttachmentsTable,
+          ObservationAttachment,
+          $$ObservationAttachmentsTableFilterComposer,
+          $$ObservationAttachmentsTableOrderingComposer,
+          $$ObservationAttachmentsTableAnnotationComposer,
+          $$ObservationAttachmentsTableCreateCompanionBuilder,
+          $$ObservationAttachmentsTableUpdateCompanionBuilder,
+          (ObservationAttachment, $$ObservationAttachmentsTableReferences),
+          ObservationAttachment,
+          PrefetchHooks Function({bool observationId})
+        > {
+  $$ObservationAttachmentsTableTableManager(
+    _$AppDatabase db,
+    $ObservationAttachmentsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ObservationAttachmentsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ObservationAttachmentsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ObservationAttachmentsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> observationId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> localPath = const Value.absent(),
+                Value<String?> remoteUrl = const Value.absent(),
+                Value<String?> thumbnailPath = const Value.absent(),
+                Value<int?> durationMs = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ObservationAttachmentsCompanion(
+                id: id,
+                observationId: observationId,
+                kind: kind,
+                localPath: localPath,
+                remoteUrl: remoteUrl,
+                thumbnailPath: thumbnailPath,
+                durationMs: durationMs,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String observationId,
+                required String kind,
+                required String localPath,
+                Value<String?> remoteUrl = const Value.absent(),
+                Value<String?> thumbnailPath = const Value.absent(),
+                Value<int?> durationMs = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ObservationAttachmentsCompanion.insert(
+                id: id,
+                observationId: observationId,
+                kind: kind,
+                localPath: localPath,
+                remoteUrl: remoteUrl,
+                thumbnailPath: thumbnailPath,
+                durationMs: durationMs,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ObservationAttachmentsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({observationId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (observationId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.observationId,
+                                referencedTable:
+                                    $$ObservationAttachmentsTableReferences
+                                        ._observationIdTable(db),
+                                referencedColumn:
+                                    $$ObservationAttachmentsTableReferences
+                                        ._observationIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ObservationAttachmentsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ObservationAttachmentsTable,
+      ObservationAttachment,
+      $$ObservationAttachmentsTableFilterComposer,
+      $$ObservationAttachmentsTableOrderingComposer,
+      $$ObservationAttachmentsTableAnnotationComposer,
+      $$ObservationAttachmentsTableCreateCompanionBuilder,
+      $$ObservationAttachmentsTableUpdateCompanionBuilder,
+      (ObservationAttachment, $$ObservationAttachmentsTableReferences),
+      ObservationAttachment,
+      PrefetchHooks Function({bool observationId})
     >;
 typedef $$SpecialistsTableCreateCompanionBuilder =
     SpecialistsCompanion Function({
@@ -14568,6 +15620,11 @@ class $AppDatabaseManager {
       $$ObservationsTableTableManager(_db, _db.observations);
   $$ObservationKidsTableTableManager get observationKids =>
       $$ObservationKidsTableTableManager(_db, _db.observationKids);
+  $$ObservationAttachmentsTableTableManager get observationAttachments =>
+      $$ObservationAttachmentsTableTableManager(
+        _db,
+        _db.observationAttachments,
+      );
   $$SpecialistsTableTableManager get specialists =>
       $$SpecialistsTableTableManager(_db, _db.specialists);
   $$ActivityLibraryTableTableManager get activityLibrary =>

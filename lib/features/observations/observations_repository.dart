@@ -95,6 +95,7 @@ class ObservationsRepository {
     required ObservationSentiment sentiment,
     required String note,
     List<String> kidIds = const [],
+    List<ObservationAttachmentInput> attachments = const [],
     String? podId,
     String? activityLabel,
     String? tripId,
@@ -131,13 +132,48 @@ class ObservationsRepository {
               ),
             );
       }
+      for (final att in attachments) {
+        await _db.into(_db.observationAttachments).insert(
+              ObservationAttachmentsCompanion.insert(
+                id: newId(),
+                observationId: id,
+                kind: att.kind,
+                localPath: att.localPath,
+                durationMs: Value(att.durationMs),
+              ),
+            );
+      }
     });
     return id;
+  }
+
+  Future<List<ObservationAttachment>> attachmentsForObservation(
+    String observationId,
+  ) {
+    return (_db.select(_db.observationAttachments)
+          ..where((a) => a.observationId.equals(observationId))
+          ..orderBy([(a) => OrderingTerm.asc(a.createdAt)]))
+        .get();
   }
 
   Future<void> deleteObservation(String id) async {
     await (_db.delete(_db.observations)..where((o) => o.id.equals(id))).go();
   }
+}
+
+/// Minimal descriptor used when creating an observation. Local-first:
+/// the file path points at a device path. Remote upload happens later.
+class ObservationAttachmentInput {
+  const ObservationAttachmentInput({
+    required this.kind,
+    required this.localPath,
+    this.durationMs,
+  });
+
+  /// 'photo' or 'video'.
+  final String kind;
+  final String localPath;
+  final int? durationMs;
 }
 
 final observationsRepositoryProvider =
@@ -163,4 +199,14 @@ final observationKidsProvider =
   return ref
       .watch(observationsRepositoryProvider)
       .kidsForObservation(observationId);
+});
+
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final observationAttachmentsProvider =
+    FutureProvider.family<List<ObservationAttachment>, String>(
+        (ref, observationId) {
+  return ref
+      .watch(observationsRepositoryProvider)
+      .attachmentsForObservation(observationId);
 });

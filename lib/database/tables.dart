@@ -87,6 +87,26 @@ class CaptureKids extends Table {
   Set<Column<Object>> get primaryKey => {captureId, kidId};
 }
 
+/// Photos, videos, and other media attached to an observation. Stored as
+/// local filesystem paths for now; [remoteUrl] will be filled in once a
+/// cloud storage sync exists.
+class ObservationAttachments extends Table {
+  TextColumn get id => text()();
+  TextColumn get observationId => text()
+      .references(Observations, #id, onDelete: KeyAction.cascade)();
+  // 'photo' | 'video'
+  TextColumn get kind => text()();
+  TextColumn get localPath => text()();
+  TextColumn get remoteUrl => text().nullable()();
+  TextColumn get thumbnailPath => text().nullable()();
+  IntColumn get durationMs => integer().nullable()();
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 /// Maps an observation to 0..N kids. Observations primarily target kids
 /// via this join table; the legacy single [Observations.kidId] column is
 /// kept for older rows.
