@@ -1,20 +1,13 @@
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-const _dayLabels = [
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Sunday',
-];
-const _dayShortLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const List<String> _dayLabels = scheduleDayLabels;
+const List<String> _dayShortLabels = ['M', 'T', 'W', 'T', 'F'];
 
 /// Bottom sheet: pick target days to duplicate [sourceDay]'s activities into.
 class CopyDaySheet extends ConsumerStatefulWidget {
@@ -76,7 +69,7 @@ class _CopyDaySheetState extends ConsumerState<CopyDaySheet> {
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
-              for (var day = 1; day <= 7; day++) ...[
+              for (var day = 1; day <= scheduleDayCount; day++) ...[
                 _DayChip(
                   label: _dayShortLabels[day - 1],
                   selected: _targetDays.contains(day),
@@ -85,7 +78,8 @@ class _CopyDaySheetState extends ConsumerState<CopyDaySheet> {
                     if (!_targetDays.add(day)) _targetDays.remove(day);
                   }),
                 ),
-                if (day < 7) const SizedBox(width: AppSpacing.xs),
+                if (day < scheduleDayCount)
+                  const SizedBox(width: AppSpacing.xs),
               ],
             ],
           ),
@@ -94,20 +88,11 @@ class _CopyDaySheetState extends ConsumerState<CopyDaySheet> {
             spacing: AppSpacing.xs,
             children: [
               ActionChip(
-                label: const Text('All weekdays'),
+                label: const Text('All other weekdays'),
                 onPressed: () => setState(() {
                   _targetDays
                     ..clear()
-                    ..addAll({1, 2, 3, 4, 5}
-                      ..remove(widget.sourceDay));
-                }),
-              ),
-              ActionChip(
-                label: const Text('All other days'),
-                onPressed: () => setState(() {
-                  _targetDays
-                    ..clear()
-                    ..addAll({1, 2, 3, 4, 5, 6, 7}
+                    ..addAll(scheduleDayValues.toSet()
                       ..remove(widget.sourceDay));
                 }),
               ),

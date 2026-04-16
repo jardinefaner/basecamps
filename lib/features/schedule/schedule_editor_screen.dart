@@ -1,5 +1,6 @@
 import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:basecamp/features/schedule/widgets/add_activity_picker.dart';
 import 'package:basecamp/features/schedule/widgets/conflict_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/copy_day_sheet.dart';
@@ -11,16 +12,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-const _dayLabels = [
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Sunday',
-];
-const _dayShortLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const List<String> _dayLabels = scheduleDayLabels;
+const List<String> _dayShortLabels = scheduleDayShortLabels;
 
 enum _ViewMode { list, grid }
 
@@ -108,7 +101,7 @@ class _ScheduleEditorScreenState
               error: (err, _) => Center(child: Text('Error: $err')),
               data: (byDay) {
                 final conflicts = <int, Set<String>>{
-                  for (var d = 1; d <= 7; d++)
+                  for (var d = 1; d <= scheduleDayCount; d++)
                     d: detectConflictingIds(
                       byDay[d] ?? const <ScheduleItem>[],
                     ),
@@ -137,7 +130,7 @@ class _ScheduleEditorScreenState
                     bottom: AppSpacing.xxxl * 2,
                   ),
                   children: [
-                    for (var offset = 0; offset < 7; offset++)
+                    for (var offset = 0; offset < scheduleDayCount; offset++)
                       _DaySection(
                         date: _weekStart.add(Duration(days: offset)),
                         items: byDay[offset + 1] ??

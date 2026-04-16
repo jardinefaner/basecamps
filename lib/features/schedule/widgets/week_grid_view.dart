@@ -1,21 +1,21 @@
 import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-const _dayShortLabels = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+const _dayShortLabels = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
 
 /// Week grid with a frozen time column on the left and horizontally
 /// scrollable day columns on the right. Each time-slot row keeps its time
-/// label pinned (outside the scroll view) and renders the seven day cells
-/// in a horizontal scroll view. Every row's horizontal scroll view shares
-/// state via a small linked-controller group, so scrolling any row scrolls
-/// the header and every other row in lock-step. Cells are 180 px wide and
-/// let text wrap — the idea is "list view minus the time column, laid out
-/// as a grid".
+/// label pinned (outside the scroll view) and renders the five weekday
+/// cells (Mon–Fri — the program doesn't run weekends) in a horizontal
+/// scroll view. Every row's horizontal scroll view shares state via a
+/// small linked-controller group, so scrolling any row scrolls the
+/// header and every other row in lock-step.
 class WeekGridView extends StatefulWidget {
   const WeekGridView({
     required this.weekStart,
@@ -71,7 +71,7 @@ class _WeekGridViewState extends State<WeekGridView> {
 
     // Full-day items per day (rendered in the all-day strip).
     final fullDayByDay = <int, List<ScheduleItem>>{};
-    for (var d = 1; d <= 7; d++) {
+    for (var d = 1; d <= scheduleDayCount; d++) {
       final items = widget.itemsByDay[d] ?? const <ScheduleItem>[];
       final full = items.where((i) => i.isFullDay).toList();
       if (full.isNotEmpty) fullDayByDay[d] = full;
@@ -94,10 +94,10 @@ class _WeekGridViewState extends State<WeekGridView> {
 
     // (Day × slot) matrix → merge runs per row.
     final matrix = List.generate(
-      7,
+      scheduleDayCount,
       (_) => List<ScheduleItem?>.filled(slots.length, null),
     );
-    for (var d = 0; d < 7; d++) {
+    for (var d = 0; d < scheduleDayCount; d++) {
       final items = widget.itemsByDay[d + 1] ?? const <ScheduleItem>[];
       for (final item in items) {
         if (item.isFullDay) continue;
@@ -109,14 +109,14 @@ class _WeekGridViewState extends State<WeekGridView> {
     for (var slot = 0; slot < slots.length; slot++) {
       final row = <_Block>[];
       var d = 0;
-      while (d < 7) {
+      while (d < scheduleDayCount) {
         final item = matrix[d][slot];
         if (item == null) {
           d++;
           continue;
         }
         var end = d;
-        while (end + 1 < 7) {
+        while (end + 1 < scheduleDayCount) {
           final next = matrix[end + 1][slot];
           if (next == null || !_areEquivalent(item, next)) break;
           end++;
@@ -286,11 +286,11 @@ class _HeaderRow extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               physics: const ClampingScrollPhysics(),
               child: SizedBox(
-                width: cellWidth * 7,
+                width: cellWidth * scheduleDayCount,
                 height: height,
                 child: Row(
                   children: [
-                    for (var d = 0; d < 7; d++)
+                    for (var d = 0; d < scheduleDayCount; d++)
                       SizedBox(
                         width: cellWidth,
                         child: Center(
@@ -361,11 +361,11 @@ class _FullDayRow extends StatelessWidget {
               controller: controller,
               physics: const ClampingScrollPhysics(),
               child: SizedBox(
-                width: cellWidth * 7,
+                width: cellWidth * scheduleDayCount,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    for (var d = 0; d < 7; d++)
+                    for (var d = 0; d < scheduleDayCount; d++)
                       SizedBox(
                         width: cellWidth,
                         child: Padding(
@@ -435,7 +435,7 @@ class _SlotRow extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               physics: const ClampingScrollPhysics(),
               child: SizedBox(
-                width: cellWidth * 7,
+                width: cellWidth * scheduleDayCount,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: _buildCells(),
@@ -451,7 +451,7 @@ class _SlotRow extends StatelessWidget {
   List<Widget> _buildCells() {
     final cells = <Widget>[];
     var d = 0;
-    while (d < 7) {
+    while (d < scheduleDayCount) {
       final block = _blockStartingAt(d);
       if (block != null) {
         final span = block.endDay - block.startDay + 1;

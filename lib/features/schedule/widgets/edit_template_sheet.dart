@@ -2,6 +2,7 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/widgets/library_picker_sheet.dart';
 import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
@@ -12,7 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-const _dayShortLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const _dayShortLabels = ['M', 'T', 'W', 'T', 'F'];
 
 class EditTemplateSheet extends ConsumerStatefulWidget {
   const EditTemplateSheet({super.key, this.template, this.initialDays});
@@ -33,7 +34,8 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
 
   late final Set<int> _selectedDays = widget.template != null
       ? {widget.template!.dayOfWeek}
-      : (widget.initialDays ?? {DateTime.now().weekday});
+      : (widget.initialDays ??
+          {clampToScheduleDay(DateTime.now().weekday)});
 
   late TimeOfDay _start = widget.template != null
       ? _parseTime(widget.template!.startTime)
@@ -447,13 +449,14 @@ class _DayPicker extends StatelessWidget {
         const SizedBox(height: AppSpacing.sm),
         Row(
           children: [
-            for (var day = 1; day <= 7; day++) ...[
+            for (var day = 1; day <= scheduleDayCount; day++) ...[
               _DayChip(
                 label: _dayShortLabels[day - 1],
                 selected: selected.contains(day),
                 onTap: () => onToggle(day),
               ),
-              if (day < 7) const SizedBox(width: AppSpacing.xs),
+              if (day < scheduleDayCount)
+                const SizedBox(width: AppSpacing.xs),
             ],
           ],
         ),

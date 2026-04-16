@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -371,7 +372,11 @@ class ScheduleRepository {
           }
 
           final result = <int, List<ScheduleItem>>{};
-          for (var offset = 0; offset < 7; offset++) {
+          // Monday..Friday only — the program doesn't run weekends, so we
+          // skip Sat/Sun in the iteration entirely. Any templates/entries
+          // still dated on those days are simply dropped here and never
+          // surface in the UI.
+          for (var offset = 0; offset < scheduleDayCount; offset++) {
             final date = monday.add(Duration(days: offset));
             final dayOfWeek = date.weekday;
 
