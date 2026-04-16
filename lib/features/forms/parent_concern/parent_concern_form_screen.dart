@@ -1,5 +1,6 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_repository.dart';
+import 'package:basecamp/features/forms/parent_concern/parent_concern_share.dart';
 import 'package:basecamp/features/forms/widgets/form_section_card.dart';
 import 'package:basecamp/features/forms/widgets/inline_signature_pad.dart';
 import 'package:basecamp/features/forms/widgets/kid_chip_picker.dart';
@@ -261,6 +262,23 @@ class _ParentConcernFormScreenState
     }
   }
 
+  /// Share / print the current note. If the form is dirty, save first
+  /// so the exported document reflects what's on screen. Bails quietly
+  /// if the note hasn't been saved at least once — there's nothing to
+  /// share from an empty new-form draft yet.
+  Future<void> _share() async {
+    if (!_isEdit) return;
+    _syncControllersToInput();
+    await ref
+        .read(parentConcernRepositoryProvider)
+        .update(widget.noteId!, _input);
+    final note = await ref
+        .read(parentConcernRepositoryProvider)
+        .getOne(widget.noteId!);
+    if (!mounted || note == null) return;
+    await showParentConcernShareSheet(context, note);
+  }
+
   Future<void> _delete() async {
     if (!_isEdit) return;
     final confirmed = await showDialog<bool>(
@@ -300,6 +318,12 @@ class _ParentConcernFormScreenState
       appBar: AppBar(
         title: Text(_isEdit ? 'Edit concern note' : 'New concern note'),
         actions: [
+          if (_isEdit)
+            IconButton(
+              tooltip: 'Share / print',
+              onPressed: _share,
+              icon: const Icon(Icons.ios_share),
+            ),
           if (_isEdit)
             IconButton(
               tooltip: 'Delete',
