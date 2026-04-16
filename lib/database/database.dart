@@ -19,6 +19,8 @@ QueryExecutor _openConnection() {
     Observations,
     ScheduleTemplates,
     ScheduleEntries,
+    TemplatePods,
+    EntryPods,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -27,7 +29,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -50,6 +52,19 @@ class AppDatabase extends _$AppDatabase {
           if (from < 5) {
             await m.addColumn(scheduleTemplates, scheduleTemplates.isFullDay);
             await m.addColumn(scheduleEntries, scheduleEntries.isFullDay);
+          }
+          if (from < 6) {
+            await m.createTable(templatePods);
+            await m.createTable(entryPods);
+            // Backfill from the legacy single-pod column.
+            await customStatement('''
+              INSERT INTO template_pods (template_id, pod_id)
+              SELECT id, pod_id FROM schedule_templates WHERE pod_id IS NOT NULL
+            ''');
+            await customStatement('''
+              INSERT INTO entry_pods (entry_id, pod_id)
+              SELECT id, pod_id FROM schedule_entries WHERE pod_id IS NOT NULL
+            ''');
           }
         },
       );

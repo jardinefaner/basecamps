@@ -118,6 +118,34 @@ class ScheduleTemplates extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Maps a schedule template to 0..N pods. Empty set = "all pods".
+class TemplatePods extends Table {
+  TextColumn get templateId => text().references(
+        ScheduleTemplates,
+        #id,
+        onDelete: KeyAction.cascade,
+      )();
+  TextColumn get podId =>
+      text().references(Pods, #id, onDelete: KeyAction.cascade)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {templateId, podId};
+}
+
+/// Maps a per-date schedule entry to 0..N pods. Empty set = "all pods".
+class EntryPods extends Table {
+  TextColumn get entryId => text().references(
+        ScheduleEntries,
+        #id,
+        onDelete: KeyAction.cascade,
+      )();
+  TextColumn get podId =>
+      text().references(Pods, #id, onDelete: KeyAction.cascade)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {entryId, podId};
+}
+
 /// Per-date schedule entries. `kind` is 'addition' | 'override' | 'cancellation'.
 /// When 'override' or 'cancellation', `overridesTemplateId` points to the template
 /// that this entry modifies for the given `date`.

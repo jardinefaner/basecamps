@@ -37,8 +37,11 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
   late TimeOfDay _end = widget.template != null
       ? _parseTime(widget.template!.endTime)
       : const TimeOfDay(hour: 10, minute: 0);
-  late bool _isFullDay = widget.template?.isFullDay ?? false;
-  late String? _podId = widget.template?.podId;
+
+  /// Empty = "All pods" (no restriction). Non-empty = specific pods.
+  final Set<String> _selectedPodIds = <String>{};
+  bool _podsLoaded = false;
+
   bool _submitting = false;
   bool _didAutofillStart = false;
 
@@ -58,10 +61,24 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
   @override
   void initState() {
     super.initState();
-    if (!_isEdit) {
-      // Back-to-back: default start to end of last activity on the primary day.
+    if (_isEdit) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadPods());
+    } else {
+      _podsLoaded = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => _tryAutofillStart());
     }
+  }
+
+  Future<void> _loadPods() async {
+    if (!_isEdit) return;
+    final pods = await ref
+        .read(scheduleRepositoryProvider)
+        .podsForTemplate(widget.template!.id);
+    if (!mounted) return;
+    setState(() {
+      _selectedPodIds.addAll(pods);
+      _podsLoaded = true;
+    });
   }
 
   Future<void> _tryAutofillStart() async {
@@ -73,11 +90,9 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
         .latestEndTimeForDay(primaryDay);
     if (last == null || !mounted) return;
     final newStart = _parseTime(last);
-    // Only nudge if the user hasn't already changed the default
     if (_start.hour == 9 && _start.minute == 0) {
       setState(() {
         _start = newStart;
-        // Keep a 1h duration by default
         final endDt = DateTime(2000, 1, 1, newStart.hour, newStart.minute)
             .add(const Duration(hours: 1));
         _end = TimeOfDay(hour: endDt.hour, minute: endDt.minute);
@@ -117,9 +132,9 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     final location = _locationController.text.trim().isEmpty
         ? null
         : _locationController.text.trim();
-    // When full day, normalize time values; they're hidden in the UI anyway.
-    final startHhmm = _isFullDay ? '00:00' : _formatTime(_start);
-    final endHhmm = _isFullDay ? '23:59' : _formatTime(_end);
+    final startHhmm = _formatTime(_start);
+    final endHhmm = _formatTime(_end);
+    final podIds = _selectedPodIds.toList();
 
     if (_isEdit) {
       await repo.updateTemplate(
@@ -127,9 +142,8 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
         dayOfWeek: _selectedDays.first,
         startTime: startHhmm,
         endTime: endHhmm,
-        isFullDay: _isFullDay,
         title: title,
-        podId: _podId,
+        podIds: podIds,
         specialistName: specialist,
         location: location,
       );
@@ -139,9 +153,8 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
           dayOfWeek: day,
           startTime: startHhmm,
           endTime: endHhmm,
-          isFullDay: _isFullDay,
           title: title,
-          podId: _podId,
+          podIds: podIds,
           specialistName: specialist,
           location: location,
         );
@@ -226,77 +239,68 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
               }),
             ),
             const SizedBox(height: AppSpacing.lg),
-            SwitchListTile(
-              title: const Text('Full day'),
-              subtitle: const Text('No specific time — like a field trip'),
-              value: _isFullDay,
-              onChanged: (v) => setState(() => _isFullDay = v),
-              contentPadding: EdgeInsets.zero,
+            Row(
+              children: [
+                Expanded(
+                  child: _TimeField(
+                    label: 'Start',
+                    time: _start,
+                    onPressed: _pickStart,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: _TimeField(
+                    label: 'End',
+                    time: _end,
+                    onPressed: _pickEnd,
+                  ),
+                ),
+              ],
             ),
-            if (!_isFullDay) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Row(
-                children: [
-                  Expanded(
-                    child: _TimeField(
-                      label: 'Start',
-                      time: _start,
-                      onPressed: _pickStart,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: _TimeField(
-                      label: 'End',
-                      time: _end,
-                      onPressed: _pickEnd,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Wrap(
-                spacing: AppSpacing.sm,
-                children: [
-                  _DurationChip(
-                    label: '30m',
-                    onTap: () =>
-                        _applyDurationPreset(const Duration(minutes: 30)),
-                  ),
-                  _DurationChip(
-                    label: '1h',
-                    onTap: () =>
-                        _applyDurationPreset(const Duration(hours: 1)),
-                  ),
-                  _DurationChip(
-                    label: '90m',
-                    onTap: () =>
-                        _applyDurationPreset(const Duration(minutes: 90)),
-                  ),
-                  _DurationChip(
-                    label: '2h',
-                    onTap: () =>
-                        _applyDurationPreset(const Duration(hours: 2)),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: AppSpacing.lg),
-            Text('Pod', style: theme.textTheme.titleSmall),
             const SizedBox(height: AppSpacing.sm),
-            podsAsync.maybeWhen(
-              data: (pods) => DropdownButtonFormField<String?>(
-                initialValue: _podId,
-                items: [
-                  const DropdownMenuItem<String?>(
-                    child: Text('All pods'),
-                  ),
-                  for (final p in pods)
-                    DropdownMenuItem(value: p.id, child: Text(p.name)),
-                ],
-                onChanged: (v) => setState(() => _podId = v),
-              ),
-              orElse: () => const LinearProgressIndicator(),
+            Wrap(
+              spacing: AppSpacing.sm,
+              children: [
+                _DurationChip(
+                  label: '30m',
+                  onTap: () =>
+                      _applyDurationPreset(const Duration(minutes: 30)),
+                ),
+                _DurationChip(
+                  label: '1h',
+                  onTap: () => _applyDurationPreset(const Duration(hours: 1)),
+                ),
+                _DurationChip(
+                  label: '90m',
+                  onTap: () =>
+                      _applyDurationPreset(const Duration(minutes: 90)),
+                ),
+                _DurationChip(
+                  label: '2h',
+                  onTap: () => _applyDurationPreset(const Duration(hours: 2)),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Text('Pods', style: theme.textTheme.titleSmall),
+            const SizedBox(height: AppSpacing.sm),
+            podsAsync.when(
+              loading: () => const LinearProgressIndicator(),
+              error: (err, _) => Text('Error: $err'),
+              data: (pods) {
+                if (!_podsLoaded) return const LinearProgressIndicator();
+                return _PodSelector(
+                  pods: pods,
+                  selectedPodIds: _selectedPodIds,
+                  onAllToggle: () => setState(_selectedPodIds.clear),
+                  onPodToggle: (id) => setState(() {
+                    if (!_selectedPodIds.add(id)) {
+                      _selectedPodIds.remove(id);
+                    }
+                  }),
+                );
+              },
             ),
             const SizedBox(height: AppSpacing.lg),
             AppTextField(
@@ -322,6 +326,49 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PodSelector extends StatelessWidget {
+  const _PodSelector({
+    required this.pods,
+    required this.selectedPodIds,
+    required this.onAllToggle,
+    required this.onPodToggle,
+  });
+
+  final List<Pod> pods;
+  final Set<String> selectedPodIds;
+  final VoidCallback onAllToggle;
+  final ValueChanged<String> onPodToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    if (pods.isEmpty) {
+      final theme = Theme.of(context);
+      return Text(
+        'No pods yet — add some in the Kids tab.',
+        style: theme.textTheme.bodySmall,
+      );
+    }
+    final allSelected = selectedPodIds.isEmpty;
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        FilterChip(
+          label: const Text('All pods'),
+          selected: allSelected,
+          onSelected: (_) => onAllToggle(),
+        ),
+        for (final pod in pods)
+          FilterChip(
+            label: Text(pod.name),
+            selected: selectedPodIds.contains(pod.id),
+            onSelected: (_) => onPodToggle(pod.id),
+          ),
+      ],
     );
   }
 }

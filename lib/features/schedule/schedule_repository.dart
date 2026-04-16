@@ -14,7 +14,7 @@ class ScheduleItem {
     required this.isFullDay,
     required this.title,
     required this.isFromTemplate,
-    this.podId,
+    required this.podIds,
     this.specialistName,
     this.location,
     this.notes,
@@ -27,7 +27,9 @@ class ScheduleItem {
   final String endTime;
   final bool isFullDay;
   final String title;
-  final String? podId;
+
+  /// Pods this item targets. Empty list = "all pods".
+  final List<String> podIds;
   final String? specialistName;
   final String? location;
   final String? notes;
@@ -35,12 +37,11 @@ class ScheduleItem {
   final String? templateId;
   final String? entryId;
 
-  /// True when this item is a one-off addition (not sourced from a template).
   bool get isOneOff => !isFromTemplate;
+  bool get isAllPods => podIds.isEmpty;
 
   TimeOfDay get startTimeOfDay => _parseTime(startTime);
   TimeOfDay get endTimeOfDay => _parseTime(endTime);
-
   int get startMinutes => startTimeOfDay.hour * 60 + startTimeOfDay.minute;
   int get endMinutes => endTimeOfDay.hour * 60 + endTimeOfDay.minute;
 
@@ -76,8 +77,22 @@ class ScheduleRepository {
     return query.get();
   }
 
-  /// Latest end time (HH:mm) among timed templates for the given day, or null
-  /// if the day has no timed activities yet. Used for back-to-back auto-fill.
+  /// Pod ids assigned to a given template. Empty = all pods.
+  Future<List<String>> podsForTemplate(String templateId) async {
+    final rows = await (_db.select(_db.templatePods)
+          ..where((p) => p.templateId.equals(templateId)))
+        .get();
+    return rows.map((r) => r.podId).toList();
+  }
+
+  /// Pod ids assigned to a given per-date entry. Empty = all pods.
+  Future<List<String>> podsForEntry(String entryId) async {
+    final rows = await (_db.select(_db.entryPods)
+          ..where((p) => p.entryId.equals(entryId)))
+        .get();
+    return rows.map((r) => r.podId).toList();
+  }
+
   Future<String?> latestEndTimeForDay(int dayOfWeek) async {
     final templates = await templatesForDay(dayOfWeek);
     final timed = templates.where((t) => !t.isFullDay).toList();
@@ -91,27 +106,33 @@ class ScheduleRepository {
     required String startTime,
     required String endTime,
     required String title,
+    List<String> podIds = const [],
     bool isFullDay = false,
-    String? podId,
     String? specialistName,
     String? location,
     String? notes,
   }) async {
     final id = newId();
-    await _db.into(_db.scheduleTemplates).insert(
-          ScheduleTemplatesCompanion.insert(
-            id: id,
-            dayOfWeek: dayOfWeek,
-            startTime: startTime,
-            endTime: endTime,
-            isFullDay: Value(isFullDay),
-            title: title,
-            podId: Value(podId),
-            specialistName: Value(specialistName),
-            location: Value(location),
-            notes: Value(notes),
-          ),
-        );
+    await _db.transaction(() async {
+      await _db.into(_db.scheduleTemplates).insert(
+            ScheduleTemplatesCompanion.insert(
+              id: id,
+              dayOfWeek: dayOfWeek,
+              startTime: startTime,
+              endTime: endTime,
+              isFullDay: Value(isFullDay),
+              title: title,
+              specialistName: Value(specialistName),
+              location: Value(location),
+              notes: Value(notes),
+            ),
+          );
+      for (final podId in podIds) {
+        await _db.into(_db.templatePods).insert(
+              TemplatePodsCompanion.insert(templateId: id, podId: podId),
+            );
+      }
+    });
     return id;
   }
 
@@ -121,27 +142,37 @@ class ScheduleRepository {
     required String startTime,
     required String endTime,
     required String title,
+    List<String> podIds = const [],
     bool isFullDay = false,
-    String? podId,
     String? specialistName,
     String? location,
     String? notes,
   }) async {
-    await (_db.update(_db.scheduleTemplates)..where((t) => t.id.equals(id)))
-        .write(
-      ScheduleTemplatesCompanion(
-        dayOfWeek: Value(dayOfWeek),
-        startTime: Value(startTime),
-        endTime: Value(endTime),
-        isFullDay: Value(isFullDay),
-        title: Value(title),
-        podId: Value(podId),
-        specialistName: Value(specialistName),
-        location: Value(location),
-        notes: Value(notes),
-        updatedAt: Value(DateTime.now()),
-      ),
-    );
+    await _db.transaction(() async {
+      await (_db.update(_db.scheduleTemplates)
+            ..where((t) => t.id.equals(id)))
+          .write(
+        ScheduleTemplatesCompanion(
+          dayOfWeek: Value(dayOfWeek),
+          startTime: Value(startTime),
+          endTime: Value(endTime),
+          isFullDay: Value(isFullDay),
+          title: Value(title),
+          specialistName: Value(specialistName),
+          location: Value(location),
+          notes: Value(notes),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      await (_db.delete(_db.templatePods)
+            ..where((p) => p.templateId.equals(id)))
+          .go();
+      for (final podId in podIds) {
+        await _db.into(_db.templatePods).insert(
+              TemplatePodsCompanion.insert(templateId: id, podId: podId),
+            );
+      }
+    });
   }
 
   Future<void> deleteTemplate(String id) async {
@@ -156,28 +187,34 @@ class ScheduleRepository {
     required String startTime,
     required String endTime,
     required String title,
+    List<String> podIds = const [],
     bool isFullDay = false,
-    String? podId,
     String? specialistName,
     String? location,
     String? notes,
   }) async {
     final id = newId();
-    await _db.into(_db.scheduleEntries).insert(
-          ScheduleEntriesCompanion.insert(
-            id: id,
-            date: _dayOnly(date),
-            startTime: startTime,
-            endTime: endTime,
-            isFullDay: Value(isFullDay),
-            title: title,
-            podId: Value(podId),
-            specialistName: Value(specialistName),
-            location: Value(location),
-            notes: Value(notes),
-            kind: 'addition',
-          ),
-        );
+    await _db.transaction(() async {
+      await _db.into(_db.scheduleEntries).insert(
+            ScheduleEntriesCompanion.insert(
+              id: id,
+              date: _dayOnly(date),
+              startTime: startTime,
+              endTime: endTime,
+              isFullDay: Value(isFullDay),
+              title: title,
+              specialistName: Value(specialistName),
+              location: Value(location),
+              notes: Value(notes),
+              kind: 'addition',
+            ),
+          );
+      for (final podId in podIds) {
+        await _db.into(_db.entryPods).insert(
+              EntryPodsCompanion.insert(entryId: id, podId: podId),
+            );
+      }
+    });
     return id;
   }
 
@@ -225,13 +262,28 @@ class ScheduleRepository {
 
     return templatesQuery.watch().asyncMap((templates) async {
       final entries = await entriesQuery.get();
-      return _merge(templates: templates, entries: entries);
+      final templatePodMap = <String, List<String>>{};
+      for (final t in templates) {
+        templatePodMap[t.id] = await podsForTemplate(t.id);
+      }
+      final entryPodMap = <String, List<String>>{};
+      for (final e in entries) {
+        entryPodMap[e.id] = await podsForEntry(e.id);
+      }
+      return _merge(
+        templates: templates,
+        entries: entries,
+        templatePods: templatePodMap,
+        entryPods: entryPodMap,
+      );
     });
   }
 
   List<ScheduleItem> _merge({
     required List<ScheduleTemplate> templates,
     required List<ScheduleEntry> entries,
+    required Map<String, List<String>> templatePods,
+    required Map<String, List<String>> entryPods,
   }) {
     final cancelledTemplateIds = <String>{
       for (final e in entries)
@@ -257,7 +309,7 @@ class ScheduleRepository {
             endTime: override.endTime,
             isFullDay: override.isFullDay,
             title: override.title,
-            podId: override.podId,
+            podIds: entryPods[override.id] ?? const [],
             specialistName: override.specialistName,
             location: override.location,
             notes: override.notes,
@@ -274,7 +326,7 @@ class ScheduleRepository {
             endTime: t.endTime,
             isFullDay: t.isFullDay,
             title: t.title,
-            podId: t.podId,
+            podIds: templatePods[t.id] ?? const [],
             specialistName: t.specialistName,
             location: t.location,
             notes: t.notes,
@@ -294,7 +346,7 @@ class ScheduleRepository {
             endTime: e.endTime,
             isFullDay: e.isFullDay,
             title: e.title,
-            podId: e.podId,
+            podIds: entryPods[e.id] ?? const [],
             specialistName: e.specialistName,
             location: e.location,
             notes: e.notes,
@@ -305,7 +357,6 @@ class ScheduleRepository {
       }
     }
 
-    // Full-day items come first, then timed items in time order.
     items.sort((a, b) {
       if (a.isFullDay != b.isFullDay) return a.isFullDay ? -1 : 1;
       return a.startMinutes.compareTo(b.startMinutes);
@@ -316,9 +367,7 @@ class ScheduleRepository {
   int _compareTime(String a, String b) {
     final aParts = a.split(':').map(int.parse).toList();
     final bParts = b.split(':').map(int.parse).toList();
-    final aMin = aParts[0] * 60 + aParts[1];
-    final bMin = bParts[0] * 60 + bParts[1];
-    return aMin.compareTo(bMin);
+    return (aParts[0] * 60 + aParts[1]).compareTo(bParts[0] * 60 + bParts[1]);
   }
 
   DateTime _dayOnly(DateTime d) => DateTime(d.year, d.month, d.day);
@@ -336,4 +385,11 @@ final todayScheduleProvider = StreamProvider<List<ScheduleItem>>((ref) {
   return ref
       .watch(scheduleRepositoryProvider)
       .watchScheduleForDate(DateTime.now());
+});
+
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final templatePodsProvider =
+    FutureProvider.family<List<String>, String>((ref, templateId) {
+  return ref.watch(scheduleRepositoryProvider).podsForTemplate(templateId);
 });

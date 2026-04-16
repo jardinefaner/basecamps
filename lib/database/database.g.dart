@@ -4340,6 +4340,445 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
   }
 }
 
+class $TemplatePodsTable extends TemplatePods
+    with TableInfo<$TemplatePodsTable, TemplatePod> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TemplatePodsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _templateIdMeta = const VerificationMeta(
+    'templateId',
+  );
+  @override
+  late final GeneratedColumn<String> templateId = GeneratedColumn<String>(
+    'template_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES schedule_templates (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _podIdMeta = const VerificationMeta('podId');
+  @override
+  late final GeneratedColumn<String> podId = GeneratedColumn<String>(
+    'pod_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES pods (id) ON DELETE CASCADE',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [templateId, podId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'template_pods';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TemplatePod> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('template_id')) {
+      context.handle(
+        _templateIdMeta,
+        templateId.isAcceptableOrUnknown(data['template_id']!, _templateIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_templateIdMeta);
+    }
+    if (data.containsKey('pod_id')) {
+      context.handle(
+        _podIdMeta,
+        podId.isAcceptableOrUnknown(data['pod_id']!, _podIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_podIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {templateId, podId};
+  @override
+  TemplatePod map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TemplatePod(
+      templateId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}template_id'],
+      )!,
+      podId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pod_id'],
+      )!,
+    );
+  }
+
+  @override
+  $TemplatePodsTable createAlias(String alias) {
+    return $TemplatePodsTable(attachedDatabase, alias);
+  }
+}
+
+class TemplatePod extends DataClass implements Insertable<TemplatePod> {
+  final String templateId;
+  final String podId;
+  const TemplatePod({required this.templateId, required this.podId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['template_id'] = Variable<String>(templateId);
+    map['pod_id'] = Variable<String>(podId);
+    return map;
+  }
+
+  TemplatePodsCompanion toCompanion(bool nullToAbsent) {
+    return TemplatePodsCompanion(
+      templateId: Value(templateId),
+      podId: Value(podId),
+    );
+  }
+
+  factory TemplatePod.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TemplatePod(
+      templateId: serializer.fromJson<String>(json['templateId']),
+      podId: serializer.fromJson<String>(json['podId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'templateId': serializer.toJson<String>(templateId),
+      'podId': serializer.toJson<String>(podId),
+    };
+  }
+
+  TemplatePod copyWith({String? templateId, String? podId}) => TemplatePod(
+    templateId: templateId ?? this.templateId,
+    podId: podId ?? this.podId,
+  );
+  TemplatePod copyWithCompanion(TemplatePodsCompanion data) {
+    return TemplatePod(
+      templateId: data.templateId.present
+          ? data.templateId.value
+          : this.templateId,
+      podId: data.podId.present ? data.podId.value : this.podId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TemplatePod(')
+          ..write('templateId: $templateId, ')
+          ..write('podId: $podId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(templateId, podId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TemplatePod &&
+          other.templateId == this.templateId &&
+          other.podId == this.podId);
+}
+
+class TemplatePodsCompanion extends UpdateCompanion<TemplatePod> {
+  final Value<String> templateId;
+  final Value<String> podId;
+  final Value<int> rowid;
+  const TemplatePodsCompanion({
+    this.templateId = const Value.absent(),
+    this.podId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TemplatePodsCompanion.insert({
+    required String templateId,
+    required String podId,
+    this.rowid = const Value.absent(),
+  }) : templateId = Value(templateId),
+       podId = Value(podId);
+  static Insertable<TemplatePod> custom({
+    Expression<String>? templateId,
+    Expression<String>? podId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (templateId != null) 'template_id': templateId,
+      if (podId != null) 'pod_id': podId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TemplatePodsCompanion copyWith({
+    Value<String>? templateId,
+    Value<String>? podId,
+    Value<int>? rowid,
+  }) {
+    return TemplatePodsCompanion(
+      templateId: templateId ?? this.templateId,
+      podId: podId ?? this.podId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (templateId.present) {
+      map['template_id'] = Variable<String>(templateId.value);
+    }
+    if (podId.present) {
+      map['pod_id'] = Variable<String>(podId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TemplatePodsCompanion(')
+          ..write('templateId: $templateId, ')
+          ..write('podId: $podId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $EntryPodsTable extends EntryPods
+    with TableInfo<$EntryPodsTable, EntryPod> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EntryPodsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _entryIdMeta = const VerificationMeta(
+    'entryId',
+  );
+  @override
+  late final GeneratedColumn<String> entryId = GeneratedColumn<String>(
+    'entry_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES schedule_entries (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _podIdMeta = const VerificationMeta('podId');
+  @override
+  late final GeneratedColumn<String> podId = GeneratedColumn<String>(
+    'pod_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES pods (id) ON DELETE CASCADE',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [entryId, podId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'entry_pods';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<EntryPod> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('entry_id')) {
+      context.handle(
+        _entryIdMeta,
+        entryId.isAcceptableOrUnknown(data['entry_id']!, _entryIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_entryIdMeta);
+    }
+    if (data.containsKey('pod_id')) {
+      context.handle(
+        _podIdMeta,
+        podId.isAcceptableOrUnknown(data['pod_id']!, _podIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_podIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {entryId, podId};
+  @override
+  EntryPod map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EntryPod(
+      entryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entry_id'],
+      )!,
+      podId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pod_id'],
+      )!,
+    );
+  }
+
+  @override
+  $EntryPodsTable createAlias(String alias) {
+    return $EntryPodsTable(attachedDatabase, alias);
+  }
+}
+
+class EntryPod extends DataClass implements Insertable<EntryPod> {
+  final String entryId;
+  final String podId;
+  const EntryPod({required this.entryId, required this.podId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['entry_id'] = Variable<String>(entryId);
+    map['pod_id'] = Variable<String>(podId);
+    return map;
+  }
+
+  EntryPodsCompanion toCompanion(bool nullToAbsent) {
+    return EntryPodsCompanion(entryId: Value(entryId), podId: Value(podId));
+  }
+
+  factory EntryPod.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EntryPod(
+      entryId: serializer.fromJson<String>(json['entryId']),
+      podId: serializer.fromJson<String>(json['podId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'entryId': serializer.toJson<String>(entryId),
+      'podId': serializer.toJson<String>(podId),
+    };
+  }
+
+  EntryPod copyWith({String? entryId, String? podId}) =>
+      EntryPod(entryId: entryId ?? this.entryId, podId: podId ?? this.podId);
+  EntryPod copyWithCompanion(EntryPodsCompanion data) {
+    return EntryPod(
+      entryId: data.entryId.present ? data.entryId.value : this.entryId,
+      podId: data.podId.present ? data.podId.value : this.podId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EntryPod(')
+          ..write('entryId: $entryId, ')
+          ..write('podId: $podId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(entryId, podId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EntryPod &&
+          other.entryId == this.entryId &&
+          other.podId == this.podId);
+}
+
+class EntryPodsCompanion extends UpdateCompanion<EntryPod> {
+  final Value<String> entryId;
+  final Value<String> podId;
+  final Value<int> rowid;
+  const EntryPodsCompanion({
+    this.entryId = const Value.absent(),
+    this.podId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  EntryPodsCompanion.insert({
+    required String entryId,
+    required String podId,
+    this.rowid = const Value.absent(),
+  }) : entryId = Value(entryId),
+       podId = Value(podId);
+  static Insertable<EntryPod> custom({
+    Expression<String>? entryId,
+    Expression<String>? podId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (entryId != null) 'entry_id': entryId,
+      if (podId != null) 'pod_id': podId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  EntryPodsCompanion copyWith({
+    Value<String>? entryId,
+    Value<String>? podId,
+    Value<int>? rowid,
+  }) {
+    return EntryPodsCompanion(
+      entryId: entryId ?? this.entryId,
+      podId: podId ?? this.podId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (entryId.present) {
+      map['entry_id'] = Variable<String>(entryId.value);
+    }
+    if (podId.present) {
+      map['pod_id'] = Variable<String>(podId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EntryPodsCompanion(')
+          ..write('entryId: $entryId, ')
+          ..write('podId: $podId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -4354,6 +4793,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ScheduleEntriesTable scheduleEntries = $ScheduleEntriesTable(
     this,
   );
+  late final $TemplatePodsTable templatePods = $TemplatePodsTable(this);
+  late final $EntryPodsTable entryPods = $EntryPodsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -4367,6 +4808,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     observations,
     scheduleTemplates,
     scheduleEntries,
+    templatePods,
+    entryPods,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -4439,6 +4882,34 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('schedule_entries', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'schedule_templates',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('template_pods', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'pods',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('template_pods', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'schedule_entries',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('entry_pods', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'pods',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('entry_pods', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -4539,6 +5010,42 @@ final class $$PodsTableReferences
     final cache = $_typedResult.readTableOrNull(
       _scheduleEntriesRefsTable($_db),
     );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$TemplatePodsTable, List<TemplatePod>>
+  _templatePodsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.templatePods,
+    aliasName: $_aliasNameGenerator(db.pods.id, db.templatePods.podId),
+  );
+
+  $$TemplatePodsTableProcessedTableManager get templatePodsRefs {
+    final manager = $$TemplatePodsTableTableManager(
+      $_db,
+      $_db.templatePods,
+    ).filter((f) => f.podId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_templatePodsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$EntryPodsTable, List<EntryPod>>
+  _entryPodsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.entryPods,
+    aliasName: $_aliasNameGenerator(db.pods.id, db.entryPods.podId),
+  );
+
+  $$EntryPodsTableProcessedTableManager get entryPodsRefs {
+    final manager = $$EntryPodsTableTableManager(
+      $_db,
+      $_db.entryPods,
+    ).filter((f) => f.podId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_entryPodsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -4669,6 +5176,56 @@ class $$PodsTableFilterComposer extends Composer<_$AppDatabase, $PodsTable> {
           }) => $$ScheduleEntriesTableFilterComposer(
             $db: $db,
             $table: $db.scheduleEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> templatePodsRefs(
+    Expression<bool> Function($$TemplatePodsTableFilterComposer f) f,
+  ) {
+    final $$TemplatePodsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.templatePods,
+      getReferencedColumn: (t) => t.podId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TemplatePodsTableFilterComposer(
+            $db: $db,
+            $table: $db.templatePods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> entryPodsRefs(
+    Expression<bool> Function($$EntryPodsTableFilterComposer f) f,
+  ) {
+    final $$EntryPodsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.entryPods,
+      getReferencedColumn: (t) => t.podId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EntryPodsTableFilterComposer(
+            $db: $db,
+            $table: $db.entryPods,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -4837,6 +5394,56 @@ class $$PodsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> templatePodsRefs<T extends Object>(
+    Expression<T> Function($$TemplatePodsTableAnnotationComposer a) f,
+  ) {
+    final $$TemplatePodsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.templatePods,
+      getReferencedColumn: (t) => t.podId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TemplatePodsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.templatePods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> entryPodsRefs<T extends Object>(
+    Expression<T> Function($$EntryPodsTableAnnotationComposer a) f,
+  ) {
+    final $$EntryPodsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.entryPods,
+      getReferencedColumn: (t) => t.podId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EntryPodsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.entryPods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$PodsTableTableManager
@@ -4857,6 +5464,8 @@ class $$PodsTableTableManager
             bool observationsRefs,
             bool scheduleTemplatesRefs,
             bool scheduleEntriesRefs,
+            bool templatePodsRefs,
+            bool entryPodsRefs,
           })
         > {
   $$PodsTableTableManager(_$AppDatabase db, $PodsTable table)
@@ -4914,6 +5523,8 @@ class $$PodsTableTableManager
                 observationsRefs = false,
                 scheduleTemplatesRefs = false,
                 scheduleEntriesRefs = false,
+                templatePodsRefs = false,
+                entryPodsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -4922,6 +5533,8 @@ class $$PodsTableTableManager
                     if (observationsRefs) db.observations,
                     if (scheduleTemplatesRefs) db.scheduleTemplates,
                     if (scheduleEntriesRefs) db.scheduleEntries,
+                    if (templatePodsRefs) db.templatePods,
+                    if (entryPodsRefs) db.entryPods,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -4996,6 +5609,38 @@ class $$PodsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (templatePodsRefs)
+                        await $_getPrefetchedData<Pod, $PodsTable, TemplatePod>(
+                          currentTable: table,
+                          referencedTable: $$PodsTableReferences
+                              ._templatePodsRefsTable(db),
+                          managerFromTypedResult: (p0) => $$PodsTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).templatePodsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.podId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (entryPodsRefs)
+                        await $_getPrefetchedData<Pod, $PodsTable, EntryPod>(
+                          currentTable: table,
+                          referencedTable: $$PodsTableReferences
+                              ._entryPodsRefsTable(db),
+                          managerFromTypedResult: (p0) => $$PodsTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).entryPodsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.podId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -5021,6 +5666,8 @@ typedef $$PodsTableProcessedTableManager =
         bool observationsRefs,
         bool scheduleTemplatesRefs,
         bool scheduleEntriesRefs,
+        bool templatePodsRefs,
+        bool entryPodsRefs,
       })
     >;
 typedef $$KidsTableCreateCompanionBuilder =
@@ -7563,6 +8210,27 @@ final class $$ScheduleTemplatesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$TemplatePodsTable, List<TemplatePod>>
+  _templatePodsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.templatePods,
+    aliasName: $_aliasNameGenerator(
+      db.scheduleTemplates.id,
+      db.templatePods.templateId,
+    ),
+  );
+
+  $$TemplatePodsTableProcessedTableManager get templatePodsRefs {
+    final manager = $$TemplatePodsTableTableManager(
+      $_db,
+      $_db.templatePods,
+    ).filter((f) => f.templateId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_templatePodsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$ScheduleTemplatesTableFilterComposer
@@ -7668,6 +8336,31 @@ class $$ScheduleTemplatesTableFilterComposer
           }) => $$ScheduleEntriesTableFilterComposer(
             $db: $db,
             $table: $db.scheduleEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> templatePodsRefs(
+    Expression<bool> Function($$TemplatePodsTableFilterComposer f) f,
+  ) {
+    final $$TemplatePodsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.templatePods,
+      getReferencedColumn: (t) => t.templateId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TemplatePodsTableFilterComposer(
+            $db: $db,
+            $table: $db.templatePods,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -7857,6 +8550,31 @@ class $$ScheduleTemplatesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> templatePodsRefs<T extends Object>(
+    Expression<T> Function($$TemplatePodsTableAnnotationComposer a) f,
+  ) {
+    final $$TemplatePodsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.templatePods,
+      getReferencedColumn: (t) => t.templateId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TemplatePodsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.templatePods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ScheduleTemplatesTableTableManager
@@ -7872,7 +8590,11 @@ class $$ScheduleTemplatesTableTableManager
           $$ScheduleTemplatesTableUpdateCompanionBuilder,
           (ScheduleTemplate, $$ScheduleTemplatesTableReferences),
           ScheduleTemplate,
-          PrefetchHooks Function({bool podId, bool scheduleEntriesRefs})
+          PrefetchHooks Function({
+            bool podId,
+            bool scheduleEntriesRefs,
+            bool templatePodsRefs,
+          })
         > {
   $$ScheduleTemplatesTableTableManager(
     _$AppDatabase db,
@@ -7959,11 +8681,16 @@ class $$ScheduleTemplatesTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({podId = false, scheduleEntriesRefs = false}) {
+              ({
+                podId = false,
+                scheduleEntriesRefs = false,
+                templatePodsRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (scheduleEntriesRefs) db.scheduleEntries,
+                    if (templatePodsRefs) db.templatePods,
                   ],
                   addJoins:
                       <
@@ -8022,6 +8749,27 @@ class $$ScheduleTemplatesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (templatePodsRefs)
+                        await $_getPrefetchedData<
+                          ScheduleTemplate,
+                          $ScheduleTemplatesTable,
+                          TemplatePod
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ScheduleTemplatesTableReferences
+                              ._templatePodsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ScheduleTemplatesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).templatePodsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.templateId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -8042,7 +8790,11 @@ typedef $$ScheduleTemplatesTableProcessedTableManager =
       $$ScheduleTemplatesTableUpdateCompanionBuilder,
       (ScheduleTemplate, $$ScheduleTemplatesTableReferences),
       ScheduleTemplate,
-      PrefetchHooks Function({bool podId, bool scheduleEntriesRefs})
+      PrefetchHooks Function({
+        bool podId,
+        bool scheduleEntriesRefs,
+        bool templatePodsRefs,
+      })
     >;
 typedef $$ScheduleEntriesTableCreateCompanionBuilder =
     ScheduleEntriesCompanion Function({
@@ -8127,6 +8879,27 @@ final class $$ScheduleEntriesTableReferences
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$EntryPodsTable, List<EntryPod>>
+  _entryPodsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.entryPods,
+    aliasName: $_aliasNameGenerator(
+      db.scheduleEntries.id,
+      db.entryPods.entryId,
+    ),
+  );
+
+  $$EntryPodsTableProcessedTableManager get entryPodsRefs {
+    final manager = $$EntryPodsTableTableManager(
+      $_db,
+      $_db.entryPods,
+    ).filter((f) => f.entryId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_entryPodsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
     );
   }
 }
@@ -8244,6 +9017,31 @@ class $$ScheduleEntriesTableFilterComposer
           ),
     );
     return composer;
+  }
+
+  Expression<bool> entryPodsRefs(
+    Expression<bool> Function($$EntryPodsTableFilterComposer f) f,
+  ) {
+    final $$EntryPodsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.entryPods,
+      getReferencedColumn: (t) => t.entryId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EntryPodsTableFilterComposer(
+            $db: $db,
+            $table: $db.entryPods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
   }
 }
 
@@ -8456,6 +9254,31 @@ class $$ScheduleEntriesTableAnnotationComposer
         );
     return composer;
   }
+
+  Expression<T> entryPodsRefs<T extends Object>(
+    Expression<T> Function($$EntryPodsTableAnnotationComposer a) f,
+  ) {
+    final $$EntryPodsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.entryPods,
+      getReferencedColumn: (t) => t.entryId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EntryPodsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.entryPods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ScheduleEntriesTableTableManager
@@ -8471,7 +9294,11 @@ class $$ScheduleEntriesTableTableManager
           $$ScheduleEntriesTableUpdateCompanionBuilder,
           (ScheduleEntry, $$ScheduleEntriesTableReferences),
           ScheduleEntry,
-          PrefetchHooks Function({bool podId, bool overridesTemplateId})
+          PrefetchHooks Function({
+            bool podId,
+            bool overridesTemplateId,
+            bool entryPodsRefs,
+          })
         > {
   $$ScheduleEntriesTableTableManager(
     _$AppDatabase db,
@@ -8563,10 +9390,14 @@ class $$ScheduleEntriesTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({podId = false, overridesTemplateId = false}) {
+              ({
+                podId = false,
+                overridesTemplateId = false,
+                entryPodsRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
-                  explicitlyWatchedTables: [],
+                  explicitlyWatchedTables: [if (entryPodsRefs) db.entryPods],
                   addJoins:
                       <
                         T extends TableManagerState<
@@ -8617,7 +9448,29 @@ class $$ScheduleEntriesTableTableManager
                         return state;
                       },
                   getPrefetchedDataCallback: (items) async {
-                    return [];
+                    return [
+                      if (entryPodsRefs)
+                        await $_getPrefetchedData<
+                          ScheduleEntry,
+                          $ScheduleEntriesTable,
+                          EntryPod
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ScheduleEntriesTableReferences
+                              ._entryPodsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ScheduleEntriesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).entryPodsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.entryId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
                   },
                 );
               },
@@ -8637,7 +9490,712 @@ typedef $$ScheduleEntriesTableProcessedTableManager =
       $$ScheduleEntriesTableUpdateCompanionBuilder,
       (ScheduleEntry, $$ScheduleEntriesTableReferences),
       ScheduleEntry,
-      PrefetchHooks Function({bool podId, bool overridesTemplateId})
+      PrefetchHooks Function({
+        bool podId,
+        bool overridesTemplateId,
+        bool entryPodsRefs,
+      })
+    >;
+typedef $$TemplatePodsTableCreateCompanionBuilder =
+    TemplatePodsCompanion Function({
+      required String templateId,
+      required String podId,
+      Value<int> rowid,
+    });
+typedef $$TemplatePodsTableUpdateCompanionBuilder =
+    TemplatePodsCompanion Function({
+      Value<String> templateId,
+      Value<String> podId,
+      Value<int> rowid,
+    });
+
+final class $$TemplatePodsTableReferences
+    extends BaseReferences<_$AppDatabase, $TemplatePodsTable, TemplatePod> {
+  $$TemplatePodsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ScheduleTemplatesTable _templateIdTable(_$AppDatabase db) =>
+      db.scheduleTemplates.createAlias(
+        $_aliasNameGenerator(
+          db.templatePods.templateId,
+          db.scheduleTemplates.id,
+        ),
+      );
+
+  $$ScheduleTemplatesTableProcessedTableManager get templateId {
+    final $_column = $_itemColumn<String>('template_id')!;
+
+    final manager = $$ScheduleTemplatesTableTableManager(
+      $_db,
+      $_db.scheduleTemplates,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_templateIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $PodsTable _podIdTable(_$AppDatabase db) => db.pods.createAlias(
+    $_aliasNameGenerator(db.templatePods.podId, db.pods.id),
+  );
+
+  $$PodsTableProcessedTableManager get podId {
+    final $_column = $_itemColumn<String>('pod_id')!;
+
+    final manager = $$PodsTableTableManager(
+      $_db,
+      $_db.pods,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_podIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$TemplatePodsTableFilterComposer
+    extends Composer<_$AppDatabase, $TemplatePodsTable> {
+  $$TemplatePodsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$ScheduleTemplatesTableFilterComposer get templateId {
+    final $$ScheduleTemplatesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.templateId,
+      referencedTable: $db.scheduleTemplates,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleTemplatesTableFilterComposer(
+            $db: $db,
+            $table: $db.scheduleTemplates,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PodsTableFilterComposer get podId {
+    final $$PodsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.podId,
+      referencedTable: $db.pods,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PodsTableFilterComposer(
+            $db: $db,
+            $table: $db.pods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TemplatePodsTableOrderingComposer
+    extends Composer<_$AppDatabase, $TemplatePodsTable> {
+  $$TemplatePodsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$ScheduleTemplatesTableOrderingComposer get templateId {
+    final $$ScheduleTemplatesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.templateId,
+      referencedTable: $db.scheduleTemplates,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleTemplatesTableOrderingComposer(
+            $db: $db,
+            $table: $db.scheduleTemplates,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PodsTableOrderingComposer get podId {
+    final $$PodsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.podId,
+      referencedTable: $db.pods,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PodsTableOrderingComposer(
+            $db: $db,
+            $table: $db.pods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TemplatePodsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TemplatePodsTable> {
+  $$TemplatePodsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$ScheduleTemplatesTableAnnotationComposer get templateId {
+    final $$ScheduleTemplatesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.templateId,
+          referencedTable: $db.scheduleTemplates,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ScheduleTemplatesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.scheduleTemplates,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+
+  $$PodsTableAnnotationComposer get podId {
+    final $$PodsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.podId,
+      referencedTable: $db.pods,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PodsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.pods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TemplatePodsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TemplatePodsTable,
+          TemplatePod,
+          $$TemplatePodsTableFilterComposer,
+          $$TemplatePodsTableOrderingComposer,
+          $$TemplatePodsTableAnnotationComposer,
+          $$TemplatePodsTableCreateCompanionBuilder,
+          $$TemplatePodsTableUpdateCompanionBuilder,
+          (TemplatePod, $$TemplatePodsTableReferences),
+          TemplatePod,
+          PrefetchHooks Function({bool templateId, bool podId})
+        > {
+  $$TemplatePodsTableTableManager(_$AppDatabase db, $TemplatePodsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TemplatePodsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TemplatePodsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TemplatePodsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> templateId = const Value.absent(),
+                Value<String> podId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TemplatePodsCompanion(
+                templateId: templateId,
+                podId: podId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String templateId,
+                required String podId,
+                Value<int> rowid = const Value.absent(),
+              }) => TemplatePodsCompanion.insert(
+                templateId: templateId,
+                podId: podId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$TemplatePodsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({templateId = false, podId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (templateId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.templateId,
+                                referencedTable: $$TemplatePodsTableReferences
+                                    ._templateIdTable(db),
+                                referencedColumn: $$TemplatePodsTableReferences
+                                    ._templateIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+                    if (podId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.podId,
+                                referencedTable: $$TemplatePodsTableReferences
+                                    ._podIdTable(db),
+                                referencedColumn: $$TemplatePodsTableReferences
+                                    ._podIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$TemplatePodsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TemplatePodsTable,
+      TemplatePod,
+      $$TemplatePodsTableFilterComposer,
+      $$TemplatePodsTableOrderingComposer,
+      $$TemplatePodsTableAnnotationComposer,
+      $$TemplatePodsTableCreateCompanionBuilder,
+      $$TemplatePodsTableUpdateCompanionBuilder,
+      (TemplatePod, $$TemplatePodsTableReferences),
+      TemplatePod,
+      PrefetchHooks Function({bool templateId, bool podId})
+    >;
+typedef $$EntryPodsTableCreateCompanionBuilder =
+    EntryPodsCompanion Function({
+      required String entryId,
+      required String podId,
+      Value<int> rowid,
+    });
+typedef $$EntryPodsTableUpdateCompanionBuilder =
+    EntryPodsCompanion Function({
+      Value<String> entryId,
+      Value<String> podId,
+      Value<int> rowid,
+    });
+
+final class $$EntryPodsTableReferences
+    extends BaseReferences<_$AppDatabase, $EntryPodsTable, EntryPod> {
+  $$EntryPodsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ScheduleEntriesTable _entryIdTable(_$AppDatabase db) =>
+      db.scheduleEntries.createAlias(
+        $_aliasNameGenerator(db.entryPods.entryId, db.scheduleEntries.id),
+      );
+
+  $$ScheduleEntriesTableProcessedTableManager get entryId {
+    final $_column = $_itemColumn<String>('entry_id')!;
+
+    final manager = $$ScheduleEntriesTableTableManager(
+      $_db,
+      $_db.scheduleEntries,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_entryIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $PodsTable _podIdTable(_$AppDatabase db) =>
+      db.pods.createAlias($_aliasNameGenerator(db.entryPods.podId, db.pods.id));
+
+  $$PodsTableProcessedTableManager get podId {
+    final $_column = $_itemColumn<String>('pod_id')!;
+
+    final manager = $$PodsTableTableManager(
+      $_db,
+      $_db.pods,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_podIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$EntryPodsTableFilterComposer
+    extends Composer<_$AppDatabase, $EntryPodsTable> {
+  $$EntryPodsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$ScheduleEntriesTableFilterComposer get entryId {
+    final $$ScheduleEntriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.entryId,
+      referencedTable: $db.scheduleEntries,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleEntriesTableFilterComposer(
+            $db: $db,
+            $table: $db.scheduleEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PodsTableFilterComposer get podId {
+    final $$PodsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.podId,
+      referencedTable: $db.pods,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PodsTableFilterComposer(
+            $db: $db,
+            $table: $db.pods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EntryPodsTableOrderingComposer
+    extends Composer<_$AppDatabase, $EntryPodsTable> {
+  $$EntryPodsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$ScheduleEntriesTableOrderingComposer get entryId {
+    final $$ScheduleEntriesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.entryId,
+      referencedTable: $db.scheduleEntries,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleEntriesTableOrderingComposer(
+            $db: $db,
+            $table: $db.scheduleEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PodsTableOrderingComposer get podId {
+    final $$PodsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.podId,
+      referencedTable: $db.pods,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PodsTableOrderingComposer(
+            $db: $db,
+            $table: $db.pods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EntryPodsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $EntryPodsTable> {
+  $$EntryPodsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$ScheduleEntriesTableAnnotationComposer get entryId {
+    final $$ScheduleEntriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.entryId,
+      referencedTable: $db.scheduleEntries,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleEntriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.scheduleEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PodsTableAnnotationComposer get podId {
+    final $$PodsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.podId,
+      referencedTable: $db.pods,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PodsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.pods,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EntryPodsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $EntryPodsTable,
+          EntryPod,
+          $$EntryPodsTableFilterComposer,
+          $$EntryPodsTableOrderingComposer,
+          $$EntryPodsTableAnnotationComposer,
+          $$EntryPodsTableCreateCompanionBuilder,
+          $$EntryPodsTableUpdateCompanionBuilder,
+          (EntryPod, $$EntryPodsTableReferences),
+          EntryPod,
+          PrefetchHooks Function({bool entryId, bool podId})
+        > {
+  $$EntryPodsTableTableManager(_$AppDatabase db, $EntryPodsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EntryPodsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$EntryPodsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$EntryPodsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> entryId = const Value.absent(),
+                Value<String> podId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => EntryPodsCompanion(
+                entryId: entryId,
+                podId: podId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String entryId,
+                required String podId,
+                Value<int> rowid = const Value.absent(),
+              }) => EntryPodsCompanion.insert(
+                entryId: entryId,
+                podId: podId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$EntryPodsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({entryId = false, podId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (entryId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.entryId,
+                                referencedTable: $$EntryPodsTableReferences
+                                    ._entryIdTable(db),
+                                referencedColumn: $$EntryPodsTableReferences
+                                    ._entryIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+                    if (podId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.podId,
+                                referencedTable: $$EntryPodsTableReferences
+                                    ._podIdTable(db),
+                                referencedColumn: $$EntryPodsTableReferences
+                                    ._podIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$EntryPodsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $EntryPodsTable,
+      EntryPod,
+      $$EntryPodsTableFilterComposer,
+      $$EntryPodsTableOrderingComposer,
+      $$EntryPodsTableAnnotationComposer,
+      $$EntryPodsTableCreateCompanionBuilder,
+      $$EntryPodsTableUpdateCompanionBuilder,
+      (EntryPod, $$EntryPodsTableReferences),
+      EntryPod,
+      PrefetchHooks Function({bool entryId, bool podId})
     >;
 
 class $AppDatabaseManager {
@@ -8657,4 +10215,8 @@ class $AppDatabaseManager {
       $$ScheduleTemplatesTableTableManager(_db, _db.scheduleTemplates);
   $$ScheduleEntriesTableTableManager get scheduleEntries =>
       $$ScheduleEntriesTableTableManager(_db, _db.scheduleEntries);
+  $$TemplatePodsTableTableManager get templatePods =>
+      $$TemplatePodsTableTableManager(_db, _db.templatePods);
+  $$EntryPodsTableTableManager get entryPods =>
+      $$EntryPodsTableTableManager(_db, _db.entryPods);
 }

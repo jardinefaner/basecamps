@@ -114,11 +114,15 @@ class ScheduleItemCard extends ConsumerWidget {
 
   String? _subtitle(WidgetRef ref) {
     final parts = <String>[];
-    final podId = item.podId;
-    if (podId != null) {
-      final asyncPod = ref.watch(podProvider(podId));
-      final pod = asyncPod.asData?.value;
-      if (pod != null) parts.add(pod.name);
+    if (item.podIds.isEmpty) {
+      // "All pods" — don't surface this in the card, it's the default.
+    } else {
+      final names = <String>[];
+      for (final podId in item.podIds) {
+        final pod = ref.watch(podProvider(podId)).asData?.value;
+        if (pod != null) names.add(pod.name);
+      }
+      if (names.isNotEmpty) parts.add(names.join(' + '));
     }
     if (item.specialistName != null && item.specialistName!.isNotEmpty) {
       parts.add(item.specialistName!);

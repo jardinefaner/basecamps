@@ -1,5 +1,6 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/schedule/widgets/add_activity_picker.dart';
 import 'package:basecamp/features/schedule/widgets/edit_template_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -26,9 +27,9 @@ class ScheduleEditorScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Weekly schedule')),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openSheet(context),
+        onPressed: () => _openPicker(context),
         icon: const Icon(Icons.add),
-        label: const Text('Activity'),
+        label: const Text('Add'),
       ),
       body: templatesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -51,8 +52,8 @@ class ScheduleEditorScreen extends ConsumerWidget {
                 _DaySection(
                   day: day,
                   items: byDay[day] ?? const [],
-                  onAdd: () => _openSheet(context, initialDays: {day}),
-                  onEdit: (t) => _openSheet(context, template: t),
+                  onAdd: () => _openRecurring(context, initialDays: {day}),
+                  onEdit: (t) => _openRecurring(context, template: t),
                 ),
             ],
           );
@@ -61,7 +62,16 @@ class ScheduleEditorScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _openSheet(
+  Future<void> _openPicker(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => const AddActivityPicker(),
+    );
+  }
+
+  Future<void> _openRecurring(
     BuildContext context, {
     ScheduleTemplate? template,
     Set<int>? initialDays,
@@ -150,9 +160,7 @@ class _DaySection extends StatelessWidget {
                       SizedBox(
                         width: 80,
                         child: Text(
-                          t.isFullDay
-                              ? 'All day'
-                              : '${_formatTime(t.startTime)}–${_formatTime(t.endTime)}',
+                          '${_formatTime(t.startTime)}–${_formatTime(t.endTime)}',
                           style: theme.textTheme.labelMedium,
                         ),
                       ),
