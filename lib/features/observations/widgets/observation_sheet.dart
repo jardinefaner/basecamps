@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/observations/classifier.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
+import 'package:basecamp/features/observations/voice_service.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
@@ -32,6 +35,13 @@ class _ObservationSheetState extends ConsumerState<ObservationSheet> {
   bool _tagsAutoSet = true;
   bool _submitting = false;
 
+  DeepgramVoiceSession? _voice;
+  bool _voiceActive = false;
+  String _livePartial = '';
+  StreamSubscription<String>? _finalSub;
+  StreamSubscription<String>? _partialSub;
+  StreamSubscription<Object>? _errorSub;
+
   @override
   void initState() {
     super.initState();
@@ -43,6 +53,10 @@ class _ObservationSheetState extends ConsumerState<ObservationSheet> {
 
   @override
   void dispose() {
+    unawaited(_finalSub?.cancel());
+    unawaited(_partialSub?.cancel());
+    unawaited(_errorSub?.cancel());
+    unawaited(_voice?.dispose());
     _noteController.dispose();
     _noteFocus.dispose();
     super.dispose();
@@ -97,15 +111,95 @@ class _ObservationSheetState extends ConsumerState<ObservationSheet> {
     return null;
   }
 
-  void _onMicPressed() {
-    // Real voice-to-text lands in the next commit (needs native
-    // permissions + speech_to_text package). For now, let the teacher
-    // know the surface is there.
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Voice input coming in the next update'),
-        duration: Duration(seconds: 2),
-      ),
+  Future<void> _onMicPressed() async {
+    if (_voiceActive) {
+      await _stopVoice();
+      return;
+    }
+    await _startVoice();
+  }
+
+  Future<void> _startVoice() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final session = DeepgramVoiceSession();
+    try {
+      _finalSub = session.finals.listen(_appendFinalTranscript);
+      _partialSub = session.partials.listen((p) {
+        if (!mounted) return;
+        setState(() => _livePartial = p);
+      });
+      _errorSub = session.errors.listen((err) {
+        if (!mounted) return;
+        messenger.showSnackBar(
+          SnackBar(content: Text('Voice error: $err')),
+        );
+      });
+      await session.start();
+      if (!mounted) {
+        await session.dispose();
+        return;
+      }
+      setState(() {
+        _voice = session;
+        _voiceActive = true;
+        _livePartial = '';
+      });
+    } on VoiceUnsupportedError catch (e) {
+      await _tearDownVoice(session);
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } on VoicePermissionError catch (e) {
+      await _tearDownVoice(session);
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } on VoiceConfigError catch (e) {
+      await _tearDownVoice(session);
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } on Object catch (e) {
+      await _tearDownVoice(session);
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text("Couldn't start voice: $e")),
+      );
+    }
+  }
+
+  Future<void> _stopVoice() async {
+    final session = _voice;
+    await session?.stop();
+    if (_livePartial.isNotEmpty) {
+      _appendFinalTranscript(_livePartial);
+    }
+    if (!mounted) return;
+    setState(() {
+      _voiceActive = false;
+      _livePartial = '';
+    });
+  }
+
+  Future<void> _tearDownVoice(DeepgramVoiceSession session) async {
+    await _finalSub?.cancel();
+    _finalSub = null;
+    await _partialSub?.cancel();
+    _partialSub = null;
+    await _errorSub?.cancel();
+    _errorSub = null;
+    await session.dispose();
+    if (!mounted) return;
+    setState(() {
+      _voice = null;
+      _voiceActive = false;
+      _livePartial = '';
+    });
+  }
+
+  void _appendFinalTranscript(String text) {
+    final existing = _noteController.text;
+    final sep = existing.isEmpty || existing.endsWith(' ') ? '' : ' ';
+    _noteController.text = '$existing$sep$text';
+    _noteController.selection = TextSelection.collapsed(
+      offset: _noteController.text.length,
     );
   }
 
@@ -135,9 +229,8 @@ class _ObservationSheetState extends ConsumerState<ObservationSheet> {
                     style: theme.textTheme.titleLarge,
                   ),
                 ),
-                IconButton(
-                  tooltip: 'Voice (coming soon)',
-                  icon: const Icon(Icons.mic_none_outlined),
+                _MicButton(
+                  active: _voiceActive,
                   onPressed: _onMicPressed,
                 ),
               ],
@@ -165,6 +258,17 @@ class _ObservationSheetState extends ConsumerState<ObservationSheet> {
                     "What happened? Just write it down — we'll help tag it.",
               ),
             ),
+            if (_voiceActive && _livePartial.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.xs),
+                child: Text(
+                  _livePartial,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
             const SizedBox(height: AppSpacing.lg),
 
             _SuggestedTagsRow(
@@ -228,6 +332,38 @@ class _ObservationSheetState extends ConsumerState<ObservationSheet> {
         _tagsAutoSet = false;
       });
     }
+  }
+}
+
+class _MicButton extends StatelessWidget {
+  const _MicButton({required this.active, required this.onPressed});
+
+  final bool active;
+  final Future<void> Function() onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (active) {
+      return FilledButton.icon(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: theme.colorScheme.error,
+          foregroundColor: theme.colorScheme.onError,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs,
+          ),
+        ),
+        icon: const Icon(Icons.stop, size: 18),
+        label: const Text('Stop'),
+      );
+    }
+    return IconButton(
+      tooltip: 'Voice input',
+      icon: const Icon(Icons.mic_none_outlined),
+      onPressed: onPressed,
+    );
   }
 }
 
