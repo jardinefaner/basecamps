@@ -152,16 +152,20 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
   Future<void> _save() async {
     setState(() => _submitting = true);
     final repo = ref.read(observationsRepositoryProvider);
-    // Non-destructive refine: if the refined version is what we're
-    // saving, persist the Original snapshot so it can be flipped back
-    // to later. If we're on the Original slide (or never refined), drop
-    // the snapshot.
+    // Non-destructive refine: persist the Original snapshot whenever
+    // there's one to preserve. We only drop it when the teacher truly
+    // reverted — the final in-use note equals the Original text, so
+    // there's no refined version left to preserve.
     final preserved = _preservedOriginal;
+    final finalNote = _noteController.text.trim();
+    final reverted =
+        preserved != null && preserved.trim() == finalNote;
+    final shouldClear = preserved == null || reverted;
     await repo.updateObservation(
       id: widget.observation.id,
-      note: _noteController.text.trim(),
-      noteOriginal: preserved,
-      clearNoteOriginal: preserved == null,
+      note: finalNote,
+      noteOriginal: shouldClear ? null : preserved,
+      clearNoteOriginal: shouldClear,
       domains: _domains.toList(),
       sentiment: _sentiment,
       kidIds: _selectedKidIds.toList(),

@@ -190,15 +190,20 @@ class _RefineableNoteEditorState extends State<RefineableNoteEditor> {
     widget.onChanged?.call(text);
   }
 
-  /// Tell the parent what to persist as `note_original` on save.
+  /// Tell the parent what to persist as `note_original` on save. Once a
+  /// refine has happened the Original is preserved regardless of which
+  /// slide is currently showing — swiping to the Original side to read
+  /// it should never silently drop the AI-refined snapshot. The parent
+  /// still clears the column when the final in-use text equals the
+  /// Original (effective revert — nothing left to preserve).
   void _emitSnapshot() {
     final cb = widget.onPreservedOriginalChanged;
     if (cb == null) return;
-    if (!_inCarousel || _slide == 0) {
+    if (!_inCarousel) {
       cb(null);
-    } else {
-      cb(_originalController.text);
+      return;
     }
+    cb(_originalController.text);
   }
 
   // -- Build --
