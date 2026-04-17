@@ -1,8 +1,9 @@
-// The markdown builder below writes many sequential lines into a
-// single StringBuffer — cascading on every call hurts readability for
-// a sequence this long, so we keep plain statement form instead.
+// The RTF builder below writes many sequential lines into a single
+// StringBuffer — cascading on every call hurts readability for a
+// sequence this long, so we keep plain statement form instead.
 // ignore_for_file: cascade_invocations
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -396,145 +397,265 @@ String _formatDateTime(DateTime d) {
 }
 
 // ============================================================
-// Markdown export
+// RTF export
 // ============================================================
 
-/// A plain-markdown render of the note — lighter than the PDF, ideal
-/// for pasting into an email body or a team channel. Signatures
-/// appear as `[Signed Apr 17, 2026 · 3:30p]` callouts rather than
-/// embedded images, since inline base64 images balloon email size
-/// and break in many renderers.
+/// A formatted Rich Text document of the note. Opens in Word,
+/// Pages, Google Docs, TextEdit, and every major mobile mail
+/// viewer — the recipient gets a proper "document" instead of raw
+/// markdown, and drawn signatures embed inline as real images.
 ///
-/// Pass `staffSignatureAttachmentName` / `supervisorSignatureAttachmentName`
-/// when the caller is also attaching the drawn-signature PNGs (e.g.
-/// via share_plus files). The signature line then points at the
-/// attachment by filename so the recipient knows which image
-/// corresponds to which signer.
-String buildParentConcernMarkdown(
-  ParentConcernNote note, {
-  String? staffSignatureAttachmentName,
-  String? supervisorSignatureAttachmentName,
-}) {
+/// RTF was picked over .docx because it's a single text file (no
+/// zip packaging, no multi-part XML relationships), and over HTML
+/// because most people think of `.rtf` as a document while `.html`
+/// reads as a web page.
+Future<Uint8List> buildParentConcernRtf(ParentConcernNote note) async {
+  final staffSigBytes = await _readSignatureBytes(note.staffSignaturePath);
+  final supervisorSigBytes =
+      await _readSignatureBytes(note.supervisorSignaturePath);
+
   final b = StringBuffer();
 
-  b.writeln('# Parent Concern Note');
-  b.writeln();
-  b.writeln('_Generated ${_formatDateTime(DateTime.now())} · Basecamp_');
-  b.writeln();
-  b.writeln('---');
+  // RTF preamble — font table, UTF-8 declaration, default font size.
+  b.write(r'{\rtf1\ansi\ansicpg1252\deff0\nouicompat\deflang1033');
+  b.write(r'{\fonttbl{\f0\fnil\fcharset0 Helvetica;}}');
+  b.write(r'{\colortbl ;\red64\green64\blue64;\red130\green130\blue130;}');
   b.writeln();
 
-  // About
-  b.writeln('## About this concern');
+  // Title
+  b.write(r'\pard\sa120\fs36\b ');
+  b.write(_rtfText('Parent Concern Note'));
+  b.write(r'\b0\par');
   b.writeln();
-  _mdKv(b, 'Child / children', note.childNames);
-  _mdKv(b, 'Parent or guardian', note.parentName);
-  _mdKv(
+  b.write(r'\pard\sa240\fs18\cf2 ');
+  b.write(_rtfText('Generated ${_formatDateTime(DateTime.now())} · Basecamp'));
+  b.write(r'\cf0\par');
+  b.writeln();
+
+  _rtfHeading(b, 'About this concern');
+  _rtfKv(b, 'Child / children', note.childNames);
+  _rtfKv(b, 'Parent or guardian', note.parentName);
+  _rtfKv(
     b,
     'Date of concern',
     note.concernDate == null ? '' : _formatDate(note.concernDate!),
   );
-  _mdKv(b, 'Staff receiving', note.staffReceiving);
-  _mdKv(b, 'Supervisor notified', note.supervisorNotified);
-  b.writeln();
+  _rtfKv(b, 'Staff receiving', note.staffReceiving);
+  _rtfKv(b, 'Supervisor notified', note.supervisorNotified);
+  _rtfSpacer(b);
 
-  // Method
-  b.writeln('## Method of communication');
-  b.writeln();
-  _mdCheck(b, 'In person', note.methodInPerson);
-  _mdCheck(b, 'Phone', note.methodPhone);
-  _mdCheck(b, 'Email', note.methodEmail);
+  _rtfHeading(b, 'Method of communication');
+  _rtfCheck(b, 'In person', note.methodInPerson);
+  _rtfCheck(b, 'Phone', note.methodPhone);
+  _rtfCheck(b, 'Email', note.methodEmail);
   if ((note.methodOther ?? '').trim().isNotEmpty) {
-    _mdCheck(b, 'Other — ${note.methodOther}', true);
+    _rtfCheck(b, 'Other — ${note.methodOther}', true);
   }
-  b.writeln();
+  _rtfSpacer(b);
 
-  // Narratives
-  _mdNarrative(b, 'Concern reported', note.concernDescription);
-  _mdNarrative(b, 'Immediate response / actions taken', note.immediateResponse);
+  _rtfHeading(b, 'Concern reported');
+  _rtfNarrative(b, note.concernDescription);
 
-  // Follow-up
-  b.writeln('## Follow-up plan');
-  b.writeln();
-  _mdCheck(b, 'Monitor situation', note.followUpMonitor);
-  _mdCheck(b, 'Staff check-ins with child', note.followUpStaffCheckIns);
-  _mdCheck(b, 'Supervisor review', note.followUpSupervisorReview);
-  _mdCheck(
+  _rtfHeading(b, 'Immediate response / actions taken');
+  _rtfNarrative(b, note.immediateResponse);
+
+  _rtfHeading(b, 'Follow-up plan');
+  _rtfCheck(b, 'Monitor situation', note.followUpMonitor);
+  _rtfCheck(b, 'Staff check-ins with child', note.followUpStaffCheckIns);
+  _rtfCheck(b, 'Supervisor review', note.followUpSupervisorReview);
+  _rtfCheck(
     b,
     'Parent follow-up conversation',
     note.followUpParentConversation,
   );
   if ((note.followUpOther ?? '').trim().isNotEmpty) {
-    _mdCheck(b, 'Other — ${note.followUpOther}', true);
+    _rtfCheck(b, 'Other — ${note.followUpOther}', true);
   }
   if (note.followUpDate != null) {
-    b.writeln();
-    b.writeln('**Follow-up date:** ${_formatDateTime(note.followUpDate!)}');
+    _rtfKv(b, 'Follow-up date', _formatDateTime(note.followUpDate!));
   }
-  b.writeln();
+  _rtfSpacer(b);
 
   if ((note.additionalNotes ?? '').trim().isNotEmpty) {
-    _mdNarrative(b, 'Additional notes', note.additionalNotes!);
+    _rtfHeading(b, 'Additional notes');
+    _rtfNarrative(b, note.additionalNotes!);
   }
 
-  // Signatures
-  b.writeln('## Signatures');
-  b.writeln();
-  _mdSignature(
+  _rtfHeading(b, 'Signatures');
+  _rtfSignature(
     b,
     role: 'Staff',
     printedName: note.staffSignature,
     signedAt: note.staffSignatureDate,
-    drawn: note.staffSignaturePath != null,
-    attachmentName: staffSignatureAttachmentName,
+    signatureBytes: staffSigBytes,
   );
-  _mdSignature(
+  _rtfSignature(
     b,
     role: 'Supervisor',
     printedName: note.supervisorSignature,
     signedAt: note.supervisorSignatureDate,
-    drawn: note.supervisorSignaturePath != null,
-    attachmentName: supervisorSignatureAttachmentName,
+    signatureBytes: supervisorSigBytes,
   );
 
-  return b.toString();
+  b.write('}');
+  return Uint8List.fromList(latin1.encode(b.toString()));
 }
 
-void _mdKv(StringBuffer b, String key, String? value) {
+Future<Uint8List?> _readSignatureBytes(String? path) async {
+  if (path == null) return null;
+  final file = File(path);
+  if (!file.existsSync()) return null;
+  return file.readAsBytes();
+}
+
+void _rtfHeading(StringBuffer b, String title) {
+  b.write(r'\pard\sa100\sb180\fs24\b ');
+  b.write(_rtfText(title));
+  b.write(r'\b0\fs20\par');
+  b.writeln();
+}
+
+void _rtfKv(StringBuffer b, String key, String? value) {
   final v = (value ?? '').trim();
-  b.writeln('- **$key:** ${v.isEmpty ? '—' : v}');
-}
-
-void _mdCheck(StringBuffer b, String label, bool checked) {
-  b.writeln('- ${checked ? '[x]' : '[ ]'} $label');
-}
-
-void _mdNarrative(StringBuffer b, String title, String body) {
-  b.writeln('## $title');
+  b.write(r'\pard\sa40\fs20\b ');
+  b.write(_rtfText('$key: '));
+  b.write(r'\b0 ');
+  b.write(_rtfText(v.isEmpty ? '—' : v));
+  b.write(r'\par');
   b.writeln();
+}
+
+void _rtfCheck(StringBuffer b, String label, bool checked) {
+  // Unicode checkboxes: ☑ (U+2611) / ☐ (U+2610). RTF uses \u<signed-int>?
+  // where the trailing `?` is the fallback for readers that can't render
+  // it.
+  b.write(r'\pard\sa40\fs20 ');
+  b.write(checked ? r'\u9745? ' : r'\u9744? ');
+  b.write(_rtfText(label));
+  b.write(r'\par');
+  b.writeln();
+}
+
+void _rtfNarrative(StringBuffer b, String body) {
   final trimmed = body.trim();
-  b.writeln(trimmed.isEmpty ? '_Nothing recorded._' : trimmed);
+  b.write(r'\pard\sa100\fs20 ');
+  if (trimmed.isEmpty) {
+    b.write(r'\cf2\i ');
+    b.write(_rtfText('Nothing recorded.'));
+    b.write(r'\i0\cf0');
+  } else {
+    // Respect paragraph breaks in the source text.
+    final paragraphs = trimmed.split(RegExp(r'\n\s*\n'));
+    for (var i = 0; i < paragraphs.length; i++) {
+      b.write(_rtfText(paragraphs[i].replaceAll('\n', ' ').trim()));
+      if (i != paragraphs.length - 1) {
+        b.write(r'\par\pard\sa100\fs20 ');
+      }
+    }
+  }
+  b.write(r'\par');
   b.writeln();
 }
 
-void _mdSignature(
+void _rtfSpacer(StringBuffer b) {
+  b.write(r'\pard\sa60\fs10\par');
+  b.writeln();
+}
+
+void _rtfSignature(
   StringBuffer b, {
   required String role,
   required String? printedName,
   required DateTime? signedAt,
-  required bool drawn,
-  String? attachmentName,
+  required Uint8List? signatureBytes,
 }) {
-  final name = (printedName == null || printedName.trim().isEmpty)
-      ? '_(no printed name)_'
-      : '**${printedName.trim()}**';
-  final drawnBlurb = drawn
-      ? (attachmentName != null
-          ? ' · drawn signature attached (`$attachmentName`)'
-          : ' · drawn signature on file')
-      : '';
-  final signed = signedAt == null
-      ? '_(not signed)_'
-      : '_signed ${_formatDateTime(signedAt)}${drawnBlurb}_';
-  b.writeln('- **$role:** $name — $signed');
+  // Role header
+  b.write(r'\pard\sa40\fs20\b ');
+  b.write(_rtfText('$role signature'));
+  b.write(r'\b0\par');
+  b.writeln();
+
+  // Signature image (if drawn)
+  if (signatureBytes != null) {
+    // RTF pict dimensions are in twips (1440 per inch, 20 per point).
+    // Box the image at ~240 × 70 points so it sits proportionally in
+    // the document rather than spreading across the whole page.
+    const widthTwips = 240 * 20;
+    const heightTwips = 70 * 20;
+    b.write(r'\pard ');
+    b.write(
+      r'{\pict\pngblip\picwgoal' '$widthTwips'
+      r'\pichgoal' '$heightTwips ',
+    );
+    b.write(_hexEncode(signatureBytes));
+    b.write('}');
+    b.write(r'\par');
+    b.writeln();
+  } else {
+    b.write(r'\pard\cf2\i\fs18 ');
+    b.write(_rtfText('(No drawn signature)'));
+    b.write(r'\i0\cf0\fs20\par');
+    b.writeln();
+  }
+
+  // Printed name + timestamp
+  final nameText = (printedName == null || printedName.trim().isEmpty)
+      ? '(No printed name)'
+      : printedName.trim();
+  b.write(r'\pard\sa20\fs22\b ');
+  b.write(_rtfText(nameText));
+  b.write(r'\b0\par');
+  b.writeln();
+
+  b.write(r'\pard\sa100\fs18\cf2\i ');
+  b.write(
+    _rtfText(signedAt == null ? 'Not signed' : 'Signed ${_formatDateTime(signedAt)}'),
+  );
+  b.write(r'\i0\cf0\fs20\par');
+  b.writeln();
+}
+
+/// Escape a plain Dart string for inclusion inside an RTF stream.
+/// Handles the three structural characters (`\`, `{`, `}`) and
+/// emits any non-ASCII as `\u<signed-int>?` so Unicode survives —
+/// names with accents, dashes, curly quotes, em dashes, etc.
+String _rtfText(String input) {
+  final buf = StringBuffer();
+  for (final codeUnit in input.runes) {
+    if (codeUnit == 0x5C) {
+      buf.write(r'\\');
+    } else if (codeUnit == 0x7B) {
+      buf.write(r'\{');
+    } else if (codeUnit == 0x7D) {
+      buf.write(r'\}');
+    } else if (codeUnit == 0x0A) {
+      buf.write(r'\line ');
+    } else if (codeUnit < 0x80) {
+      buf.writeCharCode(codeUnit);
+    } else {
+      // RTF \u takes a signed 16-bit integer; fold values above 32767
+      // into the negative range so readers outside the BMP still
+      // reconstruct the right code point.
+      final signed = codeUnit > 32767 ? codeUnit - 65536 : codeUnit;
+      buf.write(r'\u');
+      buf.write(signed);
+      buf.write('?');
+    }
+  }
+  return buf.toString();
+}
+
+/// Produce a lowercase hex string suitable for an RTF `\pict` body.
+/// Inserts soft linebreaks every 128 bytes so Office readers don't
+/// trip on over-long lines.
+String _hexEncode(List<int> bytes) {
+  const chars = '0123456789abcdef';
+  final buf = StringBuffer();
+  for (var i = 0; i < bytes.length; i++) {
+    final byte = bytes[i];
+    buf.writeCharCode(chars.codeUnitAt((byte >> 4) & 0xF));
+    buf.writeCharCode(chars.codeUnitAt(byte & 0xF));
+    if (i.isOdd && (i + 1) % 128 == 0) buf.write('\n');
+  }
+  return buf.toString();
 }

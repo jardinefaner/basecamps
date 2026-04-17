@@ -6,14 +6,18 @@ import 'package:basecamp/features/forms/parent_concern/parent_concern_export.dar
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 
 /// Bottom-sheet menu of export / share / print actions for a saved
-/// Parent Concern Note. Keeps the four paths (PDF, text body, copy,
-/// print) in one place so the form screen's app bar only needs a
-/// single Share button.
+/// Parent Concern Note. Two formats live here:
+///
+///  - **PDF** for archival copies and printing.
+///  - **Document (RTF)** for email, Word / Pages / Google Docs etc.
+///    Opens as a proper formatted document on the recipient's side
+///    with signatures embedded inline.
 Future<void> showParentConcernShareSheet(
   BuildContext context,
   ParentConcernNote note,
@@ -41,6 +45,17 @@ Future<void> showParentConcernShareSheet(
             ),
           ),
           ListTile(
+            leading: const Icon(Icons.description_outlined),
+            title: const Text('Share as document'),
+            subtitle: const Text(
+              'Formatted Rich Text — opens in Word, Pages, Google Docs',
+            ),
+            onTap: () {
+              Navigator.of(ctx).pop();
+              unawaited(_shareAsDocument(note));
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.picture_as_pdf_outlined),
             title: const Text('Share as PDF'),
             subtitle: const Text(
@@ -49,35 +64,6 @@ Future<void> showParentConcernShareSheet(
             onTap: () {
               Navigator.of(ctx).pop();
               unawaited(_shareAsPdf(note));
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.notes_outlined),
-            title: const Text('Share as text'),
-            subtitle: const Text(
-              'Markdown in the email / message body — no attachment',
-            ),
-            onTap: () {
-              Navigator.of(ctx).pop();
-              unawaited(_shareAsText(note));
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.copy_outlined),
-            title: const Text('Copy to clipboard'),
-            subtitle: const Text(
-              'Paste into an email, note, or anywhere',
-            ),
-            onTap: () async {
-              Navigator.of(ctx).pop();
-              await _copyAsText(note);
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Copied to clipboard'),
-                  duration: Duration(seconds: 2),
-                ),
-              );
             },
           ),
           if (!kIsWeb)
@@ -113,72 +99,25 @@ Future<void> _printPdf(ParentConcernNote note) async {
   );
 }
 
-/// Shares the markdown as the BODY of whatever target the user
-/// picks (email, messages, notes). A previous version attached a
-/// `.md` file, but iOS Mail and Gmail both mangle unfamiliar
-/// attachment types — users reported nothing downloadable on the
-/// receiving side. Putting the content in the share-sheet's text
-/// payload sidesteps that entirely: every target treats it as the
-/// message body and the recipient reads it immediately.
-///
-/// Drawn signatures ride along as PNG attachments — the markdown
-/// references them by filename so the recipient can match which
-/// image belongs to which signer, and PNGs travel cleanly through
-/// every mail / messaging client we've tested.
-Future<void> _shareAsText(ParentConcernNote note) async {
-  final attachments = <XFile>[];
-  final staffFile = await _signatureAttachment(
-    path: note.staffSignaturePath,
-    role: 'staff',
-    note: note,
-  );
-  if (staffFile != null) attachments.add(staffFile);
-  final supervisorFile = await _signatureAttachment(
-    path: note.supervisorSignaturePath,
-    role: 'supervisor',
-    note: note,
-  );
-  if (supervisorFile != null) attachments.add(supervisorFile);
-
-  final md = buildParentConcernMarkdown(
-    note,
-    staffSignatureAttachmentName: staffFile?.name,
-    supervisorSignatureAttachmentName: supervisorFile?.name,
-  );
-
+/// Writes the note to a temp `.rtf` file and hands it to the share
+/// sheet. RTF was chosen over `.docx` because a single text stream
+/// is simpler to generate (no zip + multipart XML), and over HTML
+/// because recipients see `.rtf` as a document rather than a web
+/// page. Drawn signatures embed inline via `\pict\pngblip` — every
+/// modern Office / iWork / Google Docs opener renders them.
+Future<void> _shareAsDocument(ParentConcernNote note) async {
+  final bytes = await buildParentConcernRtf(note);
+  final dir = await getTemporaryDirectory();
+  final file = File(p.join(dir.path, _safeFilename(note, 'rtf')));
+  await file.writeAsBytes(bytes);
   await SharePlus.instance.share(
     ShareParams(
-      text: md,
-      files: attachments.isEmpty ? null : attachments,
+      files: [
+        XFile(file.path, mimeType: 'application/rtf'),
+      ],
       subject: 'Parent Concern Note',
     ),
   );
-}
-
-/// Copies a saved signature to a share-friendly temp file with a
-/// predictable name (so the markdown can reference it). Returns null
-/// when there's no signature on file or the source has been moved.
-Future<XFile?> _signatureAttachment({
-  required String? path,
-  required String role,
-  required ParentConcernNote note,
-}) async {
-  if (path == null || kIsWeb) return null;
-  final source = File(path);
-  if (!source.existsSync()) return null;
-  // Predictable name so the markdown can call it out. Keep the
-  // timestamp from the filename helper so multi-note shares don't
-  // collide if the recipient saves them off.
-  final child = note.childNames.trim().isEmpty ? 'note' : note.childNames;
-  final safe = child.replaceAll(RegExp('[^A-Za-z0-9_-]+'), '-');
-  final stamp = DateTime.now().millisecondsSinceEpoch.toString();
-  final filename = 'signature-$role-$safe-$stamp.png';
-  return XFile(source.path, name: filename, mimeType: 'image/png');
-}
-
-Future<void> _copyAsText(ParentConcernNote note) async {
-  final md = buildParentConcernMarkdown(note);
-  await Clipboard.setData(ClipboardData(text: md));
 }
 
 String _safeFilename(ParentConcernNote note, String ext) {
