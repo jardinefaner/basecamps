@@ -59,10 +59,10 @@ class _EditPodSheetState extends ConsumerState<EditPodSheet> {
     final confirmed = await showConfirmDialog(
       context: context,
       title: 'Delete "${widget.pod.name}"?',
-      message: 'Kids in this pod become unassigned — they stay on the Kids '
-          'tab and keep their profiles, notes, and observations. '
+      message: 'Children in this group become unassigned — they stay on the '
+          'Children tab and keep their profiles, notes, and observations. '
           'Cannot be undone.',
-      confirmLabel: 'Delete pod',
+      confirmLabel: 'Delete group',
     );
     if (!confirmed) return;
     await ref.read(kidsRepositoryProvider).deletePod(widget.pod.id);
@@ -74,9 +74,9 @@ class _EditPodSheetState extends ConsumerState<EditPodSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return StickyActionSheet(
-      title: 'Edit pod',
+      title: 'Edit group',
       titleTrailing: IconButton(
-        tooltip: 'Delete pod',
+        tooltip: 'Delete group',
         onPressed: _delete,
         icon: Icon(
           Icons.delete_outline,
@@ -94,7 +94,7 @@ class _EditPodSheetState extends ConsumerState<EditPodSheet> {
         children: [
           AppTextField(
             controller: _name,
-            label: 'Pod name',
+            label: 'Group name',
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: AppSpacing.lg),

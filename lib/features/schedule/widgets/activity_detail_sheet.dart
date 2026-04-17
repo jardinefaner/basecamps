@@ -82,8 +82,8 @@ class ActivityDetailSheet extends ConsumerWidget {
                 if (attending.isEmpty) {
                   return Text(
                     item.isNoPods
-                        ? 'No pods selected — this activity has no kids.'
-                        : 'No kids assigned to these pods yet.',
+                        ? 'No groups selected — this activity has no children.'
+                        : 'No children assigned to these groups yet.',
                     style: theme.textTheme.bodySmall,
                   );
                 }
@@ -351,7 +351,7 @@ class _PodsRow extends ConsumerWidget {
     if (podIds.isEmpty) {
       return const _MetaRow(
         icon: Icons.groups_outlined,
-        text: 'All pods',
+        text: 'All groups',
       );
     }
     final names = <String>[];

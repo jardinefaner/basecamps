@@ -25,7 +25,7 @@ const _navItems = <AnimatedNavItem>[
   AnimatedNavItem(
     outlinedIcon: Icons.people_outline,
     filledIcon: Icons.people,
-    label: 'Kids',
+    label: 'Children',
     flavor: NavIconFlavor.bob,
   ),
   AnimatedNavItem(

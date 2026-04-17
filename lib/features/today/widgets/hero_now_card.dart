@@ -296,7 +296,7 @@ class _KidsRow extends StatelessWidget {
         const SizedBox(width: AppSpacing.sm),
         Flexible(
           child: Text(
-            kids.length == 1 ? '1 kid' : '${kids.length} kids',
+            kids.length == 1 ? '1 child' : '${kids.length} children',
             style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),

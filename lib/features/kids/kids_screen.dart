@@ -20,11 +20,11 @@ class KidsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Kids'),
+        title: const Text('Children'),
         actions: [
           IconButton(
             icon: const Icon(Icons.group_add_outlined),
-            tooltip: 'Add pod',
+            tooltip: 'Add group',
             onPressed: () => _openAddPod(context),
           ),
           const SizedBox(width: AppSpacing.xs),
@@ -36,7 +36,7 @@ class KidsScreen extends ConsumerWidget {
             : FloatingActionButton.extended(
                 onPressed: () => _openAddKid(context, pods: pods),
                 icon: const Icon(Icons.person_add_outlined),
-                label: const Text('Add kid'),
+                label: const Text('Add child'),
               ),
         orElse: () => null,
       ),
@@ -244,8 +244,8 @@ class _PodSection extends ConsumerWidget {
                   ),
                   child: Text(
                     hovering
-                        ? 'Add them to this pod'
-                        : 'No kids yet',
+                        ? 'Add them to this group'
+                        : 'No children yet',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: hovering
                           ? theme.colorScheme.primary
@@ -331,12 +331,12 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.lg),
             Text(
-              'No pods yet',
+              'No groups yet',
               style: theme.textTheme.titleLarge,
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Create your first pod to start adding kids.',
+              'Create your first group to start adding children.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -351,7 +351,7 @@ class _EmptyState extends StatelessWidget {
                 ),
               ),
               icon: const Icon(Icons.group_add_outlined),
-              label: const Text('Create pod'),
+              label: const Text('Create group'),
             ),
           ],
         ),

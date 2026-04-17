@@ -225,7 +225,7 @@ class _NewActivityWizardScreenState
         ),
         WizardStep(
           headline: "Who's in it?",
-          subtitle: 'Leave as "All pods" if the activity is for everyone.',
+          subtitle: 'Leave as "All groups" if the activity is for everyone.',
           content: _buildPodsPage(),
           canSkip: true,
         ),
@@ -402,7 +402,7 @@ class _NewActivityWizardScreenState
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SwitchListTile(
-          title: const Text('All pods'),
+          title: const Text('All groups'),
           subtitle: const Text(
             'Everyone at the program is included',
           ),
@@ -421,7 +421,7 @@ class _NewActivityWizardScreenState
             data: (pods) {
               if (pods.isEmpty) {
                 return Text(
-                  'No pods yet — add some from the Kids tab, or stay on "All pods".',
+                  'No groups yet — add some from the Children tab, or stay on "All groups".',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

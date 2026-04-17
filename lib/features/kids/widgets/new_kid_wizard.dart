@@ -73,9 +73,9 @@ class _NewKidWizardScreenState extends ConsumerState<NewKidWizardScreen> {
   @override
   Widget build(BuildContext context) {
     return StepWizardScaffold(
-      title: 'New kid',
+      title: 'New child',
       dirty: _dirty,
-      finalActionLabel: 'Add kid',
+      finalActionLabel: 'Add child',
       onFinalAction: _submit,
       steps: [
         WizardStep(
@@ -85,9 +85,9 @@ class _NewKidWizardScreenState extends ConsumerState<NewKidWizardScreen> {
           content: _buildNamePage(),
         ),
         WizardStep(
-          headline: 'Which pod?',
+          headline: 'Which group?',
           subtitle:
-              'Pods are how the app groups kids for schedules and trips.',
+              'Groups are how the app organizes children for schedules and trips.',
           canSkip: true,
           content: _buildPodPage(),
         ),
@@ -151,8 +151,8 @@ class _NewKidWizardScreenState extends ConsumerState<NewKidWizardScreen> {
     final theme = Theme.of(context);
     if (widget.pods.isEmpty) {
       return Text(
-        'No pods yet. You can add one from the Kids tab after this kid '
-        'is created.',
+        'No groups yet. You can add one from the Children tab after this '
+        'child is created.',
         style: theme.textTheme.bodyMedium?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
         ),

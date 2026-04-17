@@ -394,7 +394,7 @@ class _TargetLabel extends ConsumerWidget {
           final kidAsync = ref.watch(kidProvider(legacyKidId));
           return kidAsync.maybeWhen(
             data: (k) => Text(
-              k == null ? 'Unknown kid' : _singleKidLabel(k),
+              k == null ? 'Unknown child' : _singleKidLabel(k),
               style: theme.textTheme.titleMedium,
             ),
             orElse: () => Text('…', style: theme.textTheme.titleMedium),
@@ -405,7 +405,7 @@ class _TargetLabel extends ConsumerWidget {
           final podAsync = ref.watch(podProvider(podId));
           return podAsync.maybeWhen(
             data: (p) => Text(
-              p?.name ?? 'Unknown pod',
+              p?.name ?? 'Unknown group',
               style: theme.textTheme.titleMedium,
             ),
             orElse: () => Text('…', style: theme.textTheme.titleMedium),

@@ -118,7 +118,7 @@ class _NewTripWizardScreenState extends ConsumerState<NewTripWizardScreen> {
         ),
         WizardStep(
           headline: "Who's going?",
-          subtitle: 'Leave as "All pods" if everyone at the program is in.',
+          subtitle: 'Leave as "All groups" if everyone at the program is in.',
           canSkip: true,
           content: _buildPodsPage(),
         ),
@@ -240,8 +240,8 @@ class _NewTripWizardScreenState extends ConsumerState<NewTripWizardScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SwitchListTile(
-          title: const Text('All pods'),
-          subtitle: const Text('Every pod at the program is included'),
+          title: const Text('All groups'),
+          subtitle: const Text('Every group at the program is included'),
           value: _allPods,
           onChanged: (v) => setState(() {
             _allPods = v;
@@ -256,7 +256,7 @@ class _NewTripWizardScreenState extends ConsumerState<NewTripWizardScreen> {
             data: (pods) {
               if (pods.isEmpty) {
                 return Text(
-                  'No pods yet — add some in the Kids tab.',
+                  'No groups yet — add some in the Children tab.',
                   style: theme.textTheme.bodySmall,
                 );
               }

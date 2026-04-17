@@ -127,7 +127,7 @@ class _NewFullDayEventWizardScreenState
         ),
         WizardStep(
           headline: "Who's going?",
-          subtitle: 'Leave as "All pods" if the whole program is included.',
+          subtitle: 'Leave as "All groups" if the whole program is included.',
           canSkip: true,
           content: _buildPodsPage(),
         ),
@@ -252,9 +252,9 @@ class _NewFullDayEventWizardScreenState
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SwitchListTile(
-          title: const Text('All pods'),
+          title: const Text('All groups'),
           subtitle: const Text(
-            'Every pod at the program is included',
+            'Every group at the program is included',
           ),
           value: _allPods,
           onChanged: (v) => setState(() {
@@ -270,7 +270,7 @@ class _NewFullDayEventWizardScreenState
             data: (pods) {
               if (pods.isEmpty) {
                 return Text(
-                  'No pods yet — add some in the Kids tab.',
+                  'No groups yet — add some in the Children tab.',
                   style: theme.textTheme.bodySmall,
                 );
               }

@@ -43,7 +43,7 @@ class KidDetailScreen extends ConsumerWidget {
             data: (kid) => kid == null
                 ? const SizedBox.shrink()
                 : IconButton(
-                    tooltip: 'Edit kid',
+                    tooltip: 'Edit child',
                     icon: const Icon(Icons.edit_outlined),
                     onPressed: () => _openEditSheet(context, ref, kid),
                   ),
@@ -56,7 +56,7 @@ class KidDetailScreen extends ConsumerWidget {
         error: (err, _) => Center(child: Text('Error: $err')),
         data: (kid) {
           if (kid == null) {
-            return const Center(child: Text('Kid not found'));
+            return const Center(child: Text('Child not found'));
           }
           final fullName =
               [kid.firstName, kid.lastName].whereType<String>().join(' ');
@@ -113,7 +113,7 @@ class KidDetailScreen extends ConsumerWidget {
                     Text('Observations', style: theme.textTheme.titleMedium),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
-                      'Coming soon — structured observations tied to this kid.',
+                      'Coming soon — structured observations tied to this child.',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -129,7 +129,7 @@ class KidDetailScreen extends ConsumerWidget {
                     Text('Photos & moments', style: theme.textTheme.titleMedium),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
-                      'Coming soon — everything tagged with this kid from the Today feed.',
+                      'Coming soon — everything tagged with this child from the Today feed.',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -145,7 +145,7 @@ class KidDetailScreen extends ConsumerWidget {
                     Text('Share', style: theme.textTheme.titleMedium),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
-                      "Coming soon — send this kid's recap to parents via email, SMS, or a read-only link.",
+                      "Coming soon — send this child's recap to parents via email, SMS, or a read-only link.",
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -223,7 +223,7 @@ class _TodayTimeline extends ConsumerWidget {
 
               if (mine.isEmpty) {
                 return Text(
-                  'Nothing scheduled for this kid today.',
+                  'Nothing scheduled for this child today.',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

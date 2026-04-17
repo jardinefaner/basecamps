@@ -538,7 +538,7 @@ class _ParentConcernFormScreenState
             label: 'Parent or guardian',
             hint: _selectedKidIds.isEmpty
                 ? 'Their name'
-                : 'Auto-filled from kid record — edit if needed',
+                : 'Auto-filled from child record — edit if needed',
           ),
           const SizedBox(height: AppSpacing.lg),
           Text('Date of concern', style: theme.textTheme.titleSmall),

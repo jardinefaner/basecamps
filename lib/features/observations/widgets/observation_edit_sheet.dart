@@ -412,7 +412,7 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
             showSelectedIcon: false,
           ),
           const SizedBox(height: AppSpacing.lg),
-          Text('Kids tagged', style: theme.textTheme.titleSmall),
+          Text('Children tagged', style: theme.textTheme.titleSmall),
           const SizedBox(height: AppSpacing.sm),
           kidsAsync.when(
             loading: () => const LinearProgressIndicator(),
@@ -421,7 +421,7 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
               if (!_kidsLoaded) return const LinearProgressIndicator();
               if (kids.isEmpty) {
                 return Text(
-                  'No kids yet — add some in the Kids tab.',
+                  'No children yet — add some in the Children tab.',
                   style: theme.textTheme.bodySmall,
                 );
               }

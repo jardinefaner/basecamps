@@ -90,10 +90,10 @@ class _ConflictCard extends ConsumerWidget {
         if (pod != null) sharedNames.add(pod.name);
       }
       final label = sharedNames.isNotEmpty
-          ? 'Pod double-booked: ${sharedNames.join(", ")}'
+          ? 'Group double-booked: ${sharedNames.join(", ")}'
           : other.podIds.isEmpty || info.sharedPodIds.isEmpty
-              ? 'Pod double-booked (all pods)'
-              : 'Pod double-booked';
+              ? 'Group double-booked (all groups)'
+              : 'Group double-booked';
       reasonChips.add(_ReasonChip(
         icon: Icons.groups_outlined,
         label: label,

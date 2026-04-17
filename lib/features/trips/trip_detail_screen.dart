@@ -177,7 +177,7 @@ class _PodsRow extends ConsumerWidget {
         if (podIds.isEmpty) {
           return const _MetaRow(
             icon: Icons.groups_outlined,
-            text: 'All pods',
+            text: 'All groups',
           );
         }
         final names = <String>[];
@@ -230,13 +230,13 @@ class _RosterCard extends ConsumerWidget {
                       .toList();
                   if (attending.isEmpty) {
                     return Text(
-                      'No kids assigned to these pods yet.',
+                      'No children assigned to these groups yet.',
                       style: theme.textTheme.bodySmall,
                     );
                   }
                   return Text(
                     '${attending.length} '
-                    '${attending.length == 1 ? "kid" : "kids"}: '
+                    '${attending.length == 1 ? "child" : "children"}: '
                     '${attending.take(3).map((k) => k.firstName).join(", ")}'
                     '${attending.length > 3 ? " + ${attending.length - 3} more" : ""}',
                     style: theme.textTheme.bodyMedium,

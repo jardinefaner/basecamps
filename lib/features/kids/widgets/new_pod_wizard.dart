@@ -43,22 +43,22 @@ class _NewPodWizardScreenState extends ConsumerState<NewPodWizardScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return StepWizardScaffold(
-      title: 'New pod',
+      title: 'New group',
       dirty: _dirty,
-      finalActionLabel: 'Create pod',
+      finalActionLabel: 'Create group',
       onFinalAction: _submit,
       steps: [
         WizardStep(
           headline: 'Name and color',
           subtitle: 'A short name plus a color to tell it apart on the '
-              'Kids tab and the launcher.',
+              'Children tab and the launcher.',
           canProceed: _isValid,
           content: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               AppTextField(
                 controller: _name,
-                label: 'Pod name',
+                label: 'Group name',
                 hint: 'e.g. Dolphins',
                 onChanged: (_) => setState(() {}),
               ),

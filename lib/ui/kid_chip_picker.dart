@@ -19,7 +19,7 @@ class KidChipPicker extends StatelessWidget {
     if (kids.isEmpty) {
       final theme = Theme.of(context);
       return Text(
-        'No kids yet — add some in the Kids tab.',
+        'No children yet — add some in the Children tab.',
         style: theme.textTheme.bodySmall,
       );
     }

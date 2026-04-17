@@ -434,7 +434,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
-          Text('Pods', style: theme.textTheme.titleSmall),
+          Text('Groups', style: theme.textTheme.titleSmall),
           const SizedBox(height: AppSpacing.sm),
           podsAsync.when(
             loading: () => const LinearProgressIndicator(),
@@ -507,7 +507,7 @@ class _PodSelector extends StatelessWidget {
     final theme = Theme.of(context);
     if (pods.isEmpty) {
       return Text(
-        'No pods yet — add some in the Kids tab.',
+        'No groups yet — add some in the Children tab.',
         style: theme.textTheme.bodySmall,
       );
     }
@@ -520,7 +520,7 @@ class _PodSelector extends StatelessWidget {
           runSpacing: AppSpacing.sm,
           children: [
             FilterChip(
-              label: const Text('All pods'),
+              label: const Text('All groups'),
               selected: allPods && selectedPodIds.isEmpty,
               onSelected: (_) => onAllToggle(),
             ),
@@ -535,7 +535,7 @@ class _PodSelector extends StatelessWidget {
         if (noneChosen) ...[
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'No pods selected — no kids will be included in this activity.',
+            'No groups selected — no children will be included in this activity.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
               fontStyle: FontStyle.italic,

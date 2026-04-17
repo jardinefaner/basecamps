@@ -33,7 +33,7 @@ class KidChipPicker extends ConsumerWidget {
         child: LinearProgressIndicator(),
       ),
       error: (err, _) => Text(
-        'Error loading kids: $err',
+        'Error loading children: $err',
         style: theme.textTheme.bodySmall,
       ),
       data: (kids) {
@@ -41,8 +41,8 @@ class KidChipPicker extends ConsumerWidget {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
             child: Text(
-              'No kids yet. Add kids from the Kids tab and they will '
-              'show up here.',
+              'No children yet. Add children from the Children tab and '
+              'they will show up here.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

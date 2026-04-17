@@ -85,7 +85,7 @@ class _ObservationsScreenState extends ConsumerState<ObservationsScreen> {
           ? 'Delete this observation?'
           : 'Delete $count observations?',
       message:
-          'Every tagged kid, domain, photo and video goes with them. '
+          'Every tagged child, domain, photo and video goes with them. '
           'Cannot be undone.',
       confirmLabel: count == 1 ? 'Delete' : 'Delete $count',
     );

@@ -23,7 +23,7 @@ class EditKidSheet extends ConsumerStatefulWidget {
 
   final List<Pod> pods;
 
-  /// When null, the sheet acts as "Add kid".
+  /// When null, the sheet acts as "Add child".
   final Kid? kid;
 
   /// Only honored in create mode.
@@ -127,7 +127,7 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
       context: context,
       title: 'Remove ${existing.firstName}?',
       message:
-          'Observations and tags stay — only this kid record is removed.',
+          'Observations and tags stay — only this child record is removed.',
       confirmLabel: 'Remove',
     );
     if (!confirmed) return;
@@ -144,7 +144,7 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
         first.isNotEmpty ? first.characters.first.toUpperCase() : '?';
 
     return StickyActionSheet(
-      title: _isEdit ? 'Edit kid' : 'New kid',
+      title: _isEdit ? 'Edit child' : 'New child',
       titleTrailing: _isEdit
           ? IconButton(
               onPressed: _delete,
@@ -158,7 +158,7 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
         onPressed: _isValid && (!_isEdit || _hasChanges) && !_submitting
             ? _submit
             : null,
-        label: _isEdit ? 'Save changes' : 'Add kid',
+        label: _isEdit ? 'Save changes' : 'Add child',
         isLoading: _submitting,
       ),
       child: Column(
@@ -186,7 +186,7 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: AppSpacing.lg),
-          Text('Pod', style: theme.textTheme.titleSmall),
+          Text('Group', style: theme.textTheme.titleSmall),
           const SizedBox(height: AppSpacing.sm),
           DropdownButtonFormField<String?>(
             initialValue: _selectedPodId,

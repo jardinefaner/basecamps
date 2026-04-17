@@ -107,7 +107,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                           ),
                         if (filteredKids.isNotEmpty)
                           _Section(
-                            label: 'Kids',
+                            label: 'Children',
                             count: filteredKids.length,
                             total: kids.length,
                             query: _query,
@@ -192,7 +192,7 @@ class _SearchField extends StatelessWidget {
                 textInputAction: TextInputAction.search,
                 style: theme.textTheme.bodyLarge,
                 decoration: InputDecoration(
-                  hintText: 'Search kids, notes, anywhere…',
+                  hintText: 'Search children, notes, anywhere…',
                   hintStyle: theme.textTheme.bodyLarge?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -549,7 +549,7 @@ class _DestinationData {
       isMainTab: true,
     ),
     _DestinationData(
-      label: 'Kids',
+      label: 'Children',
       icon: Icons.people_outline,
       path: '/kids',
       isMainTab: true,

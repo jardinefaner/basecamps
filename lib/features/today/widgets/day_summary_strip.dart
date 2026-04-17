@@ -54,7 +54,7 @@ class DaySummaryStrip extends StatelessWidget {
             child: _Stat(
               icon: Icons.groups_outlined,
               value: '$kids',
-              label: kids == 1 ? 'kid' : 'kids',
+              label: kids == 1 ? 'child' : 'children',
             ),
           ),
           _Divider(),
