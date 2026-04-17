@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/attendance/attendance_repository.dart';
+import 'package:basecamp/features/attendance/widgets/attendance_sheet.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_repository.dart';
 import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
@@ -114,6 +116,9 @@ class _Body extends ConsumerWidget {
             const <String, Set<String>>{};
     final allKids =
         ref.watch(kidsProvider).asData?.value ?? const <Kid>[];
+    final attendanceMap =
+        ref.watch(todayAttendanceProvider).asData?.value ??
+            const <String, AttendanceRecord>{};
 
     // -- Bucket items by time relative to now --
     ScheduleItem? currentItem;
@@ -164,6 +169,48 @@ class _Body extends ConsumerWidget {
     final pendingObs = past
         .where((i) => (activityCounts[i.title] ?? 0) == 0)
         .length;
+
+    AttendanceSummary? attendanceFor(ScheduleItem item) {
+      // Only roll up for group-scoped activities — "all groups" is
+      // everyone (use the whole-day check-in flow elsewhere), "no
+      // groups" has nobody to track.
+      if (item.podIds.isEmpty || item.isAllPods || item.isNoPods) {
+        return null;
+      }
+      var present = 0;
+      var absent = 0;
+      var total = 0;
+      for (final k in allKids) {
+        if (k.podId == null || !item.podIds.contains(k.podId)) continue;
+        total++;
+        final status = attendanceMap[k.id]?.status;
+        if (status == AttendanceStatus.present) {
+          present++;
+        } else if (status == AttendanceStatus.absent) {
+          absent++;
+        }
+      }
+      if (total == 0) return null;
+      return AttendanceSummary(
+        present: present,
+        absent: absent,
+        total: total,
+      );
+    }
+
+    Future<void> openAttendance(ScheduleItem item) {
+      return showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        useSafeArea: true,
+        builder: (_) => AttendanceSheet(
+          groupIds: item.podIds,
+          date: now,
+          activityTitle: item.title,
+        ),
+      );
+    }
 
     ConcernMatch? concernForItem(ScheduleItem item) {
       // "All groups" activities aren't usefully tied to one child's
@@ -227,11 +274,13 @@ class _Body extends ConsumerWidget {
               isPast: false,
               conflicts: conflicts[item.id] ?? const [],
               concernMatch: concernForItem(item),
+              attendance: attendanceFor(item),
               onTap: () => onOpenDetail(item),
               onOpenConcern: () => _goConcern(
                 context,
                 concernForItem(item)?.id,
               ),
+              onOpenAttendance: () => openAttendance(item),
             ),
           ),
         ],
@@ -243,8 +292,10 @@ class _Body extends ConsumerWidget {
             item: currentItem,
             now: now,
             observationCount: activityCounts[currentItem.title] ?? 0,
+            attendance: attendanceFor(currentItem),
             onTap: () => onOpenDetail(currentItem!),
             onCapture: () => context.go('/observations'),
+            onOpenAttendance: () => openAttendance(currentItem!),
           ),
           const SizedBox(height: AppSpacing.lg),
         ] else if (nextUp != null) ...[
@@ -272,11 +323,13 @@ class _Body extends ConsumerWidget {
               conflicts: conflicts[upcoming[i].id] ?? const [],
               minutesUntilStart: i == 0 ? nextUpMinutes : null,
               concernMatch: concernForItem(upcoming[i]),
+              attendance: attendanceFor(upcoming[i]),
               onTap: () => onOpenDetail(upcoming[i]),
               onOpenConcern: () => _goConcern(
                 context,
                 concernForItem(upcoming[i])?.id,
               ),
+              onOpenAttendance: () => openAttendance(upcoming[i]),
             ),
           ),
         ],
@@ -301,12 +354,14 @@ class _Body extends ConsumerWidget {
                     showLogObservationsPrompt:
                         (activityCounts[item.title] ?? 0) == 0,
                     concernMatch: concernForItem(item),
+                    attendance: attendanceFor(item),
                     onTap: () => onOpenDetail(item),
                     onLogObservations: () => context.go('/observations'),
                     onOpenConcern: () => _goConcern(
-                context,
-                concernForItem(item)?.id,
-              ),
+                      context,
+                      concernForItem(item)?.id,
+                    ),
+                    onOpenAttendance: () => openAttendance(item),
                   ),
                 ),
             ],

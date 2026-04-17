@@ -27,9 +27,11 @@ class ScheduleItemCard extends ConsumerWidget {
     this.minutesUntilStart,
     this.showLogObservationsPrompt = false,
     this.concernMatch,
+    this.attendance,
     this.onTap,
     this.onLogObservations,
     this.onOpenConcern,
+    this.onOpenAttendance,
     super.key,
   });
 
@@ -52,9 +54,15 @@ class ScheduleItemCard extends ConsumerWidget {
   /// whatever it's handed.
   final ConcernMatch? concernMatch;
 
+  /// Today's attendance for the children in this activity's groups.
+  /// Null hides the check-in strip (e.g. "all groups" activities that
+  /// don't usefully roll up to a per-activity roster).
+  final AttendanceSummary? attendance;
+
   final VoidCallback? onTap;
   final VoidCallback? onLogObservations;
   final VoidCallback? onOpenConcern;
+  final VoidCallback? onOpenAttendance;
 
   bool get _hasConflict => conflicts.isNotEmpty;
 
@@ -176,6 +184,13 @@ class ScheduleItemCard extends ConsumerWidget {
               onTap: onOpenConcern,
             ),
           ],
+          if (attendance != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _AttendanceStrip(
+              summary: attendance!,
+              onTap: onOpenAttendance,
+            ),
+          ],
           if (showLogObservationsPrompt) ...[
             const SizedBox(height: AppSpacing.sm),
             _LogObservationsStrip(onTap: onLogObservations),
@@ -233,6 +248,25 @@ class ConcernMatch {
   const ConcernMatch({required this.id, required this.preview});
   final String id;
   final String preview;
+}
+
+/// Per-activity roll-up of today's attendance. The card uses this for a
+/// compact "checked in" strip that doubles as the tap target for the
+/// inline attendance sheet.
+class AttendanceSummary {
+  const AttendanceSummary({
+    required this.present,
+    required this.absent,
+    required this.total,
+  });
+
+  final int present;
+  final int absent;
+  final int total;
+
+  int get pending => (total - present - absent).clamp(0, total);
+  bool get allSettled => pending == 0 && total > 0;
+  bool get allPresent => present == total && total > 0;
 }
 
 class _TrailingBadge extends StatelessWidget {
@@ -347,6 +381,75 @@ class _LogObservationsStrip extends StatelessWidget {
               Icons.arrow_forward,
               size: 14,
               color: theme.colorScheme.primary,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AttendanceStrip extends StatelessWidget {
+  const _AttendanceStrip({required this.summary, this.onTap});
+
+  final AttendanceSummary summary;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Color ramps with how "done" check-in is: neutral pending, warm
+    // primary once everyone's settled.
+    final settled = summary.allSettled;
+    final tint = settled
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant;
+    final bg = settled
+        ? theme.colorScheme.primary.withValues(alpha: 0.08)
+        : theme.colorScheme.surfaceContainerLow;
+    final subtitle = summary.total == 0
+        ? 'No children in this activity'
+        : '${summary.present}/${summary.total} present'
+            '${summary.absent > 0 ? " · ${summary.absent} absent" : ""}'
+            '${summary.pending > 0 ? " · ${summary.pending} pending" : ""}';
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: 6,
+        ),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              settled
+                  ? Icons.check_circle_outline
+                  : Icons.how_to_reg_outlined,
+              size: 16,
+              color: tint,
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Expanded(
+              child: Text(
+                subtitle,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: settled
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward,
+              size: 14,
+              color: tint,
             ),
           ],
         ),

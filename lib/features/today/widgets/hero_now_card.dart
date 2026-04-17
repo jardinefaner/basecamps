@@ -2,6 +2,7 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
+import 'package:basecamp/features/today/widgets/schedule_item_card.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +22,8 @@ class HeroNowCard extends ConsumerWidget {
     required this.observationCount,
     required this.onTap,
     required this.onCapture,
+    this.attendance,
+    this.onOpenAttendance,
     super.key,
   });
 
@@ -29,6 +32,11 @@ class HeroNowCard extends ConsumerWidget {
   final int observationCount;
   final VoidCallback onTap;
   final VoidCallback onCapture;
+
+  /// Optional attendance roll-up. When present the hero shows a
+  /// "check-in" strip above Capture, tapping opens the inline sheet.
+  final AttendanceSummary? attendance;
+  final VoidCallback? onOpenAttendance;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -179,6 +187,13 @@ class HeroNowCard extends ConsumerWidget {
               const SizedBox(height: AppSpacing.md),
               _KidsRow(kids: podKids),
             ],
+            if (attendance != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              _HeroAttendanceStrip(
+                summary: attendance!,
+                onTap: onOpenAttendance,
+              ),
+            ],
             const SizedBox(height: AppSpacing.lg),
             Row(
               children: [
@@ -253,6 +268,68 @@ class _HeroChip extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _HeroAttendanceStrip extends StatelessWidget {
+  const _HeroAttendanceStrip({required this.summary, this.onTap});
+
+  final AttendanceSummary summary;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final settled = summary.allSettled;
+    final tint = settled
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurface;
+    final subtitle = '${summary.present}/${summary.total} checked in'
+        '${summary.absent > 0 ? " · ${summary.absent} absent" : ""}'
+        '${summary.pending > 0 ? " · ${summary.pending} pending" : ""}';
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: theme.colorScheme.primary.withValues(alpha: 0.25),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              settled
+                  ? Icons.check_circle_outline
+                  : Icons.how_to_reg_outlined,
+              size: 18,
+              color: tint,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                subtitle,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: tint,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward,
+              size: 16,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -370,6 +370,42 @@ class ParentConcernNotes extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// One row per (child, date) with the day's attendance status.
+/// `status` is a string so new values (e.g. "excused") can be added
+/// without migrations — the enum lives on the Dart side.
+///
+/// Rows only exist for days where someone explicitly set a status;
+/// an absent row means "not yet checked in" rather than "present by
+/// default", so the UI can show a neutral pending state.
+class Attendance extends Table {
+  TextColumn get kidId => text().references(
+        Kids,
+        #id,
+        onDelete: KeyAction.cascade,
+      )();
+  DateTimeColumn get date => dateTime()();
+
+  /// One of AttendanceStatus.name values: 'present', 'absent', 'late',
+  /// 'leftEarly'. Stored as text so adding a new status later is just
+  /// a Dart enum change plus UI, not a migration.
+  TextColumn get status => text()();
+
+  /// Clock time the child was checked in / out, HH:mm. Populated for
+  /// late / leftEarly; optional for present.
+  TextColumn get clockTime => text().nullable()();
+
+  /// Short free-text note — e.g. "picked up early by Dad, out at 2pm".
+  TextColumn get notes => text().nullable()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {kidId, date};
+}
+
 /// Structured link between a parent concern note and each child it
 /// mentions. Replaces a lossy substring-match against the free-text
 /// `childNames` column — the Today screen uses this join to show

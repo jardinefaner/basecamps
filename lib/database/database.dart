@@ -31,6 +31,7 @@ QueryExecutor _openConnection() {
     EntryPods,
     ParentConcernNotes,
     ParentConcernKids,
+    Attendance,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -39,7 +40,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 23;
+  int get schemaVersion => 24;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -313,6 +314,12 @@ class AppDatabase extends _$AppDatabase {
             // the Today screen now uses this join to know which
             // children a concern mentions.
             await _createTableIfMissing(m, parentConcernKids);
+          }
+          if (from < 24) {
+            // Per-day attendance. One row per (child, date); missing
+            // row means "not yet checked in" so a brand-new day
+            // shows neutral state until the teacher starts tapping.
+            await _createTableIfMissing(m, attendance);
           }
         },
       );
