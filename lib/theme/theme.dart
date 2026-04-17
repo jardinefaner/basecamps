@@ -19,15 +19,16 @@ ThemeData _buildTheme(ColorScheme colorScheme) {
     appBarTheme: AppBarTheme(
       elevation: 0,
       scrolledUnderElevation: 0,
-      backgroundColor: Colors.transparent,
+      // Solid surface so the floating SliverAppBar occludes content
+      // behind it when it snaps back in on scroll-up. The earlier
+      // transparent fill let text show through the bar.
+      backgroundColor: colorScheme.surface,
+      surfaceTintColor: Colors.transparent,
       foregroundColor: colorScheme.onSurface,
       centerTitle: false,
       titleTextStyle: textTheme.titleLarge,
-      // Transparent AppBar leaves Flutter unable to auto-infer status
-      // bar icon color, which was giving light icons (invisible) on
-      // our off-white surface in light mode. Pin the overlay style to
-      // the theme's brightness so battery / clock / signal stay
-      // readable on both.
+      // Pin the overlay style to the theme's brightness so battery /
+      // clock / signal stay readable on both.
       //
       // Note: SystemUiOverlayStyle.dark means *dark icons* (for light
       // backgrounds) and .light means *light icons* — the naming is
