@@ -6,9 +6,9 @@ import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/observations/widgets/attachment_viewer.dart';
 import 'package:basecamp/features/observations/widgets/multi_capture_camera.dart';
+import 'package:basecamp/features/observations/widgets/refineable_note_editor.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
-import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:flutter/foundation.dart';
@@ -291,10 +291,9 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AppTextField(
+          RefineableNoteEditor(
             controller: _noteController,
             label: 'Note',
-            maxLines: 6,
             onChanged: (_) => setState(() {}),
           ),
 
