@@ -47,11 +47,19 @@ class HeroNowCard extends ConsumerWidget {
         ? null
         : ref.watch(specialistProvider(specialistId)).asData?.value;
     final allKids = ref.watch(kidsProvider).asData?.value ?? const <Kid>[];
-    final podKids = item.podIds.isEmpty
-        ? allKids
-        : allKids
-            .where((k) => k.podId != null && item.podIds.contains(k.podId))
-            .toList();
+    // Respect the new three-state audience: "all pods" (everyone),
+    // specific pods (filter by those), or no pods (teacher explicitly
+    // chose no kids — show an empty list).
+    final List<Kid> podKids;
+    if (item.isAllPods) {
+      podKids = allKids;
+    } else if (item.isNoPods) {
+      podKids = const [];
+    } else {
+      podKids = allKids
+          .where((k) => k.podId != null && item.podIds.contains(k.podId))
+          .toList();
+    }
 
     return InkWell(
       borderRadius: BorderRadius.circular(16),
@@ -128,7 +136,7 @@ class HeroNowCard extends ConsumerWidget {
               Row(
                 children: [
                   Text(
-                    '${elapsed}m in',
+                    '${_fmtDuration(elapsed)} in',
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -137,7 +145,7 @@ class HeroNowCard extends ConsumerWidget {
                   Text(
                     remaining <= 0
                         ? 'wrapping up'
-                        : 'ends in $remaining min',
+                        : 'ends in ${_fmtDuration(remaining)}',
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: remaining <= 5
                           ? theme.colorScheme.error
@@ -200,6 +208,18 @@ class HeroNowCard extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// Short human duration for the elapsed / remaining labels. Uses
+  /// hours when over an hour so "170m in" doesn't force the teacher to
+  /// divide in their head. "45m" / "1h" / "1h 25m" / "3h".
+  String _fmtDuration(int mins) {
+    if (mins <= 0) return '0m';
+    if (mins < 60) return '${mins}m';
+    final h = mins ~/ 60;
+    final m = mins % 60;
+    if (m == 0) return '${h}h';
+    return '${h}h ${m}m';
   }
 
   String _formatTime(String hhmm) {

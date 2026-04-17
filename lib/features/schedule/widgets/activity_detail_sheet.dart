@@ -76,7 +76,9 @@ class ActivityDetailSheet extends ConsumerWidget {
                     .toList();
                 if (attending.isEmpty) {
                   return Text(
-                    'No kids assigned to these pods yet.',
+                    item.isNoPods
+                        ? 'No pods selected — this activity has no kids.'
+                        : 'No kids assigned to these pods yet.',
                     style: theme.textTheme.bodySmall,
                   );
                 }

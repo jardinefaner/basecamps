@@ -336,6 +336,7 @@ class _AssignedActivitiesSection extends ConsumerWidget {
                             isFullDay: t.isFullDay,
                             title: t.title,
                             podIds: const [],
+                            allPods: t.allPods,
                             specialistId: t.specialistId,
                             location: t.location,
                             notes: t.notes,

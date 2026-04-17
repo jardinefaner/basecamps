@@ -254,6 +254,12 @@ class ScheduleTemplates extends Table {
   TextColumn get groupId => text().nullable()();
   TextColumn get podId =>
       text().nullable().references(Pods, #id, onDelete: KeyAction.setNull)();
+  // True when this activity is intentionally for every pod (no
+  // restriction); false when the teacher picked specific pods or
+  // explicitly picked nobody (staff meeting, prep block, etc).
+  // Pre-schema-22 we inferred "all pods" from an empty template_pods
+  // list, which conflated "for everyone" with "for nobody yet chosen".
+  BoolColumn get allPods => boolean().withDefault(const Constant(true))();
   // Deprecated: use specialistId instead. Retained for migration backfill only.
   TextColumn get specialistName => text().nullable()();
   TextColumn get specialistId => text()
@@ -381,6 +387,8 @@ class ScheduleEntries extends Table {
   TextColumn get title => text()();
   TextColumn get podId =>
       text().nullable().references(Pods, #id, onDelete: KeyAction.setNull)();
+  // Mirror of ScheduleTemplates.allPods — see the comment there.
+  BoolColumn get allPods => boolean().withDefault(const Constant(true))();
   // Deprecated: use specialistId instead. Retained for migration backfill only.
   TextColumn get specialistName => text().nullable()();
   TextColumn get specialistId => text()

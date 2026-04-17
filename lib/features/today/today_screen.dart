@@ -145,8 +145,14 @@ class _Body extends ConsumerWidget {
     };
     final kidsInActivityPods = <String>{};
     for (final i in items) {
+      // An "all pods" activity pulls in every kid; a pod-scoped one
+      // pulls in just that pod's kids; an intentionally pod-less
+      // activity (staff prep etc.) pulls in nobody.
+      if (i.isNoPods) continue;
       for (final kid in allKids) {
-        if (kid.podId != null && i.podIds.contains(kid.podId)) {
+        if (i.isAllPods) {
+          kidsInActivityPods.add(kid.id);
+        } else if (kid.podId != null && i.podIds.contains(kid.podId)) {
           kidsInActivityPods.add(kid.id);
         }
       }
@@ -157,7 +163,15 @@ class _Body extends ConsumerWidget {
         .length;
 
     ConcernMatch? concernForItem(ScheduleItem item) {
-      if (concerns.isEmpty || item.podIds.isEmpty) return null;
+      // "All pods" activities aren't usefully tied to one kid's
+      // concern — they're for everyone. No-pods activities have no
+      // kids at all. Only narrow, pod-scoped activities get the flag.
+      if (concerns.isEmpty ||
+          item.podIds.isEmpty ||
+          item.isAllPods ||
+          item.isNoPods) {
+        return null;
+      }
       final podKidNames = <String>[
         for (final k in allKids)
           if (k.podId != null && item.podIds.contains(k.podId))

@@ -38,7 +38,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 21;
+  int get schemaVersion => 22;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -286,6 +286,24 @@ class AppDatabase extends _$AppDatabase {
               m,
               observations,
               observations.noteOriginal,
+            );
+          }
+          if (from < 22) {
+            // Explicit "all pods" flag on schedule rows — lets us
+            // distinguish "activity for everyone" (allPods=true,
+            // no specific pods) from "activity for nobody yet chosen"
+            // (allPods=false, no specific pods), which previously
+            // collapsed onto the same empty-list state. Default is
+            // true so legacy rows remain "everybody".
+            await _addColumnIfMissing(
+              m,
+              scheduleTemplates,
+              scheduleTemplates.allPods,
+            );
+            await _addColumnIfMissing(
+              m,
+              scheduleEntries,
+              scheduleEntries.allPods,
             );
           }
         },

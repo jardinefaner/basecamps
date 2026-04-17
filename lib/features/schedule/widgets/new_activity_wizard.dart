@@ -148,6 +148,9 @@ class _NewActivityWizardScreenState
 
   Future<void> _submit() async {
     final repo = ref.read(scheduleRepositoryProvider);
+    // Only carry specific pod ids when the teacher actually picked some.
+    // The new allPods flag preserves the distinction between "for
+    // everyone" (toggle on) and "for nobody yet" (toggle off, no pods).
     final podIds = _allPods ? const <String>[] : _podIds.toList();
     final location = _location.text.trim().isEmpty
         ? null
@@ -168,6 +171,7 @@ class _NewActivityWizardScreenState
         endTime: _formatTime(_end),
         title: _title.text.trim(),
         podIds: podIds,
+        allPods: _allPods,
         specialistId: _specialistId,
         location: location,
         startDate: bounds.start,

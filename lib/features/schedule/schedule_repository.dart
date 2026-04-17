@@ -18,6 +18,7 @@ class ScheduleItem {
     required this.title,
     required this.isFromTemplate,
     required this.podIds,
+    required this.allPods,
     required this.date,
     this.rangeStart,
     this.rangeEnd,
@@ -34,6 +35,12 @@ class ScheduleItem {
   final bool isFullDay;
   final String title;
   final List<String> podIds;
+
+  /// True when the teacher meant "this is for everyone"; false when
+  /// they either picked specific pods or explicitly picked none (staff
+  /// prep, etc). Only meaningful when [podIds] is empty — non-empty
+  /// always narrows to those pods regardless.
+  final bool allPods;
   final String? specialistId;
   final String? location;
   final String? notes;
@@ -57,7 +64,15 @@ class ScheduleItem {
   bool get isMultiDay => rangeEnd != null && rangeStart != null;
 
   bool get isOneOff => !isFromTemplate;
-  bool get isAllPods => podIds.isEmpty;
+
+  /// Resolved audience flag. When specific pods are picked those take
+  /// precedence; otherwise respect the explicit "all pods" choice.
+  bool get isAllPods => podIds.isEmpty && allPods;
+
+  /// Intentionally empty audience — the teacher picked no pods and
+  /// turned off "All pods". Used by readers to show "no kids" instead
+  /// of falling back to everyone.
+  bool get isNoPods => podIds.isEmpty && !allPods;
 
   TimeOfDay get startTimeOfDay => _parseTime(startTime);
   TimeOfDay get endTimeOfDay => _parseTime(endTime);
@@ -132,6 +147,7 @@ class ScheduleRepository {
           isFullDay: t.isFullDay,
           title: t.title,
           podIds: pods,
+          allPods: t.allPods,
           specialistId: t.specialistId,
           location: t.location,
           notes: t.notes,
@@ -178,6 +194,7 @@ class ScheduleRepository {
     required String endTime,
     required String title,
     List<String> podIds = const [],
+    bool allPods = true,
     bool isFullDay = false,
     String? specialistId,
     String? location,
@@ -196,6 +213,7 @@ class ScheduleRepository {
               endTime: endTime,
               isFullDay: Value(isFullDay),
               title: title,
+              allPods: Value(allPods),
               specialistId: Value(specialistId),
               location: Value(location),
               notes: Value(notes),
@@ -220,6 +238,7 @@ class ScheduleRepository {
     required String endTime,
     required String title,
     List<String> podIds = const [],
+    bool allPods = true,
     bool isFullDay = false,
     String? specialistId,
     String? location,
@@ -237,6 +256,7 @@ class ScheduleRepository {
           endTime: Value(endTime),
           isFullDay: Value(isFullDay),
           title: Value(title),
+          allPods: Value(allPods),
           specialistId: Value(specialistId),
           location: Value(location),
           notes: Value(notes),
@@ -335,6 +355,7 @@ class ScheduleRepository {
                   endTime: src.endTime,
                   isFullDay: Value(src.isFullDay),
                   title: src.title,
+                  allPods: Value(src.allPods),
                   specialistId: Value(src.specialistId),
                   location: Value(src.location),
                   notes: Value(src.notes),
@@ -363,6 +384,7 @@ class ScheduleRepository {
     required String endTime,
     required String title,
     List<String> podIds = const [],
+    bool allPods = true,
     bool isFullDay = false,
     DateTime? endDate,
     String? specialistId,
@@ -387,6 +409,7 @@ class ScheduleRepository {
               endTime: endTime,
               isFullDay: Value(isFullDay),
               title: title,
+              allPods: Value(allPods),
               specialistId: Value(specialistId),
               location: Value(location),
               notes: Value(notes),
@@ -417,6 +440,7 @@ class ScheduleRepository {
             endTime: template.endTime,
             isFullDay: Value(template.isFullDay),
             title: template.title,
+            allPods: Value(template.allPods),
             kind: 'cancellation',
             overridesTemplateId: Value(templateId),
           ),
@@ -654,6 +678,7 @@ class ScheduleRepository {
             isFullDay: override.isFullDay,
             title: override.title,
             podIds: entryPods[override.id] ?? const [],
+            allPods: override.allPods,
             specialistId: override.specialistId,
             location: override.location,
             notes: override.notes,
@@ -672,6 +697,7 @@ class ScheduleRepository {
             isFullDay: t.isFullDay,
             title: t.title,
             podIds: templatePods[t.id] ?? const [],
+            allPods: t.allPods,
             specialistId: t.specialistId,
             location: t.location,
             notes: t.notes,
@@ -696,6 +722,7 @@ class ScheduleRepository {
             isFullDay: e.isFullDay,
             title: e.title,
             podIds: entryPods[e.id] ?? const [],
+            allPods: e.allPods,
             specialistId: e.specialistId,
             location: e.location,
             notes: e.notes,
