@@ -99,7 +99,7 @@ class _NewFullDayEventWizardScreenState
           endTime: '23:59',
           isFullDay: true,
           title: _title.text.trim(),
-          podIds: _allPods ? const [] : _podIds.toList(),
+          groupIds: _allPods ? const [] : _podIds.toList(),
           specialistId: _specialistId,
           location: location.isEmpty ? null : location,
           notes: notes.isEmpty ? null : notes,
@@ -247,7 +247,7 @@ class _NewFullDayEventWizardScreenState
 
   Widget _buildPodsPage() {
     final theme = Theme.of(context);
-    final podsAsync = ref.watch(podsProvider);
+    final podsAsync = ref.watch(groupsProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

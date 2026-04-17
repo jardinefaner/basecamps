@@ -105,8 +105,8 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
           )
           .toList(),
       activityLabel: currentActivity?.title,
-      podId: currentActivity != null && currentActivity.podIds.length == 1
-          ? currentActivity.podIds.first
+      groupId: currentActivity != null && currentActivity.groupIds.length == 1
+          ? currentActivity.groupIds.first
           : null,
     );
     unawaited(_refineTagsWithAi(observationId, note));

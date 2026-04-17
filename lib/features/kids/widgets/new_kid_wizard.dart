@@ -11,22 +11,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// page-by-page pattern as the activity and specialist wizards so
 /// first-timers aren't stuck staring at every field at once. Editing
 /// an existing kid still uses the dense edit sheet.
-class NewKidWizardScreen extends ConsumerStatefulWidget {
-  const NewKidWizardScreen({
+class NewChildWizardScreen extends ConsumerStatefulWidget {
+  const NewChildWizardScreen({
     required this.pods,
     this.initialPodId,
     super.key,
   });
 
-  final List<Pod> pods;
+  final List<Group> pods;
   final String? initialPodId;
 
   @override
-  ConsumerState<NewKidWizardScreen> createState() =>
+  ConsumerState<NewChildWizardScreen> createState() =>
       _NewKidWizardScreenState();
 }
 
-class _NewKidWizardScreenState extends ConsumerState<NewKidWizardScreen> {
+class _NewKidWizardScreenState extends ConsumerState<NewChildWizardScreen> {
   final _firstName = TextEditingController();
   final _lastName = TextEditingController();
   final _parentName = TextEditingController();
@@ -58,10 +58,10 @@ class _NewKidWizardScreenState extends ConsumerState<NewKidWizardScreen> {
     final last = _lastName.text.trim();
     final parent = _parentName.text.trim();
     final notes = _notes.text.trim();
-    await ref.read(kidsRepositoryProvider).addKid(
+    await ref.read(childrenRepositoryProvider).addChild(
           firstName: _firstName.text.trim(),
           lastName: last.isEmpty ? null : last,
-          podId: _podId,
+          groupId: _podId,
           notes: notes.isEmpty ? null : notes,
           avatarPath: _avatarPath,
           parentName: parent.isEmpty ? null : parent,

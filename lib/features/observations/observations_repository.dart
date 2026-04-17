@@ -159,16 +159,16 @@ class ObservationsRepository {
     });
   }
 
-  Stream<List<Observation>> watchForKid(String kidId) {
+  Stream<List<Observation>> watchForKid(String childId) {
     // Pulls observations via the join table (multi-kid) PLUS any legacy
-    // single-kid rows where kidId matches.
+    // single-kid rows where childId matches.
     final joinQuery = _db.select(_db.observations).join([
       innerJoin(
-        _db.observationKids,
-        _db.observationKids.observationId.equalsExp(_db.observations.id),
+        _db.observationChildren,
+        _db.observationChildren.observationId.equalsExp(_db.observations.id),
       ),
     ])
-      ..where(_db.observationKids.kidId.equals(kidId))
+      ..where(_db.observationChildren.childId.equals(childId))
       ..orderBy([OrderingTerm.desc(_db.observations.createdAt)]);
 
     return joinQuery.watch().map(
@@ -176,43 +176,43 @@ class ObservationsRepository {
         );
   }
 
-  Future<List<Kid>> kidsForObservation(String observationId) async {
-    final rows = await (_db.select(_db.kids).join([
+  Future<List<Child>> childrenForObservation(String observationId) async {
+    final rows = await (_db.select(_db.children).join([
       innerJoin(
-        _db.observationKids,
-        _db.observationKids.kidId.equalsExp(_db.kids.id),
+        _db.observationChildren,
+        _db.observationChildren.childId.equalsExp(_db.children.id),
       ),
     ])
-          ..where(_db.observationKids.observationId.equals(observationId))
-          ..orderBy([OrderingTerm.asc(_db.kids.firstName)]))
+          ..where(_db.observationChildren.observationId.equals(observationId))
+          ..orderBy([OrderingTerm.asc(_db.children.firstName)]))
         .get();
-    return rows.map((r) => r.readTable(_db.kids)).toList();
+    return rows.map((r) => r.readTable(_db.children)).toList();
   }
 
   /// Stream version so cards re-render when an edit sheet changes the
   /// tagged kids. Drift picks up writes to either `observation_kids` or
   /// `kids` and replays the join.
-  Stream<List<Kid>> watchKidsForObservation(String observationId) {
-    final query = _db.select(_db.kids).join([
+  Stream<List<Child>> watchChildrenForObservation(String observationId) {
+    final query = _db.select(_db.children).join([
       innerJoin(
-        _db.observationKids,
-        _db.observationKids.kidId.equalsExp(_db.kids.id),
+        _db.observationChildren,
+        _db.observationChildren.childId.equalsExp(_db.children.id),
       ),
     ])
-      ..where(_db.observationKids.observationId.equals(observationId))
-      ..orderBy([OrderingTerm.asc(_db.kids.firstName)]);
+      ..where(_db.observationChildren.observationId.equals(observationId))
+      ..orderBy([OrderingTerm.asc(_db.children.firstName)]);
     return query
         .watch()
-        .map((rows) => rows.map((r) => r.readTable(_db.kids)).toList());
+        .map((rows) => rows.map((r) => r.readTable(_db.children)).toList());
   }
 
   Future<String> addObservation({
     required List<ObservationDomain> domains,
     required ObservationSentiment sentiment,
     required String note,
-    List<String> kidIds = const [],
+    List<String> childIds = const [],
     List<ObservationAttachmentInput> attachments = const [],
-    String? podId,
+    String? groupId,
     String? activityLabel,
     String? tripId,
     String? authorName,
@@ -225,9 +225,9 @@ class ObservationsRepository {
       'addObservation requires at least one domain',
     );
     final id = newId();
-    final targetKind = kidIds.isNotEmpty
+    final targetKind = childIds.isNotEmpty
         ? 'kids'
-        : podId != null
+        : groupId != null
             ? 'pod'
             : activityLabel != null && activityLabel.isNotEmpty
                 ? 'activity'
@@ -243,7 +243,7 @@ class ObservationsRepository {
             ObservationsCompanion.insert(
               id: id,
               targetKind: targetKind,
-              podId: Value(podId),
+              groupId: Value(groupId),
               activityLabel: Value(activityLabel),
               domain: primary.name,
               sentiment: sentiment.name,
@@ -261,11 +261,11 @@ class ObservationsRepository {
               ),
             );
       }
-      for (final kidId in kidIds) {
-        await _db.into(_db.observationKids).insert(
-              ObservationKidsCompanion.insert(
+      for (final childId in childIds) {
+        await _db.into(_db.observationChildren).insert(
+              ObservationChildrenCompanion.insert(
                 observationId: id,
-                kidId: kidId,
+                childId: childId,
               ),
             );
       }
@@ -383,8 +383,8 @@ class ObservationsRepository {
   }
 
   /// Partial update. Anything left as `null` (or not passed) is left
-  /// untouched in the row. Kid tagging is replaced wholesale when
-  /// [kidIds] is non-null; pass `const []` to clear. Same for [domains] —
+  /// untouched in the row. Child tagging is replaced wholesale when
+  /// [childIds] is non-null; pass `const []` to clear. Same for [domains] —
   /// pass a non-empty list to replace, null to leave alone.
   Future<void> updateObservation({
     required String id,
@@ -396,8 +396,8 @@ class ObservationsRepository {
     bool clearNoteOriginal = false,
     List<ObservationDomain>? domains,
     ObservationSentiment? sentiment,
-    List<String>? kidIds,
-    String? podId,
+    List<String>? childIds,
+    String? groupId,
     bool clearPodId = false,
     String? activityLabel,
     bool clearActivityLabel = false,
@@ -422,9 +422,9 @@ class ObservationsRepository {
             : Value(primaryDomain.name),
         sentiment:
             sentiment == null ? const Value.absent() : Value(sentiment.name),
-        podId: clearPodId
+        groupId: clearPodId
             ? const Value<String?>(null)
-            : (podId == null ? const Value.absent() : Value(podId)),
+            : (groupId == null ? const Value.absent() : Value(groupId)),
         activityLabel: clearActivityLabel
             ? const Value<String?>(null)
             : (activityLabel == null
@@ -434,10 +434,10 @@ class ObservationsRepository {
       );
       // Recompute targetKind if the target mix changes.
       String? nextTargetKind;
-      if (kidIds != null) {
-        nextTargetKind = kidIds.isNotEmpty
+      if (childIds != null) {
+        nextTargetKind = childIds.isNotEmpty
             ? 'kids'
-            : (clearPodId || podId == null) &&
+            : (clearPodId || groupId == null) &&
                     (clearActivityLabel || activityLabel == null)
                 ? 'general'
                 : null;
@@ -450,15 +450,15 @@ class ObservationsRepository {
             : companion.copyWith(targetKind: Value(nextTargetKind)),
       );
 
-      if (kidIds != null) {
-        await (_db.delete(_db.observationKids)
+      if (childIds != null) {
+        await (_db.delete(_db.observationChildren)
               ..where((k) => k.observationId.equals(id)))
             .go();
-        for (final kidId in kidIds) {
-          await _db.into(_db.observationKids).insert(
-                ObservationKidsCompanion.insert(
+        for (final childId in childIds) {
+          await _db.into(_db.observationChildren).insert(
+                ObservationChildrenCompanion.insert(
                   observationId: id,
-                  kidId: kidId,
+                  childId: childId,
                 ),
               );
         }
@@ -566,18 +566,18 @@ final todayActivityCountsProvider =
 
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types
-final kidObservationsProvider =
-    StreamProvider.family<List<Observation>, String>((ref, kidId) {
-  return ref.watch(observationsRepositoryProvider).watchForKid(kidId);
+final childObservationsProvider =
+    StreamProvider.family<List<Observation>, String>((ref, childId) {
+  return ref.watch(observationsRepositoryProvider).watchForKid(childId);
 });
 
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types
-final observationKidsProvider =
-    StreamProvider.family<List<Kid>, String>((ref, observationId) {
+final observationChildrenProvider =
+    StreamProvider.family<List<Child>, String>((ref, observationId) {
   return ref
       .watch(observationsRepositoryProvider)
-      .watchKidsForObservation(observationId);
+      .watchChildrenForObservation(observationId);
 });
 
 // Riverpod family return type is complex; inference is intentional.

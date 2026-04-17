@@ -211,10 +211,10 @@ class ScheduleItemCard extends ConsumerWidget {
 
   String? _subtitle(WidgetRef ref) {
     final parts = <String>[];
-    if (item.podIds.isNotEmpty) {
+    if (item.groupIds.isNotEmpty) {
       final names = <String>[];
-      for (final podId in item.podIds) {
-        final pod = ref.watch(podProvider(podId)).asData?.value;
+      for (final groupId in item.groupIds) {
+        final pod = ref.watch(groupProvider(groupId)).asData?.value;
         if (pod != null) names.add(pod.name);
       }
       if (names.isNotEmpty) parts.add(names.join(' + '));

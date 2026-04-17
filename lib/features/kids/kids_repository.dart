@@ -3,58 +3,58 @@ import 'package:basecamp/database/database.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class KidsRepository {
-  KidsRepository(this._db);
+class ChildrenRepository {
+  ChildrenRepository(this._db);
 
   final AppDatabase _db;
 
-  Stream<List<Pod>> watchPods() {
-    final query = _db.select(_db.pods)
+  Stream<List<Group>> watchGroups() {
+    final query = _db.select(_db.groups)
       ..orderBy([(p) => OrderingTerm.asc(p.createdAt)]);
     return query.watch();
   }
 
-  Stream<List<Kid>> watchKids() {
-    final query = _db.select(_db.kids)
+  Stream<List<Child>> watchChildren() {
+    final query = _db.select(_db.children)
       ..orderBy([(k) => OrderingTerm.asc(k.firstName)]);
     return query.watch();
   }
 
-  Stream<List<Kid>> watchKidsInPod(String podId) {
-    final query = _db.select(_db.kids)
-      ..where((k) => k.podId.equals(podId))
+  Stream<List<Child>> watchChildrenInGroup(String groupId) {
+    final query = _db.select(_db.children)
+      ..where((k) => k.groupId.equals(groupId))
       ..orderBy([(k) => OrderingTerm.asc(k.firstName)]);
     return query.watch();
   }
 
-  Future<Kid?> getKid(String id) {
-    return (_db.select(_db.kids)..where((k) => k.id.equals(id)))
+  Future<Child?> getKid(String id) {
+    return (_db.select(_db.children)..where((k) => k.id.equals(id)))
         .getSingleOrNull();
   }
 
   /// Stream a single kid. Backs a StreamProvider so the detail screen
   /// reflects edits (rename, avatar change, pod change) live.
-  Stream<Kid?> watchKid(String id) {
-    return (_db.select(_db.kids)..where((k) => k.id.equals(id)))
+  Stream<Child?> watchKid(String id) {
+    return (_db.select(_db.children)..where((k) => k.id.equals(id)))
         .watchSingleOrNull();
   }
 
-  Future<Pod?> getPod(String id) {
-    return (_db.select(_db.pods)..where((p) => p.id.equals(id)))
+  Future<Group?> getPod(String id) {
+    return (_db.select(_db.groups)..where((p) => p.id.equals(id)))
         .getSingleOrNull();
   }
 
   /// Stream a single pod so screens (section headers, detail sheets,
   /// etc.) rebuild on rename or color change.
-  Stream<Pod?> watchPod(String id) {
-    return (_db.select(_db.pods)..where((p) => p.id.equals(id)))
+  Stream<Group?> watchPod(String id) {
+    return (_db.select(_db.groups)..where((p) => p.id.equals(id)))
         .watchSingleOrNull();
   }
 
-  Future<String> addPod({required String name, String? colorHex}) async {
+  Future<String> addGroup({required String name, String? colorHex}) async {
     final id = newId();
-    await _db.into(_db.pods).insert(
-          PodsCompanion.insert(
+    await _db.into(_db.groups).insert(
+          GroupsCompanion.insert(
             id: id,
             name: name,
             colorHex: Value(colorHex),
@@ -72,8 +72,8 @@ class KidsRepository {
     String? colorHex,
     bool clearColor = false,
   }) async {
-    await (_db.update(_db.pods)..where((p) => p.id.equals(id))).write(
-      PodsCompanion(
+    await (_db.update(_db.groups)..where((p) => p.id.equals(id))).write(
+      GroupsCompanion(
         name: name == null ? const Value.absent() : Value(name),
         colorHex: clearColor
             ? const Value<String?>(null)
@@ -83,21 +83,21 @@ class KidsRepository {
     );
   }
 
-  Future<String> addKid({
+  Future<String> addChild({
     required String firstName,
     String? lastName,
-    String? podId,
+    String? groupId,
     String? notes,
     String? avatarPath,
     String? parentName,
   }) async {
     final id = newId();
-    await _db.into(_db.kids).insert(
-          KidsCompanion.insert(
+    await _db.into(_db.children).insert(
+          ChildrenCompanion.insert(
             id: id,
             firstName: firstName,
             lastName: Value(lastName),
-            podId: Value(podId),
+            groupId: Value(groupId),
             notes: Value(notes),
             avatarPath: Value(avatarPath),
             parentName: Value(parentName),
@@ -107,12 +107,12 @@ class KidsRepository {
   }
 
   Future<void> updateKidPod({
-    required String kidId,
-    required String? podId,
+    required String childId,
+    required String? groupId,
   }) async {
-    await (_db.update(_db.kids)..where((k) => k.id.equals(kidId))).write(
-      KidsCompanion(
-        podId: Value(podId),
+    await (_db.update(_db.children)..where((k) => k.id.equals(childId))).write(
+      ChildrenCompanion(
+        groupId: Value(groupId),
         updatedAt: Value(DateTime.now()),
       ),
     );
@@ -122,12 +122,12 @@ class KidsRepository {
   /// untouched. Use `clearAvatarPath: true` to remove the photo —
   /// passing `avatarPath: null` alone is "don't change it", matching
   /// the same convention the observations repo uses.
-  Future<void> updateKid({
+  Future<void> updateChild({
     required String id,
     String? firstName,
     String? lastName,
     bool clearLastName = false,
-    String? podId,
+    String? groupId,
     bool clearPodId = false,
     String? notes,
     bool clearNotes = false,
@@ -136,15 +136,15 @@ class KidsRepository {
     String? parentName,
     bool clearParentName = false,
   }) async {
-    final companion = KidsCompanion(
+    final companion = ChildrenCompanion(
       firstName:
           firstName == null ? const Value.absent() : Value(firstName),
       lastName: clearLastName
           ? const Value<String?>(null)
           : (lastName == null ? const Value.absent() : Value(lastName)),
-      podId: clearPodId
+      groupId: clearPodId
           ? const Value<String?>(null)
-          : (podId == null ? const Value.absent() : Value(podId)),
+          : (groupId == null ? const Value.absent() : Value(groupId)),
       notes: clearNotes
           ? const Value<String?>(null)
           : (notes == null ? const Value.absent() : Value(notes)),
@@ -160,38 +160,38 @@ class KidsRepository {
               : Value(parentName)),
       updatedAt: Value(DateTime.now()),
     );
-    await (_db.update(_db.kids)..where((k) => k.id.equals(id))).write(companion);
+    await (_db.update(_db.children)..where((k) => k.id.equals(id))).write(companion);
   }
 
-  Future<void> deletePod(String id) async {
-    await (_db.delete(_db.pods)..where((p) => p.id.equals(id))).go();
+  Future<void> deleteGroup(String id) async {
+    await (_db.delete(_db.groups)..where((p) => p.id.equals(id))).go();
   }
 
-  Future<void> deleteKid(String id) async {
-    await (_db.delete(_db.kids)..where((k) => k.id.equals(id))).go();
+  Future<void> deleteChild(String id) async {
+    await (_db.delete(_db.children)..where((k) => k.id.equals(id))).go();
   }
 }
 
-final kidsRepositoryProvider = Provider<KidsRepository>((ref) {
-  return KidsRepository(ref.watch(databaseProvider));
+final childrenRepositoryProvider = Provider<ChildrenRepository>((ref) {
+  return ChildrenRepository(ref.watch(databaseProvider));
 });
 
-final podsProvider = StreamProvider<List<Pod>>((ref) {
-  return ref.watch(kidsRepositoryProvider).watchPods();
+final groupsProvider = StreamProvider<List<Group>>((ref) {
+  return ref.watch(childrenRepositoryProvider).watchGroups();
 });
 
-final kidsProvider = StreamProvider<List<Kid>>((ref) {
-  return ref.watch(kidsRepositoryProvider).watchKids();
-});
-
-// Riverpod family return type is complex; inference is intentional.
-// ignore: specify_nonobvious_property_types
-final kidProvider = StreamProvider.family<Kid?, String>((ref, id) {
-  return ref.watch(kidsRepositoryProvider).watchKid(id);
+final childrenProvider = StreamProvider<List<Child>>((ref) {
+  return ref.watch(childrenRepositoryProvider).watchChildren();
 });
 
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types
-final podProvider = StreamProvider.family<Pod?, String>((ref, id) {
-  return ref.watch(kidsRepositoryProvider).watchPod(id);
+final childProvider = StreamProvider.family<Child?, String>((ref, id) {
+  return ref.watch(childrenRepositoryProvider).watchKid(id);
+});
+
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final groupProvider = StreamProvider.family<Group?, String>((ref, id) {
+  return ref.watch(childrenRepositoryProvider).watchPod(id);
 });

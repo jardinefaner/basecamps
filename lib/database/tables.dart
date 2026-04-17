@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
-class Pods extends Table {
+@DataClassName('Group')
+class Groups extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
   TextColumn get colorHex => text().nullable()();
@@ -11,22 +12,29 @@ class Pods extends Table {
 
   @override
   Set<Column<Object>> get primaryKey => {id};
+
+  // `group` / `groups` are SQL reserved words; pin the SQL name here
+  // so Drift quotes it consistently in every generated statement.
+  @override
+  String? get tableName => 'groups';
 }
 
-class Kids extends Table {
+@DataClassName('Child')
+class Children extends Table {
   TextColumn get id => text()();
   TextColumn get firstName => text()();
   TextColumn get lastName => text().nullable()();
-  TextColumn get podId =>
-      text().nullable().references(Pods, #id, onDelete: KeyAction.setNull)();
+  TextColumn get groupId =>
+      text().nullable().references(Groups, #id, onDelete: KeyAction.setNull)();
   DateTimeColumn get birthDate => dateTime().nullable()();
   TextColumn get pin => text().nullable()();
   TextColumn get notes => text().nullable()();
   // Primary parent/guardian name, used to pre-fill the parent concern
-  // note form when a kid is selected. Free-form for now; if we add
-  // formal Parent records later these kids can be joined against them.
+  // note form when a child is selected. Free-form for now; if we add
+  // formal Parent records later these children can be joined against
+  // them.
   TextColumn get parentName => text().nullable()();
-  // Local file path for the kid's photo. Remote upload comes later.
+  // Local file path for the child's photo. Remote upload comes later.
   TextColumn get avatarPath => text().nullable()();
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
@@ -57,15 +65,15 @@ class Trips extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-/// Pods going on a given trip. Empty set is interpreted as "all pods".
-class TripPods extends Table {
+/// Groups going on a given trip. Empty set is interpreted as "all groups".
+class TripGroups extends Table {
   TextColumn get tripId =>
       text().references(Trips, #id, onDelete: KeyAction.cascade)();
-  TextColumn get podId =>
-      text().references(Pods, #id, onDelete: KeyAction.cascade)();
+  TextColumn get groupId =>
+      text().references(Groups, #id, onDelete: KeyAction.cascade)();
 
   @override
-  Set<Column<Object>> get primaryKey => {tripId, podId};
+  Set<Column<Object>> get primaryKey => {tripId, groupId};
 }
 
 class Captures extends Table {
@@ -83,14 +91,14 @@ class Captures extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-class CaptureKids extends Table {
+class CaptureChildren extends Table {
   TextColumn get captureId =>
       text().references(Captures, #id, onDelete: KeyAction.cascade)();
-  TextColumn get kidId =>
-      text().references(Kids, #id, onDelete: KeyAction.cascade)();
+  TextColumn get childId =>
+      text().references(Children, #id, onDelete: KeyAction.cascade)();
 
   @override
-  Set<Column<Object>> get primaryKey => {captureId, kidId};
+  Set<Column<Object>> get primaryKey => {captureId, childId};
 }
 
 /// Photos, videos, and other media attached to an observation. Stored as
@@ -113,17 +121,17 @@ class ObservationAttachments extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-/// Maps an observation to 0..N kids. Observations primarily target kids
-/// via this join table; the legacy single [Observations.kidId] column is
-/// kept for older rows.
-class ObservationKids extends Table {
+/// Maps an observation to 0..N children. Observations primarily target
+/// children via this join table; the legacy single
+/// [Observations.childId] column is kept for older rows.
+class ObservationChildren extends Table {
   TextColumn get observationId => text()
       .references(Observations, #id, onDelete: KeyAction.cascade)();
-  TextColumn get kidId =>
-      text().references(Kids, #id, onDelete: KeyAction.cascade)();
+  TextColumn get childId =>
+      text().references(Children, #id, onDelete: KeyAction.cascade)();
 
   @override
-  Set<Column<Object>> get primaryKey => {observationId, kidId};
+  Set<Column<Object>> get primaryKey => {observationId, childId};
 }
 
 /// One row per (observation, domain) pair. Observations can span several
@@ -147,10 +155,11 @@ class ObservationDomainTags extends Table {
 class Observations extends Table {
   TextColumn get id => text()();
   TextColumn get targetKind => text()();
-  TextColumn get kidId =>
-      text().nullable().references(Kids, #id, onDelete: KeyAction.setNull)();
-  TextColumn get podId =>
-      text().nullable().references(Pods, #id, onDelete: KeyAction.setNull)();
+  TextColumn get childId => text()
+      .nullable()
+      .references(Children, #id, onDelete: KeyAction.setNull)();
+  TextColumn get groupId =>
+      text().nullable().references(Groups, #id, onDelete: KeyAction.setNull)();
   TextColumn get activityLabel => text().nullable()();
   TextColumn get domain => text()();
   TextColumn get sentiment => text()();
@@ -251,15 +260,20 @@ class ScheduleTemplates extends Table {
   // just the one row the teacher happened to tap. Null for legacy
   // rows predating the column and for single-day templates; deletion
   // semantics fall back to a row-by-row delete in that case.
-  TextColumn get groupId => text().nullable()();
-  TextColumn get podId =>
-      text().nullable().references(Pods, #id, onDelete: KeyAction.setNull)();
-  // True when this activity is intentionally for every pod (no
-  // restriction); false when the teacher picked specific pods or
+  //
+  // Named [seriesId] since schema v25 — the word "group" now refers to
+  // the user-facing people-grouping (formerly "pod") on every other
+  // column.
+  TextColumn get seriesId => text().nullable()();
+  TextColumn get groupId =>
+      text().nullable().references(Groups, #id, onDelete: KeyAction.setNull)();
+  // True when this activity is intentionally for every group (no
+  // restriction); false when the teacher picked specific groups or
   // explicitly picked nobody (staff meeting, prep block, etc).
-  // Pre-schema-22 we inferred "all pods" from an empty template_pods
-  // list, which conflated "for everyone" with "for nobody yet chosen".
-  BoolColumn get allPods => boolean().withDefault(const Constant(true))();
+  // Pre-schema-22 we inferred "all groups" from an empty
+  // template_groups list, which conflated "for everyone" with "for
+  // nobody yet chosen".
+  BoolColumn get allGroups => boolean().withDefault(const Constant(true))();
   // Deprecated: use specialistId instead. Retained for migration backfill only.
   TextColumn get specialistName => text().nullable()();
   TextColumn get specialistId => text()
@@ -278,32 +292,32 @@ class ScheduleTemplates extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-/// Maps a schedule template to 0..N pods. Empty set = "all pods".
-class TemplatePods extends Table {
+/// Maps a schedule template to 0..N groups. Empty set = "all groups".
+class TemplateGroups extends Table {
   TextColumn get templateId => text().references(
         ScheduleTemplates,
         #id,
         onDelete: KeyAction.cascade,
       )();
-  TextColumn get podId =>
-      text().references(Pods, #id, onDelete: KeyAction.cascade)();
+  TextColumn get groupId =>
+      text().references(Groups, #id, onDelete: KeyAction.cascade)();
 
   @override
-  Set<Column<Object>> get primaryKey => {templateId, podId};
+  Set<Column<Object>> get primaryKey => {templateId, groupId};
 }
 
-/// Maps a per-date schedule entry to 0..N pods. Empty set = "all pods".
-class EntryPods extends Table {
+/// Maps a per-date schedule entry to 0..N groups. Empty set = "all groups".
+class EntryGroups extends Table {
   TextColumn get entryId => text().references(
         ScheduleEntries,
         #id,
         onDelete: KeyAction.cascade,
       )();
-  TextColumn get podId =>
-      text().references(Pods, #id, onDelete: KeyAction.cascade)();
+  TextColumn get groupId =>
+      text().references(Groups, #id, onDelete: KeyAction.cascade)();
 
   @override
-  Set<Column<Object>> get primaryKey => {entryId, podId};
+  Set<Column<Object>> get primaryKey => {entryId, groupId};
 }
 
 /// Parent concern notes — the first form type. Staff fill one out when a
@@ -378,8 +392,8 @@ class ParentConcernNotes extends Table {
 /// an absent row means "not yet checked in" rather than "present by
 /// default", so the UI can show a neutral pending state.
 class Attendance extends Table {
-  TextColumn get kidId => text().references(
-        Kids,
+  TextColumn get childId => text().references(
+        Children,
         #id,
         onDelete: KeyAction.cascade,
       )();
@@ -403,7 +417,7 @@ class Attendance extends Table {
       dateTime().withDefault(currentDateAndTime)();
 
   @override
-  Set<Column<Object>> get primaryKey => {kidId, date};
+  Set<Column<Object>> get primaryKey => {childId, date};
 }
 
 /// Structured link between a parent concern note and each child it
@@ -415,17 +429,17 @@ class Attendance extends Table {
 /// `childNames` is still kept on the concern row for display/export
 /// purposes (the parent's words), but this table is the source of
 /// truth for "which children are involved".
-class ParentConcernKids extends Table {
+class ParentConcernChildren extends Table {
   TextColumn get concernId => text().references(
         ParentConcernNotes,
         #id,
         onDelete: KeyAction.cascade,
       )();
-  TextColumn get kidId =>
-      text().references(Kids, #id, onDelete: KeyAction.cascade)();
+  TextColumn get childId =>
+      text().references(Children, #id, onDelete: KeyAction.cascade)();
 
   @override
-  Set<Column<Object>> get primaryKey => {concernId, kidId};
+  Set<Column<Object>> get primaryKey => {concernId, childId};
 }
 
 /// Per-date schedule entries. `kind` is 'addition' | 'override' | 'cancellation'.
@@ -443,10 +457,10 @@ class ScheduleEntries extends Table {
   TextColumn get endTime => text()();
   BoolColumn get isFullDay => boolean().withDefault(const Constant(false))();
   TextColumn get title => text()();
-  TextColumn get podId =>
-      text().nullable().references(Pods, #id, onDelete: KeyAction.setNull)();
-  // Mirror of ScheduleTemplates.allPods — see the comment there.
-  BoolColumn get allPods => boolean().withDefault(const Constant(true))();
+  TextColumn get groupId =>
+      text().nullable().references(Groups, #id, onDelete: KeyAction.setNull)();
+  // Mirror of ScheduleTemplates.allGroups — see the comment there.
+  BoolColumn get allGroups => boolean().withDefault(const Constant(true))();
   // Deprecated: use specialistId instead. Retained for migration backfill only.
   TextColumn get specialistName => text().nullable()();
   TextColumn get specialistId => text()

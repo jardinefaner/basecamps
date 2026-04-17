@@ -105,7 +105,7 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
   Future<void> _loadKids() async {
     final kids = await ref
         .read(observationsRepositoryProvider)
-        .kidsForObservation(widget.observation.id);
+        .childrenForObservation(widget.observation.id);
     if (!mounted) return;
     setState(() {
       final ids = kids.map((k) => k.id).toSet();
@@ -168,7 +168,7 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
       clearNoteOriginal: shouldClear,
       domains: _domains.toList(),
       sentiment: _sentiment,
-      kidIds: _selectedKidIds.toList(),
+      childIds: _selectedKidIds.toList(),
     );
     for (final id in _removedAttachmentIds) {
       await repo.deleteAttachment(id);
@@ -288,7 +288,7 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final kidsAsync = ref.watch(kidsProvider);
+    final kidsAsync = ref.watch(childrenProvider);
     final attachmentsAsync =
         ref.watch(observationAttachmentsProvider(widget.observation.id));
 
@@ -470,7 +470,7 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
     );
   }
 
-  String _kidLabel(Kid kid) {
+  String _kidLabel(Child kid) {
     final last = kid.lastName;
     if (last == null || last.isEmpty) return kid.firstName;
     return '${kid.firstName} ${last[0]}.';

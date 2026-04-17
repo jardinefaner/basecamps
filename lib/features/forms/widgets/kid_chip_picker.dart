@@ -13,8 +13,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// An "override" caption lives below the strip — when the concern
 /// involves someone not yet in the system, the teacher can still type
 /// in a free-form name alongside their selections.
-class KidChipPicker extends ConsumerWidget {
-  const KidChipPicker({
+class ChildChipPicker extends ConsumerWidget {
+  const ChildChipPicker({
     required this.selectedIds,
     required this.onChanged,
     super.key,
@@ -26,7 +26,7 @@ class KidChipPicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final kidsAsync = ref.watch(kidsProvider);
+    final kidsAsync = ref.watch(childrenProvider);
     return kidsAsync.when(
       loading: () => const Padding(
         padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
@@ -86,7 +86,7 @@ class _KidChip extends StatelessWidget {
     required this.onTap,
   });
 
-  final Kid kid;
+  final Child kid;
   final bool selected;
   final VoidCallback onTap;
 

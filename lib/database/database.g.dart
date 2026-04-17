@@ -3,11 +3,11 @@
 part of 'database.dart';
 
 // ignore_for_file: type=lint
-class $PodsTable extends Pods with TableInfo<$PodsTable, Pod> {
+class $GroupsTable extends Groups with TableInfo<$GroupsTable, Group> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $PodsTable(this.attachedDatabase, [this._alias]);
+  $GroupsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
@@ -73,10 +73,10 @@ class $PodsTable extends Pods with TableInfo<$PodsTable, Pod> {
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'pods';
+  static const String $name = 'groups';
   @override
   VerificationContext validateIntegrity(
-    Insertable<Pod> instance, {
+    Insertable<Group> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -118,9 +118,9 @@ class $PodsTable extends Pods with TableInfo<$PodsTable, Pod> {
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  Pod map(Map<String, dynamic> data, {String? tablePrefix}) {
+  Group map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return Pod(
+    return Group(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}id'],
@@ -145,18 +145,18 @@ class $PodsTable extends Pods with TableInfo<$PodsTable, Pod> {
   }
 
   @override
-  $PodsTable createAlias(String alias) {
-    return $PodsTable(attachedDatabase, alias);
+  $GroupsTable createAlias(String alias) {
+    return $GroupsTable(attachedDatabase, alias);
   }
 }
 
-class Pod extends DataClass implements Insertable<Pod> {
+class Group extends DataClass implements Insertable<Group> {
   final String id;
   final String name;
   final String? colorHex;
   final DateTime createdAt;
   final DateTime updatedAt;
-  const Pod({
+  const Group({
     required this.id,
     required this.name,
     this.colorHex,
@@ -176,8 +176,8 @@ class Pod extends DataClass implements Insertable<Pod> {
     return map;
   }
 
-  PodsCompanion toCompanion(bool nullToAbsent) {
-    return PodsCompanion(
+  GroupsCompanion toCompanion(bool nullToAbsent) {
+    return GroupsCompanion(
       id: Value(id),
       name: Value(name),
       colorHex: colorHex == null && nullToAbsent
@@ -188,12 +188,12 @@ class Pod extends DataClass implements Insertable<Pod> {
     );
   }
 
-  factory Pod.fromJson(
+  factory Group.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return Pod(
+    return Group(
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       colorHex: serializer.fromJson<String?>(json['colorHex']),
@@ -213,21 +213,21 @@ class Pod extends DataClass implements Insertable<Pod> {
     };
   }
 
-  Pod copyWith({
+  Group copyWith({
     String? id,
     String? name,
     Value<String?> colorHex = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
-  }) => Pod(
+  }) => Group(
     id: id ?? this.id,
     name: name ?? this.name,
     colorHex: colorHex.present ? colorHex.value : this.colorHex,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
-  Pod copyWithCompanion(PodsCompanion data) {
-    return Pod(
+  Group copyWithCompanion(GroupsCompanion data) {
+    return Group(
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
       colorHex: data.colorHex.present ? data.colorHex.value : this.colorHex,
@@ -238,7 +238,7 @@ class Pod extends DataClass implements Insertable<Pod> {
 
   @override
   String toString() {
-    return (StringBuffer('Pod(')
+    return (StringBuffer('Group(')
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('colorHex: $colorHex, ')
@@ -253,7 +253,7 @@ class Pod extends DataClass implements Insertable<Pod> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is Pod &&
+      (other is Group &&
           other.id == this.id &&
           other.name == this.name &&
           other.colorHex == this.colorHex &&
@@ -261,14 +261,14 @@ class Pod extends DataClass implements Insertable<Pod> {
           other.updatedAt == this.updatedAt);
 }
 
-class PodsCompanion extends UpdateCompanion<Pod> {
+class GroupsCompanion extends UpdateCompanion<Group> {
   final Value<String> id;
   final Value<String> name;
   final Value<String?> colorHex;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
-  const PodsCompanion({
+  const GroupsCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.colorHex = const Value.absent(),
@@ -276,7 +276,7 @@ class PodsCompanion extends UpdateCompanion<Pod> {
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
-  PodsCompanion.insert({
+  GroupsCompanion.insert({
     required String id,
     required String name,
     this.colorHex = const Value.absent(),
@@ -285,7 +285,7 @@ class PodsCompanion extends UpdateCompanion<Pod> {
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name);
-  static Insertable<Pod> custom({
+  static Insertable<Group> custom({
     Expression<String>? id,
     Expression<String>? name,
     Expression<String>? colorHex,
@@ -303,7 +303,7 @@ class PodsCompanion extends UpdateCompanion<Pod> {
     });
   }
 
-  PodsCompanion copyWith({
+  GroupsCompanion copyWith({
     Value<String>? id,
     Value<String>? name,
     Value<String?>? colorHex,
@@ -311,7 +311,7 @@ class PodsCompanion extends UpdateCompanion<Pod> {
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
   }) {
-    return PodsCompanion(
+    return GroupsCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       colorHex: colorHex ?? this.colorHex,
@@ -347,7 +347,7 @@ class PodsCompanion extends UpdateCompanion<Pod> {
 
   @override
   String toString() {
-    return (StringBuffer('PodsCompanion(')
+    return (StringBuffer('GroupsCompanion(')
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('colorHex: $colorHex, ')
@@ -359,11 +359,11 @@ class PodsCompanion extends UpdateCompanion<Pod> {
   }
 }
 
-class $KidsTable extends Kids with TableInfo<$KidsTable, Kid> {
+class $ChildrenTable extends Children with TableInfo<$ChildrenTable, Child> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $KidsTable(this.attachedDatabase, [this._alias]);
+  $ChildrenTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
@@ -395,16 +395,18 @@ class $KidsTable extends Kids with TableInfo<$KidsTable, Kid> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _podIdMeta = const VerificationMeta('podId');
+  static const VerificationMeta _groupIdMeta = const VerificationMeta(
+    'groupId',
+  );
   @override
-  late final GeneratedColumn<String> podId = GeneratedColumn<String>(
-    'pod_id',
+  late final GeneratedColumn<String> groupId = GeneratedColumn<String>(
+    'group_id',
     aliasedName,
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES pods (id) ON DELETE SET NULL',
+      'REFERENCES "groups" (id) ON DELETE SET NULL',
     ),
   );
   static const VerificationMeta _birthDateMeta = const VerificationMeta(
@@ -487,7 +489,7 @@ class $KidsTable extends Kids with TableInfo<$KidsTable, Kid> {
     id,
     firstName,
     lastName,
-    podId,
+    groupId,
     birthDate,
     pin,
     notes,
@@ -500,10 +502,10 @@ class $KidsTable extends Kids with TableInfo<$KidsTable, Kid> {
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'kids';
+  static const String $name = 'children';
   @override
   VerificationContext validateIntegrity(
-    Insertable<Kid> instance, {
+    Insertable<Child> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -527,10 +529,10 @@ class $KidsTable extends Kids with TableInfo<$KidsTable, Kid> {
         lastName.isAcceptableOrUnknown(data['last_name']!, _lastNameMeta),
       );
     }
-    if (data.containsKey('pod_id')) {
+    if (data.containsKey('group_id')) {
       context.handle(
-        _podIdMeta,
-        podId.isAcceptableOrUnknown(data['pod_id']!, _podIdMeta),
+        _groupIdMeta,
+        groupId.isAcceptableOrUnknown(data['group_id']!, _groupIdMeta),
       );
     }
     if (data.containsKey('birth_date')) {
@@ -581,9 +583,9 @@ class $KidsTable extends Kids with TableInfo<$KidsTable, Kid> {
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  Kid map(Map<String, dynamic> data, {String? tablePrefix}) {
+  Child map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return Kid(
+    return Child(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}id'],
@@ -596,9 +598,9 @@ class $KidsTable extends Kids with TableInfo<$KidsTable, Kid> {
         DriftSqlType.string,
         data['${effectivePrefix}last_name'],
       ),
-      podId: attachedDatabase.typeMapping.read(
+      groupId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}pod_id'],
+        data['${effectivePrefix}group_id'],
       ),
       birthDate: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -632,16 +634,16 @@ class $KidsTable extends Kids with TableInfo<$KidsTable, Kid> {
   }
 
   @override
-  $KidsTable createAlias(String alias) {
-    return $KidsTable(attachedDatabase, alias);
+  $ChildrenTable createAlias(String alias) {
+    return $ChildrenTable(attachedDatabase, alias);
   }
 }
 
-class Kid extends DataClass implements Insertable<Kid> {
+class Child extends DataClass implements Insertable<Child> {
   final String id;
   final String firstName;
   final String? lastName;
-  final String? podId;
+  final String? groupId;
   final DateTime? birthDate;
   final String? pin;
   final String? notes;
@@ -649,11 +651,11 @@ class Kid extends DataClass implements Insertable<Kid> {
   final String? avatarPath;
   final DateTime createdAt;
   final DateTime updatedAt;
-  const Kid({
+  const Child({
     required this.id,
     required this.firstName,
     this.lastName,
-    this.podId,
+    this.groupId,
     this.birthDate,
     this.pin,
     this.notes,
@@ -670,8 +672,8 @@ class Kid extends DataClass implements Insertable<Kid> {
     if (!nullToAbsent || lastName != null) {
       map['last_name'] = Variable<String>(lastName);
     }
-    if (!nullToAbsent || podId != null) {
-      map['pod_id'] = Variable<String>(podId);
+    if (!nullToAbsent || groupId != null) {
+      map['group_id'] = Variable<String>(groupId);
     }
     if (!nullToAbsent || birthDate != null) {
       map['birth_date'] = Variable<DateTime>(birthDate);
@@ -693,16 +695,16 @@ class Kid extends DataClass implements Insertable<Kid> {
     return map;
   }
 
-  KidsCompanion toCompanion(bool nullToAbsent) {
-    return KidsCompanion(
+  ChildrenCompanion toCompanion(bool nullToAbsent) {
+    return ChildrenCompanion(
       id: Value(id),
       firstName: Value(firstName),
       lastName: lastName == null && nullToAbsent
           ? const Value.absent()
           : Value(lastName),
-      podId: podId == null && nullToAbsent
+      groupId: groupId == null && nullToAbsent
           ? const Value.absent()
-          : Value(podId),
+          : Value(groupId),
       birthDate: birthDate == null && nullToAbsent
           ? const Value.absent()
           : Value(birthDate),
@@ -721,16 +723,16 @@ class Kid extends DataClass implements Insertable<Kid> {
     );
   }
 
-  factory Kid.fromJson(
+  factory Child.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return Kid(
+    return Child(
       id: serializer.fromJson<String>(json['id']),
       firstName: serializer.fromJson<String>(json['firstName']),
       lastName: serializer.fromJson<String?>(json['lastName']),
-      podId: serializer.fromJson<String?>(json['podId']),
+      groupId: serializer.fromJson<String?>(json['groupId']),
       birthDate: serializer.fromJson<DateTime?>(json['birthDate']),
       pin: serializer.fromJson<String?>(json['pin']),
       notes: serializer.fromJson<String?>(json['notes']),
@@ -747,7 +749,7 @@ class Kid extends DataClass implements Insertable<Kid> {
       'id': serializer.toJson<String>(id),
       'firstName': serializer.toJson<String>(firstName),
       'lastName': serializer.toJson<String?>(lastName),
-      'podId': serializer.toJson<String?>(podId),
+      'groupId': serializer.toJson<String?>(groupId),
       'birthDate': serializer.toJson<DateTime?>(birthDate),
       'pin': serializer.toJson<String?>(pin),
       'notes': serializer.toJson<String?>(notes),
@@ -758,11 +760,11 @@ class Kid extends DataClass implements Insertable<Kid> {
     };
   }
 
-  Kid copyWith({
+  Child copyWith({
     String? id,
     String? firstName,
     Value<String?> lastName = const Value.absent(),
-    Value<String?> podId = const Value.absent(),
+    Value<String?> groupId = const Value.absent(),
     Value<DateTime?> birthDate = const Value.absent(),
     Value<String?> pin = const Value.absent(),
     Value<String?> notes = const Value.absent(),
@@ -770,11 +772,11 @@ class Kid extends DataClass implements Insertable<Kid> {
     Value<String?> avatarPath = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
-  }) => Kid(
+  }) => Child(
     id: id ?? this.id,
     firstName: firstName ?? this.firstName,
     lastName: lastName.present ? lastName.value : this.lastName,
-    podId: podId.present ? podId.value : this.podId,
+    groupId: groupId.present ? groupId.value : this.groupId,
     birthDate: birthDate.present ? birthDate.value : this.birthDate,
     pin: pin.present ? pin.value : this.pin,
     notes: notes.present ? notes.value : this.notes,
@@ -783,12 +785,12 @@ class Kid extends DataClass implements Insertable<Kid> {
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
-  Kid copyWithCompanion(KidsCompanion data) {
-    return Kid(
+  Child copyWithCompanion(ChildrenCompanion data) {
+    return Child(
       id: data.id.present ? data.id.value : this.id,
       firstName: data.firstName.present ? data.firstName.value : this.firstName,
       lastName: data.lastName.present ? data.lastName.value : this.lastName,
-      podId: data.podId.present ? data.podId.value : this.podId,
+      groupId: data.groupId.present ? data.groupId.value : this.groupId,
       birthDate: data.birthDate.present ? data.birthDate.value : this.birthDate,
       pin: data.pin.present ? data.pin.value : this.pin,
       notes: data.notes.present ? data.notes.value : this.notes,
@@ -805,11 +807,11 @@ class Kid extends DataClass implements Insertable<Kid> {
 
   @override
   String toString() {
-    return (StringBuffer('Kid(')
+    return (StringBuffer('Child(')
           ..write('id: $id, ')
           ..write('firstName: $firstName, ')
           ..write('lastName: $lastName, ')
-          ..write('podId: $podId, ')
+          ..write('groupId: $groupId, ')
           ..write('birthDate: $birthDate, ')
           ..write('pin: $pin, ')
           ..write('notes: $notes, ')
@@ -826,7 +828,7 @@ class Kid extends DataClass implements Insertable<Kid> {
     id,
     firstName,
     lastName,
-    podId,
+    groupId,
     birthDate,
     pin,
     notes,
@@ -838,11 +840,11 @@ class Kid extends DataClass implements Insertable<Kid> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is Kid &&
+      (other is Child &&
           other.id == this.id &&
           other.firstName == this.firstName &&
           other.lastName == this.lastName &&
-          other.podId == this.podId &&
+          other.groupId == this.groupId &&
           other.birthDate == this.birthDate &&
           other.pin == this.pin &&
           other.notes == this.notes &&
@@ -852,11 +854,11 @@ class Kid extends DataClass implements Insertable<Kid> {
           other.updatedAt == this.updatedAt);
 }
 
-class KidsCompanion extends UpdateCompanion<Kid> {
+class ChildrenCompanion extends UpdateCompanion<Child> {
   final Value<String> id;
   final Value<String> firstName;
   final Value<String?> lastName;
-  final Value<String?> podId;
+  final Value<String?> groupId;
   final Value<DateTime?> birthDate;
   final Value<String?> pin;
   final Value<String?> notes;
@@ -865,11 +867,11 @@ class KidsCompanion extends UpdateCompanion<Kid> {
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
-  const KidsCompanion({
+  const ChildrenCompanion({
     this.id = const Value.absent(),
     this.firstName = const Value.absent(),
     this.lastName = const Value.absent(),
-    this.podId = const Value.absent(),
+    this.groupId = const Value.absent(),
     this.birthDate = const Value.absent(),
     this.pin = const Value.absent(),
     this.notes = const Value.absent(),
@@ -879,11 +881,11 @@ class KidsCompanion extends UpdateCompanion<Kid> {
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
-  KidsCompanion.insert({
+  ChildrenCompanion.insert({
     required String id,
     required String firstName,
     this.lastName = const Value.absent(),
-    this.podId = const Value.absent(),
+    this.groupId = const Value.absent(),
     this.birthDate = const Value.absent(),
     this.pin = const Value.absent(),
     this.notes = const Value.absent(),
@@ -894,11 +896,11 @@ class KidsCompanion extends UpdateCompanion<Kid> {
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        firstName = Value(firstName);
-  static Insertable<Kid> custom({
+  static Insertable<Child> custom({
     Expression<String>? id,
     Expression<String>? firstName,
     Expression<String>? lastName,
-    Expression<String>? podId,
+    Expression<String>? groupId,
     Expression<DateTime>? birthDate,
     Expression<String>? pin,
     Expression<String>? notes,
@@ -912,7 +914,7 @@ class KidsCompanion extends UpdateCompanion<Kid> {
       if (id != null) 'id': id,
       if (firstName != null) 'first_name': firstName,
       if (lastName != null) 'last_name': lastName,
-      if (podId != null) 'pod_id': podId,
+      if (groupId != null) 'group_id': groupId,
       if (birthDate != null) 'birth_date': birthDate,
       if (pin != null) 'pin': pin,
       if (notes != null) 'notes': notes,
@@ -924,11 +926,11 @@ class KidsCompanion extends UpdateCompanion<Kid> {
     });
   }
 
-  KidsCompanion copyWith({
+  ChildrenCompanion copyWith({
     Value<String>? id,
     Value<String>? firstName,
     Value<String?>? lastName,
-    Value<String?>? podId,
+    Value<String?>? groupId,
     Value<DateTime?>? birthDate,
     Value<String?>? pin,
     Value<String?>? notes,
@@ -938,11 +940,11 @@ class KidsCompanion extends UpdateCompanion<Kid> {
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
   }) {
-    return KidsCompanion(
+    return ChildrenCompanion(
       id: id ?? this.id,
       firstName: firstName ?? this.firstName,
       lastName: lastName ?? this.lastName,
-      podId: podId ?? this.podId,
+      groupId: groupId ?? this.groupId,
       birthDate: birthDate ?? this.birthDate,
       pin: pin ?? this.pin,
       notes: notes ?? this.notes,
@@ -966,8 +968,8 @@ class KidsCompanion extends UpdateCompanion<Kid> {
     if (lastName.present) {
       map['last_name'] = Variable<String>(lastName.value);
     }
-    if (podId.present) {
-      map['pod_id'] = Variable<String>(podId.value);
+    if (groupId.present) {
+      map['group_id'] = Variable<String>(groupId.value);
     }
     if (birthDate.present) {
       map['birth_date'] = Variable<DateTime>(birthDate.value);
@@ -998,11 +1000,11 @@ class KidsCompanion extends UpdateCompanion<Kid> {
 
   @override
   String toString() {
-    return (StringBuffer('KidsCompanion(')
+    return (StringBuffer('ChildrenCompanion(')
           ..write('id: $id, ')
           ..write('firstName: $firstName, ')
           ..write('lastName: $lastName, ')
-          ..write('podId: $podId, ')
+          ..write('groupId: $groupId, ')
           ..write('birthDate: $birthDate, ')
           ..write('pin: $pin, ')
           ..write('notes: $notes, ')
@@ -1627,11 +1629,12 @@ class TripsCompanion extends UpdateCompanion<Trip> {
   }
 }
 
-class $TripPodsTable extends TripPods with TableInfo<$TripPodsTable, TripPod> {
+class $TripGroupsTable extends TripGroups
+    with TableInfo<$TripGroupsTable, TripGroup> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $TripPodsTable(this.attachedDatabase, [this._alias]);
+  $TripGroupsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _tripIdMeta = const VerificationMeta('tripId');
   @override
   late final GeneratedColumn<String> tripId = GeneratedColumn<String>(
@@ -1644,28 +1647,30 @@ class $TripPodsTable extends TripPods with TableInfo<$TripPodsTable, TripPod> {
       'REFERENCES trips (id) ON DELETE CASCADE',
     ),
   );
-  static const VerificationMeta _podIdMeta = const VerificationMeta('podId');
+  static const VerificationMeta _groupIdMeta = const VerificationMeta(
+    'groupId',
+  );
   @override
-  late final GeneratedColumn<String> podId = GeneratedColumn<String>(
-    'pod_id',
+  late final GeneratedColumn<String> groupId = GeneratedColumn<String>(
+    'group_id',
     aliasedName,
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES pods (id) ON DELETE CASCADE',
+      'REFERENCES "groups" (id) ON DELETE CASCADE',
     ),
   );
   @override
-  List<GeneratedColumn> get $columns => [tripId, podId];
+  List<GeneratedColumn> get $columns => [tripId, groupId];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'trip_pods';
+  static const String $name = 'trip_groups';
   @override
   VerificationContext validateIntegrity(
-    Insertable<TripPod> instance, {
+    Insertable<TripGroup> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -1678,64 +1683,64 @@ class $TripPodsTable extends TripPods with TableInfo<$TripPodsTable, TripPod> {
     } else if (isInserting) {
       context.missing(_tripIdMeta);
     }
-    if (data.containsKey('pod_id')) {
+    if (data.containsKey('group_id')) {
       context.handle(
-        _podIdMeta,
-        podId.isAcceptableOrUnknown(data['pod_id']!, _podIdMeta),
+        _groupIdMeta,
+        groupId.isAcceptableOrUnknown(data['group_id']!, _groupIdMeta),
       );
     } else if (isInserting) {
-      context.missing(_podIdMeta);
+      context.missing(_groupIdMeta);
     }
     return context;
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {tripId, podId};
+  Set<GeneratedColumn> get $primaryKey => {tripId, groupId};
   @override
-  TripPod map(Map<String, dynamic> data, {String? tablePrefix}) {
+  TripGroup map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return TripPod(
+    return TripGroup(
       tripId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}trip_id'],
       )!,
-      podId: attachedDatabase.typeMapping.read(
+      groupId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}pod_id'],
+        data['${effectivePrefix}group_id'],
       )!,
     );
   }
 
   @override
-  $TripPodsTable createAlias(String alias) {
-    return $TripPodsTable(attachedDatabase, alias);
+  $TripGroupsTable createAlias(String alias) {
+    return $TripGroupsTable(attachedDatabase, alias);
   }
 }
 
-class TripPod extends DataClass implements Insertable<TripPod> {
+class TripGroup extends DataClass implements Insertable<TripGroup> {
   final String tripId;
-  final String podId;
-  const TripPod({required this.tripId, required this.podId});
+  final String groupId;
+  const TripGroup({required this.tripId, required this.groupId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['trip_id'] = Variable<String>(tripId);
-    map['pod_id'] = Variable<String>(podId);
+    map['group_id'] = Variable<String>(groupId);
     return map;
   }
 
-  TripPodsCompanion toCompanion(bool nullToAbsent) {
-    return TripPodsCompanion(tripId: Value(tripId), podId: Value(podId));
+  TripGroupsCompanion toCompanion(bool nullToAbsent) {
+    return TripGroupsCompanion(tripId: Value(tripId), groupId: Value(groupId));
   }
 
-  factory TripPod.fromJson(
+  factory TripGroup.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return TripPod(
+    return TripGroup(
       tripId: serializer.fromJson<String>(json['tripId']),
-      podId: serializer.fromJson<String>(json['podId']),
+      groupId: serializer.fromJson<String>(json['groupId']),
     );
   }
   @override
@@ -1743,73 +1748,75 @@ class TripPod extends DataClass implements Insertable<TripPod> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'tripId': serializer.toJson<String>(tripId),
-      'podId': serializer.toJson<String>(podId),
+      'groupId': serializer.toJson<String>(groupId),
     };
   }
 
-  TripPod copyWith({String? tripId, String? podId}) =>
-      TripPod(tripId: tripId ?? this.tripId, podId: podId ?? this.podId);
-  TripPod copyWithCompanion(TripPodsCompanion data) {
-    return TripPod(
+  TripGroup copyWith({String? tripId, String? groupId}) => TripGroup(
+    tripId: tripId ?? this.tripId,
+    groupId: groupId ?? this.groupId,
+  );
+  TripGroup copyWithCompanion(TripGroupsCompanion data) {
+    return TripGroup(
       tripId: data.tripId.present ? data.tripId.value : this.tripId,
-      podId: data.podId.present ? data.podId.value : this.podId,
+      groupId: data.groupId.present ? data.groupId.value : this.groupId,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('TripPod(')
+    return (StringBuffer('TripGroup(')
           ..write('tripId: $tripId, ')
-          ..write('podId: $podId')
+          ..write('groupId: $groupId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(tripId, podId);
+  int get hashCode => Object.hash(tripId, groupId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is TripPod &&
+      (other is TripGroup &&
           other.tripId == this.tripId &&
-          other.podId == this.podId);
+          other.groupId == this.groupId);
 }
 
-class TripPodsCompanion extends UpdateCompanion<TripPod> {
+class TripGroupsCompanion extends UpdateCompanion<TripGroup> {
   final Value<String> tripId;
-  final Value<String> podId;
+  final Value<String> groupId;
   final Value<int> rowid;
-  const TripPodsCompanion({
+  const TripGroupsCompanion({
     this.tripId = const Value.absent(),
-    this.podId = const Value.absent(),
+    this.groupId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
-  TripPodsCompanion.insert({
+  TripGroupsCompanion.insert({
     required String tripId,
-    required String podId,
+    required String groupId,
     this.rowid = const Value.absent(),
   }) : tripId = Value(tripId),
-       podId = Value(podId);
-  static Insertable<TripPod> custom({
+       groupId = Value(groupId);
+  static Insertable<TripGroup> custom({
     Expression<String>? tripId,
-    Expression<String>? podId,
+    Expression<String>? groupId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (tripId != null) 'trip_id': tripId,
-      if (podId != null) 'pod_id': podId,
+      if (groupId != null) 'group_id': groupId,
       if (rowid != null) 'rowid': rowid,
     });
   }
 
-  TripPodsCompanion copyWith({
+  TripGroupsCompanion copyWith({
     Value<String>? tripId,
-    Value<String>? podId,
+    Value<String>? groupId,
     Value<int>? rowid,
   }) {
-    return TripPodsCompanion(
+    return TripGroupsCompanion(
       tripId: tripId ?? this.tripId,
-      podId: podId ?? this.podId,
+      groupId: groupId ?? this.groupId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1820,8 +1827,8 @@ class TripPodsCompanion extends UpdateCompanion<TripPod> {
     if (tripId.present) {
       map['trip_id'] = Variable<String>(tripId.value);
     }
-    if (podId.present) {
-      map['pod_id'] = Variable<String>(podId.value);
+    if (groupId.present) {
+      map['group_id'] = Variable<String>(groupId.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -1831,9 +1838,9 @@ class TripPodsCompanion extends UpdateCompanion<TripPod> {
 
   @override
   String toString() {
-    return (StringBuffer('TripPodsCompanion(')
+    return (StringBuffer('TripGroupsCompanion(')
           ..write('tripId: $tripId, ')
-          ..write('podId: $podId, ')
+          ..write('groupId: $groupId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2299,12 +2306,12 @@ class CapturesCompanion extends UpdateCompanion<Capture> {
   }
 }
 
-class $CaptureKidsTable extends CaptureKids
-    with TableInfo<$CaptureKidsTable, CaptureKid> {
+class $CaptureChildrenTable extends CaptureChildren
+    with TableInfo<$CaptureChildrenTable, CaptureChildrenData> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $CaptureKidsTable(this.attachedDatabase, [this._alias]);
+  $CaptureChildrenTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _captureIdMeta = const VerificationMeta(
     'captureId',
   );
@@ -2319,28 +2326,30 @@ class $CaptureKidsTable extends CaptureKids
       'REFERENCES captures (id) ON DELETE CASCADE',
     ),
   );
-  static const VerificationMeta _kidIdMeta = const VerificationMeta('kidId');
+  static const VerificationMeta _childIdMeta = const VerificationMeta(
+    'childId',
+  );
   @override
-  late final GeneratedColumn<String> kidId = GeneratedColumn<String>(
-    'kid_id',
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+    'child_id',
     aliasedName,
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES kids (id) ON DELETE CASCADE',
+      'REFERENCES children (id) ON DELETE CASCADE',
     ),
   );
   @override
-  List<GeneratedColumn> get $columns => [captureId, kidId];
+  List<GeneratedColumn> get $columns => [captureId, childId];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'capture_kids';
+  static const String $name = 'capture_children';
   @override
   VerificationContext validateIntegrity(
-    Insertable<CaptureKid> instance, {
+    Insertable<CaptureChildrenData> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -2353,67 +2362,68 @@ class $CaptureKidsTable extends CaptureKids
     } else if (isInserting) {
       context.missing(_captureIdMeta);
     }
-    if (data.containsKey('kid_id')) {
+    if (data.containsKey('child_id')) {
       context.handle(
-        _kidIdMeta,
-        kidId.isAcceptableOrUnknown(data['kid_id']!, _kidIdMeta),
+        _childIdMeta,
+        childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta),
       );
     } else if (isInserting) {
-      context.missing(_kidIdMeta);
+      context.missing(_childIdMeta);
     }
     return context;
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {captureId, kidId};
+  Set<GeneratedColumn> get $primaryKey => {captureId, childId};
   @override
-  CaptureKid map(Map<String, dynamic> data, {String? tablePrefix}) {
+  CaptureChildrenData map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return CaptureKid(
+    return CaptureChildrenData(
       captureId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}capture_id'],
       )!,
-      kidId: attachedDatabase.typeMapping.read(
+      childId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}kid_id'],
+        data['${effectivePrefix}child_id'],
       )!,
     );
   }
 
   @override
-  $CaptureKidsTable createAlias(String alias) {
-    return $CaptureKidsTable(attachedDatabase, alias);
+  $CaptureChildrenTable createAlias(String alias) {
+    return $CaptureChildrenTable(attachedDatabase, alias);
   }
 }
 
-class CaptureKid extends DataClass implements Insertable<CaptureKid> {
+class CaptureChildrenData extends DataClass
+    implements Insertable<CaptureChildrenData> {
   final String captureId;
-  final String kidId;
-  const CaptureKid({required this.captureId, required this.kidId});
+  final String childId;
+  const CaptureChildrenData({required this.captureId, required this.childId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['capture_id'] = Variable<String>(captureId);
-    map['kid_id'] = Variable<String>(kidId);
+    map['child_id'] = Variable<String>(childId);
     return map;
   }
 
-  CaptureKidsCompanion toCompanion(bool nullToAbsent) {
-    return CaptureKidsCompanion(
+  CaptureChildrenCompanion toCompanion(bool nullToAbsent) {
+    return CaptureChildrenCompanion(
       captureId: Value(captureId),
-      kidId: Value(kidId),
+      childId: Value(childId),
     );
   }
 
-  factory CaptureKid.fromJson(
+  factory CaptureChildrenData.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return CaptureKid(
+    return CaptureChildrenData(
       captureId: serializer.fromJson<String>(json['captureId']),
-      kidId: serializer.fromJson<String>(json['kidId']),
+      childId: serializer.fromJson<String>(json['childId']),
     );
   }
   @override
@@ -2421,75 +2431,76 @@ class CaptureKid extends DataClass implements Insertable<CaptureKid> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'captureId': serializer.toJson<String>(captureId),
-      'kidId': serializer.toJson<String>(kidId),
+      'childId': serializer.toJson<String>(childId),
     };
   }
 
-  CaptureKid copyWith({String? captureId, String? kidId}) => CaptureKid(
-    captureId: captureId ?? this.captureId,
-    kidId: kidId ?? this.kidId,
-  );
-  CaptureKid copyWithCompanion(CaptureKidsCompanion data) {
-    return CaptureKid(
+  CaptureChildrenData copyWith({String? captureId, String? childId}) =>
+      CaptureChildrenData(
+        captureId: captureId ?? this.captureId,
+        childId: childId ?? this.childId,
+      );
+  CaptureChildrenData copyWithCompanion(CaptureChildrenCompanion data) {
+    return CaptureChildrenData(
       captureId: data.captureId.present ? data.captureId.value : this.captureId,
-      kidId: data.kidId.present ? data.kidId.value : this.kidId,
+      childId: data.childId.present ? data.childId.value : this.childId,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('CaptureKid(')
+    return (StringBuffer('CaptureChildrenData(')
           ..write('captureId: $captureId, ')
-          ..write('kidId: $kidId')
+          ..write('childId: $childId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(captureId, kidId);
+  int get hashCode => Object.hash(captureId, childId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is CaptureKid &&
+      (other is CaptureChildrenData &&
           other.captureId == this.captureId &&
-          other.kidId == this.kidId);
+          other.childId == this.childId);
 }
 
-class CaptureKidsCompanion extends UpdateCompanion<CaptureKid> {
+class CaptureChildrenCompanion extends UpdateCompanion<CaptureChildrenData> {
   final Value<String> captureId;
-  final Value<String> kidId;
+  final Value<String> childId;
   final Value<int> rowid;
-  const CaptureKidsCompanion({
+  const CaptureChildrenCompanion({
     this.captureId = const Value.absent(),
-    this.kidId = const Value.absent(),
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
-  CaptureKidsCompanion.insert({
+  CaptureChildrenCompanion.insert({
     required String captureId,
-    required String kidId,
+    required String childId,
     this.rowid = const Value.absent(),
   }) : captureId = Value(captureId),
-       kidId = Value(kidId);
-  static Insertable<CaptureKid> custom({
+       childId = Value(childId);
+  static Insertable<CaptureChildrenData> custom({
     Expression<String>? captureId,
-    Expression<String>? kidId,
+    Expression<String>? childId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (captureId != null) 'capture_id': captureId,
-      if (kidId != null) 'kid_id': kidId,
+      if (childId != null) 'child_id': childId,
       if (rowid != null) 'rowid': rowid,
     });
   }
 
-  CaptureKidsCompanion copyWith({
+  CaptureChildrenCompanion copyWith({
     Value<String>? captureId,
-    Value<String>? kidId,
+    Value<String>? childId,
     Value<int>? rowid,
   }) {
-    return CaptureKidsCompanion(
+    return CaptureChildrenCompanion(
       captureId: captureId ?? this.captureId,
-      kidId: kidId ?? this.kidId,
+      childId: childId ?? this.childId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2500,8 +2511,8 @@ class CaptureKidsCompanion extends UpdateCompanion<CaptureKid> {
     if (captureId.present) {
       map['capture_id'] = Variable<String>(captureId.value);
     }
-    if (kidId.present) {
-      map['kid_id'] = Variable<String>(kidId.value);
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -2511,9 +2522,9 @@ class CaptureKidsCompanion extends UpdateCompanion<CaptureKid> {
 
   @override
   String toString() {
-    return (StringBuffer('CaptureKidsCompanion(')
+    return (StringBuffer('CaptureChildrenCompanion(')
           ..write('captureId: $captureId, ')
-          ..write('kidId: $kidId, ')
+          ..write('childId: $childId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2546,28 +2557,32 @@ class $ObservationsTable extends Observations
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _kidIdMeta = const VerificationMeta('kidId');
+  static const VerificationMeta _childIdMeta = const VerificationMeta(
+    'childId',
+  );
   @override
-  late final GeneratedColumn<String> kidId = GeneratedColumn<String>(
-    'kid_id',
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+    'child_id',
     aliasedName,
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES kids (id) ON DELETE SET NULL',
+      'REFERENCES children (id) ON DELETE SET NULL',
     ),
   );
-  static const VerificationMeta _podIdMeta = const VerificationMeta('podId');
+  static const VerificationMeta _groupIdMeta = const VerificationMeta(
+    'groupId',
+  );
   @override
-  late final GeneratedColumn<String> podId = GeneratedColumn<String>(
-    'pod_id',
+  late final GeneratedColumn<String> groupId = GeneratedColumn<String>(
+    'group_id',
     aliasedName,
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES pods (id) ON DELETE SET NULL',
+      'REFERENCES "groups" (id) ON DELETE SET NULL',
     ),
   );
   static const VerificationMeta _activityLabelMeta = const VerificationMeta(
@@ -2672,8 +2687,8 @@ class $ObservationsTable extends Observations
   List<GeneratedColumn> get $columns => [
     id,
     targetKind,
-    kidId,
-    podId,
+    childId,
+    groupId,
     activityLabel,
     domain,
     sentiment,
@@ -2709,16 +2724,16 @@ class $ObservationsTable extends Observations
     } else if (isInserting) {
       context.missing(_targetKindMeta);
     }
-    if (data.containsKey('kid_id')) {
+    if (data.containsKey('child_id')) {
       context.handle(
-        _kidIdMeta,
-        kidId.isAcceptableOrUnknown(data['kid_id']!, _kidIdMeta),
+        _childIdMeta,
+        childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta),
       );
     }
-    if (data.containsKey('pod_id')) {
+    if (data.containsKey('group_id')) {
       context.handle(
-        _podIdMeta,
-        podId.isAcceptableOrUnknown(data['pod_id']!, _podIdMeta),
+        _groupIdMeta,
+        groupId.isAcceptableOrUnknown(data['group_id']!, _groupIdMeta),
       );
     }
     if (data.containsKey('activity_label')) {
@@ -2804,13 +2819,13 @@ class $ObservationsTable extends Observations
         DriftSqlType.string,
         data['${effectivePrefix}target_kind'],
       )!,
-      kidId: attachedDatabase.typeMapping.read(
+      childId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}kid_id'],
+        data['${effectivePrefix}child_id'],
       ),
-      podId: attachedDatabase.typeMapping.read(
+      groupId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}pod_id'],
+        data['${effectivePrefix}group_id'],
       ),
       activityLabel: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -2860,8 +2875,8 @@ class $ObservationsTable extends Observations
 class Observation extends DataClass implements Insertable<Observation> {
   final String id;
   final String targetKind;
-  final String? kidId;
-  final String? podId;
+  final String? childId;
+  final String? groupId;
   final String? activityLabel;
   final String domain;
   final String sentiment;
@@ -2874,8 +2889,8 @@ class Observation extends DataClass implements Insertable<Observation> {
   const Observation({
     required this.id,
     required this.targetKind,
-    this.kidId,
-    this.podId,
+    this.childId,
+    this.groupId,
     this.activityLabel,
     required this.domain,
     required this.sentiment,
@@ -2891,11 +2906,11 @@ class Observation extends DataClass implements Insertable<Observation> {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['target_kind'] = Variable<String>(targetKind);
-    if (!nullToAbsent || kidId != null) {
-      map['kid_id'] = Variable<String>(kidId);
+    if (!nullToAbsent || childId != null) {
+      map['child_id'] = Variable<String>(childId);
     }
-    if (!nullToAbsent || podId != null) {
-      map['pod_id'] = Variable<String>(podId);
+    if (!nullToAbsent || groupId != null) {
+      map['group_id'] = Variable<String>(groupId);
     }
     if (!nullToAbsent || activityLabel != null) {
       map['activity_label'] = Variable<String>(activityLabel);
@@ -2921,12 +2936,12 @@ class Observation extends DataClass implements Insertable<Observation> {
     return ObservationsCompanion(
       id: Value(id),
       targetKind: Value(targetKind),
-      kidId: kidId == null && nullToAbsent
+      childId: childId == null && nullToAbsent
           ? const Value.absent()
-          : Value(kidId),
-      podId: podId == null && nullToAbsent
+          : Value(childId),
+      groupId: groupId == null && nullToAbsent
           ? const Value.absent()
-          : Value(podId),
+          : Value(groupId),
       activityLabel: activityLabel == null && nullToAbsent
           ? const Value.absent()
           : Value(activityLabel),
@@ -2955,8 +2970,8 @@ class Observation extends DataClass implements Insertable<Observation> {
     return Observation(
       id: serializer.fromJson<String>(json['id']),
       targetKind: serializer.fromJson<String>(json['targetKind']),
-      kidId: serializer.fromJson<String?>(json['kidId']),
-      podId: serializer.fromJson<String?>(json['podId']),
+      childId: serializer.fromJson<String?>(json['childId']),
+      groupId: serializer.fromJson<String?>(json['groupId']),
       activityLabel: serializer.fromJson<String?>(json['activityLabel']),
       domain: serializer.fromJson<String>(json['domain']),
       sentiment: serializer.fromJson<String>(json['sentiment']),
@@ -2974,8 +2989,8 @@ class Observation extends DataClass implements Insertable<Observation> {
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'targetKind': serializer.toJson<String>(targetKind),
-      'kidId': serializer.toJson<String?>(kidId),
-      'podId': serializer.toJson<String?>(podId),
+      'childId': serializer.toJson<String?>(childId),
+      'groupId': serializer.toJson<String?>(groupId),
       'activityLabel': serializer.toJson<String?>(activityLabel),
       'domain': serializer.toJson<String>(domain),
       'sentiment': serializer.toJson<String>(sentiment),
@@ -2991,8 +3006,8 @@ class Observation extends DataClass implements Insertable<Observation> {
   Observation copyWith({
     String? id,
     String? targetKind,
-    Value<String?> kidId = const Value.absent(),
-    Value<String?> podId = const Value.absent(),
+    Value<String?> childId = const Value.absent(),
+    Value<String?> groupId = const Value.absent(),
     Value<String?> activityLabel = const Value.absent(),
     String? domain,
     String? sentiment,
@@ -3005,8 +3020,8 @@ class Observation extends DataClass implements Insertable<Observation> {
   }) => Observation(
     id: id ?? this.id,
     targetKind: targetKind ?? this.targetKind,
-    kidId: kidId.present ? kidId.value : this.kidId,
-    podId: podId.present ? podId.value : this.podId,
+    childId: childId.present ? childId.value : this.childId,
+    groupId: groupId.present ? groupId.value : this.groupId,
     activityLabel: activityLabel.present
         ? activityLabel.value
         : this.activityLabel,
@@ -3025,8 +3040,8 @@ class Observation extends DataClass implements Insertable<Observation> {
       targetKind: data.targetKind.present
           ? data.targetKind.value
           : this.targetKind,
-      kidId: data.kidId.present ? data.kidId.value : this.kidId,
-      podId: data.podId.present ? data.podId.value : this.podId,
+      childId: data.childId.present ? data.childId.value : this.childId,
+      groupId: data.groupId.present ? data.groupId.value : this.groupId,
       activityLabel: data.activityLabel.present
           ? data.activityLabel.value
           : this.activityLabel,
@@ -3050,8 +3065,8 @@ class Observation extends DataClass implements Insertable<Observation> {
     return (StringBuffer('Observation(')
           ..write('id: $id, ')
           ..write('targetKind: $targetKind, ')
-          ..write('kidId: $kidId, ')
-          ..write('podId: $podId, ')
+          ..write('childId: $childId, ')
+          ..write('groupId: $groupId, ')
           ..write('activityLabel: $activityLabel, ')
           ..write('domain: $domain, ')
           ..write('sentiment: $sentiment, ')
@@ -3069,8 +3084,8 @@ class Observation extends DataClass implements Insertable<Observation> {
   int get hashCode => Object.hash(
     id,
     targetKind,
-    kidId,
-    podId,
+    childId,
+    groupId,
     activityLabel,
     domain,
     sentiment,
@@ -3087,8 +3102,8 @@ class Observation extends DataClass implements Insertable<Observation> {
       (other is Observation &&
           other.id == this.id &&
           other.targetKind == this.targetKind &&
-          other.kidId == this.kidId &&
-          other.podId == this.podId &&
+          other.childId == this.childId &&
+          other.groupId == this.groupId &&
           other.activityLabel == this.activityLabel &&
           other.domain == this.domain &&
           other.sentiment == this.sentiment &&
@@ -3103,8 +3118,8 @@ class Observation extends DataClass implements Insertable<Observation> {
 class ObservationsCompanion extends UpdateCompanion<Observation> {
   final Value<String> id;
   final Value<String> targetKind;
-  final Value<String?> kidId;
-  final Value<String?> podId;
+  final Value<String?> childId;
+  final Value<String?> groupId;
   final Value<String?> activityLabel;
   final Value<String> domain;
   final Value<String> sentiment;
@@ -3118,8 +3133,8 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
   const ObservationsCompanion({
     this.id = const Value.absent(),
     this.targetKind = const Value.absent(),
-    this.kidId = const Value.absent(),
-    this.podId = const Value.absent(),
+    this.childId = const Value.absent(),
+    this.groupId = const Value.absent(),
     this.activityLabel = const Value.absent(),
     this.domain = const Value.absent(),
     this.sentiment = const Value.absent(),
@@ -3134,8 +3149,8 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
   ObservationsCompanion.insert({
     required String id,
     required String targetKind,
-    this.kidId = const Value.absent(),
-    this.podId = const Value.absent(),
+    this.childId = const Value.absent(),
+    this.groupId = const Value.absent(),
     this.activityLabel = const Value.absent(),
     required String domain,
     required String sentiment,
@@ -3154,8 +3169,8 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
   static Insertable<Observation> custom({
     Expression<String>? id,
     Expression<String>? targetKind,
-    Expression<String>? kidId,
-    Expression<String>? podId,
+    Expression<String>? childId,
+    Expression<String>? groupId,
     Expression<String>? activityLabel,
     Expression<String>? domain,
     Expression<String>? sentiment,
@@ -3170,8 +3185,8 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (targetKind != null) 'target_kind': targetKind,
-      if (kidId != null) 'kid_id': kidId,
-      if (podId != null) 'pod_id': podId,
+      if (childId != null) 'child_id': childId,
+      if (groupId != null) 'group_id': groupId,
       if (activityLabel != null) 'activity_label': activityLabel,
       if (domain != null) 'domain': domain,
       if (sentiment != null) 'sentiment': sentiment,
@@ -3188,8 +3203,8 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
   ObservationsCompanion copyWith({
     Value<String>? id,
     Value<String>? targetKind,
-    Value<String?>? kidId,
-    Value<String?>? podId,
+    Value<String?>? childId,
+    Value<String?>? groupId,
     Value<String?>? activityLabel,
     Value<String>? domain,
     Value<String>? sentiment,
@@ -3204,8 +3219,8 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
     return ObservationsCompanion(
       id: id ?? this.id,
       targetKind: targetKind ?? this.targetKind,
-      kidId: kidId ?? this.kidId,
-      podId: podId ?? this.podId,
+      childId: childId ?? this.childId,
+      groupId: groupId ?? this.groupId,
       activityLabel: activityLabel ?? this.activityLabel,
       domain: domain ?? this.domain,
       sentiment: sentiment ?? this.sentiment,
@@ -3228,11 +3243,11 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
     if (targetKind.present) {
       map['target_kind'] = Variable<String>(targetKind.value);
     }
-    if (kidId.present) {
-      map['kid_id'] = Variable<String>(kidId.value);
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
     }
-    if (podId.present) {
-      map['pod_id'] = Variable<String>(podId.value);
+    if (groupId.present) {
+      map['group_id'] = Variable<String>(groupId.value);
     }
     if (activityLabel.present) {
       map['activity_label'] = Variable<String>(activityLabel.value);
@@ -3272,8 +3287,8 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
     return (StringBuffer('ObservationsCompanion(')
           ..write('id: $id, ')
           ..write('targetKind: $targetKind, ')
-          ..write('kidId: $kidId, ')
-          ..write('podId: $podId, ')
+          ..write('childId: $childId, ')
+          ..write('groupId: $groupId, ')
           ..write('activityLabel: $activityLabel, ')
           ..write('domain: $domain, ')
           ..write('sentiment: $sentiment, ')
@@ -3289,12 +3304,12 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
   }
 }
 
-class $ObservationKidsTable extends ObservationKids
-    with TableInfo<$ObservationKidsTable, ObservationKid> {
+class $ObservationChildrenTable extends ObservationChildren
+    with TableInfo<$ObservationChildrenTable, ObservationChildrenData> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $ObservationKidsTable(this.attachedDatabase, [this._alias]);
+  $ObservationChildrenTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _observationIdMeta = const VerificationMeta(
     'observationId',
   );
@@ -3309,28 +3324,30 @@ class $ObservationKidsTable extends ObservationKids
       'REFERENCES observations (id) ON DELETE CASCADE',
     ),
   );
-  static const VerificationMeta _kidIdMeta = const VerificationMeta('kidId');
+  static const VerificationMeta _childIdMeta = const VerificationMeta(
+    'childId',
+  );
   @override
-  late final GeneratedColumn<String> kidId = GeneratedColumn<String>(
-    'kid_id',
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+    'child_id',
     aliasedName,
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES kids (id) ON DELETE CASCADE',
+      'REFERENCES children (id) ON DELETE CASCADE',
     ),
   );
   @override
-  List<GeneratedColumn> get $columns => [observationId, kidId];
+  List<GeneratedColumn> get $columns => [observationId, childId];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'observation_kids';
+  static const String $name = 'observation_children';
   @override
   VerificationContext validateIntegrity(
-    Insertable<ObservationKid> instance, {
+    Insertable<ObservationChildrenData> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -3346,67 +3363,74 @@ class $ObservationKidsTable extends ObservationKids
     } else if (isInserting) {
       context.missing(_observationIdMeta);
     }
-    if (data.containsKey('kid_id')) {
+    if (data.containsKey('child_id')) {
       context.handle(
-        _kidIdMeta,
-        kidId.isAcceptableOrUnknown(data['kid_id']!, _kidIdMeta),
+        _childIdMeta,
+        childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta),
       );
     } else if (isInserting) {
-      context.missing(_kidIdMeta);
+      context.missing(_childIdMeta);
     }
     return context;
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {observationId, kidId};
+  Set<GeneratedColumn> get $primaryKey => {observationId, childId};
   @override
-  ObservationKid map(Map<String, dynamic> data, {String? tablePrefix}) {
+  ObservationChildrenData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return ObservationKid(
+    return ObservationChildrenData(
       observationId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}observation_id'],
       )!,
-      kidId: attachedDatabase.typeMapping.read(
+      childId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}kid_id'],
+        data['${effectivePrefix}child_id'],
       )!,
     );
   }
 
   @override
-  $ObservationKidsTable createAlias(String alias) {
-    return $ObservationKidsTable(attachedDatabase, alias);
+  $ObservationChildrenTable createAlias(String alias) {
+    return $ObservationChildrenTable(attachedDatabase, alias);
   }
 }
 
-class ObservationKid extends DataClass implements Insertable<ObservationKid> {
+class ObservationChildrenData extends DataClass
+    implements Insertable<ObservationChildrenData> {
   final String observationId;
-  final String kidId;
-  const ObservationKid({required this.observationId, required this.kidId});
+  final String childId;
+  const ObservationChildrenData({
+    required this.observationId,
+    required this.childId,
+  });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['observation_id'] = Variable<String>(observationId);
-    map['kid_id'] = Variable<String>(kidId);
+    map['child_id'] = Variable<String>(childId);
     return map;
   }
 
-  ObservationKidsCompanion toCompanion(bool nullToAbsent) {
-    return ObservationKidsCompanion(
+  ObservationChildrenCompanion toCompanion(bool nullToAbsent) {
+    return ObservationChildrenCompanion(
       observationId: Value(observationId),
-      kidId: Value(kidId),
+      childId: Value(childId),
     );
   }
 
-  factory ObservationKid.fromJson(
+  factory ObservationChildrenData.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return ObservationKid(
+    return ObservationChildrenData(
       observationId: serializer.fromJson<String>(json['observationId']),
-      kidId: serializer.fromJson<String>(json['kidId']),
+      childId: serializer.fromJson<String>(json['childId']),
     );
   }
   @override
@@ -3414,78 +3438,79 @@ class ObservationKid extends DataClass implements Insertable<ObservationKid> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'observationId': serializer.toJson<String>(observationId),
-      'kidId': serializer.toJson<String>(kidId),
+      'childId': serializer.toJson<String>(childId),
     };
   }
 
-  ObservationKid copyWith({String? observationId, String? kidId}) =>
-      ObservationKid(
+  ObservationChildrenData copyWith({String? observationId, String? childId}) =>
+      ObservationChildrenData(
         observationId: observationId ?? this.observationId,
-        kidId: kidId ?? this.kidId,
+        childId: childId ?? this.childId,
       );
-  ObservationKid copyWithCompanion(ObservationKidsCompanion data) {
-    return ObservationKid(
+  ObservationChildrenData copyWithCompanion(ObservationChildrenCompanion data) {
+    return ObservationChildrenData(
       observationId: data.observationId.present
           ? data.observationId.value
           : this.observationId,
-      kidId: data.kidId.present ? data.kidId.value : this.kidId,
+      childId: data.childId.present ? data.childId.value : this.childId,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('ObservationKid(')
+    return (StringBuffer('ObservationChildrenData(')
           ..write('observationId: $observationId, ')
-          ..write('kidId: $kidId')
+          ..write('childId: $childId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(observationId, kidId);
+  int get hashCode => Object.hash(observationId, childId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is ObservationKid &&
+      (other is ObservationChildrenData &&
           other.observationId == this.observationId &&
-          other.kidId == this.kidId);
+          other.childId == this.childId);
 }
 
-class ObservationKidsCompanion extends UpdateCompanion<ObservationKid> {
+class ObservationChildrenCompanion
+    extends UpdateCompanion<ObservationChildrenData> {
   final Value<String> observationId;
-  final Value<String> kidId;
+  final Value<String> childId;
   final Value<int> rowid;
-  const ObservationKidsCompanion({
+  const ObservationChildrenCompanion({
     this.observationId = const Value.absent(),
-    this.kidId = const Value.absent(),
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
-  ObservationKidsCompanion.insert({
+  ObservationChildrenCompanion.insert({
     required String observationId,
-    required String kidId,
+    required String childId,
     this.rowid = const Value.absent(),
   }) : observationId = Value(observationId),
-       kidId = Value(kidId);
-  static Insertable<ObservationKid> custom({
+       childId = Value(childId);
+  static Insertable<ObservationChildrenData> custom({
     Expression<String>? observationId,
-    Expression<String>? kidId,
+    Expression<String>? childId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (observationId != null) 'observation_id': observationId,
-      if (kidId != null) 'kid_id': kidId,
+      if (childId != null) 'child_id': childId,
       if (rowid != null) 'rowid': rowid,
     });
   }
 
-  ObservationKidsCompanion copyWith({
+  ObservationChildrenCompanion copyWith({
     Value<String>? observationId,
-    Value<String>? kidId,
+    Value<String>? childId,
     Value<int>? rowid,
   }) {
-    return ObservationKidsCompanion(
+    return ObservationChildrenCompanion(
       observationId: observationId ?? this.observationId,
-      kidId: kidId ?? this.kidId,
+      childId: childId ?? this.childId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3496,8 +3521,8 @@ class ObservationKidsCompanion extends UpdateCompanion<ObservationKid> {
     if (observationId.present) {
       map['observation_id'] = Variable<String>(observationId.value);
     }
-    if (kidId.present) {
-      map['kid_id'] = Variable<String>(kidId.value);
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -3507,9 +3532,9 @@ class ObservationKidsCompanion extends UpdateCompanion<ObservationKid> {
 
   @override
   String toString() {
-    return (StringBuffer('ObservationKidsCompanion(')
+    return (StringBuffer('ObservationChildrenCompanion(')
           ..write('observationId: $observationId, ')
-          ..write('kidId: $kidId, ')
+          ..write('childId: $childId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5896,6 +5921,17 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _seriesIdMeta = const VerificationMeta(
+    'seriesId',
+  );
+  @override
+  late final GeneratedColumn<String> seriesId = GeneratedColumn<String>(
+    'series_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _groupIdMeta = const VerificationMeta(
     'groupId',
   );
@@ -5906,31 +5942,22 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-  );
-  static const VerificationMeta _podIdMeta = const VerificationMeta('podId');
-  @override
-  late final GeneratedColumn<String> podId = GeneratedColumn<String>(
-    'pod_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES pods (id) ON DELETE SET NULL',
+      'REFERENCES "groups" (id) ON DELETE SET NULL',
     ),
   );
-  static const VerificationMeta _allPodsMeta = const VerificationMeta(
-    'allPods',
+  static const VerificationMeta _allGroupsMeta = const VerificationMeta(
+    'allGroups',
   );
   @override
-  late final GeneratedColumn<bool> allPods = GeneratedColumn<bool>(
-    'all_pods',
+  late final GeneratedColumn<bool> allGroups = GeneratedColumn<bool>(
+    'all_groups',
     aliasedName,
     false,
     type: DriftSqlType.bool,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("all_pods" IN (0, 1))',
+      'CHECK ("all_groups" IN (0, 1))',
     ),
     defaultValue: const Constant(true),
   );
@@ -6033,9 +6060,9 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
     endTime,
     isFullDay,
     title,
+    seriesId,
     groupId,
-    podId,
-    allPods,
+    allGroups,
     specialistName,
     specialistId,
     location,
@@ -6100,22 +6127,22 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
     } else if (isInserting) {
       context.missing(_titleMeta);
     }
+    if (data.containsKey('series_id')) {
+      context.handle(
+        _seriesIdMeta,
+        seriesId.isAcceptableOrUnknown(data['series_id']!, _seriesIdMeta),
+      );
+    }
     if (data.containsKey('group_id')) {
       context.handle(
         _groupIdMeta,
         groupId.isAcceptableOrUnknown(data['group_id']!, _groupIdMeta),
       );
     }
-    if (data.containsKey('pod_id')) {
+    if (data.containsKey('all_groups')) {
       context.handle(
-        _podIdMeta,
-        podId.isAcceptableOrUnknown(data['pod_id']!, _podIdMeta),
-      );
-    }
-    if (data.containsKey('all_pods')) {
-      context.handle(
-        _allPodsMeta,
-        allPods.isAcceptableOrUnknown(data['all_pods']!, _allPodsMeta),
+        _allGroupsMeta,
+        allGroups.isAcceptableOrUnknown(data['all_groups']!, _allGroupsMeta),
       );
     }
     if (data.containsKey('specialist_name')) {
@@ -6205,17 +6232,17 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
         DriftSqlType.string,
         data['${effectivePrefix}title'],
       )!,
+      seriesId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}series_id'],
+      ),
       groupId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}group_id'],
       ),
-      podId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}pod_id'],
-      ),
-      allPods: attachedDatabase.typeMapping.read(
+      allGroups: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
-        data['${effectivePrefix}all_pods'],
+        data['${effectivePrefix}all_groups'],
       )!,
       specialistName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -6266,9 +6293,9 @@ class ScheduleTemplate extends DataClass
   final String endTime;
   final bool isFullDay;
   final String title;
+  final String? seriesId;
   final String? groupId;
-  final String? podId;
-  final bool allPods;
+  final bool allGroups;
   final String? specialistName;
   final String? specialistId;
   final String? location;
@@ -6284,9 +6311,9 @@ class ScheduleTemplate extends DataClass
     required this.endTime,
     required this.isFullDay,
     required this.title,
+    this.seriesId,
     this.groupId,
-    this.podId,
-    required this.allPods,
+    required this.allGroups,
     this.specialistName,
     this.specialistId,
     this.location,
@@ -6305,13 +6332,13 @@ class ScheduleTemplate extends DataClass
     map['end_time'] = Variable<String>(endTime);
     map['is_full_day'] = Variable<bool>(isFullDay);
     map['title'] = Variable<String>(title);
+    if (!nullToAbsent || seriesId != null) {
+      map['series_id'] = Variable<String>(seriesId);
+    }
     if (!nullToAbsent || groupId != null) {
       map['group_id'] = Variable<String>(groupId);
     }
-    if (!nullToAbsent || podId != null) {
-      map['pod_id'] = Variable<String>(podId);
-    }
-    map['all_pods'] = Variable<bool>(allPods);
+    map['all_groups'] = Variable<bool>(allGroups);
     if (!nullToAbsent || specialistName != null) {
       map['specialist_name'] = Variable<String>(specialistName);
     }
@@ -6343,13 +6370,13 @@ class ScheduleTemplate extends DataClass
       endTime: Value(endTime),
       isFullDay: Value(isFullDay),
       title: Value(title),
+      seriesId: seriesId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(seriesId),
       groupId: groupId == null && nullToAbsent
           ? const Value.absent()
           : Value(groupId),
-      podId: podId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(podId),
-      allPods: Value(allPods),
+      allGroups: Value(allGroups),
       specialistName: specialistName == null && nullToAbsent
           ? const Value.absent()
           : Value(specialistName),
@@ -6385,9 +6412,9 @@ class ScheduleTemplate extends DataClass
       endTime: serializer.fromJson<String>(json['endTime']),
       isFullDay: serializer.fromJson<bool>(json['isFullDay']),
       title: serializer.fromJson<String>(json['title']),
+      seriesId: serializer.fromJson<String?>(json['seriesId']),
       groupId: serializer.fromJson<String?>(json['groupId']),
-      podId: serializer.fromJson<String?>(json['podId']),
-      allPods: serializer.fromJson<bool>(json['allPods']),
+      allGroups: serializer.fromJson<bool>(json['allGroups']),
       specialistName: serializer.fromJson<String?>(json['specialistName']),
       specialistId: serializer.fromJson<String?>(json['specialistId']),
       location: serializer.fromJson<String?>(json['location']),
@@ -6408,9 +6435,9 @@ class ScheduleTemplate extends DataClass
       'endTime': serializer.toJson<String>(endTime),
       'isFullDay': serializer.toJson<bool>(isFullDay),
       'title': serializer.toJson<String>(title),
+      'seriesId': serializer.toJson<String?>(seriesId),
       'groupId': serializer.toJson<String?>(groupId),
-      'podId': serializer.toJson<String?>(podId),
-      'allPods': serializer.toJson<bool>(allPods),
+      'allGroups': serializer.toJson<bool>(allGroups),
       'specialistName': serializer.toJson<String?>(specialistName),
       'specialistId': serializer.toJson<String?>(specialistId),
       'location': serializer.toJson<String?>(location),
@@ -6429,9 +6456,9 @@ class ScheduleTemplate extends DataClass
     String? endTime,
     bool? isFullDay,
     String? title,
+    Value<String?> seriesId = const Value.absent(),
     Value<String?> groupId = const Value.absent(),
-    Value<String?> podId = const Value.absent(),
-    bool? allPods,
+    bool? allGroups,
     Value<String?> specialistName = const Value.absent(),
     Value<String?> specialistId = const Value.absent(),
     Value<String?> location = const Value.absent(),
@@ -6447,9 +6474,9 @@ class ScheduleTemplate extends DataClass
     endTime: endTime ?? this.endTime,
     isFullDay: isFullDay ?? this.isFullDay,
     title: title ?? this.title,
+    seriesId: seriesId.present ? seriesId.value : this.seriesId,
     groupId: groupId.present ? groupId.value : this.groupId,
-    podId: podId.present ? podId.value : this.podId,
-    allPods: allPods ?? this.allPods,
+    allGroups: allGroups ?? this.allGroups,
     specialistName: specialistName.present
         ? specialistName.value
         : this.specialistName,
@@ -6469,9 +6496,9 @@ class ScheduleTemplate extends DataClass
       endTime: data.endTime.present ? data.endTime.value : this.endTime,
       isFullDay: data.isFullDay.present ? data.isFullDay.value : this.isFullDay,
       title: data.title.present ? data.title.value : this.title,
+      seriesId: data.seriesId.present ? data.seriesId.value : this.seriesId,
       groupId: data.groupId.present ? data.groupId.value : this.groupId,
-      podId: data.podId.present ? data.podId.value : this.podId,
-      allPods: data.allPods.present ? data.allPods.value : this.allPods,
+      allGroups: data.allGroups.present ? data.allGroups.value : this.allGroups,
       specialistName: data.specialistName.present
           ? data.specialistName.value
           : this.specialistName,
@@ -6496,9 +6523,9 @@ class ScheduleTemplate extends DataClass
           ..write('endTime: $endTime, ')
           ..write('isFullDay: $isFullDay, ')
           ..write('title: $title, ')
+          ..write('seriesId: $seriesId, ')
           ..write('groupId: $groupId, ')
-          ..write('podId: $podId, ')
-          ..write('allPods: $allPods, ')
+          ..write('allGroups: $allGroups, ')
           ..write('specialistName: $specialistName, ')
           ..write('specialistId: $specialistId, ')
           ..write('location: $location, ')
@@ -6519,9 +6546,9 @@ class ScheduleTemplate extends DataClass
     endTime,
     isFullDay,
     title,
+    seriesId,
     groupId,
-    podId,
-    allPods,
+    allGroups,
     specialistName,
     specialistId,
     location,
@@ -6541,9 +6568,9 @@ class ScheduleTemplate extends DataClass
           other.endTime == this.endTime &&
           other.isFullDay == this.isFullDay &&
           other.title == this.title &&
+          other.seriesId == this.seriesId &&
           other.groupId == this.groupId &&
-          other.podId == this.podId &&
-          other.allPods == this.allPods &&
+          other.allGroups == this.allGroups &&
           other.specialistName == this.specialistName &&
           other.specialistId == this.specialistId &&
           other.location == this.location &&
@@ -6561,9 +6588,9 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
   final Value<String> endTime;
   final Value<bool> isFullDay;
   final Value<String> title;
+  final Value<String?> seriesId;
   final Value<String?> groupId;
-  final Value<String?> podId;
-  final Value<bool> allPods;
+  final Value<bool> allGroups;
   final Value<String?> specialistName;
   final Value<String?> specialistId;
   final Value<String?> location;
@@ -6580,9 +6607,9 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     this.endTime = const Value.absent(),
     this.isFullDay = const Value.absent(),
     this.title = const Value.absent(),
+    this.seriesId = const Value.absent(),
     this.groupId = const Value.absent(),
-    this.podId = const Value.absent(),
-    this.allPods = const Value.absent(),
+    this.allGroups = const Value.absent(),
     this.specialistName = const Value.absent(),
     this.specialistId = const Value.absent(),
     this.location = const Value.absent(),
@@ -6600,9 +6627,9 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     required String endTime,
     this.isFullDay = const Value.absent(),
     required String title,
+    this.seriesId = const Value.absent(),
     this.groupId = const Value.absent(),
-    this.podId = const Value.absent(),
-    this.allPods = const Value.absent(),
+    this.allGroups = const Value.absent(),
     this.specialistName = const Value.absent(),
     this.specialistId = const Value.absent(),
     this.location = const Value.absent(),
@@ -6624,9 +6651,9 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     Expression<String>? endTime,
     Expression<bool>? isFullDay,
     Expression<String>? title,
+    Expression<String>? seriesId,
     Expression<String>? groupId,
-    Expression<String>? podId,
-    Expression<bool>? allPods,
+    Expression<bool>? allGroups,
     Expression<String>? specialistName,
     Expression<String>? specialistId,
     Expression<String>? location,
@@ -6644,9 +6671,9 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
       if (endTime != null) 'end_time': endTime,
       if (isFullDay != null) 'is_full_day': isFullDay,
       if (title != null) 'title': title,
+      if (seriesId != null) 'series_id': seriesId,
       if (groupId != null) 'group_id': groupId,
-      if (podId != null) 'pod_id': podId,
-      if (allPods != null) 'all_pods': allPods,
+      if (allGroups != null) 'all_groups': allGroups,
       if (specialistName != null) 'specialist_name': specialistName,
       if (specialistId != null) 'specialist_id': specialistId,
       if (location != null) 'location': location,
@@ -6666,9 +6693,9 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     Value<String>? endTime,
     Value<bool>? isFullDay,
     Value<String>? title,
+    Value<String?>? seriesId,
     Value<String?>? groupId,
-    Value<String?>? podId,
-    Value<bool>? allPods,
+    Value<bool>? allGroups,
     Value<String?>? specialistName,
     Value<String?>? specialistId,
     Value<String?>? location,
@@ -6686,9 +6713,9 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
       endTime: endTime ?? this.endTime,
       isFullDay: isFullDay ?? this.isFullDay,
       title: title ?? this.title,
+      seriesId: seriesId ?? this.seriesId,
       groupId: groupId ?? this.groupId,
-      podId: podId ?? this.podId,
-      allPods: allPods ?? this.allPods,
+      allGroups: allGroups ?? this.allGroups,
       specialistName: specialistName ?? this.specialistName,
       specialistId: specialistId ?? this.specialistId,
       location: location ?? this.location,
@@ -6722,14 +6749,14 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     if (title.present) {
       map['title'] = Variable<String>(title.value);
     }
+    if (seriesId.present) {
+      map['series_id'] = Variable<String>(seriesId.value);
+    }
     if (groupId.present) {
       map['group_id'] = Variable<String>(groupId.value);
     }
-    if (podId.present) {
-      map['pod_id'] = Variable<String>(podId.value);
-    }
-    if (allPods.present) {
-      map['all_pods'] = Variable<bool>(allPods.value);
+    if (allGroups.present) {
+      map['all_groups'] = Variable<bool>(allGroups.value);
     }
     if (specialistName.present) {
       map['specialist_name'] = Variable<String>(specialistName.value);
@@ -6770,9 +6797,9 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
           ..write('endTime: $endTime, ')
           ..write('isFullDay: $isFullDay, ')
           ..write('title: $title, ')
+          ..write('seriesId: $seriesId, ')
           ..write('groupId: $groupId, ')
-          ..write('podId: $podId, ')
-          ..write('allPods: $allPods, ')
+          ..write('allGroups: $allGroups, ')
           ..write('specialistName: $specialistName, ')
           ..write('specialistId: $specialistId, ')
           ..write('location: $location, ')
@@ -6868,30 +6895,32 @@ class $ScheduleEntriesTable extends ScheduleEntries
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _podIdMeta = const VerificationMeta('podId');
+  static const VerificationMeta _groupIdMeta = const VerificationMeta(
+    'groupId',
+  );
   @override
-  late final GeneratedColumn<String> podId = GeneratedColumn<String>(
-    'pod_id',
+  late final GeneratedColumn<String> groupId = GeneratedColumn<String>(
+    'group_id',
     aliasedName,
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES pods (id) ON DELETE SET NULL',
+      'REFERENCES "groups" (id) ON DELETE SET NULL',
     ),
   );
-  static const VerificationMeta _allPodsMeta = const VerificationMeta(
-    'allPods',
+  static const VerificationMeta _allGroupsMeta = const VerificationMeta(
+    'allGroups',
   );
   @override
-  late final GeneratedColumn<bool> allPods = GeneratedColumn<bool>(
-    'all_pods',
+  late final GeneratedColumn<bool> allGroups = GeneratedColumn<bool>(
+    'all_groups',
     aliasedName,
     false,
     type: DriftSqlType.bool,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("all_pods" IN (0, 1))',
+      'CHECK ("all_groups" IN (0, 1))',
     ),
     defaultValue: const Constant(true),
   );
@@ -7010,8 +7039,8 @@ class $ScheduleEntriesTable extends ScheduleEntries
     endTime,
     isFullDay,
     title,
-    podId,
-    allPods,
+    groupId,
+    allGroups,
     specialistName,
     specialistId,
     location,
@@ -7083,16 +7112,16 @@ class $ScheduleEntriesTable extends ScheduleEntries
     } else if (isInserting) {
       context.missing(_titleMeta);
     }
-    if (data.containsKey('pod_id')) {
+    if (data.containsKey('group_id')) {
       context.handle(
-        _podIdMeta,
-        podId.isAcceptableOrUnknown(data['pod_id']!, _podIdMeta),
+        _groupIdMeta,
+        groupId.isAcceptableOrUnknown(data['group_id']!, _groupIdMeta),
       );
     }
-    if (data.containsKey('all_pods')) {
+    if (data.containsKey('all_groups')) {
       context.handle(
-        _allPodsMeta,
-        allPods.isAcceptableOrUnknown(data['all_pods']!, _allPodsMeta),
+        _allGroupsMeta,
+        allGroups.isAcceptableOrUnknown(data['all_groups']!, _allGroupsMeta),
       );
     }
     if (data.containsKey('specialist_name')) {
@@ -7200,13 +7229,13 @@ class $ScheduleEntriesTable extends ScheduleEntries
         DriftSqlType.string,
         data['${effectivePrefix}title'],
       )!,
-      podId: attachedDatabase.typeMapping.read(
+      groupId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}pod_id'],
+        data['${effectivePrefix}group_id'],
       ),
-      allPods: attachedDatabase.typeMapping.read(
+      allGroups: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
-        data['${effectivePrefix}all_pods'],
+        data['${effectivePrefix}all_groups'],
       )!,
       specialistName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -7261,8 +7290,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
   final String endTime;
   final bool isFullDay;
   final String title;
-  final String? podId;
-  final bool allPods;
+  final String? groupId;
+  final bool allGroups;
   final String? specialistName;
   final String? specialistId;
   final String? location;
@@ -7280,8 +7309,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     required this.endTime,
     required this.isFullDay,
     required this.title,
-    this.podId,
-    required this.allPods,
+    this.groupId,
+    required this.allGroups,
     this.specialistName,
     this.specialistId,
     this.location,
@@ -7304,10 +7333,10 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     map['end_time'] = Variable<String>(endTime);
     map['is_full_day'] = Variable<bool>(isFullDay);
     map['title'] = Variable<String>(title);
-    if (!nullToAbsent || podId != null) {
-      map['pod_id'] = Variable<String>(podId);
+    if (!nullToAbsent || groupId != null) {
+      map['group_id'] = Variable<String>(groupId);
     }
-    map['all_pods'] = Variable<bool>(allPods);
+    map['all_groups'] = Variable<bool>(allGroups);
     if (!nullToAbsent || specialistName != null) {
       map['specialist_name'] = Variable<String>(specialistName);
     }
@@ -7343,10 +7372,10 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       endTime: Value(endTime),
       isFullDay: Value(isFullDay),
       title: Value(title),
-      podId: podId == null && nullToAbsent
+      groupId: groupId == null && nullToAbsent
           ? const Value.absent()
-          : Value(podId),
-      allPods: Value(allPods),
+          : Value(groupId),
+      allGroups: Value(allGroups),
       specialistName: specialistName == null && nullToAbsent
           ? const Value.absent()
           : Value(specialistName),
@@ -7384,8 +7413,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       endTime: serializer.fromJson<String>(json['endTime']),
       isFullDay: serializer.fromJson<bool>(json['isFullDay']),
       title: serializer.fromJson<String>(json['title']),
-      podId: serializer.fromJson<String?>(json['podId']),
-      allPods: serializer.fromJson<bool>(json['allPods']),
+      groupId: serializer.fromJson<String?>(json['groupId']),
+      allGroups: serializer.fromJson<bool>(json['allGroups']),
       specialistName: serializer.fromJson<String?>(json['specialistName']),
       specialistId: serializer.fromJson<String?>(json['specialistId']),
       location: serializer.fromJson<String?>(json['location']),
@@ -7410,8 +7439,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       'endTime': serializer.toJson<String>(endTime),
       'isFullDay': serializer.toJson<bool>(isFullDay),
       'title': serializer.toJson<String>(title),
-      'podId': serializer.toJson<String?>(podId),
-      'allPods': serializer.toJson<bool>(allPods),
+      'groupId': serializer.toJson<String?>(groupId),
+      'allGroups': serializer.toJson<bool>(allGroups),
       'specialistName': serializer.toJson<String?>(specialistName),
       'specialistId': serializer.toJson<String?>(specialistId),
       'location': serializer.toJson<String?>(location),
@@ -7432,8 +7461,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     String? endTime,
     bool? isFullDay,
     String? title,
-    Value<String?> podId = const Value.absent(),
-    bool? allPods,
+    Value<String?> groupId = const Value.absent(),
+    bool? allGroups,
     Value<String?> specialistName = const Value.absent(),
     Value<String?> specialistId = const Value.absent(),
     Value<String?> location = const Value.absent(),
@@ -7451,8 +7480,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     endTime: endTime ?? this.endTime,
     isFullDay: isFullDay ?? this.isFullDay,
     title: title ?? this.title,
-    podId: podId.present ? podId.value : this.podId,
-    allPods: allPods ?? this.allPods,
+    groupId: groupId.present ? groupId.value : this.groupId,
+    allGroups: allGroups ?? this.allGroups,
     specialistName: specialistName.present
         ? specialistName.value
         : this.specialistName,
@@ -7476,8 +7505,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       endTime: data.endTime.present ? data.endTime.value : this.endTime,
       isFullDay: data.isFullDay.present ? data.isFullDay.value : this.isFullDay,
       title: data.title.present ? data.title.value : this.title,
-      podId: data.podId.present ? data.podId.value : this.podId,
-      allPods: data.allPods.present ? data.allPods.value : this.allPods,
+      groupId: data.groupId.present ? data.groupId.value : this.groupId,
+      allGroups: data.allGroups.present ? data.allGroups.value : this.allGroups,
       specialistName: data.specialistName.present
           ? data.specialistName.value
           : this.specialistName,
@@ -7508,8 +7537,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
           ..write('endTime: $endTime, ')
           ..write('isFullDay: $isFullDay, ')
           ..write('title: $title, ')
-          ..write('podId: $podId, ')
-          ..write('allPods: $allPods, ')
+          ..write('groupId: $groupId, ')
+          ..write('allGroups: $allGroups, ')
           ..write('specialistName: $specialistName, ')
           ..write('specialistId: $specialistId, ')
           ..write('location: $location, ')
@@ -7532,8 +7561,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     endTime,
     isFullDay,
     title,
-    podId,
-    allPods,
+    groupId,
+    allGroups,
     specialistName,
     specialistId,
     location,
@@ -7555,8 +7584,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
           other.endTime == this.endTime &&
           other.isFullDay == this.isFullDay &&
           other.title == this.title &&
-          other.podId == this.podId &&
-          other.allPods == this.allPods &&
+          other.groupId == this.groupId &&
+          other.allGroups == this.allGroups &&
           other.specialistName == this.specialistName &&
           other.specialistId == this.specialistId &&
           other.location == this.location &&
@@ -7576,8 +7605,8 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
   final Value<String> endTime;
   final Value<bool> isFullDay;
   final Value<String> title;
-  final Value<String?> podId;
-  final Value<bool> allPods;
+  final Value<String?> groupId;
+  final Value<bool> allGroups;
   final Value<String?> specialistName;
   final Value<String?> specialistId;
   final Value<String?> location;
@@ -7596,8 +7625,8 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     this.endTime = const Value.absent(),
     this.isFullDay = const Value.absent(),
     this.title = const Value.absent(),
-    this.podId = const Value.absent(),
-    this.allPods = const Value.absent(),
+    this.groupId = const Value.absent(),
+    this.allGroups = const Value.absent(),
     this.specialistName = const Value.absent(),
     this.specialistId = const Value.absent(),
     this.location = const Value.absent(),
@@ -7617,8 +7646,8 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     required String endTime,
     this.isFullDay = const Value.absent(),
     required String title,
-    this.podId = const Value.absent(),
-    this.allPods = const Value.absent(),
+    this.groupId = const Value.absent(),
+    this.allGroups = const Value.absent(),
     this.specialistName = const Value.absent(),
     this.specialistId = const Value.absent(),
     this.location = const Value.absent(),
@@ -7643,8 +7672,8 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     Expression<String>? endTime,
     Expression<bool>? isFullDay,
     Expression<String>? title,
-    Expression<String>? podId,
-    Expression<bool>? allPods,
+    Expression<String>? groupId,
+    Expression<bool>? allGroups,
     Expression<String>? specialistName,
     Expression<String>? specialistId,
     Expression<String>? location,
@@ -7664,8 +7693,8 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
       if (endTime != null) 'end_time': endTime,
       if (isFullDay != null) 'is_full_day': isFullDay,
       if (title != null) 'title': title,
-      if (podId != null) 'pod_id': podId,
-      if (allPods != null) 'all_pods': allPods,
+      if (groupId != null) 'group_id': groupId,
+      if (allGroups != null) 'all_groups': allGroups,
       if (specialistName != null) 'specialist_name': specialistName,
       if (specialistId != null) 'specialist_id': specialistId,
       if (location != null) 'location': location,
@@ -7688,8 +7717,8 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     Value<String>? endTime,
     Value<bool>? isFullDay,
     Value<String>? title,
-    Value<String?>? podId,
-    Value<bool>? allPods,
+    Value<String?>? groupId,
+    Value<bool>? allGroups,
     Value<String?>? specialistName,
     Value<String?>? specialistId,
     Value<String?>? location,
@@ -7709,8 +7738,8 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
       endTime: endTime ?? this.endTime,
       isFullDay: isFullDay ?? this.isFullDay,
       title: title ?? this.title,
-      podId: podId ?? this.podId,
-      allPods: allPods ?? this.allPods,
+      groupId: groupId ?? this.groupId,
+      allGroups: allGroups ?? this.allGroups,
       specialistName: specialistName ?? this.specialistName,
       specialistId: specialistId ?? this.specialistId,
       location: location ?? this.location,
@@ -7748,11 +7777,11 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     if (title.present) {
       map['title'] = Variable<String>(title.value);
     }
-    if (podId.present) {
-      map['pod_id'] = Variable<String>(podId.value);
+    if (groupId.present) {
+      map['group_id'] = Variable<String>(groupId.value);
     }
-    if (allPods.present) {
-      map['all_pods'] = Variable<bool>(allPods.value);
+    if (allGroups.present) {
+      map['all_groups'] = Variable<bool>(allGroups.value);
     }
     if (specialistName.present) {
       map['specialist_name'] = Variable<String>(specialistName.value);
@@ -7799,8 +7828,8 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
           ..write('endTime: $endTime, ')
           ..write('isFullDay: $isFullDay, ')
           ..write('title: $title, ')
-          ..write('podId: $podId, ')
-          ..write('allPods: $allPods, ')
+          ..write('groupId: $groupId, ')
+          ..write('allGroups: $allGroups, ')
           ..write('specialistName: $specialistName, ')
           ..write('specialistId: $specialistId, ')
           ..write('location: $location, ')
@@ -7816,12 +7845,12 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
   }
 }
 
-class $TemplatePodsTable extends TemplatePods
-    with TableInfo<$TemplatePodsTable, TemplatePod> {
+class $TemplateGroupsTable extends TemplateGroups
+    with TableInfo<$TemplateGroupsTable, TemplateGroup> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $TemplatePodsTable(this.attachedDatabase, [this._alias]);
+  $TemplateGroupsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _templateIdMeta = const VerificationMeta(
     'templateId',
   );
@@ -7836,28 +7865,30 @@ class $TemplatePodsTable extends TemplatePods
       'REFERENCES schedule_templates (id) ON DELETE CASCADE',
     ),
   );
-  static const VerificationMeta _podIdMeta = const VerificationMeta('podId');
+  static const VerificationMeta _groupIdMeta = const VerificationMeta(
+    'groupId',
+  );
   @override
-  late final GeneratedColumn<String> podId = GeneratedColumn<String>(
-    'pod_id',
+  late final GeneratedColumn<String> groupId = GeneratedColumn<String>(
+    'group_id',
     aliasedName,
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES pods (id) ON DELETE CASCADE',
+      'REFERENCES "groups" (id) ON DELETE CASCADE',
     ),
   );
   @override
-  List<GeneratedColumn> get $columns => [templateId, podId];
+  List<GeneratedColumn> get $columns => [templateId, groupId];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'template_pods';
+  static const String $name = 'template_groups';
   @override
   VerificationContext validateIntegrity(
-    Insertable<TemplatePod> instance, {
+    Insertable<TemplateGroup> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -7870,67 +7901,67 @@ class $TemplatePodsTable extends TemplatePods
     } else if (isInserting) {
       context.missing(_templateIdMeta);
     }
-    if (data.containsKey('pod_id')) {
+    if (data.containsKey('group_id')) {
       context.handle(
-        _podIdMeta,
-        podId.isAcceptableOrUnknown(data['pod_id']!, _podIdMeta),
+        _groupIdMeta,
+        groupId.isAcceptableOrUnknown(data['group_id']!, _groupIdMeta),
       );
     } else if (isInserting) {
-      context.missing(_podIdMeta);
+      context.missing(_groupIdMeta);
     }
     return context;
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {templateId, podId};
+  Set<GeneratedColumn> get $primaryKey => {templateId, groupId};
   @override
-  TemplatePod map(Map<String, dynamic> data, {String? tablePrefix}) {
+  TemplateGroup map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return TemplatePod(
+    return TemplateGroup(
       templateId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}template_id'],
       )!,
-      podId: attachedDatabase.typeMapping.read(
+      groupId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}pod_id'],
+        data['${effectivePrefix}group_id'],
       )!,
     );
   }
 
   @override
-  $TemplatePodsTable createAlias(String alias) {
-    return $TemplatePodsTable(attachedDatabase, alias);
+  $TemplateGroupsTable createAlias(String alias) {
+    return $TemplateGroupsTable(attachedDatabase, alias);
   }
 }
 
-class TemplatePod extends DataClass implements Insertable<TemplatePod> {
+class TemplateGroup extends DataClass implements Insertable<TemplateGroup> {
   final String templateId;
-  final String podId;
-  const TemplatePod({required this.templateId, required this.podId});
+  final String groupId;
+  const TemplateGroup({required this.templateId, required this.groupId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['template_id'] = Variable<String>(templateId);
-    map['pod_id'] = Variable<String>(podId);
+    map['group_id'] = Variable<String>(groupId);
     return map;
   }
 
-  TemplatePodsCompanion toCompanion(bool nullToAbsent) {
-    return TemplatePodsCompanion(
+  TemplateGroupsCompanion toCompanion(bool nullToAbsent) {
+    return TemplateGroupsCompanion(
       templateId: Value(templateId),
-      podId: Value(podId),
+      groupId: Value(groupId),
     );
   }
 
-  factory TemplatePod.fromJson(
+  factory TemplateGroup.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return TemplatePod(
+    return TemplateGroup(
       templateId: serializer.fromJson<String>(json['templateId']),
-      podId: serializer.fromJson<String>(json['podId']),
+      groupId: serializer.fromJson<String>(json['groupId']),
     );
   }
   @override
@@ -7938,77 +7969,78 @@ class TemplatePod extends DataClass implements Insertable<TemplatePod> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'templateId': serializer.toJson<String>(templateId),
-      'podId': serializer.toJson<String>(podId),
+      'groupId': serializer.toJson<String>(groupId),
     };
   }
 
-  TemplatePod copyWith({String? templateId, String? podId}) => TemplatePod(
-    templateId: templateId ?? this.templateId,
-    podId: podId ?? this.podId,
-  );
-  TemplatePod copyWithCompanion(TemplatePodsCompanion data) {
-    return TemplatePod(
+  TemplateGroup copyWith({String? templateId, String? groupId}) =>
+      TemplateGroup(
+        templateId: templateId ?? this.templateId,
+        groupId: groupId ?? this.groupId,
+      );
+  TemplateGroup copyWithCompanion(TemplateGroupsCompanion data) {
+    return TemplateGroup(
       templateId: data.templateId.present
           ? data.templateId.value
           : this.templateId,
-      podId: data.podId.present ? data.podId.value : this.podId,
+      groupId: data.groupId.present ? data.groupId.value : this.groupId,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('TemplatePod(')
+    return (StringBuffer('TemplateGroup(')
           ..write('templateId: $templateId, ')
-          ..write('podId: $podId')
+          ..write('groupId: $groupId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(templateId, podId);
+  int get hashCode => Object.hash(templateId, groupId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is TemplatePod &&
+      (other is TemplateGroup &&
           other.templateId == this.templateId &&
-          other.podId == this.podId);
+          other.groupId == this.groupId);
 }
 
-class TemplatePodsCompanion extends UpdateCompanion<TemplatePod> {
+class TemplateGroupsCompanion extends UpdateCompanion<TemplateGroup> {
   final Value<String> templateId;
-  final Value<String> podId;
+  final Value<String> groupId;
   final Value<int> rowid;
-  const TemplatePodsCompanion({
+  const TemplateGroupsCompanion({
     this.templateId = const Value.absent(),
-    this.podId = const Value.absent(),
+    this.groupId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
-  TemplatePodsCompanion.insert({
+  TemplateGroupsCompanion.insert({
     required String templateId,
-    required String podId,
+    required String groupId,
     this.rowid = const Value.absent(),
   }) : templateId = Value(templateId),
-       podId = Value(podId);
-  static Insertable<TemplatePod> custom({
+       groupId = Value(groupId);
+  static Insertable<TemplateGroup> custom({
     Expression<String>? templateId,
-    Expression<String>? podId,
+    Expression<String>? groupId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (templateId != null) 'template_id': templateId,
-      if (podId != null) 'pod_id': podId,
+      if (groupId != null) 'group_id': groupId,
       if (rowid != null) 'rowid': rowid,
     });
   }
 
-  TemplatePodsCompanion copyWith({
+  TemplateGroupsCompanion copyWith({
     Value<String>? templateId,
-    Value<String>? podId,
+    Value<String>? groupId,
     Value<int>? rowid,
   }) {
-    return TemplatePodsCompanion(
+    return TemplateGroupsCompanion(
       templateId: templateId ?? this.templateId,
-      podId: podId ?? this.podId,
+      groupId: groupId ?? this.groupId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -8019,8 +8051,8 @@ class TemplatePodsCompanion extends UpdateCompanion<TemplatePod> {
     if (templateId.present) {
       map['template_id'] = Variable<String>(templateId.value);
     }
-    if (podId.present) {
-      map['pod_id'] = Variable<String>(podId.value);
+    if (groupId.present) {
+      map['group_id'] = Variable<String>(groupId.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -8030,21 +8062,21 @@ class TemplatePodsCompanion extends UpdateCompanion<TemplatePod> {
 
   @override
   String toString() {
-    return (StringBuffer('TemplatePodsCompanion(')
+    return (StringBuffer('TemplateGroupsCompanion(')
           ..write('templateId: $templateId, ')
-          ..write('podId: $podId, ')
+          ..write('groupId: $groupId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
 }
 
-class $EntryPodsTable extends EntryPods
-    with TableInfo<$EntryPodsTable, EntryPod> {
+class $EntryGroupsTable extends EntryGroups
+    with TableInfo<$EntryGroupsTable, EntryGroup> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $EntryPodsTable(this.attachedDatabase, [this._alias]);
+  $EntryGroupsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _entryIdMeta = const VerificationMeta(
     'entryId',
   );
@@ -8059,28 +8091,30 @@ class $EntryPodsTable extends EntryPods
       'REFERENCES schedule_entries (id) ON DELETE CASCADE',
     ),
   );
-  static const VerificationMeta _podIdMeta = const VerificationMeta('podId');
+  static const VerificationMeta _groupIdMeta = const VerificationMeta(
+    'groupId',
+  );
   @override
-  late final GeneratedColumn<String> podId = GeneratedColumn<String>(
-    'pod_id',
+  late final GeneratedColumn<String> groupId = GeneratedColumn<String>(
+    'group_id',
     aliasedName,
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES pods (id) ON DELETE CASCADE',
+      'REFERENCES "groups" (id) ON DELETE CASCADE',
     ),
   );
   @override
-  List<GeneratedColumn> get $columns => [entryId, podId];
+  List<GeneratedColumn> get $columns => [entryId, groupId];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'entry_pods';
+  static const String $name = 'entry_groups';
   @override
   VerificationContext validateIntegrity(
-    Insertable<EntryPod> instance, {
+    Insertable<EntryGroup> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -8093,64 +8127,67 @@ class $EntryPodsTable extends EntryPods
     } else if (isInserting) {
       context.missing(_entryIdMeta);
     }
-    if (data.containsKey('pod_id')) {
+    if (data.containsKey('group_id')) {
       context.handle(
-        _podIdMeta,
-        podId.isAcceptableOrUnknown(data['pod_id']!, _podIdMeta),
+        _groupIdMeta,
+        groupId.isAcceptableOrUnknown(data['group_id']!, _groupIdMeta),
       );
     } else if (isInserting) {
-      context.missing(_podIdMeta);
+      context.missing(_groupIdMeta);
     }
     return context;
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {entryId, podId};
+  Set<GeneratedColumn> get $primaryKey => {entryId, groupId};
   @override
-  EntryPod map(Map<String, dynamic> data, {String? tablePrefix}) {
+  EntryGroup map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return EntryPod(
+    return EntryGroup(
       entryId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}entry_id'],
       )!,
-      podId: attachedDatabase.typeMapping.read(
+      groupId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}pod_id'],
+        data['${effectivePrefix}group_id'],
       )!,
     );
   }
 
   @override
-  $EntryPodsTable createAlias(String alias) {
-    return $EntryPodsTable(attachedDatabase, alias);
+  $EntryGroupsTable createAlias(String alias) {
+    return $EntryGroupsTable(attachedDatabase, alias);
   }
 }
 
-class EntryPod extends DataClass implements Insertable<EntryPod> {
+class EntryGroup extends DataClass implements Insertable<EntryGroup> {
   final String entryId;
-  final String podId;
-  const EntryPod({required this.entryId, required this.podId});
+  final String groupId;
+  const EntryGroup({required this.entryId, required this.groupId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['entry_id'] = Variable<String>(entryId);
-    map['pod_id'] = Variable<String>(podId);
+    map['group_id'] = Variable<String>(groupId);
     return map;
   }
 
-  EntryPodsCompanion toCompanion(bool nullToAbsent) {
-    return EntryPodsCompanion(entryId: Value(entryId), podId: Value(podId));
+  EntryGroupsCompanion toCompanion(bool nullToAbsent) {
+    return EntryGroupsCompanion(
+      entryId: Value(entryId),
+      groupId: Value(groupId),
+    );
   }
 
-  factory EntryPod.fromJson(
+  factory EntryGroup.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return EntryPod(
+    return EntryGroup(
       entryId: serializer.fromJson<String>(json['entryId']),
-      podId: serializer.fromJson<String>(json['podId']),
+      groupId: serializer.fromJson<String>(json['groupId']),
     );
   }
   @override
@@ -8158,73 +8195,75 @@ class EntryPod extends DataClass implements Insertable<EntryPod> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'entryId': serializer.toJson<String>(entryId),
-      'podId': serializer.toJson<String>(podId),
+      'groupId': serializer.toJson<String>(groupId),
     };
   }
 
-  EntryPod copyWith({String? entryId, String? podId}) =>
-      EntryPod(entryId: entryId ?? this.entryId, podId: podId ?? this.podId);
-  EntryPod copyWithCompanion(EntryPodsCompanion data) {
-    return EntryPod(
+  EntryGroup copyWith({String? entryId, String? groupId}) => EntryGroup(
+    entryId: entryId ?? this.entryId,
+    groupId: groupId ?? this.groupId,
+  );
+  EntryGroup copyWithCompanion(EntryGroupsCompanion data) {
+    return EntryGroup(
       entryId: data.entryId.present ? data.entryId.value : this.entryId,
-      podId: data.podId.present ? data.podId.value : this.podId,
+      groupId: data.groupId.present ? data.groupId.value : this.groupId,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('EntryPod(')
+    return (StringBuffer('EntryGroup(')
           ..write('entryId: $entryId, ')
-          ..write('podId: $podId')
+          ..write('groupId: $groupId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(entryId, podId);
+  int get hashCode => Object.hash(entryId, groupId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is EntryPod &&
+      (other is EntryGroup &&
           other.entryId == this.entryId &&
-          other.podId == this.podId);
+          other.groupId == this.groupId);
 }
 
-class EntryPodsCompanion extends UpdateCompanion<EntryPod> {
+class EntryGroupsCompanion extends UpdateCompanion<EntryGroup> {
   final Value<String> entryId;
-  final Value<String> podId;
+  final Value<String> groupId;
   final Value<int> rowid;
-  const EntryPodsCompanion({
+  const EntryGroupsCompanion({
     this.entryId = const Value.absent(),
-    this.podId = const Value.absent(),
+    this.groupId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
-  EntryPodsCompanion.insert({
+  EntryGroupsCompanion.insert({
     required String entryId,
-    required String podId,
+    required String groupId,
     this.rowid = const Value.absent(),
   }) : entryId = Value(entryId),
-       podId = Value(podId);
-  static Insertable<EntryPod> custom({
+       groupId = Value(groupId);
+  static Insertable<EntryGroup> custom({
     Expression<String>? entryId,
-    Expression<String>? podId,
+    Expression<String>? groupId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (entryId != null) 'entry_id': entryId,
-      if (podId != null) 'pod_id': podId,
+      if (groupId != null) 'group_id': groupId,
       if (rowid != null) 'rowid': rowid,
     });
   }
 
-  EntryPodsCompanion copyWith({
+  EntryGroupsCompanion copyWith({
     Value<String>? entryId,
-    Value<String>? podId,
+    Value<String>? groupId,
     Value<int>? rowid,
   }) {
-    return EntryPodsCompanion(
+    return EntryGroupsCompanion(
       entryId: entryId ?? this.entryId,
-      podId: podId ?? this.podId,
+      groupId: groupId ?? this.groupId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -8235,8 +8274,8 @@ class EntryPodsCompanion extends UpdateCompanion<EntryPod> {
     if (entryId.present) {
       map['entry_id'] = Variable<String>(entryId.value);
     }
-    if (podId.present) {
-      map['pod_id'] = Variable<String>(podId.value);
+    if (groupId.present) {
+      map['group_id'] = Variable<String>(groupId.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -8246,9 +8285,9 @@ class EntryPodsCompanion extends UpdateCompanion<EntryPod> {
 
   @override
   String toString() {
-    return (StringBuffer('EntryPodsCompanion(')
+    return (StringBuffer('EntryGroupsCompanion(')
           ..write('entryId: $entryId, ')
-          ..write('podId: $podId, ')
+          ..write('groupId: $groupId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -9881,12 +9920,12 @@ class ParentConcernNotesCompanion extends UpdateCompanion<ParentConcernNote> {
   }
 }
 
-class $ParentConcernKidsTable extends ParentConcernKids
-    with TableInfo<$ParentConcernKidsTable, ParentConcernKid> {
+class $ParentConcernChildrenTable extends ParentConcernChildren
+    with TableInfo<$ParentConcernChildrenTable, ParentConcernChildrenData> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $ParentConcernKidsTable(this.attachedDatabase, [this._alias]);
+  $ParentConcernChildrenTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _concernIdMeta = const VerificationMeta(
     'concernId',
   );
@@ -9901,28 +9940,30 @@ class $ParentConcernKidsTable extends ParentConcernKids
       'REFERENCES parent_concern_notes (id) ON DELETE CASCADE',
     ),
   );
-  static const VerificationMeta _kidIdMeta = const VerificationMeta('kidId');
+  static const VerificationMeta _childIdMeta = const VerificationMeta(
+    'childId',
+  );
   @override
-  late final GeneratedColumn<String> kidId = GeneratedColumn<String>(
-    'kid_id',
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+    'child_id',
     aliasedName,
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES kids (id) ON DELETE CASCADE',
+      'REFERENCES children (id) ON DELETE CASCADE',
     ),
   );
   @override
-  List<GeneratedColumn> get $columns => [concernId, kidId];
+  List<GeneratedColumn> get $columns => [concernId, childId];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'parent_concern_kids';
+  static const String $name = 'parent_concern_children';
   @override
   VerificationContext validateIntegrity(
-    Insertable<ParentConcernKid> instance, {
+    Insertable<ParentConcernChildrenData> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -9935,68 +9976,74 @@ class $ParentConcernKidsTable extends ParentConcernKids
     } else if (isInserting) {
       context.missing(_concernIdMeta);
     }
-    if (data.containsKey('kid_id')) {
+    if (data.containsKey('child_id')) {
       context.handle(
-        _kidIdMeta,
-        kidId.isAcceptableOrUnknown(data['kid_id']!, _kidIdMeta),
+        _childIdMeta,
+        childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta),
       );
     } else if (isInserting) {
-      context.missing(_kidIdMeta);
+      context.missing(_childIdMeta);
     }
     return context;
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {concernId, kidId};
+  Set<GeneratedColumn> get $primaryKey => {concernId, childId};
   @override
-  ParentConcernKid map(Map<String, dynamic> data, {String? tablePrefix}) {
+  ParentConcernChildrenData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return ParentConcernKid(
+    return ParentConcernChildrenData(
       concernId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}concern_id'],
       )!,
-      kidId: attachedDatabase.typeMapping.read(
+      childId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}kid_id'],
+        data['${effectivePrefix}child_id'],
       )!,
     );
   }
 
   @override
-  $ParentConcernKidsTable createAlias(String alias) {
-    return $ParentConcernKidsTable(attachedDatabase, alias);
+  $ParentConcernChildrenTable createAlias(String alias) {
+    return $ParentConcernChildrenTable(attachedDatabase, alias);
   }
 }
 
-class ParentConcernKid extends DataClass
-    implements Insertable<ParentConcernKid> {
+class ParentConcernChildrenData extends DataClass
+    implements Insertable<ParentConcernChildrenData> {
   final String concernId;
-  final String kidId;
-  const ParentConcernKid({required this.concernId, required this.kidId});
+  final String childId;
+  const ParentConcernChildrenData({
+    required this.concernId,
+    required this.childId,
+  });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['concern_id'] = Variable<String>(concernId);
-    map['kid_id'] = Variable<String>(kidId);
+    map['child_id'] = Variable<String>(childId);
     return map;
   }
 
-  ParentConcernKidsCompanion toCompanion(bool nullToAbsent) {
-    return ParentConcernKidsCompanion(
+  ParentConcernChildrenCompanion toCompanion(bool nullToAbsent) {
+    return ParentConcernChildrenCompanion(
       concernId: Value(concernId),
-      kidId: Value(kidId),
+      childId: Value(childId),
     );
   }
 
-  factory ParentConcernKid.fromJson(
+  factory ParentConcernChildrenData.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return ParentConcernKid(
+    return ParentConcernChildrenData(
       concernId: serializer.fromJson<String>(json['concernId']),
-      kidId: serializer.fromJson<String>(json['kidId']),
+      childId: serializer.fromJson<String>(json['childId']),
     );
   }
   @override
@@ -10004,76 +10051,79 @@ class ParentConcernKid extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'concernId': serializer.toJson<String>(concernId),
-      'kidId': serializer.toJson<String>(kidId),
+      'childId': serializer.toJson<String>(childId),
     };
   }
 
-  ParentConcernKid copyWith({String? concernId, String? kidId}) =>
-      ParentConcernKid(
+  ParentConcernChildrenData copyWith({String? concernId, String? childId}) =>
+      ParentConcernChildrenData(
         concernId: concernId ?? this.concernId,
-        kidId: kidId ?? this.kidId,
+        childId: childId ?? this.childId,
       );
-  ParentConcernKid copyWithCompanion(ParentConcernKidsCompanion data) {
-    return ParentConcernKid(
+  ParentConcernChildrenData copyWithCompanion(
+    ParentConcernChildrenCompanion data,
+  ) {
+    return ParentConcernChildrenData(
       concernId: data.concernId.present ? data.concernId.value : this.concernId,
-      kidId: data.kidId.present ? data.kidId.value : this.kidId,
+      childId: data.childId.present ? data.childId.value : this.childId,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('ParentConcernKid(')
+    return (StringBuffer('ParentConcernChildrenData(')
           ..write('concernId: $concernId, ')
-          ..write('kidId: $kidId')
+          ..write('childId: $childId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(concernId, kidId);
+  int get hashCode => Object.hash(concernId, childId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is ParentConcernKid &&
+      (other is ParentConcernChildrenData &&
           other.concernId == this.concernId &&
-          other.kidId == this.kidId);
+          other.childId == this.childId);
 }
 
-class ParentConcernKidsCompanion extends UpdateCompanion<ParentConcernKid> {
+class ParentConcernChildrenCompanion
+    extends UpdateCompanion<ParentConcernChildrenData> {
   final Value<String> concernId;
-  final Value<String> kidId;
+  final Value<String> childId;
   final Value<int> rowid;
-  const ParentConcernKidsCompanion({
+  const ParentConcernChildrenCompanion({
     this.concernId = const Value.absent(),
-    this.kidId = const Value.absent(),
+    this.childId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
-  ParentConcernKidsCompanion.insert({
+  ParentConcernChildrenCompanion.insert({
     required String concernId,
-    required String kidId,
+    required String childId,
     this.rowid = const Value.absent(),
   }) : concernId = Value(concernId),
-       kidId = Value(kidId);
-  static Insertable<ParentConcernKid> custom({
+       childId = Value(childId);
+  static Insertable<ParentConcernChildrenData> custom({
     Expression<String>? concernId,
-    Expression<String>? kidId,
+    Expression<String>? childId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (concernId != null) 'concern_id': concernId,
-      if (kidId != null) 'kid_id': kidId,
+      if (childId != null) 'child_id': childId,
       if (rowid != null) 'rowid': rowid,
     });
   }
 
-  ParentConcernKidsCompanion copyWith({
+  ParentConcernChildrenCompanion copyWith({
     Value<String>? concernId,
-    Value<String>? kidId,
+    Value<String>? childId,
     Value<int>? rowid,
   }) {
-    return ParentConcernKidsCompanion(
+    return ParentConcernChildrenCompanion(
       concernId: concernId ?? this.concernId,
-      kidId: kidId ?? this.kidId,
+      childId: childId ?? this.childId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -10084,8 +10134,8 @@ class ParentConcernKidsCompanion extends UpdateCompanion<ParentConcernKid> {
     if (concernId.present) {
       map['concern_id'] = Variable<String>(concernId.value);
     }
-    if (kidId.present) {
-      map['kid_id'] = Variable<String>(kidId.value);
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -10095,9 +10145,9 @@ class ParentConcernKidsCompanion extends UpdateCompanion<ParentConcernKid> {
 
   @override
   String toString() {
-    return (StringBuffer('ParentConcernKidsCompanion(')
+    return (StringBuffer('ParentConcernChildrenCompanion(')
           ..write('concernId: $concernId, ')
-          ..write('kidId: $kidId, ')
+          ..write('childId: $childId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -10110,16 +10160,18 @@ class $AttendanceTable extends Attendance
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
   $AttendanceTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _kidIdMeta = const VerificationMeta('kidId');
+  static const VerificationMeta _childIdMeta = const VerificationMeta(
+    'childId',
+  );
   @override
-  late final GeneratedColumn<String> kidId = GeneratedColumn<String>(
-    'kid_id',
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+    'child_id',
     aliasedName,
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES kids (id) ON DELETE CASCADE',
+      'REFERENCES children (id) ON DELETE CASCADE',
     ),
   );
   static const VerificationMeta _dateMeta = const VerificationMeta('date');
@@ -10186,7 +10238,7 @@ class $AttendanceTable extends Attendance
   );
   @override
   List<GeneratedColumn> get $columns => [
-    kidId,
+    childId,
     date,
     status,
     clockTime,
@@ -10206,13 +10258,13 @@ class $AttendanceTable extends Attendance
   }) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
-    if (data.containsKey('kid_id')) {
+    if (data.containsKey('child_id')) {
       context.handle(
-        _kidIdMeta,
-        kidId.isAcceptableOrUnknown(data['kid_id']!, _kidIdMeta),
+        _childIdMeta,
+        childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta),
       );
     } else if (isInserting) {
-      context.missing(_kidIdMeta);
+      context.missing(_childIdMeta);
     }
     if (data.containsKey('date')) {
       context.handle(
@@ -10258,14 +10310,14 @@ class $AttendanceTable extends Attendance
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {kidId, date};
+  Set<GeneratedColumn> get $primaryKey => {childId, date};
   @override
   AttendanceData map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return AttendanceData(
-      kidId: attachedDatabase.typeMapping.read(
+      childId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}kid_id'],
+        data['${effectivePrefix}child_id'],
       )!,
       date: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -10301,7 +10353,7 @@ class $AttendanceTable extends Attendance
 }
 
 class AttendanceData extends DataClass implements Insertable<AttendanceData> {
-  final String kidId;
+  final String childId;
   final DateTime date;
 
   /// One of AttendanceStatus.name values: 'present', 'absent', 'late',
@@ -10318,7 +10370,7 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
   final DateTime createdAt;
   final DateTime updatedAt;
   const AttendanceData({
-    required this.kidId,
+    required this.childId,
     required this.date,
     required this.status,
     this.clockTime,
@@ -10329,7 +10381,7 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    map['kid_id'] = Variable<String>(kidId);
+    map['child_id'] = Variable<String>(childId);
     map['date'] = Variable<DateTime>(date);
     map['status'] = Variable<String>(status);
     if (!nullToAbsent || clockTime != null) {
@@ -10345,7 +10397,7 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
 
   AttendanceCompanion toCompanion(bool nullToAbsent) {
     return AttendanceCompanion(
-      kidId: Value(kidId),
+      childId: Value(childId),
       date: Value(date),
       status: Value(status),
       clockTime: clockTime == null && nullToAbsent
@@ -10365,7 +10417,7 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return AttendanceData(
-      kidId: serializer.fromJson<String>(json['kidId']),
+      childId: serializer.fromJson<String>(json['childId']),
       date: serializer.fromJson<DateTime>(json['date']),
       status: serializer.fromJson<String>(json['status']),
       clockTime: serializer.fromJson<String?>(json['clockTime']),
@@ -10378,7 +10430,7 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
-      'kidId': serializer.toJson<String>(kidId),
+      'childId': serializer.toJson<String>(childId),
       'date': serializer.toJson<DateTime>(date),
       'status': serializer.toJson<String>(status),
       'clockTime': serializer.toJson<String?>(clockTime),
@@ -10389,7 +10441,7 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
   }
 
   AttendanceData copyWith({
-    String? kidId,
+    String? childId,
     DateTime? date,
     String? status,
     Value<String?> clockTime = const Value.absent(),
@@ -10397,7 +10449,7 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => AttendanceData(
-    kidId: kidId ?? this.kidId,
+    childId: childId ?? this.childId,
     date: date ?? this.date,
     status: status ?? this.status,
     clockTime: clockTime.present ? clockTime.value : this.clockTime,
@@ -10407,7 +10459,7 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
   );
   AttendanceData copyWithCompanion(AttendanceCompanion data) {
     return AttendanceData(
-      kidId: data.kidId.present ? data.kidId.value : this.kidId,
+      childId: data.childId.present ? data.childId.value : this.childId,
       date: data.date.present ? data.date.value : this.date,
       status: data.status.present ? data.status.value : this.status,
       clockTime: data.clockTime.present ? data.clockTime.value : this.clockTime,
@@ -10420,7 +10472,7 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
   @override
   String toString() {
     return (StringBuffer('AttendanceData(')
-          ..write('kidId: $kidId, ')
+          ..write('childId: $childId, ')
           ..write('date: $date, ')
           ..write('status: $status, ')
           ..write('clockTime: $clockTime, ')
@@ -10432,13 +10484,20 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(kidId, date, status, clockTime, notes, createdAt, updatedAt);
+  int get hashCode => Object.hash(
+    childId,
+    date,
+    status,
+    clockTime,
+    notes,
+    createdAt,
+    updatedAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is AttendanceData &&
-          other.kidId == this.kidId &&
+          other.childId == this.childId &&
           other.date == this.date &&
           other.status == this.status &&
           other.clockTime == this.clockTime &&
@@ -10448,7 +10507,7 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
 }
 
 class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
-  final Value<String> kidId;
+  final Value<String> childId;
   final Value<DateTime> date;
   final Value<String> status;
   final Value<String?> clockTime;
@@ -10457,7 +10516,7 @@ class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
   const AttendanceCompanion({
-    this.kidId = const Value.absent(),
+    this.childId = const Value.absent(),
     this.date = const Value.absent(),
     this.status = const Value.absent(),
     this.clockTime = const Value.absent(),
@@ -10467,7 +10526,7 @@ class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
     this.rowid = const Value.absent(),
   });
   AttendanceCompanion.insert({
-    required String kidId,
+    required String childId,
     required DateTime date,
     required String status,
     this.clockTime = const Value.absent(),
@@ -10475,11 +10534,11 @@ class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
-  }) : kidId = Value(kidId),
+  }) : childId = Value(childId),
        date = Value(date),
        status = Value(status);
   static Insertable<AttendanceData> custom({
-    Expression<String>? kidId,
+    Expression<String>? childId,
     Expression<DateTime>? date,
     Expression<String>? status,
     Expression<String>? clockTime,
@@ -10489,7 +10548,7 @@ class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
-      if (kidId != null) 'kid_id': kidId,
+      if (childId != null) 'child_id': childId,
       if (date != null) 'date': date,
       if (status != null) 'status': status,
       if (clockTime != null) 'clock_time': clockTime,
@@ -10501,7 +10560,7 @@ class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
   }
 
   AttendanceCompanion copyWith({
-    Value<String>? kidId,
+    Value<String>? childId,
     Value<DateTime>? date,
     Value<String>? status,
     Value<String?>? clockTime,
@@ -10511,7 +10570,7 @@ class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
     Value<int>? rowid,
   }) {
     return AttendanceCompanion(
-      kidId: kidId ?? this.kidId,
+      childId: childId ?? this.childId,
       date: date ?? this.date,
       status: status ?? this.status,
       clockTime: clockTime ?? this.clockTime,
@@ -10525,8 +10584,8 @@ class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    if (kidId.present) {
-      map['kid_id'] = Variable<String>(kidId.value);
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
     }
     if (date.present) {
       map['date'] = Variable<DateTime>(date.value);
@@ -10555,7 +10614,7 @@ class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
   @override
   String toString() {
     return (StringBuffer('AttendanceCompanion(')
-          ..write('kidId: $kidId, ')
+          ..write('childId: $childId, ')
           ..write('date: $date, ')
           ..write('status: $status, ')
           ..write('clockTime: $clockTime, ')
@@ -10571,16 +10630,17 @@ class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
-  late final $PodsTable pods = $PodsTable(this);
-  late final $KidsTable kids = $KidsTable(this);
+  late final $GroupsTable groups = $GroupsTable(this);
+  late final $ChildrenTable children = $ChildrenTable(this);
   late final $TripsTable trips = $TripsTable(this);
-  late final $TripPodsTable tripPods = $TripPodsTable(this);
+  late final $TripGroupsTable tripGroups = $TripGroupsTable(this);
   late final $CapturesTable captures = $CapturesTable(this);
-  late final $CaptureKidsTable captureKids = $CaptureKidsTable(this);
-  late final $ObservationsTable observations = $ObservationsTable(this);
-  late final $ObservationKidsTable observationKids = $ObservationKidsTable(
+  late final $CaptureChildrenTable captureChildren = $CaptureChildrenTable(
     this,
   );
+  late final $ObservationsTable observations = $ObservationsTable(this);
+  late final $ObservationChildrenTable observationChildren =
+      $ObservationChildrenTable(this);
   late final $ObservationAttachmentsTable observationAttachments =
       $ObservationAttachmentsTable(this);
   late final $ObservationDomainTagsTable observationDomainTags =
@@ -10596,26 +10656,26 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ScheduleEntriesTable scheduleEntries = $ScheduleEntriesTable(
     this,
   );
-  late final $TemplatePodsTable templatePods = $TemplatePodsTable(this);
-  late final $EntryPodsTable entryPods = $EntryPodsTable(this);
+  late final $TemplateGroupsTable templateGroups = $TemplateGroupsTable(this);
+  late final $EntryGroupsTable entryGroups = $EntryGroupsTable(this);
   late final $ParentConcernNotesTable parentConcernNotes =
       $ParentConcernNotesTable(this);
-  late final $ParentConcernKidsTable parentConcernKids =
-      $ParentConcernKidsTable(this);
+  late final $ParentConcernChildrenTable parentConcernChildren =
+      $ParentConcernChildrenTable(this);
   late final $AttendanceTable attendance = $AttendanceTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
-    pods,
-    kids,
+    groups,
+    children,
     trips,
-    tripPods,
+    tripGroups,
     captures,
-    captureKids,
+    captureChildren,
     observations,
-    observationKids,
+    observationChildren,
     observationAttachments,
     observationDomainTags,
     specialists,
@@ -10623,34 +10683,34 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     activityLibrary,
     scheduleTemplates,
     scheduleEntries,
-    templatePods,
-    entryPods,
+    templateGroups,
+    entryGroups,
     parentConcernNotes,
-    parentConcernKids,
+    parentConcernChildren,
     attendance,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
     WritePropagation(
       on: TableUpdateQuery.onTableName(
-        'pods',
+        'groups',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('kids', kind: UpdateKind.update)],
+      result: [TableUpdate('children', kind: UpdateKind.update)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
         'trips',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('trip_pods', kind: UpdateKind.delete)],
+      result: [TableUpdate('trip_groups', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
-        'pods',
+        'groups',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('trip_pods', kind: UpdateKind.delete)],
+      result: [TableUpdate('trip_groups', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -10664,25 +10724,25 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         'captures',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('capture_kids', kind: UpdateKind.delete)],
+      result: [TableUpdate('capture_children', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
-        'kids',
+        'children',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('capture_kids', kind: UpdateKind.delete)],
+      result: [TableUpdate('capture_children', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
-        'kids',
+        'children',
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('observations', kind: UpdateKind.update)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
-        'pods',
+        'groups',
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('observations', kind: UpdateKind.update)],
@@ -10699,14 +10759,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         'observations',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('observation_kids', kind: UpdateKind.delete)],
+      result: [TableUpdate('observation_children', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
-        'kids',
+        'children',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('observation_kids', kind: UpdateKind.delete)],
+      result: [TableUpdate('observation_children', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -10738,7 +10798,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
-        'pods',
+        'groups',
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('schedule_templates', kind: UpdateKind.update)],
@@ -10752,7 +10812,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
-        'pods',
+        'groups',
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('schedule_entries', kind: UpdateKind.update)],
@@ -10783,46 +10843,46 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         'schedule_templates',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('template_pods', kind: UpdateKind.delete)],
+      result: [TableUpdate('template_groups', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
-        'pods',
+        'groups',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('template_pods', kind: UpdateKind.delete)],
+      result: [TableUpdate('template_groups', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
         'schedule_entries',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('entry_pods', kind: UpdateKind.delete)],
+      result: [TableUpdate('entry_groups', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
-        'pods',
+        'groups',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('entry_pods', kind: UpdateKind.delete)],
+      result: [TableUpdate('entry_groups', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
         'parent_concern_notes',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('parent_concern_kids', kind: UpdateKind.delete)],
+      result: [TableUpdate('parent_concern_children', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
-        'kids',
+        'children',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('parent_concern_kids', kind: UpdateKind.delete)],
+      result: [TableUpdate('parent_concern_children', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
-        'kids',
+        'children',
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('attendance', kind: UpdateKind.delete)],
@@ -10830,8 +10890,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   ]);
 }
 
-typedef $$PodsTableCreateCompanionBuilder =
-    PodsCompanion Function({
+typedef $$GroupsTableCreateCompanionBuilder =
+    GroupsCompanion Function({
       required String id,
       required String name,
       Value<String?> colorHex,
@@ -10839,8 +10899,8 @@ typedef $$PodsTableCreateCompanionBuilder =
       Value<DateTime> updatedAt,
       Value<int> rowid,
     });
-typedef $$PodsTableUpdateCompanionBuilder =
-    PodsCompanion Function({
+typedef $$GroupsTableUpdateCompanionBuilder =
+    GroupsCompanion Function({
       Value<String> id,
       Value<String> name,
       Value<String?> colorHex,
@@ -10849,43 +10909,42 @@ typedef $$PodsTableUpdateCompanionBuilder =
       Value<int> rowid,
     });
 
-final class $$PodsTableReferences
-    extends BaseReferences<_$AppDatabase, $PodsTable, Pod> {
-  $$PodsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+final class $$GroupsTableReferences
+    extends BaseReferences<_$AppDatabase, $GroupsTable, Group> {
+  $$GroupsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
-  static MultiTypedResultKey<$KidsTable, List<Kid>> _kidsRefsTable(
+  static MultiTypedResultKey<$ChildrenTable, List<Child>> _childrenRefsTable(
     _$AppDatabase db,
   ) => MultiTypedResultKey.fromTable(
-    db.kids,
-    aliasName: $_aliasNameGenerator(db.pods.id, db.kids.podId),
+    db.children,
+    aliasName: $_aliasNameGenerator(db.groups.id, db.children.groupId),
   );
 
-  $$KidsTableProcessedTableManager get kidsRefs {
-    final manager = $$KidsTableTableManager(
+  $$ChildrenTableProcessedTableManager get childrenRefs {
+    final manager = $$ChildrenTableTableManager(
       $_db,
-      $_db.kids,
-    ).filter((f) => f.podId.id.sqlEquals($_itemColumn<String>('id')!));
+      $_db.children,
+    ).filter((f) => f.groupId.id.sqlEquals($_itemColumn<String>('id')!));
 
-    final cache = $_typedResult.readTableOrNull(_kidsRefsTable($_db));
+    final cache = $_typedResult.readTableOrNull(_childrenRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
 
-  static MultiTypedResultKey<$TripPodsTable, List<TripPod>> _tripPodsRefsTable(
-    _$AppDatabase db,
-  ) => MultiTypedResultKey.fromTable(
-    db.tripPods,
-    aliasName: $_aliasNameGenerator(db.pods.id, db.tripPods.podId),
+  static MultiTypedResultKey<$TripGroupsTable, List<TripGroup>>
+  _tripGroupsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.tripGroups,
+    aliasName: $_aliasNameGenerator(db.groups.id, db.tripGroups.groupId),
   );
 
-  $$TripPodsTableProcessedTableManager get tripPodsRefs {
-    final manager = $$TripPodsTableTableManager(
+  $$TripGroupsTableProcessedTableManager get tripGroupsRefs {
+    final manager = $$TripGroupsTableTableManager(
       $_db,
-      $_db.tripPods,
-    ).filter((f) => f.podId.id.sqlEquals($_itemColumn<String>('id')!));
+      $_db.tripGroups,
+    ).filter((f) => f.groupId.id.sqlEquals($_itemColumn<String>('id')!));
 
-    final cache = $_typedResult.readTableOrNull(_tripPodsRefsTable($_db));
+    final cache = $_typedResult.readTableOrNull(_tripGroupsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -10894,14 +10953,14 @@ final class $$PodsTableReferences
   static MultiTypedResultKey<$ObservationsTable, List<Observation>>
   _observationsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.observations,
-    aliasName: $_aliasNameGenerator(db.pods.id, db.observations.podId),
+    aliasName: $_aliasNameGenerator(db.groups.id, db.observations.groupId),
   );
 
   $$ObservationsTableProcessedTableManager get observationsRefs {
     final manager = $$ObservationsTableTableManager(
       $_db,
       $_db.observations,
-    ).filter((f) => f.podId.id.sqlEquals($_itemColumn<String>('id')!));
+    ).filter((f) => f.groupId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_observationsRefsTable($_db));
     return ProcessedTableManager(
@@ -10913,14 +10972,17 @@ final class $$PodsTableReferences
   _scheduleTemplatesRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.scheduleTemplates,
-        aliasName: $_aliasNameGenerator(db.pods.id, db.scheduleTemplates.podId),
+        aliasName: $_aliasNameGenerator(
+          db.groups.id,
+          db.scheduleTemplates.groupId,
+        ),
       );
 
   $$ScheduleTemplatesTableProcessedTableManager get scheduleTemplatesRefs {
     final manager = $$ScheduleTemplatesTableTableManager(
       $_db,
       $_db.scheduleTemplates,
-    ).filter((f) => f.podId.id.sqlEquals($_itemColumn<String>('id')!));
+    ).filter((f) => f.groupId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(
       _scheduleTemplatesRefsTable($_db),
@@ -10933,14 +10995,14 @@ final class $$PodsTableReferences
   static MultiTypedResultKey<$ScheduleEntriesTable, List<ScheduleEntry>>
   _scheduleEntriesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.scheduleEntries,
-    aliasName: $_aliasNameGenerator(db.pods.id, db.scheduleEntries.podId),
+    aliasName: $_aliasNameGenerator(db.groups.id, db.scheduleEntries.groupId),
   );
 
   $$ScheduleEntriesTableProcessedTableManager get scheduleEntriesRefs {
     final manager = $$ScheduleEntriesTableTableManager(
       $_db,
       $_db.scheduleEntries,
-    ).filter((f) => f.podId.id.sqlEquals($_itemColumn<String>('id')!));
+    ).filter((f) => f.groupId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(
       _scheduleEntriesRefsTable($_db),
@@ -10950,45 +11012,46 @@ final class $$PodsTableReferences
     );
   }
 
-  static MultiTypedResultKey<$TemplatePodsTable, List<TemplatePod>>
-  _templatePodsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.templatePods,
-    aliasName: $_aliasNameGenerator(db.pods.id, db.templatePods.podId),
+  static MultiTypedResultKey<$TemplateGroupsTable, List<TemplateGroup>>
+  _templateGroupsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.templateGroups,
+    aliasName: $_aliasNameGenerator(db.groups.id, db.templateGroups.groupId),
   );
 
-  $$TemplatePodsTableProcessedTableManager get templatePodsRefs {
-    final manager = $$TemplatePodsTableTableManager(
+  $$TemplateGroupsTableProcessedTableManager get templateGroupsRefs {
+    final manager = $$TemplateGroupsTableTableManager(
       $_db,
-      $_db.templatePods,
-    ).filter((f) => f.podId.id.sqlEquals($_itemColumn<String>('id')!));
+      $_db.templateGroups,
+    ).filter((f) => f.groupId.id.sqlEquals($_itemColumn<String>('id')!));
 
-    final cache = $_typedResult.readTableOrNull(_templatePodsRefsTable($_db));
+    final cache = $_typedResult.readTableOrNull(_templateGroupsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
 
-  static MultiTypedResultKey<$EntryPodsTable, List<EntryPod>>
-  _entryPodsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.entryPods,
-    aliasName: $_aliasNameGenerator(db.pods.id, db.entryPods.podId),
+  static MultiTypedResultKey<$EntryGroupsTable, List<EntryGroup>>
+  _entryGroupsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.entryGroups,
+    aliasName: $_aliasNameGenerator(db.groups.id, db.entryGroups.groupId),
   );
 
-  $$EntryPodsTableProcessedTableManager get entryPodsRefs {
-    final manager = $$EntryPodsTableTableManager(
+  $$EntryGroupsTableProcessedTableManager get entryGroupsRefs {
+    final manager = $$EntryGroupsTableTableManager(
       $_db,
-      $_db.entryPods,
-    ).filter((f) => f.podId.id.sqlEquals($_itemColumn<String>('id')!));
+      $_db.entryGroups,
+    ).filter((f) => f.groupId.id.sqlEquals($_itemColumn<String>('id')!));
 
-    final cache = $_typedResult.readTableOrNull(_entryPodsRefsTable($_db));
+    final cache = $_typedResult.readTableOrNull(_entryGroupsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
 }
 
-class $$PodsTableFilterComposer extends Composer<_$AppDatabase, $PodsTable> {
-  $$PodsTableFilterComposer({
+class $$GroupsTableFilterComposer
+    extends Composer<_$AppDatabase, $GroupsTable> {
+  $$GroupsTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -11020,22 +11083,22 @@ class $$PodsTableFilterComposer extends Composer<_$AppDatabase, $PodsTable> {
     builder: (column) => ColumnFilters(column),
   );
 
-  Expression<bool> kidsRefs(
-    Expression<bool> Function($$KidsTableFilterComposer f) f,
+  Expression<bool> childrenRefs(
+    Expression<bool> Function($$ChildrenTableFilterComposer f) f,
   ) {
-    final $$KidsTableFilterComposer composer = $composerBuilder(
+    final $$ChildrenTableFilterComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.kids,
-      getReferencedColumn: (t) => t.podId,
+      referencedTable: $db.children,
+      getReferencedColumn: (t) => t.groupId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$KidsTableFilterComposer(
+          }) => $$ChildrenTableFilterComposer(
             $db: $db,
-            $table: $db.kids,
+            $table: $db.children,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -11045,22 +11108,22 @@ class $$PodsTableFilterComposer extends Composer<_$AppDatabase, $PodsTable> {
     return f(composer);
   }
 
-  Expression<bool> tripPodsRefs(
-    Expression<bool> Function($$TripPodsTableFilterComposer f) f,
+  Expression<bool> tripGroupsRefs(
+    Expression<bool> Function($$TripGroupsTableFilterComposer f) f,
   ) {
-    final $$TripPodsTableFilterComposer composer = $composerBuilder(
+    final $$TripGroupsTableFilterComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.tripPods,
-      getReferencedColumn: (t) => t.podId,
+      referencedTable: $db.tripGroups,
+      getReferencedColumn: (t) => t.groupId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$TripPodsTableFilterComposer(
+          }) => $$TripGroupsTableFilterComposer(
             $db: $db,
-            $table: $db.tripPods,
+            $table: $db.tripGroups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -11077,7 +11140,7 @@ class $$PodsTableFilterComposer extends Composer<_$AppDatabase, $PodsTable> {
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.observations,
-      getReferencedColumn: (t) => t.podId,
+      getReferencedColumn: (t) => t.groupId,
       builder:
           (
             joinBuilder, {
@@ -11102,7 +11165,7 @@ class $$PodsTableFilterComposer extends Composer<_$AppDatabase, $PodsTable> {
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.scheduleTemplates,
-      getReferencedColumn: (t) => t.podId,
+      getReferencedColumn: (t) => t.groupId,
       builder:
           (
             joinBuilder, {
@@ -11127,7 +11190,7 @@ class $$PodsTableFilterComposer extends Composer<_$AppDatabase, $PodsTable> {
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.scheduleEntries,
-      getReferencedColumn: (t) => t.podId,
+      getReferencedColumn: (t) => t.groupId,
       builder:
           (
             joinBuilder, {
@@ -11145,22 +11208,22 @@ class $$PodsTableFilterComposer extends Composer<_$AppDatabase, $PodsTable> {
     return f(composer);
   }
 
-  Expression<bool> templatePodsRefs(
-    Expression<bool> Function($$TemplatePodsTableFilterComposer f) f,
+  Expression<bool> templateGroupsRefs(
+    Expression<bool> Function($$TemplateGroupsTableFilterComposer f) f,
   ) {
-    final $$TemplatePodsTableFilterComposer composer = $composerBuilder(
+    final $$TemplateGroupsTableFilterComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.templatePods,
-      getReferencedColumn: (t) => t.podId,
+      referencedTable: $db.templateGroups,
+      getReferencedColumn: (t) => t.groupId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$TemplatePodsTableFilterComposer(
+          }) => $$TemplateGroupsTableFilterComposer(
             $db: $db,
-            $table: $db.templatePods,
+            $table: $db.templateGroups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -11170,22 +11233,22 @@ class $$PodsTableFilterComposer extends Composer<_$AppDatabase, $PodsTable> {
     return f(composer);
   }
 
-  Expression<bool> entryPodsRefs(
-    Expression<bool> Function($$EntryPodsTableFilterComposer f) f,
+  Expression<bool> entryGroupsRefs(
+    Expression<bool> Function($$EntryGroupsTableFilterComposer f) f,
   ) {
-    final $$EntryPodsTableFilterComposer composer = $composerBuilder(
+    final $$EntryGroupsTableFilterComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.entryPods,
-      getReferencedColumn: (t) => t.podId,
+      referencedTable: $db.entryGroups,
+      getReferencedColumn: (t) => t.groupId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$EntryPodsTableFilterComposer(
+          }) => $$EntryGroupsTableFilterComposer(
             $db: $db,
-            $table: $db.entryPods,
+            $table: $db.entryGroups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -11196,8 +11259,9 @@ class $$PodsTableFilterComposer extends Composer<_$AppDatabase, $PodsTable> {
   }
 }
 
-class $$PodsTableOrderingComposer extends Composer<_$AppDatabase, $PodsTable> {
-  $$PodsTableOrderingComposer({
+class $$GroupsTableOrderingComposer
+    extends Composer<_$AppDatabase, $GroupsTable> {
+  $$GroupsTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -11230,9 +11294,9 @@ class $$PodsTableOrderingComposer extends Composer<_$AppDatabase, $PodsTable> {
   );
 }
 
-class $$PodsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $PodsTable> {
-  $$PodsTableAnnotationComposer({
+class $$GroupsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GroupsTable> {
+  $$GroupsTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -11254,22 +11318,22 @@ class $$PodsTableAnnotationComposer
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
-  Expression<T> kidsRefs<T extends Object>(
-    Expression<T> Function($$KidsTableAnnotationComposer a) f,
+  Expression<T> childrenRefs<T extends Object>(
+    Expression<T> Function($$ChildrenTableAnnotationComposer a) f,
   ) {
-    final $$KidsTableAnnotationComposer composer = $composerBuilder(
+    final $$ChildrenTableAnnotationComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.kids,
-      getReferencedColumn: (t) => t.podId,
+      referencedTable: $db.children,
+      getReferencedColumn: (t) => t.groupId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$KidsTableAnnotationComposer(
+          }) => $$ChildrenTableAnnotationComposer(
             $db: $db,
-            $table: $db.kids,
+            $table: $db.children,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -11279,22 +11343,22 @@ class $$PodsTableAnnotationComposer
     return f(composer);
   }
 
-  Expression<T> tripPodsRefs<T extends Object>(
-    Expression<T> Function($$TripPodsTableAnnotationComposer a) f,
+  Expression<T> tripGroupsRefs<T extends Object>(
+    Expression<T> Function($$TripGroupsTableAnnotationComposer a) f,
   ) {
-    final $$TripPodsTableAnnotationComposer composer = $composerBuilder(
+    final $$TripGroupsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.tripPods,
-      getReferencedColumn: (t) => t.podId,
+      referencedTable: $db.tripGroups,
+      getReferencedColumn: (t) => t.groupId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$TripPodsTableAnnotationComposer(
+          }) => $$TripGroupsTableAnnotationComposer(
             $db: $db,
-            $table: $db.tripPods,
+            $table: $db.tripGroups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -11311,7 +11375,7 @@ class $$PodsTableAnnotationComposer
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.observations,
-      getReferencedColumn: (t) => t.podId,
+      getReferencedColumn: (t) => t.groupId,
       builder:
           (
             joinBuilder, {
@@ -11337,7 +11401,7 @@ class $$PodsTableAnnotationComposer
           composer: this,
           getCurrentColumn: (t) => t.id,
           referencedTable: $db.scheduleTemplates,
-          getReferencedColumn: (t) => t.podId,
+          getReferencedColumn: (t) => t.groupId,
           builder:
               (
                 joinBuilder, {
@@ -11362,7 +11426,7 @@ class $$PodsTableAnnotationComposer
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.scheduleEntries,
-      getReferencedColumn: (t) => t.podId,
+      getReferencedColumn: (t) => t.groupId,
       builder:
           (
             joinBuilder, {
@@ -11380,22 +11444,22 @@ class $$PodsTableAnnotationComposer
     return f(composer);
   }
 
-  Expression<T> templatePodsRefs<T extends Object>(
-    Expression<T> Function($$TemplatePodsTableAnnotationComposer a) f,
+  Expression<T> templateGroupsRefs<T extends Object>(
+    Expression<T> Function($$TemplateGroupsTableAnnotationComposer a) f,
   ) {
-    final $$TemplatePodsTableAnnotationComposer composer = $composerBuilder(
+    final $$TemplateGroupsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.templatePods,
-      getReferencedColumn: (t) => t.podId,
+      referencedTable: $db.templateGroups,
+      getReferencedColumn: (t) => t.groupId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$TemplatePodsTableAnnotationComposer(
+          }) => $$TemplateGroupsTableAnnotationComposer(
             $db: $db,
-            $table: $db.templatePods,
+            $table: $db.templateGroups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -11405,22 +11469,22 @@ class $$PodsTableAnnotationComposer
     return f(composer);
   }
 
-  Expression<T> entryPodsRefs<T extends Object>(
-    Expression<T> Function($$EntryPodsTableAnnotationComposer a) f,
+  Expression<T> entryGroupsRefs<T extends Object>(
+    Expression<T> Function($$EntryGroupsTableAnnotationComposer a) f,
   ) {
-    final $$EntryPodsTableAnnotationComposer composer = $composerBuilder(
+    final $$EntryGroupsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.entryPods,
-      getReferencedColumn: (t) => t.podId,
+      referencedTable: $db.entryGroups,
+      getReferencedColumn: (t) => t.groupId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$EntryPodsTableAnnotationComposer(
+          }) => $$EntryGroupsTableAnnotationComposer(
             $db: $db,
-            $table: $db.entryPods,
+            $table: $db.entryGroups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -11431,40 +11495,40 @@ class $$PodsTableAnnotationComposer
   }
 }
 
-class $$PodsTableTableManager
+class $$GroupsTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $PodsTable,
-          Pod,
-          $$PodsTableFilterComposer,
-          $$PodsTableOrderingComposer,
-          $$PodsTableAnnotationComposer,
-          $$PodsTableCreateCompanionBuilder,
-          $$PodsTableUpdateCompanionBuilder,
-          (Pod, $$PodsTableReferences),
-          Pod,
+          $GroupsTable,
+          Group,
+          $$GroupsTableFilterComposer,
+          $$GroupsTableOrderingComposer,
+          $$GroupsTableAnnotationComposer,
+          $$GroupsTableCreateCompanionBuilder,
+          $$GroupsTableUpdateCompanionBuilder,
+          (Group, $$GroupsTableReferences),
+          Group,
           PrefetchHooks Function({
-            bool kidsRefs,
-            bool tripPodsRefs,
+            bool childrenRefs,
+            bool tripGroupsRefs,
             bool observationsRefs,
             bool scheduleTemplatesRefs,
             bool scheduleEntriesRefs,
-            bool templatePodsRefs,
-            bool entryPodsRefs,
+            bool templateGroupsRefs,
+            bool entryGroupsRefs,
           })
         > {
-  $$PodsTableTableManager(_$AppDatabase db, $PodsTable table)
+  $$GroupsTableTableManager(_$AppDatabase db, $GroupsTable table)
     : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$PodsTableFilterComposer($db: db, $table: table),
+              $$GroupsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$PodsTableOrderingComposer($db: db, $table: table),
+              $$GroupsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$PodsTableAnnotationComposer($db: db, $table: table),
+              $$GroupsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
@@ -11473,7 +11537,7 @@ class $$PodsTableTableManager
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => PodsCompanion(
+              }) => GroupsCompanion(
                 id: id,
                 name: name,
                 colorHex: colorHex,
@@ -11489,7 +11553,7 @@ class $$PodsTableTableManager
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => PodsCompanion.insert(
+              }) => GroupsCompanion.insert(
                 id: id,
                 name: name,
                 colorHex: colorHex,
@@ -11500,145 +11564,173 @@ class $$PodsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) =>
-                    (e.readTable(table), $$PodsTableReferences(db, table, e)),
+                    (e.readTable(table), $$GroupsTableReferences(db, table, e)),
               )
               .toList(),
           prefetchHooksCallback:
               ({
-                kidsRefs = false,
-                tripPodsRefs = false,
+                childrenRefs = false,
+                tripGroupsRefs = false,
                 observationsRefs = false,
                 scheduleTemplatesRefs = false,
                 scheduleEntriesRefs = false,
-                templatePodsRefs = false,
-                entryPodsRefs = false,
+                templateGroupsRefs = false,
+                entryGroupsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
-                    if (kidsRefs) db.kids,
-                    if (tripPodsRefs) db.tripPods,
+                    if (childrenRefs) db.children,
+                    if (tripGroupsRefs) db.tripGroups,
                     if (observationsRefs) db.observations,
                     if (scheduleTemplatesRefs) db.scheduleTemplates,
                     if (scheduleEntriesRefs) db.scheduleEntries,
-                    if (templatePodsRefs) db.templatePods,
-                    if (entryPodsRefs) db.entryPods,
+                    if (templateGroupsRefs) db.templateGroups,
+                    if (entryGroupsRefs) db.entryGroups,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
                     return [
-                      if (kidsRefs)
-                        await $_getPrefetchedData<Pod, $PodsTable, Kid>(
+                      if (childrenRefs)
+                        await $_getPrefetchedData<Group, $GroupsTable, Child>(
                           currentTable: table,
-                          referencedTable: $$PodsTableReferences._kidsRefsTable(
-                            db,
-                          ),
+                          referencedTable: $$GroupsTableReferences
+                              ._childrenRefsTable(db),
                           managerFromTypedResult: (p0) =>
-                              $$PodsTableReferences(db, table, p0).kidsRefs,
+                              $$GroupsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).childrenRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.podId == item.id,
+                                (e) => e.groupId == item.id,
                               ),
                           typedResults: items,
                         ),
-                      if (tripPodsRefs)
-                        await $_getPrefetchedData<Pod, $PodsTable, TripPod>(
+                      if (tripGroupsRefs)
+                        await $_getPrefetchedData<
+                          Group,
+                          $GroupsTable,
+                          TripGroup
+                        >(
                           currentTable: table,
-                          referencedTable: $$PodsTableReferences
-                              ._tripPodsRefsTable(db),
+                          referencedTable: $$GroupsTableReferences
+                              ._tripGroupsRefsTable(db),
                           managerFromTypedResult: (p0) =>
-                              $$PodsTableReferences(db, table, p0).tripPodsRefs,
+                              $$GroupsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).tripGroupsRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.podId == item.id,
+                                (e) => e.groupId == item.id,
                               ),
                           typedResults: items,
                         ),
                       if (observationsRefs)
-                        await $_getPrefetchedData<Pod, $PodsTable, Observation>(
+                        await $_getPrefetchedData<
+                          Group,
+                          $GroupsTable,
+                          Observation
+                        >(
                           currentTable: table,
-                          referencedTable: $$PodsTableReferences
+                          referencedTable: $$GroupsTableReferences
                               ._observationsRefsTable(db),
-                          managerFromTypedResult: (p0) => $$PodsTableReferences(
-                            db,
-                            table,
-                            p0,
-                          ).observationsRefs,
+                          managerFromTypedResult: (p0) =>
+                              $$GroupsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).observationsRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.podId == item.id,
+                                (e) => e.groupId == item.id,
                               ),
                           typedResults: items,
                         ),
                       if (scheduleTemplatesRefs)
                         await $_getPrefetchedData<
-                          Pod,
-                          $PodsTable,
+                          Group,
+                          $GroupsTable,
                           ScheduleTemplate
                         >(
                           currentTable: table,
-                          referencedTable: $$PodsTableReferences
+                          referencedTable: $$GroupsTableReferences
                               ._scheduleTemplatesRefsTable(db),
-                          managerFromTypedResult: (p0) => $$PodsTableReferences(
-                            db,
-                            table,
-                            p0,
-                          ).scheduleTemplatesRefs,
+                          managerFromTypedResult: (p0) =>
+                              $$GroupsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scheduleTemplatesRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.podId == item.id,
+                                (e) => e.groupId == item.id,
                               ),
                           typedResults: items,
                         ),
                       if (scheduleEntriesRefs)
                         await $_getPrefetchedData<
-                          Pod,
-                          $PodsTable,
+                          Group,
+                          $GroupsTable,
                           ScheduleEntry
                         >(
                           currentTable: table,
-                          referencedTable: $$PodsTableReferences
+                          referencedTable: $$GroupsTableReferences
                               ._scheduleEntriesRefsTable(db),
-                          managerFromTypedResult: (p0) => $$PodsTableReferences(
-                            db,
-                            table,
-                            p0,
-                          ).scheduleEntriesRefs,
+                          managerFromTypedResult: (p0) =>
+                              $$GroupsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scheduleEntriesRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.podId == item.id,
+                                (e) => e.groupId == item.id,
                               ),
                           typedResults: items,
                         ),
-                      if (templatePodsRefs)
-                        await $_getPrefetchedData<Pod, $PodsTable, TemplatePod>(
+                      if (templateGroupsRefs)
+                        await $_getPrefetchedData<
+                          Group,
+                          $GroupsTable,
+                          TemplateGroup
+                        >(
                           currentTable: table,
-                          referencedTable: $$PodsTableReferences
-                              ._templatePodsRefsTable(db),
-                          managerFromTypedResult: (p0) => $$PodsTableReferences(
-                            db,
-                            table,
-                            p0,
-                          ).templatePodsRefs,
+                          referencedTable: $$GroupsTableReferences
+                              ._templateGroupsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$GroupsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).templateGroupsRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.podId == item.id,
+                                (e) => e.groupId == item.id,
                               ),
                           typedResults: items,
                         ),
-                      if (entryPodsRefs)
-                        await $_getPrefetchedData<Pod, $PodsTable, EntryPod>(
+                      if (entryGroupsRefs)
+                        await $_getPrefetchedData<
+                          Group,
+                          $GroupsTable,
+                          EntryGroup
+                        >(
                           currentTable: table,
-                          referencedTable: $$PodsTableReferences
-                              ._entryPodsRefsTable(db),
-                          managerFromTypedResult: (p0) => $$PodsTableReferences(
-                            db,
-                            table,
-                            p0,
-                          ).entryPodsRefs,
+                          referencedTable: $$GroupsTableReferences
+                              ._entryGroupsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$GroupsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).entryGroupsRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.podId == item.id,
+                                (e) => e.groupId == item.id,
                               ),
                           typedResults: items,
                         ),
@@ -11650,34 +11742,34 @@ class $$PodsTableTableManager
       );
 }
 
-typedef $$PodsTableProcessedTableManager =
+typedef $$GroupsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $PodsTable,
-      Pod,
-      $$PodsTableFilterComposer,
-      $$PodsTableOrderingComposer,
-      $$PodsTableAnnotationComposer,
-      $$PodsTableCreateCompanionBuilder,
-      $$PodsTableUpdateCompanionBuilder,
-      (Pod, $$PodsTableReferences),
-      Pod,
+      $GroupsTable,
+      Group,
+      $$GroupsTableFilterComposer,
+      $$GroupsTableOrderingComposer,
+      $$GroupsTableAnnotationComposer,
+      $$GroupsTableCreateCompanionBuilder,
+      $$GroupsTableUpdateCompanionBuilder,
+      (Group, $$GroupsTableReferences),
+      Group,
       PrefetchHooks Function({
-        bool kidsRefs,
-        bool tripPodsRefs,
+        bool childrenRefs,
+        bool tripGroupsRefs,
         bool observationsRefs,
         bool scheduleTemplatesRefs,
         bool scheduleEntriesRefs,
-        bool templatePodsRefs,
-        bool entryPodsRefs,
+        bool templateGroupsRefs,
+        bool entryGroupsRefs,
       })
     >;
-typedef $$KidsTableCreateCompanionBuilder =
-    KidsCompanion Function({
+typedef $$ChildrenTableCreateCompanionBuilder =
+    ChildrenCompanion Function({
       required String id,
       required String firstName,
       Value<String?> lastName,
-      Value<String?> podId,
+      Value<String?> groupId,
       Value<DateTime?> birthDate,
       Value<String?> pin,
       Value<String?> notes,
@@ -11687,12 +11779,12 @@ typedef $$KidsTableCreateCompanionBuilder =
       Value<DateTime> updatedAt,
       Value<int> rowid,
     });
-typedef $$KidsTableUpdateCompanionBuilder =
-    KidsCompanion Function({
+typedef $$ChildrenTableUpdateCompanionBuilder =
+    ChildrenCompanion Function({
       Value<String> id,
       Value<String> firstName,
       Value<String?> lastName,
-      Value<String?> podId,
+      Value<String?> groupId,
       Value<DateTime?> birthDate,
       Value<String?> pin,
       Value<String?> notes,
@@ -11703,40 +11795,43 @@ typedef $$KidsTableUpdateCompanionBuilder =
       Value<int> rowid,
     });
 
-final class $$KidsTableReferences
-    extends BaseReferences<_$AppDatabase, $KidsTable, Kid> {
-  $$KidsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+final class $$ChildrenTableReferences
+    extends BaseReferences<_$AppDatabase, $ChildrenTable, Child> {
+  $$ChildrenTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
-  static $PodsTable _podIdTable(_$AppDatabase db) =>
-      db.pods.createAlias($_aliasNameGenerator(db.kids.podId, db.pods.id));
+  static $GroupsTable _groupIdTable(_$AppDatabase db) => db.groups.createAlias(
+    $_aliasNameGenerator(db.children.groupId, db.groups.id),
+  );
 
-  $$PodsTableProcessedTableManager? get podId {
-    final $_column = $_itemColumn<String>('pod_id');
+  $$GroupsTableProcessedTableManager? get groupId {
+    final $_column = $_itemColumn<String>('group_id');
     if ($_column == null) return null;
-    final manager = $$PodsTableTableManager(
+    final manager = $$GroupsTableTableManager(
       $_db,
-      $_db.pods,
+      $_db.groups,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_podIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_groupIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
     );
   }
 
-  static MultiTypedResultKey<$CaptureKidsTable, List<CaptureKid>>
-  _captureKidsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.captureKids,
-    aliasName: $_aliasNameGenerator(db.kids.id, db.captureKids.kidId),
+  static MultiTypedResultKey<$CaptureChildrenTable, List<CaptureChildrenData>>
+  _captureChildrenRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.captureChildren,
+    aliasName: $_aliasNameGenerator(db.children.id, db.captureChildren.childId),
   );
 
-  $$CaptureKidsTableProcessedTableManager get captureKidsRefs {
-    final manager = $$CaptureKidsTableTableManager(
+  $$CaptureChildrenTableProcessedTableManager get captureChildrenRefs {
+    final manager = $$CaptureChildrenTableTableManager(
       $_db,
-      $_db.captureKids,
-    ).filter((f) => f.kidId.id.sqlEquals($_itemColumn<String>('id')!));
+      $_db.captureChildren,
+    ).filter((f) => f.childId.id.sqlEquals($_itemColumn<String>('id')!));
 
-    final cache = $_typedResult.readTableOrNull(_captureKidsRefsTable($_db));
+    final cache = $_typedResult.readTableOrNull(
+      _captureChildrenRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -11745,14 +11840,14 @@ final class $$KidsTableReferences
   static MultiTypedResultKey<$ObservationsTable, List<Observation>>
   _observationsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.observations,
-    aliasName: $_aliasNameGenerator(db.kids.id, db.observations.kidId),
+    aliasName: $_aliasNameGenerator(db.children.id, db.observations.childId),
   );
 
   $$ObservationsTableProcessedTableManager get observationsRefs {
     final manager = $$ObservationsTableTableManager(
       $_db,
       $_db.observations,
-    ).filter((f) => f.kidId.id.sqlEquals($_itemColumn<String>('id')!));
+    ).filter((f) => f.childId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_observationsRefsTable($_db));
     return ProcessedTableManager(
@@ -11760,41 +11855,55 @@ final class $$KidsTableReferences
     );
   }
 
-  static MultiTypedResultKey<$ObservationKidsTable, List<ObservationKid>>
-  _observationKidsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.observationKids,
-    aliasName: $_aliasNameGenerator(db.kids.id, db.observationKids.kidId),
-  );
+  static MultiTypedResultKey<
+    $ObservationChildrenTable,
+    List<ObservationChildrenData>
+  >
+  _observationChildrenRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.observationChildren,
+        aliasName: $_aliasNameGenerator(
+          db.children.id,
+          db.observationChildren.childId,
+        ),
+      );
 
-  $$ObservationKidsTableProcessedTableManager get observationKidsRefs {
-    final manager = $$ObservationKidsTableTableManager(
+  $$ObservationChildrenTableProcessedTableManager get observationChildrenRefs {
+    final manager = $$ObservationChildrenTableTableManager(
       $_db,
-      $_db.observationKids,
-    ).filter((f) => f.kidId.id.sqlEquals($_itemColumn<String>('id')!));
+      $_db.observationChildren,
+    ).filter((f) => f.childId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(
-      _observationKidsRefsTable($_db),
+      _observationChildrenRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
 
-  static MultiTypedResultKey<$ParentConcernKidsTable, List<ParentConcernKid>>
-  _parentConcernKidsRefsTable(_$AppDatabase db) =>
+  static MultiTypedResultKey<
+    $ParentConcernChildrenTable,
+    List<ParentConcernChildrenData>
+  >
+  _parentConcernChildrenRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
-        db.parentConcernKids,
-        aliasName: $_aliasNameGenerator(db.kids.id, db.parentConcernKids.kidId),
+        db.parentConcernChildren,
+        aliasName: $_aliasNameGenerator(
+          db.children.id,
+          db.parentConcernChildren.childId,
+        ),
       );
 
-  $$ParentConcernKidsTableProcessedTableManager get parentConcernKidsRefs {
-    final manager = $$ParentConcernKidsTableTableManager(
+  $$ParentConcernChildrenTableProcessedTableManager
+  get parentConcernChildrenRefs {
+    final manager = $$ParentConcernChildrenTableTableManager(
       $_db,
-      $_db.parentConcernKids,
-    ).filter((f) => f.kidId.id.sqlEquals($_itemColumn<String>('id')!));
+      $_db.parentConcernChildren,
+    ).filter((f) => f.childId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(
-      _parentConcernKidsRefsTable($_db),
+      _parentConcernChildrenRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -11804,14 +11913,14 @@ final class $$KidsTableReferences
   static MultiTypedResultKey<$AttendanceTable, List<AttendanceData>>
   _attendanceRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.attendance,
-    aliasName: $_aliasNameGenerator(db.kids.id, db.attendance.kidId),
+    aliasName: $_aliasNameGenerator(db.children.id, db.attendance.childId),
   );
 
   $$AttendanceTableProcessedTableManager get attendanceRefs {
     final manager = $$AttendanceTableTableManager(
       $_db,
       $_db.attendance,
-    ).filter((f) => f.kidId.id.sqlEquals($_itemColumn<String>('id')!));
+    ).filter((f) => f.childId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_attendanceRefsTable($_db));
     return ProcessedTableManager(
@@ -11820,8 +11929,9 @@ final class $$KidsTableReferences
   }
 }
 
-class $$KidsTableFilterComposer extends Composer<_$AppDatabase, $KidsTable> {
-  $$KidsTableFilterComposer({
+class $$ChildrenTableFilterComposer
+    extends Composer<_$AppDatabase, $ChildrenTable> {
+  $$ChildrenTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -11878,20 +11988,20 @@ class $$KidsTableFilterComposer extends Composer<_$AppDatabase, $KidsTable> {
     builder: (column) => ColumnFilters(column),
   );
 
-  $$PodsTableFilterComposer get podId {
-    final $$PodsTableFilterComposer composer = $composerBuilder(
+  $$GroupsTableFilterComposer get groupId {
+    final $$GroupsTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableFilterComposer(
+          }) => $$GroupsTableFilterComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -11901,22 +12011,22 @@ class $$KidsTableFilterComposer extends Composer<_$AppDatabase, $KidsTable> {
     return composer;
   }
 
-  Expression<bool> captureKidsRefs(
-    Expression<bool> Function($$CaptureKidsTableFilterComposer f) f,
+  Expression<bool> captureChildrenRefs(
+    Expression<bool> Function($$CaptureChildrenTableFilterComposer f) f,
   ) {
-    final $$CaptureKidsTableFilterComposer composer = $composerBuilder(
+    final $$CaptureChildrenTableFilterComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.captureKids,
-      getReferencedColumn: (t) => t.kidId,
+      referencedTable: $db.captureChildren,
+      getReferencedColumn: (t) => t.childId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$CaptureKidsTableFilterComposer(
+          }) => $$CaptureChildrenTableFilterComposer(
             $db: $db,
-            $table: $db.captureKids,
+            $table: $db.captureChildren,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -11933,7 +12043,7 @@ class $$KidsTableFilterComposer extends Composer<_$AppDatabase, $KidsTable> {
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.observations,
-      getReferencedColumn: (t) => t.kidId,
+      getReferencedColumn: (t) => t.childId,
       builder:
           (
             joinBuilder, {
@@ -11951,22 +12061,22 @@ class $$KidsTableFilterComposer extends Composer<_$AppDatabase, $KidsTable> {
     return f(composer);
   }
 
-  Expression<bool> observationKidsRefs(
-    Expression<bool> Function($$ObservationKidsTableFilterComposer f) f,
+  Expression<bool> observationChildrenRefs(
+    Expression<bool> Function($$ObservationChildrenTableFilterComposer f) f,
   ) {
-    final $$ObservationKidsTableFilterComposer composer = $composerBuilder(
+    final $$ObservationChildrenTableFilterComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.observationKids,
-      getReferencedColumn: (t) => t.kidId,
+      referencedTable: $db.observationChildren,
+      getReferencedColumn: (t) => t.childId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$ObservationKidsTableFilterComposer(
+          }) => $$ObservationChildrenTableFilterComposer(
             $db: $db,
-            $table: $db.observationKids,
+            $table: $db.observationChildren,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -11976,28 +12086,29 @@ class $$KidsTableFilterComposer extends Composer<_$AppDatabase, $KidsTable> {
     return f(composer);
   }
 
-  Expression<bool> parentConcernKidsRefs(
-    Expression<bool> Function($$ParentConcernKidsTableFilterComposer f) f,
+  Expression<bool> parentConcernChildrenRefs(
+    Expression<bool> Function($$ParentConcernChildrenTableFilterComposer f) f,
   ) {
-    final $$ParentConcernKidsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.parentConcernKids,
-      getReferencedColumn: (t) => t.kidId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$ParentConcernKidsTableFilterComposer(
-            $db: $db,
-            $table: $db.parentConcernKids,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
+    final $$ParentConcernChildrenTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.parentConcernChildren,
+          getReferencedColumn: (t) => t.childId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
                 $removeJoinBuilderFromRootComposer,
-          ),
-    );
+              }) => $$ParentConcernChildrenTableFilterComposer(
+                $db: $db,
+                $table: $db.parentConcernChildren,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 
@@ -12008,7 +12119,7 @@ class $$KidsTableFilterComposer extends Composer<_$AppDatabase, $KidsTable> {
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.attendance,
-      getReferencedColumn: (t) => t.kidId,
+      getReferencedColumn: (t) => t.childId,
       builder:
           (
             joinBuilder, {
@@ -12027,8 +12138,9 @@ class $$KidsTableFilterComposer extends Composer<_$AppDatabase, $KidsTable> {
   }
 }
 
-class $$KidsTableOrderingComposer extends Composer<_$AppDatabase, $KidsTable> {
-  $$KidsTableOrderingComposer({
+class $$ChildrenTableOrderingComposer
+    extends Composer<_$AppDatabase, $ChildrenTable> {
+  $$ChildrenTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -12085,20 +12197,20 @@ class $$KidsTableOrderingComposer extends Composer<_$AppDatabase, $KidsTable> {
     builder: (column) => ColumnOrderings(column),
   );
 
-  $$PodsTableOrderingComposer get podId {
-    final $$PodsTableOrderingComposer composer = $composerBuilder(
+  $$GroupsTableOrderingComposer get groupId {
+    final $$GroupsTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableOrderingComposer(
+          }) => $$GroupsTableOrderingComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -12109,9 +12221,9 @@ class $$KidsTableOrderingComposer extends Composer<_$AppDatabase, $KidsTable> {
   }
 }
 
-class $$KidsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $KidsTable> {
-  $$KidsTableAnnotationComposer({
+class $$ChildrenTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ChildrenTable> {
+  $$ChildrenTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -12152,20 +12264,20 @@ class $$KidsTableAnnotationComposer
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
-  $$PodsTableAnnotationComposer get podId {
-    final $$PodsTableAnnotationComposer composer = $composerBuilder(
+  $$GroupsTableAnnotationComposer get groupId {
+    final $$GroupsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableAnnotationComposer(
+          }) => $$GroupsTableAnnotationComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -12175,22 +12287,22 @@ class $$KidsTableAnnotationComposer
     return composer;
   }
 
-  Expression<T> captureKidsRefs<T extends Object>(
-    Expression<T> Function($$CaptureKidsTableAnnotationComposer a) f,
+  Expression<T> captureChildrenRefs<T extends Object>(
+    Expression<T> Function($$CaptureChildrenTableAnnotationComposer a) f,
   ) {
-    final $$CaptureKidsTableAnnotationComposer composer = $composerBuilder(
+    final $$CaptureChildrenTableAnnotationComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.captureKids,
-      getReferencedColumn: (t) => t.kidId,
+      referencedTable: $db.captureChildren,
+      getReferencedColumn: (t) => t.childId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$CaptureKidsTableAnnotationComposer(
+          }) => $$CaptureChildrenTableAnnotationComposer(
             $db: $db,
-            $table: $db.captureKids,
+            $table: $db.captureChildren,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -12207,7 +12319,7 @@ class $$KidsTableAnnotationComposer
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.observations,
-      getReferencedColumn: (t) => t.kidId,
+      getReferencedColumn: (t) => t.childId,
       builder:
           (
             joinBuilder, {
@@ -12225,48 +12337,49 @@ class $$KidsTableAnnotationComposer
     return f(composer);
   }
 
-  Expression<T> observationKidsRefs<T extends Object>(
-    Expression<T> Function($$ObservationKidsTableAnnotationComposer a) f,
+  Expression<T> observationChildrenRefs<T extends Object>(
+    Expression<T> Function($$ObservationChildrenTableAnnotationComposer a) f,
   ) {
-    final $$ObservationKidsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.observationKids,
-      getReferencedColumn: (t) => t.kidId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$ObservationKidsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.observationKids,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
-  Expression<T> parentConcernKidsRefs<T extends Object>(
-    Expression<T> Function($$ParentConcernKidsTableAnnotationComposer a) f,
-  ) {
-    final $$ParentConcernKidsTableAnnotationComposer composer =
+    final $$ObservationChildrenTableAnnotationComposer composer =
         $composerBuilder(
           composer: this,
           getCurrentColumn: (t) => t.id,
-          referencedTable: $db.parentConcernKids,
-          getReferencedColumn: (t) => t.kidId,
+          referencedTable: $db.observationChildren,
+          getReferencedColumn: (t) => t.childId,
           builder:
               (
                 joinBuilder, {
                 $addJoinBuilderToRootComposer,
                 $removeJoinBuilderFromRootComposer,
-              }) => $$ParentConcernKidsTableAnnotationComposer(
+              }) => $$ObservationChildrenTableAnnotationComposer(
                 $db: $db,
-                $table: $db.parentConcernKids,
+                $table: $db.observationChildren,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> parentConcernChildrenRefs<T extends Object>(
+    Expression<T> Function($$ParentConcernChildrenTableAnnotationComposer a) f,
+  ) {
+    final $$ParentConcernChildrenTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.parentConcernChildren,
+          getReferencedColumn: (t) => t.childId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ParentConcernChildrenTableAnnotationComposer(
+                $db: $db,
+                $table: $db.parentConcernChildren,
                 $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
                 joinBuilder: joinBuilder,
                 $removeJoinBuilderFromRootComposer:
@@ -12283,7 +12396,7 @@ class $$KidsTableAnnotationComposer
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.attendance,
-      getReferencedColumn: (t) => t.kidId,
+      getReferencedColumn: (t) => t.childId,
       builder:
           (
             joinBuilder, {
@@ -12302,45 +12415,45 @@ class $$KidsTableAnnotationComposer
   }
 }
 
-class $$KidsTableTableManager
+class $$ChildrenTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $KidsTable,
-          Kid,
-          $$KidsTableFilterComposer,
-          $$KidsTableOrderingComposer,
-          $$KidsTableAnnotationComposer,
-          $$KidsTableCreateCompanionBuilder,
-          $$KidsTableUpdateCompanionBuilder,
-          (Kid, $$KidsTableReferences),
-          Kid,
+          $ChildrenTable,
+          Child,
+          $$ChildrenTableFilterComposer,
+          $$ChildrenTableOrderingComposer,
+          $$ChildrenTableAnnotationComposer,
+          $$ChildrenTableCreateCompanionBuilder,
+          $$ChildrenTableUpdateCompanionBuilder,
+          (Child, $$ChildrenTableReferences),
+          Child,
           PrefetchHooks Function({
-            bool podId,
-            bool captureKidsRefs,
+            bool groupId,
+            bool captureChildrenRefs,
             bool observationsRefs,
-            bool observationKidsRefs,
-            bool parentConcernKidsRefs,
+            bool observationChildrenRefs,
+            bool parentConcernChildrenRefs,
             bool attendanceRefs,
           })
         > {
-  $$KidsTableTableManager(_$AppDatabase db, $KidsTable table)
+  $$ChildrenTableTableManager(_$AppDatabase db, $ChildrenTable table)
     : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$KidsTableFilterComposer($db: db, $table: table),
+              $$ChildrenTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$KidsTableOrderingComposer($db: db, $table: table),
+              $$ChildrenTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$KidsTableAnnotationComposer($db: db, $table: table),
+              $$ChildrenTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
                 Value<String> firstName = const Value.absent(),
                 Value<String?> lastName = const Value.absent(),
-                Value<String?> podId = const Value.absent(),
+                Value<String?> groupId = const Value.absent(),
                 Value<DateTime?> birthDate = const Value.absent(),
                 Value<String?> pin = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
@@ -12349,11 +12462,11 @@ class $$KidsTableTableManager
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => KidsCompanion(
+              }) => ChildrenCompanion(
                 id: id,
                 firstName: firstName,
                 lastName: lastName,
-                podId: podId,
+                groupId: groupId,
                 birthDate: birthDate,
                 pin: pin,
                 notes: notes,
@@ -12368,7 +12481,7 @@ class $$KidsTableTableManager
                 required String id,
                 required String firstName,
                 Value<String?> lastName = const Value.absent(),
-                Value<String?> podId = const Value.absent(),
+                Value<String?> groupId = const Value.absent(),
                 Value<DateTime?> birthDate = const Value.absent(),
                 Value<String?> pin = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
@@ -12377,11 +12490,11 @@ class $$KidsTableTableManager
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => KidsCompanion.insert(
+              }) => ChildrenCompanion.insert(
                 id: id,
                 firstName: firstName,
                 lastName: lastName,
-                podId: podId,
+                groupId: groupId,
                 birthDate: birthDate,
                 pin: pin,
                 notes: notes,
@@ -12393,26 +12506,28 @@ class $$KidsTableTableManager
               ),
           withReferenceMapper: (p0) => p0
               .map(
-                (e) =>
-                    (e.readTable(table), $$KidsTableReferences(db, table, e)),
+                (e) => (
+                  e.readTable(table),
+                  $$ChildrenTableReferences(db, table, e),
+                ),
               )
               .toList(),
           prefetchHooksCallback:
               ({
-                podId = false,
-                captureKidsRefs = false,
+                groupId = false,
+                captureChildrenRefs = false,
                 observationsRefs = false,
-                observationKidsRefs = false,
-                parentConcernKidsRefs = false,
+                observationChildrenRefs = false,
+                parentConcernChildrenRefs = false,
                 attendanceRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
-                    if (captureKidsRefs) db.captureKids,
+                    if (captureChildrenRefs) db.captureChildren,
                     if (observationsRefs) db.observations,
-                    if (observationKidsRefs) db.observationKids,
-                    if (parentConcernKidsRefs) db.parentConcernKids,
+                    if (observationChildrenRefs) db.observationChildren,
+                    if (parentConcernChildrenRefs) db.parentConcernChildren,
                     if (attendanceRefs) db.attendance,
                   ],
                   addJoins:
@@ -12431,15 +12546,15 @@ class $$KidsTableTableManager
                           dynamic
                         >
                       >(state) {
-                        if (podId) {
+                        if (groupId) {
                           state =
                               state.withJoin(
                                     currentTable: table,
-                                    currentColumn: table.podId,
-                                    referencedTable: $$KidsTableReferences
-                                        ._podIdTable(db),
-                                    referencedColumn: $$KidsTableReferences
-                                        ._podIdTable(db)
+                                    currentColumn: table.groupId,
+                                    referencedTable: $$ChildrenTableReferences
+                                        ._groupIdTable(db),
+                                    referencedColumn: $$ChildrenTableReferences
+                                        ._groupIdTable(db)
                                         .id,
                                   )
                                   as T;
@@ -12449,95 +12564,108 @@ class $$KidsTableTableManager
                       },
                   getPrefetchedDataCallback: (items) async {
                     return [
-                      if (captureKidsRefs)
-                        await $_getPrefetchedData<Kid, $KidsTable, CaptureKid>(
+                      if (captureChildrenRefs)
+                        await $_getPrefetchedData<
+                          Child,
+                          $ChildrenTable,
+                          CaptureChildrenData
+                        >(
                           currentTable: table,
-                          referencedTable: $$KidsTableReferences
-                              ._captureKidsRefsTable(db),
-                          managerFromTypedResult: (p0) => $$KidsTableReferences(
-                            db,
-                            table,
-                            p0,
-                          ).captureKidsRefs,
+                          referencedTable: $$ChildrenTableReferences
+                              ._captureChildrenRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ChildrenTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).captureChildrenRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.kidId == item.id,
+                                (e) => e.childId == item.id,
                               ),
                           typedResults: items,
                         ),
                       if (observationsRefs)
-                        await $_getPrefetchedData<Kid, $KidsTable, Observation>(
+                        await $_getPrefetchedData<
+                          Child,
+                          $ChildrenTable,
+                          Observation
+                        >(
                           currentTable: table,
-                          referencedTable: $$KidsTableReferences
+                          referencedTable: $$ChildrenTableReferences
                               ._observationsRefsTable(db),
-                          managerFromTypedResult: (p0) => $$KidsTableReferences(
-                            db,
-                            table,
-                            p0,
-                          ).observationsRefs,
+                          managerFromTypedResult: (p0) =>
+                              $$ChildrenTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).observationsRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.kidId == item.id,
+                                (e) => e.childId == item.id,
                               ),
                           typedResults: items,
                         ),
-                      if (observationKidsRefs)
+                      if (observationChildrenRefs)
                         await $_getPrefetchedData<
-                          Kid,
-                          $KidsTable,
-                          ObservationKid
+                          Child,
+                          $ChildrenTable,
+                          ObservationChildrenData
                         >(
                           currentTable: table,
-                          referencedTable: $$KidsTableReferences
-                              ._observationKidsRefsTable(db),
-                          managerFromTypedResult: (p0) => $$KidsTableReferences(
-                            db,
-                            table,
-                            p0,
-                          ).observationKidsRefs,
+                          referencedTable: $$ChildrenTableReferences
+                              ._observationChildrenRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ChildrenTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).observationChildrenRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.kidId == item.id,
+                                (e) => e.childId == item.id,
                               ),
                           typedResults: items,
                         ),
-                      if (parentConcernKidsRefs)
+                      if (parentConcernChildrenRefs)
                         await $_getPrefetchedData<
-                          Kid,
-                          $KidsTable,
-                          ParentConcernKid
+                          Child,
+                          $ChildrenTable,
+                          ParentConcernChildrenData
                         >(
                           currentTable: table,
-                          referencedTable: $$KidsTableReferences
-                              ._parentConcernKidsRefsTable(db),
-                          managerFromTypedResult: (p0) => $$KidsTableReferences(
-                            db,
-                            table,
-                            p0,
-                          ).parentConcernKidsRefs,
+                          referencedTable: $$ChildrenTableReferences
+                              ._parentConcernChildrenRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ChildrenTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).parentConcernChildrenRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.kidId == item.id,
+                                (e) => e.childId == item.id,
                               ),
                           typedResults: items,
                         ),
                       if (attendanceRefs)
                         await $_getPrefetchedData<
-                          Kid,
-                          $KidsTable,
+                          Child,
+                          $ChildrenTable,
                           AttendanceData
                         >(
                           currentTable: table,
-                          referencedTable: $$KidsTableReferences
+                          referencedTable: $$ChildrenTableReferences
                               ._attendanceRefsTable(db),
-                          managerFromTypedResult: (p0) => $$KidsTableReferences(
-                            db,
-                            table,
-                            p0,
-                          ).attendanceRefs,
+                          managerFromTypedResult: (p0) =>
+                              $$ChildrenTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).attendanceRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.kidId == item.id,
+                                (e) => e.childId == item.id,
                               ),
                           typedResults: items,
                         ),
@@ -12549,24 +12677,24 @@ class $$KidsTableTableManager
       );
 }
 
-typedef $$KidsTableProcessedTableManager =
+typedef $$ChildrenTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $KidsTable,
-      Kid,
-      $$KidsTableFilterComposer,
-      $$KidsTableOrderingComposer,
-      $$KidsTableAnnotationComposer,
-      $$KidsTableCreateCompanionBuilder,
-      $$KidsTableUpdateCompanionBuilder,
-      (Kid, $$KidsTableReferences),
-      Kid,
+      $ChildrenTable,
+      Child,
+      $$ChildrenTableFilterComposer,
+      $$ChildrenTableOrderingComposer,
+      $$ChildrenTableAnnotationComposer,
+      $$ChildrenTableCreateCompanionBuilder,
+      $$ChildrenTableUpdateCompanionBuilder,
+      (Child, $$ChildrenTableReferences),
+      Child,
       PrefetchHooks Function({
-        bool podId,
-        bool captureKidsRefs,
+        bool groupId,
+        bool captureChildrenRefs,
         bool observationsRefs,
-        bool observationKidsRefs,
-        bool parentConcernKidsRefs,
+        bool observationChildrenRefs,
+        bool parentConcernChildrenRefs,
         bool attendanceRefs,
       })
     >;
@@ -12603,20 +12731,19 @@ final class $$TripsTableReferences
     extends BaseReferences<_$AppDatabase, $TripsTable, Trip> {
   $$TripsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
-  static MultiTypedResultKey<$TripPodsTable, List<TripPod>> _tripPodsRefsTable(
-    _$AppDatabase db,
-  ) => MultiTypedResultKey.fromTable(
-    db.tripPods,
-    aliasName: $_aliasNameGenerator(db.trips.id, db.tripPods.tripId),
+  static MultiTypedResultKey<$TripGroupsTable, List<TripGroup>>
+  _tripGroupsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.tripGroups,
+    aliasName: $_aliasNameGenerator(db.trips.id, db.tripGroups.tripId),
   );
 
-  $$TripPodsTableProcessedTableManager get tripPodsRefs {
-    final manager = $$TripPodsTableTableManager(
+  $$TripGroupsTableProcessedTableManager get tripGroupsRefs {
+    final manager = $$TripGroupsTableTableManager(
       $_db,
-      $_db.tripPods,
+      $_db.tripGroups,
     ).filter((f) => f.tripId.id.sqlEquals($_itemColumn<String>('id')!));
 
-    final cache = $_typedResult.readTableOrNull(_tripPodsRefsTable($_db));
+    final cache = $_typedResult.readTableOrNull(_tripGroupsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -12741,22 +12868,22 @@ class $$TripsTableFilterComposer extends Composer<_$AppDatabase, $TripsTable> {
     builder: (column) => ColumnFilters(column),
   );
 
-  Expression<bool> tripPodsRefs(
-    Expression<bool> Function($$TripPodsTableFilterComposer f) f,
+  Expression<bool> tripGroupsRefs(
+    Expression<bool> Function($$TripGroupsTableFilterComposer f) f,
   ) {
-    final $$TripPodsTableFilterComposer composer = $composerBuilder(
+    final $$TripGroupsTableFilterComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.tripPods,
+      referencedTable: $db.tripGroups,
       getReferencedColumn: (t) => t.tripId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$TripPodsTableFilterComposer(
+          }) => $$TripGroupsTableFilterComposer(
             $db: $db,
-            $table: $db.tripPods,
+            $table: $db.tripGroups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -12945,22 +13072,22 @@ class $$TripsTableAnnotationComposer
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
-  Expression<T> tripPodsRefs<T extends Object>(
-    Expression<T> Function($$TripPodsTableAnnotationComposer a) f,
+  Expression<T> tripGroupsRefs<T extends Object>(
+    Expression<T> Function($$TripGroupsTableAnnotationComposer a) f,
   ) {
-    final $$TripPodsTableAnnotationComposer composer = $composerBuilder(
+    final $$TripGroupsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.tripPods,
+      referencedTable: $db.tripGroups,
       getReferencedColumn: (t) => t.tripId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$TripPodsTableAnnotationComposer(
+          }) => $$TripGroupsTableAnnotationComposer(
             $db: $db,
-            $table: $db.tripPods,
+            $table: $db.tripGroups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -13060,7 +13187,7 @@ class $$TripsTableTableManager
           (Trip, $$TripsTableReferences),
           Trip,
           PrefetchHooks Function({
-            bool tripPodsRefs,
+            bool tripGroupsRefs,
             bool capturesRefs,
             bool observationsRefs,
             bool scheduleEntriesRefs,
@@ -13137,7 +13264,7 @@ class $$TripsTableTableManager
               .toList(),
           prefetchHooksCallback:
               ({
-                tripPodsRefs = false,
+                tripGroupsRefs = false,
                 capturesRefs = false,
                 observationsRefs = false,
                 scheduleEntriesRefs = false,
@@ -13145,7 +13272,7 @@ class $$TripsTableTableManager
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
-                    if (tripPodsRefs) db.tripPods,
+                    if (tripGroupsRefs) db.tripGroups,
                     if (capturesRefs) db.captures,
                     if (observationsRefs) db.observations,
                     if (scheduleEntriesRefs) db.scheduleEntries,
@@ -13153,17 +13280,17 @@ class $$TripsTableTableManager
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
                     return [
-                      if (tripPodsRefs)
-                        await $_getPrefetchedData<Trip, $TripsTable, TripPod>(
+                      if (tripGroupsRefs)
+                        await $_getPrefetchedData<Trip, $TripsTable, TripGroup>(
                           currentTable: table,
                           referencedTable: $$TripsTableReferences
-                              ._tripPodsRefsTable(db),
+                              ._tripGroupsRefsTable(db),
                           managerFromTypedResult: (p0) =>
                               $$TripsTableReferences(
                                 db,
                                 table,
                                 p0,
-                              ).tripPodsRefs,
+                              ).tripGroupsRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.tripId == item.id,
@@ -13250,31 +13377,31 @@ typedef $$TripsTableProcessedTableManager =
       (Trip, $$TripsTableReferences),
       Trip,
       PrefetchHooks Function({
-        bool tripPodsRefs,
+        bool tripGroupsRefs,
         bool capturesRefs,
         bool observationsRefs,
         bool scheduleEntriesRefs,
       })
     >;
-typedef $$TripPodsTableCreateCompanionBuilder =
-    TripPodsCompanion Function({
+typedef $$TripGroupsTableCreateCompanionBuilder =
+    TripGroupsCompanion Function({
       required String tripId,
-      required String podId,
+      required String groupId,
       Value<int> rowid,
     });
-typedef $$TripPodsTableUpdateCompanionBuilder =
-    TripPodsCompanion Function({
+typedef $$TripGroupsTableUpdateCompanionBuilder =
+    TripGroupsCompanion Function({
       Value<String> tripId,
-      Value<String> podId,
+      Value<String> groupId,
       Value<int> rowid,
     });
 
-final class $$TripPodsTableReferences
-    extends BaseReferences<_$AppDatabase, $TripPodsTable, TripPod> {
-  $$TripPodsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+final class $$TripGroupsTableReferences
+    extends BaseReferences<_$AppDatabase, $TripGroupsTable, TripGroup> {
+  $$TripGroupsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
   static $TripsTable _tripIdTable(_$AppDatabase db) => db.trips.createAlias(
-    $_aliasNameGenerator(db.tripPods.tripId, db.trips.id),
+    $_aliasNameGenerator(db.tripGroups.tripId, db.trips.id),
   );
 
   $$TripsTableProcessedTableManager get tripId {
@@ -13291,17 +13418,18 @@ final class $$TripPodsTableReferences
     );
   }
 
-  static $PodsTable _podIdTable(_$AppDatabase db) =>
-      db.pods.createAlias($_aliasNameGenerator(db.tripPods.podId, db.pods.id));
+  static $GroupsTable _groupIdTable(_$AppDatabase db) => db.groups.createAlias(
+    $_aliasNameGenerator(db.tripGroups.groupId, db.groups.id),
+  );
 
-  $$PodsTableProcessedTableManager get podId {
-    final $_column = $_itemColumn<String>('pod_id')!;
+  $$GroupsTableProcessedTableManager get groupId {
+    final $_column = $_itemColumn<String>('group_id')!;
 
-    final manager = $$PodsTableTableManager(
+    final manager = $$GroupsTableTableManager(
       $_db,
-      $_db.pods,
+      $_db.groups,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_podIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_groupIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -13309,9 +13437,9 @@ final class $$TripPodsTableReferences
   }
 }
 
-class $$TripPodsTableFilterComposer
-    extends Composer<_$AppDatabase, $TripPodsTable> {
-  $$TripPodsTableFilterComposer({
+class $$TripGroupsTableFilterComposer
+    extends Composer<_$AppDatabase, $TripGroupsTable> {
+  $$TripGroupsTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -13341,20 +13469,20 @@ class $$TripPodsTableFilterComposer
     return composer;
   }
 
-  $$PodsTableFilterComposer get podId {
-    final $$PodsTableFilterComposer composer = $composerBuilder(
+  $$GroupsTableFilterComposer get groupId {
+    final $$GroupsTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableFilterComposer(
+          }) => $$GroupsTableFilterComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -13365,9 +13493,9 @@ class $$TripPodsTableFilterComposer
   }
 }
 
-class $$TripPodsTableOrderingComposer
-    extends Composer<_$AppDatabase, $TripPodsTable> {
-  $$TripPodsTableOrderingComposer({
+class $$TripGroupsTableOrderingComposer
+    extends Composer<_$AppDatabase, $TripGroupsTable> {
+  $$TripGroupsTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -13397,20 +13525,20 @@ class $$TripPodsTableOrderingComposer
     return composer;
   }
 
-  $$PodsTableOrderingComposer get podId {
-    final $$PodsTableOrderingComposer composer = $composerBuilder(
+  $$GroupsTableOrderingComposer get groupId {
+    final $$GroupsTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableOrderingComposer(
+          }) => $$GroupsTableOrderingComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -13421,9 +13549,9 @@ class $$TripPodsTableOrderingComposer
   }
 }
 
-class $$TripPodsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $TripPodsTable> {
-  $$TripPodsTableAnnotationComposer({
+class $$TripGroupsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TripGroupsTable> {
+  $$TripGroupsTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -13453,20 +13581,20 @@ class $$TripPodsTableAnnotationComposer
     return composer;
   }
 
-  $$PodsTableAnnotationComposer get podId {
-    final $$PodsTableAnnotationComposer composer = $composerBuilder(
+  $$GroupsTableAnnotationComposer get groupId {
+    final $$GroupsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableAnnotationComposer(
+          }) => $$GroupsTableAnnotationComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -13477,58 +13605,61 @@ class $$TripPodsTableAnnotationComposer
   }
 }
 
-class $$TripPodsTableTableManager
+class $$TripGroupsTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $TripPodsTable,
-          TripPod,
-          $$TripPodsTableFilterComposer,
-          $$TripPodsTableOrderingComposer,
-          $$TripPodsTableAnnotationComposer,
-          $$TripPodsTableCreateCompanionBuilder,
-          $$TripPodsTableUpdateCompanionBuilder,
-          (TripPod, $$TripPodsTableReferences),
-          TripPod,
-          PrefetchHooks Function({bool tripId, bool podId})
+          $TripGroupsTable,
+          TripGroup,
+          $$TripGroupsTableFilterComposer,
+          $$TripGroupsTableOrderingComposer,
+          $$TripGroupsTableAnnotationComposer,
+          $$TripGroupsTableCreateCompanionBuilder,
+          $$TripGroupsTableUpdateCompanionBuilder,
+          (TripGroup, $$TripGroupsTableReferences),
+          TripGroup,
+          PrefetchHooks Function({bool tripId, bool groupId})
         > {
-  $$TripPodsTableTableManager(_$AppDatabase db, $TripPodsTable table)
+  $$TripGroupsTableTableManager(_$AppDatabase db, $TripGroupsTable table)
     : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$TripPodsTableFilterComposer($db: db, $table: table),
+              $$TripGroupsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$TripPodsTableOrderingComposer($db: db, $table: table),
+              $$TripGroupsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$TripPodsTableAnnotationComposer($db: db, $table: table),
+              $$TripGroupsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> tripId = const Value.absent(),
-                Value<String> podId = const Value.absent(),
+                Value<String> groupId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) =>
-                  TripPodsCompanion(tripId: tripId, podId: podId, rowid: rowid),
+              }) => TripGroupsCompanion(
+                tripId: tripId,
+                groupId: groupId,
+                rowid: rowid,
+              ),
           createCompanionCallback:
               ({
                 required String tripId,
-                required String podId,
+                required String groupId,
                 Value<int> rowid = const Value.absent(),
-              }) => TripPodsCompanion.insert(
+              }) => TripGroupsCompanion.insert(
                 tripId: tripId,
-                podId: podId,
+                groupId: groupId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
                   e.readTable(table),
-                  $$TripPodsTableReferences(db, table, e),
+                  $$TripGroupsTableReferences(db, table, e),
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({tripId = false, podId = false}) {
+          prefetchHooksCallback: ({tripId = false, groupId = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [],
@@ -13553,23 +13684,23 @@ class $$TripPodsTableTableManager
                           state.withJoin(
                                 currentTable: table,
                                 currentColumn: table.tripId,
-                                referencedTable: $$TripPodsTableReferences
+                                referencedTable: $$TripGroupsTableReferences
                                     ._tripIdTable(db),
-                                referencedColumn: $$TripPodsTableReferences
+                                referencedColumn: $$TripGroupsTableReferences
                                     ._tripIdTable(db)
                                     .id,
                               )
                               as T;
                     }
-                    if (podId) {
+                    if (groupId) {
                       state =
                           state.withJoin(
                                 currentTable: table,
-                                currentColumn: table.podId,
-                                referencedTable: $$TripPodsTableReferences
-                                    ._podIdTable(db),
-                                referencedColumn: $$TripPodsTableReferences
-                                    ._podIdTable(db)
+                                currentColumn: table.groupId,
+                                referencedTable: $$TripGroupsTableReferences
+                                    ._groupIdTable(db),
+                                referencedColumn: $$TripGroupsTableReferences
+                                    ._groupIdTable(db)
                                     .id,
                               )
                               as T;
@@ -13586,19 +13717,19 @@ class $$TripPodsTableTableManager
       );
 }
 
-typedef $$TripPodsTableProcessedTableManager =
+typedef $$TripGroupsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $TripPodsTable,
-      TripPod,
-      $$TripPodsTableFilterComposer,
-      $$TripPodsTableOrderingComposer,
-      $$TripPodsTableAnnotationComposer,
-      $$TripPodsTableCreateCompanionBuilder,
-      $$TripPodsTableUpdateCompanionBuilder,
-      (TripPod, $$TripPodsTableReferences),
-      TripPod,
-      PrefetchHooks Function({bool tripId, bool podId})
+      $TripGroupsTable,
+      TripGroup,
+      $$TripGroupsTableFilterComposer,
+      $$TripGroupsTableOrderingComposer,
+      $$TripGroupsTableAnnotationComposer,
+      $$TripGroupsTableCreateCompanionBuilder,
+      $$TripGroupsTableUpdateCompanionBuilder,
+      (TripGroup, $$TripGroupsTableReferences),
+      TripGroup,
+      PrefetchHooks Function({bool tripId, bool groupId})
     >;
 typedef $$CapturesTableCreateCompanionBuilder =
     CapturesCompanion Function({
@@ -13645,19 +13776,24 @@ final class $$CapturesTableReferences
     );
   }
 
-  static MultiTypedResultKey<$CaptureKidsTable, List<CaptureKid>>
-  _captureKidsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.captureKids,
-    aliasName: $_aliasNameGenerator(db.captures.id, db.captureKids.captureId),
+  static MultiTypedResultKey<$CaptureChildrenTable, List<CaptureChildrenData>>
+  _captureChildrenRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.captureChildren,
+    aliasName: $_aliasNameGenerator(
+      db.captures.id,
+      db.captureChildren.captureId,
+    ),
   );
 
-  $$CaptureKidsTableProcessedTableManager get captureKidsRefs {
-    final manager = $$CaptureKidsTableTableManager(
+  $$CaptureChildrenTableProcessedTableManager get captureChildrenRefs {
+    final manager = $$CaptureChildrenTableTableManager(
       $_db,
-      $_db.captureKids,
+      $_db.captureChildren,
     ).filter((f) => f.captureId.id.sqlEquals($_itemColumn<String>('id')!));
 
-    final cache = $_typedResult.readTableOrNull(_captureKidsRefsTable($_db));
+    final cache = $_typedResult.readTableOrNull(
+      _captureChildrenRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -13726,22 +13862,22 @@ class $$CapturesTableFilterComposer
     return composer;
   }
 
-  Expression<bool> captureKidsRefs(
-    Expression<bool> Function($$CaptureKidsTableFilterComposer f) f,
+  Expression<bool> captureChildrenRefs(
+    Expression<bool> Function($$CaptureChildrenTableFilterComposer f) f,
   ) {
-    final $$CaptureKidsTableFilterComposer composer = $composerBuilder(
+    final $$CaptureChildrenTableFilterComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.captureKids,
+      referencedTable: $db.captureChildren,
       getReferencedColumn: (t) => t.captureId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$CaptureKidsTableFilterComposer(
+          }) => $$CaptureChildrenTableFilterComposer(
             $db: $db,
-            $table: $db.captureKids,
+            $table: $db.captureChildren,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -13867,22 +14003,22 @@ class $$CapturesTableAnnotationComposer
     return composer;
   }
 
-  Expression<T> captureKidsRefs<T extends Object>(
-    Expression<T> Function($$CaptureKidsTableAnnotationComposer a) f,
+  Expression<T> captureChildrenRefs<T extends Object>(
+    Expression<T> Function($$CaptureChildrenTableAnnotationComposer a) f,
   ) {
-    final $$CaptureKidsTableAnnotationComposer composer = $composerBuilder(
+    final $$CaptureChildrenTableAnnotationComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.captureKids,
+      referencedTable: $db.captureChildren,
       getReferencedColumn: (t) => t.captureId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$CaptureKidsTableAnnotationComposer(
+          }) => $$CaptureChildrenTableAnnotationComposer(
             $db: $db,
-            $table: $db.captureKids,
+            $table: $db.captureChildren,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -13906,7 +14042,7 @@ class $$CapturesTableTableManager
           $$CapturesTableUpdateCompanionBuilder,
           (Capture, $$CapturesTableReferences),
           Capture,
-          PrefetchHooks Function({bool tripId, bool captureKidsRefs})
+          PrefetchHooks Function({bool tripId, bool captureChildrenRefs})
         > {
   $$CapturesTableTableManager(_$AppDatabase db, $CapturesTable table)
     : super(
@@ -13967,66 +14103,72 @@ class $$CapturesTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({tripId = false, captureKidsRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [if (captureKidsRefs) db.captureKids],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (tripId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.tripId,
-                                referencedTable: $$CapturesTableReferences
-                                    ._tripIdTable(db),
-                                referencedColumn: $$CapturesTableReferences
-                                    ._tripIdTable(db)
-                                    .id,
-                              )
-                              as T;
-                    }
+          prefetchHooksCallback:
+              ({tripId = false, captureChildrenRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (captureChildrenRefs) db.captureChildren,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (tripId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.tripId,
+                                    referencedTable: $$CapturesTableReferences
+                                        ._tripIdTable(db),
+                                    referencedColumn: $$CapturesTableReferences
+                                        ._tripIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
 
-                    return state;
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (captureChildrenRefs)
+                        await $_getPrefetchedData<
+                          Capture,
+                          $CapturesTable,
+                          CaptureChildrenData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$CapturesTableReferences
+                              ._captureChildrenRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$CapturesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).captureChildrenRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.captureId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
                   },
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (captureKidsRefs)
-                    await $_getPrefetchedData<
-                      Capture,
-                      $CapturesTable,
-                      CaptureKid
-                    >(
-                      currentTable: table,
-                      referencedTable: $$CapturesTableReferences
-                          ._captureKidsRefsTable(db),
-                      managerFromTypedResult: (p0) => $$CapturesTableReferences(
-                        db,
-                        table,
-                        p0,
-                      ).captureKidsRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.captureId == item.id),
-                      typedResults: items,
-                    ),
-                ];
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -14043,28 +14185,37 @@ typedef $$CapturesTableProcessedTableManager =
       $$CapturesTableUpdateCompanionBuilder,
       (Capture, $$CapturesTableReferences),
       Capture,
-      PrefetchHooks Function({bool tripId, bool captureKidsRefs})
+      PrefetchHooks Function({bool tripId, bool captureChildrenRefs})
     >;
-typedef $$CaptureKidsTableCreateCompanionBuilder =
-    CaptureKidsCompanion Function({
+typedef $$CaptureChildrenTableCreateCompanionBuilder =
+    CaptureChildrenCompanion Function({
       required String captureId,
-      required String kidId,
+      required String childId,
       Value<int> rowid,
     });
-typedef $$CaptureKidsTableUpdateCompanionBuilder =
-    CaptureKidsCompanion Function({
+typedef $$CaptureChildrenTableUpdateCompanionBuilder =
+    CaptureChildrenCompanion Function({
       Value<String> captureId,
-      Value<String> kidId,
+      Value<String> childId,
       Value<int> rowid,
     });
 
-final class $$CaptureKidsTableReferences
-    extends BaseReferences<_$AppDatabase, $CaptureKidsTable, CaptureKid> {
-  $$CaptureKidsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+final class $$CaptureChildrenTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $CaptureChildrenTable,
+          CaptureChildrenData
+        > {
+  $$CaptureChildrenTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
 
   static $CapturesTable _captureIdTable(_$AppDatabase db) =>
       db.captures.createAlias(
-        $_aliasNameGenerator(db.captureKids.captureId, db.captures.id),
+        $_aliasNameGenerator(db.captureChildren.captureId, db.captures.id),
       );
 
   $$CapturesTableProcessedTableManager get captureId {
@@ -14081,18 +14232,19 @@ final class $$CaptureKidsTableReferences
     );
   }
 
-  static $KidsTable _kidIdTable(_$AppDatabase db) => db.kids.createAlias(
-    $_aliasNameGenerator(db.captureKids.kidId, db.kids.id),
-  );
+  static $ChildrenTable _childIdTable(_$AppDatabase db) =>
+      db.children.createAlias(
+        $_aliasNameGenerator(db.captureChildren.childId, db.children.id),
+      );
 
-  $$KidsTableProcessedTableManager get kidId {
-    final $_column = $_itemColumn<String>('kid_id')!;
+  $$ChildrenTableProcessedTableManager get childId {
+    final $_column = $_itemColumn<String>('child_id')!;
 
-    final manager = $$KidsTableTableManager(
+    final manager = $$ChildrenTableTableManager(
       $_db,
-      $_db.kids,
+      $_db.children,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_kidIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_childIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -14100,9 +14252,9 @@ final class $$CaptureKidsTableReferences
   }
 }
 
-class $$CaptureKidsTableFilterComposer
-    extends Composer<_$AppDatabase, $CaptureKidsTable> {
-  $$CaptureKidsTableFilterComposer({
+class $$CaptureChildrenTableFilterComposer
+    extends Composer<_$AppDatabase, $CaptureChildrenTable> {
+  $$CaptureChildrenTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -14132,20 +14284,20 @@ class $$CaptureKidsTableFilterComposer
     return composer;
   }
 
-  $$KidsTableFilterComposer get kidId {
-    final $$KidsTableFilterComposer composer = $composerBuilder(
+  $$ChildrenTableFilterComposer get childId {
+    final $$ChildrenTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.kidId,
-      referencedTable: $db.kids,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$KidsTableFilterComposer(
+          }) => $$ChildrenTableFilterComposer(
             $db: $db,
-            $table: $db.kids,
+            $table: $db.children,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -14156,9 +14308,9 @@ class $$CaptureKidsTableFilterComposer
   }
 }
 
-class $$CaptureKidsTableOrderingComposer
-    extends Composer<_$AppDatabase, $CaptureKidsTable> {
-  $$CaptureKidsTableOrderingComposer({
+class $$CaptureChildrenTableOrderingComposer
+    extends Composer<_$AppDatabase, $CaptureChildrenTable> {
+  $$CaptureChildrenTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -14188,20 +14340,20 @@ class $$CaptureKidsTableOrderingComposer
     return composer;
   }
 
-  $$KidsTableOrderingComposer get kidId {
-    final $$KidsTableOrderingComposer composer = $composerBuilder(
+  $$ChildrenTableOrderingComposer get childId {
+    final $$ChildrenTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.kidId,
-      referencedTable: $db.kids,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$KidsTableOrderingComposer(
+          }) => $$ChildrenTableOrderingComposer(
             $db: $db,
-            $table: $db.kids,
+            $table: $db.children,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -14212,9 +14364,9 @@ class $$CaptureKidsTableOrderingComposer
   }
 }
 
-class $$CaptureKidsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $CaptureKidsTable> {
-  $$CaptureKidsTableAnnotationComposer({
+class $$CaptureChildrenTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CaptureChildrenTable> {
+  $$CaptureChildrenTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -14244,20 +14396,20 @@ class $$CaptureKidsTableAnnotationComposer
     return composer;
   }
 
-  $$KidsTableAnnotationComposer get kidId {
-    final $$KidsTableAnnotationComposer composer = $composerBuilder(
+  $$ChildrenTableAnnotationComposer get childId {
+    final $$ChildrenTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.kidId,
-      referencedTable: $db.kids,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$KidsTableAnnotationComposer(
+          }) => $$ChildrenTableAnnotationComposer(
             $db: $db,
-            $table: $db.kids,
+            $table: $db.children,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -14268,61 +14420,63 @@ class $$CaptureKidsTableAnnotationComposer
   }
 }
 
-class $$CaptureKidsTableTableManager
+class $$CaptureChildrenTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $CaptureKidsTable,
-          CaptureKid,
-          $$CaptureKidsTableFilterComposer,
-          $$CaptureKidsTableOrderingComposer,
-          $$CaptureKidsTableAnnotationComposer,
-          $$CaptureKidsTableCreateCompanionBuilder,
-          $$CaptureKidsTableUpdateCompanionBuilder,
-          (CaptureKid, $$CaptureKidsTableReferences),
-          CaptureKid,
-          PrefetchHooks Function({bool captureId, bool kidId})
+          $CaptureChildrenTable,
+          CaptureChildrenData,
+          $$CaptureChildrenTableFilterComposer,
+          $$CaptureChildrenTableOrderingComposer,
+          $$CaptureChildrenTableAnnotationComposer,
+          $$CaptureChildrenTableCreateCompanionBuilder,
+          $$CaptureChildrenTableUpdateCompanionBuilder,
+          (CaptureChildrenData, $$CaptureChildrenTableReferences),
+          CaptureChildrenData,
+          PrefetchHooks Function({bool captureId, bool childId})
         > {
-  $$CaptureKidsTableTableManager(_$AppDatabase db, $CaptureKidsTable table)
-    : super(
+  $$CaptureChildrenTableTableManager(
+    _$AppDatabase db,
+    $CaptureChildrenTable table,
+  ) : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$CaptureKidsTableFilterComposer($db: db, $table: table),
+              $$CaptureChildrenTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$CaptureKidsTableOrderingComposer($db: db, $table: table),
+              $$CaptureChildrenTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$CaptureKidsTableAnnotationComposer($db: db, $table: table),
+              $$CaptureChildrenTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> captureId = const Value.absent(),
-                Value<String> kidId = const Value.absent(),
+                Value<String> childId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => CaptureKidsCompanion(
+              }) => CaptureChildrenCompanion(
                 captureId: captureId,
-                kidId: kidId,
+                childId: childId,
                 rowid: rowid,
               ),
           createCompanionCallback:
               ({
                 required String captureId,
-                required String kidId,
+                required String childId,
                 Value<int> rowid = const Value.absent(),
-              }) => CaptureKidsCompanion.insert(
+              }) => CaptureChildrenCompanion.insert(
                 captureId: captureId,
-                kidId: kidId,
+                childId: childId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
                   e.readTable(table),
-                  $$CaptureKidsTableReferences(db, table, e),
+                  $$CaptureChildrenTableReferences(db, table, e),
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({captureId = false, kidId = false}) {
+          prefetchHooksCallback: ({captureId = false, childId = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [],
@@ -14347,24 +14501,28 @@ class $$CaptureKidsTableTableManager
                           state.withJoin(
                                 currentTable: table,
                                 currentColumn: table.captureId,
-                                referencedTable: $$CaptureKidsTableReferences
-                                    ._captureIdTable(db),
-                                referencedColumn: $$CaptureKidsTableReferences
-                                    ._captureIdTable(db)
-                                    .id,
+                                referencedTable:
+                                    $$CaptureChildrenTableReferences
+                                        ._captureIdTable(db),
+                                referencedColumn:
+                                    $$CaptureChildrenTableReferences
+                                        ._captureIdTable(db)
+                                        .id,
                               )
                               as T;
                     }
-                    if (kidId) {
+                    if (childId) {
                       state =
                           state.withJoin(
                                 currentTable: table,
-                                currentColumn: table.kidId,
-                                referencedTable: $$CaptureKidsTableReferences
-                                    ._kidIdTable(db),
-                                referencedColumn: $$CaptureKidsTableReferences
-                                    ._kidIdTable(db)
-                                    .id,
+                                currentColumn: table.childId,
+                                referencedTable:
+                                    $$CaptureChildrenTableReferences
+                                        ._childIdTable(db),
+                                referencedColumn:
+                                    $$CaptureChildrenTableReferences
+                                        ._childIdTable(db)
+                                        .id,
                               )
                               as T;
                     }
@@ -14380,26 +14538,26 @@ class $$CaptureKidsTableTableManager
       );
 }
 
-typedef $$CaptureKidsTableProcessedTableManager =
+typedef $$CaptureChildrenTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $CaptureKidsTable,
-      CaptureKid,
-      $$CaptureKidsTableFilterComposer,
-      $$CaptureKidsTableOrderingComposer,
-      $$CaptureKidsTableAnnotationComposer,
-      $$CaptureKidsTableCreateCompanionBuilder,
-      $$CaptureKidsTableUpdateCompanionBuilder,
-      (CaptureKid, $$CaptureKidsTableReferences),
-      CaptureKid,
-      PrefetchHooks Function({bool captureId, bool kidId})
+      $CaptureChildrenTable,
+      CaptureChildrenData,
+      $$CaptureChildrenTableFilterComposer,
+      $$CaptureChildrenTableOrderingComposer,
+      $$CaptureChildrenTableAnnotationComposer,
+      $$CaptureChildrenTableCreateCompanionBuilder,
+      $$CaptureChildrenTableUpdateCompanionBuilder,
+      (CaptureChildrenData, $$CaptureChildrenTableReferences),
+      CaptureChildrenData,
+      PrefetchHooks Function({bool captureId, bool childId})
     >;
 typedef $$ObservationsTableCreateCompanionBuilder =
     ObservationsCompanion Function({
       required String id,
       required String targetKind,
-      Value<String?> kidId,
-      Value<String?> podId,
+      Value<String?> childId,
+      Value<String?> groupId,
       Value<String?> activityLabel,
       required String domain,
       required String sentiment,
@@ -14415,8 +14573,8 @@ typedef $$ObservationsTableUpdateCompanionBuilder =
     ObservationsCompanion Function({
       Value<String> id,
       Value<String> targetKind,
-      Value<String?> kidId,
-      Value<String?> podId,
+      Value<String?> childId,
+      Value<String?> groupId,
       Value<String?> activityLabel,
       Value<String> domain,
       Value<String> sentiment,
@@ -14433,36 +14591,37 @@ final class $$ObservationsTableReferences
     extends BaseReferences<_$AppDatabase, $ObservationsTable, Observation> {
   $$ObservationsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
-  static $KidsTable _kidIdTable(_$AppDatabase db) => db.kids.createAlias(
-    $_aliasNameGenerator(db.observations.kidId, db.kids.id),
-  );
+  static $ChildrenTable _childIdTable(_$AppDatabase db) =>
+      db.children.createAlias(
+        $_aliasNameGenerator(db.observations.childId, db.children.id),
+      );
 
-  $$KidsTableProcessedTableManager? get kidId {
-    final $_column = $_itemColumn<String>('kid_id');
+  $$ChildrenTableProcessedTableManager? get childId {
+    final $_column = $_itemColumn<String>('child_id');
     if ($_column == null) return null;
-    final manager = $$KidsTableTableManager(
+    final manager = $$ChildrenTableTableManager(
       $_db,
-      $_db.kids,
+      $_db.children,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_kidIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_childIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
     );
   }
 
-  static $PodsTable _podIdTable(_$AppDatabase db) => db.pods.createAlias(
-    $_aliasNameGenerator(db.observations.podId, db.pods.id),
+  static $GroupsTable _groupIdTable(_$AppDatabase db) => db.groups.createAlias(
+    $_aliasNameGenerator(db.observations.groupId, db.groups.id),
   );
 
-  $$PodsTableProcessedTableManager? get podId {
-    final $_column = $_itemColumn<String>('pod_id');
+  $$GroupsTableProcessedTableManager? get groupId {
+    final $_column = $_itemColumn<String>('group_id');
     if ($_column == null) return null;
-    final manager = $$PodsTableTableManager(
+    final manager = $$GroupsTableTableManager(
       $_db,
-      $_db.pods,
+      $_db.groups,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_podIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_groupIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -14487,23 +14646,27 @@ final class $$ObservationsTableReferences
     );
   }
 
-  static MultiTypedResultKey<$ObservationKidsTable, List<ObservationKid>>
-  _observationKidsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.observationKids,
-    aliasName: $_aliasNameGenerator(
-      db.observations.id,
-      db.observationKids.observationId,
-    ),
-  );
+  static MultiTypedResultKey<
+    $ObservationChildrenTable,
+    List<ObservationChildrenData>
+  >
+  _observationChildrenRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.observationChildren,
+        aliasName: $_aliasNameGenerator(
+          db.observations.id,
+          db.observationChildren.observationId,
+        ),
+      );
 
-  $$ObservationKidsTableProcessedTableManager get observationKidsRefs {
-    final manager = $$ObservationKidsTableTableManager(
+  $$ObservationChildrenTableProcessedTableManager get observationChildrenRefs {
+    final manager = $$ObservationChildrenTableTableManager(
       $_db,
-      $_db.observationKids,
+      $_db.observationChildren,
     ).filter((f) => f.observationId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(
-      _observationKidsRefsTable($_db),
+      _observationChildrenRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -14626,20 +14789,20 @@ class $$ObservationsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  $$KidsTableFilterComposer get kidId {
-    final $$KidsTableFilterComposer composer = $composerBuilder(
+  $$ChildrenTableFilterComposer get childId {
+    final $$ChildrenTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.kidId,
-      referencedTable: $db.kids,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$KidsTableFilterComposer(
+          }) => $$ChildrenTableFilterComposer(
             $db: $db,
-            $table: $db.kids,
+            $table: $db.children,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -14649,20 +14812,20 @@ class $$ObservationsTableFilterComposer
     return composer;
   }
 
-  $$PodsTableFilterComposer get podId {
-    final $$PodsTableFilterComposer composer = $composerBuilder(
+  $$GroupsTableFilterComposer get groupId {
+    final $$GroupsTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableFilterComposer(
+          }) => $$GroupsTableFilterComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -14695,22 +14858,22 @@ class $$ObservationsTableFilterComposer
     return composer;
   }
 
-  Expression<bool> observationKidsRefs(
-    Expression<bool> Function($$ObservationKidsTableFilterComposer f) f,
+  Expression<bool> observationChildrenRefs(
+    Expression<bool> Function($$ObservationChildrenTableFilterComposer f) f,
   ) {
-    final $$ObservationKidsTableFilterComposer composer = $composerBuilder(
+    final $$ObservationChildrenTableFilterComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.observationKids,
+      referencedTable: $db.observationChildren,
       getReferencedColumn: (t) => t.observationId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$ObservationKidsTableFilterComposer(
+          }) => $$ObservationChildrenTableFilterComposer(
             $db: $db,
-            $table: $db.observationKids,
+            $table: $db.observationChildren,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -14832,20 +14995,20 @@ class $$ObservationsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  $$KidsTableOrderingComposer get kidId {
-    final $$KidsTableOrderingComposer composer = $composerBuilder(
+  $$ChildrenTableOrderingComposer get childId {
+    final $$ChildrenTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.kidId,
-      referencedTable: $db.kids,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$KidsTableOrderingComposer(
+          }) => $$ChildrenTableOrderingComposer(
             $db: $db,
-            $table: $db.kids,
+            $table: $db.children,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -14855,20 +15018,20 @@ class $$ObservationsTableOrderingComposer
     return composer;
   }
 
-  $$PodsTableOrderingComposer get podId {
-    final $$PodsTableOrderingComposer composer = $composerBuilder(
+  $$GroupsTableOrderingComposer get groupId {
+    final $$GroupsTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableOrderingComposer(
+          }) => $$GroupsTableOrderingComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -14949,20 +15112,20 @@ class $$ObservationsTableAnnotationComposer
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
-  $$KidsTableAnnotationComposer get kidId {
-    final $$KidsTableAnnotationComposer composer = $composerBuilder(
+  $$ChildrenTableAnnotationComposer get childId {
+    final $$ChildrenTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.kidId,
-      referencedTable: $db.kids,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$KidsTableAnnotationComposer(
+          }) => $$ChildrenTableAnnotationComposer(
             $db: $db,
-            $table: $db.kids,
+            $table: $db.children,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -14972,20 +15135,20 @@ class $$ObservationsTableAnnotationComposer
     return composer;
   }
 
-  $$PodsTableAnnotationComposer get podId {
-    final $$PodsTableAnnotationComposer composer = $composerBuilder(
+  $$GroupsTableAnnotationComposer get groupId {
+    final $$GroupsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableAnnotationComposer(
+          }) => $$GroupsTableAnnotationComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -15018,28 +15181,29 @@ class $$ObservationsTableAnnotationComposer
     return composer;
   }
 
-  Expression<T> observationKidsRefs<T extends Object>(
-    Expression<T> Function($$ObservationKidsTableAnnotationComposer a) f,
+  Expression<T> observationChildrenRefs<T extends Object>(
+    Expression<T> Function($$ObservationChildrenTableAnnotationComposer a) f,
   ) {
-    final $$ObservationKidsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.observationKids,
-      getReferencedColumn: (t) => t.observationId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$ObservationKidsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.observationKids,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
+    final $$ObservationChildrenTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.observationChildren,
+          getReferencedColumn: (t) => t.observationId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
                 $removeJoinBuilderFromRootComposer,
-          ),
-    );
+              }) => $$ObservationChildrenTableAnnotationComposer(
+                $db: $db,
+                $table: $db.observationChildren,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 
@@ -15110,10 +15274,10 @@ class $$ObservationsTableTableManager
           (Observation, $$ObservationsTableReferences),
           Observation,
           PrefetchHooks Function({
-            bool kidId,
-            bool podId,
+            bool childId,
+            bool groupId,
             bool tripId,
-            bool observationKidsRefs,
+            bool observationChildrenRefs,
             bool observationAttachmentsRefs,
             bool observationDomainTagsRefs,
           })
@@ -15133,8 +15297,8 @@ class $$ObservationsTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 Value<String> targetKind = const Value.absent(),
-                Value<String?> kidId = const Value.absent(),
-                Value<String?> podId = const Value.absent(),
+                Value<String?> childId = const Value.absent(),
+                Value<String?> groupId = const Value.absent(),
                 Value<String?> activityLabel = const Value.absent(),
                 Value<String> domain = const Value.absent(),
                 Value<String> sentiment = const Value.absent(),
@@ -15148,8 +15312,8 @@ class $$ObservationsTableTableManager
               }) => ObservationsCompanion(
                 id: id,
                 targetKind: targetKind,
-                kidId: kidId,
-                podId: podId,
+                childId: childId,
+                groupId: groupId,
                 activityLabel: activityLabel,
                 domain: domain,
                 sentiment: sentiment,
@@ -15165,8 +15329,8 @@ class $$ObservationsTableTableManager
               ({
                 required String id,
                 required String targetKind,
-                Value<String?> kidId = const Value.absent(),
-                Value<String?> podId = const Value.absent(),
+                Value<String?> childId = const Value.absent(),
+                Value<String?> groupId = const Value.absent(),
                 Value<String?> activityLabel = const Value.absent(),
                 required String domain,
                 required String sentiment,
@@ -15180,8 +15344,8 @@ class $$ObservationsTableTableManager
               }) => ObservationsCompanion.insert(
                 id: id,
                 targetKind: targetKind,
-                kidId: kidId,
-                podId: podId,
+                childId: childId,
+                groupId: groupId,
                 activityLabel: activityLabel,
                 domain: domain,
                 sentiment: sentiment,
@@ -15203,17 +15367,17 @@ class $$ObservationsTableTableManager
               .toList(),
           prefetchHooksCallback:
               ({
-                kidId = false,
-                podId = false,
+                childId = false,
+                groupId = false,
                 tripId = false,
-                observationKidsRefs = false,
+                observationChildrenRefs = false,
                 observationAttachmentsRefs = false,
                 observationDomainTagsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
-                    if (observationKidsRefs) db.observationKids,
+                    if (observationChildrenRefs) db.observationChildren,
                     if (observationAttachmentsRefs) db.observationAttachments,
                     if (observationDomainTagsRefs) db.observationDomainTags,
                   ],
@@ -15233,32 +15397,32 @@ class $$ObservationsTableTableManager
                           dynamic
                         >
                       >(state) {
-                        if (kidId) {
+                        if (childId) {
                           state =
                               state.withJoin(
                                     currentTable: table,
-                                    currentColumn: table.kidId,
+                                    currentColumn: table.childId,
                                     referencedTable:
                                         $$ObservationsTableReferences
-                                            ._kidIdTable(db),
+                                            ._childIdTable(db),
                                     referencedColumn:
                                         $$ObservationsTableReferences
-                                            ._kidIdTable(db)
+                                            ._childIdTable(db)
                                             .id,
                                   )
                                   as T;
                         }
-                        if (podId) {
+                        if (groupId) {
                           state =
                               state.withJoin(
                                     currentTable: table,
-                                    currentColumn: table.podId,
+                                    currentColumn: table.groupId,
                                     referencedTable:
                                         $$ObservationsTableReferences
-                                            ._podIdTable(db),
+                                            ._groupIdTable(db),
                                     referencedColumn:
                                         $$ObservationsTableReferences
-                                            ._podIdTable(db)
+                                            ._groupIdTable(db)
                                             .id,
                                   )
                                   as T;
@@ -15283,21 +15447,21 @@ class $$ObservationsTableTableManager
                       },
                   getPrefetchedDataCallback: (items) async {
                     return [
-                      if (observationKidsRefs)
+                      if (observationChildrenRefs)
                         await $_getPrefetchedData<
                           Observation,
                           $ObservationsTable,
-                          ObservationKid
+                          ObservationChildrenData
                         >(
                           currentTable: table,
                           referencedTable: $$ObservationsTableReferences
-                              ._observationKidsRefsTable(db),
+                              ._observationChildrenRefsTable(db),
                           managerFromTypedResult: (p0) =>
                               $$ObservationsTableReferences(
                                 db,
                                 table,
                                 p0,
-                              ).observationKidsRefs,
+                              ).observationChildrenRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.observationId == item.id,
@@ -15367,31 +15531,35 @@ typedef $$ObservationsTableProcessedTableManager =
       (Observation, $$ObservationsTableReferences),
       Observation,
       PrefetchHooks Function({
-        bool kidId,
-        bool podId,
+        bool childId,
+        bool groupId,
         bool tripId,
-        bool observationKidsRefs,
+        bool observationChildrenRefs,
         bool observationAttachmentsRefs,
         bool observationDomainTagsRefs,
       })
     >;
-typedef $$ObservationKidsTableCreateCompanionBuilder =
-    ObservationKidsCompanion Function({
+typedef $$ObservationChildrenTableCreateCompanionBuilder =
+    ObservationChildrenCompanion Function({
       required String observationId,
-      required String kidId,
+      required String childId,
       Value<int> rowid,
     });
-typedef $$ObservationKidsTableUpdateCompanionBuilder =
-    ObservationKidsCompanion Function({
+typedef $$ObservationChildrenTableUpdateCompanionBuilder =
+    ObservationChildrenCompanion Function({
       Value<String> observationId,
-      Value<String> kidId,
+      Value<String> childId,
       Value<int> rowid,
     });
 
-final class $$ObservationKidsTableReferences
+final class $$ObservationChildrenTableReferences
     extends
-        BaseReferences<_$AppDatabase, $ObservationKidsTable, ObservationKid> {
-  $$ObservationKidsTableReferences(
+        BaseReferences<
+          _$AppDatabase,
+          $ObservationChildrenTable,
+          ObservationChildrenData
+        > {
+  $$ObservationChildrenTableReferences(
     super.$_db,
     super.$_table,
     super.$_typedResult,
@@ -15400,7 +15568,7 @@ final class $$ObservationKidsTableReferences
   static $ObservationsTable _observationIdTable(_$AppDatabase db) =>
       db.observations.createAlias(
         $_aliasNameGenerator(
-          db.observationKids.observationId,
+          db.observationChildren.observationId,
           db.observations.id,
         ),
       );
@@ -15419,18 +15587,19 @@ final class $$ObservationKidsTableReferences
     );
   }
 
-  static $KidsTable _kidIdTable(_$AppDatabase db) => db.kids.createAlias(
-    $_aliasNameGenerator(db.observationKids.kidId, db.kids.id),
-  );
+  static $ChildrenTable _childIdTable(_$AppDatabase db) =>
+      db.children.createAlias(
+        $_aliasNameGenerator(db.observationChildren.childId, db.children.id),
+      );
 
-  $$KidsTableProcessedTableManager get kidId {
-    final $_column = $_itemColumn<String>('kid_id')!;
+  $$ChildrenTableProcessedTableManager get childId {
+    final $_column = $_itemColumn<String>('child_id')!;
 
-    final manager = $$KidsTableTableManager(
+    final manager = $$ChildrenTableTableManager(
       $_db,
-      $_db.kids,
+      $_db.children,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_kidIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_childIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -15438,9 +15607,9 @@ final class $$ObservationKidsTableReferences
   }
 }
 
-class $$ObservationKidsTableFilterComposer
-    extends Composer<_$AppDatabase, $ObservationKidsTable> {
-  $$ObservationKidsTableFilterComposer({
+class $$ObservationChildrenTableFilterComposer
+    extends Composer<_$AppDatabase, $ObservationChildrenTable> {
+  $$ObservationChildrenTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -15470,20 +15639,20 @@ class $$ObservationKidsTableFilterComposer
     return composer;
   }
 
-  $$KidsTableFilterComposer get kidId {
-    final $$KidsTableFilterComposer composer = $composerBuilder(
+  $$ChildrenTableFilterComposer get childId {
+    final $$ChildrenTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.kidId,
-      referencedTable: $db.kids,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$KidsTableFilterComposer(
+          }) => $$ChildrenTableFilterComposer(
             $db: $db,
-            $table: $db.kids,
+            $table: $db.children,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -15494,9 +15663,9 @@ class $$ObservationKidsTableFilterComposer
   }
 }
 
-class $$ObservationKidsTableOrderingComposer
-    extends Composer<_$AppDatabase, $ObservationKidsTable> {
-  $$ObservationKidsTableOrderingComposer({
+class $$ObservationChildrenTableOrderingComposer
+    extends Composer<_$AppDatabase, $ObservationChildrenTable> {
+  $$ObservationChildrenTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -15526,20 +15695,20 @@ class $$ObservationKidsTableOrderingComposer
     return composer;
   }
 
-  $$KidsTableOrderingComposer get kidId {
-    final $$KidsTableOrderingComposer composer = $composerBuilder(
+  $$ChildrenTableOrderingComposer get childId {
+    final $$ChildrenTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.kidId,
-      referencedTable: $db.kids,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$KidsTableOrderingComposer(
+          }) => $$ChildrenTableOrderingComposer(
             $db: $db,
-            $table: $db.kids,
+            $table: $db.children,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -15550,9 +15719,9 @@ class $$ObservationKidsTableOrderingComposer
   }
 }
 
-class $$ObservationKidsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $ObservationKidsTable> {
-  $$ObservationKidsTableAnnotationComposer({
+class $$ObservationChildrenTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ObservationChildrenTable> {
+  $$ObservationChildrenTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -15582,20 +15751,20 @@ class $$ObservationKidsTableAnnotationComposer
     return composer;
   }
 
-  $$KidsTableAnnotationComposer get kidId {
-    final $$KidsTableAnnotationComposer composer = $composerBuilder(
+  $$ChildrenTableAnnotationComposer get childId {
+    final $$ChildrenTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.kidId,
-      referencedTable: $db.kids,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$KidsTableAnnotationComposer(
+          }) => $$ChildrenTableAnnotationComposer(
             $db: $db,
-            $table: $db.kids,
+            $table: $db.children,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -15606,63 +15775,69 @@ class $$ObservationKidsTableAnnotationComposer
   }
 }
 
-class $$ObservationKidsTableTableManager
+class $$ObservationChildrenTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $ObservationKidsTable,
-          ObservationKid,
-          $$ObservationKidsTableFilterComposer,
-          $$ObservationKidsTableOrderingComposer,
-          $$ObservationKidsTableAnnotationComposer,
-          $$ObservationKidsTableCreateCompanionBuilder,
-          $$ObservationKidsTableUpdateCompanionBuilder,
-          (ObservationKid, $$ObservationKidsTableReferences),
-          ObservationKid,
-          PrefetchHooks Function({bool observationId, bool kidId})
+          $ObservationChildrenTable,
+          ObservationChildrenData,
+          $$ObservationChildrenTableFilterComposer,
+          $$ObservationChildrenTableOrderingComposer,
+          $$ObservationChildrenTableAnnotationComposer,
+          $$ObservationChildrenTableCreateCompanionBuilder,
+          $$ObservationChildrenTableUpdateCompanionBuilder,
+          (ObservationChildrenData, $$ObservationChildrenTableReferences),
+          ObservationChildrenData,
+          PrefetchHooks Function({bool observationId, bool childId})
         > {
-  $$ObservationKidsTableTableManager(
+  $$ObservationChildrenTableTableManager(
     _$AppDatabase db,
-    $ObservationKidsTable table,
+    $ObservationChildrenTable table,
   ) : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$ObservationKidsTableFilterComposer($db: db, $table: table),
+              $$ObservationChildrenTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$ObservationKidsTableOrderingComposer($db: db, $table: table),
+              $$ObservationChildrenTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
           createComputedFieldComposer: () =>
-              $$ObservationKidsTableAnnotationComposer($db: db, $table: table),
+              $$ObservationChildrenTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
           updateCompanionCallback:
               ({
                 Value<String> observationId = const Value.absent(),
-                Value<String> kidId = const Value.absent(),
+                Value<String> childId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => ObservationKidsCompanion(
+              }) => ObservationChildrenCompanion(
                 observationId: observationId,
-                kidId: kidId,
+                childId: childId,
                 rowid: rowid,
               ),
           createCompanionCallback:
               ({
                 required String observationId,
-                required String kidId,
+                required String childId,
                 Value<int> rowid = const Value.absent(),
-              }) => ObservationKidsCompanion.insert(
+              }) => ObservationChildrenCompanion.insert(
                 observationId: observationId,
-                kidId: kidId,
+                childId: childId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
                   e.readTable(table),
-                  $$ObservationKidsTableReferences(db, table, e),
+                  $$ObservationChildrenTableReferences(db, table, e),
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({observationId = false, kidId = false}) {
+          prefetchHooksCallback: ({observationId = false, childId = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [],
@@ -15688,26 +15863,26 @@ class $$ObservationKidsTableTableManager
                                 currentTable: table,
                                 currentColumn: table.observationId,
                                 referencedTable:
-                                    $$ObservationKidsTableReferences
+                                    $$ObservationChildrenTableReferences
                                         ._observationIdTable(db),
                                 referencedColumn:
-                                    $$ObservationKidsTableReferences
+                                    $$ObservationChildrenTableReferences
                                         ._observationIdTable(db)
                                         .id,
                               )
                               as T;
                     }
-                    if (kidId) {
+                    if (childId) {
                       state =
                           state.withJoin(
                                 currentTable: table,
-                                currentColumn: table.kidId,
+                                currentColumn: table.childId,
                                 referencedTable:
-                                    $$ObservationKidsTableReferences
-                                        ._kidIdTable(db),
+                                    $$ObservationChildrenTableReferences
+                                        ._childIdTable(db),
                                 referencedColumn:
-                                    $$ObservationKidsTableReferences
-                                        ._kidIdTable(db)
+                                    $$ObservationChildrenTableReferences
+                                        ._childIdTable(db)
                                         .id,
                               )
                               as T;
@@ -15724,19 +15899,19 @@ class $$ObservationKidsTableTableManager
       );
 }
 
-typedef $$ObservationKidsTableProcessedTableManager =
+typedef $$ObservationChildrenTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $ObservationKidsTable,
-      ObservationKid,
-      $$ObservationKidsTableFilterComposer,
-      $$ObservationKidsTableOrderingComposer,
-      $$ObservationKidsTableAnnotationComposer,
-      $$ObservationKidsTableCreateCompanionBuilder,
-      $$ObservationKidsTableUpdateCompanionBuilder,
-      (ObservationKid, $$ObservationKidsTableReferences),
-      ObservationKid,
-      PrefetchHooks Function({bool observationId, bool kidId})
+      $ObservationChildrenTable,
+      ObservationChildrenData,
+      $$ObservationChildrenTableFilterComposer,
+      $$ObservationChildrenTableOrderingComposer,
+      $$ObservationChildrenTableAnnotationComposer,
+      $$ObservationChildrenTableCreateCompanionBuilder,
+      $$ObservationChildrenTableUpdateCompanionBuilder,
+      (ObservationChildrenData, $$ObservationChildrenTableReferences),
+      ObservationChildrenData,
+      PrefetchHooks Function({bool observationId, bool childId})
     >;
 typedef $$ObservationAttachmentsTableCreateCompanionBuilder =
     ObservationAttachmentsCompanion Function({
@@ -17912,9 +18087,9 @@ typedef $$ScheduleTemplatesTableCreateCompanionBuilder =
       required String endTime,
       Value<bool> isFullDay,
       required String title,
+      Value<String?> seriesId,
       Value<String?> groupId,
-      Value<String?> podId,
-      Value<bool> allPods,
+      Value<bool> allGroups,
       Value<String?> specialistName,
       Value<String?> specialistId,
       Value<String?> location,
@@ -17933,9 +18108,9 @@ typedef $$ScheduleTemplatesTableUpdateCompanionBuilder =
       Value<String> endTime,
       Value<bool> isFullDay,
       Value<String> title,
+      Value<String?> seriesId,
       Value<String?> groupId,
-      Value<String?> podId,
-      Value<bool> allPods,
+      Value<bool> allGroups,
       Value<String?> specialistName,
       Value<String?> specialistId,
       Value<String?> location,
@@ -17960,18 +18135,18 @@ final class $$ScheduleTemplatesTableReferences
     super.$_typedResult,
   );
 
-  static $PodsTable _podIdTable(_$AppDatabase db) => db.pods.createAlias(
-    $_aliasNameGenerator(db.scheduleTemplates.podId, db.pods.id),
+  static $GroupsTable _groupIdTable(_$AppDatabase db) => db.groups.createAlias(
+    $_aliasNameGenerator(db.scheduleTemplates.groupId, db.groups.id),
   );
 
-  $$PodsTableProcessedTableManager? get podId {
-    final $_column = $_itemColumn<String>('pod_id');
+  $$GroupsTableProcessedTableManager? get groupId {
+    final $_column = $_itemColumn<String>('group_id');
     if ($_column == null) return null;
-    final manager = $$PodsTableTableManager(
+    final manager = $$GroupsTableTableManager(
       $_db,
-      $_db.pods,
+      $_db.groups,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_podIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_groupIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -18024,22 +18199,22 @@ final class $$ScheduleTemplatesTableReferences
     );
   }
 
-  static MultiTypedResultKey<$TemplatePodsTable, List<TemplatePod>>
-  _templatePodsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.templatePods,
+  static MultiTypedResultKey<$TemplateGroupsTable, List<TemplateGroup>>
+  _templateGroupsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.templateGroups,
     aliasName: $_aliasNameGenerator(
       db.scheduleTemplates.id,
-      db.templatePods.templateId,
+      db.templateGroups.templateId,
     ),
   );
 
-  $$TemplatePodsTableProcessedTableManager get templatePodsRefs {
-    final manager = $$TemplatePodsTableTableManager(
+  $$TemplateGroupsTableProcessedTableManager get templateGroupsRefs {
+    final manager = $$TemplateGroupsTableTableManager(
       $_db,
-      $_db.templatePods,
+      $_db.templateGroups,
     ).filter((f) => f.templateId.id.sqlEquals($_itemColumn<String>('id')!));
 
-    final cache = $_typedResult.readTableOrNull(_templatePodsRefsTable($_db));
+    final cache = $_typedResult.readTableOrNull(_templateGroupsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -18085,13 +18260,13 @@ class $$ScheduleTemplatesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get groupId => $composableBuilder(
-    column: $table.groupId,
+  ColumnFilters<String> get seriesId => $composableBuilder(
+    column: $table.seriesId,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<bool> get allPods => $composableBuilder(
-    column: $table.allPods,
+  ColumnFilters<bool> get allGroups => $composableBuilder(
+    column: $table.allGroups,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -18130,20 +18305,20 @@ class $$ScheduleTemplatesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  $$PodsTableFilterComposer get podId {
-    final $$PodsTableFilterComposer composer = $composerBuilder(
+  $$GroupsTableFilterComposer get groupId {
+    final $$GroupsTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableFilterComposer(
+          }) => $$GroupsTableFilterComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -18201,22 +18376,22 @@ class $$ScheduleTemplatesTableFilterComposer
     return f(composer);
   }
 
-  Expression<bool> templatePodsRefs(
-    Expression<bool> Function($$TemplatePodsTableFilterComposer f) f,
+  Expression<bool> templateGroupsRefs(
+    Expression<bool> Function($$TemplateGroupsTableFilterComposer f) f,
   ) {
-    final $$TemplatePodsTableFilterComposer composer = $composerBuilder(
+    final $$TemplateGroupsTableFilterComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.templatePods,
+      referencedTable: $db.templateGroups,
       getReferencedColumn: (t) => t.templateId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$TemplatePodsTableFilterComposer(
+          }) => $$TemplateGroupsTableFilterComposer(
             $db: $db,
-            $table: $db.templatePods,
+            $table: $db.templateGroups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -18266,13 +18441,13 @@ class $$ScheduleTemplatesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get groupId => $composableBuilder(
-    column: $table.groupId,
+  ColumnOrderings<String> get seriesId => $composableBuilder(
+    column: $table.seriesId,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<bool> get allPods => $composableBuilder(
-    column: $table.allPods,
+  ColumnOrderings<bool> get allGroups => $composableBuilder(
+    column: $table.allGroups,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -18311,20 +18486,20 @@ class $$ScheduleTemplatesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  $$PodsTableOrderingComposer get podId {
-    final $$PodsTableOrderingComposer composer = $composerBuilder(
+  $$GroupsTableOrderingComposer get groupId {
+    final $$GroupsTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableOrderingComposer(
+          }) => $$GroupsTableOrderingComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -18385,11 +18560,11 @@ class $$ScheduleTemplatesTableAnnotationComposer
   GeneratedColumn<String> get title =>
       $composableBuilder(column: $table.title, builder: (column) => column);
 
-  GeneratedColumn<String> get groupId =>
-      $composableBuilder(column: $table.groupId, builder: (column) => column);
+  GeneratedColumn<String> get seriesId =>
+      $composableBuilder(column: $table.seriesId, builder: (column) => column);
 
-  GeneratedColumn<bool> get allPods =>
-      $composableBuilder(column: $table.allPods, builder: (column) => column);
+  GeneratedColumn<bool> get allGroups =>
+      $composableBuilder(column: $table.allGroups, builder: (column) => column);
 
   GeneratedColumn<String> get specialistName => $composableBuilder(
     column: $table.specialistName,
@@ -18414,20 +18589,20 @@ class $$ScheduleTemplatesTableAnnotationComposer
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
-  $$PodsTableAnnotationComposer get podId {
-    final $$PodsTableAnnotationComposer composer = $composerBuilder(
+  $$GroupsTableAnnotationComposer get groupId {
+    final $$GroupsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableAnnotationComposer(
+          }) => $$GroupsTableAnnotationComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -18485,22 +18660,22 @@ class $$ScheduleTemplatesTableAnnotationComposer
     return f(composer);
   }
 
-  Expression<T> templatePodsRefs<T extends Object>(
-    Expression<T> Function($$TemplatePodsTableAnnotationComposer a) f,
+  Expression<T> templateGroupsRefs<T extends Object>(
+    Expression<T> Function($$TemplateGroupsTableAnnotationComposer a) f,
   ) {
-    final $$TemplatePodsTableAnnotationComposer composer = $composerBuilder(
+    final $$TemplateGroupsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.templatePods,
+      referencedTable: $db.templateGroups,
       getReferencedColumn: (t) => t.templateId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$TemplatePodsTableAnnotationComposer(
+          }) => $$TemplateGroupsTableAnnotationComposer(
             $db: $db,
-            $table: $db.templatePods,
+            $table: $db.templateGroups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -18525,10 +18700,10 @@ class $$ScheduleTemplatesTableTableManager
           (ScheduleTemplate, $$ScheduleTemplatesTableReferences),
           ScheduleTemplate,
           PrefetchHooks Function({
-            bool podId,
+            bool groupId,
             bool specialistId,
             bool scheduleEntriesRefs,
-            bool templatePodsRefs,
+            bool templateGroupsRefs,
           })
         > {
   $$ScheduleTemplatesTableTableManager(
@@ -18555,9 +18730,9 @@ class $$ScheduleTemplatesTableTableManager
                 Value<String> endTime = const Value.absent(),
                 Value<bool> isFullDay = const Value.absent(),
                 Value<String> title = const Value.absent(),
+                Value<String?> seriesId = const Value.absent(),
                 Value<String?> groupId = const Value.absent(),
-                Value<String?> podId = const Value.absent(),
-                Value<bool> allPods = const Value.absent(),
+                Value<bool> allGroups = const Value.absent(),
                 Value<String?> specialistName = const Value.absent(),
                 Value<String?> specialistId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
@@ -18574,9 +18749,9 @@ class $$ScheduleTemplatesTableTableManager
                 endTime: endTime,
                 isFullDay: isFullDay,
                 title: title,
+                seriesId: seriesId,
                 groupId: groupId,
-                podId: podId,
-                allPods: allPods,
+                allGroups: allGroups,
                 specialistName: specialistName,
                 specialistId: specialistId,
                 location: location,
@@ -18595,9 +18770,9 @@ class $$ScheduleTemplatesTableTableManager
                 required String endTime,
                 Value<bool> isFullDay = const Value.absent(),
                 required String title,
+                Value<String?> seriesId = const Value.absent(),
                 Value<String?> groupId = const Value.absent(),
-                Value<String?> podId = const Value.absent(),
-                Value<bool> allPods = const Value.absent(),
+                Value<bool> allGroups = const Value.absent(),
                 Value<String?> specialistName = const Value.absent(),
                 Value<String?> specialistId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
@@ -18614,9 +18789,9 @@ class $$ScheduleTemplatesTableTableManager
                 endTime: endTime,
                 isFullDay: isFullDay,
                 title: title,
+                seriesId: seriesId,
                 groupId: groupId,
-                podId: podId,
-                allPods: allPods,
+                allGroups: allGroups,
                 specialistName: specialistName,
                 specialistId: specialistId,
                 location: location,
@@ -18637,16 +18812,16 @@ class $$ScheduleTemplatesTableTableManager
               .toList(),
           prefetchHooksCallback:
               ({
-                podId = false,
+                groupId = false,
                 specialistId = false,
                 scheduleEntriesRefs = false,
-                templatePodsRefs = false,
+                templateGroupsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (scheduleEntriesRefs) db.scheduleEntries,
-                    if (templatePodsRefs) db.templatePods,
+                    if (templateGroupsRefs) db.templateGroups,
                   ],
                   addJoins:
                       <
@@ -18664,17 +18839,17 @@ class $$ScheduleTemplatesTableTableManager
                           dynamic
                         >
                       >(state) {
-                        if (podId) {
+                        if (groupId) {
                           state =
                               state.withJoin(
                                     currentTable: table,
-                                    currentColumn: table.podId,
+                                    currentColumn: table.groupId,
                                     referencedTable:
                                         $$ScheduleTemplatesTableReferences
-                                            ._podIdTable(db),
+                                            ._groupIdTable(db),
                                     referencedColumn:
                                         $$ScheduleTemplatesTableReferences
-                                            ._podIdTable(db)
+                                            ._groupIdTable(db)
                                             .id,
                                   )
                                   as T;
@@ -18720,21 +18895,21 @@ class $$ScheduleTemplatesTableTableManager
                               ),
                           typedResults: items,
                         ),
-                      if (templatePodsRefs)
+                      if (templateGroupsRefs)
                         await $_getPrefetchedData<
                           ScheduleTemplate,
                           $ScheduleTemplatesTable,
-                          TemplatePod
+                          TemplateGroup
                         >(
                           currentTable: table,
                           referencedTable: $$ScheduleTemplatesTableReferences
-                              ._templatePodsRefsTable(db),
+                              ._templateGroupsRefsTable(db),
                           managerFromTypedResult: (p0) =>
                               $$ScheduleTemplatesTableReferences(
                                 db,
                                 table,
                                 p0,
-                              ).templatePodsRefs,
+                              ).templateGroupsRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.templateId == item.id,
@@ -18762,10 +18937,10 @@ typedef $$ScheduleTemplatesTableProcessedTableManager =
       (ScheduleTemplate, $$ScheduleTemplatesTableReferences),
       ScheduleTemplate,
       PrefetchHooks Function({
-        bool podId,
+        bool groupId,
         bool specialistId,
         bool scheduleEntriesRefs,
-        bool templatePodsRefs,
+        bool templateGroupsRefs,
       })
     >;
 typedef $$ScheduleEntriesTableCreateCompanionBuilder =
@@ -18777,8 +18952,8 @@ typedef $$ScheduleEntriesTableCreateCompanionBuilder =
       required String endTime,
       Value<bool> isFullDay,
       required String title,
-      Value<String?> podId,
-      Value<bool> allPods,
+      Value<String?> groupId,
+      Value<bool> allGroups,
       Value<String?> specialistName,
       Value<String?> specialistId,
       Value<String?> location,
@@ -18799,8 +18974,8 @@ typedef $$ScheduleEntriesTableUpdateCompanionBuilder =
       Value<String> endTime,
       Value<bool> isFullDay,
       Value<String> title,
-      Value<String?> podId,
-      Value<bool> allPods,
+      Value<String?> groupId,
+      Value<bool> allGroups,
       Value<String?> specialistName,
       Value<String?> specialistId,
       Value<String?> location,
@@ -18822,18 +18997,18 @@ final class $$ScheduleEntriesTableReferences
     super.$_typedResult,
   );
 
-  static $PodsTable _podIdTable(_$AppDatabase db) => db.pods.createAlias(
-    $_aliasNameGenerator(db.scheduleEntries.podId, db.pods.id),
+  static $GroupsTable _groupIdTable(_$AppDatabase db) => db.groups.createAlias(
+    $_aliasNameGenerator(db.scheduleEntries.groupId, db.groups.id),
   );
 
-  $$PodsTableProcessedTableManager? get podId {
-    final $_column = $_itemColumn<String>('pod_id');
+  $$GroupsTableProcessedTableManager? get groupId {
+    final $_column = $_itemColumn<String>('group_id');
     if ($_column == null) return null;
-    final manager = $$PodsTableTableManager(
+    final manager = $$GroupsTableTableManager(
       $_db,
-      $_db.pods,
+      $_db.groups,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_podIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_groupIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -18903,22 +19078,22 @@ final class $$ScheduleEntriesTableReferences
     );
   }
 
-  static MultiTypedResultKey<$EntryPodsTable, List<EntryPod>>
-  _entryPodsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.entryPods,
+  static MultiTypedResultKey<$EntryGroupsTable, List<EntryGroup>>
+  _entryGroupsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.entryGroups,
     aliasName: $_aliasNameGenerator(
       db.scheduleEntries.id,
-      db.entryPods.entryId,
+      db.entryGroups.entryId,
     ),
   );
 
-  $$EntryPodsTableProcessedTableManager get entryPodsRefs {
-    final manager = $$EntryPodsTableTableManager(
+  $$EntryGroupsTableProcessedTableManager get entryGroupsRefs {
+    final manager = $$EntryGroupsTableTableManager(
       $_db,
-      $_db.entryPods,
+      $_db.entryGroups,
     ).filter((f) => f.entryId.id.sqlEquals($_itemColumn<String>('id')!));
 
-    final cache = $_typedResult.readTableOrNull(_entryPodsRefsTable($_db));
+    final cache = $_typedResult.readTableOrNull(_entryGroupsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -18969,8 +19144,8 @@ class $$ScheduleEntriesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<bool> get allPods => $composableBuilder(
-    column: $table.allPods,
+  ColumnFilters<bool> get allGroups => $composableBuilder(
+    column: $table.allGroups,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -19004,20 +19179,20 @@ class $$ScheduleEntriesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  $$PodsTableFilterComposer get podId {
-    final $$PodsTableFilterComposer composer = $composerBuilder(
+  $$GroupsTableFilterComposer get groupId {
+    final $$GroupsTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableFilterComposer(
+          }) => $$GroupsTableFilterComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -19096,22 +19271,22 @@ class $$ScheduleEntriesTableFilterComposer
     return composer;
   }
 
-  Expression<bool> entryPodsRefs(
-    Expression<bool> Function($$EntryPodsTableFilterComposer f) f,
+  Expression<bool> entryGroupsRefs(
+    Expression<bool> Function($$EntryGroupsTableFilterComposer f) f,
   ) {
-    final $$EntryPodsTableFilterComposer composer = $composerBuilder(
+    final $$EntryGroupsTableFilterComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.entryPods,
+      referencedTable: $db.entryGroups,
       getReferencedColumn: (t) => t.entryId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$EntryPodsTableFilterComposer(
+          }) => $$EntryGroupsTableFilterComposer(
             $db: $db,
-            $table: $db.entryPods,
+            $table: $db.entryGroups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -19166,8 +19341,8 @@ class $$ScheduleEntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<bool> get allPods => $composableBuilder(
-    column: $table.allPods,
+  ColumnOrderings<bool> get allGroups => $composableBuilder(
+    column: $table.allGroups,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -19201,20 +19376,20 @@ class $$ScheduleEntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  $$PodsTableOrderingComposer get podId {
-    final $$PodsTableOrderingComposer composer = $composerBuilder(
+  $$GroupsTableOrderingComposer get groupId {
+    final $$GroupsTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableOrderingComposer(
+          }) => $$GroupsTableOrderingComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -19324,8 +19499,8 @@ class $$ScheduleEntriesTableAnnotationComposer
   GeneratedColumn<String> get title =>
       $composableBuilder(column: $table.title, builder: (column) => column);
 
-  GeneratedColumn<bool> get allPods =>
-      $composableBuilder(column: $table.allPods, builder: (column) => column);
+  GeneratedColumn<bool> get allGroups =>
+      $composableBuilder(column: $table.allGroups, builder: (column) => column);
 
   GeneratedColumn<String> get specialistName => $composableBuilder(
     column: $table.specialistName,
@@ -19347,20 +19522,20 @@ class $$ScheduleEntriesTableAnnotationComposer
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
-  $$PodsTableAnnotationComposer get podId {
-    final $$PodsTableAnnotationComposer composer = $composerBuilder(
+  $$GroupsTableAnnotationComposer get groupId {
+    final $$GroupsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableAnnotationComposer(
+          }) => $$GroupsTableAnnotationComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -19440,22 +19615,22 @@ class $$ScheduleEntriesTableAnnotationComposer
     return composer;
   }
 
-  Expression<T> entryPodsRefs<T extends Object>(
-    Expression<T> Function($$EntryPodsTableAnnotationComposer a) f,
+  Expression<T> entryGroupsRefs<T extends Object>(
+    Expression<T> Function($$EntryGroupsTableAnnotationComposer a) f,
   ) {
-    final $$EntryPodsTableAnnotationComposer composer = $composerBuilder(
+    final $$EntryGroupsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.entryPods,
+      referencedTable: $db.entryGroups,
       getReferencedColumn: (t) => t.entryId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$EntryPodsTableAnnotationComposer(
+          }) => $$EntryGroupsTableAnnotationComposer(
             $db: $db,
-            $table: $db.entryPods,
+            $table: $db.entryGroups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -19480,11 +19655,11 @@ class $$ScheduleEntriesTableTableManager
           (ScheduleEntry, $$ScheduleEntriesTableReferences),
           ScheduleEntry,
           PrefetchHooks Function({
-            bool podId,
+            bool groupId,
             bool specialistId,
             bool sourceTripId,
             bool overridesTemplateId,
-            bool entryPodsRefs,
+            bool entryGroupsRefs,
           })
         > {
   $$ScheduleEntriesTableTableManager(
@@ -19509,8 +19684,8 @@ class $$ScheduleEntriesTableTableManager
                 Value<String> endTime = const Value.absent(),
                 Value<bool> isFullDay = const Value.absent(),
                 Value<String> title = const Value.absent(),
-                Value<String?> podId = const Value.absent(),
-                Value<bool> allPods = const Value.absent(),
+                Value<String?> groupId = const Value.absent(),
+                Value<bool> allGroups = const Value.absent(),
                 Value<String?> specialistName = const Value.absent(),
                 Value<String?> specialistId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
@@ -19529,8 +19704,8 @@ class $$ScheduleEntriesTableTableManager
                 endTime: endTime,
                 isFullDay: isFullDay,
                 title: title,
-                podId: podId,
-                allPods: allPods,
+                groupId: groupId,
+                allGroups: allGroups,
                 specialistName: specialistName,
                 specialistId: specialistId,
                 location: location,
@@ -19551,8 +19726,8 @@ class $$ScheduleEntriesTableTableManager
                 required String endTime,
                 Value<bool> isFullDay = const Value.absent(),
                 required String title,
-                Value<String?> podId = const Value.absent(),
-                Value<bool> allPods = const Value.absent(),
+                Value<String?> groupId = const Value.absent(),
+                Value<bool> allGroups = const Value.absent(),
                 Value<String?> specialistName = const Value.absent(),
                 Value<String?> specialistId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
@@ -19571,8 +19746,8 @@ class $$ScheduleEntriesTableTableManager
                 endTime: endTime,
                 isFullDay: isFullDay,
                 title: title,
-                podId: podId,
-                allPods: allPods,
+                groupId: groupId,
+                allGroups: allGroups,
                 specialistName: specialistName,
                 specialistId: specialistId,
                 location: location,
@@ -19594,15 +19769,17 @@ class $$ScheduleEntriesTableTableManager
               .toList(),
           prefetchHooksCallback:
               ({
-                podId = false,
+                groupId = false,
                 specialistId = false,
                 sourceTripId = false,
                 overridesTemplateId = false,
-                entryPodsRefs = false,
+                entryGroupsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
-                  explicitlyWatchedTables: [if (entryPodsRefs) db.entryPods],
+                  explicitlyWatchedTables: [
+                    if (entryGroupsRefs) db.entryGroups,
+                  ],
                   addJoins:
                       <
                         T extends TableManagerState<
@@ -19619,17 +19796,17 @@ class $$ScheduleEntriesTableTableManager
                           dynamic
                         >
                       >(state) {
-                        if (podId) {
+                        if (groupId) {
                           state =
                               state.withJoin(
                                     currentTable: table,
-                                    currentColumn: table.podId,
+                                    currentColumn: table.groupId,
                                     referencedTable:
                                         $$ScheduleEntriesTableReferences
-                                            ._podIdTable(db),
+                                            ._groupIdTable(db),
                                     referencedColumn:
                                         $$ScheduleEntriesTableReferences
-                                            ._podIdTable(db)
+                                            ._groupIdTable(db)
                                             .id,
                                   )
                                   as T;
@@ -19684,21 +19861,21 @@ class $$ScheduleEntriesTableTableManager
                       },
                   getPrefetchedDataCallback: (items) async {
                     return [
-                      if (entryPodsRefs)
+                      if (entryGroupsRefs)
                         await $_getPrefetchedData<
                           ScheduleEntry,
                           $ScheduleEntriesTable,
-                          EntryPod
+                          EntryGroup
                         >(
                           currentTable: table,
                           referencedTable: $$ScheduleEntriesTableReferences
-                              ._entryPodsRefsTable(db),
+                              ._entryGroupsRefsTable(db),
                           managerFromTypedResult: (p0) =>
                               $$ScheduleEntriesTableReferences(
                                 db,
                                 table,
                                 p0,
-                              ).entryPodsRefs,
+                              ).entryGroupsRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.entryId == item.id,
@@ -19726,34 +19903,38 @@ typedef $$ScheduleEntriesTableProcessedTableManager =
       (ScheduleEntry, $$ScheduleEntriesTableReferences),
       ScheduleEntry,
       PrefetchHooks Function({
-        bool podId,
+        bool groupId,
         bool specialistId,
         bool sourceTripId,
         bool overridesTemplateId,
-        bool entryPodsRefs,
+        bool entryGroupsRefs,
       })
     >;
-typedef $$TemplatePodsTableCreateCompanionBuilder =
-    TemplatePodsCompanion Function({
+typedef $$TemplateGroupsTableCreateCompanionBuilder =
+    TemplateGroupsCompanion Function({
       required String templateId,
-      required String podId,
+      required String groupId,
       Value<int> rowid,
     });
-typedef $$TemplatePodsTableUpdateCompanionBuilder =
-    TemplatePodsCompanion Function({
+typedef $$TemplateGroupsTableUpdateCompanionBuilder =
+    TemplateGroupsCompanion Function({
       Value<String> templateId,
-      Value<String> podId,
+      Value<String> groupId,
       Value<int> rowid,
     });
 
-final class $$TemplatePodsTableReferences
-    extends BaseReferences<_$AppDatabase, $TemplatePodsTable, TemplatePod> {
-  $$TemplatePodsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+final class $$TemplateGroupsTableReferences
+    extends BaseReferences<_$AppDatabase, $TemplateGroupsTable, TemplateGroup> {
+  $$TemplateGroupsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
 
   static $ScheduleTemplatesTable _templateIdTable(_$AppDatabase db) =>
       db.scheduleTemplates.createAlias(
         $_aliasNameGenerator(
-          db.templatePods.templateId,
+          db.templateGroups.templateId,
           db.scheduleTemplates.id,
         ),
       );
@@ -19772,18 +19953,18 @@ final class $$TemplatePodsTableReferences
     );
   }
 
-  static $PodsTable _podIdTable(_$AppDatabase db) => db.pods.createAlias(
-    $_aliasNameGenerator(db.templatePods.podId, db.pods.id),
+  static $GroupsTable _groupIdTable(_$AppDatabase db) => db.groups.createAlias(
+    $_aliasNameGenerator(db.templateGroups.groupId, db.groups.id),
   );
 
-  $$PodsTableProcessedTableManager get podId {
-    final $_column = $_itemColumn<String>('pod_id')!;
+  $$GroupsTableProcessedTableManager get groupId {
+    final $_column = $_itemColumn<String>('group_id')!;
 
-    final manager = $$PodsTableTableManager(
+    final manager = $$GroupsTableTableManager(
       $_db,
-      $_db.pods,
+      $_db.groups,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_podIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_groupIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -19791,9 +19972,9 @@ final class $$TemplatePodsTableReferences
   }
 }
 
-class $$TemplatePodsTableFilterComposer
-    extends Composer<_$AppDatabase, $TemplatePodsTable> {
-  $$TemplatePodsTableFilterComposer({
+class $$TemplateGroupsTableFilterComposer
+    extends Composer<_$AppDatabase, $TemplateGroupsTable> {
+  $$TemplateGroupsTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -19823,20 +20004,20 @@ class $$TemplatePodsTableFilterComposer
     return composer;
   }
 
-  $$PodsTableFilterComposer get podId {
-    final $$PodsTableFilterComposer composer = $composerBuilder(
+  $$GroupsTableFilterComposer get groupId {
+    final $$GroupsTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableFilterComposer(
+          }) => $$GroupsTableFilterComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -19847,9 +20028,9 @@ class $$TemplatePodsTableFilterComposer
   }
 }
 
-class $$TemplatePodsTableOrderingComposer
-    extends Composer<_$AppDatabase, $TemplatePodsTable> {
-  $$TemplatePodsTableOrderingComposer({
+class $$TemplateGroupsTableOrderingComposer
+    extends Composer<_$AppDatabase, $TemplateGroupsTable> {
+  $$TemplateGroupsTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -19879,20 +20060,20 @@ class $$TemplatePodsTableOrderingComposer
     return composer;
   }
 
-  $$PodsTableOrderingComposer get podId {
-    final $$PodsTableOrderingComposer composer = $composerBuilder(
+  $$GroupsTableOrderingComposer get groupId {
+    final $$GroupsTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableOrderingComposer(
+          }) => $$GroupsTableOrderingComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -19903,9 +20084,9 @@ class $$TemplatePodsTableOrderingComposer
   }
 }
 
-class $$TemplatePodsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $TemplatePodsTable> {
-  $$TemplatePodsTableAnnotationComposer({
+class $$TemplateGroupsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TemplateGroupsTable> {
+  $$TemplateGroupsTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -19936,20 +20117,20 @@ class $$TemplatePodsTableAnnotationComposer
     return composer;
   }
 
-  $$PodsTableAnnotationComposer get podId {
-    final $$PodsTableAnnotationComposer composer = $composerBuilder(
+  $$GroupsTableAnnotationComposer get groupId {
+    final $$GroupsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableAnnotationComposer(
+          }) => $$GroupsTableAnnotationComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -19960,61 +20141,63 @@ class $$TemplatePodsTableAnnotationComposer
   }
 }
 
-class $$TemplatePodsTableTableManager
+class $$TemplateGroupsTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $TemplatePodsTable,
-          TemplatePod,
-          $$TemplatePodsTableFilterComposer,
-          $$TemplatePodsTableOrderingComposer,
-          $$TemplatePodsTableAnnotationComposer,
-          $$TemplatePodsTableCreateCompanionBuilder,
-          $$TemplatePodsTableUpdateCompanionBuilder,
-          (TemplatePod, $$TemplatePodsTableReferences),
-          TemplatePod,
-          PrefetchHooks Function({bool templateId, bool podId})
+          $TemplateGroupsTable,
+          TemplateGroup,
+          $$TemplateGroupsTableFilterComposer,
+          $$TemplateGroupsTableOrderingComposer,
+          $$TemplateGroupsTableAnnotationComposer,
+          $$TemplateGroupsTableCreateCompanionBuilder,
+          $$TemplateGroupsTableUpdateCompanionBuilder,
+          (TemplateGroup, $$TemplateGroupsTableReferences),
+          TemplateGroup,
+          PrefetchHooks Function({bool templateId, bool groupId})
         > {
-  $$TemplatePodsTableTableManager(_$AppDatabase db, $TemplatePodsTable table)
-    : super(
+  $$TemplateGroupsTableTableManager(
+    _$AppDatabase db,
+    $TemplateGroupsTable table,
+  ) : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$TemplatePodsTableFilterComposer($db: db, $table: table),
+              $$TemplateGroupsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$TemplatePodsTableOrderingComposer($db: db, $table: table),
+              $$TemplateGroupsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$TemplatePodsTableAnnotationComposer($db: db, $table: table),
+              $$TemplateGroupsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> templateId = const Value.absent(),
-                Value<String> podId = const Value.absent(),
+                Value<String> groupId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => TemplatePodsCompanion(
+              }) => TemplateGroupsCompanion(
                 templateId: templateId,
-                podId: podId,
+                groupId: groupId,
                 rowid: rowid,
               ),
           createCompanionCallback:
               ({
                 required String templateId,
-                required String podId,
+                required String groupId,
                 Value<int> rowid = const Value.absent(),
-              }) => TemplatePodsCompanion.insert(
+              }) => TemplateGroupsCompanion.insert(
                 templateId: templateId,
-                podId: podId,
+                groupId: groupId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
                   e.readTable(table),
-                  $$TemplatePodsTableReferences(db, table, e),
+                  $$TemplateGroupsTableReferences(db, table, e),
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({templateId = false, podId = false}) {
+          prefetchHooksCallback: ({templateId = false, groupId = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [],
@@ -20039,24 +20222,26 @@ class $$TemplatePodsTableTableManager
                           state.withJoin(
                                 currentTable: table,
                                 currentColumn: table.templateId,
-                                referencedTable: $$TemplatePodsTableReferences
+                                referencedTable: $$TemplateGroupsTableReferences
                                     ._templateIdTable(db),
-                                referencedColumn: $$TemplatePodsTableReferences
-                                    ._templateIdTable(db)
-                                    .id,
+                                referencedColumn:
+                                    $$TemplateGroupsTableReferences
+                                        ._templateIdTable(db)
+                                        .id,
                               )
                               as T;
                     }
-                    if (podId) {
+                    if (groupId) {
                       state =
                           state.withJoin(
                                 currentTable: table,
-                                currentColumn: table.podId,
-                                referencedTable: $$TemplatePodsTableReferences
-                                    ._podIdTable(db),
-                                referencedColumn: $$TemplatePodsTableReferences
-                                    ._podIdTable(db)
-                                    .id,
+                                currentColumn: table.groupId,
+                                referencedTable: $$TemplateGroupsTableReferences
+                                    ._groupIdTable(db),
+                                referencedColumn:
+                                    $$TemplateGroupsTableReferences
+                                        ._groupIdTable(db)
+                                        .id,
                               )
                               as T;
                     }
@@ -20072,40 +20257,40 @@ class $$TemplatePodsTableTableManager
       );
 }
 
-typedef $$TemplatePodsTableProcessedTableManager =
+typedef $$TemplateGroupsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $TemplatePodsTable,
-      TemplatePod,
-      $$TemplatePodsTableFilterComposer,
-      $$TemplatePodsTableOrderingComposer,
-      $$TemplatePodsTableAnnotationComposer,
-      $$TemplatePodsTableCreateCompanionBuilder,
-      $$TemplatePodsTableUpdateCompanionBuilder,
-      (TemplatePod, $$TemplatePodsTableReferences),
-      TemplatePod,
-      PrefetchHooks Function({bool templateId, bool podId})
+      $TemplateGroupsTable,
+      TemplateGroup,
+      $$TemplateGroupsTableFilterComposer,
+      $$TemplateGroupsTableOrderingComposer,
+      $$TemplateGroupsTableAnnotationComposer,
+      $$TemplateGroupsTableCreateCompanionBuilder,
+      $$TemplateGroupsTableUpdateCompanionBuilder,
+      (TemplateGroup, $$TemplateGroupsTableReferences),
+      TemplateGroup,
+      PrefetchHooks Function({bool templateId, bool groupId})
     >;
-typedef $$EntryPodsTableCreateCompanionBuilder =
-    EntryPodsCompanion Function({
+typedef $$EntryGroupsTableCreateCompanionBuilder =
+    EntryGroupsCompanion Function({
       required String entryId,
-      required String podId,
+      required String groupId,
       Value<int> rowid,
     });
-typedef $$EntryPodsTableUpdateCompanionBuilder =
-    EntryPodsCompanion Function({
+typedef $$EntryGroupsTableUpdateCompanionBuilder =
+    EntryGroupsCompanion Function({
       Value<String> entryId,
-      Value<String> podId,
+      Value<String> groupId,
       Value<int> rowid,
     });
 
-final class $$EntryPodsTableReferences
-    extends BaseReferences<_$AppDatabase, $EntryPodsTable, EntryPod> {
-  $$EntryPodsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+final class $$EntryGroupsTableReferences
+    extends BaseReferences<_$AppDatabase, $EntryGroupsTable, EntryGroup> {
+  $$EntryGroupsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
   static $ScheduleEntriesTable _entryIdTable(_$AppDatabase db) =>
       db.scheduleEntries.createAlias(
-        $_aliasNameGenerator(db.entryPods.entryId, db.scheduleEntries.id),
+        $_aliasNameGenerator(db.entryGroups.entryId, db.scheduleEntries.id),
       );
 
   $$ScheduleEntriesTableProcessedTableManager get entryId {
@@ -20122,17 +20307,18 @@ final class $$EntryPodsTableReferences
     );
   }
 
-  static $PodsTable _podIdTable(_$AppDatabase db) =>
-      db.pods.createAlias($_aliasNameGenerator(db.entryPods.podId, db.pods.id));
+  static $GroupsTable _groupIdTable(_$AppDatabase db) => db.groups.createAlias(
+    $_aliasNameGenerator(db.entryGroups.groupId, db.groups.id),
+  );
 
-  $$PodsTableProcessedTableManager get podId {
-    final $_column = $_itemColumn<String>('pod_id')!;
+  $$GroupsTableProcessedTableManager get groupId {
+    final $_column = $_itemColumn<String>('group_id')!;
 
-    final manager = $$PodsTableTableManager(
+    final manager = $$GroupsTableTableManager(
       $_db,
-      $_db.pods,
+      $_db.groups,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_podIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_groupIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -20140,9 +20326,9 @@ final class $$EntryPodsTableReferences
   }
 }
 
-class $$EntryPodsTableFilterComposer
-    extends Composer<_$AppDatabase, $EntryPodsTable> {
-  $$EntryPodsTableFilterComposer({
+class $$EntryGroupsTableFilterComposer
+    extends Composer<_$AppDatabase, $EntryGroupsTable> {
+  $$EntryGroupsTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -20172,20 +20358,20 @@ class $$EntryPodsTableFilterComposer
     return composer;
   }
 
-  $$PodsTableFilterComposer get podId {
-    final $$PodsTableFilterComposer composer = $composerBuilder(
+  $$GroupsTableFilterComposer get groupId {
+    final $$GroupsTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableFilterComposer(
+          }) => $$GroupsTableFilterComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -20196,9 +20382,9 @@ class $$EntryPodsTableFilterComposer
   }
 }
 
-class $$EntryPodsTableOrderingComposer
-    extends Composer<_$AppDatabase, $EntryPodsTable> {
-  $$EntryPodsTableOrderingComposer({
+class $$EntryGroupsTableOrderingComposer
+    extends Composer<_$AppDatabase, $EntryGroupsTable> {
+  $$EntryGroupsTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -20228,20 +20414,20 @@ class $$EntryPodsTableOrderingComposer
     return composer;
   }
 
-  $$PodsTableOrderingComposer get podId {
-    final $$PodsTableOrderingComposer composer = $composerBuilder(
+  $$GroupsTableOrderingComposer get groupId {
+    final $$GroupsTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableOrderingComposer(
+          }) => $$GroupsTableOrderingComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -20252,9 +20438,9 @@ class $$EntryPodsTableOrderingComposer
   }
 }
 
-class $$EntryPodsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $EntryPodsTable> {
-  $$EntryPodsTableAnnotationComposer({
+class $$EntryGroupsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $EntryGroupsTable> {
+  $$EntryGroupsTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -20284,20 +20470,20 @@ class $$EntryPodsTableAnnotationComposer
     return composer;
   }
 
-  $$PodsTableAnnotationComposer get podId {
-    final $$PodsTableAnnotationComposer composer = $composerBuilder(
+  $$GroupsTableAnnotationComposer get groupId {
+    final $$GroupsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
-      referencedTable: $db.pods,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$PodsTableAnnotationComposer(
+          }) => $$GroupsTableAnnotationComposer(
             $db: $db,
-            $table: $db.pods,
+            $table: $db.groups,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -20308,61 +20494,61 @@ class $$EntryPodsTableAnnotationComposer
   }
 }
 
-class $$EntryPodsTableTableManager
+class $$EntryGroupsTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $EntryPodsTable,
-          EntryPod,
-          $$EntryPodsTableFilterComposer,
-          $$EntryPodsTableOrderingComposer,
-          $$EntryPodsTableAnnotationComposer,
-          $$EntryPodsTableCreateCompanionBuilder,
-          $$EntryPodsTableUpdateCompanionBuilder,
-          (EntryPod, $$EntryPodsTableReferences),
-          EntryPod,
-          PrefetchHooks Function({bool entryId, bool podId})
+          $EntryGroupsTable,
+          EntryGroup,
+          $$EntryGroupsTableFilterComposer,
+          $$EntryGroupsTableOrderingComposer,
+          $$EntryGroupsTableAnnotationComposer,
+          $$EntryGroupsTableCreateCompanionBuilder,
+          $$EntryGroupsTableUpdateCompanionBuilder,
+          (EntryGroup, $$EntryGroupsTableReferences),
+          EntryGroup,
+          PrefetchHooks Function({bool entryId, bool groupId})
         > {
-  $$EntryPodsTableTableManager(_$AppDatabase db, $EntryPodsTable table)
+  $$EntryGroupsTableTableManager(_$AppDatabase db, $EntryGroupsTable table)
     : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$EntryPodsTableFilterComposer($db: db, $table: table),
+              $$EntryGroupsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$EntryPodsTableOrderingComposer($db: db, $table: table),
+              $$EntryGroupsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$EntryPodsTableAnnotationComposer($db: db, $table: table),
+              $$EntryGroupsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> entryId = const Value.absent(),
-                Value<String> podId = const Value.absent(),
+                Value<String> groupId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => EntryPodsCompanion(
+              }) => EntryGroupsCompanion(
                 entryId: entryId,
-                podId: podId,
+                groupId: groupId,
                 rowid: rowid,
               ),
           createCompanionCallback:
               ({
                 required String entryId,
-                required String podId,
+                required String groupId,
                 Value<int> rowid = const Value.absent(),
-              }) => EntryPodsCompanion.insert(
+              }) => EntryGroupsCompanion.insert(
                 entryId: entryId,
-                podId: podId,
+                groupId: groupId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
                   e.readTable(table),
-                  $$EntryPodsTableReferences(db, table, e),
+                  $$EntryGroupsTableReferences(db, table, e),
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({entryId = false, podId = false}) {
+          prefetchHooksCallback: ({entryId = false, groupId = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [],
@@ -20387,23 +20573,23 @@ class $$EntryPodsTableTableManager
                           state.withJoin(
                                 currentTable: table,
                                 currentColumn: table.entryId,
-                                referencedTable: $$EntryPodsTableReferences
+                                referencedTable: $$EntryGroupsTableReferences
                                     ._entryIdTable(db),
-                                referencedColumn: $$EntryPodsTableReferences
+                                referencedColumn: $$EntryGroupsTableReferences
                                     ._entryIdTable(db)
                                     .id,
                               )
                               as T;
                     }
-                    if (podId) {
+                    if (groupId) {
                       state =
                           state.withJoin(
                                 currentTable: table,
-                                currentColumn: table.podId,
-                                referencedTable: $$EntryPodsTableReferences
-                                    ._podIdTable(db),
-                                referencedColumn: $$EntryPodsTableReferences
-                                    ._podIdTable(db)
+                                currentColumn: table.groupId,
+                                referencedTable: $$EntryGroupsTableReferences
+                                    ._groupIdTable(db),
+                                referencedColumn: $$EntryGroupsTableReferences
+                                    ._groupIdTable(db)
                                     .id,
                               )
                               as T;
@@ -20420,19 +20606,19 @@ class $$EntryPodsTableTableManager
       );
 }
 
-typedef $$EntryPodsTableProcessedTableManager =
+typedef $$EntryGroupsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $EntryPodsTable,
-      EntryPod,
-      $$EntryPodsTableFilterComposer,
-      $$EntryPodsTableOrderingComposer,
-      $$EntryPodsTableAnnotationComposer,
-      $$EntryPodsTableCreateCompanionBuilder,
-      $$EntryPodsTableUpdateCompanionBuilder,
-      (EntryPod, $$EntryPodsTableReferences),
-      EntryPod,
-      PrefetchHooks Function({bool entryId, bool podId})
+      $EntryGroupsTable,
+      EntryGroup,
+      $$EntryGroupsTableFilterComposer,
+      $$EntryGroupsTableOrderingComposer,
+      $$EntryGroupsTableAnnotationComposer,
+      $$EntryGroupsTableCreateCompanionBuilder,
+      $$EntryGroupsTableUpdateCompanionBuilder,
+      (EntryGroup, $$EntryGroupsTableReferences),
+      EntryGroup,
+      PrefetchHooks Function({bool entryId, bool groupId})
     >;
 typedef $$ParentConcernNotesTableCreateCompanionBuilder =
     ParentConcernNotesCompanion Function({
@@ -20510,24 +20696,28 @@ final class $$ParentConcernNotesTableReferences
     super.$_typedResult,
   );
 
-  static MultiTypedResultKey<$ParentConcernKidsTable, List<ParentConcernKid>>
-  _parentConcernKidsRefsTable(_$AppDatabase db) =>
+  static MultiTypedResultKey<
+    $ParentConcernChildrenTable,
+    List<ParentConcernChildrenData>
+  >
+  _parentConcernChildrenRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
-        db.parentConcernKids,
+        db.parentConcernChildren,
         aliasName: $_aliasNameGenerator(
           db.parentConcernNotes.id,
-          db.parentConcernKids.concernId,
+          db.parentConcernChildren.concernId,
         ),
       );
 
-  $$ParentConcernKidsTableProcessedTableManager get parentConcernKidsRefs {
-    final manager = $$ParentConcernKidsTableTableManager(
+  $$ParentConcernChildrenTableProcessedTableManager
+  get parentConcernChildrenRefs {
+    final manager = $$ParentConcernChildrenTableTableManager(
       $_db,
-      $_db.parentConcernKids,
+      $_db.parentConcernChildren,
     ).filter((f) => f.concernId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(
-      _parentConcernKidsRefsTable($_db),
+      _parentConcernChildrenRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -20679,28 +20869,29 @@ class $$ParentConcernNotesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  Expression<bool> parentConcernKidsRefs(
-    Expression<bool> Function($$ParentConcernKidsTableFilterComposer f) f,
+  Expression<bool> parentConcernChildrenRefs(
+    Expression<bool> Function($$ParentConcernChildrenTableFilterComposer f) f,
   ) {
-    final $$ParentConcernKidsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.parentConcernKids,
-      getReferencedColumn: (t) => t.concernId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$ParentConcernKidsTableFilterComposer(
-            $db: $db,
-            $table: $db.parentConcernKids,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
+    final $$ParentConcernChildrenTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.parentConcernChildren,
+          getReferencedColumn: (t) => t.concernId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
                 $removeJoinBuilderFromRootComposer,
-          ),
-    );
+              }) => $$ParentConcernChildrenTableFilterComposer(
+                $db: $db,
+                $table: $db.parentConcernChildren,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 }
@@ -20988,23 +21179,23 @@ class $$ParentConcernNotesTableAnnotationComposer
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
-  Expression<T> parentConcernKidsRefs<T extends Object>(
-    Expression<T> Function($$ParentConcernKidsTableAnnotationComposer a) f,
+  Expression<T> parentConcernChildrenRefs<T extends Object>(
+    Expression<T> Function($$ParentConcernChildrenTableAnnotationComposer a) f,
   ) {
-    final $$ParentConcernKidsTableAnnotationComposer composer =
+    final $$ParentConcernChildrenTableAnnotationComposer composer =
         $composerBuilder(
           composer: this,
           getCurrentColumn: (t) => t.id,
-          referencedTable: $db.parentConcernKids,
+          referencedTable: $db.parentConcernChildren,
           getReferencedColumn: (t) => t.concernId,
           builder:
               (
                 joinBuilder, {
                 $addJoinBuilderToRootComposer,
                 $removeJoinBuilderFromRootComposer,
-              }) => $$ParentConcernKidsTableAnnotationComposer(
+              }) => $$ParentConcernChildrenTableAnnotationComposer(
                 $db: $db,
-                $table: $db.parentConcernKids,
+                $table: $db.parentConcernChildren,
                 $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
                 joinBuilder: joinBuilder,
                 $removeJoinBuilderFromRootComposer:
@@ -21028,7 +21219,7 @@ class $$ParentConcernNotesTableTableManager
           $$ParentConcernNotesTableUpdateCompanionBuilder,
           (ParentConcernNote, $$ParentConcernNotesTableReferences),
           ParentConcernNote,
-          PrefetchHooks Function({bool parentConcernKidsRefs})
+          PrefetchHooks Function({bool parentConcernChildrenRefs})
         > {
   $$ParentConcernNotesTableTableManager(
     _$AppDatabase db,
@@ -21174,30 +21365,30 @@ class $$ParentConcernNotesTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({parentConcernKidsRefs = false}) {
+          prefetchHooksCallback: ({parentConcernChildrenRefs = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [
-                if (parentConcernKidsRefs) db.parentConcernKids,
+                if (parentConcernChildrenRefs) db.parentConcernChildren,
               ],
               addJoins: null,
               getPrefetchedDataCallback: (items) async {
                 return [
-                  if (parentConcernKidsRefs)
+                  if (parentConcernChildrenRefs)
                     await $_getPrefetchedData<
                       ParentConcernNote,
                       $ParentConcernNotesTable,
-                      ParentConcernKid
+                      ParentConcernChildrenData
                     >(
                       currentTable: table,
                       referencedTable: $$ParentConcernNotesTableReferences
-                          ._parentConcernKidsRefsTable(db),
+                          ._parentConcernChildrenRefsTable(db),
                       managerFromTypedResult: (p0) =>
                           $$ParentConcernNotesTableReferences(
                             db,
                             table,
                             p0,
-                          ).parentConcernKidsRefs,
+                          ).parentConcernChildrenRefs,
                       referencedItemsForCurrentItem: (item, referencedItems) =>
                           referencedItems.where((e) => e.concernId == item.id),
                       typedResults: items,
@@ -21222,29 +21413,29 @@ typedef $$ParentConcernNotesTableProcessedTableManager =
       $$ParentConcernNotesTableUpdateCompanionBuilder,
       (ParentConcernNote, $$ParentConcernNotesTableReferences),
       ParentConcernNote,
-      PrefetchHooks Function({bool parentConcernKidsRefs})
+      PrefetchHooks Function({bool parentConcernChildrenRefs})
     >;
-typedef $$ParentConcernKidsTableCreateCompanionBuilder =
-    ParentConcernKidsCompanion Function({
+typedef $$ParentConcernChildrenTableCreateCompanionBuilder =
+    ParentConcernChildrenCompanion Function({
       required String concernId,
-      required String kidId,
+      required String childId,
       Value<int> rowid,
     });
-typedef $$ParentConcernKidsTableUpdateCompanionBuilder =
-    ParentConcernKidsCompanion Function({
+typedef $$ParentConcernChildrenTableUpdateCompanionBuilder =
+    ParentConcernChildrenCompanion Function({
       Value<String> concernId,
-      Value<String> kidId,
+      Value<String> childId,
       Value<int> rowid,
     });
 
-final class $$ParentConcernKidsTableReferences
+final class $$ParentConcernChildrenTableReferences
     extends
         BaseReferences<
           _$AppDatabase,
-          $ParentConcernKidsTable,
-          ParentConcernKid
+          $ParentConcernChildrenTable,
+          ParentConcernChildrenData
         > {
-  $$ParentConcernKidsTableReferences(
+  $$ParentConcernChildrenTableReferences(
     super.$_db,
     super.$_table,
     super.$_typedResult,
@@ -21253,7 +21444,7 @@ final class $$ParentConcernKidsTableReferences
   static $ParentConcernNotesTable _concernIdTable(_$AppDatabase db) =>
       db.parentConcernNotes.createAlias(
         $_aliasNameGenerator(
-          db.parentConcernKids.concernId,
+          db.parentConcernChildren.concernId,
           db.parentConcernNotes.id,
         ),
       );
@@ -21272,18 +21463,19 @@ final class $$ParentConcernKidsTableReferences
     );
   }
 
-  static $KidsTable _kidIdTable(_$AppDatabase db) => db.kids.createAlias(
-    $_aliasNameGenerator(db.parentConcernKids.kidId, db.kids.id),
-  );
+  static $ChildrenTable _childIdTable(_$AppDatabase db) =>
+      db.children.createAlias(
+        $_aliasNameGenerator(db.parentConcernChildren.childId, db.children.id),
+      );
 
-  $$KidsTableProcessedTableManager get kidId {
-    final $_column = $_itemColumn<String>('kid_id')!;
+  $$ChildrenTableProcessedTableManager get childId {
+    final $_column = $_itemColumn<String>('child_id')!;
 
-    final manager = $$KidsTableTableManager(
+    final manager = $$ChildrenTableTableManager(
       $_db,
-      $_db.kids,
+      $_db.children,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_kidIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_childIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -21291,9 +21483,9 @@ final class $$ParentConcernKidsTableReferences
   }
 }
 
-class $$ParentConcernKidsTableFilterComposer
-    extends Composer<_$AppDatabase, $ParentConcernKidsTable> {
-  $$ParentConcernKidsTableFilterComposer({
+class $$ParentConcernChildrenTableFilterComposer
+    extends Composer<_$AppDatabase, $ParentConcernChildrenTable> {
+  $$ParentConcernChildrenTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -21323,20 +21515,20 @@ class $$ParentConcernKidsTableFilterComposer
     return composer;
   }
 
-  $$KidsTableFilterComposer get kidId {
-    final $$KidsTableFilterComposer composer = $composerBuilder(
+  $$ChildrenTableFilterComposer get childId {
+    final $$ChildrenTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.kidId,
-      referencedTable: $db.kids,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$KidsTableFilterComposer(
+          }) => $$ChildrenTableFilterComposer(
             $db: $db,
-            $table: $db.kids,
+            $table: $db.children,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -21347,9 +21539,9 @@ class $$ParentConcernKidsTableFilterComposer
   }
 }
 
-class $$ParentConcernKidsTableOrderingComposer
-    extends Composer<_$AppDatabase, $ParentConcernKidsTable> {
-  $$ParentConcernKidsTableOrderingComposer({
+class $$ParentConcernChildrenTableOrderingComposer
+    extends Composer<_$AppDatabase, $ParentConcernChildrenTable> {
+  $$ParentConcernChildrenTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -21379,20 +21571,20 @@ class $$ParentConcernKidsTableOrderingComposer
     return composer;
   }
 
-  $$KidsTableOrderingComposer get kidId {
-    final $$KidsTableOrderingComposer composer = $composerBuilder(
+  $$ChildrenTableOrderingComposer get childId {
+    final $$ChildrenTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.kidId,
-      referencedTable: $db.kids,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$KidsTableOrderingComposer(
+          }) => $$ChildrenTableOrderingComposer(
             $db: $db,
-            $table: $db.kids,
+            $table: $db.children,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -21403,9 +21595,9 @@ class $$ParentConcernKidsTableOrderingComposer
   }
 }
 
-class $$ParentConcernKidsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $ParentConcernKidsTable> {
-  $$ParentConcernKidsTableAnnotationComposer({
+class $$ParentConcernChildrenTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ParentConcernChildrenTable> {
+  $$ParentConcernChildrenTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -21436,20 +21628,20 @@ class $$ParentConcernKidsTableAnnotationComposer
     return composer;
   }
 
-  $$KidsTableAnnotationComposer get kidId {
-    final $$KidsTableAnnotationComposer composer = $composerBuilder(
+  $$ChildrenTableAnnotationComposer get childId {
+    final $$ChildrenTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.kidId,
-      referencedTable: $db.kids,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$KidsTableAnnotationComposer(
+          }) => $$ChildrenTableAnnotationComposer(
             $db: $db,
-            $table: $db.kids,
+            $table: $db.children,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -21460,66 +21652,72 @@ class $$ParentConcernKidsTableAnnotationComposer
   }
 }
 
-class $$ParentConcernKidsTableTableManager
+class $$ParentConcernChildrenTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $ParentConcernKidsTable,
-          ParentConcernKid,
-          $$ParentConcernKidsTableFilterComposer,
-          $$ParentConcernKidsTableOrderingComposer,
-          $$ParentConcernKidsTableAnnotationComposer,
-          $$ParentConcernKidsTableCreateCompanionBuilder,
-          $$ParentConcernKidsTableUpdateCompanionBuilder,
-          (ParentConcernKid, $$ParentConcernKidsTableReferences),
-          ParentConcernKid,
-          PrefetchHooks Function({bool concernId, bool kidId})
+          $ParentConcernChildrenTable,
+          ParentConcernChildrenData,
+          $$ParentConcernChildrenTableFilterComposer,
+          $$ParentConcernChildrenTableOrderingComposer,
+          $$ParentConcernChildrenTableAnnotationComposer,
+          $$ParentConcernChildrenTableCreateCompanionBuilder,
+          $$ParentConcernChildrenTableUpdateCompanionBuilder,
+          (ParentConcernChildrenData, $$ParentConcernChildrenTableReferences),
+          ParentConcernChildrenData,
+          PrefetchHooks Function({bool concernId, bool childId})
         > {
-  $$ParentConcernKidsTableTableManager(
+  $$ParentConcernChildrenTableTableManager(
     _$AppDatabase db,
-    $ParentConcernKidsTable table,
+    $ParentConcernChildrenTable table,
   ) : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$ParentConcernKidsTableFilterComposer($db: db, $table: table),
+              $$ParentConcernChildrenTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
           createOrderingComposer: () =>
-              $$ParentConcernKidsTableOrderingComposer($db: db, $table: table),
+              $$ParentConcernChildrenTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
           createComputedFieldComposer: () =>
-              $$ParentConcernKidsTableAnnotationComposer(
+              $$ParentConcernChildrenTableAnnotationComposer(
                 $db: db,
                 $table: table,
               ),
           updateCompanionCallback:
               ({
                 Value<String> concernId = const Value.absent(),
-                Value<String> kidId = const Value.absent(),
+                Value<String> childId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => ParentConcernKidsCompanion(
+              }) => ParentConcernChildrenCompanion(
                 concernId: concernId,
-                kidId: kidId,
+                childId: childId,
                 rowid: rowid,
               ),
           createCompanionCallback:
               ({
                 required String concernId,
-                required String kidId,
+                required String childId,
                 Value<int> rowid = const Value.absent(),
-              }) => ParentConcernKidsCompanion.insert(
+              }) => ParentConcernChildrenCompanion.insert(
                 concernId: concernId,
-                kidId: kidId,
+                childId: childId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
                   e.readTable(table),
-                  $$ParentConcernKidsTableReferences(db, table, e),
+                  $$ParentConcernChildrenTableReferences(db, table, e),
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({concernId = false, kidId = false}) {
+          prefetchHooksCallback: ({concernId = false, childId = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [],
@@ -21545,26 +21743,26 @@ class $$ParentConcernKidsTableTableManager
                                 currentTable: table,
                                 currentColumn: table.concernId,
                                 referencedTable:
-                                    $$ParentConcernKidsTableReferences
+                                    $$ParentConcernChildrenTableReferences
                                         ._concernIdTable(db),
                                 referencedColumn:
-                                    $$ParentConcernKidsTableReferences
+                                    $$ParentConcernChildrenTableReferences
                                         ._concernIdTable(db)
                                         .id,
                               )
                               as T;
                     }
-                    if (kidId) {
+                    if (childId) {
                       state =
                           state.withJoin(
                                 currentTable: table,
-                                currentColumn: table.kidId,
+                                currentColumn: table.childId,
                                 referencedTable:
-                                    $$ParentConcernKidsTableReferences
-                                        ._kidIdTable(db),
+                                    $$ParentConcernChildrenTableReferences
+                                        ._childIdTable(db),
                                 referencedColumn:
-                                    $$ParentConcernKidsTableReferences
-                                        ._kidIdTable(db)
+                                    $$ParentConcernChildrenTableReferences
+                                        ._childIdTable(db)
                                         .id,
                               )
                               as T;
@@ -21581,23 +21779,23 @@ class $$ParentConcernKidsTableTableManager
       );
 }
 
-typedef $$ParentConcernKidsTableProcessedTableManager =
+typedef $$ParentConcernChildrenTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $ParentConcernKidsTable,
-      ParentConcernKid,
-      $$ParentConcernKidsTableFilterComposer,
-      $$ParentConcernKidsTableOrderingComposer,
-      $$ParentConcernKidsTableAnnotationComposer,
-      $$ParentConcernKidsTableCreateCompanionBuilder,
-      $$ParentConcernKidsTableUpdateCompanionBuilder,
-      (ParentConcernKid, $$ParentConcernKidsTableReferences),
-      ParentConcernKid,
-      PrefetchHooks Function({bool concernId, bool kidId})
+      $ParentConcernChildrenTable,
+      ParentConcernChildrenData,
+      $$ParentConcernChildrenTableFilterComposer,
+      $$ParentConcernChildrenTableOrderingComposer,
+      $$ParentConcernChildrenTableAnnotationComposer,
+      $$ParentConcernChildrenTableCreateCompanionBuilder,
+      $$ParentConcernChildrenTableUpdateCompanionBuilder,
+      (ParentConcernChildrenData, $$ParentConcernChildrenTableReferences),
+      ParentConcernChildrenData,
+      PrefetchHooks Function({bool concernId, bool childId})
     >;
 typedef $$AttendanceTableCreateCompanionBuilder =
     AttendanceCompanion Function({
-      required String kidId,
+      required String childId,
       required DateTime date,
       required String status,
       Value<String?> clockTime,
@@ -21608,7 +21806,7 @@ typedef $$AttendanceTableCreateCompanionBuilder =
     });
 typedef $$AttendanceTableUpdateCompanionBuilder =
     AttendanceCompanion Function({
-      Value<String> kidId,
+      Value<String> childId,
       Value<DateTime> date,
       Value<String> status,
       Value<String?> clockTime,
@@ -21622,18 +21820,17 @@ final class $$AttendanceTableReferences
     extends BaseReferences<_$AppDatabase, $AttendanceTable, AttendanceData> {
   $$AttendanceTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
-  static $KidsTable _kidIdTable(_$AppDatabase db) => db.kids.createAlias(
-    $_aliasNameGenerator(db.attendance.kidId, db.kids.id),
-  );
+  static $ChildrenTable _childIdTable(_$AppDatabase db) => db.children
+      .createAlias($_aliasNameGenerator(db.attendance.childId, db.children.id));
 
-  $$KidsTableProcessedTableManager get kidId {
-    final $_column = $_itemColumn<String>('kid_id')!;
+  $$ChildrenTableProcessedTableManager get childId {
+    final $_column = $_itemColumn<String>('child_id')!;
 
-    final manager = $$KidsTableTableManager(
+    final manager = $$ChildrenTableTableManager(
       $_db,
-      $_db.kids,
+      $_db.children,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_kidIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_childIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -21680,20 +21877,20 @@ class $$AttendanceTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  $$KidsTableFilterComposer get kidId {
-    final $$KidsTableFilterComposer composer = $composerBuilder(
+  $$ChildrenTableFilterComposer get childId {
+    final $$ChildrenTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.kidId,
-      referencedTable: $db.kids,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$KidsTableFilterComposer(
+          }) => $$ChildrenTableFilterComposer(
             $db: $db,
-            $table: $db.kids,
+            $table: $db.children,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -21743,20 +21940,20 @@ class $$AttendanceTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  $$KidsTableOrderingComposer get kidId {
-    final $$KidsTableOrderingComposer composer = $composerBuilder(
+  $$ChildrenTableOrderingComposer get childId {
+    final $$ChildrenTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.kidId,
-      referencedTable: $db.kids,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$KidsTableOrderingComposer(
+          }) => $$ChildrenTableOrderingComposer(
             $db: $db,
-            $table: $db.kids,
+            $table: $db.children,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -21794,20 +21991,20 @@ class $$AttendanceTableAnnotationComposer
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
-  $$KidsTableAnnotationComposer get kidId {
-    final $$KidsTableAnnotationComposer composer = $composerBuilder(
+  $$ChildrenTableAnnotationComposer get childId {
+    final $$ChildrenTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.kidId,
-      referencedTable: $db.kids,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$KidsTableAnnotationComposer(
+          }) => $$ChildrenTableAnnotationComposer(
             $db: $db,
-            $table: $db.kids,
+            $table: $db.children,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -21831,7 +22028,7 @@ class $$AttendanceTableTableManager
           $$AttendanceTableUpdateCompanionBuilder,
           (AttendanceData, $$AttendanceTableReferences),
           AttendanceData,
-          PrefetchHooks Function({bool kidId})
+          PrefetchHooks Function({bool childId})
         > {
   $$AttendanceTableTableManager(_$AppDatabase db, $AttendanceTable table)
     : super(
@@ -21846,7 +22043,7 @@ class $$AttendanceTableTableManager
               $$AttendanceTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
-                Value<String> kidId = const Value.absent(),
+                Value<String> childId = const Value.absent(),
                 Value<DateTime> date = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<String?> clockTime = const Value.absent(),
@@ -21855,7 +22052,7 @@ class $$AttendanceTableTableManager
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AttendanceCompanion(
-                kidId: kidId,
+                childId: childId,
                 date: date,
                 status: status,
                 clockTime: clockTime,
@@ -21866,7 +22063,7 @@ class $$AttendanceTableTableManager
               ),
           createCompanionCallback:
               ({
-                required String kidId,
+                required String childId,
                 required DateTime date,
                 required String status,
                 Value<String?> clockTime = const Value.absent(),
@@ -21875,7 +22072,7 @@ class $$AttendanceTableTableManager
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AttendanceCompanion.insert(
-                kidId: kidId,
+                childId: childId,
                 date: date,
                 status: status,
                 clockTime: clockTime,
@@ -21892,7 +22089,7 @@ class $$AttendanceTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({kidId = false}) {
+          prefetchHooksCallback: ({childId = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [],
@@ -21912,15 +22109,15 @@ class $$AttendanceTableTableManager
                       dynamic
                     >
                   >(state) {
-                    if (kidId) {
+                    if (childId) {
                       state =
                           state.withJoin(
                                 currentTable: table,
-                                currentColumn: table.kidId,
+                                currentColumn: table.childId,
                                 referencedTable: $$AttendanceTableReferences
-                                    ._kidIdTable(db),
+                                    ._childIdTable(db),
                                 referencedColumn: $$AttendanceTableReferences
-                                    ._kidIdTable(db)
+                                    ._childIdTable(db)
                                     .id,
                               )
                               as T;
@@ -21949,26 +22146,28 @@ typedef $$AttendanceTableProcessedTableManager =
       $$AttendanceTableUpdateCompanionBuilder,
       (AttendanceData, $$AttendanceTableReferences),
       AttendanceData,
-      PrefetchHooks Function({bool kidId})
+      PrefetchHooks Function({bool childId})
     >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
   $AppDatabaseManager(this._db);
-  $$PodsTableTableManager get pods => $$PodsTableTableManager(_db, _db.pods);
-  $$KidsTableTableManager get kids => $$KidsTableTableManager(_db, _db.kids);
+  $$GroupsTableTableManager get groups =>
+      $$GroupsTableTableManager(_db, _db.groups);
+  $$ChildrenTableTableManager get children =>
+      $$ChildrenTableTableManager(_db, _db.children);
   $$TripsTableTableManager get trips =>
       $$TripsTableTableManager(_db, _db.trips);
-  $$TripPodsTableTableManager get tripPods =>
-      $$TripPodsTableTableManager(_db, _db.tripPods);
+  $$TripGroupsTableTableManager get tripGroups =>
+      $$TripGroupsTableTableManager(_db, _db.tripGroups);
   $$CapturesTableTableManager get captures =>
       $$CapturesTableTableManager(_db, _db.captures);
-  $$CaptureKidsTableTableManager get captureKids =>
-      $$CaptureKidsTableTableManager(_db, _db.captureKids);
+  $$CaptureChildrenTableTableManager get captureChildren =>
+      $$CaptureChildrenTableTableManager(_db, _db.captureChildren);
   $$ObservationsTableTableManager get observations =>
       $$ObservationsTableTableManager(_db, _db.observations);
-  $$ObservationKidsTableTableManager get observationKids =>
-      $$ObservationKidsTableTableManager(_db, _db.observationKids);
+  $$ObservationChildrenTableTableManager get observationChildren =>
+      $$ObservationChildrenTableTableManager(_db, _db.observationChildren);
   $$ObservationAttachmentsTableTableManager get observationAttachments =>
       $$ObservationAttachmentsTableTableManager(
         _db,
@@ -21989,14 +22188,14 @@ class $AppDatabaseManager {
       $$ScheduleTemplatesTableTableManager(_db, _db.scheduleTemplates);
   $$ScheduleEntriesTableTableManager get scheduleEntries =>
       $$ScheduleEntriesTableTableManager(_db, _db.scheduleEntries);
-  $$TemplatePodsTableTableManager get templatePods =>
-      $$TemplatePodsTableTableManager(_db, _db.templatePods);
-  $$EntryPodsTableTableManager get entryPods =>
-      $$EntryPodsTableTableManager(_db, _db.entryPods);
+  $$TemplateGroupsTableTableManager get templateGroups =>
+      $$TemplateGroupsTableTableManager(_db, _db.templateGroups);
+  $$EntryGroupsTableTableManager get entryGroups =>
+      $$EntryGroupsTableTableManager(_db, _db.entryGroups);
   $$ParentConcernNotesTableTableManager get parentConcernNotes =>
       $$ParentConcernNotesTableTableManager(_db, _db.parentConcernNotes);
-  $$ParentConcernKidsTableTableManager get parentConcernKids =>
-      $$ParentConcernKidsTableTableManager(_db, _db.parentConcernKids);
+  $$ParentConcernChildrenTableTableManager get parentConcernChildren =>
+      $$ParentConcernChildrenTableTableManager(_db, _db.parentConcernChildren);
   $$AttendanceTableTableManager get attendance =>
       $$AttendanceTableTableManager(_db, _db.attendance);
 }

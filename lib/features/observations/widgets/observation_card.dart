@@ -374,7 +374,7 @@ class _TargetLabel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
-    final kidsAsync = ref.watch(observationKidsProvider(observation.id));
+    final kidsAsync = ref.watch(observationChildrenProvider(observation.id));
     return kidsAsync.when(
       loading: () => Text('…', style: theme.textTheme.titleMedium),
       error: (err, _) =>
@@ -389,9 +389,9 @@ class _TargetLabel extends ConsumerWidget {
           );
         }
         // Fallbacks for legacy single-kid or pod/activity-scoped observations.
-        final legacyKidId = observation.kidId;
+        final legacyKidId = observation.childId;
         if (legacyKidId != null) {
-          final kidAsync = ref.watch(kidProvider(legacyKidId));
+          final kidAsync = ref.watch(childProvider(legacyKidId));
           return kidAsync.maybeWhen(
             data: (k) => Text(
               k == null ? 'Unknown child' : _singleKidLabel(k),
@@ -400,9 +400,9 @@ class _TargetLabel extends ConsumerWidget {
             orElse: () => Text('…', style: theme.textTheme.titleMedium),
           );
         }
-        final podId = observation.podId;
-        if (podId != null) {
-          final podAsync = ref.watch(podProvider(podId));
+        final groupId = observation.groupId;
+        if (groupId != null) {
+          final podAsync = ref.watch(groupProvider(groupId));
           return podAsync.maybeWhen(
             data: (p) => Text(
               p?.name ?? 'Unknown group',
@@ -419,13 +419,13 @@ class _TargetLabel extends ConsumerWidget {
     );
   }
 
-  String _singleKidLabel(Kid kid) {
+  String _singleKidLabel(Child kid) {
     final last = kid.lastName;
     if (last == null || last.isEmpty) return kid.firstName;
     return '${kid.firstName} ${last[0]}.';
   }
 
-  String _formatKidList(List<Kid> kids) {
+  String _formatKidList(List<Child> kids) {
     if (kids.length == 1) return _singleKidLabel(kids.first);
     if (kids.length == 2) {
       return '${_singleKidLabel(kids[0])} & ${_singleKidLabel(kids[1])}';

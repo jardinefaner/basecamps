@@ -27,7 +27,7 @@ class ActivityDetailSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final insets = MediaQuery.of(context).viewInsets.bottom;
-    final kidsAsync = ref.watch(kidsProvider);
+    final kidsAsync = ref.watch(childrenProvider);
 
     return Padding(
       padding: EdgeInsets.only(
@@ -58,7 +58,7 @@ class ActivityDetailSheet extends ConsumerWidget {
                 icon: Icons.place_outlined,
                 text: item.location!,
               ),
-            _PodsRow(podIds: item.podIds),
+            _PodsRow(groupIds: item.groupIds),
             if (item.notes != null && item.notes!.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.md),
               Text('Notes', style: theme.textTheme.titleSmall),
@@ -75,13 +75,13 @@ class ActivityDetailSheet extends ConsumerWidget {
                 final attending = kids
                     .where(
                       (k) =>
-                          item.isAllPods ||
-                          (k.podId != null && item.podIds.contains(k.podId)),
+                          item.isAllGroups ||
+                          (k.groupId != null && item.groupIds.contains(k.groupId)),
                     )
                     .toList();
                 if (attending.isEmpty) {
                   return Text(
-                    item.isNoPods
+                    item.isNoGroups
                         ? 'No groups selected — this activity has no children.'
                         : 'No children assigned to these groups yet.',
                     style: theme.textTheme.bodySmall,
@@ -342,21 +342,21 @@ class _SpecialistRow extends ConsumerWidget {
 }
 
 class _PodsRow extends ConsumerWidget {
-  const _PodsRow({required this.podIds});
+  const _PodsRow({required this.groupIds});
 
-  final List<String> podIds;
+  final List<String> groupIds;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (podIds.isEmpty) {
+    if (groupIds.isEmpty) {
       return const _MetaRow(
         icon: Icons.groups_outlined,
         text: 'All groups',
       );
     }
     final names = <String>[];
-    for (final id in podIds) {
-      final pod = ref.watch(podProvider(id)).asData?.value;
+    for (final id in groupIds) {
+      final pod = ref.watch(groupProvider(id)).asData?.value;
       if (pod != null) names.add(pod.name);
     }
     if (names.isEmpty) return const SizedBox.shrink();
@@ -370,7 +370,7 @@ class _PodsRow extends ConsumerWidget {
 class _RosterTile extends ConsumerWidget {
   const _RosterTile({required this.kid, required this.onTap});
 
-  final Kid kid;
+  final Child kid;
   final VoidCallback onTap;
 
   @override
@@ -381,9 +381,9 @@ class _RosterTile extends ConsumerWidget {
     final initial = kid.firstName.isNotEmpty
         ? kid.firstName.characters.first.toUpperCase()
         : '?';
-    final podId = kid.podId;
+    final groupId = kid.groupId;
     final pod =
-        podId == null ? null : ref.watch(podProvider(podId)).asData?.value;
+        groupId == null ? null : ref.watch(groupProvider(groupId)).asData?.value;
 
     return AppCard(
       onTap: onTap,

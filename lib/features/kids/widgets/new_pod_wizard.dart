@@ -6,18 +6,18 @@ import 'package:basecamp/ui/step_wizard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Single-step wizard for creating a pod. Pods are small but not
+/// Single-step wizard for creating a pod. Groups are small but not
 /// trivial — we take a name and an optional accent color so the pod
-/// reads at a glance on the Kids tab and the launcher.
-class NewPodWizardScreen extends ConsumerStatefulWidget {
-  const NewPodWizardScreen({super.key});
+/// reads at a glance on the Children tab and the launcher.
+class NewGroupWizardScreen extends ConsumerStatefulWidget {
+  const NewGroupWizardScreen({super.key});
 
   @override
-  ConsumerState<NewPodWizardScreen> createState() =>
+  ConsumerState<NewGroupWizardScreen> createState() =>
       _NewPodWizardScreenState();
 }
 
-class _NewPodWizardScreenState extends ConsumerState<NewPodWizardScreen> {
+class _NewPodWizardScreenState extends ConsumerState<NewGroupWizardScreen> {
   final _name = TextEditingController();
   String? _colorHex;
 
@@ -31,7 +31,7 @@ class _NewPodWizardScreenState extends ConsumerState<NewPodWizardScreen> {
   }
 
   Future<void> _submit() async {
-    await ref.read(kidsRepositoryProvider).addPod(
+    await ref.read(childrenRepositoryProvider).addGroup(
           name: _name.text.trim(),
           colorHex: _colorHex,
         );
@@ -105,7 +105,7 @@ class _PodColorPicker extends StatelessWidget {
           iconColor: theme.colorScheme.onSurfaceVariant,
           onTap: () => onChanged(null),
         ),
-        for (final c in podColors)
+        for (final c in groupColors)
           _ColorDot(
             color: c.color,
             selected: c.hex == selectedHex,

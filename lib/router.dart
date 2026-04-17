@@ -63,12 +63,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/kids',
-                builder: (_, _) => const KidsScreen(),
+                builder: (_, _) => const ChildrenScreen(),
                 routes: [
                   GoRoute(
                     path: ':id',
-                    builder: (_, state) => KidDetailScreen(
-                      kidId: state.pathParameters['id']!,
+                    builder: (_, state) => ChildDetailScreen(
+                      childId: state.pathParameters['id']!,
                     ),
                   ),
                 ],

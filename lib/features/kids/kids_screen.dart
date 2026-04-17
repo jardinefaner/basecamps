@@ -10,13 +10,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class KidsScreen extends ConsumerWidget {
-  const KidsScreen({super.key});
+class ChildrenScreen extends ConsumerWidget {
+  const ChildrenScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final podsAsync = ref.watch(podsProvider);
-    final kidsAsync = ref.watch(kidsProvider);
+    final podsAsync = ref.watch(groupsProvider);
+    final kidsAsync = ref.watch(childrenProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -56,19 +56,19 @@ class KidsScreen extends ConsumerWidget {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => const NewPodWizardScreen(),
+        builder: (_) => const NewGroupWizardScreen(),
       ),
     );
   }
 
   Future<void> _openAddKid(
     BuildContext context, {
-    required List<Pod> pods,
+    required List<Group> pods,
   }) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => NewKidWizardScreen(pods: pods),
+        builder: (_) => NewChildWizardScreen(pods: pods),
       ),
     );
   }
@@ -77,8 +77,8 @@ class KidsScreen extends ConsumerWidget {
 class _KidsBody extends StatelessWidget {
   const _KidsBody({required this.pods, required this.kids});
 
-  final List<Pod> pods;
-  final List<Kid> kids;
+  final List<Group> pods;
+  final List<Child> kids;
 
   @override
   Widget build(BuildContext context) {
@@ -86,11 +86,11 @@ class _KidsBody extends StatelessWidget {
       return const _EmptyState();
     }
 
-    final kidsByPod = <String?, List<Kid>>{};
+    final kidsByPod = <String?, List<Child>>{};
     for (final kid in kids) {
-      kidsByPod.putIfAbsent(kid.podId, () => []).add(kid);
+      kidsByPod.putIfAbsent(kid.groupId, () => []).add(kid);
     }
-    final unassigned = kidsByPod[null] ?? const <Kid>[];
+    final unassigned = kidsByPod[null] ?? const <Child>[];
 
     return ListView(
       padding: const EdgeInsets.only(
@@ -116,8 +116,8 @@ class _KidsBody extends StatelessWidget {
 class _PodSection extends ConsumerWidget {
   const _PodSection({required this.pod, required this.kids});
 
-  final Pod? pod;
-  final List<Kid> kids;
+  final Group? pod;
+  final List<Child> kids;
 
   Future<void> _openEdit(BuildContext context) async {
     final current = pod;
@@ -126,16 +126,16 @@ class _PodSection extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => EditPodSheet(pod: current),
+      builder: (_) => EditGroupSheet(pod: current),
     );
   }
 
-  Future<void> _moveKidHere(WidgetRef ref, Kid kid) async {
+  Future<void> _moveKidHere(WidgetRef ref, Child kid) async {
     // Idempotent: dropping a kid back on their own pod does nothing.
-    if (kid.podId == pod?.id) return;
-    await ref.read(kidsRepositoryProvider).updateKidPod(
-          kidId: kid.id,
-          podId: pod?.id,
+    if (kid.groupId == pod?.id) return;
+    await ref.read(childrenRepositoryProvider).updateKidPod(
+          childId: kid.id,
+          groupId: pod?.id,
         );
   }
 
@@ -145,11 +145,11 @@ class _PodSection extends ConsumerWidget {
     final title = pod?.name ?? 'Unassigned';
     final swatch = podColorFromHex(pod?.colorHex);
 
-    return DragTarget<Kid>(
+    return DragTarget<Child>(
       // Only accept kids that would actually move — prevents the
       // highlight from turning on when you drag a Redbird onto the
       // Redbirds section.
-      onWillAcceptWithDetails: (d) => d.data.podId != pod?.id,
+      onWillAcceptWithDetails: (d) => d.data.groupId != pod?.id,
       onAcceptWithDetails: (d) => _moveKidHere(ref, d.data),
       builder: (context, candidates, _) {
         final hovering = candidates.isNotEmpty;
@@ -279,15 +279,15 @@ class _PodSection extends ConsumerWidget {
 class _DraggableKidTile extends StatelessWidget {
   const _DraggableKidTile({required this.kid});
 
-  final Kid kid;
+  final Child kid;
 
   @override
   Widget build(BuildContext context) {
-    final tile = KidTile(
+    final tile = ChildTile(
       kid: kid,
       onTap: () => context.push('/kids/${kid.id}'),
     );
-    return LongPressDraggable<Kid>(
+    return LongPressDraggable<Child>(
       data: kid,
       // Grab one full card's width for the floating feedback; keeps it
       // legible when the finger obscures the original spot.
@@ -347,7 +347,7 @@ class _EmptyState extends StatelessWidget {
               onPressed: () => Navigator.of(context).push<void>(
                 MaterialPageRoute(
                   fullscreenDialog: true,
-                  builder: (_) => const NewPodWizardScreen(),
+                  builder: (_) => const NewGroupWizardScreen(),
                 ),
               ),
               icon: const Icon(Icons.group_add_outlined),

@@ -25,13 +25,13 @@ enum AttendanceStatus {
 /// it safe to pass through builders.
 class AttendanceRecord {
   const AttendanceRecord({
-    required this.kidId,
+    required this.childId,
     required this.status,
     this.clockTime,
     this.notes,
   });
 
-  final String kidId;
+  final String childId;
   final AttendanceStatus status;
   final String? clockTime;
   final String? notes;
@@ -42,7 +42,7 @@ class AttendanceRepository {
 
   final AppDatabase _db;
 
-  /// Map of kid id → record for a specific day. Kids without a row are
+  /// Map of kid id → record for a specific day. Children without a row are
   /// *not* present in the map — the caller renders them as pending.
   Stream<Map<String, AttendanceRecord>> watchForDay(DateTime date) {
     final day = _dayOnly(date);
@@ -59,8 +59,8 @@ class AttendanceRepository {
       for (final r in rows) {
         final status = AttendanceStatus.fromName(r.status);
         if (status == null) continue;
-        out[r.kidId] = AttendanceRecord(
-          kidId: r.kidId,
+        out[r.childId] = AttendanceRecord(
+          childId: r.childId,
           status: status,
           clockTime: r.clockTime,
           notes: r.notes,
@@ -73,7 +73,7 @@ class AttendanceRepository {
   /// Set (or replace) the status for a child on a specific day. Upsert
   /// keeps the composite (kid, date) unique — no stale duplicate rows.
   Future<void> setStatus({
-    required String kidId,
+    required String childId,
     required DateTime date,
     required AttendanceStatus status,
     String? clockTime,
@@ -83,7 +83,7 @@ class AttendanceRepository {
     final now = DateTime.now();
     await _db.into(_db.attendance).insertOnConflictUpdate(
           AttendanceCompanion.insert(
-            kidId: kidId,
+            childId: childId,
             date: day,
             status: status.name,
             clockTime: Value(clockTime),
@@ -96,12 +96,12 @@ class AttendanceRepository {
   /// Drops the row entirely — used when the teacher wants to revert
   /// back to "not yet checked in" / pending, not stamp a new status.
   Future<void> clearStatus({
-    required String kidId,
+    required String childId,
     required DateTime date,
   }) async {
     final day = _dayOnly(date);
     await (_db.delete(_db.attendance)
-          ..where((a) => a.kidId.equals(kidId) & a.date.equals(day)))
+          ..where((a) => a.childId.equals(childId) & a.date.equals(day)))
         .go();
   }
 
@@ -109,17 +109,17 @@ class AttendanceRepository {
   /// transaction so the Today card either sees all-green or the
   /// original state, never a half-step.
   Future<void> markAllPresent({
-    required Iterable<String> kidIds,
+    required Iterable<String> childIds,
     required DateTime date,
     String? clockTime,
   }) async {
     final day = _dayOnly(date);
     final now = DateTime.now();
     await _db.transaction(() async {
-      for (final kidId in kidIds) {
+      for (final childId in childIds) {
         await _db.into(_db.attendance).insertOnConflictUpdate(
               AttendanceCompanion.insert(
-                kidId: kidId,
+                childId: childId,
                 date: day,
                 status: AttendanceStatus.present.name,
                 clockTime: Value(clockTime),

@@ -65,7 +65,7 @@ class _ParentConcernFormScreenState
 
   final _input = ParentConcernInput();
 
-  /// Kids selected via the avatar picker. Combined with
+  /// Children selected via the avatar picker. Combined with
   /// [_childNamesExtra] on save — picker names come first, extras are
   /// appended comma-separated.
   final List<String> _selectedKidIds = [];
@@ -151,13 +151,13 @@ class _ParentConcernFormScreenState
     final repo = ref.read(parentConcernRepositoryProvider);
     final note = await repo.getOne(widget.noteId!);
     if (!mounted || note == null) return;
-    final kidIds = await repo.kidIdsForConcern(widget.noteId!);
+    final childIds = await repo.childIdsForConcern(widget.noteId!);
     if (!mounted) return;
-    final fromRow = ParentConcernInput.fromRow(note, kidIds: kidIds);
+    final fromRow = ParentConcernInput.fromRow(note, childIds: childIds);
     setState(() {
       _selectedKidIds
         ..clear()
-        ..addAll(fromRow.kidIds);
+        ..addAll(fromRow.childIds);
       _childNamesExtra.text = fromRow.childNames;
       _parentName.text = fromRow.parentName;
       _staffReceivingExtra.text = fromRow.staffReceiving;
@@ -213,7 +213,7 @@ class _ParentConcernFormScreenState
   /// Combine selected kid names (in picker order) with anything the
   /// teacher typed into the extras field, for the serialized column.
   String _composeChildNames() {
-    final kidsState = ref.read(kidsProvider).asData?.value ?? const <Kid>[];
+    final kidsState = ref.read(childrenProvider).asData?.value ?? const <Child>[];
     final selectedNames = <String>[
       for (final id in _selectedKidIds)
         if (kidsState.any((k) => k.id == id))
@@ -258,7 +258,7 @@ class _ParentConcernFormScreenState
     return out.isEmpty ? null : out;
   }
 
-  String _nameOf(Kid kid) {
+  String _nameOf(Child kid) {
     final last = kid.lastName;
     if (last == null || last.isEmpty) return kid.firstName;
     return '${kid.firstName} ${last[0]}.';
@@ -269,7 +269,7 @@ class _ParentConcernFormScreenState
   /// matches what we last wrote), we overwrite; otherwise we leave
   /// their edit alone.
   void _autoFillParent(List<String> selectedIds) {
-    final kidsState = ref.read(kidsProvider).asData?.value ?? const <Kid>[];
+    final kidsState = ref.read(childrenProvider).asData?.value ?? const <Child>[];
     final parents = <String>{};
     for (final id in selectedIds) {
       final kid = kidsState.where((k) => k.id == id).firstOrNull;
@@ -292,7 +292,7 @@ class _ParentConcernFormScreenState
   void _syncControllersToInput() {
     _input
       ..childNames = _composeChildNames()
-      ..kidIds = List<String>.from(_selectedKidIds)
+      ..childIds = List<String>.from(_selectedKidIds)
       ..parentName = _parentName.text.trim()
       ..staffReceiving = _composeStaff()
       ..supervisorNotified = _composeSupervisor()
@@ -521,7 +521,7 @@ class _ParentConcernFormScreenState
       children: [
           Text('Child / children', style: theme.textTheme.titleSmall),
           const SizedBox(height: AppSpacing.sm),
-          KidChipPicker(
+          ChildChipPicker(
             selectedIds: _selectedKidIds,
             onChanged: (ids) {
               _mutate(() {

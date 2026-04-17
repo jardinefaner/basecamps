@@ -11,18 +11,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Edit an existing pod. Dense sheet with name, color picker, and a
 /// delete icon that explains what happens to kids when the pod goes
-/// away. Creation flows through `NewPodWizardScreen`; this sheet is
+/// away. Creation flows through `NewGroupWizardScreen`; this sheet is
 /// edit-only.
-class EditPodSheet extends ConsumerStatefulWidget {
-  const EditPodSheet({required this.pod, super.key});
+class EditGroupSheet extends ConsumerStatefulWidget {
+  const EditGroupSheet({required this.pod, super.key});
 
-  final Pod pod;
+  final Group pod;
 
   @override
-  ConsumerState<EditPodSheet> createState() => _EditPodSheetState();
+  ConsumerState<EditGroupSheet> createState() => _EditPodSheetState();
 }
 
-class _EditPodSheetState extends ConsumerState<EditPodSheet> {
+class _EditPodSheetState extends ConsumerState<EditGroupSheet> {
   late final _name = TextEditingController(text: widget.pod.name);
   late String? _colorHex = widget.pod.colorHex;
   bool _submitting = false;
@@ -44,7 +44,7 @@ class _EditPodSheetState extends ConsumerState<EditPodSheet> {
     if (!_isValid) return;
     setState(() => _submitting = true);
     final name = _name.text.trim();
-    final repo = ref.read(kidsRepositoryProvider);
+    final repo = ref.read(childrenRepositoryProvider);
     await repo.updatePod(
       id: widget.pod.id,
       name: name,
@@ -65,7 +65,7 @@ class _EditPodSheetState extends ConsumerState<EditPodSheet> {
       confirmLabel: 'Delete group',
     );
     if (!confirmed) return;
-    await ref.read(kidsRepositoryProvider).deletePod(widget.pod.id);
+    await ref.read(childrenRepositoryProvider).deleteGroup(widget.pod.id);
     if (!mounted) return;
     Navigator.of(context).pop();
   }
@@ -136,7 +136,7 @@ class _PodColorGrid extends StatelessWidget {
           iconColor: theme.colorScheme.onSurfaceVariant,
           onTap: () => onChanged(null),
         ),
-        for (final c in podColors)
+        for (final c in groupColors)
           _Dot(
             color: c.color,
             selected: c.hex == selectedHex,

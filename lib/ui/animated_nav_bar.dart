@@ -14,7 +14,7 @@ enum NavIconFlavor {
   /// Vertical squeeze then expand — like an eye blinking.
   blink,
 
-  /// Scale-pop with a light rotational head-bob — people/Kids.
+  /// Scale-pop with a light rotational head-bob — people/Children.
   bob,
 
   /// Pin-drop from above — map/Trips.

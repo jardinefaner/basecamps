@@ -32,7 +32,7 @@ class AttendanceSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final insets = MediaQuery.of(context).viewInsets.bottom;
-    final kidsAsync = ref.watch(kidsProvider);
+    final kidsAsync = ref.watch(childrenProvider);
     final attendanceAsync = ref.watch(todayAttendanceProvider);
 
     return Padding(
@@ -53,11 +53,11 @@ class AttendanceSheet extends ConsumerWidget {
         ),
         data: (allKids) {
           final roster = (groupIds.isEmpty
-              ? List<Kid>.from(allKids)
+              ? List<Child>.from(allKids)
               : allKids
                   .where(
                     (k) =>
-                        k.podId != null && groupIds.contains(k.podId),
+                        k.groupId != null && groupIds.contains(k.groupId),
                   )
                   .toList())
             ..sort((a, b) => a.firstName.compareTo(b.firstName));
@@ -151,38 +151,38 @@ class AttendanceSheet extends ConsumerWidget {
 
   Future<void> _cycleStatus(
     WidgetRef ref,
-    String kidId,
+    String childId,
     AttendanceStatus? current,
   ) async {
     final repo = ref.read(attendanceRepositoryProvider);
     switch (current) {
       case null:
         await repo.setStatus(
-          kidId: kidId,
+          childId: childId,
           date: date,
           status: AttendanceStatus.present,
         );
       case AttendanceStatus.present:
         await repo.setStatus(
-          kidId: kidId,
+          childId: childId,
           date: date,
           status: AttendanceStatus.absent,
         );
       case AttendanceStatus.absent:
       case AttendanceStatus.late:
       case AttendanceStatus.leftEarly:
-        await repo.clearStatus(kidId: kidId, date: date);
+        await repo.clearStatus(childId: childId, date: date);
     }
   }
 
   Future<void> _setStatus(
     WidgetRef ref,
-    String kidId,
+    String childId,
     AttendanceStatus? status,
   ) async {
     final repo = ref.read(attendanceRepositoryProvider);
     if (status == null) {
-      await repo.clearStatus(kidId: kidId, date: date);
+      await repo.clearStatus(childId: childId, date: date);
       return;
     }
     final clock = (status == AttendanceStatus.late ||
@@ -190,16 +190,16 @@ class AttendanceSheet extends ConsumerWidget {
         ? _nowHhmm()
         : null;
     await repo.setStatus(
-      kidId: kidId,
+      childId: childId,
       date: date,
       status: status,
       clockTime: clock,
     );
   }
 
-  Future<void> _markAllPresent(WidgetRef ref, List<Kid> roster) async {
+  Future<void> _markAllPresent(WidgetRef ref, List<Child> roster) async {
     await ref.read(attendanceRepositoryProvider).markAllPresent(
-          kidIds: roster.map((k) => k.id),
+          childIds: roster.map((k) => k.id),
           date: date,
         );
   }
@@ -324,7 +324,7 @@ class _KidTile extends StatelessWidget {
     required this.onSelectStatus,
   });
 
-  final Kid kid;
+  final Child kid;
   final AttendanceRecord? record;
   final VoidCallback onCycle;
   final ValueChanged<AttendanceStatus?> onSelectStatus;

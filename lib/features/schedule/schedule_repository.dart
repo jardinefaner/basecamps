@@ -17,8 +17,8 @@ class ScheduleItem {
     required this.isFullDay,
     required this.title,
     required this.isFromTemplate,
-    required this.podIds,
-    required this.allPods,
+    required this.groupIds,
+    required this.allGroups,
     required this.date,
     this.rangeStart,
     this.rangeEnd,
@@ -34,13 +34,13 @@ class ScheduleItem {
   final String endTime;
   final bool isFullDay;
   final String title;
-  final List<String> podIds;
+  final List<String> groupIds;
 
   /// True when the teacher meant "this is for everyone"; false when
   /// they either picked specific pods or explicitly picked none (staff
-  /// prep, etc). Only meaningful when [podIds] is empty — non-empty
+  /// prep, etc). Only meaningful when [groupIds] is empty — non-empty
   /// always narrows to those pods regardless.
-  final bool allPods;
+  final bool allGroups;
   final String? specialistId;
   final String? location;
   final String? notes;
@@ -67,12 +67,12 @@ class ScheduleItem {
 
   /// Resolved audience flag. When specific pods are picked those take
   /// precedence; otherwise respect the explicit "all pods" choice.
-  bool get isAllPods => podIds.isEmpty && allPods;
+  bool get isAllGroups => groupIds.isEmpty && allGroups;
 
   /// Intentionally empty audience — the teacher picked no pods and
   /// turned off "All pods". Used by readers to show "no kids" instead
   /// of falling back to everyone.
-  bool get isNoPods => podIds.isEmpty && !allPods;
+  bool get isNoGroups => groupIds.isEmpty && !allGroups;
 
   TimeOfDay get startTimeOfDay => _parseTime(startTime);
   TimeOfDay get endTimeOfDay => _parseTime(endTime);
@@ -146,8 +146,8 @@ class ScheduleRepository {
           endTime: t.endTime,
           isFullDay: t.isFullDay,
           title: t.title,
-          podIds: pods,
-          allPods: t.allPods,
+          groupIds: pods,
+          allGroups: t.allGroups,
           specialistId: t.specialistId,
           location: t.location,
           notes: t.notes,
@@ -167,17 +167,17 @@ class ScheduleRepository {
   }
 
   Future<List<String>> podsForTemplate(String templateId) async {
-    final rows = await (_db.select(_db.templatePods)
+    final rows = await (_db.select(_db.templateGroups)
           ..where((p) => p.templateId.equals(templateId)))
         .get();
-    return rows.map((r) => r.podId).toList();
+    return rows.map((r) => r.groupId).toList();
   }
 
   Future<List<String>> podsForEntry(String entryId) async {
-    final rows = await (_db.select(_db.entryPods)
+    final rows = await (_db.select(_db.entryGroups)
           ..where((p) => p.entryId.equals(entryId)))
         .get();
-    return rows.map((r) => r.podId).toList();
+    return rows.map((r) => r.groupId).toList();
   }
 
   Future<String?> latestEndTimeForDay(int dayOfWeek) async {
@@ -193,8 +193,8 @@ class ScheduleRepository {
     required String startTime,
     required String endTime,
     required String title,
-    List<String> podIds = const [],
-    bool allPods = true,
+    List<String> groupIds = const [],
+    bool allGroups = true,
     bool isFullDay = false,
     String? specialistId,
     String? location,
@@ -213,7 +213,7 @@ class ScheduleRepository {
               endTime: endTime,
               isFullDay: Value(isFullDay),
               title: title,
-              allPods: Value(allPods),
+              allGroups: Value(allGroups),
               specialistId: Value(specialistId),
               location: Value(location),
               notes: Value(notes),
@@ -222,9 +222,9 @@ class ScheduleRepository {
               groupId: Value(groupId),
             ),
           );
-      for (final podId in podIds) {
-        await _db.into(_db.templatePods).insert(
-              TemplatePodsCompanion.insert(templateId: id, podId: podId),
+      for (final groupId in groupIds) {
+        await _db.into(_db.templateGroups).insert(
+              TemplateGroupsCompanion.insert(templateId: id, groupId: groupId),
             );
       }
     });
@@ -237,8 +237,8 @@ class ScheduleRepository {
     required String startTime,
     required String endTime,
     required String title,
-    List<String> podIds = const [],
-    bool allPods = true,
+    List<String> groupIds = const [],
+    bool allGroups = true,
     bool isFullDay = false,
     String? specialistId,
     String? location,
@@ -256,7 +256,7 @@ class ScheduleRepository {
           endTime: Value(endTime),
           isFullDay: Value(isFullDay),
           title: Value(title),
-          allPods: Value(allPods),
+          allGroups: Value(allGroups),
           specialistId: Value(specialistId),
           location: Value(location),
           notes: Value(notes),
@@ -265,12 +265,12 @@ class ScheduleRepository {
           updatedAt: Value(DateTime.now()),
         ),
       );
-      await (_db.delete(_db.templatePods)
+      await (_db.delete(_db.templateGroups)
             ..where((p) => p.templateId.equals(id)))
           .go();
-      for (final podId in podIds) {
-        await _db.into(_db.templatePods).insert(
-              TemplatePodsCompanion.insert(templateId: id, podId: podId),
+      for (final groupId in groupIds) {
+        await _db.into(_db.templateGroups).insert(
+              TemplateGroupsCompanion.insert(templateId: id, groupId: groupId),
             );
       }
     });
@@ -355,7 +355,7 @@ class ScheduleRepository {
                   endTime: src.endTime,
                   isFullDay: Value(src.isFullDay),
                   title: src.title,
-                  allPods: Value(src.allPods),
+                  allGroups: Value(src.allGroups),
                   specialistId: Value(src.specialistId),
                   location: Value(src.location),
                   notes: Value(src.notes),
@@ -363,12 +363,12 @@ class ScheduleRepository {
                   endDate: Value(src.endDate),
                 ),
               );
-          final podIds = await podsForTemplate(src.id);
-          for (final podId in podIds) {
-            await _db.into(_db.templatePods).insert(
-                  TemplatePodsCompanion.insert(
+          final groupIds = await podsForTemplate(src.id);
+          for (final groupId in groupIds) {
+            await _db.into(_db.templateGroups).insert(
+                  TemplateGroupsCompanion.insert(
                     templateId: newTemplateId,
-                    podId: podId,
+                    groupId: groupId,
                   ),
                 );
           }
@@ -383,8 +383,8 @@ class ScheduleRepository {
     required String startTime,
     required String endTime,
     required String title,
-    List<String> podIds = const [],
-    bool allPods = true,
+    List<String> groupIds = const [],
+    bool allGroups = true,
     bool isFullDay = false,
     DateTime? endDate,
     String? specialistId,
@@ -409,16 +409,16 @@ class ScheduleRepository {
               endTime: endTime,
               isFullDay: Value(isFullDay),
               title: title,
-              allPods: Value(allPods),
+              allGroups: Value(allGroups),
               specialistId: Value(specialistId),
               location: Value(location),
               notes: Value(notes),
               kind: 'addition',
             ),
           );
-      for (final podId in podIds) {
-        await _db.into(_db.entryPods).insert(
-              EntryPodsCompanion.insert(entryId: id, podId: podId),
+      for (final groupId in groupIds) {
+        await _db.into(_db.entryGroups).insert(
+              EntryGroupsCompanion.insert(entryId: id, groupId: groupId),
             );
       }
     });
@@ -442,7 +442,7 @@ class ScheduleRepository {
     final template = await (_db.select(_db.scheduleTemplates)
           ..where((t) => t.id.equals(templateId)))
         .getSingle();
-    final templatePods = await podsForTemplate(templateId);
+    final templateGroups = await podsForTemplate(templateId);
     final dayOnly = _dayOnly(date);
     final nextDay = dayOnly.add(const Duration(days: 1));
 
@@ -467,7 +467,7 @@ class ScheduleRepository {
               endTime: endTime,
               isFullDay: Value(template.isFullDay),
               title: template.title,
-              allPods: Value(template.allPods),
+              allGroups: Value(template.allGroups),
               specialistId: Value(template.specialistId),
               location: Value(template.location),
               notes: Value(template.notes),
@@ -475,11 +475,11 @@ class ScheduleRepository {
               overridesTemplateId: Value(templateId),
             ),
           );
-      for (final podId in templatePods) {
-        await _db.into(_db.entryPods).insert(
-              EntryPodsCompanion.insert(
+      for (final groupId in templateGroups) {
+        await _db.into(_db.entryGroups).insert(
+              EntryGroupsCompanion.insert(
                 entryId: overrideId,
-                podId: podId,
+                groupId: groupId,
               ),
             );
       }
@@ -519,7 +519,7 @@ class ScheduleRepository {
             endTime: template.endTime,
             isFullDay: Value(template.isFullDay),
             title: template.title,
-            allPods: Value(template.allPods),
+            allGroups: Value(template.allGroups),
             kind: 'cancellation',
             overridesTemplateId: Value(templateId),
           ),
@@ -602,8 +602,8 @@ class ScheduleRepository {
               date: date,
               templates: dayTemplates,
               entries: dayEntries,
-              templatePods: templatePodMap,
-              entryPods: entryPodMap,
+              templateGroups: templatePodMap,
+              entryGroups: entryPodMap,
             );
           }
           if (!controller.isClosed) controller.add(result);
@@ -684,8 +684,8 @@ class ScheduleRepository {
             date: day,
             templates: filteredTemplates,
             entries: e,
-            templatePods: templatePodMap,
-            entryPods: entryPodMap,
+            templateGroups: templatePodMap,
+            entryGroups: entryPodMap,
           );
           if (!controller.isClosed) controller.add(merged);
         } on Object catch (err, st) {
@@ -728,8 +728,8 @@ class ScheduleRepository {
     required DateTime date,
     required List<ScheduleTemplate> templates,
     required List<ScheduleEntry> entries,
-    required Map<String, List<String>> templatePods,
-    required Map<String, List<String>> entryPods,
+    required Map<String, List<String>> templateGroups,
+    required Map<String, List<String>> entryGroups,
   }) {
     final cancelledTemplateIds = <String>{
       for (final e in entries)
@@ -756,8 +756,8 @@ class ScheduleRepository {
             endTime: override.endTime,
             isFullDay: override.isFullDay,
             title: override.title,
-            podIds: entryPods[override.id] ?? const [],
-            allPods: override.allPods,
+            groupIds: entryGroups[override.id] ?? const [],
+            allGroups: override.allGroups,
             specialistId: override.specialistId,
             location: override.location,
             notes: override.notes,
@@ -775,8 +775,8 @@ class ScheduleRepository {
             endTime: t.endTime,
             isFullDay: t.isFullDay,
             title: t.title,
-            podIds: templatePods[t.id] ?? const [],
-            allPods: t.allPods,
+            groupIds: templateGroups[t.id] ?? const [],
+            allGroups: t.allGroups,
             specialistId: t.specialistId,
             location: t.location,
             notes: t.notes,
@@ -800,8 +800,8 @@ class ScheduleRepository {
             endTime: e.endTime,
             isFullDay: e.isFullDay,
             title: e.title,
-            podIds: entryPods[e.id] ?? const [],
-            allPods: e.allPods,
+            groupIds: entryGroups[e.id] ?? const [],
+            allGroups: e.allGroups,
             specialistId: e.specialistId,
             location: e.location,
             notes: e.notes,

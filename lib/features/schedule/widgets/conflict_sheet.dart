@@ -86,12 +86,12 @@ class _ConflictCard extends ConsumerWidget {
     if (info.podClash) {
       final sharedNames = <String>[];
       for (final id in info.sharedPodIds) {
-        final pod = ref.watch(podProvider(id)).asData?.value;
+        final pod = ref.watch(groupProvider(id)).asData?.value;
         if (pod != null) sharedNames.add(pod.name);
       }
       final label = sharedNames.isNotEmpty
           ? 'Group double-booked: ${sharedNames.join(", ")}'
-          : other.podIds.isEmpty || info.sharedPodIds.isEmpty
+          : other.groupIds.isEmpty || info.sharedPodIds.isEmpty
               ? 'Group double-booked (all groups)'
               : 'Group double-booked';
       reasonChips.add(_ReasonChip(

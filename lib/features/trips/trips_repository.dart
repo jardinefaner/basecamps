@@ -20,10 +20,10 @@ class TripsRepository {
   }
 
   Future<List<String>> podsForTrip(String tripId) async {
-    final rows = await (_db.select(_db.tripPods)
+    final rows = await (_db.select(_db.tripGroups)
           ..where((p) => p.tripId.equals(tripId)))
         .get();
-    return rows.map((r) => r.podId).toList();
+    return rows.map((r) => r.groupId).toList();
   }
 
   /// Adds a trip and auto-creates a matching ScheduleEntry on the trip's
@@ -38,7 +38,7 @@ class TripsRepository {
     String? notes,
     String? departureTime,
     String? returnTime,
-    List<String> podIds = const [],
+    List<String> groupIds = const [],
   }) async {
     final tripId = newId();
     final entryId = newId();
@@ -59,9 +59,9 @@ class TripsRepository {
               returnTime: Value(returnTime),
             ),
           );
-      for (final podId in podIds) {
-        await _db.into(_db.tripPods).insert(
-              TripPodsCompanion.insert(tripId: tripId, podId: podId),
+      for (final groupId in groupIds) {
+        await _db.into(_db.tripGroups).insert(
+              TripGroupsCompanion.insert(tripId: tripId, groupId: groupId),
             );
       }
       // Mirror onto the schedule.
@@ -79,9 +79,9 @@ class TripsRepository {
               sourceTripId: Value(tripId),
             ),
           );
-      for (final podId in podIds) {
-        await _db.into(_db.entryPods).insert(
-              EntryPodsCompanion.insert(entryId: entryId, podId: podId),
+      for (final groupId in groupIds) {
+        await _db.into(_db.entryGroups).insert(
+              EntryGroupsCompanion.insert(entryId: entryId, groupId: groupId),
             );
       }
     });

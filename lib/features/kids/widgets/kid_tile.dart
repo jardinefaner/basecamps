@@ -4,10 +4,10 @@ import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
 
-class KidTile extends StatelessWidget {
-  const KidTile({required this.kid, required this.onTap, super.key});
+class ChildTile extends StatelessWidget {
+  const ChildTile({required this.kid, required this.onTap, super.key});
 
-  final Kid kid;
+  final Child kid;
   final VoidCallback onTap;
 
   @override

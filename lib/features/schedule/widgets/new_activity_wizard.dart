@@ -21,7 +21,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// Pages:
 ///   1. Activity — library pick OR typed name
 ///   2. When — day chips + start/end times
-///   3. Pods  — who it's for (optional)
+///   3. Groups  — who it's for (optional)
 ///   4. Who + where — specialist + location (optional)
 ///   5. Range — optional date bounds
 class NewActivityWizardScreen extends ConsumerStatefulWidget {
@@ -149,9 +149,9 @@ class _NewActivityWizardScreenState
   Future<void> _submit() async {
     final repo = ref.read(scheduleRepositoryProvider);
     // Only carry specific pod ids when the teacher actually picked some.
-    // The new allPods flag preserves the distinction between "for
+    // The new allGroups flag preserves the distinction between "for
     // everyone" (toggle on) and "for nobody yet" (toggle off, no pods).
-    final podIds = _allPods ? const <String>[] : _podIds.toList();
+    final groupIds = _allPods ? const <String>[] : _podIds.toList();
     final location = _location.text.trim().isEmpty
         ? null
         : _location.text.trim();
@@ -170,8 +170,8 @@ class _NewActivityWizardScreenState
         startTime: _formatTime(_start),
         endTime: _formatTime(_end),
         title: _title.text.trim(),
-        podIds: podIds,
-        allPods: _allPods,
+        groupIds: groupIds,
+        allGroups: _allPods,
         specialistId: _specialistId,
         location: location,
         startDate: bounds.start,
@@ -396,7 +396,7 @@ class _NewActivityWizardScreenState
 
   Widget _buildPodsPage() {
     final theme = Theme.of(context);
-    final podsAsync = ref.watch(podsProvider);
+    final podsAsync = ref.watch(groupsProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

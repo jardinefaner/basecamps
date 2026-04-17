@@ -2,15 +2,15 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
 
-class KidChipPicker extends StatelessWidget {
-  const KidChipPicker({
+class ChildChipPicker extends StatelessWidget {
+  const ChildChipPicker({
     required this.kids,
     required this.selectedIds,
     required this.onToggle,
     super.key,
   });
 
-  final List<Kid> kids;
+  final List<Child> kids;
   final Set<String> selectedIds;
   final ValueChanged<String> onToggle;
 
@@ -38,7 +38,7 @@ class KidChipPicker extends StatelessWidget {
     );
   }
 
-  String _displayName(Kid kid) {
+  String _displayName(Child kid) {
     final last = kid.lastName;
     if (last == null || last.isEmpty) return kid.firstName;
     final initial = last.isNotEmpty ? last[0] : '';

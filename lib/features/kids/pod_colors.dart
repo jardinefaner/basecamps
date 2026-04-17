@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Curated palette for pods. Hex strings are the storage format
-/// (matches the `Pods.colorHex` column); [Color] objects drive the
+/// (matches the `Groups.colorHex` column); [Color] objects drive the
 /// chips and swatches. Keeping the list small on purpose — a
 /// well-lit dozen reads as "pick one" instead of "design a
 /// pod-chromatics-system from scratch".
@@ -13,7 +13,7 @@ class PodColor {
   final String name;
 }
 
-const List<PodColor> podColors = <PodColor>[
+const List<PodColor> groupColors = <PodColor>[
   PodColor(hex: 'FF6B6B', color: Color(0xFFFF6B6B), name: 'Coral'),
   PodColor(hex: 'F59E0B', color: Color(0xFFF59E0B), name: 'Amber'),
   PodColor(hex: 'FACC15', color: Color(0xFFFACC15), name: 'Sun'),

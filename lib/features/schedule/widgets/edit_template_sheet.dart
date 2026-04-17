@@ -62,7 +62,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
   /// Non-empty = specific pods. When empty, [_allPods] disambiguates
   /// between "for everyone" (true) and "no pods picked yet" (false).
   final Set<String> _selectedPodIds = <String>{};
-  late bool _allPods = widget.template?.allPods ?? true;
+  late bool _allPods = widget.template?.allGroups ?? true;
   bool _podsLoaded = false;
 
   bool _submitting = false;
@@ -96,7 +96,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
   /// right after [_loadPods] so we can tell a pristine edit from one
   /// where the teacher actually toggled something.
   Set<String> _podsBaseline = const <String>{};
-  late final bool _allPodsBaseline = widget.template?.allPods ?? true;
+  late final bool _allPodsBaseline = widget.template?.allGroups ?? true;
 
   Future<void> _loadPods() async {
     if (!_isEdit) return;
@@ -182,7 +182,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
         : _locationController.text.trim();
     final startHhmm = _formatTime(_start);
     final endHhmm = _formatTime(_end);
-    final podIds = _selectedPodIds.toList();
+    final groupIds = _selectedPodIds.toList();
 
     if (_isEdit) {
       await repo.updateTemplate(
@@ -191,8 +191,8 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
         startTime: startHhmm,
         endTime: endHhmm,
         title: title,
-        podIds: podIds,
-        allPods: _allPods,
+        groupIds: groupIds,
+        allGroups: _allPods,
         specialistId: _specialistId,
         location: location,
         startDate: _rangeStart,
@@ -205,8 +205,8 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
           startTime: startHhmm,
           endTime: endHhmm,
           title: title,
-          podIds: podIds,
-          allPods: _allPods,
+          groupIds: groupIds,
+          allGroups: _allPods,
           specialistId: _specialistId,
           location: location,
           startDate: _rangeStart,
@@ -333,7 +333,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final podsAsync = ref.watch(podsProvider);
+    final podsAsync = ref.watch(groupsProvider);
 
     return StickyActionSheet(
       title: _isEdit ? 'Edit activity' : 'New activity',
@@ -444,7 +444,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
               return _PodSelector(
                 pods: pods,
                 selectedPodIds: _selectedPodIds,
-                allPods: _allPods,
+                allGroups: _allPods,
                 onAllToggle: () => setState(() {
                   _allPods = true;
                   _selectedPodIds.clear();
@@ -454,7 +454,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
                     _selectedPodIds.remove(id);
                   }
                   // Any specific pick means "not all pods". Deselecting
-                  // the last one leaves the empty-allPods=false state,
+                  // the last one leaves the empty-allGroups=false state,
                   // which readers will treat as "no kids".
                   _allPods = false;
                 }),
@@ -491,14 +491,14 @@ class _PodSelector extends StatelessWidget {
   const _PodSelector({
     required this.pods,
     required this.selectedPodIds,
-    required this.allPods,
+    required this.allGroups,
     required this.onAllToggle,
     required this.onPodToggle,
   });
 
-  final List<Pod> pods;
+  final List<Group> pods;
   final Set<String> selectedPodIds;
-  final bool allPods;
+  final bool allGroups;
   final VoidCallback onAllToggle;
   final ValueChanged<String> onPodToggle;
 
@@ -511,7 +511,7 @@ class _PodSelector extends StatelessWidget {
         style: theme.textTheme.bodySmall,
       );
     }
-    final noneChosen = selectedPodIds.isEmpty && !allPods;
+    final noneChosen = selectedPodIds.isEmpty && !allGroups;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -521,7 +521,7 @@ class _PodSelector extends StatelessWidget {
           children: [
             FilterChip(
               label: const Text('All groups'),
-              selected: allPods && selectedPodIds.isEmpty,
+              selected: allGroups && selectedPodIds.isEmpty,
               onSelected: (_) => onAllToggle(),
             ),
             for (final pod in pods)

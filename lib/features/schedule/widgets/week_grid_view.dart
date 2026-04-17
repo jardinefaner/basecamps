@@ -202,8 +202,8 @@ class _WeekGridViewState extends State<WeekGridView> {
     if (a.isFullDay != b.isFullDay) return false;
     if (a.specialistId != b.specialistId) return false;
     if (a.location != b.location) return false;
-    final aPods = a.podIds.toSet();
-    final bPods = b.podIds.toSet();
+    final aPods = a.groupIds.toSet();
+    final bPods = b.groupIds.toSet();
     if (aPods.length != bPods.length) return false;
     for (final id in aPods) {
       if (!bPods.contains(id)) return false;
@@ -571,10 +571,10 @@ class _GridBlockCard extends ConsumerWidget {
     final first = block.first;
 
     final subtitleParts = <String>[];
-    if (first.podIds.isNotEmpty) {
+    if (first.groupIds.isNotEmpty) {
       final names = <String>[];
-      for (final podId in first.podIds) {
-        final pod = ref.watch(podProvider(podId)).asData?.value;
+      for (final groupId in first.groupIds) {
+        final pod = ref.watch(groupProvider(groupId)).asData?.value;
         if (pod != null) names.add(pod.name);
       }
       if (names.isNotEmpty) subtitleParts.add(names.join(' + '));

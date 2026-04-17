@@ -54,18 +54,18 @@ class HeroNowCard extends ConsumerWidget {
     final specialist = specialistId == null
         ? null
         : ref.watch(specialistProvider(specialistId)).asData?.value;
-    final allKids = ref.watch(kidsProvider).asData?.value ?? const <Kid>[];
+    final allKids = ref.watch(childrenProvider).asData?.value ?? const <Child>[];
     // Respect the new three-state audience: "all pods" (everyone),
     // specific pods (filter by those), or no pods (teacher explicitly
     // chose no kids — show an empty list).
-    final List<Kid> podKids;
-    if (item.isAllPods) {
+    final List<Child> podKids;
+    if (item.isAllGroups) {
       podKids = allKids;
-    } else if (item.isNoPods) {
+    } else if (item.isNoGroups) {
       podKids = const [];
     } else {
       podKids = allKids
-          .where((k) => k.podId != null && item.podIds.contains(k.podId))
+          .where((k) => k.groupId != null && item.groupIds.contains(k.groupId))
           .toList();
     }
 
@@ -337,7 +337,7 @@ class _HeroAttendanceStrip extends StatelessWidget {
 class _KidsRow extends StatelessWidget {
   const _KidsRow({required this.kids});
 
-  final List<Kid> kids;
+  final List<Child> kids;
 
   @override
   Widget build(BuildContext context) {
@@ -387,7 +387,7 @@ class _KidsRow extends StatelessWidget {
 class _KidInitial extends StatelessWidget {
   const _KidInitial({required this.kid});
 
-  final Kid kid;
+  final Child kid;
 
   @override
   Widget build(BuildContext context) {

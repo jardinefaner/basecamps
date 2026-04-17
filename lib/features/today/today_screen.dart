@@ -129,7 +129,7 @@ class _Body extends ConsumerWidget {
         ref.watch(concernKidLinksProvider).asData?.value ??
             const <String, Set<String>>{};
     final allKids =
-        ref.watch(kidsProvider).asData?.value ?? const <Kid>[];
+        ref.watch(childrenProvider).asData?.value ?? const <Child>[];
     final attendanceMap =
         ref.watch(todayAttendanceProvider).asData?.value ??
             const <String, AttendanceRecord>{};
@@ -170,11 +170,11 @@ class _Body extends ConsumerWidget {
       // An "all pods" activity pulls in every kid; a pod-scoped one
       // pulls in just that pod's kids; an intentionally pod-less
       // activity (staff prep etc.) pulls in nobody.
-      if (i.isNoPods) continue;
+      if (i.isNoGroups) continue;
       for (final kid in allKids) {
-        if (i.isAllPods) {
+        if (i.isAllGroups) {
           kidsInActivityPods.add(kid.id);
-        } else if (kid.podId != null && i.podIds.contains(kid.podId)) {
+        } else if (kid.groupId != null && i.groupIds.contains(kid.groupId)) {
           kidsInActivityPods.add(kid.id);
         }
       }
@@ -188,14 +188,14 @@ class _Body extends ConsumerWidget {
       // Only roll up for group-scoped activities — "all groups" is
       // everyone (use the whole-day check-in flow elsewhere), "no
       // groups" has nobody to track.
-      if (item.podIds.isEmpty || item.isAllPods || item.isNoPods) {
+      if (item.groupIds.isEmpty || item.isAllGroups || item.isNoGroups) {
         return null;
       }
       var present = 0;
       var absent = 0;
       var total = 0;
       for (final k in allKids) {
-        if (k.podId == null || !item.podIds.contains(k.podId)) continue;
+        if (k.groupId == null || !item.groupIds.contains(k.groupId)) continue;
         total++;
         final status = attendanceMap[k.id]?.status;
         if (status == AttendanceStatus.present) {
@@ -219,7 +219,7 @@ class _Body extends ConsumerWidget {
         showDragHandle: true,
         useSafeArea: true,
         builder: (_) => AttendanceSheet(
-          groupIds: item.podIds,
+          groupIds: item.groupIds,
           date: now,
           activityTitle: item.title,
         ),
@@ -232,14 +232,14 @@ class _Body extends ConsumerWidget {
       // children at all. Only narrow, group-scoped activities get the
       // flag.
       if (concerns.isEmpty ||
-          item.podIds.isEmpty ||
-          item.isAllPods ||
-          item.isNoPods) {
+          item.groupIds.isEmpty ||
+          item.isAllGroups ||
+          item.isNoGroups) {
         return null;
       }
       final podKidIds = <String>{
         for (final k in allKids)
-          if (k.podId != null && item.podIds.contains(k.podId)) k.id,
+          if (k.groupId != null && item.groupIds.contains(k.groupId)) k.id,
       };
       if (podKidIds.isEmpty) return null;
       // Newest first — `concerns` is already sorted by updatedAt desc.

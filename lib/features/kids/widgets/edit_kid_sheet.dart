@@ -13,27 +13,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// otherwise we're editing that kid — the title, action label, and
 /// delete affordance flip accordingly. Teachers tap the avatar to set
 /// or change the kid's photo.
-class EditKidSheet extends ConsumerStatefulWidget {
-  const EditKidSheet({
+class EditChildSheet extends ConsumerStatefulWidget {
+  const EditChildSheet({
     required this.pods,
     this.kid,
     this.initialPodId,
     super.key,
   });
 
-  final List<Pod> pods;
+  final List<Group> pods;
 
   /// When null, the sheet acts as "Add child".
-  final Kid? kid;
+  final Child? kid;
 
   /// Only honored in create mode.
   final String? initialPodId;
 
   @override
-  ConsumerState<EditKidSheet> createState() => _EditKidSheetState();
+  ConsumerState<EditChildSheet> createState() => _EditKidSheetState();
 }
 
-class _EditKidSheetState extends ConsumerState<EditKidSheet> {
+class _EditKidSheetState extends ConsumerState<EditChildSheet> {
   late final _firstNameController =
       TextEditingController(text: widget.kid?.firstName ?? '');
   late final _lastNameController =
@@ -43,7 +43,7 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
   late final _parentNameController =
       TextEditingController(text: widget.kid?.parentName ?? '');
 
-  late String? _selectedPodId = widget.kid?.podId ??
+  late String? _selectedPodId = widget.kid?.groupId ??
       widget.initialPodId ??
       (widget.pods.isNotEmpty ? widget.pods.first.id : null);
 
@@ -63,7 +63,7 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
         s.trim().isEmpty ? null : s.trim();
     if (_firstNameController.text.trim() != kid.firstName) return true;
     if (trimOrNull(_lastNameController.text) != kid.lastName) return true;
-    if (_selectedPodId != kid.podId) return true;
+    if (_selectedPodId != kid.groupId) return true;
     if (trimOrNull(_parentNameController.text) != kid.parentName) return true;
     if (trimOrNull(_notesController.text) != kid.notes) return true;
     if (_avatarPath != kid.avatarPath) return true;
@@ -82,7 +82,7 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
   Future<void> _submit() async {
     if (!_isValid) return;
     setState(() => _submitting = true);
-    final repo = ref.read(kidsRepositoryProvider);
+    final repo = ref.read(childrenRepositoryProvider);
     final firstName = _firstNameController.text.trim();
     final lastName = _lastNameController.text.trim();
     final notes = _notesController.text.trim();
@@ -90,22 +90,22 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
     final parentName = _parentNameController.text.trim();
     final existing = widget.kid;
     if (existing == null) {
-      await repo.addKid(
+      await repo.addChild(
         firstName: firstName,
         lastName: lastName.isEmpty ? null : lastName,
-        podId: _selectedPodId,
+        groupId: _selectedPodId,
         notes: notes.isEmpty ? null : notes,
         avatarPath: _avatarPath,
         parentName: parentName.isEmpty ? null : parentName,
       );
     } else {
-      await repo.updateKid(
+      await repo.updateChild(
         id: existing.id,
         firstName: firstName,
         lastName: lastName.isEmpty ? null : lastName,
         clearLastName: lastName.isEmpty && existing.lastName != null,
-        podId: _selectedPodId,
-        clearPodId: _selectedPodId == null && existing.podId != null,
+        groupId: _selectedPodId,
+        clearPodId: _selectedPodId == null && existing.groupId != null,
         notes: notes.isEmpty ? null : notes,
         clearNotes: notes.isEmpty && existing.notes != null,
         avatarPath: _avatarPath,
@@ -131,7 +131,7 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
       confirmLabel: 'Remove',
     );
     if (!confirmed) return;
-    await ref.read(kidsRepositoryProvider).deleteKid(existing.id);
+    await ref.read(childrenRepositoryProvider).deleteChild(existing.id);
     if (!mounted) return;
     Navigator.of(context).pop();
   }

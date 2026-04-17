@@ -173,16 +173,16 @@ class _PodsRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final podIdsAsync = ref.watch(tripPodsProvider(tripId));
     return podIdsAsync.maybeWhen(
-      data: (podIds) {
-        if (podIds.isEmpty) {
+      data: (groupIds) {
+        if (groupIds.isEmpty) {
           return const _MetaRow(
             icon: Icons.groups_outlined,
             text: 'All groups',
           );
         }
         final names = <String>[];
-        for (final id in podIds) {
-          final pod = ref.watch(podProvider(id)).asData?.value;
+        for (final id in groupIds) {
+          final pod = ref.watch(groupProvider(id)).asData?.value;
           if (pod != null) names.add(pod.name);
         }
         if (names.isEmpty) return const SizedBox.shrink();
@@ -205,7 +205,7 @@ class _RosterCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final podIdsAsync = ref.watch(tripPodsProvider(tripId));
-    final kidsAsync = ref.watch(kidsProvider);
+    final kidsAsync = ref.watch(childrenProvider);
 
     return AppCard(
       child: Column(
@@ -216,7 +216,7 @@ class _RosterCard extends ConsumerWidget {
           podIdsAsync.when(
             loading: () => const LinearProgressIndicator(),
             error: (err, _) => Text('Error: $err'),
-            data: (podIds) {
+            data: (groupIds) {
               return kidsAsync.when(
                 loading: () => const LinearProgressIndicator(),
                 error: (err, _) => Text('Error: $err'),
@@ -224,8 +224,8 @@ class _RosterCard extends ConsumerWidget {
                   final attending = kids
                       .where(
                         (k) =>
-                            podIds.isEmpty ||
-                            (k.podId != null && podIds.contains(k.podId)),
+                            groupIds.isEmpty ||
+                            (k.groupId != null && groupIds.contains(k.groupId)),
                       )
                       .toList();
                   if (attending.isEmpty) {

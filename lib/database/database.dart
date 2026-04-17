@@ -1,4 +1,3 @@
-import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/tables.dart';
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
@@ -12,14 +11,14 @@ QueryExecutor _openConnection() {
 
 @DriftDatabase(
   tables: [
-    Pods,
-    Kids,
+    Groups,
+    Children,
     Trips,
-    TripPods,
+    TripGroups,
     Captures,
-    CaptureKids,
+    CaptureChildren,
     Observations,
-    ObservationKids,
+    ObservationChildren,
     ObservationAttachments,
     ObservationDomainTags,
     Specialists,
@@ -27,10 +26,10 @@ QueryExecutor _openConnection() {
     ActivityLibrary,
     ScheduleTemplates,
     ScheduleEntries,
-    TemplatePods,
-    EntryPods,
+    TemplateGroups,
+    EntryGroups,
     ParentConcernNotes,
-    ParentConcernKids,
+    ParentConcernChildren,
     Attendance,
   ],
 )
@@ -40,324 +39,149 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 24;
+  int get schemaVersion => 25;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
-          // All steps below are idempotent — safe to re-run if an earlier
-          // migration partially completed but the schema version wasn't
-          // advanced. We swallow "already exists" / "duplicate column" errors
-          // so dev databases in inconsistent intermediate states recover.
-          if (from < 2) {
-            await _createTableIfMissing(m, pods);
-            await _createTableIfMissing(m, kids);
-          }
-          if (from < 3) {
-            await _createTableIfMissing(m, trips);
-            await _createTableIfMissing(m, captures);
-            await _createTableIfMissing(m, captureKids);
-            await _createTableIfMissing(m, observations);
-          }
-          if (from < 4) {
-            await _createTableIfMissing(m, scheduleTemplates);
-            await _createTableIfMissing(m, scheduleEntries);
-          }
-          if (from < 5) {
-            await _addColumnIfMissing(
-              m,
-              scheduleTemplates,
-              scheduleTemplates.isFullDay,
-            );
-            await _addColumnIfMissing(
-              m,
-              scheduleEntries,
-              scheduleEntries.isFullDay,
-            );
-          }
-          if (from < 6) {
-            await _createTableIfMissing(m, templatePods);
-            await _createTableIfMissing(m, entryPods);
-            await customStatement('''
-              INSERT OR IGNORE INTO template_pods (template_id, pod_id)
-              SELECT id, pod_id FROM schedule_templates WHERE pod_id IS NOT NULL
-            ''');
-            await customStatement('''
-              INSERT OR IGNORE INTO entry_pods (entry_id, pod_id)
-              SELECT id, pod_id FROM schedule_entries WHERE pod_id IS NOT NULL
-            ''');
-          }
-          if (from < 7) {
-            await _createTableIfMissing(m, specialists);
-            await _addColumnIfMissing(
-              m,
-              scheduleTemplates,
-              scheduleTemplates.specialistId,
-            );
-            await _addColumnIfMissing(
-              m,
-              scheduleEntries,
-              scheduleEntries.specialistId,
-            );
-            // Backfill: promote each distinct legacy specialist_name string
-            // into a Specialists row and update referring schedule items.
-            // Skip names that already map to a specialist (re-run safety).
-            final templateRows = await (select(scheduleTemplates)
-                  ..where((t) => t.specialistName.isNotNull()))
-                .get();
-            final entryRows = await (select(scheduleEntries)
-                  ..where((e) => e.specialistName.isNotNull()))
-                .get();
-            final uniqueNames = <String>{
-              ...templateRows.map((r) => r.specialistName!),
-              ...entryRows.map((e) => e.specialistName!),
-            };
-            for (final name in uniqueNames) {
-              final existing = await (select(specialists)
-                    ..where((s) => s.name.equals(name)))
-                  .getSingleOrNull();
-              final specialistId = existing?.id ?? newId();
-              if (existing == null) {
-                await into(specialists).insert(
-                  SpecialistsCompanion.insert(id: specialistId, name: name),
-                );
-              }
-              await (update(scheduleTemplates)
-                    ..where(
-                      (t) =>
-                          t.specialistName.equals(name) &
-                          t.specialistId.isNull(),
-                    ))
-                  .write(
-                ScheduleTemplatesCompanion(
-                  specialistId: Value(specialistId),
-                ),
-              );
-              await (update(scheduleEntries)
-                    ..where(
-                      (e) =>
-                          e.specialistName.equals(name) &
-                          e.specialistId.isNull(),
-                    ))
-                  .write(
-                ScheduleEntriesCompanion(
-                  specialistId: Value(specialistId),
-                ),
-              );
-            }
-          }
-          if (from < 8) {
-            await _createTableIfMissing(m, activityLibrary);
-          }
-          if (from < 9) {
-            await _addColumnIfMissing(
-              m,
-              scheduleTemplates,
-              scheduleTemplates.startDate,
-            );
-            await _addColumnIfMissing(
-              m,
-              scheduleTemplates,
-              scheduleTemplates.endDate,
-            );
-          }
-          if (from < 10) {
-            await _addColumnIfMissing(
-              m,
-              trips,
-              trips.departureTime,
-            );
-            await _addColumnIfMissing(
-              m,
-              trips,
-              trips.returnTime,
-            );
-            await _createTableIfMissing(m, tripPods);
-            await _addColumnIfMissing(
-              m,
-              scheduleEntries,
-              scheduleEntries.sourceTripId,
-            );
-          }
-          if (from < 11) {
-            await _createTableIfMissing(m, observationKids);
-            // Backfill: legacy single-kid observations → join rows.
-            await customStatement('''
-              INSERT OR IGNORE INTO observation_kids (observation_id, kid_id)
-              SELECT id, kid_id FROM observations WHERE kid_id IS NOT NULL
-            ''');
-          }
-          if (from < 12) {
-            await _createTableIfMissing(m, observationAttachments);
-          }
-          if (from < 13) {
-            // Remap legacy free-form domains to the SSD / HLTH taxonomy.
-            // Unmapped values fall back to 'other'.
-            await customStatement(
-              "UPDATE observations SET domain = 'ssd8' "
-              "WHERE domain = 'social'",
-            );
-            await customStatement(
-              "UPDATE observations SET domain = 'hlth4' "
-              "WHERE domain = 'physical'",
-            );
-            await customStatement(
-              "UPDATE observations SET domain = 'ssd4' "
-              "WHERE domain = 'behavior'",
-            );
-            await customStatement(
-              "UPDATE observations SET domain = 'other' "
-              'WHERE domain NOT IN '
-              "('ssd1', 'ssd2', 'ssd3', 'ssd4', 'ssd5', 'ssd6', "
-              "'ssd7', 'ssd8', 'ssd9', "
-              "'hlth1', 'hlth2', 'hlth3', 'hlth4', 'other')",
-            );
-          }
-          if (from < 14) {
-            // Multi-domain tagging. Create the join table, then backfill
-            // one row per existing observation so the UI has a list to
-            // render immediately — the legacy single-column stays as the
-            // "primary" domain written on every save.
-            await _createTableIfMissing(m, observationDomainTags);
-            await customStatement('''
-              INSERT OR IGNORE INTO observation_domain_tags
-                (observation_id, domain)
-              SELECT id, domain FROM observations WHERE domain IS NOT NULL
-            ''');
-          }
-          if (from < 15) {
-            // Avatar support for kids and specialists — local file paths
-            // only for now; the image moves to remote storage once a
-            // sync story exists.
-            await _addColumnIfMissing(m, kids, kids.avatarPath);
-            await _addColumnIfMissing(
-              m,
-              specialists,
-              specialists.avatarPath,
-            );
-          }
-          if (from < 16) {
-            // First structured form: parent concern notes.
-            await _createTableIfMissing(m, parentConcernNotes);
-          }
-          if (from < 17) {
-            // Primary guardian name on a kid (used by the concern note
-            // form) + drawn signature paths on each concern note.
-            await _addColumnIfMissing(m, kids, kids.parentName);
-            await _addColumnIfMissing(
-              m,
-              parentConcernNotes,
-              parentConcernNotes.staffSignaturePath,
-            );
-            await _addColumnIfMissing(
-              m,
-              parentConcernNotes,
-              parentConcernNotes.supervisorSignaturePath,
-            );
-          }
-          if (from < 18) {
-            // Multi-day / date-range entries: a schedule entry can now
-            // span several days via the new `end_date` column.
-            await _addColumnIfMissing(
-              m,
-              scheduleEntries,
-              scheduleEntries.endDate,
-            );
-          }
-          if (from < 19) {
-            // Specialist availability — working hours and time off live
-            // in their own table so the specialist detail screen can
-            // show "when I work" distinct from "activities I run".
-            await _createTableIfMissing(m, specialistAvailability);
-          }
-          if (from < 20) {
-            // Group id on templates — lets "delete every occurrence"
-            // sweep every weekday row the wizard created together.
-            await _addColumnIfMissing(
-              m,
-              scheduleTemplates,
-              scheduleTemplates.groupId,
-            );
-          }
-          if (from < 21) {
-            // Non-destructive AI refine: when the refined version is what
-            // we save, keep the pre-refine text here so the edit sheet can
-            // still flip back to the teacher's original words.
-            await _addColumnIfMissing(
-              m,
-              observations,
-              observations.noteOriginal,
-            );
-          }
-          if (from < 22) {
-            // Explicit "all pods" flag on schedule rows — lets us
-            // distinguish "activity for everyone" (allPods=true,
-            // no specific pods) from "activity for nobody yet chosen"
-            // (allPods=false, no specific pods), which previously
-            // collapsed onto the same empty-list state. Default is
-            // true so legacy rows remain "everybody".
-            await _addColumnIfMissing(
-              m,
-              scheduleTemplates,
-              scheduleTemplates.allPods,
-            );
-            await _addColumnIfMissing(
-              m,
-              scheduleEntries,
-              scheduleEntries.allPods,
-            );
-          }
-          if (from < 23) {
-            // Structured concern↔child links. The childNames text
-            // column stays (it's what the parent actually said), but
-            // the Today screen now uses this join to know which
-            // children a concern mentions.
-            await _createTableIfMissing(m, parentConcernKids);
-          }
+          // Pre-v25 migrations referenced the old "kids/pods" Dart
+          // classes and column names (`kids.avatarPath`,
+          // `schedule_templates.all_pods`, etc). Those classes no
+          // longer exist — v25 renamed them to "children/groups"
+          // everywhere. Dev databases below v24 should be wiped
+          // rather than force-upgraded; the renames only run if the
+          // teacher's DB was already at schema 24.
           if (from < 24) {
-            // Per-day attendance. One row per (child, date); missing
-            // row means "not yet checked in" so a brand-new day
-            // shows neutral state until the teacher starts tapping.
-            await _createTableIfMissing(m, attendance);
+            throw UnsupportedError(
+              'Schema $from is pre-rename. Wipe the dev database '
+              '(uninstall & reinstall) and the app will recreate it '
+              'fresh at schema 25. This only affects devs who have '
+              'been running the app through old schemas; no end-user '
+              'has ever seen schema < 25.',
+            );
+          }
+          if (from < 25) {
+            // One-shot rename: every "kid" → "child" and every "pod"
+            // → "group" in the schema. Runs against a schema-24 DB
+            // from the previous commit; idempotent-enough via
+            // try/catch so partial runs recover.
+            //
+            // Order matters:
+            //   1. Rename the existing `schedule_templates.group_id`
+            //      (which was the template-series id) to `series_id`
+            //      FIRST — otherwise step 2 collides.
+            //   2. Rename tables.
+            //   3. Rename columns on renamed + untouched tables.
+            await _runSilent(
+              'ALTER TABLE schedule_templates '
+              'RENAME COLUMN "group_id" TO "series_id"',
+            );
+
+            await _runSilent('ALTER TABLE "pods" RENAME TO "groups"');
+            await _runSilent('ALTER TABLE "kids" RENAME TO "children"');
+            await _runSilent(
+              'ALTER TABLE "trip_pods" RENAME TO "trip_groups"',
+            );
+            await _runSilent(
+              'ALTER TABLE "capture_kids" RENAME TO "capture_children"',
+            );
+            await _runSilent(
+              'ALTER TABLE "observation_kids" '
+              'RENAME TO "observation_children"',
+            );
+            await _runSilent(
+              'ALTER TABLE "template_pods" RENAME TO "template_groups"',
+            );
+            await _runSilent(
+              'ALTER TABLE "entry_pods" RENAME TO "entry_groups"',
+            );
+            await _runSilent(
+              'ALTER TABLE "parent_concern_kids" '
+              'RENAME TO "parent_concern_children"',
+            );
+
+            // Column renames on the newly-renamed join tables.
+            await _runSilent(
+              'ALTER TABLE "trip_groups" '
+              'RENAME COLUMN "pod_id" TO "group_id"',
+            );
+            await _runSilent(
+              'ALTER TABLE "capture_children" '
+              'RENAME COLUMN "kid_id" TO "child_id"',
+            );
+            await _runSilent(
+              'ALTER TABLE "observation_children" '
+              'RENAME COLUMN "kid_id" TO "child_id"',
+            );
+            await _runSilent(
+              'ALTER TABLE "template_groups" '
+              'RENAME COLUMN "pod_id" TO "group_id"',
+            );
+            await _runSilent(
+              'ALTER TABLE "entry_groups" '
+              'RENAME COLUMN "pod_id" TO "group_id"',
+            );
+            await _runSilent(
+              'ALTER TABLE "parent_concern_children" '
+              'RENAME COLUMN "kid_id" TO "child_id"',
+            );
+
+            // Column renames on tables whose names didn't change.
+            await _runSilent(
+              'ALTER TABLE "children" '
+              'RENAME COLUMN "pod_id" TO "group_id"',
+            );
+            await _runSilent(
+              'ALTER TABLE "observations" '
+              'RENAME COLUMN "kid_id" TO "child_id"',
+            );
+            await _runSilent(
+              'ALTER TABLE "observations" '
+              'RENAME COLUMN "pod_id" TO "group_id"',
+            );
+            await _runSilent(
+              'ALTER TABLE "schedule_templates" '
+              'RENAME COLUMN "pod_id" TO "group_id"',
+            );
+            await _runSilent(
+              'ALTER TABLE "schedule_templates" '
+              'RENAME COLUMN "all_pods" TO "all_groups"',
+            );
+            await _runSilent(
+              'ALTER TABLE "schedule_entries" '
+              'RENAME COLUMN "pod_id" TO "group_id"',
+            );
+            await _runSilent(
+              'ALTER TABLE "schedule_entries" '
+              'RENAME COLUMN "all_pods" TO "all_groups"',
+            );
+            await _runSilent(
+              'ALTER TABLE "attendance" '
+              'RENAME COLUMN "kid_id" TO "child_id"',
+            );
           }
         },
       );
 
-  // Drift's Migrator lacks direct "if exists" helpers. These wrappers catch
-  // "table already exists" / "duplicate column name" so upgrades recover from
-  // partial runs gracefully.
-
-  static Future<void> _createTableIfMissing(
-    Migrator m,
-    TableInfo<Table, Object?> table,
-  ) async {
+  /// Runs `stmt` and swallows "duplicate column / no such column /
+  /// already exists" errors so re-running the rename migration after
+  /// a partial failure is safe. Anything else surfaces.
+  Future<void> _runSilent(String stmt) async {
     try {
-      await m.createTable(table);
+      await customStatement(stmt);
     } on Object catch (e) {
-      if (_isAlreadyExistsError(e)) return;
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('no such column') ||
+          msg.contains('no such table') ||
+          msg.contains('already exists') ||
+          msg.contains('duplicate column')) {
+        return;
+      }
       rethrow;
     }
   }
 
-  static Future<void> _addColumnIfMissing(
-    Migrator m,
-    TableInfo<Table, Object?> table,
-    GeneratedColumn<Object> column,
-  ) async {
-    try {
-      await m.addColumn(table, column);
-    } on Object catch (e) {
-      if (_isAlreadyExistsError(e)) return;
-      rethrow;
-    }
-  }
-
-  static bool _isAlreadyExistsError(Object e) {
-    final msg = e.toString().toLowerCase();
-    return msg.contains('already exists') ||
-        msg.contains('duplicate column');
-  }
 }
 
 final databaseProvider = Provider<AppDatabase>((ref) {

@@ -10,30 +10,30 @@ import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class KidDetailScreen extends ConsumerWidget {
-  const KidDetailScreen({required this.kidId, super.key});
+class ChildDetailScreen extends ConsumerWidget {
+  const ChildDetailScreen({required this.childId, super.key});
 
-  final String kidId;
+  final String childId;
 
   Future<void> _openEditSheet(
     BuildContext context,
     WidgetRef ref,
-    Kid kid,
+    Child kid,
   ) async {
-    final pods = await ref.read(kidsRepositoryProvider).watchPods().first;
+    final pods = await ref.read(childrenRepositoryProvider).watchGroups().first;
     if (!context.mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       useSafeArea: true,
-      builder: (_) => EditKidSheet(pods: pods, kid: kid),
+      builder: (_) => EditChildSheet(pods: pods, kid: kid),
     );
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final kidAsync = ref.watch(kidProvider(kidId));
+    final kidAsync = ref.watch(childProvider(childId));
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -86,8 +86,8 @@ class KidDetailScreen extends ConsumerWidget {
                               fullName,
                               style: theme.textTheme.headlineMedium,
                             ),
-                            if (kid.podId != null)
-                              _PodLabel(podId: kid.podId!)
+                            if (kid.groupId != null)
+                              _PodLabel(groupId: kid.groupId!)
                             else
                               Text(
                                 'Unassigned',
@@ -162,14 +162,14 @@ class KidDetailScreen extends ConsumerWidget {
 }
 
 class _PodLabel extends ConsumerWidget {
-  const _PodLabel({required this.podId});
+  const _PodLabel({required this.groupId});
 
-  final String podId;
+  final String groupId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final pod = ref.watch(podProvider(podId));
+    final pod = ref.watch(groupProvider(groupId));
     return pod.maybeWhen(
       data: (p) => Text(
         p?.name ?? '',
@@ -187,7 +187,7 @@ class _PodLabel extends ConsumerWidget {
 class _TodayTimeline extends ConsumerWidget {
   const _TodayTimeline({required this.kid});
 
-  final Kid kid;
+  final Child kid;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -217,8 +217,8 @@ class _TodayTimeline extends ConsumerWidget {
             ),
             data: (items) {
               final mine = items.where((i) {
-                if (i.isAllPods) return true;
-                return kid.podId != null && i.podIds.contains(kid.podId);
+                if (i.isAllGroups) return true;
+                return kid.groupId != null && i.groupIds.contains(kid.groupId);
               }).toList();
 
               if (mine.isEmpty) {

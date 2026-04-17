@@ -43,11 +43,11 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final kidsAsync = ref.watch(kidsProvider);
+    final kidsAsync = ref.watch(childrenProvider);
     final specialistsAsync = ref.watch(specialistsProvider);
     final libraryAsync = ref.watch(activityLibraryProvider);
 
-    final kids = kidsAsync.asData?.value ?? const <Kid>[];
+    final kids = kidsAsync.asData?.value ?? const <Child>[];
     final specialists =
         specialistsAsync.asData?.value ?? const <Specialist>[];
     final library =
@@ -426,7 +426,7 @@ class _QuickActionTile extends StatelessWidget {
 class _PeopleWrap extends StatelessWidget {
   const _PeopleWrap({required this.cells});
 
-  factory _PeopleWrap.fromKids(List<Kid> kids) {
+  factory _PeopleWrap.fromKids(List<Child> kids) {
     return _PeopleWrap(
       cells: [
         for (final k in kids)

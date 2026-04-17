@@ -53,7 +53,7 @@ class ConflictInfo {
   final bool podClash;
   final bool specialistClash;
 
-  /// Pod ids that both activities target directly. Empty when the clash
+  /// Group ids that both activities target directly. Empty when the clash
   /// comes from one side being "all pods" (broadcast).
   final Set<String> sharedPodIds;
 }
@@ -63,12 +63,12 @@ class ConflictInfo {
 /// - **Specialists**: if both items target the same specialist, they conflict
 ///   whenever their time ranges could actually overlap (a full-day item is
 ///   treated as covering every time slot for this rule).
-/// - **Pods (timed ↔ timed)**: overlapping times + any shared pod clash.
+/// - **Groups (timed ↔ timed)**: overlapping times + any shared pod clash.
 ///   "All pods" (empty list) is treated as a wildcard that shares with any
 ///   other targeted pod set.
-/// - **Pods (full-day ↔ full-day)**: two whole-day events sharing pods on
+/// - **Groups (full-day ↔ full-day)**: two whole-day events sharing pods on
 ///   the same date is a conflict (can't have two camp-wide events overlap).
-/// - **Pods (full-day ↔ timed)**: NOT a conflict on its own. A full-day
+/// - **Groups (full-day ↔ timed)**: NOT a conflict on its own. A full-day
 ///   label (e.g. "Tax Day", "Teacher appreciation") doesn't block timed
 ///   activities unless it also needs the same specialist.
 _DetectionResult _detect(ScheduleItem a, ScheduleItem b) {
@@ -143,11 +143,11 @@ bool _timeOverlaps(ScheduleItem a, ScheduleItem b) {
 }
 
 bool _sharePod(ScheduleItem a, ScheduleItem b) {
-  if (a.podIds.isEmpty || b.podIds.isEmpty) return true;
-  return a.podIds.toSet().intersection(b.podIds.toSet()).isNotEmpty;
+  if (a.groupIds.isEmpty || b.groupIds.isEmpty) return true;
+  return a.groupIds.toSet().intersection(b.groupIds.toSet()).isNotEmpty;
 }
 
 Set<String> _sharedPodIds(ScheduleItem a, ScheduleItem b) {
-  if (a.podIds.isEmpty || b.podIds.isEmpty) return const <String>{};
-  return a.podIds.toSet().intersection(b.podIds.toSet());
+  if (a.groupIds.isEmpty || b.groupIds.isEmpty) return const <String>{};
+  return a.groupIds.toSet().intersection(b.groupIds.toSet());
 }

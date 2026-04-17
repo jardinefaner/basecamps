@@ -9,7 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class ParentConcernInput {
   ParentConcernInput({
     this.childNames = '',
-    List<String>? kidIds,
+    List<String>? childIds,
     this.parentName = '',
     this.concernDate,
     this.staffReceiving = '',
@@ -33,19 +33,19 @@ class ParentConcernInput {
     this.supervisorSignature,
     this.supervisorSignaturePath,
     this.supervisorSignatureDate,
-  }) : kidIds = kidIds ?? <String>[];
+  }) : childIds = childIds ?? <String>[];
 
   /// Build the form's editable state from an existing drift row — the
   /// "edit existing note" path. The structured child-id list is loaded
-  /// separately (via `ParentConcernRepository.kidIdsForConcern`) and
-  /// passed through [kidIds] so hydration runs in a single frame.
+  /// separately (via `ParentConcernRepository.childIdsForConcern`) and
+  /// passed through [childIds] so hydration runs in a single frame.
   factory ParentConcernInput.fromRow(
     ParentConcernNote row, {
-    List<String> kidIds = const [],
+    List<String> childIds = const [],
   }) {
     return ParentConcernInput(
       childNames: row.childNames,
-      kidIds: List<String>.from(kidIds),
+      childIds: List<String>.from(childIds),
       parentName: row.parentName,
       concernDate: row.concernDate,
       staffReceiving: row.staffReceiving,
@@ -78,7 +78,7 @@ class ParentConcernInput {
   /// for "does this concern mention a child in this group" queries.
   /// [childNames] stays as the free-text version (what the parent
   /// actually said, used in PDF / document exports).
-  List<String> kidIds;
+  List<String> childIds;
 
   String parentName;
   DateTime? concernDate;
@@ -158,7 +158,7 @@ class ParentConcernRepository {
     final id = newId();
     await _db.transaction(() async {
       await _db.into(_db.parentConcernNotes).insert(_companion(id, input));
-      await _replaceKidLinks(id, input.kidIds);
+      await _replaceKidLinks(id, input.childIds);
     });
     return id;
   }
@@ -173,7 +173,7 @@ class ParentConcernRepository {
           .write(
         _companion(id, input, updating: true),
       );
-      await _replaceKidLinks(id, input.kidIds);
+      await _replaceKidLinks(id, input.childIds);
     });
   }
 
@@ -185,21 +185,21 @@ class ParentConcernRepository {
   /// Structured kid ids linked to a concern. Used by the form to hydrate
   /// its chip picker on edit, and by the Today screen to figure out
   /// which activity card a concern should flag.
-  Future<List<String>> kidIdsForConcern(String concernId) async {
-    final rows = await (_db.select(_db.parentConcernKids)
+  Future<List<String>> childIdsForConcern(String concernId) async {
+    final rows = await (_db.select(_db.parentConcernChildren)
           ..where((k) => k.concernId.equals(concernId)))
         .get();
-    return rows.map((r) => r.kidId).toList();
+    return rows.map((r) => r.childId).toList();
   }
 
   /// Live view of the (concern → child) join as a map from concern id
   /// to the set of linked kid ids — feeds Today's concern-flag lookup
   /// so adding/removing a link causes a rebuild.
   Stream<Map<String, Set<String>>> watchConcernKidLinks() {
-    return _db.select(_db.parentConcernKids).watch().map((rows) {
+    return _db.select(_db.parentConcernChildren).watch().map((rows) {
       final map = <String, Set<String>>{};
       for (final r in rows) {
-        (map[r.concernId] ??= <String>{}).add(r.kidId);
+        (map[r.concernId] ??= <String>{}).add(r.childId);
       }
       return map;
     });
@@ -207,20 +207,20 @@ class ParentConcernRepository {
 
   Future<void> _replaceKidLinks(
     String concernId,
-    List<String> kidIds,
+    List<String> childIds,
   ) async {
-    await (_db.delete(_db.parentConcernKids)
+    await (_db.delete(_db.parentConcernChildren)
           ..where((k) => k.concernId.equals(concernId)))
         .go();
     // Dedupe while preserving order — same defensive pattern other
     // repos use so accidental double-taps don't violate the PK.
     final seen = <String>{};
-    for (final kidId in kidIds) {
-      if (!seen.add(kidId)) continue;
-      await _db.into(_db.parentConcernKids).insert(
-            ParentConcernKidsCompanion.insert(
+    for (final childId in childIds) {
+      if (!seen.add(childId)) continue;
+      await _db.into(_db.parentConcernChildren).insert(
+            ParentConcernChildrenCompanion.insert(
               concernId: concernId,
-              kidId: kidId,
+              childId: childId,
             ),
           );
     }
