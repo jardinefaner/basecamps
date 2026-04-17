@@ -570,6 +570,11 @@ class _OneOffEntrySheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final insets = MediaQuery.of(context).viewInsets.bottom;
+    final rangeDesc = item.isMultiDay
+        ? '${DateFormat.MMMd().format(item.rangeStart!)} → '
+            '${DateFormat.MMMd().format(item.rangeEnd!)} · '
+            '${item.rangeEnd!.difference(item.rangeStart!).inDays + 1} days'
+        : null;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -582,23 +587,61 @@ class _OneOffEntrySheet extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('One-off event', style: theme.textTheme.titleLarge),
+          Text(
+            item.isMultiDay ? 'Multi-day event' : 'One-off event',
+            style: theme.textTheme.titleLarge,
+          ),
           const SizedBox(height: AppSpacing.xs),
           Text(
             item.title,
             style: theme.textTheme.bodyLarge,
           ),
           Text(
-            item.isFullDay
-                ? 'All day'
-                : '${item.startTime} – ${item.endTime}',
+            rangeDesc ??
+                (item.isFullDay
+                    ? 'All day'
+                    : '${item.startTime} – ${item.endTime}'),
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
+          if (item.notes != null && item.notes!.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(item.notes!, style: theme.textTheme.bodyMedium),
+          ],
           const SizedBox(height: AppSpacing.xl),
           OutlinedButton.icon(
             onPressed: () async {
+              if (item.isMultiDay) {
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Delete every day?'),
+                    content: Text(
+                      'This removes "${item.title}" from all '
+                      '${item.rangeEnd!.difference(item.rangeStart!).inDays + 1}'
+                      ' days it spans. Cannot be undone.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(false),
+                        child: const Text('Cancel'),
+                      ),
+                      FilledButton.tonal(
+                        style: FilledButton.styleFrom(
+                          backgroundColor:
+                              Theme.of(ctx).colorScheme.errorContainer,
+                          foregroundColor:
+                              Theme.of(ctx).colorScheme.onErrorContainer,
+                        ),
+                        onPressed: () => Navigator.of(ctx).pop(true),
+                        child: const Text('Delete all days'),
+                      ),
+                    ],
+                  ),
+                );
+                if (ok != true) return;
+              }
               await ref
                   .read(scheduleRepositoryProvider)
                   .deleteEntry(entryId);
@@ -609,7 +652,7 @@ class _OneOffEntrySheet extends ConsumerWidget {
               color: theme.colorScheme.error,
             ),
             label: Text(
-              'Delete event',
+              item.isMultiDay ? 'Delete all days' : 'Delete event',
               style: TextStyle(color: theme.colorScheme.error),
             ),
           ),

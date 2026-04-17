@@ -6086,6 +6086,17 @@ class $ScheduleEntriesTable extends ScheduleEntries
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _endDateMeta = const VerificationMeta(
+    'endDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> endDate = GeneratedColumn<DateTime>(
+    'end_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _startTimeMeta = const VerificationMeta(
     'startTime',
   );
@@ -6254,6 +6265,7 @@ class $ScheduleEntriesTable extends ScheduleEntries
   List<GeneratedColumn> get $columns => [
     id,
     date,
+    endDate,
     startTime,
     endTime,
     isFullDay,
@@ -6293,6 +6305,12 @@ class $ScheduleEntriesTable extends ScheduleEntries
       );
     } else if (isInserting) {
       context.missing(_dateMeta);
+    }
+    if (data.containsKey('end_date')) {
+      context.handle(
+        _endDateMeta,
+        endDate.isAcceptableOrUnknown(data['end_date']!, _endDateMeta),
+      );
     }
     if (data.containsKey('start_time')) {
       context.handle(
@@ -6415,6 +6433,10 @@ class $ScheduleEntriesTable extends ScheduleEntries
         DriftSqlType.dateTime,
         data['${effectivePrefix}date'],
       )!,
+      endDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}end_date'],
+      ),
       startTime: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}start_time'],
@@ -6483,6 +6505,7 @@ class $ScheduleEntriesTable extends ScheduleEntries
 class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
   final String id;
   final DateTime date;
+  final DateTime? endDate;
   final String startTime;
   final String endTime;
   final bool isFullDay;
@@ -6500,6 +6523,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
   const ScheduleEntry({
     required this.id,
     required this.date,
+    this.endDate,
     required this.startTime,
     required this.endTime,
     required this.isFullDay,
@@ -6520,6 +6544,9 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['date'] = Variable<DateTime>(date);
+    if (!nullToAbsent || endDate != null) {
+      map['end_date'] = Variable<DateTime>(endDate);
+    }
     map['start_time'] = Variable<String>(startTime);
     map['end_time'] = Variable<String>(endTime);
     map['is_full_day'] = Variable<bool>(isFullDay);
@@ -6555,6 +6582,9 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     return ScheduleEntriesCompanion(
       id: Value(id),
       date: Value(date),
+      endDate: endDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endDate),
       startTime: Value(startTime),
       endTime: Value(endTime),
       isFullDay: Value(isFullDay),
@@ -6594,6 +6624,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     return ScheduleEntry(
       id: serializer.fromJson<String>(json['id']),
       date: serializer.fromJson<DateTime>(json['date']),
+      endDate: serializer.fromJson<DateTime?>(json['endDate']),
       startTime: serializer.fromJson<String>(json['startTime']),
       endTime: serializer.fromJson<String>(json['endTime']),
       isFullDay: serializer.fromJson<bool>(json['isFullDay']),
@@ -6618,6 +6649,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'date': serializer.toJson<DateTime>(date),
+      'endDate': serializer.toJson<DateTime?>(endDate),
       'startTime': serializer.toJson<String>(startTime),
       'endTime': serializer.toJson<String>(endTime),
       'isFullDay': serializer.toJson<bool>(isFullDay),
@@ -6638,6 +6670,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
   ScheduleEntry copyWith({
     String? id,
     DateTime? date,
+    Value<DateTime?> endDate = const Value.absent(),
     String? startTime,
     String? endTime,
     bool? isFullDay,
@@ -6655,6 +6688,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
   }) => ScheduleEntry(
     id: id ?? this.id,
     date: date ?? this.date,
+    endDate: endDate.present ? endDate.value : this.endDate,
     startTime: startTime ?? this.startTime,
     endTime: endTime ?? this.endTime,
     isFullDay: isFullDay ?? this.isFullDay,
@@ -6678,6 +6712,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     return ScheduleEntry(
       id: data.id.present ? data.id.value : this.id,
       date: data.date.present ? data.date.value : this.date,
+      endDate: data.endDate.present ? data.endDate.value : this.endDate,
       startTime: data.startTime.present ? data.startTime.value : this.startTime,
       endTime: data.endTime.present ? data.endTime.value : this.endTime,
       isFullDay: data.isFullDay.present ? data.isFullDay.value : this.isFullDay,
@@ -6708,6 +6743,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     return (StringBuffer('ScheduleEntry(')
           ..write('id: $id, ')
           ..write('date: $date, ')
+          ..write('endDate: $endDate, ')
           ..write('startTime: $startTime, ')
           ..write('endTime: $endTime, ')
           ..write('isFullDay: $isFullDay, ')
@@ -6730,6 +6766,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
   int get hashCode => Object.hash(
     id,
     date,
+    endDate,
     startTime,
     endTime,
     isFullDay,
@@ -6751,6 +6788,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       (other is ScheduleEntry &&
           other.id == this.id &&
           other.date == this.date &&
+          other.endDate == this.endDate &&
           other.startTime == this.startTime &&
           other.endTime == this.endTime &&
           other.isFullDay == this.isFullDay &&
@@ -6770,6 +6808,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
 class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
   final Value<String> id;
   final Value<DateTime> date;
+  final Value<DateTime?> endDate;
   final Value<String> startTime;
   final Value<String> endTime;
   final Value<bool> isFullDay;
@@ -6788,6 +6827,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
   const ScheduleEntriesCompanion({
     this.id = const Value.absent(),
     this.date = const Value.absent(),
+    this.endDate = const Value.absent(),
     this.startTime = const Value.absent(),
     this.endTime = const Value.absent(),
     this.isFullDay = const Value.absent(),
@@ -6807,6 +6847,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
   ScheduleEntriesCompanion.insert({
     required String id,
     required DateTime date,
+    this.endDate = const Value.absent(),
     required String startTime,
     required String endTime,
     this.isFullDay = const Value.absent(),
@@ -6831,6 +6872,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
   static Insertable<ScheduleEntry> custom({
     Expression<String>? id,
     Expression<DateTime>? date,
+    Expression<DateTime>? endDate,
     Expression<String>? startTime,
     Expression<String>? endTime,
     Expression<bool>? isFullDay,
@@ -6850,6 +6892,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (date != null) 'date': date,
+      if (endDate != null) 'end_date': endDate,
       if (startTime != null) 'start_time': startTime,
       if (endTime != null) 'end_time': endTime,
       if (isFullDay != null) 'is_full_day': isFullDay,
@@ -6872,6 +6915,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
   ScheduleEntriesCompanion copyWith({
     Value<String>? id,
     Value<DateTime>? date,
+    Value<DateTime?>? endDate,
     Value<String>? startTime,
     Value<String>? endTime,
     Value<bool>? isFullDay,
@@ -6891,6 +6935,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     return ScheduleEntriesCompanion(
       id: id ?? this.id,
       date: date ?? this.date,
+      endDate: endDate ?? this.endDate,
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,
       isFullDay: isFullDay ?? this.isFullDay,
@@ -6917,6 +6962,9 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     }
     if (date.present) {
       map['date'] = Variable<DateTime>(date.value);
+    }
+    if (endDate.present) {
+      map['end_date'] = Variable<DateTime>(endDate.value);
     }
     if (startTime.present) {
       map['start_time'] = Variable<String>(startTime.value);
@@ -6973,6 +7021,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     return (StringBuffer('ScheduleEntriesCompanion(')
           ..write('id: $id, ')
           ..write('date: $date, ')
+          ..write('endDate: $endDate, ')
           ..write('startTime: $startTime, ')
           ..write('endTime: $endTime, ')
           ..write('isFullDay: $isFullDay, ')
@@ -16454,6 +16503,7 @@ typedef $$ScheduleEntriesTableCreateCompanionBuilder =
     ScheduleEntriesCompanion Function({
       required String id,
       required DateTime date,
+      Value<DateTime?> endDate,
       required String startTime,
       required String endTime,
       Value<bool> isFullDay,
@@ -16474,6 +16524,7 @@ typedef $$ScheduleEntriesTableUpdateCompanionBuilder =
     ScheduleEntriesCompanion Function({
       Value<String> id,
       Value<DateTime> date,
+      Value<DateTime?> endDate,
       Value<String> startTime,
       Value<String> endTime,
       Value<bool> isFullDay,
@@ -16619,6 +16670,11 @@ class $$ScheduleEntriesTableFilterComposer
 
   ColumnFilters<DateTime> get date => $composableBuilder(
     column: $table.date,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get endDate => $composableBuilder(
+    column: $table.endDate,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -16809,6 +16865,11 @@ class $$ScheduleEntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get endDate => $composableBuilder(
+    column: $table.endDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get startTime => $composableBuilder(
     column: $table.startTime,
     builder: (column) => ColumnOrderings(column),
@@ -16966,6 +17027,9 @@ class $$ScheduleEntriesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get date =>
       $composableBuilder(column: $table.date, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get endDate =>
+      $composableBuilder(column: $table.endDate, builder: (column) => column);
 
   GeneratedColumn<String> get startTime =>
       $composableBuilder(column: $table.startTime, builder: (column) => column);
@@ -17156,6 +17220,7 @@ class $$ScheduleEntriesTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 Value<DateTime> date = const Value.absent(),
+                Value<DateTime?> endDate = const Value.absent(),
                 Value<String> startTime = const Value.absent(),
                 Value<String> endTime = const Value.absent(),
                 Value<bool> isFullDay = const Value.absent(),
@@ -17174,6 +17239,7 @@ class $$ScheduleEntriesTableTableManager
               }) => ScheduleEntriesCompanion(
                 id: id,
                 date: date,
+                endDate: endDate,
                 startTime: startTime,
                 endTime: endTime,
                 isFullDay: isFullDay,
@@ -17194,6 +17260,7 @@ class $$ScheduleEntriesTableTableManager
               ({
                 required String id,
                 required DateTime date,
+                Value<DateTime?> endDate = const Value.absent(),
                 required String startTime,
                 required String endTime,
                 Value<bool> isFullDay = const Value.absent(),
@@ -17212,6 +17279,7 @@ class $$ScheduleEntriesTableTableManager
               }) => ScheduleEntriesCompanion.insert(
                 id: id,
                 date: date,
+                endDate: endDate,
                 startTime: startTime,
                 endTime: endTime,
                 isFullDay: isFullDay,

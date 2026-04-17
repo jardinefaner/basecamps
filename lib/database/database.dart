@@ -37,7 +37,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 17;
+  int get schemaVersion => 18;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -251,6 +251,15 @@ class AppDatabase extends _$AppDatabase {
               m,
               parentConcernNotes,
               parentConcernNotes.supervisorSignaturePath,
+            );
+          }
+          if (from < 18) {
+            // Multi-day / date-range entries: a schedule entry can now
+            // span several days via the new `end_date` column.
+            await _addColumnIfMissing(
+              m,
+              scheduleEntries,
+              scheduleEntries.endDate,
             );
           }
         },

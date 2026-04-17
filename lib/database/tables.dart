@@ -336,6 +336,11 @@ class ParentConcernNotes extends Table {
 class ScheduleEntries extends Table {
   TextColumn get id => text()();
   DateTimeColumn get date => dateTime()();
+  // Optional end of a multi-day range. When null, the entry applies
+  // only to `date` (original behaviour). When set, the entry applies
+  // to every date in `[date, endDate]` inclusive — used by multi-day
+  // events and notes.
+  DateTimeColumn get endDate => dateTime().nullable()();
   TextColumn get startTime => text()();
   TextColumn get endTime => text()();
   BoolColumn get isFullDay => boolean().withDefault(const Constant(false))();

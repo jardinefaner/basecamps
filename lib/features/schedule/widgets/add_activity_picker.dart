@@ -37,9 +37,10 @@ class AddActivityPicker extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           _PickerCard(
             icon: Icons.event_outlined,
-            title: 'Full-day event',
+            title: 'Event or multi-day note',
             description:
-                'Specific date, no times — e.g. field trip, staff day, closure.',
+                'Single date or a range — field trip, closure, spring '
+                'break, ongoing note.',
             onTap: () => _openFullDay(context),
           ),
         ],

@@ -10,9 +10,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-/// Wizard for a one-off full-day event (field trip, staff day,
-/// closure). Creates a ScheduleEntry with `isFullDay: true` bound to
-/// a single date.
+/// Wizard for a one-off event — a single all-day date (field trip,
+/// staff day, closure) or a range that spans several days (summer
+/// break, spirit week, ongoing note). Writes a single ScheduleEntry
+/// with `isFullDay: true`; when an end date is set the entry applies
+/// to every day in `[date, endDate]`.
 class NewFullDayEventWizardScreen extends ConsumerStatefulWidget {
   const NewFullDayEventWizardScreen({this.initialDate, super.key});
 
@@ -30,6 +32,7 @@ class _NewFullDayEventWizardScreenState
   final _notes = TextEditingController();
 
   late DateTime _date = widget.initialDate ?? DateTime.now();
+  DateTime? _endDate;
   final Set<String> _podIds = <String>{};
   bool _allPods = true;
   String? _specialistId;
@@ -44,6 +47,7 @@ class _NewFullDayEventWizardScreenState
       _notes.text.trim().isNotEmpty ||
       _podIds.isNotEmpty ||
       _specialistId != null ||
+      _endDate != null ||
       _fromLibrary != null;
 
   bool get _page1Valid => _title.text.trim().isNotEmpty;
@@ -63,7 +67,26 @@ class _NewFullDayEventWizardScreenState
       firstDate: DateTime.now().subtract(const Duration(days: 30)),
       lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
     );
-    if (picked != null && mounted) setState(() => _date = picked);
+    if (picked != null && mounted) {
+      setState(() {
+        _date = picked;
+        // Keep the range valid — if the existing end is now before the
+        // new start, drop it.
+        if (_endDate != null && _endDate!.isBefore(picked)) {
+          _endDate = null;
+        }
+      });
+    }
+  }
+
+  Future<void> _pickEndDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate ?? _date,
+      firstDate: _date,
+      lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+    );
+    if (picked != null && mounted) setState(() => _endDate = picked);
   }
 
   Future<void> _submit() async {
@@ -71,6 +94,7 @@ class _NewFullDayEventWizardScreenState
     final notes = _notes.text.trim();
     await ref.read(scheduleRepositoryProvider).addOneOffEntry(
           date: _date,
+          endDate: _endDate,
           startTime: '00:00',
           endTime: '23:59',
           isFullDay: true,
@@ -87,14 +111,17 @@ class _NewFullDayEventWizardScreenState
   @override
   Widget build(BuildContext context) {
     return StepWizardScaffold(
-      title: 'Full-day event',
+      title: 'Event or note',
       dirty: _dirty,
-      finalActionLabel: 'Add event',
+      finalActionLabel: _endDate == null
+          ? 'Add event'
+          : 'Add across ${_daysInRange()} days',
       onFinalAction: _submit,
       steps: [
         WizardStep(
           headline: 'What is it, and when?',
-          subtitle: 'Name the event and pick its date.',
+          subtitle: 'Name it and pick a date. Add an end date to span '
+              'several days.',
           canProceed: _page1Valid,
           content: _buildTitlePage(),
         ),
@@ -118,7 +145,6 @@ class _NewFullDayEventWizardScreenState
 
   Widget _buildTitlePage() {
     final theme = Theme.of(context);
-    final dateLabel = DateFormat.yMMMMEEEEd().format(_date);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -177,37 +203,46 @@ class _NewFullDayEventWizardScreenState
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: AppSpacing.xl),
-        Text('Date', style: theme.textTheme.titleSmall),
+        Text(
+          _endDate == null ? 'Date' : 'Dates',
+          style: theme.textTheme.titleSmall,
+        ),
         const SizedBox(height: AppSpacing.sm),
-        InkWell(
-          borderRadius: BorderRadius.circular(10),
+        _DateTile(
+          label: _endDate == null ? 'On' : 'Starts',
+          value: _date,
+          icon: Icons.event_outlined,
           onTap: _pickDate,
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.md,
-            ),
-            decoration: BoxDecoration(
-              border: Border.all(color: theme.colorScheme.outlineVariant),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.event_outlined,
-                  size: 18,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Text(dateLabel, style: theme.textTheme.bodyMedium),
-                ),
-              ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        _DateTile(
+          label: 'Ends (optional)',
+          value: _endDate,
+          placeholder: 'Same day',
+          icon: Icons.event_available_outlined,
+          onTap: _pickEndDate,
+          onClear: _endDate == null
+              ? null
+              : () => setState(() => _endDate = null),
+        ),
+        if (_endDate != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Spans ${_daysInRange()} days.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.primary,
             ),
           ),
-        ),
+        ],
       ],
     );
+  }
+
+  int _daysInRange() {
+    if (_endDate == null) return 1;
+    final start = DateTime(_date.year, _date.month, _date.day);
+    final end = DateTime(_endDate!.year, _endDate!.month, _endDate!.day);
+    return end.difference(start).inDays + 1;
   }
 
   Widget _buildPodsPage() {
@@ -330,6 +365,85 @@ class _LibraryChipRow extends ConsumerWidget {
         );
       },
       orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
+/// Outlined tap tile for picking a date — mirrors the other tiles in
+/// the app's form surfaces. `onClear` shows an X when provided.
+class _DateTile extends StatelessWidget {
+  const _DateTile({
+    required this.label,
+    required this.value,
+    required this.onTap,
+    required this.icon,
+    this.placeholder = 'Pick a date',
+    this.onClear,
+  });
+
+  final String label;
+  final DateTime? value;
+  final VoidCallback onTap;
+  final IconData icon;
+  final String placeholder;
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final displayLabel = value == null
+        ? placeholder
+        : DateFormat.yMMMMEEEEd().format(value!);
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.md,
+        ),
+        decoration: BoxDecoration(
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  Text(
+                    displayLabel,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: value == null
+                          ? theme.colorScheme.onSurfaceVariant
+                          : theme.colorScheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (onClear != null)
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                iconSize: 18,
+                tooltip: 'Clear',
+                icon: const Icon(Icons.close),
+                onPressed: onClear,
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

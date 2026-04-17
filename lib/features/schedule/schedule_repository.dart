@@ -19,6 +19,8 @@ class ScheduleItem {
     required this.isFromTemplate,
     required this.podIds,
     required this.date,
+    this.rangeStart,
+    this.rangeEnd,
     this.specialistId,
     this.location,
     this.notes,
@@ -44,6 +46,15 @@ class ScheduleItem {
   /// specific slots, so tap handlers can tell "Art on April 21" from
   /// "Art on April 23" when the same template produces both.
   final DateTime date;
+
+  /// For multi-day entries: the entry's original start / end dates.
+  /// Both null for templates and for single-day entries. When set the
+  /// detail sheet shows a "spans N days" pill and the delete flow
+  /// warns that removing the row drops every day in the range.
+  final DateTime? rangeStart;
+  final DateTime? rangeEnd;
+
+  bool get isMultiDay => rangeEnd != null && rangeStart != null;
 
   bool get isOneOff => !isFromTemplate;
   bool get isAllPods => podIds.isEmpty;
@@ -287,16 +298,25 @@ class ScheduleRepository {
     required String title,
     List<String> podIds = const [],
     bool isFullDay = false,
+    DateTime? endDate,
     String? specialistId,
     String? location,
     String? notes,
   }) async {
     final id = newId();
+    // Normalize bounds so the range is always [start, end] with
+    // date-only values — upstream callers are careless about time-of-day.
+    final start = _dayOnly(date);
+    final normalizedEnd = endDate == null ? null : _dayOnly(endDate);
+    final end = (normalizedEnd != null && normalizedEnd.isBefore(start))
+        ? null
+        : normalizedEnd;
     await _db.transaction(() async {
       await _db.into(_db.scheduleEntries).insert(
             ScheduleEntriesCompanion.insert(
               id: id,
-              date: _dayOnly(date),
+              date: start,
+              endDate: Value(end),
               startTime: startTime,
               endTime: endTime,
               isFullDay: Value(isFullDay),
@@ -356,11 +376,17 @@ class ScheduleRepository {
     final nextMonday = monday.add(const Duration(days: 7));
 
     final templatesStream = _db.select(_db.scheduleTemplates).watch();
+    // Entries can span a range — include any row whose [date, endDate]
+    // touches this week, not just ones whose start date falls inside.
+    // An entry with no endDate is treated as a single-day match.
     final entriesStream = (_db.select(_db.scheduleEntries)
           ..where(
             (e) =>
-                e.date.isBiggerOrEqualValue(monday) &
-                e.date.isSmallerThanValue(nextMonday),
+                e.date.isSmallerThanValue(nextMonday) &
+                ((e.endDate.isNull() &
+                        e.date.isBiggerOrEqualValue(monday)) |
+                    (e.endDate.isNotNull() &
+                        e.endDate.isBiggerOrEqualValue(monday))),
           ))
         .watch();
 
@@ -400,11 +426,8 @@ class ScheduleRepository {
               return true;
             }).toList();
 
-            final dayEntries = e.where((en) {
-              return en.date.year == date.year &&
-                  en.date.month == date.month &&
-                  en.date.day == date.day;
-            }).toList();
+            final dayEntries = e.where((en) => _entryCoversDate(en, date))
+                .toList();
 
             result[dayOfWeek] = _merge(
               date: date,
@@ -447,11 +470,17 @@ class ScheduleRepository {
     final templatesStream = (_db.select(_db.scheduleTemplates)
           ..where((t) => t.dayOfWeek.equals(dayOfWeek)))
         .watch();
+    // Include any entry whose [date, endDate] overlaps `day`. Single-
+    // day entries (endDate null) match when date == day; multi-day
+    // entries match when date <= day <= endDate.
     final entriesStream = (_db.select(_db.scheduleEntries)
           ..where(
             (e) =>
-                e.date.isBiggerOrEqualValue(day) &
-                e.date.isSmallerThanValue(nextDay),
+                e.date.isSmallerThanValue(nextDay) &
+                ((e.endDate.isNull() &
+                        e.date.isBiggerOrEqualValue(day)) |
+                    (e.endDate.isNotNull() &
+                        e.endDate.isBiggerOrEqualValue(day))),
           ))
         .watch();
 
@@ -509,6 +538,21 @@ class ScheduleRepository {
         await sub2.cancel();
       };
     });
+  }
+
+  /// True when an entry's date span covers [day]. Single-day entries
+  /// (endDate null) match only when their start date equals [day];
+  /// multi-day entries match any day in [date, endDate] inclusive.
+  bool _entryCoversDate(ScheduleEntry e, DateTime day) {
+    final target = _dayOnly(day);
+    final start = _dayOnly(e.date);
+    if (start.isAfter(target)) return false;
+    final end = e.endDate;
+    if (end == null) {
+      return start.isAtSameMomentAs(target);
+    }
+    final endOnly = _dayOnly(end);
+    return !endOnly.isBefore(target);
   }
 
   List<ScheduleItem> _merge({
@@ -574,10 +618,13 @@ class ScheduleRepository {
 
     for (final e in entries) {
       if (e.kind == 'addition') {
+        final isMulti = e.endDate != null;
         items.add(
           ScheduleItem(
             id: e.id,
             date: date,
+            rangeStart: isMulti ? _dayOnly(e.date) : null,
+            rangeEnd: isMulti ? _dayOnly(e.endDate!) : null,
             startTime: e.startTime,
             endTime: e.endTime,
             isFullDay: e.isFullDay,
