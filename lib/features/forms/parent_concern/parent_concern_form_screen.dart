@@ -31,7 +31,7 @@ enum ConcernFormPresentation { wizard, scroll }
 /// Pass [noteId] to edit an existing row; leave null to start fresh.
 /// [presentation] defaults to [ConcernFormPresentation.scroll] —
 /// creation sites explicitly pass `wizard` so the new-note flow
-/// mirrors the new-activity / new-kid wizards.
+/// mirrors the new-activity / new-child wizards.
 class ParentConcernFormScreen extends ConsumerStatefulWidget {
   const ParentConcernFormScreen({
     this.noteId,
@@ -68,7 +68,7 @@ class _ParentConcernFormScreenState
   /// Children selected via the avatar picker. Combined with
   /// [_childNamesExtra] on save — picker names come first, extras are
   /// appended comma-separated.
-  final List<String> _selectedKidIds = [];
+  final List<String> _selectedChildIds = [];
 
   /// Specialist picker values — null when staff typed a name by hand
   /// instead of picking from the list.
@@ -91,7 +91,7 @@ class _ParentConcernFormScreenState
   /// to diff explicitly — we track it imperatively with listeners
   /// on the controllers (added in [initState] after load) and flip
   /// it on every non-text `setState` that mutates [_input] or the
-  /// kid / specialist picker state.
+  /// child / specialist picker state.
   bool _dirty = false;
 
   List<TextEditingController> get _allControllers => [
@@ -155,7 +155,7 @@ class _ParentConcernFormScreenState
     if (!mounted) return;
     final fromRow = ParentConcernInput.fromRow(note, childIds: childIds);
     setState(() {
-      _selectedKidIds
+      _selectedChildIds
         ..clear()
         ..addAll(fromRow.childIds);
       _childNamesExtra.text = fromRow.childNames;
@@ -208,14 +208,14 @@ class _ParentConcernFormScreenState
     super.dispose();
   }
 
-  // ---- kid / parent sync ----
+  // ---- child / parent sync ----
 
-  /// Combine selected kid names (in picker order) with anything the
+  /// Combine selected child names (in picker order) with anything the
   /// teacher typed into the extras field, for the serialized column.
   String _composeChildNames() {
     final kidsState = ref.read(childrenProvider).asData?.value ?? const <Child>[];
     final selectedNames = <String>[
-      for (final id in _selectedKidIds)
+      for (final id in _selectedChildIds)
         if (kidsState.any((k) => k.id == id))
           _nameOf(kidsState.firstWhere((k) => k.id == id))
         else
@@ -258,13 +258,13 @@ class _ParentConcernFormScreenState
     return out.isEmpty ? null : out;
   }
 
-  String _nameOf(Child kid) {
-    final last = kid.lastName;
-    if (last == null || last.isEmpty) return kid.firstName;
-    return '${kid.firstName} ${last[0]}.';
+  String _nameOf(Child child) {
+    final last = child.lastName;
+    if (last == null || last.isEmpty) return child.firstName;
+    return '${child.firstName} ${last[0]}.';
   }
 
-  /// Pulls every selected kid's parent_name, dedupes, joins. If the
+  /// Pulls every selected child's parent_name, dedupes, joins. If the
   /// teacher hasn't hand-edited the parent field (its current text
   /// matches what we last wrote), we overwrite; otherwise we leave
   /// their edit alone.
@@ -272,8 +272,8 @@ class _ParentConcernFormScreenState
     final kidsState = ref.read(childrenProvider).asData?.value ?? const <Child>[];
     final parents = <String>{};
     for (final id in selectedIds) {
-      final kid = kidsState.where((k) => k.id == id).firstOrNull;
-      final pn = kid?.parentName?.trim();
+      final child = kidsState.where((k) => k.id == id).firstOrNull;
+      final pn = child?.parentName?.trim();
       if (pn != null && pn.isNotEmpty) parents.add(pn);
     }
     final next = parents.join(', ');
@@ -292,7 +292,7 @@ class _ParentConcernFormScreenState
   void _syncControllersToInput() {
     _input
       ..childNames = _composeChildNames()
-      ..childIds = List<String>.from(_selectedKidIds)
+      ..childIds = List<String>.from(_selectedChildIds)
       ..parentName = _parentName.text.trim()
       ..staffReceiving = _composeStaff()
       ..supervisorNotified = _composeSupervisor()
@@ -522,10 +522,10 @@ class _ParentConcernFormScreenState
           Text('Child / children', style: theme.textTheme.titleSmall),
           const SizedBox(height: AppSpacing.sm),
           ChildChipPicker(
-            selectedIds: _selectedKidIds,
+            selectedIds: _selectedChildIds,
             onChanged: (ids) {
               _mutate(() {
-                _selectedKidIds
+                _selectedChildIds
                   ..clear()
                   ..addAll(ids);
               });
@@ -541,7 +541,7 @@ class _ParentConcernFormScreenState
           AppTextField(
             controller: _parentName,
             label: 'Parent or guardian',
-            hint: _selectedKidIds.isEmpty
+            hint: _selectedChildIds.isEmpty
                 ? 'Their name'
                 : 'Auto-filled from child record — edit if needed',
           ),

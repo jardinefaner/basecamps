@@ -125,7 +125,7 @@ class _Body extends ConsumerWidget {
     final concerns =
         ref.watch(todayConcernNotesProvider).asData?.value ??
             const <ParentConcernNote>[];
-    final concernKidLinks =
+    final concernChildLinks =
         ref.watch(concernKidLinksProvider).asData?.value ??
             const <String, Set<String>>{};
     final allKids =
@@ -165,17 +165,17 @@ class _Body extends ConsumerWidget {
       for (final i in items)
         if (i.specialistId != null) i.specialistId!,
     };
-    final kidsInActivityPods = <String>{};
+    final childrenInActivityGroups = <String>{};
     for (final i in items) {
-      // An "all pods" activity pulls in every kid; a pod-scoped one
-      // pulls in just that pod's kids; an intentionally pod-less
+      // An "all groups" activity pulls in every child; a group-scoped one
+      // pulls in just that group's children; an intentionally group-less
       // activity (staff prep etc.) pulls in nobody.
       if (i.isNoGroups) continue;
-      for (final kid in allKids) {
+      for (final child in allKids) {
         if (i.isAllGroups) {
-          kidsInActivityPods.add(kid.id);
-        } else if (kid.groupId != null && i.groupIds.contains(kid.groupId)) {
-          kidsInActivityPods.add(kid.id);
+          childrenInActivityGroups.add(child.id);
+        } else if (child.groupId != null && i.groupIds.contains(child.groupId)) {
+          childrenInActivityGroups.add(child.id);
         }
       }
     }
@@ -237,16 +237,16 @@ class _Body extends ConsumerWidget {
           item.isNoGroups) {
         return null;
       }
-      final podKidIds = <String>{
+      final groupChildIds = <String>{
         for (final k in allKids)
           if (k.groupId != null && item.groupIds.contains(k.groupId)) k.id,
       };
-      if (podKidIds.isEmpty) return null;
+      if (groupChildIds.isEmpty) return null;
       // Newest first — `concerns` is already sorted by updatedAt desc.
       for (final c in concerns) {
-        final linked = concernKidLinks[c.id];
+        final linked = concernChildLinks[c.id];
         if (linked == null || linked.isEmpty) continue;
-        if (linked.any(podKidIds.contains)) {
+        if (linked.any(groupChildIds.contains)) {
           return ConcernMatch(
             id: c.id,
             preview: _concernPreview(c),
@@ -269,7 +269,7 @@ class _Body extends ConsumerWidget {
         const SizedBox(height: AppSpacing.sm),
         DaySummaryStrip(
           activities: items.length,
-          kids: kidsInActivityPods.length,
+          children: childrenInActivityGroups.length,
           specialists: uniqueSpecialists.length,
           concerns: concerns.length,
           pendingObs: pendingObs,

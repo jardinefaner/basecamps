@@ -37,9 +37,9 @@ class ScheduleItem {
   final List<String> groupIds;
 
   /// True when the teacher meant "this is for everyone"; false when
-  /// they either picked specific pods or explicitly picked none (staff
+  /// they either picked specific groups or explicitly picked none (staff
   /// prep, etc). Only meaningful when [groupIds] is empty — non-empty
-  /// always narrows to those pods regardless.
+  /// always narrows to those groups regardless.
   final bool allGroups;
   final String? specialistId;
   final String? location;
@@ -65,12 +65,12 @@ class ScheduleItem {
 
   bool get isOneOff => !isFromTemplate;
 
-  /// Resolved audience flag. When specific pods are picked those take
-  /// precedence; otherwise respect the explicit "all pods" choice.
+  /// Resolved audience flag. When specific groups are picked those take
+  /// precedence; otherwise respect the explicit "all groups" choice.
   bool get isAllGroups => groupIds.isEmpty && allGroups;
 
-  /// Intentionally empty audience — the teacher picked no pods and
-  /// turned off "All pods". Used by readers to show "no kids" instead
+  /// Intentionally empty audience — the teacher picked no groups and
+  /// turned off "All groups". Used by readers to show "no children" instead
   /// of falling back to everyone.
   bool get isNoGroups => groupIds.isEmpty && !allGroups;
 
@@ -128,14 +128,14 @@ class ScheduleRepository {
         .getSingleOrNull();
   }
 
-  /// Stream of all templates mapped to [ScheduleItem]s (with their pod ids
+  /// Stream of all templates mapped to [ScheduleItem]s (with their group ids
   /// resolved) grouped by weekday. Used by the editor for display and for
   /// conflict detection.
   Stream<Map<int, List<ScheduleItem>>> watchTemplateItemsByDay() {
     return watchTemplates().asyncMap((templates) async {
       final byDay = <int, List<ScheduleItem>>{};
       for (final t in templates) {
-        final pods = await podsForTemplate(t.id);
+        final groups = await podsForTemplate(t.id);
         // Date is meaningless for the weekly-template view — callers
         // that care about concrete dates use `watchScheduleForWeek` or
         // `watchScheduleForDate`. Sentinel keeps the field non-null.
@@ -146,7 +146,7 @@ class ScheduleRepository {
           endTime: t.endTime,
           isFullDay: t.isFullDay,
           title: t.title,
-          groupIds: pods,
+          groupIds: groups,
           allGroups: t.allGroups,
           specialistId: t.specialistId,
           location: t.location,
@@ -332,7 +332,7 @@ class ScheduleRepository {
   }
 
   /// Duplicates all templates from [sourceDay] into each of [targetDays].
-  /// Copies pod assignments. Returns the count of templates copied per day
+  /// Copies group assignments. Returns the count of templates copied per day
   /// (same count for every target day).
   Future<int> copyDayTemplates({
     required int sourceDay,
@@ -427,7 +427,7 @@ class ScheduleRepository {
 
   /// Shifts a template's start/end times just for [date] by inserting
   /// an `override` schedule entry. The override carries every other
-  /// field forward unchanged (pods, specialist, location, notes,
+  /// field forward unchanged (groups, specialist, location, notes,
   /// isFullDay), so readers that see the merged schedule get a single
   /// row with the new times and the same audience.
   ///

@@ -9,7 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// The "right now" hero that dominates the Today screen. Shows the
 /// current activity title, a thin progress bar of time elapsed, a
-/// countdown to the end, specialist + location, pod-scoped kids as
+/// countdown to the end, specialist + location, group-scoped children as
 /// avatars, and a primary Capture button that jumps into Observe
 /// (which auto-tags to whatever's current).
 ///
@@ -55,16 +55,16 @@ class HeroNowCard extends ConsumerWidget {
         ? null
         : ref.watch(specialistProvider(specialistId)).asData?.value;
     final allKids = ref.watch(childrenProvider).asData?.value ?? const <Child>[];
-    // Respect the new three-state audience: "all pods" (everyone),
-    // specific pods (filter by those), or no pods (teacher explicitly
-    // chose no kids — show an empty list).
-    final List<Child> podKids;
+    // Respect the new three-state audience: "all groups" (everyone),
+    // specific groups (filter by those), or no groups (teacher explicitly
+    // chose no children — show an empty list).
+    final List<Child> groupChildren;
     if (item.isAllGroups) {
-      podKids = allKids;
+      groupChildren = allKids;
     } else if (item.isNoGroups) {
-      podKids = const [];
+      groupChildren = const [];
     } else {
-      podKids = allKids
+      groupChildren = allKids
           .where((k) => k.groupId != null && item.groupIds.contains(k.groupId))
           .toList();
     }
@@ -183,9 +183,9 @@ class HeroNowCard extends ConsumerWidget {
                 ],
               ),
             ],
-            if (podKids.isNotEmpty) ...[
+            if (groupChildren.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.md),
-              _KidsRow(kids: podKids),
+              _ChildrenRow(children: groupChildren),
             ],
             if (attendance != null) ...[
               const SizedBox(height: AppSpacing.md),
@@ -334,22 +334,22 @@ class _HeroAttendanceStrip extends StatelessWidget {
   }
 }
 
-class _KidsRow extends StatelessWidget {
-  const _KidsRow({required this.kids});
+class _ChildrenRow extends StatelessWidget {
+  const _ChildrenRow({required this.children});
 
-  final List<Child> kids;
+  final List<Child> children;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     const maxVisible = 6;
-    final visible = kids.take(maxVisible).toList();
-    final overflow = kids.length - visible.length;
+    final visible = children.take(maxVisible).toList();
+    final overflow = children.length - visible.length;
 
     return Row(
       children: [
         for (final k in visible) ...[
-          _KidInitial(kid: k),
+          _ChildInitial(child: k),
           const SizedBox(width: 6),
         ],
         if (overflow > 0)
@@ -373,7 +373,7 @@ class _KidsRow extends StatelessWidget {
         const SizedBox(width: AppSpacing.sm),
         Flexible(
           child: Text(
-            kids.length == 1 ? '1 child' : '${kids.length} children',
+            children.length == 1 ? '1 child' : '${children.length} children',
             style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -384,17 +384,17 @@ class _KidsRow extends StatelessWidget {
   }
 }
 
-class _KidInitial extends StatelessWidget {
-  const _KidInitial({required this.kid});
+class _ChildInitial extends StatelessWidget {
+  const _ChildInitial({required this.child});
 
-  final Child kid;
+  final Child child;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final initial = kid.firstName.isEmpty
+    final initial = child.firstName.isEmpty
         ? '?'
-        : kid.firstName.characters.first.toUpperCase();
+        : child.firstName.characters.first.toUpperCase();
     return Container(
       width: 26,
       height: 26,

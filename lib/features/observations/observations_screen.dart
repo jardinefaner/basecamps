@@ -129,44 +129,64 @@ class _ObservationsScreenState extends ConsumerState<ObservationsScreen> {
         if (_selecting) _clearSelection();
       },
       child: Scaffold(
-        appBar: _selecting ? _buildSelectionAppBar(theme) : _buildAppBar(),
+        // Selection AppBar stays pinned — destructive mode.
+        appBar: _selecting ? _buildSelectionAppBar(theme) : null,
         body: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                AppSpacing.sm,
-                AppSpacing.lg,
-                AppSpacing.sm,
-              ),
-              child: SegmentedButton<_ObserveFilter>(
-                segments: const [
-                  ButtonSegment(
-                    value: _ObserveFilter.all,
-                    label: Text('All'),
-                    icon: Icon(Icons.view_agenda_outlined),
-                  ),
-                  ButtonSegment(
-                    value: _ObserveFilter.notes,
-                    label: Text('Notes'),
-                    icon: Icon(Icons.notes_outlined),
-                  ),
-                  ButtonSegment(
-                    value: _ObserveFilter.media,
-                    label: Text('Media'),
-                    icon: Icon(Icons.photo_library_outlined),
-                  ),
+            Expanded(
+              child: NestedScrollView(
+                headerSliverBuilder: (ctx, innerBoxIsScrolled) => [
+                  if (!_selecting)
+                    SliverAppBar(
+                      title: const Text('Observe'),
+                      floating: true,
+                      snap: true,
+                      forceElevated: innerBoxIsScrolled,
+                      // Filter strip clamped to the AppBar — hides and
+                      // shows with it, so scrolling gets maximum
+                      // vertical room for the feed.
+                      bottom: PreferredSize(
+                        preferredSize: const Size.fromHeight(56),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                            AppSpacing.lg,
+                            0,
+                            AppSpacing.lg,
+                            AppSpacing.sm,
+                          ),
+                          child: SegmentedButton<_ObserveFilter>(
+                            segments: const [
+                              ButtonSegment(
+                                value: _ObserveFilter.all,
+                                label: Text('All'),
+                                icon: Icon(Icons.view_agenda_outlined),
+                              ),
+                              ButtonSegment(
+                                value: _ObserveFilter.notes,
+                                label: Text('Notes'),
+                                icon: Icon(Icons.notes_outlined),
+                              ),
+                              ButtonSegment(
+                                value: _ObserveFilter.media,
+                                label: Text('Media'),
+                                icon: Icon(Icons.photo_library_outlined),
+                              ),
+                            ],
+                            selected: {_filter},
+                            onSelectionChanged: (s) => setState(() {
+                              _filter = s.first;
+                              _selectedObservationIds.clear();
+                              _selectedAttachmentIds.clear();
+                            }),
+                            showSelectedIcon: false,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
-                selected: {_filter},
-                onSelectionChanged: (s) => setState(() {
-                  _filter = s.first;
-                  _selectedObservationIds.clear();
-                  _selectedAttachmentIds.clear();
-                }),
-                showSelectedIcon: false,
+                body: _body(),
               ),
             ),
-            Expanded(child: _body()),
             // Composer is hidden in Media mode (view-only gallery) AND
             // while bulk-selecting anywhere — no room for it, and
             // sending wouldn't clear the selection anyway.
@@ -176,10 +196,6 @@ class _ObservationsScreenState extends ConsumerState<ObservationsScreen> {
         ),
       ),
     );
-  }
-
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(title: const Text('Observe'));
   }
 
   PreferredSizeWidget _buildSelectionAppBar(ThemeData theme) {

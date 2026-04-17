@@ -15,44 +15,65 @@ class ChildrenScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final podsAsync = ref.watch(groupsProvider);
-    final kidsAsync = ref.watch(childrenProvider);
+    final groupsAsync = ref.watch(groupsProvider);
+    final childrenAsync = ref.watch(childrenProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Children'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.group_add_outlined),
-            tooltip: 'Add group',
-            onPressed: () => _openAddPod(context),
-          ),
-          const SizedBox(width: AppSpacing.xs),
-        ],
-      ),
-      floatingActionButton: podsAsync.maybeWhen(
-        data: (pods) => pods.isEmpty
+      floatingActionButton: groupsAsync.maybeWhen(
+        data: (groups) => groups.isEmpty
             ? null
             : FloatingActionButton.extended(
-                onPressed: () => _openAddKid(context, pods: pods),
+                onPressed: () => _openAddChild(context, groups: groups),
                 icon: const Icon(Icons.person_add_outlined),
                 label: const Text('Add child'),
               ),
         orElse: () => null,
       ),
-      body: podsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => Center(child: Text('Error: $err')),
-        data: (pods) => kidsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (err, _) => Center(child: Text('Error: $err')),
-          data: (kids) => _KidsBody(pods: pods, kids: kids),
-        ),
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            title: const Text('Children'),
+            floating: true,
+            snap: true,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.group_add_outlined),
+                tooltip: 'Add group',
+                onPressed: () => _openAddGroup(context),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+            ],
+          ),
+          groupsAsync.when(
+            loading: () => const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (err, _) => SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: Text('Error: $err')),
+            ),
+            data: (groups) => childrenAsync.when(
+              loading: () => const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (err, _) => SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: Text('Error: $err')),
+              ),
+              data: (children) => _ChildrenBody(
+                groups: groups,
+                children: children,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Future<void> _openAddPod(BuildContext context) async {
+  Future<void> _openAddGroup(BuildContext context) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         fullscreenDialog: true,
@@ -61,96 +82,98 @@ class ChildrenScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _openAddKid(
+  Future<void> _openAddChild(
     BuildContext context, {
-    required List<Group> pods,
+    required List<Group> groups,
   }) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => NewChildWizardScreen(pods: pods),
+        builder: (_) => NewChildWizardScreen(groups: groups),
       ),
     );
   }
 }
 
-class _KidsBody extends StatelessWidget {
-  const _KidsBody({required this.pods, required this.kids});
+class _ChildrenBody extends StatelessWidget {
+  const _ChildrenBody({required this.groups, required this.children});
 
-  final List<Group> pods;
-  final List<Child> kids;
+  final List<Group> groups;
+  final List<Child> children;
 
   @override
   Widget build(BuildContext context) {
-    if (pods.isEmpty) {
-      return const _EmptyState();
+    if (groups.isEmpty) {
+      return const SliverFillRemaining(
+        hasScrollBody: false,
+        child: _EmptyState(),
+      );
     }
 
-    final kidsByPod = <String?, List<Child>>{};
-    for (final kid in kids) {
-      kidsByPod.putIfAbsent(kid.groupId, () => []).add(kid);
+    final childrenByGroup = <String?, List<Child>>{};
+    for (final child in children) {
+      childrenByGroup.putIfAbsent(child.groupId, () => []).add(child);
     }
-    final unassigned = kidsByPod[null] ?? const <Child>[];
+    final unassigned = childrenByGroup[null] ?? const <Child>[];
 
-    return ListView(
+    return SliverPadding(
       padding: const EdgeInsets.only(
         top: AppSpacing.sm,
         bottom: AppSpacing.xxxl * 2,
       ),
-      children: [
-        for (final pod in pods)
-          _PodSection(
-            pod: pod,
-            kids: kidsByPod[pod.id] ?? const [],
-          ),
-        if (unassigned.isNotEmpty)
-          _PodSection(
-            pod: null,
-            kids: unassigned,
-          ),
-      ],
+      sliver: SliverList(
+        delegate: SliverChildListDelegate([
+          for (final group in groups)
+            _GroupSection(
+              group: group,
+              children: childrenByGroup[group.id] ?? const [],
+            ),
+          if (unassigned.isNotEmpty)
+            _GroupSection(group: null, children: unassigned),
+        ]),
+      ),
     );
   }
 }
 
-class _PodSection extends ConsumerWidget {
-  const _PodSection({required this.pod, required this.kids});
+class _GroupSection extends ConsumerWidget {
+  const _GroupSection({required this.group, required this.children});
 
-  final Group? pod;
-  final List<Child> kids;
+  final Group? group;
+  final List<Child> children;
 
   Future<void> _openEdit(BuildContext context) async {
-    final current = pod;
+    final current = group;
     if (current == null) return;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => EditGroupSheet(pod: current),
+      builder: (_) => EditGroupSheet(group: current),
     );
   }
 
-  Future<void> _moveKidHere(WidgetRef ref, Child kid) async {
-    // Idempotent: dropping a kid back on their own pod does nothing.
-    if (kid.groupId == pod?.id) return;
-    await ref.read(childrenRepositoryProvider).updateKidPod(
-          childId: kid.id,
-          groupId: pod?.id,
+  Future<void> _moveChildHere(WidgetRef ref, Child child) async {
+    // Idempotent: dropping a child back on their own group does nothing.
+    if (child.groupId == group?.id) return;
+    await ref.read(childrenRepositoryProvider).updateChildGroup(
+          childId: child.id,
+          groupId: group?.id,
         );
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final title = pod?.name ?? 'Unassigned';
-    final swatch = podColorFromHex(pod?.colorHex);
+    final title = group?.name ?? 'Unassigned';
+    final swatch = groupColorFromHex(group?.colorHex);
 
     return DragTarget<Child>(
-      // Only accept kids that would actually move — prevents the
+      // Only accept children that would actually move — prevents the
       // highlight from turning on when you drag a Redbird onto the
       // Redbirds section.
-      onWillAcceptWithDetails: (d) => d.data.groupId != pod?.id,
-      onAcceptWithDetails: (d) => _moveKidHere(ref, d.data),
+      onWillAcceptWithDetails: (d) => d.data.groupId != group?.id,
+      onAcceptWithDetails: (d) => _moveChildHere(ref, d.data),
       builder: (context, candidates, _) {
         final hovering = candidates.isNotEmpty;
         return AnimatedContainer(
@@ -182,7 +205,7 @@ class _PodSection extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               InkWell(
-                onTap: pod == null ? null : () => _openEdit(context),
+                onTap: group == null ? null : () => _openEdit(context),
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -208,12 +231,12 @@ class _PodSection extends ConsumerWidget {
                       ),
                       const SizedBox(width: AppSpacing.sm),
                       Text(
-                        '${kids.length}',
+                        '${children.length}',
                         style: theme.textTheme.labelMedium?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
-                      if (pod != null) ...[
+                      if (group != null) ...[
                         const SizedBox(width: AppSpacing.xs),
                         Icon(
                           Icons.edit_outlined,
@@ -236,7 +259,7 @@ class _PodSection extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: AppSpacing.xs),
-              if (kids.isEmpty)
+              if (children.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.xs,
@@ -256,12 +279,12 @@ class _PodSection extends ConsumerWidget {
               else
                 Column(
                   children: [
-                    for (final kid in kids)
+                    for (final child in children)
                       Padding(
                         padding: const EdgeInsets.only(
                           bottom: AppSpacing.sm,
                         ),
-                        child: _DraggableKidTile(kid: kid),
+                        child: _DraggableChildTile(child: child),
                       ),
                   ],
                 ),
@@ -273,22 +296,22 @@ class _PodSection extends ConsumerWidget {
   }
 }
 
-/// Long-press to pick up, drag onto any pod section to reassign.
+/// Long-press to pick up, drag onto any group section to reassign.
 /// We don't render a grip handle — the drag affordance is the
 /// long-press itself, which keeps the list visually calm.
-class _DraggableKidTile extends StatelessWidget {
-  const _DraggableKidTile({required this.kid});
+class _DraggableChildTile extends StatelessWidget {
+  const _DraggableChildTile({required this.child});
 
-  final Child kid;
+  final Child child;
 
   @override
   Widget build(BuildContext context) {
     final tile = ChildTile(
-      kid: kid,
-      onTap: () => context.push('/children/${kid.id}'),
+      child: child,
+      onTap: () => context.push('/children/${child.id}'),
     );
     return LongPressDraggable<Child>(
-      data: kid,
+      data: child,
       // Grab one full card's width for the floating feedback; keeps it
       // legible when the finger obscures the original spot.
       feedback: Material(

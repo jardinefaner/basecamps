@@ -27,26 +27,26 @@ class ChildrenRepository {
     return query.watch();
   }
 
-  Future<Child?> getKid(String id) {
+  Future<Child?> getChild(String id) {
     return (_db.select(_db.children)..where((k) => k.id.equals(id)))
         .getSingleOrNull();
   }
 
-  /// Stream a single kid. Backs a StreamProvider so the detail screen
-  /// reflects edits (rename, avatar change, pod change) live.
-  Stream<Child?> watchKid(String id) {
+  /// Stream a single child. Backs a StreamProvider so the detail screen
+  /// reflects edits (rename, avatar change, group change) live.
+  Stream<Child?> watchChild(String id) {
     return (_db.select(_db.children)..where((k) => k.id.equals(id)))
         .watchSingleOrNull();
   }
 
-  Future<Group?> getPod(String id) {
+  Future<Group?> getGroup(String id) {
     return (_db.select(_db.groups)..where((p) => p.id.equals(id)))
         .getSingleOrNull();
   }
 
-  /// Stream a single pod so screens (section headers, detail sheets,
+  /// Stream a single group so screens (section headers, detail sheets,
   /// etc.) rebuild on rename or color change.
-  Stream<Group?> watchPod(String id) {
+  Stream<Group?> watchGroup(String id) {
     return (_db.select(_db.groups)..where((p) => p.id.equals(id)))
         .watchSingleOrNull();
   }
@@ -63,10 +63,10 @@ class ChildrenRepository {
     return id;
   }
 
-  /// Partial pod edit. Passing `null` means "leave alone"; use
+  /// Partial group edit. Passing `null` means "leave alone"; use
   /// [clearColor] to drop the color back to null. Matches the
-  /// clear-vs-absent convention the kids/observations repos use.
-  Future<void> updatePod({
+  /// clear-vs-absent convention the children/observations repos use.
+  Future<void> updateGroup({
     required String id,
     String? name,
     String? colorHex,
@@ -106,7 +106,7 @@ class ChildrenRepository {
     return id;
   }
 
-  Future<void> updateKidPod({
+  Future<void> updateChildGroup({
     required String childId,
     required String? groupId,
   }) async {
@@ -118,7 +118,7 @@ class ChildrenRepository {
     );
   }
 
-  /// Partial kid edit. Anything left `null` (or not passed) is
+  /// Partial child edit. Anything left `null` (or not passed) is
   /// untouched. Use `clearAvatarPath: true` to remove the photo —
   /// passing `avatarPath: null` alone is "don't change it", matching
   /// the same convention the observations repo uses.
@@ -128,7 +128,7 @@ class ChildrenRepository {
     String? lastName,
     bool clearLastName = false,
     String? groupId,
-    bool clearPodId = false,
+    bool clearGroupId = false,
     String? notes,
     bool clearNotes = false,
     String? avatarPath,
@@ -142,7 +142,7 @@ class ChildrenRepository {
       lastName: clearLastName
           ? const Value<String?>(null)
           : (lastName == null ? const Value.absent() : Value(lastName)),
-      groupId: clearPodId
+      groupId: clearGroupId
           ? const Value<String?>(null)
           : (groupId == null ? const Value.absent() : Value(groupId)),
       notes: clearNotes
@@ -187,11 +187,11 @@ final childrenProvider = StreamProvider<List<Child>>((ref) {
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types
 final childProvider = StreamProvider.family<Child?, String>((ref, id) {
-  return ref.watch(childrenRepositoryProvider).watchKid(id);
+  return ref.watch(childrenRepositoryProvider).watchChild(id);
 });
 
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types
 final groupProvider = StreamProvider.family<Group?, String>((ref, id) {
-  return ref.watch(childrenRepositoryProvider).watchPod(id);
+  return ref.watch(childrenRepositoryProvider).watchGroup(id);
 });

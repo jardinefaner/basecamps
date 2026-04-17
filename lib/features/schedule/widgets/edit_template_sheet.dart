@@ -59,11 +59,11 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
   late DateTime? _rangeStart = widget.template?.startDate;
   late DateTime? _rangeEnd = widget.template?.endDate;
 
-  /// Non-empty = specific pods. When empty, [_allPods] disambiguates
-  /// between "for everyone" (true) and "no pods picked yet" (false).
-  final Set<String> _selectedPodIds = <String>{};
-  late bool _allPods = widget.template?.allGroups ?? true;
-  bool _podsLoaded = false;
+  /// Non-empty = specific groups. When empty, [_allGroups] disambiguates
+  /// between "for everyone" (true) and "no groups picked yet" (false).
+  final Set<String> _selectedGroupIds = <String>{};
+  late bool _allGroups = widget.template?.allGroups ?? true;
+  bool _groupsLoaded = false;
 
   bool _submitting = false;
   bool _didAutofillStart = false;
@@ -87,27 +87,27 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     if (_isEdit) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadPods());
     } else {
-      _podsLoaded = true;
+      _groupsLoaded = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => _tryAutofillStart());
     }
   }
 
-  /// Set of pod ids the template started with — snapshot captured
+  /// Set of group ids the template started with — snapshot captured
   /// right after [_loadPods] so we can tell a pristine edit from one
   /// where the teacher actually toggled something.
-  Set<String> _podsBaseline = const <String>{};
-  late final bool _allPodsBaseline = widget.template?.allGroups ?? true;
+  Set<String> _groupsBaseline = const <String>{};
+  late final bool _allGroupsBaseline = widget.template?.allGroups ?? true;
 
   Future<void> _loadPods() async {
     if (!_isEdit) return;
-    final pods = await ref
+    final groups = await ref
         .read(scheduleRepositoryProvider)
         .podsForTemplate(widget.template!.id);
     if (!mounted) return;
     setState(() {
-      _selectedPodIds.addAll(pods);
-      _podsBaseline = Set<String>.from(pods);
-      _podsLoaded = true;
+      _selectedGroupIds.addAll(groups);
+      _groupsBaseline = Set<String>.from(groups);
+      _groupsLoaded = true;
     });
   }
 
@@ -155,10 +155,10 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     if (trimOrNull(_locationController.text) != template.location) return true;
     if (_rangeStart != template.startDate) return true;
     if (_rangeEnd != template.endDate) return true;
-    if (!_podsLoaded) return false;
-    if (_selectedPodIds.length != _podsBaseline.length) return true;
-    if (!_selectedPodIds.containsAll(_podsBaseline)) return true;
-    if (_allPods != _allPodsBaseline) return true;
+    if (!_groupsLoaded) return false;
+    if (_selectedGroupIds.length != _groupsBaseline.length) return true;
+    if (!_selectedGroupIds.containsAll(_groupsBaseline)) return true;
+    if (_allGroups != _allGroupsBaseline) return true;
     return false;
   }
 
@@ -182,7 +182,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
         : _locationController.text.trim();
     final startHhmm = _formatTime(_start);
     final endHhmm = _formatTime(_end);
-    final groupIds = _selectedPodIds.toList();
+    final groupIds = _selectedGroupIds.toList();
 
     if (_isEdit) {
       await repo.updateTemplate(
@@ -192,7 +192,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
         endTime: endHhmm,
         title: title,
         groupIds: groupIds,
-        allGroups: _allPods,
+        allGroups: _allGroups,
         specialistId: _specialistId,
         location: location,
         startDate: _rangeStart,
@@ -206,7 +206,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
           endTime: endHhmm,
           title: title,
           groupIds: groupIds,
-          allGroups: _allPods,
+          allGroups: _allGroups,
           specialistId: _specialistId,
           location: location,
           startDate: _rangeStart,
@@ -439,24 +439,24 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
           podsAsync.when(
             loading: () => const LinearProgressIndicator(),
             error: (err, _) => Text('Error: $err'),
-            data: (pods) {
-              if (!_podsLoaded) return const LinearProgressIndicator();
-              return _PodSelector(
-                pods: pods,
-                selectedPodIds: _selectedPodIds,
-                allGroups: _allPods,
+            data: (groups) {
+              if (!_groupsLoaded) return const LinearProgressIndicator();
+              return _GroupSelector(
+                groups: groups,
+                selectedPodIds: _selectedGroupIds,
+                allGroups: _allGroups,
                 onAllToggle: () => setState(() {
-                  _allPods = true;
-                  _selectedPodIds.clear();
+                  _allGroups = true;
+                  _selectedGroupIds.clear();
                 }),
                 onPodToggle: (id) => setState(() {
-                  if (!_selectedPodIds.add(id)) {
-                    _selectedPodIds.remove(id);
+                  if (!_selectedGroupIds.add(id)) {
+                    _selectedGroupIds.remove(id);
                   }
-                  // Any specific pick means "not all pods". Deselecting
+                  // Any specific pick means "not all groups". Deselecting
                   // the last one leaves the empty-allGroups=false state,
-                  // which readers will treat as "no kids".
-                  _allPods = false;
+                  // which readers will treat as "no children".
+                  _allGroups = false;
                 }),
               );
             },
@@ -487,16 +487,16 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
   }
 }
 
-class _PodSelector extends StatelessWidget {
-  const _PodSelector({
-    required this.pods,
+class _GroupSelector extends StatelessWidget {
+  const _GroupSelector({
+    required this.groups,
     required this.selectedPodIds,
     required this.allGroups,
     required this.onAllToggle,
     required this.onPodToggle,
   });
 
-  final List<Group> pods;
+  final List<Group> groups;
   final Set<String> selectedPodIds;
   final bool allGroups;
   final VoidCallback onAllToggle;
@@ -505,7 +505,7 @@ class _PodSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    if (pods.isEmpty) {
+    if (groups.isEmpty) {
       return Text(
         'No groups yet — add some in the Children tab.',
         style: theme.textTheme.bodySmall,
@@ -524,11 +524,11 @@ class _PodSelector extends StatelessWidget {
               selected: allGroups && selectedPodIds.isEmpty,
               onSelected: (_) => onAllToggle(),
             ),
-            for (final pod in pods)
+            for (final group in groups)
               FilterChip(
-                label: Text(pod.name),
-                selected: selectedPodIds.contains(pod.id),
-                onSelected: (_) => onPodToggle(pod.id),
+                label: Text(group.name),
+                selected: selectedPodIds.contains(group.id),
+                onSelected: (_) => onPodToggle(group.id),
               ),
           ],
         ),

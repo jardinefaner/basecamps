@@ -262,7 +262,7 @@ class ScheduleTemplates extends Table {
   // semantics fall back to a row-by-row delete in that case.
   //
   // Named [seriesId] since schema v25 — the word "group" now refers to
-  // the user-facing people-grouping (formerly "pod") on every other
+  // the user-facing people-grouping (formerly "group") on every other
   // column.
   TextColumn get seriesId => text().nullable()();
   TextColumn get groupId =>

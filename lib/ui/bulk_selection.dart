@@ -34,7 +34,7 @@ mixin BulkSelectionMixin<T extends StatefulWidget> on State<T> {
 /// Shared AppBar the app uses any time a list screen enters
 /// bulk-select mode. primaryContainer tint, X to cancel, count on
 /// the title, trash icon on the right. Screens with additional
-/// bulk actions (e.g. "move to pod") can pass them through the
+/// bulk actions (e.g. "move to group") can pass them through the
 /// [extraActions] slot.
 PreferredSizeWidget buildSelectionAppBar({
   required BuildContext context,

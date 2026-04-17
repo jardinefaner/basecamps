@@ -33,8 +33,8 @@ class _NewFullDayEventWizardScreenState
 
   late DateTime _date = widget.initialDate ?? DateTime.now();
   DateTime? _endDate;
-  final Set<String> _podIds = <String>{};
-  bool _allPods = true;
+  final Set<String> _groupIds = <String>{};
+  bool _allGroups = true;
   String? _specialistId;
 
   /// When non-null, fields were pre-filled from a library pick. We
@@ -45,7 +45,7 @@ class _NewFullDayEventWizardScreenState
       _title.text.trim().isNotEmpty ||
       _location.text.trim().isNotEmpty ||
       _notes.text.trim().isNotEmpty ||
-      _podIds.isNotEmpty ||
+      _groupIds.isNotEmpty ||
       _specialistId != null ||
       _endDate != null ||
       _fromLibrary != null;
@@ -99,7 +99,7 @@ class _NewFullDayEventWizardScreenState
           endTime: '23:59',
           isFullDay: true,
           title: _title.text.trim(),
-          groupIds: _allPods ? const [] : _podIds.toList(),
+          groupIds: _allGroups ? const [] : _groupIds.toList(),
           specialistId: _specialistId,
           location: location.isEmpty ? null : location,
           notes: notes.isEmpty ? null : notes,
@@ -256,19 +256,19 @@ class _NewFullDayEventWizardScreenState
           subtitle: const Text(
             'Every group at the program is included',
           ),
-          value: _allPods,
+          value: _allGroups,
           onChanged: (v) => setState(() {
-            _allPods = v;
-            if (v) _podIds.clear();
+            _allGroups = v;
+            if (v) _groupIds.clear();
           }),
           contentPadding: EdgeInsets.zero,
         ),
-        if (!_allPods)
+        if (!_allGroups)
           podsAsync.when(
             loading: () => const LinearProgressIndicator(),
             error: (err, _) => Text('Error: $err'),
-            data: (pods) {
-              if (pods.isEmpty) {
+            data: (groups) {
+              if (groups.isEmpty) {
                 return Text(
                   'No groups yet — add some in the Children tab.',
                   style: theme.textTheme.bodySmall,
@@ -280,12 +280,12 @@ class _NewFullDayEventWizardScreenState
                   spacing: AppSpacing.sm,
                   runSpacing: AppSpacing.sm,
                   children: [
-                    for (final pod in pods)
+                    for (final group in groups)
                       FilterChip(
-                        label: Text(pod.name),
-                        selected: _podIds.contains(pod.id),
+                        label: Text(group.name),
+                        selected: _groupIds.contains(group.id),
                         onSelected: (_) => setState(() {
-                          if (!_podIds.add(pod.id)) _podIds.remove(pod.id);
+                          if (!_groupIds.add(group.id)) _groupIds.remove(group.id);
                         }),
                       ),
                   ],

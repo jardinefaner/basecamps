@@ -103,7 +103,7 @@ class _MultiCaptureCameraState extends State<MultiCaptureCamera>
         return;
       }
       // Prefer the back camera — that's what teachers almost always want
-      // for capturing kids across the room.
+      // for capturing children across the room.
       final backIndex = cameras.indexWhere(
         (c) => c.lensDirection == CameraLensDirection.back,
       );

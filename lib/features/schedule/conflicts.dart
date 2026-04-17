@@ -54,7 +54,7 @@ class ConflictInfo {
   final bool specialistClash;
 
   /// Group ids that both activities target directly. Empty when the clash
-  /// comes from one side being "all pods" (broadcast).
+  /// comes from one side being "all groups" (broadcast).
   final Set<String> sharedPodIds;
 }
 
@@ -63,10 +63,10 @@ class ConflictInfo {
 /// - **Specialists**: if both items target the same specialist, they conflict
 ///   whenever their time ranges could actually overlap (a full-day item is
 ///   treated as covering every time slot for this rule).
-/// - **Groups (timed ↔ timed)**: overlapping times + any shared pod clash.
-///   "All pods" (empty list) is treated as a wildcard that shares with any
-///   other targeted pod set.
-/// - **Groups (full-day ↔ full-day)**: two whole-day events sharing pods on
+/// - **Groups (timed ↔ timed)**: overlapping times + any shared group clash.
+///   "All groups" (empty list) is treated as a wildcard that shares with any
+///   other targeted group set.
+/// - **Groups (full-day ↔ full-day)**: two whole-day events sharing groups on
 ///   the same date is a conflict (can't have two camp-wide events overlap).
 /// - **Groups (full-day ↔ timed)**: NOT a conflict on its own. A full-day
 ///   label (e.g. "Tax Day", "Teacher appreciation") doesn't block timed
@@ -92,7 +92,7 @@ _DetectionResult _detect(ScheduleItem a, ScheduleItem b) {
     );
   }
 
-  // No specialist overlap. Any pod-based clash then requires time overlap.
+  // No specialist overlap. Any group-based clash then requires time overlap.
   if (a.isFullDay && b.isFullDay) {
     return _DetectionResult(
       isConflict: sharedPods,

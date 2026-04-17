@@ -9,46 +9,56 @@ class MoreScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('More')),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-        children: [
-          _MoreTile(
-            icon: Icons.badge_outlined,
-            label: 'Specialists',
-            subtitle: 'Staff who run specific activities',
-            onTap: () => context.push('/more/specialists'),
+      body: CustomScrollView(
+        slivers: [
+          const SliverAppBar(
+            title: Text('More'),
+            floating: true,
+            snap: true,
           ),
-          _MoreTile(
-            icon: Icons.bookmarks_outlined,
-            label: 'Activity library',
-            subtitle: 'Reusable activities for the schedule',
-            onTap: () => context.push('/more/library'),
-          ),
-          _MoreTile(
-            icon: Icons.assignment_outlined,
-            label: 'Forms & surveys',
-            subtitle: 'Attendance, incidents, parent concerns',
-            onTap: () => context.push('/more/forms'),
-          ),
-          _MoreTile(
-            icon: Icons.person_outline,
-            label: 'Profile',
-            subtitle: 'Your account',
-            onTap: () {},
-          ),
-          _MoreTile(
-            icon: Icons.settings_outlined,
-            label: 'Settings',
-            subtitle: 'Notifications, theme, sync',
-            onTap: () {},
-          ),
-          const Divider(),
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Text(
-              'Basecamp · v0.1',
-              style: theme.textTheme.bodySmall,
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                _MoreTile(
+                  icon: Icons.badge_outlined,
+                  label: 'Specialists',
+                  subtitle: 'Staff who run specific activities',
+                  onTap: () => context.push('/more/specialists'),
+                ),
+                _MoreTile(
+                  icon: Icons.bookmarks_outlined,
+                  label: 'Activity library',
+                  subtitle: 'Reusable activities for the schedule',
+                  onTap: () => context.push('/more/library'),
+                ),
+                _MoreTile(
+                  icon: Icons.assignment_outlined,
+                  label: 'Forms & surveys',
+                  subtitle: 'Attendance, incidents, parent concerns',
+                  onTap: () => context.push('/more/forms'),
+                ),
+                _MoreTile(
+                  icon: Icons.person_outline,
+                  label: 'Profile',
+                  subtitle: 'Your account',
+                  onTap: () {},
+                ),
+                _MoreTile(
+                  icon: Icons.settings_outlined,
+                  label: 'Settings',
+                  subtitle: 'Notifications, theme, sync',
+                  onTap: () {},
+                ),
+                const Divider(),
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Text(
+                    'Basecamp · v0.1',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+              ]),
             ),
           ),
         ],

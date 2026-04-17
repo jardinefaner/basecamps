@@ -556,7 +556,7 @@ class _FullDayCard extends StatelessWidget {
   }
 }
 
-/// Same visual language as the list-view card — title + pods/specialist/
+/// Same visual language as the list-view card — title + groups/specialist/
 /// location stacked, no truncation. Time is intentionally absent because
 /// the frozen left column already shows it.
 class _GridBlockCard extends ConsumerWidget {
@@ -574,8 +574,8 @@ class _GridBlockCard extends ConsumerWidget {
     if (first.groupIds.isNotEmpty) {
       final names = <String>[];
       for (final groupId in first.groupIds) {
-        final pod = ref.watch(groupProvider(groupId)).asData?.value;
-        if (pod != null) names.add(pod.name);
+        final group = ref.watch(groupProvider(groupId)).asData?.value;
+        if (group != null) names.add(group.name);
       }
       if (names.isNotEmpty) subtitleParts.add(names.join(' + '));
     }

@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-/// Circular avatar picker used in the kid and specialist edit sheets.
+/// Circular avatar picker used in the child and specialist edit sheets.
 /// Shows the current photo (local file or initial fallback) with a
 /// small camera badge. Tap to open a bottom sheet that lets the
 /// teacher take a photo, pick one from the library, or remove the

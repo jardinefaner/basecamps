@@ -56,7 +56,7 @@ class TripDetailScreen extends ConsumerWidget {
                 ),
               if (trip.location != null)
                 _MetaRow(icon: Icons.place_outlined, text: trip.location!),
-              _PodsRow(tripId: trip.id),
+              _GroupsRow(tripId: trip.id),
               const SizedBox(height: AppSpacing.xl),
               if (trip.notes != null && trip.notes!.isNotEmpty) ...[
                 AppCard(
@@ -164,8 +164,8 @@ class _MetaRow extends StatelessWidget {
   }
 }
 
-class _PodsRow extends ConsumerWidget {
-  const _PodsRow({required this.tripId});
+class _GroupsRow extends ConsumerWidget {
+  const _GroupsRow({required this.tripId});
 
   final String tripId;
 
@@ -182,8 +182,8 @@ class _PodsRow extends ConsumerWidget {
         }
         final names = <String>[];
         for (final id in groupIds) {
-          final pod = ref.watch(groupProvider(id)).asData?.value;
-          if (pod != null) names.add(pod.name);
+          final group = ref.watch(groupProvider(id)).asData?.value;
+          if (group != null) names.add(group.name);
         }
         if (names.isEmpty) return const SizedBox.shrink();
         return _MetaRow(
@@ -220,8 +220,8 @@ class _RosterCard extends ConsumerWidget {
               return kidsAsync.when(
                 loading: () => const LinearProgressIndicator(),
                 error: (err, _) => Text('Error: $err'),
-                data: (kids) {
-                  final attending = kids
+                data: (children) {
+                  final attending = children
                       .where(
                         (k) =>
                             groupIds.isEmpty ||

@@ -18,16 +18,16 @@ class ChildDetailScreen extends ConsumerWidget {
   Future<void> _openEditSheet(
     BuildContext context,
     WidgetRef ref,
-    Child kid,
+    Child child,
   ) async {
-    final pods = await ref.read(childrenRepositoryProvider).watchGroups().first;
+    final groups = await ref.read(childrenRepositoryProvider).watchGroups().first;
     if (!context.mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       useSafeArea: true,
-      builder: (_) => EditChildSheet(pods: pods, kid: kid),
+      builder: (_) => EditChildSheet(groups: groups, child: child),
     );
   }
 
@@ -40,12 +40,12 @@ class ChildDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         actions: [
           kidAsync.maybeWhen(
-            data: (kid) => kid == null
+            data: (child) => child == null
                 ? const SizedBox.shrink()
                 : IconButton(
                     tooltip: 'Edit child',
                     icon: const Icon(Icons.edit_outlined),
-                    onPressed: () => _openEditSheet(context, ref, kid),
+                    onPressed: () => _openEditSheet(context, ref, child),
                   ),
             orElse: () => const SizedBox.shrink(),
           ),
@@ -54,26 +54,26 @@ class ChildDetailScreen extends ConsumerWidget {
       body: kidAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => Center(child: Text('Error: $err')),
-        data: (kid) {
-          if (kid == null) {
+        data: (child) {
+          if (child == null) {
             return const Center(child: Text('Child not found'));
           }
           final fullName =
-              [kid.firstName, kid.lastName].whereType<String>().join(' ');
-          final initial = kid.firstName.characters.first.toUpperCase();
+              [child.firstName, child.lastName].whereType<String>().join(' ');
+          final initial = child.firstName.characters.first.toUpperCase();
 
           return ListView(
             padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
               InkWell(
                 borderRadius: BorderRadius.circular(16),
-                onTap: () => _openEditSheet(context, ref, kid),
+                onTap: () => _openEditSheet(context, ref, child),
                 child: Padding(
                   padding: const EdgeInsets.all(AppSpacing.xs),
                   child: Row(
                     children: [
                       SmallAvatar(
-                        path: kid.avatarPath,
+                        path: child.avatarPath,
                         fallbackInitial: initial,
                         radius: 32,
                       ),
@@ -86,8 +86,8 @@ class ChildDetailScreen extends ConsumerWidget {
                               fullName,
                               style: theme.textTheme.headlineMedium,
                             ),
-                            if (kid.groupId != null)
-                              _PodLabel(groupId: kid.groupId!)
+                            if (child.groupId != null)
+                              _GroupLabel(groupId: child.groupId!)
                             else
                               Text(
                                 'Unassigned',
@@ -104,7 +104,7 @@ class ChildDetailScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: AppSpacing.xl),
-              _TodayTimeline(kid: kid),
+              _TodayTimeline(child: child),
               const SizedBox(height: AppSpacing.md),
               AppCard(
                 child: Column(
@@ -161,16 +161,16 @@ class ChildDetailScreen extends ConsumerWidget {
   }
 }
 
-class _PodLabel extends ConsumerWidget {
-  const _PodLabel({required this.groupId});
+class _GroupLabel extends ConsumerWidget {
+  const _GroupLabel({required this.groupId});
 
   final String groupId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final pod = ref.watch(groupProvider(groupId));
-    return pod.maybeWhen(
+    final group = ref.watch(groupProvider(groupId));
+    return group.maybeWhen(
       data: (p) => Text(
         p?.name ?? '',
         style: theme.textTheme.bodyMedium?.copyWith(
@@ -182,12 +182,12 @@ class _PodLabel extends ConsumerWidget {
   }
 }
 
-/// Today's filtered schedule for this specific kid: items where their pod
-/// is in the activity's targeted pods (or where the activity is "all pods").
+/// Today's filtered schedule for this specific child: items where their group
+/// is in the activity's targeted groups (or where the activity is "all groups").
 class _TodayTimeline extends ConsumerWidget {
-  const _TodayTimeline({required this.kid});
+  const _TodayTimeline({required this.child});
 
-  final Child kid;
+  final Child child;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -218,7 +218,7 @@ class _TodayTimeline extends ConsumerWidget {
             data: (items) {
               final mine = items.where((i) {
                 if (i.isAllGroups) return true;
-                return kid.groupId != null && i.groupIds.contains(kid.groupId);
+                return child.groupId != null && i.groupIds.contains(child.groupId);
               }).toList();
 
               if (mine.isEmpty) {

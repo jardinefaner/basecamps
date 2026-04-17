@@ -53,8 +53,8 @@ class _NewActivityWizardScreenState
   TimeOfDay _start = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _end = const TimeOfDay(hour: 10, minute: 0);
 
-  final Set<String> _podIds = <String>{};
-  bool _allPods = true;
+  final Set<String> _groupIds = <String>{};
+  bool _allGroups = true;
 
   late String? _specialistId = widget.initialSpecialistId;
 
@@ -74,7 +74,7 @@ class _NewActivityWizardScreenState
   bool get _dirty =>
       _title.text.trim().isNotEmpty ||
       _location.text.trim().isNotEmpty ||
-      _podIds.isNotEmpty ||
+      _groupIds.isNotEmpty ||
       _specialistId != null ||
       _startDate != null ||
       _endDate != null ||
@@ -148,10 +148,10 @@ class _NewActivityWizardScreenState
 
   Future<void> _submit() async {
     final repo = ref.read(scheduleRepositoryProvider);
-    // Only carry specific pod ids when the teacher actually picked some.
+    // Only carry specific group ids when the teacher actually picked some.
     // The new allGroups flag preserves the distinction between "for
-    // everyone" (toggle on) and "for nobody yet" (toggle off, no pods).
-    final groupIds = _allPods ? const <String>[] : _podIds.toList();
+    // everyone" (toggle on) and "for nobody yet" (toggle off, no groups).
+    final groupIds = _allGroups ? const <String>[] : _groupIds.toList();
     final location = _location.text.trim().isEmpty
         ? null
         : _location.text.trim();
@@ -171,7 +171,7 @@ class _NewActivityWizardScreenState
         endTime: _formatTime(_end),
         title: _title.text.trim(),
         groupIds: groupIds,
-        allGroups: _allPods,
+        allGroups: _allGroups,
         specialistId: _specialistId,
         location: location,
         startDate: bounds.start,
@@ -392,7 +392,7 @@ class _NewActivityWizardScreenState
     return '$dayStr · $timeStr · $lenStr';
   }
 
-  // ---- page 3: pods ----
+  // ---- page 3: groups ----
 
   Widget _buildPodsPage() {
     final theme = Theme.of(context);
@@ -406,20 +406,20 @@ class _NewActivityWizardScreenState
           subtitle: const Text(
             'Everyone at the program is included',
           ),
-          value: _allPods,
+          value: _allGroups,
           onChanged: (v) => setState(() {
-            _allPods = v;
-            if (v) _podIds.clear();
+            _allGroups = v;
+            if (v) _groupIds.clear();
           }),
           contentPadding: EdgeInsets.zero,
         ),
         const SizedBox(height: AppSpacing.md),
-        if (!_allPods)
+        if (!_allGroups)
           podsAsync.when(
             loading: () => const LinearProgressIndicator(),
             error: (err, _) => Text('Error: $err'),
-            data: (pods) {
-              if (pods.isEmpty) {
+            data: (groups) {
+              if (groups.isEmpty) {
                 return Text(
                   'No groups yet — add some from the Children tab, or stay on "All groups".',
                   style: theme.textTheme.bodyMedium?.copyWith(
@@ -431,12 +431,12 @@ class _NewActivityWizardScreenState
                 spacing: AppSpacing.sm,
                 runSpacing: AppSpacing.sm,
                 children: [
-                  for (final pod in pods)
+                  for (final group in groups)
                     FilterChip(
-                      label: Text(pod.name),
-                      selected: _podIds.contains(pod.id),
+                      label: Text(group.name),
+                      selected: _groupIds.contains(group.id),
                       onSelected: (_) => setState(() {
-                        if (!_podIds.add(pod.id)) _podIds.remove(pod.id);
+                        if (!_groupIds.add(group.id)) _groupIds.remove(group.id);
                       }),
                     ),
                 ],

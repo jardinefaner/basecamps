@@ -11,9 +11,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-/// Bottom sheet showing an activity's details and the kid roster for it.
-/// Roster is derived from pod membership: kids whose pod is listed (or
-/// all kids if the item targets "all pods").
+/// Bottom sheet showing an activity's details and the child roster for it.
+/// Roster is derived from group membership: children whose group is listed (or
+/// all children if the item targets "all groups").
 ///
 /// Also hosts the "Just for today" override actions — cancel this
 /// instance, or shift its start/end times for this date only. The
@@ -58,7 +58,7 @@ class ActivityDetailSheet extends ConsumerWidget {
                 icon: Icons.place_outlined,
                 text: item.location!,
               ),
-            _PodsRow(groupIds: item.groupIds),
+            _GroupsRow(groupIds: item.groupIds),
             if (item.notes != null && item.notes!.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.md),
               Text('Notes', style: theme.textTheme.titleSmall),
@@ -71,8 +71,8 @@ class ActivityDetailSheet extends ConsumerWidget {
             kidsAsync.when(
               loading: () => const LinearProgressIndicator(),
               error: (err, _) => Text('Error: $err'),
-              data: (kids) {
-                final attending = kids
+              data: (children) {
+                final attending = children
                     .where(
                       (k) =>
                           item.isAllGroups ||
@@ -89,15 +89,15 @@ class ActivityDetailSheet extends ConsumerWidget {
                 }
                 return Column(
                   children: [
-                    for (final kid in attending)
+                    for (final child in attending)
                       Padding(
                         padding:
                             const EdgeInsets.only(bottom: AppSpacing.sm),
                         child: _RosterTile(
-                          kid: kid,
+                          child: child,
                           onTap: () {
                             Navigator.of(context).pop();
-                            unawaited(context.push('/children/${kid.id}'));
+                            unawaited(context.push('/children/${child.id}'));
                           },
                         ),
                       ),
@@ -341,8 +341,8 @@ class _SpecialistRow extends ConsumerWidget {
   }
 }
 
-class _PodsRow extends ConsumerWidget {
-  const _PodsRow({required this.groupIds});
+class _GroupsRow extends ConsumerWidget {
+  const _GroupsRow({required this.groupIds});
 
   final List<String> groupIds;
 
@@ -356,8 +356,8 @@ class _PodsRow extends ConsumerWidget {
     }
     final names = <String>[];
     for (final id in groupIds) {
-      final pod = ref.watch(groupProvider(id)).asData?.value;
-      if (pod != null) names.add(pod.name);
+      final group = ref.watch(groupProvider(id)).asData?.value;
+      if (group != null) names.add(group.name);
     }
     if (names.isEmpty) return const SizedBox.shrink();
     return _MetaRow(
@@ -368,21 +368,21 @@ class _PodsRow extends ConsumerWidget {
 }
 
 class _RosterTile extends ConsumerWidget {
-  const _RosterTile({required this.kid, required this.onTap});
+  const _RosterTile({required this.child, required this.onTap});
 
-  final Child kid;
+  final Child child;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final fullName =
-        [kid.firstName, kid.lastName].whereType<String>().join(' ');
-    final initial = kid.firstName.isNotEmpty
-        ? kid.firstName.characters.first.toUpperCase()
+        [child.firstName, child.lastName].whereType<String>().join(' ');
+    final initial = child.firstName.isNotEmpty
+        ? child.firstName.characters.first.toUpperCase()
         : '?';
-    final groupId = kid.groupId;
-    final pod =
+    final groupId = child.groupId;
+    final group =
         groupId == null ? null : ref.watch(groupProvider(groupId)).asData?.value;
 
     return AppCard(
@@ -409,8 +409,8 @@ class _RosterTile extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(fullName, style: theme.textTheme.titleMedium),
-                if (pod != null)
-                  Text(pod.name, style: theme.textTheme.bodySmall),
+                if (group != null)
+                  Text(group.name, style: theme.textTheme.bodySmall),
               ],
             ),
           ),

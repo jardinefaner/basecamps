@@ -5,7 +5,7 @@ import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Horizontal, multi-select avatar strip of every kid in the roster.
+/// Horizontal, multi-select avatar strip of every child in the roster.
 /// Tapping an avatar toggles selection; the selected ids are reported
 /// back via [onChanged] in insertion order so callers can derive
 /// display strings like "Jordan, Maya, & Leo".
@@ -36,8 +36,8 @@ class ChildChipPicker extends ConsumerWidget {
         'Error loading children: $err',
         style: theme.textTheme.bodySmall,
       ),
-      data: (kids) {
-        if (kids.isEmpty) {
+      data: (children) {
+        if (children.isEmpty) {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
             child: Text(
@@ -53,20 +53,20 @@ class ChildChipPicker extends ConsumerWidget {
           height: 92,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: kids.length,
+            itemCount: children.length,
             separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.md),
             itemBuilder: (context, i) {
-              final kid = kids[i];
-              final selected = selectedIds.contains(kid.id);
-              return _KidChip(
-                kid: kid,
+              final child = children[i];
+              final selected = selectedIds.contains(child.id);
+              return _ChildChip(
+                child: child,
                 selected: selected,
                 onTap: () {
                   final next = List<String>.from(selectedIds);
                   if (selected) {
-                    next.remove(kid.id);
+                    next.remove(child.id);
                   } else {
-                    next.add(kid.id);
+                    next.add(child.id);
                   }
                   onChanged(next);
                 },
@@ -79,22 +79,22 @@ class ChildChipPicker extends ConsumerWidget {
   }
 }
 
-class _KidChip extends StatelessWidget {
-  const _KidChip({
-    required this.kid,
+class _ChildChip extends StatelessWidget {
+  const _ChildChip({
+    required this.child,
     required this.selected,
     required this.onTap,
   });
 
-  final Child kid;
+  final Child child;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final initial = kid.firstName.isNotEmpty
-        ? kid.firstName.characters.first.toUpperCase()
+    final initial = child.firstName.isNotEmpty
+        ? child.firstName.characters.first.toUpperCase()
         : '?';
     return SizedBox(
       width: 64,
@@ -119,7 +119,7 @@ class _KidChip extends StatelessWidget {
                     ),
                   ),
                   child: SmallAvatar(
-                    path: kid.avatarPath,
+                    path: child.avatarPath,
                     fallbackInitial: initial,
                     radius: 24,
                   ),
@@ -150,7 +150,7 @@ class _KidChip extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              kid.firstName,
+              child.firstName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,

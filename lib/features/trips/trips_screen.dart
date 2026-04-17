@@ -56,6 +56,8 @@ class _TripsScreenState extends ConsumerState<TripsScreen>
         if (isSelecting) clearSelection();
       },
       child: Scaffold(
+        // Selection AppBar stays pinned — it's destructive mode, hiding
+        // the delete affordance on scroll would be a foot-gun.
         appBar: isSelecting
             ? buildSelectionAppBar(
                 context: context,
@@ -63,7 +65,7 @@ class _TripsScreenState extends ConsumerState<TripsScreen>
                 onCancel: clearSelection,
                 onDelete: _deleteSelected,
               )
-            : AppBar(title: const Text('Trips')),
+            : null,
         floatingActionButton: isSelecting
             ? null
             : FloatingActionButton.extended(
@@ -71,64 +73,95 @@ class _TripsScreenState extends ConsumerState<TripsScreen>
                 icon: const Icon(Icons.add),
                 label: const Text('New trip'),
               ),
-        body: tripsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (err, _) => Center(child: Text('Error: $err')),
-          data: (trips) {
-            if (trips.isEmpty) {
-              return _EmptyState(onAdd: _openWizard);
-            }
-            final now = DateTime.now();
-            final today = DateTime(now.year, now.month, now.day);
-            final upcoming =
-                trips.where((t) => !t.date.isBefore(today)).toList();
-            final past = trips.where((t) => t.date.isBefore(today)).toList()
-              ..sort((a, b) => b.date.compareTo(a.date));
-
-            return ListView(
-              padding: const EdgeInsets.only(
-                left: AppSpacing.lg,
-                right: AppSpacing.lg,
-                top: AppSpacing.md,
-                bottom: AppSpacing.xxxl * 2,
+        body: CustomScrollView(
+          slivers: [
+            if (!isSelecting)
+              const SliverAppBar(
+                title: Text('Trips'),
+                floating: true,
+                snap: true,
               ),
-              children: [
-                if (upcoming.isNotEmpty) ...[
-                  _SectionLabel(label: 'UPCOMING · ${upcoming.length}'),
-                  const SizedBox(height: AppSpacing.sm),
-                  for (final t in upcoming)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                      child: TripCard(
-                        trip: t,
-                        selected: isSelected(t.id),
-                        onTap: isSelecting
-                            ? () => toggleSelection(t.id)
-                            : () => context.push('/trips/${t.id}'),
-                        onLongPress: () => toggleSelection(t.id),
-                      ),
-                    ),
-                  const SizedBox(height: AppSpacing.lg),
-                ],
-                if (past.isNotEmpty) ...[
-                  _SectionLabel(label: 'PAST · ${past.length}'),
-                  const SizedBox(height: AppSpacing.sm),
-                  for (final t in past)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                      child: TripCard(
-                        trip: t,
-                        selected: isSelected(t.id),
-                        onTap: isSelecting
-                            ? () => toggleSelection(t.id)
-                            : () => context.push('/trips/${t.id}'),
-                        onLongPress: () => toggleSelection(t.id),
-                      ),
-                    ),
-                ],
-              ],
-            );
-          },
+            tripsAsync.when(
+              loading: () => const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (err, _) => SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: Text('Error: $err')),
+              ),
+              data: (trips) {
+                if (trips.isEmpty) {
+                  return SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: _EmptyState(onAdd: _openWizard),
+                  );
+                }
+                final now = DateTime.now();
+                final today = DateTime(now.year, now.month, now.day);
+                final upcoming =
+                    trips.where((t) => !t.date.isBefore(today)).toList();
+                final past = trips
+                    .where((t) => t.date.isBefore(today))
+                    .toList()
+                  ..sort((a, b) => b.date.compareTo(a.date));
+
+                return SliverPadding(
+                  padding: const EdgeInsets.only(
+                    left: AppSpacing.lg,
+                    right: AppSpacing.lg,
+                    top: AppSpacing.md,
+                    bottom: AppSpacing.xxxl * 2,
+                  ),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      if (upcoming.isNotEmpty) ...[
+                        _SectionLabel(
+                          label: 'UPCOMING · ${upcoming.length}',
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        for (final t in upcoming)
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.md,
+                            ),
+                            child: TripCard(
+                              trip: t,
+                              selected: isSelected(t.id),
+                              onTap: isSelecting
+                                  ? () => toggleSelection(t.id)
+                                  : () =>
+                                      context.push('/trips/${t.id}'),
+                              onLongPress: () => toggleSelection(t.id),
+                            ),
+                          ),
+                        const SizedBox(height: AppSpacing.lg),
+                      ],
+                      if (past.isNotEmpty) ...[
+                        _SectionLabel(label: 'PAST · ${past.length}'),
+                        const SizedBox(height: AppSpacing.sm),
+                        for (final t in past)
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.md,
+                            ),
+                            child: TripCard(
+                              trip: t,
+                              selected: isSelected(t.id),
+                              onTap: isSelecting
+                                  ? () => toggleSelection(t.id)
+                                  : () =>
+                                      context.push('/trips/${t.id}'),
+                              onLongPress: () => toggleSelection(t.id),
+                            ),
+                          ),
+                      ],
+                    ]),
+                  ),
+                );
+              },
+            ),
+          ],
         ),
       ),
     );

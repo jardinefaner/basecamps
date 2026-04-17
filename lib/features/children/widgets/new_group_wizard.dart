@@ -6,18 +6,18 @@ import 'package:basecamp/ui/step_wizard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Single-step wizard for creating a pod. Groups are small but not
-/// trivial — we take a name and an optional accent color so the pod
+/// Single-step wizard for creating a group. Groups are small but not
+/// trivial — we take a name and an optional accent color so the group
 /// reads at a glance on the Children tab and the launcher.
 class NewGroupWizardScreen extends ConsumerStatefulWidget {
   const NewGroupWizardScreen({super.key});
 
   @override
   ConsumerState<NewGroupWizardScreen> createState() =>
-      _NewPodWizardScreenState();
+      _NewGroupWizardScreenState();
 }
 
-class _NewPodWizardScreenState extends ConsumerState<NewGroupWizardScreen> {
+class _NewGroupWizardScreenState extends ConsumerState<NewGroupWizardScreen> {
   final _name = TextEditingController();
   String? _colorHex;
 
@@ -65,7 +65,7 @@ class _NewPodWizardScreenState extends ConsumerState<NewGroupWizardScreen> {
               const SizedBox(height: AppSpacing.xl),
               Text('Color', style: theme.textTheme.titleSmall),
               const SizedBox(height: AppSpacing.sm),
-              _PodColorPicker(
+              _GroupColorPicker(
                 selectedHex: _colorHex,
                 onChanged: (hex) => setState(() => _colorHex = hex),
               ),
@@ -77,11 +77,11 @@ class _NewPodWizardScreenState extends ConsumerState<NewGroupWizardScreen> {
   }
 }
 
-/// Grid of preset pod colors plus an "unset" chip. Shared between
+/// Grid of preset group colors plus an "unset" chip. Shared between
 /// the create wizard and the edit sheet so the two flows agree on
 /// which swatches are offered.
-class _PodColorPicker extends StatelessWidget {
-  const _PodColorPicker({
+class _GroupColorPicker extends StatelessWidget {
+  const _GroupColorPicker({
     required this.selectedHex,
     required this.onChanged,
   });

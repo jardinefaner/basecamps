@@ -9,29 +9,29 @@ import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Edit an existing pod. Dense sheet with name, color picker, and a
-/// delete icon that explains what happens to kids when the pod goes
+/// Edit an existing group. Dense sheet with name, color picker, and a
+/// delete icon that explains what happens to children when the group goes
 /// away. Creation flows through `NewGroupWizardScreen`; this sheet is
 /// edit-only.
 class EditGroupSheet extends ConsumerStatefulWidget {
-  const EditGroupSheet({required this.pod, super.key});
+  const EditGroupSheet({required this.group, super.key});
 
-  final Group pod;
+  final Group group;
 
   @override
-  ConsumerState<EditGroupSheet> createState() => _EditPodSheetState();
+  ConsumerState<EditGroupSheet> createState() => _EditGroupSheetState();
 }
 
-class _EditPodSheetState extends ConsumerState<EditGroupSheet> {
-  late final _name = TextEditingController(text: widget.pod.name);
-  late String? _colorHex = widget.pod.colorHex;
+class _EditGroupSheetState extends ConsumerState<EditGroupSheet> {
+  late final _name = TextEditingController(text: widget.group.name);
+  late String? _colorHex = widget.group.colorHex;
   bool _submitting = false;
 
   bool get _isValid => _name.text.trim().isNotEmpty;
 
   bool get _hasChanges {
-    return _name.text.trim() != widget.pod.name ||
-        _colorHex != widget.pod.colorHex;
+    return _name.text.trim() != widget.group.name ||
+        _colorHex != widget.group.colorHex;
   }
 
   @override
@@ -45,11 +45,11 @@ class _EditPodSheetState extends ConsumerState<EditGroupSheet> {
     setState(() => _submitting = true);
     final name = _name.text.trim();
     final repo = ref.read(childrenRepositoryProvider);
-    await repo.updatePod(
-      id: widget.pod.id,
+    await repo.updateGroup(
+      id: widget.group.id,
       name: name,
       colorHex: _colorHex,
-      clearColor: _colorHex == null && widget.pod.colorHex != null,
+      clearColor: _colorHex == null && widget.group.colorHex != null,
     );
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -58,14 +58,14 @@ class _EditPodSheetState extends ConsumerState<EditGroupSheet> {
   Future<void> _delete() async {
     final confirmed = await showConfirmDialog(
       context: context,
-      title: 'Delete "${widget.pod.name}"?',
+      title: 'Delete "${widget.group.name}"?',
       message: 'Children in this group become unassigned — they stay on the '
           'Children tab and keep their profiles, notes, and observations. '
           'Cannot be undone.',
       confirmLabel: 'Delete group',
     );
     if (!confirmed) return;
-    await ref.read(childrenRepositoryProvider).deleteGroup(widget.pod.id);
+    await ref.read(childrenRepositoryProvider).deleteGroup(widget.group.id);
     if (!mounted) return;
     Navigator.of(context).pop();
   }
@@ -100,7 +100,7 @@ class _EditPodSheetState extends ConsumerState<EditGroupSheet> {
           const SizedBox(height: AppSpacing.lg),
           Text('Color', style: theme.textTheme.titleSmall),
           const SizedBox(height: AppSpacing.sm),
-          _PodColorGrid(
+          _GroupColorGrid(
             selectedHex: _colorHex,
             onChanged: (hex) => setState(() => _colorHex = hex),
           ),
@@ -112,8 +112,8 @@ class _EditPodSheetState extends ConsumerState<EditGroupSheet> {
 
 /// Same shape as the color picker on the wizard (kept local so the
 /// wizard and sheet don't import each other's privates).
-class _PodColorGrid extends StatelessWidget {
-  const _PodColorGrid({
+class _GroupColorGrid extends StatelessWidget {
+  const _GroupColorGrid({
     required this.selectedHex,
     required this.onChanged,
   });

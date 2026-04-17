@@ -42,7 +42,7 @@ class AttendanceRepository {
 
   final AppDatabase _db;
 
-  /// Map of kid id → record for a specific day. Children without a row are
+  /// Map of child id → record for a specific day. Children without a row are
   /// *not* present in the map — the caller renders them as pending.
   Stream<Map<String, AttendanceRecord>> watchForDay(DateTime date) {
     final day = _dayOnly(date);
@@ -71,7 +71,7 @@ class AttendanceRepository {
   }
 
   /// Set (or replace) the status for a child on a specific day. Upsert
-  /// keeps the composite (kid, date) unique — no stale duplicate rows.
+  /// keeps the composite (child, date) unique — no stale duplicate rows.
   Future<void> setStatus({
     required String childId,
     required DateTime date,

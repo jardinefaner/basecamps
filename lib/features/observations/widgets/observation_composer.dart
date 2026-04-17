@@ -15,7 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 /// Minimal, focused capture surface. Text + voice + attachments + send —
-/// nothing else on screen while the teacher is writing. Tagging (kids,
+/// nothing else on screen while the teacher is writing. Tagging (children,
 /// domain, sentiment) happens later by tapping the saved entry in the
 /// list above. The classifier still runs at submit time so the saved row
 /// has sensible auto-tags the teacher can accept or override later.

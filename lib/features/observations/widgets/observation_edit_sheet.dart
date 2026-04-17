@@ -43,8 +43,8 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
 
   late ObservationSentiment _sentiment =
       ObservationSentiment.fromName(widget.observation.sentiment);
-  final Set<String> _selectedKidIds = <String>{};
-  bool _kidsLoaded = false;
+  final Set<String> _selectedChildIds = <String>{};
+  bool _childrenLoaded = false;
   bool _submitting = false;
 
   final _picker = ImagePicker();
@@ -56,9 +56,9 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
   /// New attachments added in this edit session. Inserted on Save.
   final List<_PendingAttachment> _newAttachments = [];
 
-  /// Snapshot of the kid set that loaded with the observation —
+  /// Snapshot of the child set that loaded with the observation —
   /// lets us distinguish a pristine edit from a real change.
-  Set<String> _kidsBaseline = const <String>{};
+  Set<String> _childrenBaseline = const <String>{};
 
   /// Same for the domain list (order preserved).
   List<ObservationDomain> _domainsBaseline = const [];
@@ -80,9 +80,9 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
     }
     if (_removedAttachmentIds.isNotEmpty) return true;
     if (_newAttachments.isNotEmpty) return true;
-    if (_kidsLoaded) {
-      if (_selectedKidIds.length != _kidsBaseline.length) return true;
-      if (!_selectedKidIds.containsAll(_kidsBaseline)) return true;
+    if (_childrenLoaded) {
+      if (_selectedChildIds.length != _childrenBaseline.length) return true;
+      if (!_selectedChildIds.containsAll(_childrenBaseline)) return true;
     }
     if (_domainsLoaded) {
       if (_domains.length != _domainsBaseline.length) return true;
@@ -103,15 +103,15 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
   }
 
   Future<void> _loadKids() async {
-    final kids = await ref
+    final children = await ref
         .read(observationsRepositoryProvider)
         .childrenForObservation(widget.observation.id);
     if (!mounted) return;
     setState(() {
-      final ids = kids.map((k) => k.id).toSet();
-      _selectedKidIds.addAll(ids);
-      _kidsBaseline = Set<String>.from(ids);
-      _kidsLoaded = true;
+      final ids = children.map((k) => k.id).toSet();
+      _selectedChildIds.addAll(ids);
+      _childrenBaseline = Set<String>.from(ids);
+      _childrenLoaded = true;
     });
   }
 
@@ -168,7 +168,7 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
       clearNoteOriginal: shouldClear,
       domains: _domains.toList(),
       sentiment: _sentiment,
-      childIds: _selectedKidIds.toList(),
+      childIds: _selectedChildIds.toList(),
     );
     for (final id in _removedAttachmentIds) {
       await repo.deleteAttachment(id);
@@ -417,9 +417,9 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
           kidsAsync.when(
             loading: () => const LinearProgressIndicator(),
             error: (err, _) => Text('Error: $err'),
-            data: (kids) {
-              if (!_kidsLoaded) return const LinearProgressIndicator();
-              if (kids.isEmpty) {
+            data: (children) {
+              if (!_childrenLoaded) return const LinearProgressIndicator();
+              if (children.isEmpty) {
                 return Text(
                   'No children yet — add some in the Children tab.',
                   style: theme.textTheme.bodySmall,
@@ -429,13 +429,13 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
                 spacing: AppSpacing.sm,
                 runSpacing: AppSpacing.sm,
                 children: [
-                  for (final kid in kids)
+                  for (final child in children)
                     FilterChip(
-                      label: Text(_kidLabel(kid)),
-                      selected: _selectedKidIds.contains(kid.id),
+                      label: Text(_kidLabel(child)),
+                      selected: _selectedChildIds.contains(child.id),
                       onSelected: (_) => setState(() {
-                        if (!_selectedKidIds.add(kid.id)) {
-                          _selectedKidIds.remove(kid.id);
+                        if (!_selectedChildIds.add(child.id)) {
+                          _selectedChildIds.remove(child.id);
                         }
                       }),
                     ),
@@ -470,10 +470,10 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
     );
   }
 
-  String _kidLabel(Child kid) {
-    final last = kid.lastName;
-    if (last == null || last.isEmpty) return kid.firstName;
-    return '${kid.firstName} ${last[0]}.';
+  String _kidLabel(Child child) {
+    final last = child.lastName;
+    if (last == null || last.isEmpty) return child.firstName;
+    return '${child.firstName} ${last[0]}.';
   }
 }
 

@@ -8,7 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 /// Create-only wizard for a new trip. Walks the teacher through the
-/// four buckets (name → date & times → pods → notes) one at a time
+/// four buckets (name → date & times → groups → notes) one at a time
 /// instead of the old dense sheet.
 class NewTripWizardScreen extends ConsumerStatefulWidget {
   const NewTripWizardScreen({super.key});
@@ -26,8 +26,8 @@ class _NewTripWizardScreenState extends ConsumerState<NewTripWizardScreen> {
   DateTime? _date;
   TimeOfDay? _departure;
   TimeOfDay? _return;
-  final Set<String> _podIds = <String>{};
-  bool _allPods = true;
+  final Set<String> _groupIds = <String>{};
+  bool _allGroups = true;
 
   bool get _dirty =>
       _name.text.trim().isNotEmpty ||
@@ -36,8 +36,8 @@ class _NewTripWizardScreenState extends ConsumerState<NewTripWizardScreen> {
       _date != null ||
       _departure != null ||
       _return != null ||
-      _podIds.isNotEmpty ||
-      !_allPods;
+      _groupIds.isNotEmpty ||
+      !_allGroups;
 
   bool get _page1Valid => _name.text.trim().isNotEmpty;
   bool get _page2Valid => _date != null;
@@ -90,7 +90,7 @@ class _NewTripWizardScreenState extends ConsumerState<NewTripWizardScreen> {
           notes: notes.isEmpty ? null : notes,
           departureTime: _departure == null ? null : _fmt(_departure!),
           returnTime: _return == null ? null : _fmt(_return!),
-          groupIds: _allPods ? const [] : _podIds.toList(),
+          groupIds: _allGroups ? const [] : _groupIds.toList(),
         );
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -242,19 +242,19 @@ class _NewTripWizardScreenState extends ConsumerState<NewTripWizardScreen> {
         SwitchListTile(
           title: const Text('All groups'),
           subtitle: const Text('Every group at the program is included'),
-          value: _allPods,
+          value: _allGroups,
           onChanged: (v) => setState(() {
-            _allPods = v;
-            if (v) _podIds.clear();
+            _allGroups = v;
+            if (v) _groupIds.clear();
           }),
           contentPadding: EdgeInsets.zero,
         ),
-        if (!_allPods)
+        if (!_allGroups)
           podsAsync.when(
             loading: () => const LinearProgressIndicator(),
             error: (err, _) => Text('Error: $err'),
-            data: (pods) {
-              if (pods.isEmpty) {
+            data: (groups) {
+              if (groups.isEmpty) {
                 return Text(
                   'No groups yet — add some in the Children tab.',
                   style: theme.textTheme.bodySmall,
@@ -266,12 +266,12 @@ class _NewTripWizardScreenState extends ConsumerState<NewTripWizardScreen> {
                   spacing: AppSpacing.sm,
                   runSpacing: AppSpacing.sm,
                   children: [
-                    for (final pod in pods)
+                    for (final group in groups)
                       FilterChip(
-                        label: Text(pod.name),
-                        selected: _podIds.contains(pod.id),
+                        label: Text(group.name),
+                        selected: _groupIds.contains(group.id),
                         onSelected: (_) => setState(() {
-                          if (!_podIds.add(pod.id)) _podIds.remove(pod.id);
+                          if (!_groupIds.add(group.id)) _groupIds.remove(group.id);
                         }),
                       ),
                   ],

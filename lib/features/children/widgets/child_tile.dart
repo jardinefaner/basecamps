@@ -5,17 +5,17 @@ import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
 
 class ChildTile extends StatelessWidget {
-  const ChildTile({required this.kid, required this.onTap, super.key});
+  const ChildTile({required this.child, required this.onTap, super.key});
 
-  final Child kid;
+  final Child child;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final fullName = [kid.firstName, kid.lastName].whereType<String>().join(' ');
-    final initial = kid.firstName.isNotEmpty
-        ? kid.firstName.characters.first.toUpperCase()
+    final fullName = [child.firstName, child.lastName].whereType<String>().join(' ');
+    final initial = child.firstName.isNotEmpty
+        ? child.firstName.characters.first.toUpperCase()
         : '?';
 
     return AppCard(
@@ -27,7 +27,7 @@ class ChildTile extends StatelessWidget {
       child: Row(
         children: [
           SmallAvatar(
-            path: kid.avatarPath,
+            path: child.avatarPath,
             fallbackInitial: initial,
           ),
           const SizedBox(width: AppSpacing.md),
@@ -36,11 +36,11 @@ class ChildTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(fullName, style: theme.textTheme.titleMedium),
-                if (kid.notes != null && kid.notes!.isNotEmpty)
+                if (child.notes != null && child.notes!.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
-                      kid.notes!,
+                      child.notes!,
                       style: theme.textTheme.bodySmall,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

@@ -63,7 +63,7 @@ class StepWizardScaffold extends StatefulWidget {
   final List<WizardStep> steps;
 
   /// Label + callback for the primary button on the last step (e.g.
-  /// "Create activity", "Add kid").
+  /// "Create activity", "Add child").
   final String finalActionLabel;
   final Future<void> Function() onFinalAction;
 

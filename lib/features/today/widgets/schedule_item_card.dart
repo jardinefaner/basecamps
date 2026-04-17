@@ -8,7 +8,7 @@ import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// List card for an activity on Today. Shows time, title, pod/specialist/
+/// List card for an activity on Today. Shows time, title, group/specialist/
 /// location subtitle, status badges, and (when relevant) three dynamic
 /// affordances:
 ///
@@ -16,7 +16,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 ///   "IN N MIN" chip so the teacher can prep.
 /// * **Obs prompt** — past activities with zero observations today surface
 ///   a subtle "Log observations →" strip; tapping jumps to Observe.
-/// * **Concern flag** — a red chip when any kid in this activity's pod
+/// * **Concern flag** — a red chip when any child in this activity's group
 ///   has an active concern logged today; tapping opens that concern.
 class ScheduleItemCard extends ConsumerWidget {
   const ScheduleItemCard({
@@ -49,8 +49,8 @@ class ScheduleItemCard extends ConsumerWidget {
   /// resolves the flag from today's activity-count map.
   final bool showLogObservationsPrompt;
 
-  /// A concern to surface if any kid in this activity's pod matches.
-  /// The parent does the pod-to-concern lookup; this card just renders
+  /// A concern to surface if any child in this activity's group matches.
+  /// The parent does the group-to-concern lookup; this card just renders
   /// whatever it's handed.
   final ConcernMatch? concernMatch;
 
@@ -214,8 +214,8 @@ class ScheduleItemCard extends ConsumerWidget {
     if (item.groupIds.isNotEmpty) {
       final names = <String>[];
       for (final groupId in item.groupIds) {
-        final pod = ref.watch(groupProvider(groupId)).asData?.value;
-        if (pod != null) names.add(pod.name);
+        final group = ref.watch(groupProvider(groupId)).asData?.value;
+        if (group != null) names.add(group.name);
       }
       if (names.isNotEmpty) parts.add(names.join(' + '));
     }
@@ -241,7 +241,7 @@ class ScheduleItemCard extends ConsumerWidget {
   }
 }
 
-/// Payload the parent hands the card when a pod-matching concern exists
+/// Payload the parent hands the card when a group-matching concern exists
 /// for today. [preview] is a short string to show on the strip (first
 /// line of the concern, typically).
 class ConcernMatch {

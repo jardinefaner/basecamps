@@ -4,19 +4,19 @@ import 'package:flutter/material.dart';
 
 class ChildChipPicker extends StatelessWidget {
   const ChildChipPicker({
-    required this.kids,
+    required this.children,
     required this.selectedIds,
     required this.onToggle,
     super.key,
   });
 
-  final List<Child> kids;
+  final List<Child> children;
   final Set<String> selectedIds;
   final ValueChanged<String> onToggle;
 
   @override
   Widget build(BuildContext context) {
-    if (kids.isEmpty) {
+    if (children.isEmpty) {
       final theme = Theme.of(context);
       return Text(
         'No children yet — add some in the Children tab.',
@@ -28,20 +28,20 @@ class ChildChipPicker extends StatelessWidget {
       spacing: AppSpacing.sm,
       runSpacing: AppSpacing.sm,
       children: [
-        for (final kid in kids)
+        for (final child in children)
           FilterChip(
-            label: Text(_displayName(kid)),
-            selected: selectedIds.contains(kid.id),
-            onSelected: (_) => onToggle(kid.id),
+            label: Text(_displayName(child)),
+            selected: selectedIds.contains(child.id),
+            onSelected: (_) => onToggle(child.id),
           ),
       ],
     );
   }
 
-  String _displayName(Child kid) {
-    final last = kid.lastName;
-    if (last == null || last.isEmpty) return kid.firstName;
+  String _displayName(Child child) {
+    final last = child.lastName;
+    if (last == null || last.isEmpty) return child.firstName;
     final initial = last.isNotEmpty ? last[0] : '';
-    return '${kid.firstName} $initial.';
+    return '${child.firstName} $initial.';
   }
 }

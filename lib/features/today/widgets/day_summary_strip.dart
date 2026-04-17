@@ -2,7 +2,7 @@ import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
 
 /// Compact "at a glance" strip directly under the date label. Four
-/// stats: activities scheduled today, kids in pods with activities,
+/// stats: activities scheduled today, children in groups with activities,
 /// specialists on today, and pending items — either "N concerns
 /// logged" or "N obs to log" depending on which is more actionable in
 /// this moment. Taps on the concerns / pending-obs stats deep-link to
@@ -10,7 +10,7 @@ import 'package:flutter/material.dart';
 class DaySummaryStrip extends StatelessWidget {
   const DaySummaryStrip({
     required this.activities,
-    required this.kids,
+    required this.children,
     required this.specialists,
     required this.concerns,
     required this.pendingObs,
@@ -20,7 +20,7 @@ class DaySummaryStrip extends StatelessWidget {
   });
 
   final int activities;
-  final int kids;
+  final int children;
   final int specialists;
   final int concerns;
   final int pendingObs;
@@ -53,8 +53,8 @@ class DaySummaryStrip extends StatelessWidget {
           Expanded(
             child: _Stat(
               icon: Icons.groups_outlined,
-              value: '$kids',
-              label: kids == 1 ? 'child' : 'children',
+              value: '$children',
+              label: children == 1 ? 'child' : 'children',
             ),
           ),
           _Divider(),

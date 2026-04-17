@@ -182,7 +182,7 @@ class ParentConcernRepository {
         .go();
   }
 
-  /// Structured kid ids linked to a concern. Used by the form to hydrate
+  /// Structured child ids linked to a concern. Used by the form to hydrate
   /// its chip picker on edit, and by the Today screen to figure out
   /// which activity card a concern should flag.
   Future<List<String>> childIdsForConcern(String concernId) async {
@@ -193,9 +193,9 @@ class ParentConcernRepository {
   }
 
   /// Live view of the (concern → child) join as a map from concern id
-  /// to the set of linked kid ids — feeds Today's concern-flag lookup
+  /// to the set of linked child ids — feeds Today's concern-flag lookup
   /// so adding/removing a link causes a rebuild.
-  Stream<Map<String, Set<String>>> watchConcernKidLinks() {
+  Stream<Map<String, Set<String>>> watchConcernChildLinks() {
     return _db.select(_db.parentConcernChildren).watch().map((rows) {
       final map = <String, Set<String>>{};
       for (final r in rows) {
@@ -296,12 +296,12 @@ final todayConcernNotesProvider =
       .watchForDay(DateTime.now());
 });
 
-/// Map of concern id → set of linked kid ids, live. Today's
+/// Map of concern id → set of linked child ids, live. Today's
 /// per-activity concern flag uses this to know which cards to annotate
 /// without substring-matching free text.
 final concernKidLinksProvider =
     StreamProvider<Map<String, Set<String>>>((ref) {
-  return ref.watch(parentConcernRepositoryProvider).watchConcernKidLinks();
+  return ref.watch(parentConcernRepositoryProvider).watchConcernChildLinks();
 });
 
 // Riverpod family return type is complex; inference is intentional.

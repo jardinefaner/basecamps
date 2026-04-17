@@ -21,7 +21,7 @@ class AttendanceSheet extends ConsumerWidget {
   });
 
   /// Groups whose children should appear in the sheet. Empty means
-  /// "everyone" — we defer to the kids provider in that case.
+  /// "everyone" — we defer to the children provider in that case.
   final List<String> groupIds;
   final DateTime date;
 
@@ -128,17 +128,17 @@ class AttendanceSheet extends ConsumerWidget {
                       ),
                     ),
                   const SizedBox(height: AppSpacing.sm),
-                  for (final kid in roster)
-                    _KidTile(
-                      kid: kid,
-                      record: attendance[kid.id],
+                  for (final child in roster)
+                    _ChildTile(
+                      child: child,
+                      record: attendance[child.id],
                       onCycle: () => _cycleStatus(
                         ref,
-                        kid.id,
-                        attendance[kid.id]?.status,
+                        child.id,
+                        attendance[child.id]?.status,
                       ),
                       onSelectStatus: (s) =>
-                          _setStatus(ref, kid.id, s),
+                          _setStatus(ref, child.id, s),
                     ),
                 ],
               ],
@@ -316,15 +316,15 @@ class _VDivider extends StatelessWidget {
   }
 }
 
-class _KidTile extends StatelessWidget {
-  const _KidTile({
-    required this.kid,
+class _ChildTile extends StatelessWidget {
+  const _ChildTile({
+    required this.child,
     required this.record,
     required this.onCycle,
     required this.onSelectStatus,
   });
 
-  final Child kid;
+  final Child child;
   final AttendanceRecord? record;
   final VoidCallback onCycle;
   final ValueChanged<AttendanceStatus?> onSelectStatus;
@@ -361,11 +361,11 @@ class _KidTile extends StatelessWidget {
         ),
     };
 
-    final initial = kid.firstName.isEmpty
+    final initial = child.firstName.isEmpty
         ? '?'
-        : kid.firstName.characters.first.toUpperCase();
+        : child.firstName.characters.first.toUpperCase();
     final fullName =
-        [kid.firstName, kid.lastName].whereType<String>().join(' ');
+        [child.firstName, child.lastName].whereType<String>().join(' ');
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),

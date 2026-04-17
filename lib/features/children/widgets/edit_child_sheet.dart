@@ -9,64 +9,64 @@ import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Create-or-edit sheet for a kid. When [kid] is null we're adding;
-/// otherwise we're editing that kid — the title, action label, and
+/// Create-or-edit sheet for a child. When [child] is null we're adding;
+/// otherwise we're editing that child — the title, action label, and
 /// delete affordance flip accordingly. Teachers tap the avatar to set
-/// or change the kid's photo.
+/// or change the child's photo.
 class EditChildSheet extends ConsumerStatefulWidget {
   const EditChildSheet({
-    required this.pods,
-    this.kid,
+    required this.groups,
+    this.child,
     this.initialPodId,
     super.key,
   });
 
-  final List<Group> pods;
+  final List<Group> groups;
 
   /// When null, the sheet acts as "Add child".
-  final Child? kid;
+  final Child? child;
 
   /// Only honored in create mode.
   final String? initialPodId;
 
   @override
-  ConsumerState<EditChildSheet> createState() => _EditKidSheetState();
+  ConsumerState<EditChildSheet> createState() => _EditChildSheetState();
 }
 
-class _EditKidSheetState extends ConsumerState<EditChildSheet> {
+class _EditChildSheetState extends ConsumerState<EditChildSheet> {
   late final _firstNameController =
-      TextEditingController(text: widget.kid?.firstName ?? '');
+      TextEditingController(text: widget.child?.firstName ?? '');
   late final _lastNameController =
-      TextEditingController(text: widget.kid?.lastName ?? '');
+      TextEditingController(text: widget.child?.lastName ?? '');
   late final _notesController =
-      TextEditingController(text: widget.kid?.notes ?? '');
+      TextEditingController(text: widget.child?.notes ?? '');
   late final _parentNameController =
-      TextEditingController(text: widget.kid?.parentName ?? '');
+      TextEditingController(text: widget.child?.parentName ?? '');
 
-  late String? _selectedPodId = widget.kid?.groupId ??
+  late String? _selectedGroupId = widget.child?.groupId ??
       widget.initialPodId ??
-      (widget.pods.isNotEmpty ? widget.pods.first.id : null);
+      (widget.groups.isNotEmpty ? widget.groups.first.id : null);
 
   /// Local file path for the avatar. Starts at the existing value and
   /// flips to null when the teacher taps "Remove photo".
-  late String? _avatarPath = widget.kid?.avatarPath;
+  late String? _avatarPath = widget.child?.avatarPath;
 
   bool _submitting = false;
 
-  bool get _isEdit => widget.kid != null;
+  bool get _isEdit => widget.child != null;
   bool get _isValid => _firstNameController.text.trim().isNotEmpty;
 
   bool get _hasChanges {
-    final kid = widget.kid;
-    if (kid == null) return true;
+    final child = widget.child;
+    if (child == null) return true;
     String? trimOrNull(String s) =>
         s.trim().isEmpty ? null : s.trim();
-    if (_firstNameController.text.trim() != kid.firstName) return true;
-    if (trimOrNull(_lastNameController.text) != kid.lastName) return true;
-    if (_selectedPodId != kid.groupId) return true;
-    if (trimOrNull(_parentNameController.text) != kid.parentName) return true;
-    if (trimOrNull(_notesController.text) != kid.notes) return true;
-    if (_avatarPath != kid.avatarPath) return true;
+    if (_firstNameController.text.trim() != child.firstName) return true;
+    if (trimOrNull(_lastNameController.text) != child.lastName) return true;
+    if (_selectedGroupId != child.groupId) return true;
+    if (trimOrNull(_parentNameController.text) != child.parentName) return true;
+    if (trimOrNull(_notesController.text) != child.notes) return true;
+    if (_avatarPath != child.avatarPath) return true;
     return false;
   }
 
@@ -88,12 +88,12 @@ class _EditKidSheetState extends ConsumerState<EditChildSheet> {
     final notes = _notesController.text.trim();
 
     final parentName = _parentNameController.text.trim();
-    final existing = widget.kid;
+    final existing = widget.child;
     if (existing == null) {
       await repo.addChild(
         firstName: firstName,
         lastName: lastName.isEmpty ? null : lastName,
-        groupId: _selectedPodId,
+        groupId: _selectedGroupId,
         notes: notes.isEmpty ? null : notes,
         avatarPath: _avatarPath,
         parentName: parentName.isEmpty ? null : parentName,
@@ -104,8 +104,8 @@ class _EditKidSheetState extends ConsumerState<EditChildSheet> {
         firstName: firstName,
         lastName: lastName.isEmpty ? null : lastName,
         clearLastName: lastName.isEmpty && existing.lastName != null,
-        groupId: _selectedPodId,
-        clearPodId: _selectedPodId == null && existing.groupId != null,
+        groupId: _selectedGroupId,
+        clearGroupId: _selectedGroupId == null && existing.groupId != null,
         notes: notes.isEmpty ? null : notes,
         clearNotes: notes.isEmpty && existing.notes != null,
         avatarPath: _avatarPath,
@@ -121,7 +121,7 @@ class _EditKidSheetState extends ConsumerState<EditChildSheet> {
   }
 
   Future<void> _delete() async {
-    final existing = widget.kid;
+    final existing = widget.child;
     if (existing == null) return;
     final confirmed = await showConfirmDialog(
       context: context,
@@ -189,18 +189,18 @@ class _EditKidSheetState extends ConsumerState<EditChildSheet> {
           Text('Group', style: theme.textTheme.titleSmall),
           const SizedBox(height: AppSpacing.sm),
           DropdownButtonFormField<String?>(
-            initialValue: _selectedPodId,
+            initialValue: _selectedGroupId,
             items: [
               const DropdownMenuItem<String?>(
                 child: Text('Unassigned'),
               ),
-              for (final pod in widget.pods)
+              for (final group in widget.groups)
                 DropdownMenuItem<String?>(
-                  value: pod.id,
-                  child: Text(pod.name),
+                  value: group.id,
+                  child: Text(group.name),
                 ),
             ],
-            onChanged: (value) => setState(() => _selectedPodId = value),
+            onChanged: (value) => setState(() => _selectedGroupId = value),
           ),
           const SizedBox(height: AppSpacing.lg),
           AppTextField(

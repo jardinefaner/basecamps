@@ -7,33 +7,33 @@ import 'package:basecamp/ui/step_wizard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Create-only wizard for enrolling a new kid. Follows the same
+/// Create-only wizard for enrolling a new child. Follows the same
 /// page-by-page pattern as the activity and specialist wizards so
 /// first-timers aren't stuck staring at every field at once. Editing
-/// an existing kid still uses the dense edit sheet.
+/// an existing child still uses the dense edit sheet.
 class NewChildWizardScreen extends ConsumerStatefulWidget {
   const NewChildWizardScreen({
-    required this.pods,
+    required this.groups,
     this.initialPodId,
     super.key,
   });
 
-  final List<Group> pods;
+  final List<Group> groups;
   final String? initialPodId;
 
   @override
   ConsumerState<NewChildWizardScreen> createState() =>
-      _NewKidWizardScreenState();
+      _NewChildWizardScreenState();
 }
 
-class _NewKidWizardScreenState extends ConsumerState<NewChildWizardScreen> {
+class _NewChildWizardScreenState extends ConsumerState<NewChildWizardScreen> {
   final _firstName = TextEditingController();
   final _lastName = TextEditingController();
   final _parentName = TextEditingController();
   final _notes = TextEditingController();
 
   String? _avatarPath;
-  late String? _podId = widget.initialPodId;
+  late String? _groupId = widget.initialPodId;
 
   bool get _dirty =>
       _firstName.text.trim().isNotEmpty ||
@@ -41,7 +41,7 @@ class _NewKidWizardScreenState extends ConsumerState<NewChildWizardScreen> {
       _parentName.text.trim().isNotEmpty ||
       _notes.text.trim().isNotEmpty ||
       _avatarPath != null ||
-      _podId != widget.initialPodId;
+      _groupId != widget.initialPodId;
 
   bool get _page1Valid => _firstName.text.trim().isNotEmpty;
 
@@ -61,7 +61,7 @@ class _NewKidWizardScreenState extends ConsumerState<NewChildWizardScreen> {
     await ref.read(childrenRepositoryProvider).addChild(
           firstName: _firstName.text.trim(),
           lastName: last.isEmpty ? null : last,
-          groupId: _podId,
+          groupId: _groupId,
           notes: notes.isEmpty ? null : notes,
           avatarPath: _avatarPath,
           parentName: parent.isEmpty ? null : parent,
@@ -149,7 +149,7 @@ class _NewKidWizardScreenState extends ConsumerState<NewChildWizardScreen> {
 
   Widget _buildPodPage() {
     final theme = Theme.of(context);
-    if (widget.pods.isEmpty) {
+    if (widget.groups.isEmpty) {
       return Text(
         'No groups yet. You can add one from the Children tab after this '
         'child is created.',
@@ -167,14 +167,14 @@ class _NewKidWizardScreenState extends ConsumerState<NewChildWizardScreen> {
           children: [
             ChoiceChip(
               label: const Text('Unassigned'),
-              selected: _podId == null,
-              onSelected: (_) => setState(() => _podId = null),
+              selected: _groupId == null,
+              onSelected: (_) => setState(() => _groupId = null),
             ),
-            for (final pod in widget.pods)
+            for (final group in widget.groups)
               ChoiceChip(
-                label: Text(pod.name),
-                selected: _podId == pod.id,
-                onSelected: (_) => setState(() => _podId = pod.id),
+                label: Text(group.name),
+                selected: _groupId == group.id,
+                onSelected: (_) => setState(() => _groupId = group.id),
               ),
           ],
         ),

@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Bottom sheet explaining why a given item is flagged as a conflict —
-/// which activities it clashes with, and whether the clash is pod-based,
+/// which activities it clashes with, and whether the clash is group-based,
 /// specialist-based, or both.
 class ConflictSheet extends ConsumerWidget {
   const ConflictSheet({
@@ -86,8 +86,8 @@ class _ConflictCard extends ConsumerWidget {
     if (info.podClash) {
       final sharedNames = <String>[];
       for (final id in info.sharedPodIds) {
-        final pod = ref.watch(groupProvider(id)).asData?.value;
-        if (pod != null) sharedNames.add(pod.name);
+        final group = ref.watch(groupProvider(id)).asData?.value;
+        if (group != null) sharedNames.add(group.name);
       }
       final label = sharedNames.isNotEmpty
           ? 'Group double-booked: ${sharedNames.join(", ")}'

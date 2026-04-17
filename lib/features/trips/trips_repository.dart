@@ -29,7 +29,7 @@ class TripsRepository {
   /// Adds a trip and auto-creates a matching ScheduleEntry on the trip's
   /// date so the calendar is in sync. If [departureTime] / [returnTime]
   /// are supplied, the entry is timed; otherwise it's full-day. The trip's
-  /// pods are mirrored onto the entry via EntryPods.
+  /// groups are mirrored onto the entry via EntryPods.
   Future<String> addTrip({
     required String name,
     required DateTime date,
@@ -90,13 +90,13 @@ class TripsRepository {
   }
 
   /// Deletes a trip. FK cascade also removes the linked ScheduleEntry and
-  /// all pod link rows.
+  /// all group link rows.
   Future<void> deleteTrip(String id) async {
     await (_db.delete(_db.trips)..where((t) => t.id.equals(id))).go();
   }
 
   /// Batch version of [deleteTrip]. Same cascade semantics (linked
-  /// schedule entries + pod join rows go with the trips).
+  /// schedule entries + group join rows go with the trips).
   Future<void> deleteTrips(Iterable<String> ids) async {
     final list = ids.toList();
     if (list.isEmpty) return;

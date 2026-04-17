@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Horizontal, single-select avatar strip of every staff member /
-/// specialist on record. Same visual language as the kid chip picker
+/// specialist on record. Same visual language as the child chip picker
 /// so the form feels consistent. Tapping the currently-selected chip
 /// deselects it.
 class SpecialistChipPicker extends ConsumerWidget {

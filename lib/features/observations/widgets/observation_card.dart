@@ -275,7 +275,7 @@ class _AttachmentThumb extends StatelessWidget {
 }
 
 /// Primary domain chip + an optional "+N" collapsing the rest. Keep
-/// the header to a single inline pill so the kid-name column keeps as
+/// the header to a single inline pill so the child-name column keeps as
 /// much space as possible — tapping the card opens the editor where
 /// every tagged domain is visible.
 class _DomainChipList extends StatelessWidget {
@@ -379,16 +379,16 @@ class _TargetLabel extends ConsumerWidget {
       loading: () => Text('…', style: theme.textTheme.titleMedium),
       error: (err, _) =>
           Text('Error', style: theme.textTheme.titleMedium),
-      data: (kids) {
-        if (kids.isNotEmpty) {
+      data: (children) {
+        if (children.isNotEmpty) {
           return Text(
-            _formatKidList(kids),
+            _formatKidList(children),
             style: theme.textTheme.titleMedium,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           );
         }
-        // Fallbacks for legacy single-kid or pod/activity-scoped observations.
+        // Fallbacks for legacy single-child or group/activity-scoped observations.
         final legacyKidId = observation.childId;
         if (legacyKidId != null) {
           final kidAsync = ref.watch(childProvider(legacyKidId));
@@ -419,18 +419,18 @@ class _TargetLabel extends ConsumerWidget {
     );
   }
 
-  String _singleKidLabel(Child kid) {
-    final last = kid.lastName;
-    if (last == null || last.isEmpty) return kid.firstName;
-    return '${kid.firstName} ${last[0]}.';
+  String _singleKidLabel(Child child) {
+    final last = child.lastName;
+    if (last == null || last.isEmpty) return child.firstName;
+    return '${child.firstName} ${last[0]}.';
   }
 
-  String _formatKidList(List<Child> kids) {
-    if (kids.length == 1) return _singleKidLabel(kids.first);
-    if (kids.length == 2) {
-      return '${_singleKidLabel(kids[0])} & ${_singleKidLabel(kids[1])}';
+  String _formatKidList(List<Child> children) {
+    if (children.length == 1) return _singleKidLabel(children.first);
+    if (children.length == 2) {
+      return '${_singleKidLabel(children[0])} & ${_singleKidLabel(children[1])}';
     }
-    final firstTwo = kids.take(2).map(_singleKidLabel).join(', ');
-    return '$firstTwo + ${kids.length - 2} more';
+    final firstTwo = children.take(2).map(_singleKidLabel).join(', ');
+    return '$firstTwo + ${children.length - 2} more';
   }
 }

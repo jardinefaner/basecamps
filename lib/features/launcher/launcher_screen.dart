@@ -15,7 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 /// Hidden "spotlight" surface reached by swiping right from Today.
-/// Search at the top, then: quick actions, kids, specialists, the
+/// Search at the top, then: quick actions, children, specialists, the
 /// named sections of the app, and library shortcuts — all filterable
 /// live from the search field.
 class LauncherScreen extends ConsumerStatefulWidget {
@@ -47,14 +47,14 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
     final specialistsAsync = ref.watch(specialistsProvider);
     final libraryAsync = ref.watch(activityLibraryProvider);
 
-    final kids = kidsAsync.asData?.value ?? const <Child>[];
+    final children = kidsAsync.asData?.value ?? const <Child>[];
     final specialists =
         specialistsAsync.asData?.value ?? const <Specialist>[];
     final library =
         libraryAsync.asData?.value ?? const <ActivityLibraryData>[];
 
     final filteredKids = [
-      for (final k in kids)
+      for (final k in children)
         if (_matches(_displayName(k.firstName, k.lastName))) k,
     ];
     final filteredSpecialists = [
@@ -109,7 +109,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                           _Section(
                             label: 'Children',
                             count: filteredKids.length,
-                            total: kids.length,
+                            total: children.length,
                             query: _query,
                             child: _PeopleWrap.fromKids(filteredKids),
                           ),
@@ -420,16 +420,16 @@ class _QuickActionTile extends StatelessWidget {
 }
 
 // ================================================================
-// People (kids + specialists)
+// People (children + specialists)
 // ================================================================
 
 class _PeopleWrap extends StatelessWidget {
   const _PeopleWrap({required this.cells});
 
-  factory _PeopleWrap.fromKids(List<Child> kids) {
+  factory _PeopleWrap.fromKids(List<Child> children) {
     return _PeopleWrap(
       cells: [
-        for (final k in kids)
+        for (final k in children)
           _PersonCell(
             name: _displayName(k.firstName, k.lastName),
             avatarPath: k.avatarPath,
