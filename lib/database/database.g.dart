@@ -9881,6 +9881,229 @@ class ParentConcernNotesCompanion extends UpdateCompanion<ParentConcernNote> {
   }
 }
 
+class $ParentConcernKidsTable extends ParentConcernKids
+    with TableInfo<$ParentConcernKidsTable, ParentConcernKid> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ParentConcernKidsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _concernIdMeta = const VerificationMeta(
+    'concernId',
+  );
+  @override
+  late final GeneratedColumn<String> concernId = GeneratedColumn<String>(
+    'concern_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES parent_concern_notes (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _kidIdMeta = const VerificationMeta('kidId');
+  @override
+  late final GeneratedColumn<String> kidId = GeneratedColumn<String>(
+    'kid_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES kids (id) ON DELETE CASCADE',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [concernId, kidId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'parent_concern_kids';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ParentConcernKid> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('concern_id')) {
+      context.handle(
+        _concernIdMeta,
+        concernId.isAcceptableOrUnknown(data['concern_id']!, _concernIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_concernIdMeta);
+    }
+    if (data.containsKey('kid_id')) {
+      context.handle(
+        _kidIdMeta,
+        kidId.isAcceptableOrUnknown(data['kid_id']!, _kidIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kidIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {concernId, kidId};
+  @override
+  ParentConcernKid map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ParentConcernKid(
+      concernId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}concern_id'],
+      )!,
+      kidId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kid_id'],
+      )!,
+    );
+  }
+
+  @override
+  $ParentConcernKidsTable createAlias(String alias) {
+    return $ParentConcernKidsTable(attachedDatabase, alias);
+  }
+}
+
+class ParentConcernKid extends DataClass
+    implements Insertable<ParentConcernKid> {
+  final String concernId;
+  final String kidId;
+  const ParentConcernKid({required this.concernId, required this.kidId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['concern_id'] = Variable<String>(concernId);
+    map['kid_id'] = Variable<String>(kidId);
+    return map;
+  }
+
+  ParentConcernKidsCompanion toCompanion(bool nullToAbsent) {
+    return ParentConcernKidsCompanion(
+      concernId: Value(concernId),
+      kidId: Value(kidId),
+    );
+  }
+
+  factory ParentConcernKid.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ParentConcernKid(
+      concernId: serializer.fromJson<String>(json['concernId']),
+      kidId: serializer.fromJson<String>(json['kidId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'concernId': serializer.toJson<String>(concernId),
+      'kidId': serializer.toJson<String>(kidId),
+    };
+  }
+
+  ParentConcernKid copyWith({String? concernId, String? kidId}) =>
+      ParentConcernKid(
+        concernId: concernId ?? this.concernId,
+        kidId: kidId ?? this.kidId,
+      );
+  ParentConcernKid copyWithCompanion(ParentConcernKidsCompanion data) {
+    return ParentConcernKid(
+      concernId: data.concernId.present ? data.concernId.value : this.concernId,
+      kidId: data.kidId.present ? data.kidId.value : this.kidId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ParentConcernKid(')
+          ..write('concernId: $concernId, ')
+          ..write('kidId: $kidId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(concernId, kidId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ParentConcernKid &&
+          other.concernId == this.concernId &&
+          other.kidId == this.kidId);
+}
+
+class ParentConcernKidsCompanion extends UpdateCompanion<ParentConcernKid> {
+  final Value<String> concernId;
+  final Value<String> kidId;
+  final Value<int> rowid;
+  const ParentConcernKidsCompanion({
+    this.concernId = const Value.absent(),
+    this.kidId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ParentConcernKidsCompanion.insert({
+    required String concernId,
+    required String kidId,
+    this.rowid = const Value.absent(),
+  }) : concernId = Value(concernId),
+       kidId = Value(kidId);
+  static Insertable<ParentConcernKid> custom({
+    Expression<String>? concernId,
+    Expression<String>? kidId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (concernId != null) 'concern_id': concernId,
+      if (kidId != null) 'kid_id': kidId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ParentConcernKidsCompanion copyWith({
+    Value<String>? concernId,
+    Value<String>? kidId,
+    Value<int>? rowid,
+  }) {
+    return ParentConcernKidsCompanion(
+      concernId: concernId ?? this.concernId,
+      kidId: kidId ?? this.kidId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (concernId.present) {
+      map['concern_id'] = Variable<String>(concernId.value);
+    }
+    if (kidId.present) {
+      map['kid_id'] = Variable<String>(kidId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ParentConcernKidsCompanion(')
+          ..write('concernId: $concernId, ')
+          ..write('kidId: $kidId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -9913,6 +10136,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $EntryPodsTable entryPods = $EntryPodsTable(this);
   late final $ParentConcernNotesTable parentConcernNotes =
       $ParentConcernNotesTable(this);
+  late final $ParentConcernKidsTable parentConcernKids =
+      $ParentConcernKidsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -9936,6 +10161,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     templatePods,
     entryPods,
     parentConcernNotes,
+    parentConcernKids,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -10113,6 +10339,20 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('entry_pods', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'parent_concern_notes',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('parent_concern_kids', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'kids',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('parent_concern_kids', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -11066,6 +11306,27 @@ final class $$KidsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$ParentConcernKidsTable, List<ParentConcernKid>>
+  _parentConcernKidsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.parentConcernKids,
+        aliasName: $_aliasNameGenerator(db.kids.id, db.parentConcernKids.kidId),
+      );
+
+  $$ParentConcernKidsTableProcessedTableManager get parentConcernKidsRefs {
+    final manager = $$ParentConcernKidsTableTableManager(
+      $_db,
+      $_db.parentConcernKids,
+    ).filter((f) => f.kidId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _parentConcernKidsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$KidsTableFilterComposer extends Composer<_$AppDatabase, $KidsTable> {
@@ -11215,6 +11476,31 @@ class $$KidsTableFilterComposer extends Composer<_$AppDatabase, $KidsTable> {
           }) => $$ObservationKidsTableFilterComposer(
             $db: $db,
             $table: $db.observationKids,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> parentConcernKidsRefs(
+    Expression<bool> Function($$ParentConcernKidsTableFilterComposer f) f,
+  ) {
+    final $$ParentConcernKidsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.parentConcernKids,
+      getReferencedColumn: (t) => t.kidId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ParentConcernKidsTableFilterComposer(
+            $db: $db,
+            $table: $db.parentConcernKids,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -11447,6 +11733,32 @@ class $$KidsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> parentConcernKidsRefs<T extends Object>(
+    Expression<T> Function($$ParentConcernKidsTableAnnotationComposer a) f,
+  ) {
+    final $$ParentConcernKidsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.parentConcernKids,
+          getReferencedColumn: (t) => t.kidId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ParentConcernKidsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.parentConcernKids,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$KidsTableTableManager
@@ -11467,6 +11779,7 @@ class $$KidsTableTableManager
             bool captureKidsRefs,
             bool observationsRefs,
             bool observationKidsRefs,
+            bool parentConcernKidsRefs,
           })
         > {
   $$KidsTableTableManager(_$AppDatabase db, $KidsTable table)
@@ -11548,6 +11861,7 @@ class $$KidsTableTableManager
                 captureKidsRefs = false,
                 observationsRefs = false,
                 observationKidsRefs = false,
+                parentConcernKidsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -11555,6 +11869,7 @@ class $$KidsTableTableManager
                     if (captureKidsRefs) db.captureKids,
                     if (observationsRefs) db.observations,
                     if (observationKidsRefs) db.observationKids,
+                    if (parentConcernKidsRefs) db.parentConcernKids,
                   ],
                   addJoins:
                       <
@@ -11642,6 +11957,26 @@ class $$KidsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (parentConcernKidsRefs)
+                        await $_getPrefetchedData<
+                          Kid,
+                          $KidsTable,
+                          ParentConcernKid
+                        >(
+                          currentTable: table,
+                          referencedTable: $$KidsTableReferences
+                              ._parentConcernKidsRefsTable(db),
+                          managerFromTypedResult: (p0) => $$KidsTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).parentConcernKidsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.kidId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -11667,6 +12002,7 @@ typedef $$KidsTableProcessedTableManager =
         bool captureKidsRefs,
         bool observationsRefs,
         bool observationKidsRefs,
+        bool parentConcernKidsRefs,
       })
     >;
 typedef $$TripsTableCreateCompanionBuilder =
@@ -19596,6 +19932,44 @@ typedef $$ParentConcernNotesTableUpdateCompanionBuilder =
       Value<int> rowid,
     });
 
+final class $$ParentConcernNotesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $ParentConcernNotesTable,
+          ParentConcernNote
+        > {
+  $$ParentConcernNotesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static MultiTypedResultKey<$ParentConcernKidsTable, List<ParentConcernKid>>
+  _parentConcernKidsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.parentConcernKids,
+        aliasName: $_aliasNameGenerator(
+          db.parentConcernNotes.id,
+          db.parentConcernKids.concernId,
+        ),
+      );
+
+  $$ParentConcernKidsTableProcessedTableManager get parentConcernKidsRefs {
+    final manager = $$ParentConcernKidsTableTableManager(
+      $_db,
+      $_db.parentConcernKids,
+    ).filter((f) => f.concernId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _parentConcernKidsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
 class $$ParentConcernNotesTableFilterComposer
     extends Composer<_$AppDatabase, $ParentConcernNotesTable> {
   $$ParentConcernNotesTableFilterComposer({
@@ -19739,6 +20113,31 @@ class $$ParentConcernNotesTableFilterComposer
     column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
   );
+
+  Expression<bool> parentConcernKidsRefs(
+    Expression<bool> Function($$ParentConcernKidsTableFilterComposer f) f,
+  ) {
+    final $$ParentConcernKidsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.parentConcernKids,
+      getReferencedColumn: (t) => t.concernId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ParentConcernKidsTableFilterComposer(
+            $db: $db,
+            $table: $db.parentConcernKids,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ParentConcernNotesTableOrderingComposer
@@ -20023,6 +20422,32 @@ class $$ParentConcernNotesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  Expression<T> parentConcernKidsRefs<T extends Object>(
+    Expression<T> Function($$ParentConcernKidsTableAnnotationComposer a) f,
+  ) {
+    final $$ParentConcernKidsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.parentConcernKids,
+          getReferencedColumn: (t) => t.concernId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ParentConcernKidsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.parentConcernKids,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$ParentConcernNotesTableTableManager
@@ -20036,16 +20461,9 @@ class $$ParentConcernNotesTableTableManager
           $$ParentConcernNotesTableAnnotationComposer,
           $$ParentConcernNotesTableCreateCompanionBuilder,
           $$ParentConcernNotesTableUpdateCompanionBuilder,
-          (
-            ParentConcernNote,
-            BaseReferences<
-              _$AppDatabase,
-              $ParentConcernNotesTable,
-              ParentConcernNote
-            >,
-          ),
+          (ParentConcernNote, $$ParentConcernNotesTableReferences),
           ParentConcernNote,
-          PrefetchHooks Function()
+          PrefetchHooks Function({bool parentConcernKidsRefs})
         > {
   $$ParentConcernNotesTableTableManager(
     _$AppDatabase db,
@@ -20184,9 +20602,45 @@ class $$ParentConcernNotesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ParentConcernNotesTableReferences(db, table, e),
+                ),
+              )
               .toList(),
-          prefetchHooksCallback: null,
+          prefetchHooksCallback: ({parentConcernKidsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (parentConcernKidsRefs) db.parentConcernKids,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (parentConcernKidsRefs)
+                    await $_getPrefetchedData<
+                      ParentConcernNote,
+                      $ParentConcernNotesTable,
+                      ParentConcernKid
+                    >(
+                      currentTable: table,
+                      referencedTable: $$ParentConcernNotesTableReferences
+                          ._parentConcernKidsRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$ParentConcernNotesTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).parentConcernKidsRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.concernId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
         ),
       );
 }
@@ -20201,16 +20655,380 @@ typedef $$ParentConcernNotesTableProcessedTableManager =
       $$ParentConcernNotesTableAnnotationComposer,
       $$ParentConcernNotesTableCreateCompanionBuilder,
       $$ParentConcernNotesTableUpdateCompanionBuilder,
-      (
-        ParentConcernNote,
+      (ParentConcernNote, $$ParentConcernNotesTableReferences),
+      ParentConcernNote,
+      PrefetchHooks Function({bool parentConcernKidsRefs})
+    >;
+typedef $$ParentConcernKidsTableCreateCompanionBuilder =
+    ParentConcernKidsCompanion Function({
+      required String concernId,
+      required String kidId,
+      Value<int> rowid,
+    });
+typedef $$ParentConcernKidsTableUpdateCompanionBuilder =
+    ParentConcernKidsCompanion Function({
+      Value<String> concernId,
+      Value<String> kidId,
+      Value<int> rowid,
+    });
+
+final class $$ParentConcernKidsTableReferences
+    extends
         BaseReferences<
           _$AppDatabase,
-          $ParentConcernNotesTable,
-          ParentConcernNote
-        >,
-      ),
-      ParentConcernNote,
-      PrefetchHooks Function()
+          $ParentConcernKidsTable,
+          ParentConcernKid
+        > {
+  $$ParentConcernKidsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ParentConcernNotesTable _concernIdTable(_$AppDatabase db) =>
+      db.parentConcernNotes.createAlias(
+        $_aliasNameGenerator(
+          db.parentConcernKids.concernId,
+          db.parentConcernNotes.id,
+        ),
+      );
+
+  $$ParentConcernNotesTableProcessedTableManager get concernId {
+    final $_column = $_itemColumn<String>('concern_id')!;
+
+    final manager = $$ParentConcernNotesTableTableManager(
+      $_db,
+      $_db.parentConcernNotes,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_concernIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $KidsTable _kidIdTable(_$AppDatabase db) => db.kids.createAlias(
+    $_aliasNameGenerator(db.parentConcernKids.kidId, db.kids.id),
+  );
+
+  $$KidsTableProcessedTableManager get kidId {
+    final $_column = $_itemColumn<String>('kid_id')!;
+
+    final manager = $$KidsTableTableManager(
+      $_db,
+      $_db.kids,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_kidIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ParentConcernKidsTableFilterComposer
+    extends Composer<_$AppDatabase, $ParentConcernKidsTable> {
+  $$ParentConcernKidsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$ParentConcernNotesTableFilterComposer get concernId {
+    final $$ParentConcernNotesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.concernId,
+      referencedTable: $db.parentConcernNotes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ParentConcernNotesTableFilterComposer(
+            $db: $db,
+            $table: $db.parentConcernNotes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$KidsTableFilterComposer get kidId {
+    final $$KidsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.kidId,
+      referencedTable: $db.kids,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$KidsTableFilterComposer(
+            $db: $db,
+            $table: $db.kids,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ParentConcernKidsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ParentConcernKidsTable> {
+  $$ParentConcernKidsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$ParentConcernNotesTableOrderingComposer get concernId {
+    final $$ParentConcernNotesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.concernId,
+      referencedTable: $db.parentConcernNotes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ParentConcernNotesTableOrderingComposer(
+            $db: $db,
+            $table: $db.parentConcernNotes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$KidsTableOrderingComposer get kidId {
+    final $$KidsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.kidId,
+      referencedTable: $db.kids,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$KidsTableOrderingComposer(
+            $db: $db,
+            $table: $db.kids,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ParentConcernKidsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ParentConcernKidsTable> {
+  $$ParentConcernKidsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$ParentConcernNotesTableAnnotationComposer get concernId {
+    final $$ParentConcernNotesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.concernId,
+          referencedTable: $db.parentConcernNotes,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ParentConcernNotesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.parentConcernNotes,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+
+  $$KidsTableAnnotationComposer get kidId {
+    final $$KidsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.kidId,
+      referencedTable: $db.kids,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$KidsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.kids,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ParentConcernKidsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ParentConcernKidsTable,
+          ParentConcernKid,
+          $$ParentConcernKidsTableFilterComposer,
+          $$ParentConcernKidsTableOrderingComposer,
+          $$ParentConcernKidsTableAnnotationComposer,
+          $$ParentConcernKidsTableCreateCompanionBuilder,
+          $$ParentConcernKidsTableUpdateCompanionBuilder,
+          (ParentConcernKid, $$ParentConcernKidsTableReferences),
+          ParentConcernKid,
+          PrefetchHooks Function({bool concernId, bool kidId})
+        > {
+  $$ParentConcernKidsTableTableManager(
+    _$AppDatabase db,
+    $ParentConcernKidsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ParentConcernKidsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ParentConcernKidsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ParentConcernKidsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> concernId = const Value.absent(),
+                Value<String> kidId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ParentConcernKidsCompanion(
+                concernId: concernId,
+                kidId: kidId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String concernId,
+                required String kidId,
+                Value<int> rowid = const Value.absent(),
+              }) => ParentConcernKidsCompanion.insert(
+                concernId: concernId,
+                kidId: kidId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ParentConcernKidsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({concernId = false, kidId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (concernId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.concernId,
+                                referencedTable:
+                                    $$ParentConcernKidsTableReferences
+                                        ._concernIdTable(db),
+                                referencedColumn:
+                                    $$ParentConcernKidsTableReferences
+                                        ._concernIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (kidId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.kidId,
+                                referencedTable:
+                                    $$ParentConcernKidsTableReferences
+                                        ._kidIdTable(db),
+                                referencedColumn:
+                                    $$ParentConcernKidsTableReferences
+                                        ._kidIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ParentConcernKidsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ParentConcernKidsTable,
+      ParentConcernKid,
+      $$ParentConcernKidsTableFilterComposer,
+      $$ParentConcernKidsTableOrderingComposer,
+      $$ParentConcernKidsTableAnnotationComposer,
+      $$ParentConcernKidsTableCreateCompanionBuilder,
+      $$ParentConcernKidsTableUpdateCompanionBuilder,
+      (ParentConcernKid, $$ParentConcernKidsTableReferences),
+      ParentConcernKid,
+      PrefetchHooks Function({bool concernId, bool kidId})
     >;
 
 class $AppDatabaseManager {
@@ -20256,4 +21074,6 @@ class $AppDatabaseManager {
       $$EntryPodsTableTableManager(_db, _db.entryPods);
   $$ParentConcernNotesTableTableManager get parentConcernNotes =>
       $$ParentConcernNotesTableTableManager(_db, _db.parentConcernNotes);
+  $$ParentConcernKidsTableTableManager get parentConcernKids =>
+      $$ParentConcernKidsTableTableManager(_db, _db.parentConcernKids);
 }

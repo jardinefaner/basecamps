@@ -30,6 +30,7 @@ QueryExecutor _openConnection() {
     TemplatePods,
     EntryPods,
     ParentConcernNotes,
+    ParentConcernKids,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -38,7 +39,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 22;
+  int get schemaVersion => 23;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -305,6 +306,13 @@ class AppDatabase extends _$AppDatabase {
               scheduleEntries,
               scheduleEntries.allPods,
             );
+          }
+          if (from < 23) {
+            // Structured concern↔child links. The childNames text
+            // column stays (it's what the parent actually said), but
+            // the Today screen now uses this join to know which
+            // children a concern mentions.
+            await _createTableIfMissing(m, parentConcernKids);
           }
         },
       );

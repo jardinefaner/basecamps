@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class ParentConcernInput {
   ParentConcernInput({
     this.childNames = '',
+    List<String>? kidIds,
     this.parentName = '',
     this.concernDate,
     this.staffReceiving = '',
@@ -32,13 +33,19 @@ class ParentConcernInput {
     this.supervisorSignature,
     this.supervisorSignaturePath,
     this.supervisorSignatureDate,
-  });
+  }) : kidIds = kidIds ?? <String>[];
 
   /// Build the form's editable state from an existing drift row — the
-  /// "edit existing note" path.
-  factory ParentConcernInput.fromRow(ParentConcernNote row) {
+  /// "edit existing note" path. The structured child-id list is loaded
+  /// separately (via `ParentConcernRepository.kidIdsForConcern`) and
+  /// passed through [kidIds] so hydration runs in a single frame.
+  factory ParentConcernInput.fromRow(
+    ParentConcernNote row, {
+    List<String> kidIds = const [],
+  }) {
     return ParentConcernInput(
       childNames: row.childNames,
+      kidIds: List<String>.from(kidIds),
       parentName: row.parentName,
       concernDate: row.concernDate,
       staffReceiving: row.staffReceiving,
@@ -66,6 +73,13 @@ class ParentConcernInput {
   }
 
   String childNames;
+
+  /// Structured list of children this concern references, authoritative
+  /// for "does this concern mention a child in this group" queries.
+  /// [childNames] stays as the free-text version (what the parent
+  /// actually said, used in PDF / document exports).
+  List<String> kidIds;
+
   String parentName;
   DateTime? concernDate;
   String staffReceiving;
@@ -142,7 +156,10 @@ class ParentConcernRepository {
   /// Create a brand-new note. Returns the new id.
   Future<String> create(ParentConcernInput input) async {
     final id = newId();
-    await _db.into(_db.parentConcernNotes).insert(_companion(id, input));
+    await _db.transaction(() async {
+      await _db.into(_db.parentConcernNotes).insert(_companion(id, input));
+      await _replaceKidLinks(id, input.kidIds);
+    });
     return id;
   }
 
@@ -150,15 +167,63 @@ class ParentConcernRepository {
   /// (minus `createdAt`) — every field is replaced so the form is the
   /// source of truth, not a partial patch.
   Future<void> update(String id, ParentConcernInput input) async {
-    await (_db.update(_db.parentConcernNotes)..where((n) => n.id.equals(id)))
-        .write(
-      _companion(id, input, updating: true),
-    );
+    await _db.transaction(() async {
+      await (_db.update(_db.parentConcernNotes)
+            ..where((n) => n.id.equals(id)))
+          .write(
+        _companion(id, input, updating: true),
+      );
+      await _replaceKidLinks(id, input.kidIds);
+    });
   }
 
   Future<void> delete(String id) async {
     await (_db.delete(_db.parentConcernNotes)..where((n) => n.id.equals(id)))
         .go();
+  }
+
+  /// Structured kid ids linked to a concern. Used by the form to hydrate
+  /// its chip picker on edit, and by the Today screen to figure out
+  /// which activity card a concern should flag.
+  Future<List<String>> kidIdsForConcern(String concernId) async {
+    final rows = await (_db.select(_db.parentConcernKids)
+          ..where((k) => k.concernId.equals(concernId)))
+        .get();
+    return rows.map((r) => r.kidId).toList();
+  }
+
+  /// Live view of the (concern → child) join as a map from concern id
+  /// to the set of linked kid ids — feeds Today's concern-flag lookup
+  /// so adding/removing a link causes a rebuild.
+  Stream<Map<String, Set<String>>> watchConcernKidLinks() {
+    return _db.select(_db.parentConcernKids).watch().map((rows) {
+      final map = <String, Set<String>>{};
+      for (final r in rows) {
+        (map[r.concernId] ??= <String>{}).add(r.kidId);
+      }
+      return map;
+    });
+  }
+
+  Future<void> _replaceKidLinks(
+    String concernId,
+    List<String> kidIds,
+  ) async {
+    await (_db.delete(_db.parentConcernKids)
+          ..where((k) => k.concernId.equals(concernId)))
+        .go();
+    // Dedupe while preserving order — same defensive pattern other
+    // repos use so accidental double-taps don't violate the PK.
+    final seen = <String>{};
+    for (final kidId in kidIds) {
+      if (!seen.add(kidId)) continue;
+      await _db.into(_db.parentConcernKids).insert(
+            ParentConcernKidsCompanion.insert(
+              concernId: concernId,
+              kidId: kidId,
+            ),
+          );
+    }
   }
 
   /// Batch version. One `WHERE id IN (...)` delete; any drawn-
@@ -229,6 +294,14 @@ final todayConcernNotesProvider =
   return ref
       .watch(parentConcernRepositoryProvider)
       .watchForDay(DateTime.now());
+});
+
+/// Map of concern id → set of linked kid ids, live. Today's
+/// per-activity concern flag uses this to know which cards to annotate
+/// without substring-matching free text.
+final concernKidLinksProvider =
+    StreamProvider<Map<String, Set<String>>>((ref) {
+  return ref.watch(parentConcernRepositoryProvider).watchConcernKidLinks();
 });
 
 // Riverpod family return type is complex; inference is intentional.

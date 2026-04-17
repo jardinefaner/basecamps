@@ -148,12 +148,16 @@ class _ParentConcernFormScreenState
   }
 
   Future<void> _loadExisting() async {
-    final note = await ref
-        .read(parentConcernRepositoryProvider)
-        .getOne(widget.noteId!);
+    final repo = ref.read(parentConcernRepositoryProvider);
+    final note = await repo.getOne(widget.noteId!);
     if (!mounted || note == null) return;
-    final fromRow = ParentConcernInput.fromRow(note);
+    final kidIds = await repo.kidIdsForConcern(widget.noteId!);
+    if (!mounted) return;
+    final fromRow = ParentConcernInput.fromRow(note, kidIds: kidIds);
     setState(() {
+      _selectedKidIds
+        ..clear()
+        ..addAll(fromRow.kidIds);
       _childNamesExtra.text = fromRow.childNames;
       _parentName.text = fromRow.parentName;
       _staffReceivingExtra.text = fromRow.staffReceiving;
@@ -288,6 +292,7 @@ class _ParentConcernFormScreenState
   void _syncControllersToInput() {
     _input
       ..childNames = _composeChildNames()
+      ..kidIds = List<String>.from(_selectedKidIds)
       ..parentName = _parentName.text.trim()
       ..staffReceiving = _composeStaff()
       ..supervisorNotified = _composeSupervisor()

@@ -109,6 +109,9 @@ class _Body extends ConsumerWidget {
     final concerns =
         ref.watch(todayConcernNotesProvider).asData?.value ??
             const <ParentConcernNote>[];
+    final concernKidLinks =
+        ref.watch(concernKidLinksProvider).asData?.value ??
+            const <String, Set<String>>{};
     final allKids =
         ref.watch(kidsProvider).asData?.value ?? const <Kid>[];
 
@@ -163,30 +166,30 @@ class _Body extends ConsumerWidget {
         .length;
 
     ConcernMatch? concernForItem(ScheduleItem item) {
-      // "All pods" activities aren't usefully tied to one kid's
-      // concern — they're for everyone. No-pods activities have no
-      // kids at all. Only narrow, pod-scoped activities get the flag.
+      // "All groups" activities aren't usefully tied to one child's
+      // concern — they're for everyone. No-groups activities have no
+      // children at all. Only narrow, group-scoped activities get the
+      // flag.
       if (concerns.isEmpty ||
           item.podIds.isEmpty ||
           item.isAllPods ||
           item.isNoPods) {
         return null;
       }
-      final podKidNames = <String>[
+      final podKidIds = <String>{
         for (final k in allKids)
-          if (k.podId != null && item.podIds.contains(k.podId))
-            k.firstName.toLowerCase(),
-      ];
-      if (podKidNames.isEmpty) return null;
+          if (k.podId != null && item.podIds.contains(k.podId)) k.id,
+      };
+      if (podKidIds.isEmpty) return null;
+      // Newest first — `concerns` is already sorted by updatedAt desc.
       for (final c in concerns) {
-        final haystack = c.childNames.toLowerCase();
-        if (haystack.isEmpty) continue;
-        for (final name in podKidNames) {
-          if (name.isEmpty) continue;
-          if (haystack.contains(name)) {
-            final preview = _concernPreview(c);
-            return ConcernMatch(id: c.id, preview: preview);
-          }
+        final linked = concernKidLinks[c.id];
+        if (linked == null || linked.isEmpty) continue;
+        if (linked.any(podKidIds.contains)) {
+          return ConcernMatch(
+            id: c.id,
+            preview: _concernPreview(c),
+          );
         }
       }
       return null;
@@ -225,7 +228,10 @@ class _Body extends ConsumerWidget {
               conflicts: conflicts[item.id] ?? const [],
               concernMatch: concernForItem(item),
               onTap: () => onOpenDetail(item),
-              onOpenConcern: () => _goConcern(context, item),
+              onOpenConcern: () => _goConcern(
+                context,
+                concernForItem(item)?.id,
+              ),
             ),
           ),
         ],
@@ -267,7 +273,10 @@ class _Body extends ConsumerWidget {
               minutesUntilStart: i == 0 ? nextUpMinutes : null,
               concernMatch: concernForItem(upcoming[i]),
               onTap: () => onOpenDetail(upcoming[i]),
-              onOpenConcern: () => _goConcern(context, upcoming[i]),
+              onOpenConcern: () => _goConcern(
+                context,
+                concernForItem(upcoming[i])?.id,
+              ),
             ),
           ),
         ],
@@ -294,7 +303,10 @@ class _Body extends ConsumerWidget {
                     concernMatch: concernForItem(item),
                     onTap: () => onOpenDetail(item),
                     onLogObservations: () => context.go('/observations'),
-                    onOpenConcern: () => _goConcern(context, item),
+                    onOpenConcern: () => _goConcern(
+                context,
+                concernForItem(item)?.id,
+              ),
                   ),
                 ),
             ],
@@ -304,11 +316,15 @@ class _Body extends ConsumerWidget {
     );
   }
 
-  void _goConcern(BuildContext context, ScheduleItem item) {
-    // Best effort: we know *which* concern matched, but to keep the
-    // schedule card's props simple we route to the list — the teacher
-    // can pick the most recent match from there.
-    unawaited(context.push('/more/forms/parent-concern'));
+  void _goConcern(BuildContext context, String? concernId) {
+    // With the structured concern↔child join we can jump straight to
+    // the matching note rather than dumping the teacher onto the list
+    // to hunt for it. Fall back to the list when no id is handed over
+    // (shouldn't happen, but harmless).
+    final route = concernId == null
+        ? '/more/forms/parent-concern'
+        : '/more/forms/parent-concern/$concernId';
+    unawaited(context.push(route));
   }
 
   String _concernPreview(ParentConcernNote note) {

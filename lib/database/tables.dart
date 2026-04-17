@@ -370,6 +370,28 @@ class ParentConcernNotes extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Structured link between a parent concern note and each child it
+/// mentions. Replaces a lossy substring-match against the free-text
+/// `childNames` column — the Today screen uses this join to show
+/// "an active concern mentions a child in this group" on the right
+/// activity card, and opens the specific concern on tap.
+///
+/// `childNames` is still kept on the concern row for display/export
+/// purposes (the parent's words), but this table is the source of
+/// truth for "which children are involved".
+class ParentConcernKids extends Table {
+  TextColumn get concernId => text().references(
+        ParentConcernNotes,
+        #id,
+        onDelete: KeyAction.cascade,
+      )();
+  TextColumn get kidId =>
+      text().references(Kids, #id, onDelete: KeyAction.cascade)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {concernId, kidId};
+}
+
 /// Per-date schedule entries. `kind` is 'addition' | 'override' | 'cancellation'.
 /// When 'override' or 'cancellation', `overridesTemplateId` points to the template
 /// that this entry modifies for the given `date`.
