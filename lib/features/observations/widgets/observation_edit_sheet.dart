@@ -9,6 +9,7 @@ import 'package:basecamp/features/observations/widgets/multi_capture_camera.dart
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -132,24 +133,12 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
   }
 
   Future<void> _delete() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete observation?'),
-        content: const Text('This cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton.tonal(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      title: 'Delete observation?',
+      message: 'This cannot be undone.',
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     await ref
         .read(observationsRepositoryProvider)
         .deleteObservation(widget.observation.id);

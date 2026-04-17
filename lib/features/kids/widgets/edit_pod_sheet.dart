@@ -4,6 +4,7 @@ import 'package:basecamp/features/kids/pod_colors.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,32 +51,15 @@ class _EditPodSheetState extends ConsumerState<EditPodSheet> {
   }
 
   Future<void> _delete() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Delete "${widget.pod.name}"?'),
-        content: const Text(
-          'Kids in this pod become unassigned — they stay on the Kids '
+      title: 'Delete "${widget.pod.name}"?',
+      message: 'Kids in this pod become unassigned — they stay on the Kids '
           'tab and keep their profiles, notes, and observations. '
           'Cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton.tonal(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.errorContainer,
-              foregroundColor: Theme.of(ctx).colorScheme.onErrorContainer,
-            ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete pod'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Delete pod',
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     await ref.read(kidsRepositoryProvider).deletePod(widget.pod.id);
     if (!mounted) return;
     Navigator.of(context).pop();

@@ -2,6 +2,7 @@ import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/trips/trips_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
+import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -111,27 +112,13 @@ class TripDetailScreen extends ConsumerWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete trip?'),
-        content: const Text(
-          'This also removes the trip from the calendar. '
+      title: 'Delete trip?',
+      message: 'This also removes the trip from the calendar. '
           'Photos and observations tagged to this trip are kept.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton.tonal(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
     );
-    if (confirmed != true || !context.mounted) return;
+    if (!confirmed || !context.mounted) return;
     await ref.read(tripsRepositoryProvider).deleteTrip(tripId);
     if (context.mounted) Navigator.of(context).pop();
   }

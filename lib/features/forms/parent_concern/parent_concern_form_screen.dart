@@ -10,6 +10,7 @@ import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -281,24 +282,12 @@ class _ParentConcernFormScreenState
 
   Future<void> _delete() async {
     if (!_isEdit) return;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete this note?'),
-        content: const Text('This cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton.tonal(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      title: 'Delete this note?',
+      message: 'This cannot be undone.',
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     await ref.read(parentConcernRepositoryProvider).delete(widget.noteId!);
     if (!mounted) return;
     Navigator.of(context).pop();

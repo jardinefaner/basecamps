@@ -9,6 +9,7 @@ import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
 import 'package:basecamp/features/schedule/widgets/week_grid_view.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
+import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -613,34 +614,16 @@ class _OneOffEntrySheet extends ConsumerWidget {
           OutlinedButton.icon(
             onPressed: () async {
               if (item.isMultiDay) {
-                final ok = await showDialog<bool>(
+                final ok = await showConfirmDialog(
                   context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Delete every day?'),
-                    content: Text(
+                  title: 'Delete every day?',
+                  message:
                       'This removes "${item.title}" from all '
                       '${item.rangeEnd!.difference(item.rangeStart!).inDays + 1}'
                       ' days it spans. Cannot be undone.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(ctx).pop(false),
-                        child: const Text('Cancel'),
-                      ),
-                      FilledButton.tonal(
-                        style: FilledButton.styleFrom(
-                          backgroundColor:
-                              Theme.of(ctx).colorScheme.errorContainer,
-                          foregroundColor:
-                              Theme.of(ctx).colorScheme.onErrorContainer,
-                        ),
-                        onPressed: () => Navigator.of(ctx).pop(true),
-                        child: const Text('Delete all days'),
-                      ),
-                    ],
-                  ),
+                  confirmLabel: 'Delete all days',
                 );
-                if (ok != true) return;
+                if (!ok) return;
               }
               await ref
                   .read(scheduleRepositoryProvider)

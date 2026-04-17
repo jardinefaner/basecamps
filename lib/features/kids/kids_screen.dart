@@ -113,7 +113,7 @@ class _KidsBody extends StatelessWidget {
   }
 }
 
-class _PodSection extends StatelessWidget {
+class _PodSection extends ConsumerWidget {
   const _PodSection({required this.pod, required this.kids});
 
   final Pod? pod;
@@ -130,93 +130,184 @@ class _PodSection extends StatelessWidget {
     );
   }
 
+  Future<void> _moveKidHere(WidgetRef ref, Kid kid) async {
+    // Idempotent: dropping a kid back on their own pod does nothing.
+    if (kid.podId == pod?.id) return;
+    await ref.read(kidsRepositoryProvider).updateKidPod(
+          kidId: kid.id,
+          podId: pod?.id,
+        );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final title = pod?.name ?? 'Unassigned';
     final swatch = podColorFromHex(pod?.colorHex);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
-        vertical: AppSpacing.md,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Pod header is a tappable surface on real pods — opens the
-          // edit sheet. Unassigned is never tappable (no pod to edit).
-          InkWell(
-            onTap: pod == null ? null : () => _openEdit(context),
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.xs,
-                vertical: AppSpacing.xs,
-              ),
-              child: Row(
-                children: [
-                  if (swatch != null) ...[
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: swatch,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                  ],
-                  Text(
-                    title.toUpperCase(),
-                    style: theme.textTheme.labelMedium,
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Text(
-                    '${kids.length}',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  if (pod != null) ...[
-                    const SizedBox(width: AppSpacing.xs),
-                    Icon(
-                      Icons.edit_outlined,
-                      size: 12,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ],
-                ],
-              ),
+    return DragTarget<Kid>(
+      // Only accept kids that would actually move — prevents the
+      // highlight from turning on when you drag a Redbird onto the
+      // Redbirds section.
+      onWillAcceptWithDetails: (d) => d.data.podId != pod?.id,
+      onAcceptWithDetails: (d) => _moveKidHere(ref, d.data),
+      builder: (context, candidates, _) {
+        final hovering = candidates.isNotEmpty;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOut,
+          margin: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.xs,
+          ),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.sm,
+            AppSpacing.md,
+            AppSpacing.sm,
+            AppSpacing.md,
+          ),
+          decoration: BoxDecoration(
+            color: hovering
+                ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: hovering
+                  ? theme.colorScheme.primary
+                  : Colors.transparent,
+              width: 1.5,
             ),
           ),
-          const SizedBox(height: AppSpacing.xs),
-          if (kids.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.xs,
-                vertical: AppSpacing.sm,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              InkWell(
+                onTap: pod == null ? null : () => _openEdit(context),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xs,
+                    vertical: AppSpacing.xs,
+                  ),
+                  child: Row(
+                    children: [
+                      if (swatch != null) ...[
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: swatch,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                      ],
+                      Text(
+                        title.toUpperCase(),
+                        style: theme.textTheme.labelMedium,
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Text(
+                        '${kids.length}',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      if (pod != null) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        Icon(
+                          Icons.edit_outlined,
+                          size: 12,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ],
+                      if (hovering) ...[
+                        const Spacer(),
+                        Text(
+                          'Drop here',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
-              child: Text(
-                'No kids yet',
-                style: theme.textTheme.bodySmall,
-              ),
-            )
-          else
-            Column(
-              children: [
-                for (final kid in kids)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: KidTile(
-                      kid: kid,
-                      onTap: () => context.push('/kids/${kid.id}'),
+              const SizedBox(height: AppSpacing.xs),
+              if (kids.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xs,
+                    vertical: AppSpacing.sm,
+                  ),
+                  child: Text(
+                    hovering
+                        ? 'Add them to this pod'
+                        : 'No kids yet',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: hovering
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-              ],
+                )
+              else
+                Column(
+                  children: [
+                    for (final kid in kids)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: AppSpacing.sm,
+                        ),
+                        child: _DraggableKidTile(kid: kid),
+                      ),
+                  ],
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Long-press to pick up, drag onto any pod section to reassign.
+/// We don't render a grip handle — the drag affordance is the
+/// long-press itself, which keeps the list visually calm.
+class _DraggableKidTile extends StatelessWidget {
+  const _DraggableKidTile({required this.kid});
+
+  final Kid kid;
+
+  @override
+  Widget build(BuildContext context) {
+    final tile = KidTile(
+      kid: kid,
+      onTap: () => context.push('/kids/${kid.id}'),
+    );
+    return LongPressDraggable<Kid>(
+      data: kid,
+      // Grab one full card's width for the floating feedback; keeps it
+      // legible when the finger obscures the original spot.
+      feedback: Material(
+        color: Colors.transparent,
+        child: Transform.scale(
+          scale: 1.04,
+          child: Opacity(
+            opacity: 0.94,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.sizeOf(context).width - 48,
+              ),
+              child: tile,
             ),
-        ],
+          ),
+        ),
       ),
+      childWhenDragging: Opacity(opacity: 0.35, child: tile),
+      child: tile,
     );
   }
 }

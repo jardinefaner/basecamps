@@ -1,4 +1,5 @@
 import 'package:basecamp/theme/spacing.dart';
+import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:flutter/material.dart';
 
 /// One page in a multi-step wizard. The wizard scaffold handles the
@@ -125,26 +126,13 @@ class _StepWizardScaffoldState extends State<StepWizardScaffold> {
 
   Future<bool> _maybeExit() async {
     if (!widget.dirty) return true;
-    final yes = await showDialog<bool>(
+    return showConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Discard this?'),
-        content: const Text(
-          "You'll lose whatever you've typed in so far. Continue?",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Keep editing'),
-          ),
-          FilledButton.tonal(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Discard'),
-          ),
-        ],
-      ),
+      title: 'Discard this?',
+      message: "You'll lose whatever you've typed in so far. Continue?",
+      cancelLabel: 'Keep editing',
+      confirmLabel: 'Discard',
     );
-    return yes ?? false;
   }
 
   @override
