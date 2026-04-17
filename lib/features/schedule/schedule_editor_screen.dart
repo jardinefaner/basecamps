@@ -5,6 +5,7 @@ import 'package:basecamp/features/schedule/widgets/add_activity_picker.dart';
 import 'package:basecamp/features/schedule/widgets/conflict_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/copy_day_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/edit_template_sheet.dart';
+import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
 import 'package:basecamp/features/schedule/widgets/week_grid_view.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -166,11 +167,15 @@ class _ScheduleEditorScreenState
   }
 
   Future<void> _openRecurring({Set<int>? initialDays}) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => EditTemplateSheet(initialDays: initialDays),
+    // Creation uses a step-by-step wizard — the previous all-fields
+    // sheet was too much for first-timers. Editing an existing row
+    // still opens the dense sheet (see _handleItemTap), which is the
+    // right shape for quick tweaks.
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => NewActivityWizardScreen(initialDays: initialDays),
+      ),
     );
   }
 
