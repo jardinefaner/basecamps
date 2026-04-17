@@ -65,6 +65,13 @@ class ActivityLibraryRepository {
     await (_db.delete(_db.activityLibrary)..where((a) => a.id.equals(id)))
         .go();
   }
+
+  Future<void> deleteItems(Iterable<String> ids) async {
+    final list = ids.toList();
+    if (list.isEmpty) return;
+    await (_db.delete(_db.activityLibrary)..where((a) => a.id.isIn(list)))
+        .go();
+  }
 }
 
 final activityLibraryRepositoryProvider =

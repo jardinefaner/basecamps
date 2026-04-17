@@ -2,82 +2,134 @@ import 'package:basecamp/features/trips/trips_repository.dart';
 import 'package:basecamp/features/trips/widgets/new_trip_wizard.dart';
 import 'package:basecamp/features/trips/widgets/trip_card.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:basecamp/ui/bulk_selection.dart';
+import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class TripsScreen extends ConsumerWidget {
+class TripsScreen extends ConsumerStatefulWidget {
   const TripsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final tripsAsync = ref.watch(tripsProvider);
+  ConsumerState<TripsScreen> createState() => _TripsScreenState();
+}
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Trips')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openSheet(context),
-        icon: const Icon(Icons.add),
-        label: const Text('New trip'),
-      ),
-      body: tripsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => Center(child: Text('Error: $err')),
-        data: (trips) {
-          if (trips.isEmpty) {
-            return _EmptyState(onAdd: () => _openSheet(context));
-          }
-          final now = DateTime.now();
-          final today = DateTime(now.year, now.month, now.day);
-          final upcoming = trips.where((t) => !t.date.isBefore(today)).toList();
-          final past = trips.where((t) => t.date.isBefore(today)).toList()
-            ..sort((a, b) => b.date.compareTo(a.date));
-
-          return ListView(
-            padding: const EdgeInsets.only(
-              left: AppSpacing.lg,
-              right: AppSpacing.lg,
-              top: AppSpacing.md,
-              bottom: AppSpacing.xxxl * 2,
-            ),
-            children: [
-              if (upcoming.isNotEmpty) ...[
-                _SectionLabel(label: 'UPCOMING · ${upcoming.length}'),
-                const SizedBox(height: AppSpacing.sm),
-                for (final t in upcoming)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                    child: TripCard(
-                      trip: t,
-                      onTap: () => context.push('/trips/${t.id}'),
-                    ),
-                  ),
-                const SizedBox(height: AppSpacing.lg),
-              ],
-              if (past.isNotEmpty) ...[
-                _SectionLabel(label: 'PAST · ${past.length}'),
-                const SizedBox(height: AppSpacing.sm),
-                for (final t in past)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                    child: TripCard(
-                      trip: t,
-                      onTap: () => context.push('/trips/${t.id}'),
-                    ),
-                  ),
-              ],
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Future<void> _openSheet(BuildContext context) async {
+class _TripsScreenState extends ConsumerState<TripsScreen>
+    with BulkSelectionMixin {
+  Future<void> _openWizard() async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => const NewTripWizardScreen(),
+      ),
+    );
+  }
+
+  Future<void> _deleteSelected() async {
+    final count = selectedCount;
+    if (count == 0) return;
+    final confirmed = await showConfirmDialog(
+      context: context,
+      title: count == 1 ? 'Delete this trip?' : 'Delete $count trips?',
+      message:
+          'Linked schedule entries go with them. Observations and photos '
+          'tagged to these trips are kept.',
+      confirmLabel: count == 1 ? 'Delete' : 'Delete $count',
+    );
+    if (!confirmed) return;
+    await ref
+        .read(tripsRepositoryProvider)
+        .deleteTrips(selectedIds.toList());
+    if (!mounted) return;
+    clearSelection();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tripsAsync = ref.watch(tripsProvider);
+
+    return PopScope(
+      canPop: !isSelecting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (isSelecting) clearSelection();
+      },
+      child: Scaffold(
+        appBar: isSelecting
+            ? buildSelectionAppBar(
+                context: context,
+                count: selectedCount,
+                onCancel: clearSelection,
+                onDelete: _deleteSelected,
+              )
+            : AppBar(title: const Text('Trips')),
+        floatingActionButton: isSelecting
+            ? null
+            : FloatingActionButton.extended(
+                onPressed: _openWizard,
+                icon: const Icon(Icons.add),
+                label: const Text('New trip'),
+              ),
+        body: tripsAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (err, _) => Center(child: Text('Error: $err')),
+          data: (trips) {
+            if (trips.isEmpty) {
+              return _EmptyState(onAdd: _openWizard);
+            }
+            final now = DateTime.now();
+            final today = DateTime(now.year, now.month, now.day);
+            final upcoming =
+                trips.where((t) => !t.date.isBefore(today)).toList();
+            final past = trips.where((t) => t.date.isBefore(today)).toList()
+              ..sort((a, b) => b.date.compareTo(a.date));
+
+            return ListView(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.lg,
+                right: AppSpacing.lg,
+                top: AppSpacing.md,
+                bottom: AppSpacing.xxxl * 2,
+              ),
+              children: [
+                if (upcoming.isNotEmpty) ...[
+                  _SectionLabel(label: 'UPCOMING · ${upcoming.length}'),
+                  const SizedBox(height: AppSpacing.sm),
+                  for (final t in upcoming)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                      child: TripCard(
+                        trip: t,
+                        selected: isSelected(t.id),
+                        onTap: isSelecting
+                            ? () => toggleSelection(t.id)
+                            : () => context.push('/trips/${t.id}'),
+                        onLongPress: () => toggleSelection(t.id),
+                      ),
+                    ),
+                  const SizedBox(height: AppSpacing.lg),
+                ],
+                if (past.isNotEmpty) ...[
+                  _SectionLabel(label: 'PAST · ${past.length}'),
+                  const SizedBox(height: AppSpacing.sm),
+                  for (final t in past)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                      child: TripCard(
+                        trip: t,
+                        selected: isSelected(t.id),
+                        onTap: isSelecting
+                            ? () => toggleSelection(t.id)
+                            : () => context.push('/trips/${t.id}'),
+                        onLongPress: () => toggleSelection(t.id),
+                      ),
+                    ),
+                ],
+              ],
+            );
+          },
+        ),
       ),
     );
   }

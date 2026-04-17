@@ -71,6 +71,12 @@ class SpecialistsRepository {
     await (_db.delete(_db.specialists)..where((s) => s.id.equals(id))).go();
   }
 
+  Future<void> deleteSpecialists(Iterable<String> ids) async {
+    final list = ids.toList();
+    if (list.isEmpty) return;
+    await (_db.delete(_db.specialists)..where((s) => s.id.isIn(list))).go();
+  }
+
   // -------- Availability --------
 
   Stream<List<SpecialistAvailabilityData>> watchAvailabilityFor(

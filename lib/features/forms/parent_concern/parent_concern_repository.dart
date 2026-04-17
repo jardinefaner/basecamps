@@ -141,6 +141,17 @@ class ParentConcernRepository {
         .go();
   }
 
+  /// Batch version. One `WHERE id IN (...)` delete; any drawn-
+  /// signature PNGs stay on disk — they're shared-documents-style
+  /// artefacts a teacher may have already emailed out, not owned by
+  /// the app the way observation media is.
+  Future<void> deleteMany(Iterable<String> ids) async {
+    final list = ids.toList();
+    if (list.isEmpty) return;
+    await (_db.delete(_db.parentConcernNotes)..where((n) => n.id.isIn(list)))
+        .go();
+  }
+
   ParentConcernNotesCompanion _companion(
     String id,
     ParentConcernInput input, {

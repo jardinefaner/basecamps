@@ -4,70 +4,125 @@ import 'package:basecamp/features/specialists/widgets/new_specialist_wizard.dart
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
+import 'package:basecamp/ui/bulk_selection.dart';
+import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class SpecialistsScreen extends ConsumerWidget {
+class SpecialistsScreen extends ConsumerStatefulWidget {
   const SpecialistsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final specialistsAsync = ref.watch(specialistsProvider);
+  ConsumerState<SpecialistsScreen> createState() => _SpecialistsScreenState();
+}
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Specialists')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openSheet(context),
-        icon: const Icon(Icons.add),
-        label: const Text('Specialist'),
-      ),
-      body: specialistsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => Center(child: Text('Error: $err')),
-        data: (specialists) {
-          if (specialists.isEmpty) {
-            return _EmptyState(onAdd: () => _openSheet(context));
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.only(
-              left: AppSpacing.lg,
-              right: AppSpacing.lg,
-              top: AppSpacing.md,
-              bottom: AppSpacing.xxxl * 2,
-            ),
-            itemCount: specialists.length,
-            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
-            itemBuilder: (_, i) => _SpecialistTile(
-              specialist: specialists[i],
-              onTap: () =>
-                  context.push('/more/specialists/${specialists[i].id}'),
-            ),
-          );
-        },
+class _SpecialistsScreenState extends ConsumerState<SpecialistsScreen>
+    with BulkSelectionMixin {
+  Future<void> _openWizard() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const NewSpecialistWizardScreen(),
       ),
     );
   }
 
-  Future<void> _openSheet(BuildContext context, {Specialist? specialist}) async {
-    // Tiles tap through to the detail screen, which has its own edit
-    // button; this sheet is only used for the "add new" floating button.
-    if (specialist == null) {
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => const NewSpecialistWizardScreen(),
+  Future<void> _deleteSelected() async {
+    final count = selectedCount;
+    if (count == 0) return;
+    final confirmed = await showConfirmDialog(
+      context: context,
+      title: count == 1
+          ? 'Remove this specialist?'
+          : 'Remove $count specialists?',
+      message:
+          'Activities they were running keep their times and details — '
+          'the specialist slot just becomes empty.',
+      confirmLabel: count == 1 ? 'Remove' : 'Remove $count',
+    );
+    if (!confirmed) return;
+    await ref
+        .read(specialistsRepositoryProvider)
+        .deleteSpecialists(selectedIds.toList());
+    if (!mounted) return;
+    clearSelection();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final specialistsAsync = ref.watch(specialistsProvider);
+
+    return PopScope(
+      canPop: !isSelecting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (isSelecting) clearSelection();
+      },
+      child: Scaffold(
+        appBar: isSelecting
+            ? buildSelectionAppBar(
+                context: context,
+                count: selectedCount,
+                onCancel: clearSelection,
+                onDelete: _deleteSelected,
+              )
+            : AppBar(title: const Text('Specialists')),
+        floatingActionButton: isSelecting
+            ? null
+            : FloatingActionButton.extended(
+                onPressed: _openWizard,
+                icon: const Icon(Icons.add),
+                label: const Text('Specialist'),
+              ),
+        body: specialistsAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (err, _) => Center(child: Text('Error: $err')),
+          data: (specialists) {
+            if (specialists.isEmpty) {
+              return _EmptyState(onAdd: _openWizard);
+            }
+            return ListView.separated(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.lg,
+                right: AppSpacing.lg,
+                top: AppSpacing.md,
+                bottom: AppSpacing.xxxl * 2,
+              ),
+              itemCount: specialists.length,
+              separatorBuilder: (_, _) =>
+                  const SizedBox(height: AppSpacing.md),
+              itemBuilder: (_, i) {
+                final s = specialists[i];
+                return _SpecialistTile(
+                  specialist: s,
+                  selected: isSelected(s.id),
+                  onTap: isSelecting
+                      ? () => toggleSelection(s.id)
+                      : () => context.push('/more/specialists/${s.id}'),
+                  onLongPress: () => toggleSelection(s.id),
+                );
+              },
+            );
+          },
         ),
-      );
-    }
+      ),
+    );
   }
 }
 
 class _SpecialistTile extends StatelessWidget {
-  const _SpecialistTile({required this.specialist, required this.onTap});
+  const _SpecialistTile({
+    required this.specialist,
+    required this.onTap,
+    required this.onLongPress,
+    this.selected = false,
+  });
 
   final Specialist specialist;
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -78,6 +133,8 @@ class _SpecialistTile extends StatelessWidget {
 
     return AppCard(
       onTap: onTap,
+      onLongPress: onLongPress,
+      selected: selected,
       child: Row(
         children: [
           SmallAvatar(

@@ -5,10 +5,18 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 class TripCard extends StatelessWidget {
-  const TripCard({required this.trip, required this.onTap, super.key});
+  const TripCard({
+    required this.trip,
+    required this.onTap,
+    this.onLongPress,
+    this.selected = false,
+    super.key,
+  });
 
   final Trip trip;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -19,6 +27,8 @@ class TripCard extends StatelessWidget {
 
     return AppCard(
       onTap: onTap,
+      onLongPress: onLongPress,
+      selected: selected,
       child: Row(
         children: [
           Container(

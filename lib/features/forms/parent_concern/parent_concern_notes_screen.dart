@@ -2,52 +2,113 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
+import 'package:basecamp/ui/bulk_selection.dart';
+import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-class ParentConcernNotesScreen extends ConsumerWidget {
+class ParentConcernNotesScreen extends ConsumerStatefulWidget {
   const ParentConcernNotesScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ParentConcernNotesScreen> createState() =>
+      _ParentConcernNotesScreenState();
+}
+
+class _ParentConcernNotesScreenState
+    extends ConsumerState<ParentConcernNotesScreen>
+    with BulkSelectionMixin {
+  Future<void> _deleteSelected() async {
+    final count = selectedCount;
+    if (count == 0) return;
+    final confirmed = await showConfirmDialog(
+      context: context,
+      title: count == 1 ? 'Delete this note?' : 'Delete $count notes?',
+      message: 'Cannot be undone.',
+      confirmLabel: count == 1 ? 'Delete' : 'Delete $count',
+    );
+    if (!confirmed) return;
+    await ref
+        .read(parentConcernRepositoryProvider)
+        .deleteMany(selectedIds.toList());
+    if (!mounted) return;
+    clearSelection();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final notesAsync = ref.watch(parentConcernNotesProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Parent concern notes')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () =>
-            context.push('/more/forms/parent-concern/new'),
-        icon: const Icon(Icons.edit_note_outlined),
-        label: const Text('New note'),
-      ),
-      body: notesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => Center(child: Text('Error: $err')),
-        data: (notes) {
-          if (notes.isEmpty) return const _EmptyState();
-          return ListView.separated(
-            padding: const EdgeInsets.only(
-              left: AppSpacing.lg,
-              right: AppSpacing.lg,
-              top: AppSpacing.md,
-              bottom: AppSpacing.xxxl * 2,
-            ),
-            itemCount: notes.length,
-            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
-            itemBuilder: (_, i) => _NoteTile(note: notes[i]),
-          );
-        },
+    return PopScope(
+      canPop: !isSelecting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (isSelecting) clearSelection();
+      },
+      child: Scaffold(
+        appBar: isSelecting
+            ? buildSelectionAppBar(
+                context: context,
+                count: selectedCount,
+                onCancel: clearSelection,
+                onDelete: _deleteSelected,
+              )
+            : AppBar(title: const Text('Parent concern notes')),
+        floatingActionButton: isSelecting
+            ? null
+            : FloatingActionButton.extended(
+                onPressed: () =>
+                    context.push('/more/forms/parent-concern/new'),
+                icon: const Icon(Icons.edit_note_outlined),
+                label: const Text('New note'),
+              ),
+        body: notesAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (err, _) => Center(child: Text('Error: $err')),
+          data: (notes) {
+            if (notes.isEmpty) return const _EmptyState();
+            return ListView.separated(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.lg,
+                right: AppSpacing.lg,
+                top: AppSpacing.md,
+                bottom: AppSpacing.xxxl * 2,
+              ),
+              itemCount: notes.length,
+              separatorBuilder: (_, _) =>
+                  const SizedBox(height: AppSpacing.md),
+              itemBuilder: (_, i) => _NoteTile(
+                note: notes[i],
+                selected: isSelected(notes[i].id),
+                onTap: isSelecting
+                    ? () => toggleSelection(notes[i].id)
+                    : () => context.push(
+                          '/more/forms/parent-concern/${notes[i].id}',
+                        ),
+                onLongPress: () => toggleSelection(notes[i].id),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
 }
 
 class _NoteTile extends StatelessWidget {
-  const _NoteTile({required this.note});
+  const _NoteTile({
+    required this.note,
+    required this.onTap,
+    required this.onLongPress,
+    this.selected = false,
+  });
 
   final ParentConcernNote note;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -67,8 +128,9 @@ class _NoteTile extends StatelessWidget {
         note.staffSignature!.trim().isNotEmpty;
 
     return AppCard(
-      onTap: () =>
-          context.push('/more/forms/parent-concern/${note.id}'),
+      onTap: onTap,
+      onLongPress: onLongPress,
+      selected: selected,
       child: Row(
         children: [
           Container(

@@ -95,6 +95,14 @@ class TripsRepository {
     await (_db.delete(_db.trips)..where((t) => t.id.equals(id))).go();
   }
 
+  /// Batch version of [deleteTrip]. Same cascade semantics (linked
+  /// schedule entries + pod join rows go with the trips).
+  Future<void> deleteTrips(Iterable<String> ids) async {
+    final list = ids.toList();
+    if (list.isEmpty) return;
+    await (_db.delete(_db.trips)..where((t) => t.id.isIn(list))).go();
+  }
+
   DateTime _dayOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 }
 
