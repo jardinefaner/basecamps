@@ -4,6 +4,7 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
+import 'package:basecamp/features/launcher/pinned_actions_repository.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
 import 'package:basecamp/features/schedule/widgets/new_full_day_event_wizard.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
@@ -66,15 +67,26 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
         if (_matches(l.title)) l,
     ];
 
-    final quickActions = _QuickActionData.all
-        .where((q) => _matches(q.label))
+    final pinnedIds = ref.watch(pinnedActionsProvider);
+    // Split actions into pinned (order follows pinnedIds) and the rest.
+    // The search filter applies to both sides so typing narrows either
+    // column without hiding the "pinned" affordance.
+    final pinnedActions = <_QuickActionData>[
+      for (final id in pinnedIds)
+        if (_QuickActionData.byId(id) case final a?)
+          if (_matches(a.label)) a,
+    ];
+    final unpinnedActions = _QuickActionData.all
+        .where((a) => !pinnedIds.contains(a.id))
+        .where((a) => _matches(a.label))
         .toList();
     final destinations = _DestinationData.all
         .where((d) => _matches(d.label))
         .toList();
 
     final hasAnyResults = _query.isEmpty ||
-        quickActions.isNotEmpty ||
+        pinnedActions.isNotEmpty ||
+        unpinnedActions.isNotEmpty ||
         destinations.isNotEmpty ||
         filteredKids.isNotEmpty ||
         filteredSpecialists.isNotEmpty ||
@@ -100,10 +112,22 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                         bottom: AppSpacing.xxxl,
                       ),
                       children: [
-                        if (quickActions.isNotEmpty)
+                        // Pinned section always renders (empty becomes a
+                        // drop target with a placeholder) so teachers
+                        // have an obvious place to drag a tile to.
+                        _Section(
+                          label: 'Pinned',
+                          child: _PinnedActionsRow(
+                            actions: pinnedActions,
+                            isFiltered: _query.isNotEmpty,
+                          ),
+                        ),
+                        if (unpinnedActions.isNotEmpty)
                           _Section(
                             label: 'Quick actions',
-                            child: _QuickActionsRow(actions: quickActions),
+                            child: _QuickActionsRow(
+                              actions: unpinnedActions,
+                            ),
                           ),
                         if (filteredKids.isNotEmpty)
                           _Section(
@@ -281,17 +305,23 @@ class _Section extends StatelessWidget {
 
 class _QuickActionData {
   const _QuickActionData({
+    required this.id,
     required this.label,
     required this.icon,
     required this.onTap,
   });
 
+  /// Stable identifier — persisted in SharedPreferences via the
+  /// pinned-actions repository. Changing an id is equivalent to
+  /// removing it from everyone's pinned list, so keep these stable.
+  final String id;
   final String label;
   final IconData icon;
   final Future<void> Function(BuildContext context, WidgetRef ref) onTap;
 
   static final List<_QuickActionData> all = [
     _QuickActionData(
+      id: 'new-activity',
       label: 'New activity',
       icon: Icons.add,
       onTap: (ctx, _) async {
@@ -304,6 +334,7 @@ class _QuickActionData {
       },
     ),
     _QuickActionData(
+      id: 'new-event',
       label: 'New event',
       icon: Icons.event_outlined,
       onTap: (ctx, _) async {
@@ -316,6 +347,7 @@ class _QuickActionData {
       },
     ),
     _QuickActionData(
+      id: 'new-trip',
       label: 'New trip',
       icon: Icons.map_outlined,
       onTap: (ctx, _) async {
@@ -328,6 +360,7 @@ class _QuickActionData {
       },
     ),
     _QuickActionData(
+      id: 'new-note',
       label: 'New note',
       icon: Icons.chat_outlined,
       onTap: (ctx, _) async {
@@ -342,6 +375,7 @@ class _QuickActionData {
       },
     ),
     _QuickActionData(
+      id: 'observe',
       label: 'Observe',
       icon: Icons.visibility_outlined,
       onTap: (ctx, _) async {
@@ -349,8 +383,106 @@ class _QuickActionData {
       },
     ),
   ];
+
+  static _QuickActionData? byId(String id) {
+    for (final a in all) {
+      if (a.id == id) return a;
+    }
+    return null;
+  }
 }
 
+/// Pinned section — DragTarget that accepts tiles dragged from the
+/// Quick actions row, and renders the teacher's pinned set. Always
+/// visible (placeholder when empty) so the drop zone is discoverable.
+class _PinnedActionsRow extends ConsumerWidget {
+  const _PinnedActionsRow({
+    required this.actions,
+    required this.isFiltered,
+  });
+
+  final List<_QuickActionData> actions;
+
+  /// True when a search query is active — changes the empty-state copy
+  /// so "no pinned matches" doesn't get confused with "no pins yet".
+  final bool isFiltered;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    return DragTarget<_QuickActionData>(
+      onWillAcceptWithDetails: (d) =>
+          !ref.read(pinnedActionsProvider).contains(d.data.id),
+      onAcceptWithDetails: (d) =>
+          ref.read(pinnedActionsProvider.notifier).pin(d.data.id),
+      builder: (context, candidates, _) {
+        final hovering = candidates.isNotEmpty;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: hovering
+                ? theme.colorScheme.primaryContainer.withValues(alpha: 0.35)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: hovering
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+              width: hovering ? 1.5 : 1,
+            ),
+          ),
+          child: actions.isEmpty
+              ? _PinnedEmpty(hovering: hovering, isFiltered: isFiltered)
+              : Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    for (final a in actions)
+                      _DraggableActionTile(action: a, ref: ref, pinned: true),
+                  ],
+                ),
+        );
+      },
+    );
+  }
+}
+
+class _PinnedEmpty extends StatelessWidget {
+  const _PinnedEmpty({required this.hovering, required this.isFiltered});
+
+  final bool hovering;
+  final bool isFiltered;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: double.infinity,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        child: Text(
+          hovering
+              ? 'Drop here to pin'
+              : isFiltered
+                  ? 'No pinned actions match this search.'
+                  : 'Long-press any action below and drag here to pin.',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: hovering
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurfaceVariant,
+            fontWeight: hovering ? FontWeight.w700 : null,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Quick actions row — DragTarget that accepts tiles dragged from the
+/// Pinned row (unpins them) and renders everything not pinned.
 class _QuickActionsRow extends ConsumerWidget {
   const _QuickActionsRow({required this.actions});
 
@@ -358,13 +490,78 @@ class _QuickActionsRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
-      children: [
-        for (final a in actions)
-          _QuickActionTile(action: a, ref: ref),
-      ],
+    final theme = Theme.of(context);
+    return DragTarget<_QuickActionData>(
+      // Only take drops that are actually pinned — dropping an already-
+      // unpinned tile is a no-op.
+      onWillAcceptWithDetails: (d) =>
+          ref.read(pinnedActionsProvider).contains(d.data.id),
+      onAcceptWithDetails: (d) =>
+          ref.read(pinnedActionsProvider.notifier).unpin(d.data.id),
+      builder: (context, candidates, _) {
+        final hovering = candidates.isNotEmpty;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: hovering
+                ? theme.colorScheme.surfaceContainerHigh
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: hovering
+                  ? theme.colorScheme.primary
+                  : Colors.transparent,
+              width: hovering ? 1.5 : 0,
+            ),
+          ),
+          child: Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              for (final a in actions)
+                _DraggableActionTile(action: a, ref: ref, pinned: false),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Long-press-draggable quick-action tile. Tap runs the action; long
+/// press starts a drag so it can be dropped on the opposite section
+/// (pin / unpin). Same gesture idiom as the children tab's group
+/// reassignment.
+class _DraggableActionTile extends StatelessWidget {
+  const _DraggableActionTile({
+    required this.action,
+    required this.ref,
+    required this.pinned,
+  });
+
+  final _QuickActionData action;
+  final WidgetRef ref;
+
+  /// Decides which section this tile lives in right now — only affects
+  /// the visual hint label, not the drag payload.
+  final bool pinned;
+
+  @override
+  Widget build(BuildContext context) {
+    final tile = _QuickActionTile(action: action, ref: ref);
+    return LongPressDraggable<_QuickActionData>(
+      data: action,
+      feedback: Material(
+        color: Colors.transparent,
+        child: Transform.scale(
+          scale: 1.06,
+          child: Opacity(opacity: 0.94, child: tile),
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.35, child: tile),
+      child: tile,
     );
   }
 }
