@@ -74,7 +74,7 @@ void main() {
         (tester) async {
       final ctrl = TextEditingController(text: 'Refined.');
       String? captured;
-      bool fired = false;
+      var fired = false;
       await _pump(
         tester,
         RefineableNoteEditor(

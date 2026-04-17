@@ -30,7 +30,7 @@ void main() {
       await pumpWithHost(
         tester,
         HeroNowCard(
-          item: _item(start: '09:00', end: '11:00'),
+          item: _item(end: '11:00'),
           // 9:35 during a 9:00–11:00 activity → 85 min remaining
           now: DateTime(2026, 4, 20, 9, 35),
           observationCount: 0,
@@ -47,7 +47,7 @@ void main() {
         tester,
         HeroNowCard(
           item: _item(),
-          now: DateTime(2026, 4, 20, 9, 0),
+          now: DateTime(2026, 4, 20, 9),
           observationCount: 0,
           onTap: () {},
           onCapture: () {},
@@ -77,7 +77,7 @@ void main() {
         tester,
         HeroNowCard(
           item: _item(),
-          now: DateTime(2026, 4, 20, 10, 0),
+          now: DateTime(2026, 4, 20, 10),
           observationCount: 0,
           onTap: () {},
           onCapture: () {},

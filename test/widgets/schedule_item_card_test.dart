@@ -1,6 +1,5 @@
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/today/widgets/schedule_item_card.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers/pump.dart';

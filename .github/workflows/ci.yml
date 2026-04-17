@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Analyze + test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        # Pin to the same stable that devs run locally. Bump both this
+        # and the local toolchain together when upgrading.
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.2
+          channel: stable
+          cache: true
+
+      - name: Flutter version sanity
+        run: flutter --version
+
+      - name: Install deps
+        run: flutter pub get
+
+      - name: Analyze
+        # very_good_analysis is strict — any warning fails CI.
+        run: flutter analyze
+
+      - name: Run tests
+        # Repository tests use an in-memory Drift DB; widget tests use
+        # the in-memory override helper. No network / no Supabase — so
+        # no secrets are needed for this job.
+        run: flutter test --reporter=expanded
