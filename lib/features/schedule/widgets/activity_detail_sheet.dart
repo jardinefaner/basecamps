@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:basecamp/database/database.dart';
-import 'package:basecamp/features/kids/kids_repository.dart';
+import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -97,7 +97,7 @@ class ActivityDetailSheet extends ConsumerWidget {
                           kid: kid,
                           onTap: () {
                             Navigator.of(context).pop();
-                            unawaited(context.push('/kids/${kid.id}'));
+                            unawaited(context.push('/children/${kid.id}'));
                           },
                         ),
                       ),

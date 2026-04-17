@@ -1,8 +1,8 @@
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
+import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/widgets/specialist_chip_picker.dart';
-import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:basecamp/theme/spacing.dart';

@@ -1,5 +1,5 @@
 import 'package:basecamp/database/database.dart';
-import 'package:basecamp/features/kids/kids_repository.dart';
+import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';

@@ -1,6 +1,6 @@
 import 'package:basecamp/database/database.dart';
-import 'package:basecamp/features/kids/kids_repository.dart';
-import 'package:basecamp/features/kids/widgets/edit_kid_sheet.dart';
+import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/children/widgets/edit_child_sheet.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';

@@ -1,10 +1,10 @@
 import 'package:basecamp/database/database.dart';
-import 'package:basecamp/features/kids/kids_repository.dart';
-import 'package:basecamp/features/kids/pod_colors.dart';
-import 'package:basecamp/features/kids/widgets/edit_pod_sheet.dart';
-import 'package:basecamp/features/kids/widgets/kid_tile.dart';
-import 'package:basecamp/features/kids/widgets/new_kid_wizard.dart';
-import 'package:basecamp/features/kids/widgets/new_pod_wizard.dart';
+import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/children/group_colors.dart';
+import 'package:basecamp/features/children/widgets/child_tile.dart';
+import 'package:basecamp/features/children/widgets/edit_group_sheet.dart';
+import 'package:basecamp/features/children/widgets/new_child_wizard.dart';
+import 'package:basecamp/features/children/widgets/new_group_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -285,7 +285,7 @@ class _DraggableKidTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final tile = ChildTile(
       kid: kid,
-      onTap: () => context.push('/kids/${kid.id}'),
+      onTap: () => context.push('/children/${kid.id}'),
     );
     return LongPressDraggable<Child>(
       data: kid,

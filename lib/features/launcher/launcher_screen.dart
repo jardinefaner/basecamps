@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
+import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
-import 'package:basecamp/features/kids/kids_repository.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
 import 'package:basecamp/features/schedule/widgets/new_full_day_event_wizard.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
@@ -436,7 +436,7 @@ class _PeopleWrap extends StatelessWidget {
             fallbackInitial: k.firstName.isEmpty
                 ? '?'
                 : k.firstName.characters.first.toUpperCase(),
-            route: '/kids/${k.id}',
+            route: '/children/${k.id}',
           ),
       ],
     );
@@ -551,7 +551,7 @@ class _DestinationData {
     _DestinationData(
       label: 'Children',
       icon: Icons.people_outline,
-      path: '/kids',
+      path: '/children',
       isMainTab: true,
     ),
     _DestinationData(

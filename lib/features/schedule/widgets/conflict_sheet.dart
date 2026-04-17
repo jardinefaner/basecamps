@@ -1,4 +1,4 @@
-import 'package:basecamp/features/kids/kids_repository.dart';
+import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';

@@ -1,6 +1,6 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/attendance/attendance_repository.dart';
-import 'package:basecamp/features/kids/kids_repository.dart';
+import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

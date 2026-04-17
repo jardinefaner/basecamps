@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:basecamp/database/database.dart';
-import 'package:basecamp/features/kids/kids_repository.dart';
+import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/observations/widgets/attachment_viewer.dart';
 import 'package:basecamp/theme/spacing.dart';
