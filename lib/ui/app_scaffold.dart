@@ -107,6 +107,10 @@ class _AppScaffoldState extends State<AppScaffold> {
   @override
   Widget build(BuildContext context) {
     final currentShellIndex = widget.navigationShell.currentIndex;
+    // Launcher is a full-surface mode — no bottom nav, so it reads
+    // as "different plane" from the regular tabs. Swipe still works
+    // to return to Today.
+    final onLauncher = currentShellIndex < _firstTabBranchIndex;
 
     return PopScope(
       canPop: false,
@@ -130,11 +134,13 @@ class _AppScaffoldState extends State<AppScaffold> {
           },
           child: widget.navigationShell,
         ),
-        bottomNavigationBar: AnimatedNavBar(
-          items: _navItems,
-          selectedIndex: _navSelectedIndex,
-          onSelected: _onNavTileSelected,
-        ),
+        bottomNavigationBar: onLauncher
+            ? null
+            : AnimatedNavBar(
+                items: _navItems,
+                selectedIndex: _navSelectedIndex,
+                onSelected: _onNavTileSelected,
+              ),
       ),
     );
   }
