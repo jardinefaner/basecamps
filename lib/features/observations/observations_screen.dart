@@ -226,8 +226,14 @@ class _MediaGallery extends ConsumerWidget {
           itemCount: atts.length,
           itemBuilder: (context, i) => _GalleryTile(
             attachment: atts[i],
-            onTap: () =>
-                AttachmentViewer.open(context, atts, initialIndex: i),
+            onTap: () => AttachmentViewer.open(
+              context,
+              atts,
+              initialIndex: i,
+              onDelete: (a) => ref
+                  .read(observationsRepositoryProvider)
+                  .deleteAttachment(a.id),
+            ),
           ),
         );
       },

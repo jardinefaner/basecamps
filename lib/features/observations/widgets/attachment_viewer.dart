@@ -3,26 +3,41 @@ import 'dart:io';
 
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+/// Callback the viewer uses to remove an attachment. Implementations
+/// should delete both the DB row and the local file — the repo's
+/// `deleteAttachment(id)` already does both, so wiring this up is
+/// usually `(a) => repo.deleteAttachment(a.id)`.
+typedef AttachmentDeleter = Future<void> Function(
+  ObservationAttachment attachment,
+);
+
 /// Full-screen gallery for an observation's attachments. Pinch-to-zoom
-/// for photos, real playback for videos. Swipe left/right between items.
+/// for photos, real playback for videos. Swipe left/right between
+/// items. When [onDelete] is non-null, a trash icon shows in the top
+/// bar and tapping it confirms, removes the item, and either advances
+/// to the next page or closes the viewer if the list empties.
 class AttachmentViewer extends StatefulWidget {
   const AttachmentViewer({
     required this.attachments,
     this.initialIndex = 0,
+    this.onDelete,
     super.key,
   });
 
   final List<ObservationAttachment> attachments;
   final int initialIndex;
+  final AttachmentDeleter? onDelete;
 
   static Future<void> open(
     BuildContext context,
     List<ObservationAttachment> attachments, {
     int initialIndex = 0,
+    AttachmentDeleter? onDelete,
   }) {
     if (attachments.isEmpty) return Future.value();
     return Navigator.of(context).push<void>(
@@ -31,6 +46,7 @@ class AttachmentViewer extends StatefulWidget {
         builder: (_) => AttachmentViewer(
           attachments: attachments,
           initialIndex: initialIndex,
+          onDelete: onDelete,
         ),
       ),
     );
@@ -45,10 +61,53 @@ class _AttachmentViewerState extends State<AttachmentViewer> {
       PageController(initialPage: widget.initialIndex);
   late int _index = widget.initialIndex;
 
+  // Local mutable copy so the viewer can react to deletes without
+  // waiting on parent stream rebuilds.
+  late final List<ObservationAttachment> _items =
+      List<ObservationAttachment>.from(widget.attachments);
+
+  bool _deleting = false;
+
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleDelete() async {
+    if (_deleting || widget.onDelete == null || _items.isEmpty) return;
+    final current = _items[_index];
+    final confirmed = await showConfirmDialog(
+      context: context,
+      title: current.kind == 'video' ? 'Delete this video?' : 'Delete this photo?',
+      message: 'This removes it from the observation and wipes the '
+          'file off the device. Cannot be undone.',
+    );
+    if (!confirmed || !mounted) return;
+
+    setState(() => _deleting = true);
+    try {
+      await widget.onDelete!(current);
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
+    if (!mounted) return;
+
+    setState(() => _items.removeAt(_index));
+
+    // Empty? close. Otherwise keep index within bounds; the page
+    // controller doesn't track removals automatically, so nudge it.
+    if (_items.isEmpty) {
+      Navigator.of(context).pop();
+      return;
+    }
+    final nextIndex = _index.clamp(0, _items.length - 1);
+    _index = nextIndex;
+    unawaited(_controller.animateToPage(
+      nextIndex,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+    ));
   }
 
   @override
@@ -59,10 +118,10 @@ class _AttachmentViewerState extends State<AttachmentViewer> {
         children: [
           PageView.builder(
             controller: _controller,
-            itemCount: widget.attachments.length,
+            itemCount: _items.length,
             onPageChanged: (i) => setState(() => _index = i),
             itemBuilder: (context, i) {
-              final att = widget.attachments[i];
+              final att = _items[i];
               if (att.kind == 'video') {
                 return _VideoPage(
                   key: ValueKey('video-${att.id}'),
@@ -90,7 +149,7 @@ class _AttachmentViewerState extends State<AttachmentViewer> {
                     ),
                   ),
                   const Spacer(),
-                  if (widget.attachments.length > 1)
+                  if (_items.length > 1)
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.md,
@@ -101,13 +160,36 @@ class _AttachmentViewerState extends State<AttachmentViewer> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
-                        '${_index + 1} / ${widget.attachments.length}',
+                        '${_index + 1} / ${_items.length}',
                         style: Theme.of(context)
                             .textTheme
                             .labelMedium
                             ?.copyWith(color: Colors.white),
                       ),
                     ),
+                  if (widget.onDelete != null) ...[
+                    const SizedBox(width: AppSpacing.sm),
+                    IconButton(
+                      tooltip: 'Delete',
+                      onPressed: _deleting ? null : _handleDelete,
+                      icon: _deleting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.delete_outline,
+                              color: Colors.white,
+                            ),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.black54,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -220,12 +302,11 @@ class _VideoPageState extends State<_VideoPage> {
         child: CircularProgressIndicator(color: Colors.white),
       );
     }
-
     return GestureDetector(
-      behavior: HitTestBehavior.opaque,
       onTap: () => setState(() => _showControls = !_showControls),
+      behavior: HitTestBehavior.opaque,
       child: Stack(
-        alignment: Alignment.center,
+        fit: StackFit.expand,
         children: [
           Center(
             child: AspectRatio(
@@ -233,56 +314,68 @@ class _VideoPageState extends State<_VideoPage> {
               child: VideoPlayer(c),
             ),
           ),
-          if (_showControls)
-            IconButton(
-              iconSize: 80,
-              onPressed: _togglePlay,
-              icon: Icon(
-                c.value.isPlaying
-                    ? Icons.pause_circle_filled
-                    : Icons.play_circle_fill,
-                color: Colors.white.withValues(alpha: 0.9),
+          if (_showControls) ...[
+            Center(
+              child: IconButton(
+                iconSize: 64,
+                onPressed: _togglePlay,
+                icon: Icon(
+                  c.value.isPlaying
+                      ? Icons.pause_circle
+                      : Icons.play_circle,
+                  color: Colors.white,
+                ),
               ),
             ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _VideoProgressBar(controller: c),
-          ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.xl,
+                  0,
+                  AppSpacing.xl,
+                  AppSpacing.md,
+                ),
+                child: VideoProgressIndicator(
+                  c,
+                  allowScrubbing: true,
+                  colors: const VideoProgressColors(
+                    playedColor: Colors.white,
+                    bufferedColor: Colors.white24,
+                    backgroundColor: Colors.white12,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: AppSpacing.sm,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _VideoProgressBar extends StatelessWidget {
-  const _VideoProgressBar({required this.controller});
+class _WebUnsupported extends StatelessWidget {
+  const _WebUnsupported({required this.icon});
 
-  final VideoPlayerController controller;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.xl,
-          0,
-          AppSpacing.xl,
-          AppSpacing.md,
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, color: Colors.white70, size: 64),
+        const SizedBox(height: AppSpacing.md),
+        const Text(
+          'Photo viewing is mobile-only for now.',
+          style: TextStyle(color: Colors.white70),
         ),
-        child: VideoProgressIndicator(
-          controller,
-          allowScrubbing: true,
-          colors: const VideoProgressColors(
-            playedColor: Colors.white,
-            bufferedColor: Colors.white24,
-            backgroundColor: Colors.white12,
-          ),
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-        ),
-      ),
+      ],
     );
   }
 }
@@ -299,28 +392,11 @@ class _ErrorBlock extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 56, color: Colors.white70),
+          Icon(icon, color: Colors.white70, size: 56),
           const SizedBox(height: AppSpacing.md),
-          Text(
-            message,
-            style: const TextStyle(color: Colors.white70),
-          ),
+          Text(message, style: const TextStyle(color: Colors.white70)),
         ],
       ),
-    );
-  }
-}
-
-class _WebUnsupported extends StatelessWidget {
-  const _WebUnsupported({required this.icon});
-
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return _ErrorBlock(
-      icon: icon,
-      message: 'Preview not supported on web',
     );
   }
 }

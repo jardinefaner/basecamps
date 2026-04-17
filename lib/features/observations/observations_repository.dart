@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Domains that align with the program's observation taxonomy.
@@ -321,9 +324,30 @@ class ObservationsRepository {
   }
 
   Future<void> deleteAttachment(String id) async {
+    // Pull the path before the row goes away so the on-disk file can
+    // be cleaned up too — the DB delete alone would leak megabytes of
+    // photos and videos.
+    final row = await (_db.select(_db.observationAttachments)
+          ..where((a) => a.id.equals(id)))
+        .getSingleOrNull();
     await (_db.delete(_db.observationAttachments)
           ..where((a) => a.id.equals(id)))
         .go();
+    if (row != null) await _deleteLocalFile(row.localPath);
+  }
+
+  /// Best-effort removal of a local media file. Swallows every error
+  /// on purpose — a stale path, a permissions hiccup, or web (no
+  /// dart:io) shouldn't block a DB delete the user has already
+  /// confirmed.
+  Future<void> _deleteLocalFile(String path) async {
+    if (kIsWeb) return;
+    try {
+      final file = File(path);
+      if (file.existsSync()) await file.delete();
+    } on Object {
+      // swallow
+    }
   }
 
   /// Partial update. Anything left as `null` (or not passed) is left
@@ -415,7 +439,16 @@ class ObservationsRepository {
   }
 
   Future<void> deleteObservation(String id) async {
+    // Grab every attachment's path before we drop the row — once the
+    // observation goes the FK cascade nukes the attachment rows, but
+    // the local media files are ours to clean up explicitly.
+    final attachments = await (_db.select(_db.observationAttachments)
+          ..where((a) => a.observationId.equals(id)))
+        .get();
     await (_db.delete(_db.observations)..where((o) => o.id.equals(id))).go();
+    for (final a in attachments) {
+      await _deleteLocalFile(a.localPath);
+    }
   }
 }
 

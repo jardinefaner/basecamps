@@ -115,13 +115,13 @@ class ObservationCard extends ConsumerWidget {
   }
 }
 
-class _AttachmentStrip extends StatelessWidget {
+class _AttachmentStrip extends ConsumerWidget {
   const _AttachmentStrip({required this.attachments});
 
   final List<ObservationAttachment> attachments;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     // Show up to 4 inline, rest collapse into a "+N" tile. Horizontal
     // scroll handles the rare case where 4 thumbs + the +N tile still
@@ -130,6 +130,9 @@ class _AttachmentStrip extends StatelessWidget {
     final visible = attachments.take(visibleLimit).toList();
     final remaining = attachments.length - visible.length;
     final total = visible.length + (remaining > 0 ? 1 : 0);
+
+    Future<void> onDelete(ObservationAttachment a) =>
+        ref.read(observationsRepositoryProvider).deleteAttachment(a.id);
 
     return SizedBox(
       height: 84,
@@ -148,6 +151,7 @@ class _AttachmentStrip extends StatelessWidget {
                 context,
                 attachments,
                 initialIndex: i,
+                onDelete: onDelete,
               ),
             );
           }
@@ -157,6 +161,7 @@ class _AttachmentStrip extends StatelessWidget {
               context,
               attachments,
               initialIndex: visible.length,
+              onDelete: onDelete,
             ),
             child: Container(
               width: 64,

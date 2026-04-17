@@ -567,6 +567,11 @@ class _EditableAttachmentStrip extends StatelessWidget {
                     context,
                     existing,
                     initialIndex: i,
+                    // The edit sheet stages removals and commits them
+                    // on Save so the teacher can still cancel — mirror
+                    // that here by routing through the same remove
+                    // callback instead of calling the repo directly.
+                    onDelete: (a) async => onRemoveExisting(a.id),
                   ),
                   child: thumb,
                 )
