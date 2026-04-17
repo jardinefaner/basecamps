@@ -425,6 +425,85 @@ class ScheduleRepository {
     return id;
   }
 
+  /// Shifts a template's start/end times just for [date] by inserting
+  /// an `override` schedule entry. The override carries every other
+  /// field forward unchanged (pods, specialist, location, notes,
+  /// isFullDay), so readers that see the merged schedule get a single
+  /// row with the new times and the same audience.
+  ///
+  /// If a prior override already exists for this (templateId, date),
+  /// it's replaced — shifting is idempotent, no stacking.
+  Future<void> shiftTemplateForDate({
+    required String templateId,
+    required DateTime date,
+    required String startTime,
+    required String endTime,
+  }) async {
+    final template = await (_db.select(_db.scheduleTemplates)
+          ..where((t) => t.id.equals(templateId)))
+        .getSingle();
+    final templatePods = await podsForTemplate(templateId);
+    final dayOnly = _dayOnly(date);
+    final nextDay = dayOnly.add(const Duration(days: 1));
+
+    await _db.transaction(() async {
+      // Drop any prior override for this day so we don't stack rows.
+      await (_db.delete(_db.scheduleEntries)
+            ..where(
+              (e) =>
+                  e.overridesTemplateId.equals(templateId) &
+                  e.kind.equals('override') &
+                  e.date.isBiggerOrEqualValue(dayOnly) &
+                  e.date.isSmallerThanValue(nextDay),
+            ))
+          .go();
+
+      final overrideId = newId();
+      await _db.into(_db.scheduleEntries).insert(
+            ScheduleEntriesCompanion.insert(
+              id: overrideId,
+              date: dayOnly,
+              startTime: startTime,
+              endTime: endTime,
+              isFullDay: Value(template.isFullDay),
+              title: template.title,
+              allPods: Value(template.allPods),
+              specialistId: Value(template.specialistId),
+              location: Value(template.location),
+              notes: Value(template.notes),
+              kind: 'override',
+              overridesTemplateId: Value(templateId),
+            ),
+          );
+      for (final podId in templatePods) {
+        await _db.into(_db.entryPods).insert(
+              EntryPodsCompanion.insert(
+                entryId: overrideId,
+                podId: podId,
+              ),
+            );
+      }
+    });
+  }
+
+  /// Updates the start/end times of a single one-off entry. Used by
+  /// "Shift today" on activities that aren't template-sourced.
+  Future<void> shiftEntryTimes({
+    required String entryId,
+    required String startTime,
+    required String endTime,
+  }) async {
+    await (_db.update(_db.scheduleEntries)
+          ..where((e) => e.id.equals(entryId)))
+        .write(
+      ScheduleEntriesCompanion(
+        startTime: Value(startTime),
+        endTime: Value(endTime),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
   Future<void> cancelTemplateForDate({
     required String templateId,
     required DateTime date,
