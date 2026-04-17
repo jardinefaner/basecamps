@@ -8,6 +8,7 @@ import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 /// Create-or-edit sheet for a child. When [child] is null we're adding;
 /// otherwise we're editing that child — the title, action label, and
@@ -133,7 +134,10 @@ class _EditChildSheetState extends ConsumerState<EditChildSheet> {
     if (!confirmed) return;
     await ref.read(childrenRepositoryProvider).deleteChild(existing.id);
     if (!mounted) return;
-    Navigator.of(context).pop();
+    // Reset the stack to the Children list so the teacher doesn't
+    // land on the now-orphaned detail screen (which would render
+    // "Child not found").
+    context.go('/children');
   }
 
   @override

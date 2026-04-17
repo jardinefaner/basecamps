@@ -43,6 +43,15 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
+        // SQLite turns foreign keys OFF by default per connection, so
+        // every onDelete: KeyAction.cascade / setNull we declared on
+        // the tables was silently a no-op. Without this, deleting a
+        // child left orphaned rows in observation_children /
+        // attendance / etc, which surfaced as "deleted children still
+        // show up in the observation tag picker."
+        beforeOpen: (details) async {
+          await customStatement('PRAGMA foreign_keys = ON');
+        },
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
           // Pre-v25 migrations referenced the old "kids/pods" Dart
