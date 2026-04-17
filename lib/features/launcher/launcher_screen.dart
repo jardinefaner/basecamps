@@ -211,11 +211,8 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                         if (unpinnedActions.isNotEmpty)
                           _Section(
                             label: 'Quick actions',
-                            child: _UnpinTarget(
-                              kind: PinnedKinds.action,
-                              child: _QuickActionsRow(
-                                actions: unpinnedActions,
-                              ),
+                            child: _QuickActionsRow(
+                              actions: unpinnedActions,
                             ),
                           ),
                         if (unpinnedKids.isNotEmpty)
@@ -224,10 +221,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                             count: unpinnedKids.length,
                             total: children.length,
                             query: _query,
-                            child: _UnpinTarget(
-                              kind: PinnedKinds.child,
-                              child: _PeopleWrap.fromKids(unpinnedKids),
-                            ),
+                            child: _PeopleWrap.fromKids(unpinnedKids),
                           ),
                         if (unpinnedSpecialists.isNotEmpty)
                           _Section(
@@ -235,21 +229,15 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                             count: unpinnedSpecialists.length,
                             total: specialists.length,
                             query: _query,
-                            child: _UnpinTarget(
-                              kind: PinnedKinds.specialist,
-                              child: _PeopleWrap.fromSpecialists(
-                                unpinnedSpecialists,
-                              ),
+                            child: _PeopleWrap.fromSpecialists(
+                              unpinnedSpecialists,
                             ),
                           ),
                         if (destinations.isNotEmpty)
                           _Section(
                             label: 'Sections',
-                            child: _UnpinTarget(
-                              kind: PinnedKinds.destination,
-                              child: _DestinationsGrid(
-                                destinations: destinations,
-                              ),
+                            child: _DestinationsGrid(
+                              destinations: destinations,
                             ),
                           ),
                         if (unpinnedLibrary.isNotEmpty)
@@ -258,10 +246,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                             count: unpinnedLibrary.length,
                             total: library.length,
                             query: _query,
-                            child: _UnpinTarget(
-                              kind: PinnedKinds.library,
-                              child: _LibraryWrap(items: unpinnedLibrary),
-                            ),
+                            child: _LibraryWrap(items: unpinnedLibrary),
                           ),
                       ],
                     ),
@@ -493,8 +478,11 @@ class _QuickActionData {
   }
 }
 
-/// Smart Shelf — DragTarget that accepts any pinnable tile id (action,
-/// destination, child, specialist, library item). Always visible;
+/// Smart Shelf — DragTarget that accepts every pinnable tile id and
+/// pins anything not already pinned. Dropping an already-pinned tile
+/// back on the shelf is a no-op (treated as "cancel"), which leaves
+/// `Draggable.onDragEnd` with wasAccepted=true so the unpin-on-cancel
+/// path in [_PinnableTile] doesn't misfire. Always visible;
 /// placeholder copy when empty so the drop zone is discoverable.
 class _SmartShelf extends ConsumerWidget {
   const _SmartShelf({
@@ -512,10 +500,16 @@ class _SmartShelf extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     return DragTarget<String>(
-      onWillAcceptWithDetails: (d) =>
-          !ref.read(pinnedItemsProvider).contains(d.data),
-      onAcceptWithDetails: (d) =>
-          ref.read(pinnedItemsProvider.notifier).pin(d.data),
+      onWillAcceptWithDetails: (_) => true,
+      onAcceptWithDetails: (d) {
+        final pinned = ref.read(pinnedItemsProvider);
+        if (!pinned.contains(d.data)) {
+          unawaited(
+            ref.read(pinnedItemsProvider.notifier).pin(d.data),
+          );
+        }
+        // Already pinned → dropping back is a "cancel, leave it alone".
+      },
       builder: (context, candidates, _) {
         final hovering = candidates.isNotEmpty;
         return AnimatedContainer(
@@ -580,63 +574,24 @@ class _ShelfEmpty extends StatelessWidget {
   }
 }
 
-/// Wraps a source section so dragging a pinned tile back into its
-/// original home unpins it. Narrow-by-kind so dropping an action on
-/// the Children section is a no-op (can't unpin across kinds).
-class _UnpinTarget extends ConsumerWidget {
-  const _UnpinTarget({required this.kind, required this.child});
-
-  final String kind;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    return DragTarget<String>(
-      onWillAcceptWithDetails: (d) {
-        final parsed = parsePinId(d.data);
-        if (parsed == null || parsed.kind != kind) return false;
-        return ref.read(pinnedItemsProvider).contains(d.data);
-      },
-      onAcceptWithDetails: (d) =>
-          ref.read(pinnedItemsProvider.notifier).unpin(d.data),
-      builder: (context, candidates, _) {
-        final hovering = candidates.isNotEmpty;
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOut,
-          padding: const EdgeInsets.all(AppSpacing.xs),
-          decoration: BoxDecoration(
-            color: hovering
-                ? theme.colorScheme.surfaceContainerHigh
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: hovering
-                  ? theme.colorScheme.primary
-                  : Colors.transparent,
-              width: hovering ? 1.5 : 0,
-            ),
-          ),
-          child: child,
-        );
-      },
-    );
-  }
-}
-
 /// Wraps any launcher tile in a long-press-draggable. [pinId] is the
 /// stored-format identifier with kind prefix (e.g. `action:new-activity`,
-/// `child:abc123`). Same gesture idiom the Children tab uses for
-/// group reassignment.
-class _PinnableTile extends StatelessWidget {
+/// `child:abc123`). Drop on the Smart Shelf to pin; drop anywhere
+/// else (into the list body, off the edge, on empty space) to unpin.
+/// Dropping a pinned tile back on the shelf is a no-op — the shelf
+/// treats that as "cancel".
+///
+/// Simpler rule than per-section unpin targets: "on shelf = pin, off
+/// shelf = unpin" removes silent failures when a teacher released
+/// over the wrong section.
+class _PinnableTile extends ConsumerWidget {
   const _PinnableTile({required this.pinId, required this.child});
 
   final String pinId;
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return LongPressDraggable<String>(
       data: pinId,
       feedback: Material(
@@ -647,14 +602,26 @@ class _PinnableTile extends StatelessWidget {
         ),
       ),
       childWhenDragging: Opacity(opacity: 0.35, child: child),
+      onDragEnd: (details) {
+        // Accepted drops always land on the shelf (only DragTarget in
+        // play). When not accepted, the teacher released over the
+        // list body, so interpret that as "unpin" — but only if the
+        // tile is actually pinned right now. Dragging an unpinned
+        // tile off into empty space is a no-op.
+        if (details.wasAccepted) return;
+        if (ref.read(pinnedItemsProvider).contains(pinId)) {
+          unawaited(
+            ref.read(pinnedItemsProvider.notifier).unpin(pinId),
+          );
+        }
+      },
       child: child,
     );
   }
 }
 
-/// Renders the unpinned quick actions. The wrapping DragTarget lives
-/// on the outer [_UnpinTarget]; each tile here is individually
-/// draggable so teachers can pin them.
+/// Renders the unpinned quick actions. Each tile is individually
+/// draggable so teachers can pin them onto the Smart Shelf.
 class _QuickActionsRow extends ConsumerWidget {
   const _QuickActionsRow({required this.actions});
 
