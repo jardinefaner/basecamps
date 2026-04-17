@@ -281,9 +281,9 @@ class _ListFeedState extends ConsumerState<_ListFeed> {
     // outer scroll, which is what makes the AppBar hide on scroll.
     final controller = PrimaryScrollController.maybeOf(context);
     if (controller == null || !controller.hasClients) return;
-    // Reverse-mode list: offset 0 renders at the bottom of the viewport,
-    // which is where items[0] (newest) lives. Jumping short distances
-    // feels cheap — use a quick animate.
+    // Forward-mode list: offset 0 is the top, which is where items[0]
+    // (newest) lives. Quick animate after send so the new row is in
+    // view instead of buried off-screen.
     unawaited(
       controller.animateTo(
         0,
@@ -326,11 +326,14 @@ class _ListFeedState extends ConsumerState<_ListFeed> {
           // by the parent NestedScrollView drives both this list AND
           // the collapsing SliverAppBar. Keeping our own controller
           // severs that link and the AppBar stops hiding on scroll.
-          reverse: true,
+          //
+          // Forward scroll (newest at top, natural drag direction).
+          // After send we animate back to offset 0 so the new row is
+          // visible.
           padding: const EdgeInsets.only(
             left: AppSpacing.lg,
             right: AppSpacing.lg,
-            top: AppSpacing.xl,
+            top: AppSpacing.md,
             bottom: AppSpacing.lg,
           ),
           itemCount: items.length,
