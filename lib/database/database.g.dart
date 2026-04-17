@@ -2610,6 +2610,17 @@ class $ObservationsTable extends Observations
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _noteOriginalMeta = const VerificationMeta(
+    'noteOriginal',
+  );
+  @override
+  late final GeneratedColumn<String> noteOriginal = GeneratedColumn<String>(
+    'note_original',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _tripIdMeta = const VerificationMeta('tripId');
   @override
   late final GeneratedColumn<String> tripId = GeneratedColumn<String>(
@@ -2667,6 +2678,7 @@ class $ObservationsTable extends Observations
     domain,
     sentiment,
     note,
+    noteOriginal,
     tripId,
     authorName,
     createdAt,
@@ -2742,6 +2754,15 @@ class $ObservationsTable extends Observations
     } else if (isInserting) {
       context.missing(_noteMeta);
     }
+    if (data.containsKey('note_original')) {
+      context.handle(
+        _noteOriginalMeta,
+        noteOriginal.isAcceptableOrUnknown(
+          data['note_original']!,
+          _noteOriginalMeta,
+        ),
+      );
+    }
     if (data.containsKey('trip_id')) {
       context.handle(
         _tripIdMeta,
@@ -2807,6 +2828,10 @@ class $ObservationsTable extends Observations
         DriftSqlType.string,
         data['${effectivePrefix}note'],
       )!,
+      noteOriginal: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note_original'],
+      ),
       tripId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}trip_id'],
@@ -2841,6 +2866,7 @@ class Observation extends DataClass implements Insertable<Observation> {
   final String domain;
   final String sentiment;
   final String note;
+  final String? noteOriginal;
   final String? tripId;
   final String? authorName;
   final DateTime createdAt;
@@ -2854,6 +2880,7 @@ class Observation extends DataClass implements Insertable<Observation> {
     required this.domain,
     required this.sentiment,
     required this.note,
+    this.noteOriginal,
     this.tripId,
     this.authorName,
     required this.createdAt,
@@ -2876,6 +2903,9 @@ class Observation extends DataClass implements Insertable<Observation> {
     map['domain'] = Variable<String>(domain);
     map['sentiment'] = Variable<String>(sentiment);
     map['note'] = Variable<String>(note);
+    if (!nullToAbsent || noteOriginal != null) {
+      map['note_original'] = Variable<String>(noteOriginal);
+    }
     if (!nullToAbsent || tripId != null) {
       map['trip_id'] = Variable<String>(tripId);
     }
@@ -2903,6 +2933,9 @@ class Observation extends DataClass implements Insertable<Observation> {
       domain: Value(domain),
       sentiment: Value(sentiment),
       note: Value(note),
+      noteOriginal: noteOriginal == null && nullToAbsent
+          ? const Value.absent()
+          : Value(noteOriginal),
       tripId: tripId == null && nullToAbsent
           ? const Value.absent()
           : Value(tripId),
@@ -2928,6 +2961,7 @@ class Observation extends DataClass implements Insertable<Observation> {
       domain: serializer.fromJson<String>(json['domain']),
       sentiment: serializer.fromJson<String>(json['sentiment']),
       note: serializer.fromJson<String>(json['note']),
+      noteOriginal: serializer.fromJson<String?>(json['noteOriginal']),
       tripId: serializer.fromJson<String?>(json['tripId']),
       authorName: serializer.fromJson<String?>(json['authorName']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -2946,6 +2980,7 @@ class Observation extends DataClass implements Insertable<Observation> {
       'domain': serializer.toJson<String>(domain),
       'sentiment': serializer.toJson<String>(sentiment),
       'note': serializer.toJson<String>(note),
+      'noteOriginal': serializer.toJson<String?>(noteOriginal),
       'tripId': serializer.toJson<String?>(tripId),
       'authorName': serializer.toJson<String?>(authorName),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -2962,6 +2997,7 @@ class Observation extends DataClass implements Insertable<Observation> {
     String? domain,
     String? sentiment,
     String? note,
+    Value<String?> noteOriginal = const Value.absent(),
     Value<String?> tripId = const Value.absent(),
     Value<String?> authorName = const Value.absent(),
     DateTime? createdAt,
@@ -2977,6 +3013,7 @@ class Observation extends DataClass implements Insertable<Observation> {
     domain: domain ?? this.domain,
     sentiment: sentiment ?? this.sentiment,
     note: note ?? this.note,
+    noteOriginal: noteOriginal.present ? noteOriginal.value : this.noteOriginal,
     tripId: tripId.present ? tripId.value : this.tripId,
     authorName: authorName.present ? authorName.value : this.authorName,
     createdAt: createdAt ?? this.createdAt,
@@ -2996,6 +3033,9 @@ class Observation extends DataClass implements Insertable<Observation> {
       domain: data.domain.present ? data.domain.value : this.domain,
       sentiment: data.sentiment.present ? data.sentiment.value : this.sentiment,
       note: data.note.present ? data.note.value : this.note,
+      noteOriginal: data.noteOriginal.present
+          ? data.noteOriginal.value
+          : this.noteOriginal,
       tripId: data.tripId.present ? data.tripId.value : this.tripId,
       authorName: data.authorName.present
           ? data.authorName.value
@@ -3016,6 +3056,7 @@ class Observation extends DataClass implements Insertable<Observation> {
           ..write('domain: $domain, ')
           ..write('sentiment: $sentiment, ')
           ..write('note: $note, ')
+          ..write('noteOriginal: $noteOriginal, ')
           ..write('tripId: $tripId, ')
           ..write('authorName: $authorName, ')
           ..write('createdAt: $createdAt, ')
@@ -3034,6 +3075,7 @@ class Observation extends DataClass implements Insertable<Observation> {
     domain,
     sentiment,
     note,
+    noteOriginal,
     tripId,
     authorName,
     createdAt,
@@ -3051,6 +3093,7 @@ class Observation extends DataClass implements Insertable<Observation> {
           other.domain == this.domain &&
           other.sentiment == this.sentiment &&
           other.note == this.note &&
+          other.noteOriginal == this.noteOriginal &&
           other.tripId == this.tripId &&
           other.authorName == this.authorName &&
           other.createdAt == this.createdAt &&
@@ -3066,6 +3109,7 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
   final Value<String> domain;
   final Value<String> sentiment;
   final Value<String> note;
+  final Value<String?> noteOriginal;
   final Value<String?> tripId;
   final Value<String?> authorName;
   final Value<DateTime> createdAt;
@@ -3080,6 +3124,7 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
     this.domain = const Value.absent(),
     this.sentiment = const Value.absent(),
     this.note = const Value.absent(),
+    this.noteOriginal = const Value.absent(),
     this.tripId = const Value.absent(),
     this.authorName = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -3095,6 +3140,7 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
     required String domain,
     required String sentiment,
     required String note,
+    this.noteOriginal = const Value.absent(),
     this.tripId = const Value.absent(),
     this.authorName = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -3114,6 +3160,7 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
     Expression<String>? domain,
     Expression<String>? sentiment,
     Expression<String>? note,
+    Expression<String>? noteOriginal,
     Expression<String>? tripId,
     Expression<String>? authorName,
     Expression<DateTime>? createdAt,
@@ -3129,6 +3176,7 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
       if (domain != null) 'domain': domain,
       if (sentiment != null) 'sentiment': sentiment,
       if (note != null) 'note': note,
+      if (noteOriginal != null) 'note_original': noteOriginal,
       if (tripId != null) 'trip_id': tripId,
       if (authorName != null) 'author_name': authorName,
       if (createdAt != null) 'created_at': createdAt,
@@ -3146,6 +3194,7 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
     Value<String>? domain,
     Value<String>? sentiment,
     Value<String>? note,
+    Value<String?>? noteOriginal,
     Value<String?>? tripId,
     Value<String?>? authorName,
     Value<DateTime>? createdAt,
@@ -3161,6 +3210,7 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
       domain: domain ?? this.domain,
       sentiment: sentiment ?? this.sentiment,
       note: note ?? this.note,
+      noteOriginal: noteOriginal ?? this.noteOriginal,
       tripId: tripId ?? this.tripId,
       authorName: authorName ?? this.authorName,
       createdAt: createdAt ?? this.createdAt,
@@ -3196,6 +3246,9 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
     if (note.present) {
       map['note'] = Variable<String>(note.value);
     }
+    if (noteOriginal.present) {
+      map['note_original'] = Variable<String>(noteOriginal.value);
+    }
     if (tripId.present) {
       map['trip_id'] = Variable<String>(tripId.value);
     }
@@ -3225,6 +3278,7 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
           ..write('domain: $domain, ')
           ..write('sentiment: $sentiment, ')
           ..write('note: $note, ')
+          ..write('noteOriginal: $noteOriginal, ')
           ..write('tripId: $tripId, ')
           ..write('authorName: $authorName, ')
           ..write('createdAt: $createdAt, ')
@@ -13351,6 +13405,7 @@ typedef $$ObservationsTableCreateCompanionBuilder =
       required String domain,
       required String sentiment,
       required String note,
+      Value<String?> noteOriginal,
       Value<String?> tripId,
       Value<String?> authorName,
       Value<DateTime> createdAt,
@@ -13367,6 +13422,7 @@ typedef $$ObservationsTableUpdateCompanionBuilder =
       Value<String> domain,
       Value<String> sentiment,
       Value<String> note,
+      Value<String?> noteOriginal,
       Value<String?> tripId,
       Value<String?> authorName,
       Value<DateTime> createdAt,
@@ -13548,6 +13604,11 @@ class $$ObservationsTableFilterComposer
 
   ColumnFilters<String> get note => $composableBuilder(
     column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get noteOriginal => $composableBuilder(
+    column: $table.noteOriginal,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -13752,6 +13813,11 @@ class $$ObservationsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get noteOriginal => $composableBuilder(
+    column: $table.noteOriginal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get authorName => $composableBuilder(
     column: $table.authorName,
     builder: (column) => ColumnOrderings(column),
@@ -13867,6 +13933,11 @@ class $$ObservationsTableAnnotationComposer
 
   GeneratedColumn<String> get note =>
       $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<String> get noteOriginal => $composableBuilder(
+    column: $table.noteOriginal,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get authorName => $composableBuilder(
     column: $table.authorName,
@@ -14069,6 +14140,7 @@ class $$ObservationsTableTableManager
                 Value<String> domain = const Value.absent(),
                 Value<String> sentiment = const Value.absent(),
                 Value<String> note = const Value.absent(),
+                Value<String?> noteOriginal = const Value.absent(),
                 Value<String?> tripId = const Value.absent(),
                 Value<String?> authorName = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -14083,6 +14155,7 @@ class $$ObservationsTableTableManager
                 domain: domain,
                 sentiment: sentiment,
                 note: note,
+                noteOriginal: noteOriginal,
                 tripId: tripId,
                 authorName: authorName,
                 createdAt: createdAt,
@@ -14099,6 +14172,7 @@ class $$ObservationsTableTableManager
                 required String domain,
                 required String sentiment,
                 required String note,
+                Value<String?> noteOriginal = const Value.absent(),
                 Value<String?> tripId = const Value.absent(),
                 Value<String?> authorName = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -14113,6 +14187,7 @@ class $$ObservationsTableTableManager
                 domain: domain,
                 sentiment: sentiment,
                 note: note,
+                noteOriginal: noteOriginal,
                 tripId: tripId,
                 authorName: authorName,
                 createdAt: createdAt,

@@ -188,6 +188,9 @@ class ObservationsRepository {
     String? activityLabel,
     String? tripId,
     String? authorName,
+    // When the teacher saved an AI-refined note, [noteOriginal] holds the
+    // pre-refine text so the edit sheet can still flip back to it.
+    String? noteOriginal,
   }) async {
     assert(
       domains.isNotEmpty,
@@ -217,6 +220,7 @@ class ObservationsRepository {
               domain: primary.name,
               sentiment: sentiment.name,
               note: note,
+              noteOriginal: Value(noteOriginal),
               tripId: Value(tripId),
               authorName: Value(authorName),
             ),
@@ -357,6 +361,11 @@ class ObservationsRepository {
   Future<void> updateObservation({
     required String id,
     String? note,
+    // The pre-refine text to preserve when the refined version is in use.
+    // Pass the string to set it, or set [clearNoteOriginal] to drop it
+    // (teacher reverted to the original, or never refined).
+    String? noteOriginal,
+    bool clearNoteOriginal = false,
     List<ObservationDomain>? domains,
     ObservationSentiment? sentiment,
     List<String>? kidIds,
@@ -375,6 +384,11 @@ class ObservationsRepository {
     await _db.transaction(() async {
       final companion = ObservationsCompanion(
         note: note == null ? const Value.absent() : Value(note),
+        noteOriginal: clearNoteOriginal
+            ? const Value<String?>(null)
+            : (noteOriginal == null
+                ? const Value.absent()
+                : Value(noteOriginal)),
         domain: primaryDomain == null
             ? const Value.absent()
             : Value(primaryDomain.name),

@@ -155,6 +155,10 @@ class Observations extends Table {
   TextColumn get domain => text()();
   TextColumn get sentiment => text()();
   TextColumn get note => text()();
+  // When a teacher ran AI refine and saved the refined version, the
+  // pre-refine text lives here so the edit sheet can flip back to it
+  // later. Null for observations that were never refined — most of them.
+  TextColumn get noteOriginal => text().nullable()();
   TextColumn get tripId =>
       text().nullable().references(Trips, #id, onDelete: KeyAction.setNull)();
   TextColumn get authorName => text().nullable()();

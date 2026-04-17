@@ -63,8 +63,17 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
   /// Same for the domain list (order preserved).
   List<ObservationDomain> _domainsBaseline = const [];
 
+  /// Latest value the refineable editor told us to persist as
+  /// `note_original`. Seeded from the observation so a pristine open
+  /// matches what's already stored. `null` means "drop it" (teacher went
+  /// back to Original or never refined); a string means the refined
+  /// version is active and we should preserve this pre-refine text on
+  /// save.
+  late String? _preservedOriginal = widget.observation.noteOriginal;
+
   bool get _hasChanges {
     if (_noteController.text.trim() != widget.observation.note) return true;
+    if (_preservedOriginal != widget.observation.noteOriginal) return true;
     if (_sentiment !=
         ObservationSentiment.fromName(widget.observation.sentiment)) {
       return true;
@@ -143,9 +152,16 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
   Future<void> _save() async {
     setState(() => _submitting = true);
     final repo = ref.read(observationsRepositoryProvider);
+    // Non-destructive refine: if the refined version is what we're
+    // saving, persist the Original snapshot so it can be flipped back
+    // to later. If we're on the Original slide (or never refined), drop
+    // the snapshot.
+    final preserved = _preservedOriginal;
     await repo.updateObservation(
       id: widget.observation.id,
       note: _noteController.text.trim(),
+      noteOriginal: preserved,
+      clearNoteOriginal: preserved == null,
       domains: _domains.toList(),
       sentiment: _sentiment,
       kidIds: _selectedKidIds.toList(),
@@ -294,7 +310,11 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
           RefineableNoteEditor(
             controller: _noteController,
             label: 'Note',
+            initialOriginal: widget.observation.noteOriginal,
             onChanged: (_) => setState(() {}),
+            onPreservedOriginalChanged: (value) => setState(() {
+              _preservedOriginal = value;
+            }),
           ),
 
           const SizedBox(height: AppSpacing.lg),

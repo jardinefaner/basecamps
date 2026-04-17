@@ -38,7 +38,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 20;
+  int get schemaVersion => 21;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -276,6 +276,16 @@ class AppDatabase extends _$AppDatabase {
               m,
               scheduleTemplates,
               scheduleTemplates.groupId,
+            );
+          }
+          if (from < 21) {
+            // Non-destructive AI refine: when the refined version is what
+            // we save, keep the pre-refine text here so the edit sheet can
+            // still flip back to the teacher's original words.
+            await _addColumnIfMissing(
+              m,
+              observations,
+              observations.noteOriginal,
             );
           }
         },
