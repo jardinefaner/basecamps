@@ -3,6 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+/// Shell branch indexing. The launcher sits at index 0 (no nav tile);
+/// the five regular tabs occupy indices 1..5 so the bottom nav shows
+/// them in order. Reserving a named constant keeps the ordering
+/// self-documenting even though only the first-tab index is read.
+const int _firstTabBranchIndex = 1;
+
 const _navItems = <AnimatedNavItem>[
   AnimatedNavItem(
     outlinedIcon: Icons.today_outlined,
@@ -48,6 +54,18 @@ class AppScaffold extends StatefulWidget {
 class _AppScaffoldState extends State<AppScaffold> {
   DateTime? _lastBackPress;
 
+  int get _lastBranchIndex => _firstTabBranchIndex + _navItems.length - 1;
+
+  /// Nav-bar selection derived from the current shell branch. Returns
+  /// -1 when the launcher branch is active, which [AnimatedNavBar]
+  /// interprets as "no tile selected" so the indicator pill fades off
+  /// every tile while the launcher is on screen.
+  int get _navSelectedIndex {
+    final shellIndex = widget.navigationShell.currentIndex;
+    if (shellIndex < _firstTabBranchIndex) return -1;
+    return shellIndex - _firstTabBranchIndex;
+  }
+
   /// Back-button handler at the app root. On Android, the system back
   /// button would otherwise exit the app instantly from the root tab —
   /// teachers reported accidentally doing this mid-capture. Now the first
@@ -73,44 +91,49 @@ class _AppScaffoldState extends State<AppScaffold> {
       );
   }
 
-  void _goToBranch(int index) {
-    if (index < 0 || index >= _navItems.length) return;
+  void _goToBranch(int shellIndex) {
+    if (shellIndex < 0 || shellIndex > _lastBranchIndex) return;
     widget.navigationShell.goBranch(
-      index,
-      initialLocation: index == widget.navigationShell.currentIndex,
+      shellIndex,
+      initialLocation: shellIndex == widget.navigationShell.currentIndex,
     );
+  }
+
+  /// Nav-bar tile index → shell branch index.
+  void _onNavTileSelected(int navIndex) {
+    _goToBranch(navIndex + _firstTabBranchIndex);
   }
 
   @override
   Widget build(BuildContext context) {
-    final currentIndex = widget.navigationShell.currentIndex;
+    final currentShellIndex = widget.navigationShell.currentIndex;
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: _onPopInvoked,
       child: Scaffold(
-        // Horizontal fling on the page body walks through tabs left
-        // and right. Velocity threshold is deliberately high so an
-        // accidental slow drag across a card won't change tabs — a
-        // child horizontal scroll (e.g. the week grid) also wins the
-        // gesture arena when it's the one being actively dragged, so
-        // we only catch the "no one else is using this gesture" case.
+        // Horizontal fling on the page body walks through branches.
+        // Thresholds are deliberately high so an accidental slow drag
+        // across a card won't change tabs — and child horizontal
+        // scrollables (week grid, attachment strips, etc.) still win
+        // the gesture arena when they're the one being dragged, so we
+        // only catch the "no one else is using this gesture" case.
         body: GestureDetector(
           behavior: HitTestBehavior.translucent,
           onHorizontalDragEnd: (details) {
             final velocity = details.primaryVelocity ?? 0;
             if (velocity < -500) {
-              _goToBranch(currentIndex + 1);
+              _goToBranch(currentShellIndex + 1);
             } else if (velocity > 500) {
-              _goToBranch(currentIndex - 1);
+              _goToBranch(currentShellIndex - 1);
             }
           },
           child: widget.navigationShell,
         ),
         bottomNavigationBar: AnimatedNavBar(
           items: _navItems,
-          selectedIndex: currentIndex,
-          onSelected: _goToBranch,
+          selectedIndex: _navSelectedIndex,
+          onSelected: _onNavTileSelected,
         ),
       ),
     );

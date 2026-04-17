@@ -4,6 +4,7 @@ import 'package:basecamp/features/forms/parent_concern/parent_concern_form_scree
 import 'package:basecamp/features/forms/parent_concern/parent_concern_notes_screen.dart';
 import 'package:basecamp/features/kids/kid_detail_screen.dart';
 import 'package:basecamp/features/kids/kids_screen.dart';
+import 'package:basecamp/features/launcher/launcher_screen.dart';
 import 'package:basecamp/features/more/more_screen.dart';
 import 'package:basecamp/features/observations/observations_screen.dart';
 import 'package:basecamp/features/schedule/schedule_editor_screen.dart';
@@ -25,6 +26,17 @@ final routerProvider = Provider<GoRouter>((ref) {
           return AppScaffold(navigationShell: navigationShell);
         },
         branches: [
+          // Hidden "launcher" branch — reached by swiping right from
+          // Today. No nav-bar tile; the scaffold drops the indicator
+          // when this branch is active.
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/launcher',
+                builder: (_, _) => const LauncherScreen(),
+              ),
+            ],
+          ),
           StatefulShellBranch(
             routes: [
               GoRoute(
