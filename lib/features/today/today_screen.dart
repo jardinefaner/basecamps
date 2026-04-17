@@ -49,27 +49,39 @@ class TodayScreen extends ConsumerWidget {
     final dateLabel = DateFormat('EEEE · MMMM d').format(now);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Today'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.tune_outlined),
-            tooltip: 'Schedule',
-            onPressed: () => context.push('/today/schedule'),
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            title: const Text('Today'),
+            floating: true,
+            snap: true,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.tune_outlined),
+                tooltip: 'Schedule',
+                onPressed: () => context.push('/today/schedule'),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+            ],
           ),
-          const SizedBox(width: AppSpacing.xs),
+          scheduleAsync.when(
+            loading: () => const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (err, _) => SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: Text('Error: $err')),
+            ),
+            data: (items) => _Body(
+              items: items,
+              now: now,
+              dateLabel: dateLabel,
+              theme: theme,
+              onOpenDetail: (item) => _openDetail(context, item),
+            ),
+          ),
         ],
-      ),
-      body: scheduleAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => Center(child: Text('Error: $err')),
-        data: (items) => _Body(
-          items: items,
-          now: now,
-          dateLabel: dateLabel,
-          theme: theme,
-          onOpenDetail: (item) => _openDetail(context, item),
-        ),
       ),
     );
   }
@@ -93,13 +105,15 @@ class _Body extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (items.isEmpty) {
-      return ListView(
+      return SliverPadding(
         padding: const EdgeInsets.all(AppSpacing.lg),
-        children: [
-          _DateLabel(label: dateLabel),
-          const SizedBox(height: AppSpacing.md),
-          _EmptyState(onEdit: () => context.push('/today/schedule')),
-        ],
+        sliver: SliverList(
+          delegate: SliverChildListDelegate([
+            _DateLabel(label: dateLabel),
+            const SizedBox(height: AppSpacing.md),
+            _EmptyState(onEdit: () => context.push('/today/schedule')),
+          ]),
+        ),
       );
     }
 
@@ -242,14 +256,15 @@ class _Body extends ConsumerWidget {
       return null;
     }
 
-    return ListView(
+    return SliverPadding(
       padding: const EdgeInsets.only(
         left: AppSpacing.lg,
         right: AppSpacing.lg,
         top: AppSpacing.md,
         bottom: AppSpacing.xxxl * 2,
       ),
-      children: [
+      sliver: SliverList(
+        delegate: SliverChildListDelegate([
         _DateLabel(label: dateLabel),
         const SizedBox(height: AppSpacing.sm),
         DaySummaryStrip(
@@ -367,7 +382,8 @@ class _Body extends ConsumerWidget {
             ],
           ),
         ],
-      ],
+        ]),
+      ),
     );
   }
 
