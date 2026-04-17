@@ -35,6 +35,12 @@ class ObservationsScreen extends ConsumerStatefulWidget {
 class _ObservationsScreenState extends ConsumerState<ObservationsScreen> {
   _ObserveFilter _filter = _ObserveFilter.all;
 
+  /// Held so child widgets (the list feed) can reach back out and
+  /// animate the outer AppBar controller on send — otherwise the
+  /// AppBar stays hidden above the newly-scrolled-to-top card and
+  /// covers it when it snaps back in.
+  final _nestedKey = GlobalKey<NestedScrollViewState>();
+
   /// Bulk-select state. The observation set drives selection in the
   /// All/Notes feed; the attachment set drives it in the Media grid.
   /// Filter switches clear both so a half-selected feed doesn't bleed
@@ -135,6 +141,7 @@ class _ObservationsScreenState extends ConsumerState<ObservationsScreen> {
           children: [
             Expanded(
               child: NestedScrollView(
+                key: _nestedKey,
                 headerSliverBuilder: (ctx, innerBoxIsScrolled) => [
                   if (!_selecting)
                     SliverAppBar(
@@ -232,6 +239,7 @@ class _ObservationsScreenState extends ConsumerState<ObservationsScreen> {
           notesOnly: false,
           selectedIds: _selectedObservationIds,
           onToggleSelect: _toggleObservation,
+          nestedKey: _nestedKey,
         );
       case _ObserveFilter.notes:
         return _ListFeed(
@@ -239,6 +247,7 @@ class _ObservationsScreenState extends ConsumerState<ObservationsScreen> {
           notesOnly: true,
           selectedIds: _selectedObservationIds,
           onToggleSelect: _toggleObservation,
+          nestedKey: _nestedKey,
         );
       case _ObserveFilter.media:
         return _MediaGallery(
@@ -261,12 +270,19 @@ class _ListFeed extends ConsumerStatefulWidget {
     required this.notesOnly,
     required this.selectedIds,
     required this.onToggleSelect,
+    required this.nestedKey,
   });
 
   final Future<void> Function(Observation) onTapObservation;
   final bool notesOnly;
   final Set<String> selectedIds;
   final ValueChanged<String> onToggleSelect;
+
+  /// Handle on the screen's NestedScrollView so we can also animate
+  /// the outer AppBar controller on send — otherwise the inner list
+  /// animates to 0 while the AppBar stays hidden, and snaps back in
+  /// on top of the just-sent card.
+  final GlobalKey<NestedScrollViewState> nestedKey;
 
   @override
   ConsumerState<_ListFeed> createState() => _ListFeedState();
@@ -298,21 +314,34 @@ class _ListFeedState extends ConsumerState<_ListFeed> {
   }
 
   void _scrollToNewest(BuildContext context) {
-    // Driven by the PrimaryScrollController that NestedScrollView
-    // injects — owning our own controller would cut us off from the
-    // outer scroll, which is what makes the AppBar hide on scroll.
-    final controller = PrimaryScrollController.maybeOf(context);
-    if (controller == null || !controller.hasClients) return;
-    // Forward-mode list: offset 0 is the top, which is where items[0]
-    // (newest) lives. Quick animate after send so the new row is in
-    // view instead of buried off-screen.
-    unawaited(
-      controller.animateTo(
-        0,
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeOut,
-      ),
-    );
+    // Two controllers in play under a NestedScrollView:
+    //   * outerController — drives the SliverAppBar visibility
+    //   * innerController (exposed via PrimaryScrollController) —
+    //     scrolls the list below the AppBar
+    //
+    // Animating only the inner to 0 leaves the AppBar wherever it was
+    // hiding, and when it snaps back in it covers the freshly-sent
+    // card. We run both: the outer returns to 0 so the AppBar is
+    // fully visible, and the inner returns to 0 so the new row sits
+    // right below it.
+    const duration = Duration(milliseconds: 260);
+    const curve = Curves.easeOut;
+    final nested = widget.nestedKey.currentState;
+    if (nested != null && nested.outerController.hasClients) {
+      unawaited(
+        nested.outerController.animateTo(
+          0,
+          duration: duration,
+          curve: curve,
+        ),
+      );
+    }
+    final inner = PrimaryScrollController.maybeOf(context);
+    if (inner != null && inner.hasClients) {
+      unawaited(
+        inner.animateTo(0, duration: duration, curve: curve),
+      );
+    }
   }
 
   @override
