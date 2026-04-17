@@ -1,6 +1,40 @@
+import 'package:basecamp/ui/animated_nav_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+
+const _navItems = <AnimatedNavItem>[
+  AnimatedNavItem(
+    outlinedIcon: Icons.today_outlined,
+    filledIcon: Icons.today,
+    label: 'Today',
+    flavor: NavIconFlavor.wiggle,
+  ),
+  AnimatedNavItem(
+    outlinedIcon: Icons.visibility_outlined,
+    filledIcon: Icons.visibility,
+    label: 'Observe',
+    flavor: NavIconFlavor.blink,
+  ),
+  AnimatedNavItem(
+    outlinedIcon: Icons.people_outline,
+    filledIcon: Icons.people,
+    label: 'Kids',
+    flavor: NavIconFlavor.bob,
+  ),
+  AnimatedNavItem(
+    outlinedIcon: Icons.map_outlined,
+    filledIcon: Icons.map,
+    label: 'Trips',
+    flavor: NavIconFlavor.drop,
+  ),
+  AnimatedNavItem(
+    outlinedIcon: Icons.more_horiz,
+    filledIcon: Icons.more_horiz,
+    label: 'More',
+    flavor: NavIconFlavor.pulse,
+  ),
+];
 
 class AppScaffold extends StatefulWidget {
   const AppScaffold({required this.navigationShell, super.key});
@@ -39,53 +73,44 @@ class _AppScaffoldState extends State<AppScaffold> {
       );
   }
 
+  void _goToBranch(int index) {
+    if (index < 0 || index >= _navItems.length) return;
+    widget.navigationShell.goBranch(
+      index,
+      initialLocation: index == widget.navigationShell.currentIndex,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final currentIndex = widget.navigationShell.currentIndex;
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: _onPopInvoked,
       child: Scaffold(
-        body: widget.navigationShell,
-        bottomNavigationBar: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Divider(),
-            NavigationBar(
-              selectedIndex: widget.navigationShell.currentIndex,
-              onDestinationSelected: (index) =>
-                  widget.navigationShell.goBranch(
-                index,
-                initialLocation: index == widget.navigationShell.currentIndex,
-              ),
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.today_outlined),
-                  selectedIcon: Icon(Icons.today),
-                  label: 'Today',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.visibility_outlined),
-                  selectedIcon: Icon(Icons.visibility),
-                  label: 'Observe',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.people_outline),
-                  selectedIcon: Icon(Icons.people),
-                  label: 'Kids',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.map_outlined),
-                  selectedIcon: Icon(Icons.map),
-                  label: 'Trips',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.more_horiz),
-                  selectedIcon: Icon(Icons.more_horiz),
-                  label: 'More',
-                ),
-              ],
-            ),
-          ],
+        // Horizontal fling on the page body walks through tabs left
+        // and right. Velocity threshold is deliberately high so an
+        // accidental slow drag across a card won't change tabs — a
+        // child horizontal scroll (e.g. the week grid) also wins the
+        // gesture arena when it's the one being actively dragged, so
+        // we only catch the "no one else is using this gesture" case.
+        body: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragEnd: (details) {
+            final velocity = details.primaryVelocity ?? 0;
+            if (velocity < -500) {
+              _goToBranch(currentIndex + 1);
+            } else if (velocity > 500) {
+              _goToBranch(currentIndex - 1);
+            }
+          },
+          child: widget.navigationShell,
+        ),
+        bottomNavigationBar: AnimatedNavBar(
+          items: _navItems,
+          selectedIndex: currentIndex,
+          onSelected: _goToBranch,
         ),
       ),
     );
