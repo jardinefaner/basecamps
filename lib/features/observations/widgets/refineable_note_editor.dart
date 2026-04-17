@@ -91,9 +91,11 @@ class _RefineableNoteEditorState extends State<RefineableNoteEditor> {
       _refinedSlide = refined;
       _slide = 1;
     });
-    // Animate straight to the refined page so the teacher sees the
-    // improvement first. Jump (no animation) if the controller wasn't
-    // attached yet.
+    // When we're already in carousel mode the controller has positions
+    // attached, so we can animate to the refined page. On first refine
+    // the PageView hasn't been built yet — the controller was created
+    // with initialPage: 1, so it lands there naturally on first layout.
+    // Jumping before the PageView attaches asserts.
     if (_pageController.hasClients) {
       unawaited(
         _pageController.animateToPage(
@@ -102,8 +104,6 @@ class _RefineableNoteEditorState extends State<RefineableNoteEditor> {
           curve: Curves.easeOutCubic,
         ),
       );
-    } else {
-      _pageController.jumpToPage(1);
     }
     _applySlideToController(refined);
   }
