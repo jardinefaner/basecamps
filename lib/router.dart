@@ -7,6 +7,7 @@ import 'package:basecamp/features/kids/kids_screen.dart';
 import 'package:basecamp/features/more/more_screen.dart';
 import 'package:basecamp/features/observations/observations_screen.dart';
 import 'package:basecamp/features/schedule/schedule_editor_screen.dart';
+import 'package:basecamp/features/specialists/specialist_detail_screen.dart';
 import 'package:basecamp/features/specialists/specialists_screen.dart';
 import 'package:basecamp/features/today/today_screen.dart';
 import 'package:basecamp/features/trips/trip_detail_screen.dart';
@@ -87,6 +88,14 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'specialists',
                     builder: (_, _) => const SpecialistsScreen(),
+                    routes: [
+                      GoRoute(
+                        path: ':id',
+                        builder: (_, state) => SpecialistDetailScreen(
+                          specialistId: state.pathParameters['id']!,
+                        ),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'library',

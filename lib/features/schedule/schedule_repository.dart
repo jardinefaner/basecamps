@@ -87,6 +87,20 @@ class ScheduleRepository {
     return query.watch();
   }
 
+  /// Templates assigned to one specialist, weekly-ordered. Feeds the
+  /// "What they run" section on the specialist detail screen.
+  Stream<List<ScheduleTemplate>> watchTemplatesForSpecialist(
+    String specialistId,
+  ) {
+    final query = _db.select(_db.scheduleTemplates)
+      ..where((t) => t.specialistId.equals(specialistId))
+      ..orderBy([
+        (t) => OrderingTerm.asc(t.dayOfWeek),
+        (t) => OrderingTerm.asc(t.startTime),
+      ]);
+    return query.watch();
+  }
+
   Future<List<ScheduleTemplate>> templatesForDay(int dayOfWeek) {
     final query = _db.select(_db.scheduleTemplates)
       ..where((t) => t.dayOfWeek.equals(dayOfWeek))
@@ -689,6 +703,17 @@ final todayScheduleProvider = StreamProvider<List<ScheduleItem>>((ref) {
       .watch(scheduleRepositoryProvider)
       .watchScheduleForDate(DateTime.now());
 });
+
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final templatesBySpecialistProvider =
+    StreamProvider.family<List<ScheduleTemplate>, String>(
+  (ref, specialistId) {
+    return ref
+        .watch(scheduleRepositoryProvider)
+        .watchTemplatesForSpecialist(specialistId);
+  },
+);
 
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types

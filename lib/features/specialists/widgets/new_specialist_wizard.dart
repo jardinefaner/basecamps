@@ -1,4 +1,5 @@
 import 'package:basecamp/features/specialists/specialists_repository.dart';
+import 'package:basecamp/features/specialists/widgets/availability_editor.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
@@ -24,6 +25,12 @@ class _NewSpecialistWizardScreenState
   final _notes = TextEditingController();
   String? _avatarPath;
 
+  /// Weekly availability sketch — seeded with Mon–Fri 9–5. Each day
+  /// can be turned off, or its hours customised.
+  late final Map<int, AvailabilityBlock> _availability = {
+    for (final b in defaultAvailability()) b.dayOfWeek: b,
+  };
+
   bool get _dirty =>
       _name.text.trim().isNotEmpty ||
       _role.text.trim().isNotEmpty ||
@@ -43,12 +50,17 @@ class _NewSpecialistWizardScreenState
   Future<void> _submit() async {
     final role = _role.text.trim();
     final notes = _notes.text.trim();
-    await ref.read(specialistsRepositoryProvider).addSpecialist(
-          name: _name.text.trim(),
-          role: role.isEmpty ? null : role,
-          notes: notes.isEmpty ? null : notes,
-          avatarPath: _avatarPath,
-        );
+    final repo = ref.read(specialistsRepositoryProvider);
+    final id = await repo.addSpecialist(
+      name: _name.text.trim(),
+      role: role.isEmpty ? null : role,
+      notes: notes.isEmpty ? null : notes,
+      avatarPath: _avatarPath,
+    );
+    await repo.replaceAvailability(
+      specialistId: id,
+      blocks: _availability.values.map((b) => b.toInput()).toList(),
+    );
     if (!mounted) return;
     Navigator.of(context).pop();
   }
@@ -78,6 +90,13 @@ class _NewSpecialistWizardScreenState
           ),
         ),
         WizardStep(
+          headline: 'When do they work?',
+          subtitle: 'Mon–Fri, toggle any day off, tweak the hours. '
+              'You can add more blocks later.',
+          canSkip: true,
+          content: _buildAvailabilityPage(),
+        ),
+        WizardStep(
           headline: 'Anything worth noting?',
           subtitle: 'Internal notes for staff. Skip if nothing comes to mind.',
           canSkip: true,
@@ -89,6 +108,49 @@ class _NewSpecialistWizardScreenState
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAvailabilityPage() {
+    return AvailabilityEditor(
+      blocksByDay: _availability,
+      onToggleDay: (day, {required enabled}) {
+        setState(() {
+          if (enabled) {
+            _availability[day] = AvailabilityBlock(
+              dayOfWeek: day,
+              start: const TimeOfDay(hour: 9, minute: 0),
+              end: const TimeOfDay(hour: 17, minute: 0),
+            );
+          } else {
+            _availability.remove(day);
+          }
+        });
+      },
+      onPickStart: (day) async {
+        final existing = _availability[day];
+        if (existing == null) return;
+        final picked = await showTimePicker(
+          context: context,
+          initialTime: existing.start,
+        );
+        if (picked == null || !mounted) return;
+        setState(() {
+          _availability[day] = existing.copyWith(start: picked);
+        });
+      },
+      onPickEnd: (day) async {
+        final existing = _availability[day];
+        if (existing == null) return;
+        final picked = await showTimePicker(
+          context: context,
+          initialTime: existing.end,
+        );
+        if (picked == null || !mounted) return;
+        setState(() {
+          _availability[day] = existing.copyWith(end: picked);
+        });
+      },
     );
   }
 

@@ -188,6 +188,29 @@ class ActivityLibrary extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// One block of "I'm available to work" for a specialist — e.g. "Mon
+/// 9:00–17:00". Any given specialist can have multiple rows (Mon 9–12,
+/// Mon 13–17) to model split shifts, and each row can be bounded by
+/// [startDate]/[endDate] to model seasonal work or time off. Same ISO
+/// day-of-week convention (1..7) the schedule uses everywhere else.
+class SpecialistAvailability extends Table {
+  TextColumn get id => text()();
+  TextColumn get specialistId => text()
+      .references(Specialists, #id, onDelete: KeyAction.cascade)();
+  IntColumn get dayOfWeek => integer()();
+  TextColumn get startTime => text()();
+  TextColumn get endTime => text()();
+  DateTimeColumn get startDate => dateTime().nullable()();
+  DateTimeColumn get endDate => dateTime().nullable()();
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 /// Named people who run activities (art teacher, swim instructor, etc.).
 /// Not user accounts yet — just named entities linked from schedule items.
 class Specialists extends Table {

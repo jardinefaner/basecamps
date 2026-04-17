@@ -4673,6 +4673,579 @@ class SpecialistsCompanion extends UpdateCompanion<Specialist> {
   }
 }
 
+class $SpecialistAvailabilityTable extends SpecialistAvailability
+    with TableInfo<$SpecialistAvailabilityTable, SpecialistAvailabilityData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SpecialistAvailabilityTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _specialistIdMeta = const VerificationMeta(
+    'specialistId',
+  );
+  @override
+  late final GeneratedColumn<String> specialistId = GeneratedColumn<String>(
+    'specialist_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES specialists (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _dayOfWeekMeta = const VerificationMeta(
+    'dayOfWeek',
+  );
+  @override
+  late final GeneratedColumn<int> dayOfWeek = GeneratedColumn<int>(
+    'day_of_week',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startTimeMeta = const VerificationMeta(
+    'startTime',
+  );
+  @override
+  late final GeneratedColumn<String> startTime = GeneratedColumn<String>(
+    'start_time',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endTimeMeta = const VerificationMeta(
+    'endTime',
+  );
+  @override
+  late final GeneratedColumn<String> endTime = GeneratedColumn<String>(
+    'end_time',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startDateMeta = const VerificationMeta(
+    'startDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> startDate = GeneratedColumn<DateTime>(
+    'start_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _endDateMeta = const VerificationMeta(
+    'endDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> endDate = GeneratedColumn<DateTime>(
+    'end_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    specialistId,
+    dayOfWeek,
+    startTime,
+    endTime,
+    startDate,
+    endDate,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'specialist_availability';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SpecialistAvailabilityData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('specialist_id')) {
+      context.handle(
+        _specialistIdMeta,
+        specialistId.isAcceptableOrUnknown(
+          data['specialist_id']!,
+          _specialistIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_specialistIdMeta);
+    }
+    if (data.containsKey('day_of_week')) {
+      context.handle(
+        _dayOfWeekMeta,
+        dayOfWeek.isAcceptableOrUnknown(data['day_of_week']!, _dayOfWeekMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dayOfWeekMeta);
+    }
+    if (data.containsKey('start_time')) {
+      context.handle(
+        _startTimeMeta,
+        startTime.isAcceptableOrUnknown(data['start_time']!, _startTimeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startTimeMeta);
+    }
+    if (data.containsKey('end_time')) {
+      context.handle(
+        _endTimeMeta,
+        endTime.isAcceptableOrUnknown(data['end_time']!, _endTimeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endTimeMeta);
+    }
+    if (data.containsKey('start_date')) {
+      context.handle(
+        _startDateMeta,
+        startDate.isAcceptableOrUnknown(data['start_date']!, _startDateMeta),
+      );
+    }
+    if (data.containsKey('end_date')) {
+      context.handle(
+        _endDateMeta,
+        endDate.isAcceptableOrUnknown(data['end_date']!, _endDateMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SpecialistAvailabilityData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SpecialistAvailabilityData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      specialistId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}specialist_id'],
+      )!,
+      dayOfWeek: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}day_of_week'],
+      )!,
+      startTime: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}start_time'],
+      )!,
+      endTime: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}end_time'],
+      )!,
+      startDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}start_date'],
+      ),
+      endDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}end_date'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $SpecialistAvailabilityTable createAlias(String alias) {
+    return $SpecialistAvailabilityTable(attachedDatabase, alias);
+  }
+}
+
+class SpecialistAvailabilityData extends DataClass
+    implements Insertable<SpecialistAvailabilityData> {
+  final String id;
+  final String specialistId;
+  final int dayOfWeek;
+  final String startTime;
+  final String endTime;
+  final DateTime? startDate;
+  final DateTime? endDate;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const SpecialistAvailabilityData({
+    required this.id,
+    required this.specialistId,
+    required this.dayOfWeek,
+    required this.startTime,
+    required this.endTime,
+    this.startDate,
+    this.endDate,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['specialist_id'] = Variable<String>(specialistId);
+    map['day_of_week'] = Variable<int>(dayOfWeek);
+    map['start_time'] = Variable<String>(startTime);
+    map['end_time'] = Variable<String>(endTime);
+    if (!nullToAbsent || startDate != null) {
+      map['start_date'] = Variable<DateTime>(startDate);
+    }
+    if (!nullToAbsent || endDate != null) {
+      map['end_date'] = Variable<DateTime>(endDate);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  SpecialistAvailabilityCompanion toCompanion(bool nullToAbsent) {
+    return SpecialistAvailabilityCompanion(
+      id: Value(id),
+      specialistId: Value(specialistId),
+      dayOfWeek: Value(dayOfWeek),
+      startTime: Value(startTime),
+      endTime: Value(endTime),
+      startDate: startDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(startDate),
+      endDate: endDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endDate),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory SpecialistAvailabilityData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SpecialistAvailabilityData(
+      id: serializer.fromJson<String>(json['id']),
+      specialistId: serializer.fromJson<String>(json['specialistId']),
+      dayOfWeek: serializer.fromJson<int>(json['dayOfWeek']),
+      startTime: serializer.fromJson<String>(json['startTime']),
+      endTime: serializer.fromJson<String>(json['endTime']),
+      startDate: serializer.fromJson<DateTime?>(json['startDate']),
+      endDate: serializer.fromJson<DateTime?>(json['endDate']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'specialistId': serializer.toJson<String>(specialistId),
+      'dayOfWeek': serializer.toJson<int>(dayOfWeek),
+      'startTime': serializer.toJson<String>(startTime),
+      'endTime': serializer.toJson<String>(endTime),
+      'startDate': serializer.toJson<DateTime?>(startDate),
+      'endDate': serializer.toJson<DateTime?>(endDate),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  SpecialistAvailabilityData copyWith({
+    String? id,
+    String? specialistId,
+    int? dayOfWeek,
+    String? startTime,
+    String? endTime,
+    Value<DateTime?> startDate = const Value.absent(),
+    Value<DateTime?> endDate = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => SpecialistAvailabilityData(
+    id: id ?? this.id,
+    specialistId: specialistId ?? this.specialistId,
+    dayOfWeek: dayOfWeek ?? this.dayOfWeek,
+    startTime: startTime ?? this.startTime,
+    endTime: endTime ?? this.endTime,
+    startDate: startDate.present ? startDate.value : this.startDate,
+    endDate: endDate.present ? endDate.value : this.endDate,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  SpecialistAvailabilityData copyWithCompanion(
+    SpecialistAvailabilityCompanion data,
+  ) {
+    return SpecialistAvailabilityData(
+      id: data.id.present ? data.id.value : this.id,
+      specialistId: data.specialistId.present
+          ? data.specialistId.value
+          : this.specialistId,
+      dayOfWeek: data.dayOfWeek.present ? data.dayOfWeek.value : this.dayOfWeek,
+      startTime: data.startTime.present ? data.startTime.value : this.startTime,
+      endTime: data.endTime.present ? data.endTime.value : this.endTime,
+      startDate: data.startDate.present ? data.startDate.value : this.startDate,
+      endDate: data.endDate.present ? data.endDate.value : this.endDate,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SpecialistAvailabilityData(')
+          ..write('id: $id, ')
+          ..write('specialistId: $specialistId, ')
+          ..write('dayOfWeek: $dayOfWeek, ')
+          ..write('startTime: $startTime, ')
+          ..write('endTime: $endTime, ')
+          ..write('startDate: $startDate, ')
+          ..write('endDate: $endDate, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    specialistId,
+    dayOfWeek,
+    startTime,
+    endTime,
+    startDate,
+    endDate,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SpecialistAvailabilityData &&
+          other.id == this.id &&
+          other.specialistId == this.specialistId &&
+          other.dayOfWeek == this.dayOfWeek &&
+          other.startTime == this.startTime &&
+          other.endTime == this.endTime &&
+          other.startDate == this.startDate &&
+          other.endDate == this.endDate &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class SpecialistAvailabilityCompanion
+    extends UpdateCompanion<SpecialistAvailabilityData> {
+  final Value<String> id;
+  final Value<String> specialistId;
+  final Value<int> dayOfWeek;
+  final Value<String> startTime;
+  final Value<String> endTime;
+  final Value<DateTime?> startDate;
+  final Value<DateTime?> endDate;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const SpecialistAvailabilityCompanion({
+    this.id = const Value.absent(),
+    this.specialistId = const Value.absent(),
+    this.dayOfWeek = const Value.absent(),
+    this.startTime = const Value.absent(),
+    this.endTime = const Value.absent(),
+    this.startDate = const Value.absent(),
+    this.endDate = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SpecialistAvailabilityCompanion.insert({
+    required String id,
+    required String specialistId,
+    required int dayOfWeek,
+    required String startTime,
+    required String endTime,
+    this.startDate = const Value.absent(),
+    this.endDate = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       specialistId = Value(specialistId),
+       dayOfWeek = Value(dayOfWeek),
+       startTime = Value(startTime),
+       endTime = Value(endTime);
+  static Insertable<SpecialistAvailabilityData> custom({
+    Expression<String>? id,
+    Expression<String>? specialistId,
+    Expression<int>? dayOfWeek,
+    Expression<String>? startTime,
+    Expression<String>? endTime,
+    Expression<DateTime>? startDate,
+    Expression<DateTime>? endDate,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (specialistId != null) 'specialist_id': specialistId,
+      if (dayOfWeek != null) 'day_of_week': dayOfWeek,
+      if (startTime != null) 'start_time': startTime,
+      if (endTime != null) 'end_time': endTime,
+      if (startDate != null) 'start_date': startDate,
+      if (endDate != null) 'end_date': endDate,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SpecialistAvailabilityCompanion copyWith({
+    Value<String>? id,
+    Value<String>? specialistId,
+    Value<int>? dayOfWeek,
+    Value<String>? startTime,
+    Value<String>? endTime,
+    Value<DateTime?>? startDate,
+    Value<DateTime?>? endDate,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return SpecialistAvailabilityCompanion(
+      id: id ?? this.id,
+      specialistId: specialistId ?? this.specialistId,
+      dayOfWeek: dayOfWeek ?? this.dayOfWeek,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      startDate: startDate ?? this.startDate,
+      endDate: endDate ?? this.endDate,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (specialistId.present) {
+      map['specialist_id'] = Variable<String>(specialistId.value);
+    }
+    if (dayOfWeek.present) {
+      map['day_of_week'] = Variable<int>(dayOfWeek.value);
+    }
+    if (startTime.present) {
+      map['start_time'] = Variable<String>(startTime.value);
+    }
+    if (endTime.present) {
+      map['end_time'] = Variable<String>(endTime.value);
+    }
+    if (startDate.present) {
+      map['start_date'] = Variable<DateTime>(startDate.value);
+    }
+    if (endDate.present) {
+      map['end_date'] = Variable<DateTime>(endDate.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SpecialistAvailabilityCompanion(')
+          ..write('id: $id, ')
+          ..write('specialistId: $specialistId, ')
+          ..write('dayOfWeek: $dayOfWeek, ')
+          ..write('startTime: $startTime, ')
+          ..write('endTime: $endTime, ')
+          ..write('startDate: $startDate, ')
+          ..write('endDate: $endDate, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ActivityLibraryTable extends ActivityLibrary
     with TableInfo<$ActivityLibraryTable, ActivityLibraryData> {
   @override
@@ -9125,6 +9698,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ObservationDomainTagsTable observationDomainTags =
       $ObservationDomainTagsTable(this);
   late final $SpecialistsTable specialists = $SpecialistsTable(this);
+  late final $SpecialistAvailabilityTable specialistAvailability =
+      $SpecialistAvailabilityTable(this);
   late final $ActivityLibraryTable activityLibrary = $ActivityLibraryTable(
     this,
   );
@@ -9153,6 +9728,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     observationAttachments,
     observationDomainTags,
     specialists,
+    specialistAvailability,
     activityLibrary,
     scheduleTemplates,
     scheduleEntries,
@@ -9252,6 +9828,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('observation_domain_tags', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'specialists',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('specialist_availability', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -14751,6 +15334,34 @@ final class $$SpecialistsTableReferences
     extends BaseReferences<_$AppDatabase, $SpecialistsTable, Specialist> {
   $$SpecialistsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
+  static MultiTypedResultKey<
+    $SpecialistAvailabilityTable,
+    List<SpecialistAvailabilityData>
+  >
+  _specialistAvailabilityRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.specialistAvailability,
+        aliasName: $_aliasNameGenerator(
+          db.specialists.id,
+          db.specialistAvailability.specialistId,
+        ),
+      );
+
+  $$SpecialistAvailabilityTableProcessedTableManager
+  get specialistAvailabilityRefs {
+    final manager = $$SpecialistAvailabilityTableTableManager(
+      $_db,
+      $_db.specialistAvailability,
+    ).filter((f) => f.specialistId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _specialistAvailabilityRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
   static MultiTypedResultKey<$ActivityLibraryTable, List<ActivityLibraryData>>
   _activityLibraryRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.activityLibrary,
@@ -14865,6 +15476,32 @@ class $$SpecialistsTableFilterComposer
     column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
   );
+
+  Expression<bool> specialistAvailabilityRefs(
+    Expression<bool> Function($$SpecialistAvailabilityTableFilterComposer f) f,
+  ) {
+    final $$SpecialistAvailabilityTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.specialistAvailability,
+          getReferencedColumn: (t) => t.specialistId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SpecialistAvailabilityTableFilterComposer(
+                $db: $db,
+                $table: $db.specialistAvailability,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 
   Expression<bool> activityLibraryRefs(
     Expression<bool> Function($$ActivityLibraryTableFilterComposer f) f,
@@ -15019,6 +15656,32 @@ class $$SpecialistsTableAnnotationComposer
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
+  Expression<T> specialistAvailabilityRefs<T extends Object>(
+    Expression<T> Function($$SpecialistAvailabilityTableAnnotationComposer a) f,
+  ) {
+    final $$SpecialistAvailabilityTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.specialistAvailability,
+          getReferencedColumn: (t) => t.specialistId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SpecialistAvailabilityTableAnnotationComposer(
+                $db: $db,
+                $table: $db.specialistAvailability,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
   Expression<T> activityLibraryRefs<T extends Object>(
     Expression<T> Function($$ActivityLibraryTableAnnotationComposer a) f,
   ) {
@@ -15110,6 +15773,7 @@ class $$SpecialistsTableTableManager
           (Specialist, $$SpecialistsTableReferences),
           Specialist,
           PrefetchHooks Function({
+            bool specialistAvailabilityRefs,
             bool activityLibraryRefs,
             bool scheduleTemplatesRefs,
             bool scheduleEntriesRefs,
@@ -15176,6 +15840,7 @@ class $$SpecialistsTableTableManager
               .toList(),
           prefetchHooksCallback:
               ({
+                specialistAvailabilityRefs = false,
                 activityLibraryRefs = false,
                 scheduleTemplatesRefs = false,
                 scheduleEntriesRefs = false,
@@ -15183,6 +15848,7 @@ class $$SpecialistsTableTableManager
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
+                    if (specialistAvailabilityRefs) db.specialistAvailability,
                     if (activityLibraryRefs) db.activityLibrary,
                     if (scheduleTemplatesRefs) db.scheduleTemplates,
                     if (scheduleEntriesRefs) db.scheduleEntries,
@@ -15190,6 +15856,27 @@ class $$SpecialistsTableTableManager
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
                     return [
+                      if (specialistAvailabilityRefs)
+                        await $_getPrefetchedData<
+                          Specialist,
+                          $SpecialistsTable,
+                          SpecialistAvailabilityData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SpecialistsTableReferences
+                              ._specialistAvailabilityRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SpecialistsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).specialistAvailabilityRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.specialistId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                       if (activityLibraryRefs)
                         await $_getPrefetchedData<
                           Specialist,
@@ -15274,10 +15961,431 @@ typedef $$SpecialistsTableProcessedTableManager =
       (Specialist, $$SpecialistsTableReferences),
       Specialist,
       PrefetchHooks Function({
+        bool specialistAvailabilityRefs,
         bool activityLibraryRefs,
         bool scheduleTemplatesRefs,
         bool scheduleEntriesRefs,
       })
+    >;
+typedef $$SpecialistAvailabilityTableCreateCompanionBuilder =
+    SpecialistAvailabilityCompanion Function({
+      required String id,
+      required String specialistId,
+      required int dayOfWeek,
+      required String startTime,
+      required String endTime,
+      Value<DateTime?> startDate,
+      Value<DateTime?> endDate,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$SpecialistAvailabilityTableUpdateCompanionBuilder =
+    SpecialistAvailabilityCompanion Function({
+      Value<String> id,
+      Value<String> specialistId,
+      Value<int> dayOfWeek,
+      Value<String> startTime,
+      Value<String> endTime,
+      Value<DateTime?> startDate,
+      Value<DateTime?> endDate,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$SpecialistAvailabilityTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $SpecialistAvailabilityTable,
+          SpecialistAvailabilityData
+        > {
+  $$SpecialistAvailabilityTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $SpecialistsTable _specialistIdTable(_$AppDatabase db) =>
+      db.specialists.createAlias(
+        $_aliasNameGenerator(
+          db.specialistAvailability.specialistId,
+          db.specialists.id,
+        ),
+      );
+
+  $$SpecialistsTableProcessedTableManager get specialistId {
+    final $_column = $_itemColumn<String>('specialist_id')!;
+
+    final manager = $$SpecialistsTableTableManager(
+      $_db,
+      $_db.specialists,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_specialistIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SpecialistAvailabilityTableFilterComposer
+    extends Composer<_$AppDatabase, $SpecialistAvailabilityTable> {
+  $$SpecialistAvailabilityTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get dayOfWeek => $composableBuilder(
+    column: $table.dayOfWeek,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get startTime => $composableBuilder(
+    column: $table.startTime,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get endTime => $composableBuilder(
+    column: $table.endTime,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get startDate => $composableBuilder(
+    column: $table.startDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get endDate => $composableBuilder(
+    column: $table.endDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$SpecialistsTableFilterComposer get specialistId {
+    final $$SpecialistsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.specialistId,
+      referencedTable: $db.specialists,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SpecialistsTableFilterComposer(
+            $db: $db,
+            $table: $db.specialists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SpecialistAvailabilityTableOrderingComposer
+    extends Composer<_$AppDatabase, $SpecialistAvailabilityTable> {
+  $$SpecialistAvailabilityTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get dayOfWeek => $composableBuilder(
+    column: $table.dayOfWeek,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get startTime => $composableBuilder(
+    column: $table.startTime,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get endTime => $composableBuilder(
+    column: $table.endTime,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get startDate => $composableBuilder(
+    column: $table.startDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get endDate => $composableBuilder(
+    column: $table.endDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$SpecialistsTableOrderingComposer get specialistId {
+    final $$SpecialistsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.specialistId,
+      referencedTable: $db.specialists,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SpecialistsTableOrderingComposer(
+            $db: $db,
+            $table: $db.specialists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SpecialistAvailabilityTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SpecialistAvailabilityTable> {
+  $$SpecialistAvailabilityTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get dayOfWeek =>
+      $composableBuilder(column: $table.dayOfWeek, builder: (column) => column);
+
+  GeneratedColumn<String> get startTime =>
+      $composableBuilder(column: $table.startTime, builder: (column) => column);
+
+  GeneratedColumn<String> get endTime =>
+      $composableBuilder(column: $table.endTime, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get startDate =>
+      $composableBuilder(column: $table.startDate, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get endDate =>
+      $composableBuilder(column: $table.endDate, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$SpecialistsTableAnnotationComposer get specialistId {
+    final $$SpecialistsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.specialistId,
+      referencedTable: $db.specialists,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SpecialistsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.specialists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SpecialistAvailabilityTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SpecialistAvailabilityTable,
+          SpecialistAvailabilityData,
+          $$SpecialistAvailabilityTableFilterComposer,
+          $$SpecialistAvailabilityTableOrderingComposer,
+          $$SpecialistAvailabilityTableAnnotationComposer,
+          $$SpecialistAvailabilityTableCreateCompanionBuilder,
+          $$SpecialistAvailabilityTableUpdateCompanionBuilder,
+          (SpecialistAvailabilityData, $$SpecialistAvailabilityTableReferences),
+          SpecialistAvailabilityData,
+          PrefetchHooks Function({bool specialistId})
+        > {
+  $$SpecialistAvailabilityTableTableManager(
+    _$AppDatabase db,
+    $SpecialistAvailabilityTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SpecialistAvailabilityTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$SpecialistAvailabilityTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$SpecialistAvailabilityTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> specialistId = const Value.absent(),
+                Value<int> dayOfWeek = const Value.absent(),
+                Value<String> startTime = const Value.absent(),
+                Value<String> endTime = const Value.absent(),
+                Value<DateTime?> startDate = const Value.absent(),
+                Value<DateTime?> endDate = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SpecialistAvailabilityCompanion(
+                id: id,
+                specialistId: specialistId,
+                dayOfWeek: dayOfWeek,
+                startTime: startTime,
+                endTime: endTime,
+                startDate: startDate,
+                endDate: endDate,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String specialistId,
+                required int dayOfWeek,
+                required String startTime,
+                required String endTime,
+                Value<DateTime?> startDate = const Value.absent(),
+                Value<DateTime?> endDate = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SpecialistAvailabilityCompanion.insert(
+                id: id,
+                specialistId: specialistId,
+                dayOfWeek: dayOfWeek,
+                startTime: startTime,
+                endTime: endTime,
+                startDate: startDate,
+                endDate: endDate,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$SpecialistAvailabilityTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({specialistId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (specialistId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.specialistId,
+                                referencedTable:
+                                    $$SpecialistAvailabilityTableReferences
+                                        ._specialistIdTable(db),
+                                referencedColumn:
+                                    $$SpecialistAvailabilityTableReferences
+                                        ._specialistIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$SpecialistAvailabilityTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SpecialistAvailabilityTable,
+      SpecialistAvailabilityData,
+      $$SpecialistAvailabilityTableFilterComposer,
+      $$SpecialistAvailabilityTableOrderingComposer,
+      $$SpecialistAvailabilityTableAnnotationComposer,
+      $$SpecialistAvailabilityTableCreateCompanionBuilder,
+      $$SpecialistAvailabilityTableUpdateCompanionBuilder,
+      (SpecialistAvailabilityData, $$SpecialistAvailabilityTableReferences),
+      SpecialistAvailabilityData,
+      PrefetchHooks Function({bool specialistId})
     >;
 typedef $$ActivityLibraryTableCreateCompanionBuilder =
     ActivityLibraryCompanion Function({
@@ -18852,6 +19960,11 @@ class $AppDatabaseManager {
       $$ObservationDomainTagsTableTableManager(_db, _db.observationDomainTags);
   $$SpecialistsTableTableManager get specialists =>
       $$SpecialistsTableTableManager(_db, _db.specialists);
+  $$SpecialistAvailabilityTableTableManager get specialistAvailability =>
+      $$SpecialistAvailabilityTableTableManager(
+        _db,
+        _db.specialistAvailability,
+      );
   $$ActivityLibraryTableTableManager get activityLibrary =>
       $$ActivityLibraryTableTableManager(_db, _db.activityLibrary);
   $$ScheduleTemplatesTableTableManager get scheduleTemplates =>

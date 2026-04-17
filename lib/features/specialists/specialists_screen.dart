@@ -1,12 +1,12 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
-import 'package:basecamp/features/specialists/widgets/edit_specialist_sheet.dart';
 import 'package:basecamp/features/specialists/widgets/new_specialist_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 class SpecialistsScreen extends ConsumerWidget {
   const SpecialistsScreen({super.key});
@@ -40,7 +40,8 @@ class SpecialistsScreen extends ConsumerWidget {
             separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
             itemBuilder: (_, i) => _SpecialistTile(
               specialist: specialists[i],
-              onTap: () => _openSheet(context, specialist: specialists[i]),
+              onTap: () =>
+                  context.push('/more/specialists/${specialists[i].id}'),
             ),
           );
         },
@@ -49,8 +50,8 @@ class SpecialistsScreen extends ConsumerWidget {
   }
 
   Future<void> _openSheet(BuildContext context, {Specialist? specialist}) async {
-    // Create flow goes through the page-by-page wizard; editing an
-    // existing specialist keeps the dense sheet for fast tweaks.
+    // Tiles tap through to the detail screen, which has its own edit
+    // button; this sheet is only used for the "add new" floating button.
     if (specialist == null) {
       await Navigator.of(context).push<void>(
         MaterialPageRoute(
@@ -58,14 +59,7 @@ class SpecialistsScreen extends ConsumerWidget {
           builder: (_) => const NewSpecialistWizardScreen(),
         ),
       );
-      return;
     }
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => EditSpecialistSheet(specialist: specialist),
-    );
   }
 }
 

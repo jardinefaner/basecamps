@@ -26,10 +26,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class NewActivityWizardScreen extends ConsumerStatefulWidget {
   const NewActivityWizardScreen({
     this.initialDays,
+    this.initialSpecialistId,
     super.key,
   });
 
   final Set<int>? initialDays;
+
+  /// Pre-selects a specialist on page 4. Used when opening the wizard
+  /// from the specialist detail screen so "+ Add activity" already
+  /// knows who the activity is for.
+  final String? initialSpecialistId;
 
   @override
   ConsumerState<NewActivityWizardScreen> createState() =>
@@ -49,7 +55,7 @@ class _NewActivityWizardScreenState
   final Set<String> _podIds = <String>{};
   bool _allPods = true;
 
-  String? _specialistId;
+  late String? _specialistId = widget.initialSpecialistId;
 
   DateTime? _startDate;
   DateTime? _endDate;

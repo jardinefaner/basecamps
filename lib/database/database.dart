@@ -23,6 +23,7 @@ QueryExecutor _openConnection() {
     ObservationAttachments,
     ObservationDomainTags,
     Specialists,
+    SpecialistAvailability,
     ActivityLibrary,
     ScheduleTemplates,
     ScheduleEntries,
@@ -37,7 +38,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 18;
+  int get schemaVersion => 19;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -261,6 +262,12 @@ class AppDatabase extends _$AppDatabase {
               scheduleEntries,
               scheduleEntries.endDate,
             );
+          }
+          if (from < 19) {
+            // Specialist availability — working hours and time off live
+            // in their own table so the specialist detail screen can
+            // show "when I work" distinct from "activities I run".
+            await _createTableIfMissing(m, specialistAvailability);
           }
         },
       );
