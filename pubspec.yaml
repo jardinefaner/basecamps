@@ -35,6 +35,9 @@ dev_dependencies:
   drift_dev: ^2.32.1
   flutter_test:
     sdk: flutter
+  mocktail: ^1.0.0
+  sqlite3: ^3.0.0
+  sqlite3_flutter_libs: ^0.6.0+eol
   very_good_analysis: ^10.2.0
 
 flutter:

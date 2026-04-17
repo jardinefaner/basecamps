@@ -201,7 +201,10 @@ class ScheduleRepository {
     String? notes,
     DateTime? startDate,
     DateTime? endDate,
-    String? groupId,
+    // Series id for "delete every occurrence" — wizard stamps one per
+    // multi-day create pass. Renamed from `groupId` in schema v25
+    // because that name now refers to the people-group reference.
+    String? seriesId,
   }) async {
     final id = newId();
     await _db.transaction(() async {
@@ -219,7 +222,7 @@ class ScheduleRepository {
               notes: Value(notes),
               startDate: Value(startDate == null ? null : _dayOnly(startDate)),
               endDate: Value(endDate == null ? null : _dayOnly(endDate)),
-              groupId: Value(groupId),
+              seriesId: Value(seriesId),
             ),
           );
       for (final groupId in groupIds) {
@@ -303,8 +306,8 @@ class ScheduleRepository {
   }
 
   /// Returns every template that belongs to the same activity group
-  /// as the row with this id. Group identity is:
-  ///   - `groupId` when set (authoritative; wizard stamps a fresh one
+  /// as the row with this id. Series identity is:
+  ///   - `seriesId` when set (authoritative; wizard stamps a fresh one
   ///     per create pass),
   ///   - otherwise same (title, startTime, endTime) pre-migration.
   /// The tapped row is always included in the result.
@@ -313,10 +316,10 @@ class ScheduleRepository {
           ..where((t) => t.id.equals(id)))
         .getSingleOrNull();
     if (row == null) return const [];
-    final group = row.groupId;
-    if (group != null) {
+    final series = row.seriesId;
+    if (series != null) {
       return (_db.select(_db.scheduleTemplates)
-            ..where((t) => t.groupId.equals(group)))
+            ..where((t) => t.seriesId.equals(series)))
           .get();
     }
     // Legacy fallback — shape match on the three fields a teacher
