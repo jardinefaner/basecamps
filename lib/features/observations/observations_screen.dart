@@ -275,6 +275,28 @@ class _ListFeed extends ConsumerStatefulWidget {
 class _ListFeedState extends ConsumerState<_ListFeed> {
   int _lastCount = 0;
 
+  /// The just-added observation id, if any — the card briefly glows
+  /// with the same primaryContainer tint + primary border that the
+  /// Children tab uses when a child lands in a new group. Cleared
+  /// after the animation window so the list settles back to neutral.
+  String? _justAddedId;
+  Timer? _highlightTimer;
+
+  @override
+  void dispose() {
+    _highlightTimer?.cancel();
+    super.dispose();
+  }
+
+  void _flashHighlight(String id) {
+    setState(() => _justAddedId = id);
+    _highlightTimer?.cancel();
+    _highlightTimer = Timer(const Duration(milliseconds: 1400), () {
+      if (!mounted) return;
+      setState(() => _justAddedId = null);
+    });
+  }
+
   void _scrollToNewest(BuildContext context) {
     // Driven by the PrimaryScrollController that NestedScrollView
     // injects — owning our own controller would cut us off from the
@@ -298,14 +320,19 @@ class _ListFeedState extends ConsumerState<_ListFeed> {
     ref.listen<AsyncValue<List<Observation>>>(
       observationsProvider,
       (prev, next) {
-        final count = next.asData?.value.length ?? 0;
+        final list = next.asData?.value ?? const <Observation>[];
+        final count = list.length;
         if (count > _lastCount && _lastCount != 0) {
           // An observation was added (not the initial hydration). Snap
           // the feed back to the newest so the teacher sees what just
-          // landed.
+          // landed, and flash the drag-target highlight so the new
+          // row is impossible to miss.
           WidgetsBinding.instance.addPostFrameCallback(
             (_) => _scrollToNewest(context),
           );
+          if (list.isNotEmpty) {
+            _flashHighlight(list.first.id);
+          }
         }
         _lastCount = count;
       },
@@ -341,17 +368,41 @@ class _ListFeedState extends ConsumerState<_ListFeed> {
           itemBuilder: (_, i) {
             final obs = items[i];
             final selected = widget.selectedIds.contains(obs.id);
-            return ObservationCard(
-              observation: obs,
-              hideAttachments: widget.notesOnly,
-              selected: selected,
-              // In selection mode a tap toggles; otherwise it edits.
-              // Long-press always toggles so the first pick can kick
-              // off the mode.
-              onTap: selecting
-                  ? () => widget.onToggleSelect(obs.id)
-                  : () => widget.onTapObservation(obs),
-              onLongPress: () => widget.onToggleSelect(obs.id),
+            final highlighted = obs.id == _justAddedId;
+            final theme = Theme.of(context);
+            return AnimatedContainer(
+              // Same tween the Children tab's _GroupSection uses for
+              // drag-target highlight — intentionally copied so "just
+              // landed" and "dropping into a new group" read as the
+              // same visual language.
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOut,
+              padding: const EdgeInsets.all(AppSpacing.xs),
+              decoration: BoxDecoration(
+                color: highlighted
+                    ? theme.colorScheme.primaryContainer
+                        .withValues(alpha: 0.4)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: highlighted
+                      ? theme.colorScheme.primary
+                      : Colors.transparent,
+                  width: 1.5,
+                ),
+              ),
+              child: ObservationCard(
+                observation: obs,
+                hideAttachments: widget.notesOnly,
+                selected: selected,
+                // In selection mode a tap toggles; otherwise it edits.
+                // Long-press always toggles so the first pick can kick
+                // off the mode.
+                onTap: selecting
+                    ? () => widget.onToggleSelect(obs.id)
+                    : () => widget.onTapObservation(obs),
+                onLongPress: () => widget.onToggleSelect(obs.id),
+              ),
             );
           },
         );
