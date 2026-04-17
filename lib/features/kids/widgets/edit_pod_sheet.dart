@@ -29,6 +29,11 @@ class _EditPodSheetState extends ConsumerState<EditPodSheet> {
 
   bool get _isValid => _name.text.trim().isNotEmpty;
 
+  bool get _hasChanges {
+    return _name.text.trim() != widget.pod.name ||
+        _colorHex != widget.pod.colorHex;
+  }
+
   @override
   void dispose() {
     _name.dispose();
@@ -79,7 +84,7 @@ class _EditPodSheetState extends ConsumerState<EditPodSheet> {
         ),
       ),
       actionBar: AppButton.primary(
-        onPressed: _isValid && !_submitting ? _save : null,
+        onPressed: _isValid && _hasChanges && !_submitting ? _save : null,
         label: 'Save changes',
         isLoading: _submitting,
       ),

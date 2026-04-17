@@ -34,10 +34,50 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
   final Map<int, AvailabilityBlock> _availability = {};
   bool _availabilityLoaded = false;
 
+  /// Snapshot of the availability set as loaded from the DB — used
+  /// only to detect "was it changed?" so Save is disabled on a
+  /// pristine edit.
+  List<({int day, int startMinutes, int endMinutes})> _availabilityBaseline =
+      const [];
+
   bool _submitting = false;
 
   bool get _isEdit => widget.specialist != null;
   bool get _isValid => _nameController.text.trim().isNotEmpty;
+
+  bool get _hasChanges {
+    final specialist = widget.specialist;
+    if (specialist == null) return true;
+    if (_nameController.text.trim() != specialist.name) return true;
+    final currentRole =
+        _roleController.text.trim().isEmpty ? null : _roleController.text.trim();
+    if (currentRole != specialist.role) return true;
+    final currentNotes =
+        _notesController.text.trim().isEmpty ? null : _notesController.text.trim();
+    if (currentNotes != specialist.notes) return true;
+    if (_avatarPath != specialist.avatarPath) return true;
+    if (!_availabilityLoaded) return false;
+    final current = _currentAvailabilitySig();
+    if (current.length != _availabilityBaseline.length) return true;
+    for (var i = 0; i < current.length; i++) {
+      if (current[i] != _availabilityBaseline[i]) return true;
+    }
+    return false;
+  }
+
+  List<({int day, int startMinutes, int endMinutes})> _currentAvailabilitySig() {
+    final entries = _availability.values
+        .map(
+          (b) => (
+            day: b.dayOfWeek,
+            startMinutes: b.start.hour * 60 + b.start.minute,
+            endMinutes: b.end.hour * 60 + b.end.minute,
+          ),
+        )
+        .toList()
+      ..sort((a, b) => a.day.compareTo(b.day));
+    return entries;
+  }
 
   @override
   void initState() {
@@ -54,6 +94,7 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
           _availability[b.dayOfWeek] = b;
         }
         _availabilityLoaded = true;
+        _availabilityBaseline = _currentAvailabilitySig();
       });
       return;
     }
@@ -67,6 +108,7 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
         _availability[b.dayOfWeek] = b;
       }
       _availabilityLoaded = true;
+      _availabilityBaseline = _currentAvailabilitySig();
     });
   }
 
@@ -145,7 +187,7 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
             )
           : null,
       actionBar: AppButton.primary(
-        onPressed: _isValid ? _submit : null,
+        onPressed: _isValid && (!_isEdit || _hasChanges) ? _submit : null,
         label: _isEdit ? 'Save' : 'Add specialist',
         isLoading: _submitting,
       ),
@@ -174,6 +216,7 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
             controller: _roleController,
             label: 'Role (optional)',
             hint: 'e.g. Art teacher',
+            onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: AppSpacing.xl),
           Text('Availability', style: theme.textTheme.titleSmall),
@@ -229,6 +272,7 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
             controller: _notesController,
             label: 'Notes (optional)',
             maxLines: 3,
+            onChanged: (_) => setState(() {}),
           ),
         ],
       ),

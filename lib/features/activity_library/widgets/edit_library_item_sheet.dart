@@ -33,6 +33,19 @@ class _EditLibraryItemSheetState
   bool get _isEdit => widget.item != null;
   bool get _isValid => _titleController.text.trim().isNotEmpty;
 
+  bool get _hasChanges {
+    final item = widget.item;
+    if (item == null) return true;
+    String? trimOrNull(String s) =>
+        s.trim().isEmpty ? null : s.trim();
+    if (_titleController.text.trim() != item.title) return true;
+    if (_durationMin != item.defaultDurationMin) return true;
+    if (_specialistId != item.specialistId) return true;
+    if (trimOrNull(_locationController.text) != item.location) return true;
+    if (trimOrNull(_notesController.text) != item.notes) return true;
+    return false;
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
@@ -101,7 +114,8 @@ class _EditLibraryItemSheetState
             )
           : null,
       actionBar: AppButton.primary(
-        onPressed: _isValid ? _submit : null,
+        onPressed:
+            _isValid && (!_isEdit || _hasChanges) ? _submit : null,
         label: _isEdit ? 'Save' : 'Add to library',
         isLoading: _submitting,
       ),
@@ -193,12 +207,14 @@ class _EditLibraryItemSheetState
           AppTextField(
             controller: _locationController,
             label: 'Default location (optional)',
+            onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: AppSpacing.lg),
           AppTextField(
             controller: _notesController,
             label: 'Notes (optional)',
             maxLines: 3,
+            onChanged: (_) => setState(() {}),
           ),
         ],
       ),

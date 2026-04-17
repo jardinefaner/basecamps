@@ -90,6 +90,11 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     }
   }
 
+  /// Set of pod ids the template started with — snapshot captured
+  /// right after [_loadPods] so we can tell a pristine edit from one
+  /// where the teacher actually toggled something.
+  Set<String> _podsBaseline = const <String>{};
+
   Future<void> _loadPods() async {
     if (!_isEdit) return;
     final pods = await ref
@@ -98,6 +103,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     if (!mounted) return;
     setState(() {
       _selectedPodIds.addAll(pods);
+      _podsBaseline = Set<String>.from(pods);
       _podsLoaded = true;
     });
   }
@@ -130,6 +136,27 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
 
   bool get _isValid =>
       _titleController.text.trim().isNotEmpty && _selectedDays.isNotEmpty;
+
+  bool get _hasChanges {
+    final template = widget.template;
+    if (template == null) return true;
+    String? trimOrNull(String s) => s.trim().isEmpty ? null : s.trim();
+    if (_titleController.text.trim() != template.title) return true;
+    if (_selectedDays.length != 1 ||
+        _selectedDays.first != template.dayOfWeek) {
+      return true;
+    }
+    if (_formatTime(_start) != template.startTime) return true;
+    if (_formatTime(_end) != template.endTime) return true;
+    if (_specialistId != template.specialistId) return true;
+    if (trimOrNull(_locationController.text) != template.location) return true;
+    if (_rangeStart != template.startDate) return true;
+    if (_rangeEnd != template.endDate) return true;
+    if (!_podsLoaded) return false;
+    if (_selectedPodIds.length != _podsBaseline.length) return true;
+    if (!_selectedPodIds.containsAll(_podsBaseline)) return true;
+    return false;
+  }
 
   Future<void> _pickStart() async {
     final picked = await showTimePicker(context: context, initialTime: _start);
@@ -315,7 +342,8 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
             )
           : null,
       actionBar: AppButton.primary(
-        onPressed: _isValid ? _submit : null,
+        onPressed:
+            _isValid && (!_isEdit || _hasChanges) ? _submit : null,
         label: _isEdit
             ? 'Save'
             : _selectedDays.length > 1
@@ -428,6 +456,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
           AppTextField(
             controller: _locationController,
             label: 'Location (optional)',
+            onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: AppSpacing.lg),
           _DateRangeSection(

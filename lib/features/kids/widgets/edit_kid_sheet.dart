@@ -56,6 +56,20 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
   bool get _isEdit => widget.kid != null;
   bool get _isValid => _firstNameController.text.trim().isNotEmpty;
 
+  bool get _hasChanges {
+    final kid = widget.kid;
+    if (kid == null) return true;
+    String? trimOrNull(String s) =>
+        s.trim().isEmpty ? null : s.trim();
+    if (_firstNameController.text.trim() != kid.firstName) return true;
+    if (trimOrNull(_lastNameController.text) != kid.lastName) return true;
+    if (_selectedPodId != kid.podId) return true;
+    if (trimOrNull(_parentNameController.text) != kid.parentName) return true;
+    if (trimOrNull(_notesController.text) != kid.notes) return true;
+    if (_avatarPath != kid.avatarPath) return true;
+    return false;
+  }
+
   @override
   void dispose() {
     _firstNameController.dispose();
@@ -141,7 +155,9 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
             )
           : null,
       actionBar: AppButton.primary(
-        onPressed: _isValid && !_submitting ? _submit : null,
+        onPressed: _isValid && (!_isEdit || _hasChanges) && !_submitting
+            ? _submit
+            : null,
         label: _isEdit ? 'Save changes' : 'Add kid',
         isLoading: _submitting,
       ),
@@ -167,6 +183,7 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
           AppTextField(
             controller: _lastNameController,
             label: 'Last name (optional)',
+            onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: AppSpacing.lg),
           Text('Pod', style: theme.textTheme.titleSmall),
@@ -190,6 +207,7 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
             controller: _parentNameController,
             label: 'Parent or guardian (optional)',
             hint: 'Name — pre-fills parent concern notes',
+            onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: AppSpacing.lg),
           AppTextField(
@@ -197,6 +215,7 @@ class _EditKidSheetState extends ConsumerState<EditKidSheet> {
             label: 'Notes (optional)',
             hint: 'Allergies, preferences, anything staff should know',
             maxLines: 3,
+            onChanged: (_) => setState(() {}),
           ),
         ],
       ),

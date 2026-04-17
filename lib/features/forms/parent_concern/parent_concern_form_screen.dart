@@ -86,7 +86,50 @@ class _ParentConcernFormScreenState
   bool _showStaffSigPad = false;
   bool _showSupervisorSigPad = false;
 
+  /// Whether anything in the form has been touched since load. A
+  /// dozen controllers plus half a dozen chip selectors is too many
+  /// to diff explicitly — we track it imperatively with listeners
+  /// on the controllers (added in [initState] after load) and flip
+  /// it on every non-text `setState` that mutates [_input] or the
+  /// kid / specialist picker state.
+  bool _dirty = false;
+
+  List<TextEditingController> get _allControllers => [
+        _childNamesExtra,
+        _parentName,
+        _staffReceivingExtra,
+        _supervisorNotifiedExtra,
+        _methodOther,
+        _concernDescription,
+        _immediateResponse,
+        _followUpOther,
+        _additionalNotes,
+        _staffSignature,
+        _supervisorSignature,
+      ];
+
   bool get _isEdit => widget.noteId != null;
+
+  void _attachDirtyListeners() {
+    for (final c in _allControllers) {
+      c.addListener(_markDirty);
+    }
+  }
+
+  void _markDirty() {
+    if (_dirty) return;
+    setState(() => _dirty = true);
+  }
+
+  /// Wraps a `setState` with a dirty-flag bump so every picker,
+  /// chip, date, and signature interaction keeps Save in sync
+  /// without touching each call site twice.
+  void _mutate(VoidCallback fn) {
+    setState(() {
+      fn();
+      _dirty = true;
+    });
+  }
 
   @override
   void initState() {
@@ -96,6 +139,11 @@ class _ParentConcernFormScreenState
     } else {
       _loaded = true;
       _input.concernDate = DateTime.now();
+      // Brand-new note: every keystroke counts as "dirty" from the
+      // get-go, so listeners can attach right away. `_dirty` stays
+      // false until the user actually types, so Save is gated by
+      // both interaction AND content existing.
+      _attachDirtyListeners();
     }
   }
 
@@ -134,6 +182,10 @@ class _ParentConcernFormScreenState
         ..supervisorSignatureDate = fromRow.supervisorSignatureDate;
       _loaded = true;
     });
+    // Wire dirty-tracking listeners AFTER we seed the controllers —
+    // otherwise the initial .text assignment above would fire and
+    // mark the form dirty on mount.
+    _attachDirtyListeners();
   }
 
   @override
@@ -467,7 +519,7 @@ class _ParentConcernFormScreenState
           KidChipPicker(
             selectedIds: _selectedKidIds,
             onChanged: (ids) {
-              setState(() {
+              _mutate(() {
                 _selectedKidIds
                   ..clear()
                   ..addAll(ids);
@@ -493,7 +545,7 @@ class _ParentConcernFormScreenState
           const SizedBox(height: AppSpacing.sm),
           FormDateField(
             value: _input.concernDate,
-            onChanged: (d) => setState(() => _input.concernDate = d),
+            onChanged: (d) => _mutate(() => _input.concernDate = d),
           ),
           const SizedBox(height: AppSpacing.lg),
           Text(
@@ -503,7 +555,7 @@ class _ParentConcernFormScreenState
           const SizedBox(height: AppSpacing.sm),
           SpecialistChipPicker(
             selectedId: _selectedStaffId,
-            onChanged: (id) => setState(() => _selectedStaffId = id),
+            onChanged: (id) => _mutate(() => _selectedStaffId = id),
           ),
           const SizedBox(height: AppSpacing.sm),
           AppTextField(
@@ -518,7 +570,7 @@ class _ParentConcernFormScreenState
           const SizedBox(height: AppSpacing.sm),
           SpecialistChipPicker(
             selectedId: _selectedSupervisorId,
-            onChanged: (id) => setState(() => _selectedSupervisorId = id),
+            onChanged: (id) => _mutate(() => _selectedSupervisorId = id),
           ),
           const SizedBox(height: AppSpacing.sm),
           AppTextField(
@@ -541,19 +593,19 @@ class _ParentConcernFormScreenState
               label: const Text('In person'),
               avatar: const Icon(Icons.people_outline, size: 18),
               selected: _input.methodInPerson,
-              onSelected: (v) => setState(() => _input.methodInPerson = v),
+              onSelected: (v) => _mutate(() => _input.methodInPerson = v),
             ),
             FilterChip(
               label: const Text('Phone'),
               avatar: const Icon(Icons.phone_outlined, size: 18),
               selected: _input.methodPhone,
-              onSelected: (v) => setState(() => _input.methodPhone = v),
+              onSelected: (v) => _mutate(() => _input.methodPhone = v),
             ),
             FilterChip(
               label: const Text('Email'),
               avatar: const Icon(Icons.email_outlined, size: 18),
               selected: _input.methodEmail,
-              onSelected: (v) => setState(() => _input.methodEmail = v),
+              onSelected: (v) => _mutate(() => _input.methodEmail = v),
             ),
           ],
         ),
@@ -583,25 +635,25 @@ class _ParentConcernFormScreenState
               label: const Text('Monitor situation'),
               selected: _input.followUpMonitor,
               onSelected: (v) =>
-                  setState(() => _input.followUpMonitor = v),
+                  _mutate(() => _input.followUpMonitor = v),
             ),
             FilterChip(
               label: const Text('Staff check-ins with child'),
               selected: _input.followUpStaffCheckIns,
               onSelected: (v) =>
-                  setState(() => _input.followUpStaffCheckIns = v),
+                  _mutate(() => _input.followUpStaffCheckIns = v),
             ),
             FilterChip(
               label: const Text('Supervisor review'),
               selected: _input.followUpSupervisorReview,
               onSelected: (v) =>
-                  setState(() => _input.followUpSupervisorReview = v),
+                  _mutate(() => _input.followUpSupervisorReview = v),
             ),
             FilterChip(
               label: const Text('Parent follow-up conversation'),
               selected: _input.followUpParentConversation,
               onSelected: (v) =>
-                  setState(() => _input.followUpParentConversation = v),
+                  _mutate(() => _input.followUpParentConversation = v),
             ),
           ],
         ),
@@ -619,7 +671,7 @@ class _ParentConcernFormScreenState
         FormDateField(
           value: _input.followUpDate,
           includeTime: true,
-          onChanged: (d) => setState(() => _input.followUpDate = d),
+          onChanged: (d) => _mutate(() => _input.followUpDate = d),
         ),
       ],
     );
@@ -645,7 +697,7 @@ class _ParentConcernFormScreenState
             onToggle: () => setState(
               () => _showStaffSigPad = !_showStaffSigPad,
             ),
-            onClear: () => setState(() {
+            onClear: () => _mutate(() {
               _input.staffSignaturePath = null;
               _input.staffSignatureDate = null;
             }),
@@ -653,7 +705,7 @@ class _ParentConcernFormScreenState
           if (_showStaffSigPad)
             InlineSignaturePad(
               onSigned: (path, at) {
-                setState(() {
+                _mutate(() {
                   _input.staffSignaturePath = path;
                   _input.staffSignatureDate = at;
                   _showStaffSigPad = false;
@@ -679,7 +731,7 @@ class _ParentConcernFormScreenState
             onToggle: () => setState(
               () => _showSupervisorSigPad = !_showSupervisorSigPad,
             ),
-            onClear: () => setState(() {
+            onClear: () => _mutate(() {
               _input.supervisorSignaturePath = null;
               _input.supervisorSignatureDate = null;
             }),
@@ -687,7 +739,7 @@ class _ParentConcernFormScreenState
           if (_showSupervisorSigPad)
             InlineSignaturePad(
               onSigned: (path, at) {
-                setState(() {
+                _mutate(() {
                   _input.supervisorSignaturePath = path;
                   _input.supervisorSignatureDate = at;
                   _showSupervisorSigPad = false;
@@ -775,7 +827,9 @@ class _ParentConcernFormScreenState
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: _submitting ? null : _save,
+                  onPressed: _submitting || (_isEdit && !_dirty)
+                      ? null
+                      : _save,
                   icon: _submitting
                       ? const SizedBox(
                           width: 16,

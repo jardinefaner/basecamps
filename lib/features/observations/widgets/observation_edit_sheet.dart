@@ -56,6 +56,34 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
   /// New attachments added in this edit session. Inserted on Save.
   final List<_PendingAttachment> _newAttachments = [];
 
+  /// Snapshot of the kid set that loaded with the observation —
+  /// lets us distinguish a pristine edit from a real change.
+  Set<String> _kidsBaseline = const <String>{};
+
+  /// Same for the domain list (order preserved).
+  List<ObservationDomain> _domainsBaseline = const [];
+
+  bool get _hasChanges {
+    if (_noteController.text.trim() != widget.observation.note) return true;
+    if (_sentiment !=
+        ObservationSentiment.fromName(widget.observation.sentiment)) {
+      return true;
+    }
+    if (_removedAttachmentIds.isNotEmpty) return true;
+    if (_newAttachments.isNotEmpty) return true;
+    if (_kidsLoaded) {
+      if (_selectedKidIds.length != _kidsBaseline.length) return true;
+      if (!_selectedKidIds.containsAll(_kidsBaseline)) return true;
+    }
+    if (_domainsLoaded) {
+      if (_domains.length != _domainsBaseline.length) return true;
+      for (var i = 0; i < _domains.length; i++) {
+        if (_domains[i] != _domainsBaseline[i]) return true;
+      }
+    }
+    return false;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -71,7 +99,9 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
         .kidsForObservation(widget.observation.id);
     if (!mounted) return;
     setState(() {
-      _selectedKidIds.addAll(kids.map((k) => k.id));
+      final ids = kids.map((k) => k.id).toSet();
+      _selectedKidIds.addAll(ids);
+      _kidsBaseline = Set<String>.from(ids);
       _kidsLoaded = true;
     });
   }
@@ -87,6 +117,7 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
           ..clear()
           ..addAll(fromDb);
       }
+      _domainsBaseline = List<ObservationDomain>.from(_domains);
       _domainsLoaded = true;
     });
   }
@@ -252,7 +283,7 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
         onPressed: _delete,
       ),
       actionBar: AppButton.primary(
-        onPressed: _submitting ? null : _save,
+        onPressed: _submitting || !_hasChanges ? null : _save,
         label: 'Save changes',
         isLoading: _submitting,
       ),
@@ -264,6 +295,7 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
             controller: _noteController,
             label: 'Note',
             maxLines: 6,
+            onChanged: (_) => setState(() {}),
           ),
 
           const SizedBox(height: AppSpacing.lg),
