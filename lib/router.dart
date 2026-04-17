@@ -14,12 +14,38 @@ import 'package:basecamp/features/today/today_screen.dart';
 import 'package:basecamp/features/trips/trip_detail_screen.dart';
 import 'package:basecamp/features/trips/trips_screen.dart';
 import 'package:basecamp/ui/app_scaffold.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+/// Drops any open keyboard/focus whenever a route transitions. Fixes
+/// a long-standing bug where, e.g., closing the Observe composer and
+/// swiping to Today left the keyboard open — and any accidental
+/// keystroke landed back in the hidden text field on the previous
+/// page. Covers push, pop, replace, and remove.
+class _UnfocusOnTransition extends NavigatorObserver {
+  void _dropFocus() {
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _dropFocus();
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _dropFocus();
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) =>
+      _dropFocus();
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _dropFocus();
+}
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/today',
+    observers: [_UnfocusOnTransition()],
     routes: [
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {

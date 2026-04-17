@@ -93,6 +93,13 @@ class _AppScaffoldState extends State<AppScaffold> {
 
   void _goToBranch(int shellIndex) {
     if (shellIndex < 0 || shellIndex > _lastBranchIndex) return;
+    // Drop any active input focus (and thus the keyboard) before we
+    // swap branches. Branch switches are NOT push/pop events on the
+    // outer navigator, so the router-level UnfocusOnTransition
+    // observer doesn't fire — without this, typing on Observe and
+    // swiping to Today left the keyboard up, and the next keystroke
+    // landed in a hidden text field on the previous tab.
+    FocusManager.instance.primaryFocus?.unfocus();
     widget.navigationShell.goBranch(
       shellIndex,
       initialLocation: shellIndex == widget.navigationShell.currentIndex,
