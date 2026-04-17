@@ -185,8 +185,15 @@ class _EditLibraryItemSheetState
                   style: theme.textTheme.bodySmall,
                 );
               }
+              // Clamp to current list so an orphan specialist
+              // reference falls back to "None" instead of firing
+              // DropdownButton's "exactly one item" assertion.
+              final resolvedId = _specialistId != null &&
+                      specialists.any((s) => s.id == _specialistId)
+                  ? _specialistId
+                  : null;
               return DropdownButtonFormField<String?>(
-                initialValue: _specialistId,
+                initialValue: resolvedId,
                 items: [
                   const DropdownMenuItem<String?>(child: Text('None')),
                   for (final s in specialists)

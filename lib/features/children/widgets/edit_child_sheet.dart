@@ -194,19 +194,31 @@ class _EditChildSheetState extends ConsumerState<EditChildSheet> {
           const SizedBox(height: AppSpacing.lg),
           Text('Group', style: theme.textTheme.titleSmall),
           const SizedBox(height: AppSpacing.sm),
-          DropdownButtonFormField<String?>(
-            initialValue: _selectedGroupId,
-            items: [
-              const DropdownMenuItem<String?>(
-                child: Text('Unassigned'),
-              ),
-              for (final group in widget.groups)
-                DropdownMenuItem<String?>(
-                  value: group.id,
-                  child: Text(group.name),
-                ),
-            ],
-            onChanged: (value) => setState(() => _selectedGroupId = value),
+          Builder(
+            builder: (_) {
+              // Clamp to a live group id — orphan references fall
+              // back to "Unassigned" instead of hitting the dropdown
+              // "exactly one" assertion.
+              final resolvedId = _selectedGroupId != null &&
+                      widget.groups.any((g) => g.id == _selectedGroupId)
+                  ? _selectedGroupId
+                  : null;
+              return DropdownButtonFormField<String?>(
+                initialValue: resolvedId,
+                items: [
+                  const DropdownMenuItem<String?>(
+                    child: Text('Unassigned'),
+                  ),
+                  for (final group in widget.groups)
+                    DropdownMenuItem<String?>(
+                      value: group.id,
+                      child: Text(group.name),
+                    ),
+                ],
+                onChanged: (value) =>
+                    setState(() => _selectedGroupId = value),
+              );
+            },
           ),
           const SizedBox(height: AppSpacing.lg),
           AppTextField(

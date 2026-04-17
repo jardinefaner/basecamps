@@ -709,8 +709,16 @@ class _SpecialistPicker extends ConsumerWidget {
                 style: theme.textTheme.bodySmall,
               );
             }
+            // Clamp selectedId to the current list so an orphan
+            // reference (template pointed at a deleted specialist
+            // from before FK cascade was enabled) falls back to
+            // "None" instead of exploding the dropdown assertion.
+            final resolvedId = selectedId != null &&
+                    specialists.any((s) => s.id == selectedId)
+                ? selectedId
+                : null;
             return DropdownButtonFormField<String?>(
-              initialValue: selectedId,
+              initialValue: resolvedId,
               items: [
                 const DropdownMenuItem<String?>(child: Text('None')),
                 for (final s in specialists)
