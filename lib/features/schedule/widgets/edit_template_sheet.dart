@@ -174,6 +174,32 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
 
   Future<void> _delete() async {
     if (!_isEdit) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete every occurrence?'),
+        content: Text(
+          'This removes "${widget.template!.title}" from every day it '
+          'runs — every week within its date range (or forever if no '
+          'range is set). Cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.tonal(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.errorContainer,
+              foregroundColor: Theme.of(ctx).colorScheme.onErrorContainer,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete all'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
     await ref
         .read(scheduleRepositoryProvider)
         .deleteTemplate(widget.template!.id);
@@ -246,8 +272,9 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
       titleTrailing: _isEdit
           ? IconButton(
               onPressed: _delete,
+              tooltip: 'Delete every occurrence',
               icon: Icon(
-                Icons.delete_outline,
+                Icons.delete_sweep_outlined,
                 color: theme.colorScheme.error,
               ),
             )

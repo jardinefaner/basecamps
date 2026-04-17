@@ -1,6 +1,7 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/activity_library/widgets/edit_library_item_sheet.dart';
+import 'package:basecamp/features/activity_library/widgets/new_library_item_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
@@ -50,6 +51,16 @@ class ActivityLibraryScreen extends ConsumerWidget {
     BuildContext context, {
     ActivityLibraryData? item,
   }) async {
+    // Create flow uses the wizard; editing keeps the dense sheet.
+    if (item == null) {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => const NewLibraryItemWizardScreen(),
+        ),
+      );
+      return;
+    }
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,

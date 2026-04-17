@@ -1,0 +1,184 @@
+import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/kids/kids_repository.dart';
+import 'package:basecamp/theme/spacing.dart';
+import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/avatar_picker.dart';
+import 'package:basecamp/ui/step_wizard.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+/// Create-only wizard for enrolling a new kid. Follows the same
+/// page-by-page pattern as the activity and specialist wizards so
+/// first-timers aren't stuck staring at every field at once. Editing
+/// an existing kid still uses the dense edit sheet.
+class NewKidWizardScreen extends ConsumerStatefulWidget {
+  const NewKidWizardScreen({
+    required this.pods,
+    this.initialPodId,
+    super.key,
+  });
+
+  final List<Pod> pods;
+  final String? initialPodId;
+
+  @override
+  ConsumerState<NewKidWizardScreen> createState() =>
+      _NewKidWizardScreenState();
+}
+
+class _NewKidWizardScreenState extends ConsumerState<NewKidWizardScreen> {
+  final _firstName = TextEditingController();
+  final _lastName = TextEditingController();
+  final _parentName = TextEditingController();
+  final _notes = TextEditingController();
+
+  String? _avatarPath;
+  late String? _podId = widget.initialPodId;
+
+  bool get _dirty =>
+      _firstName.text.trim().isNotEmpty ||
+      _lastName.text.trim().isNotEmpty ||
+      _parentName.text.trim().isNotEmpty ||
+      _notes.text.trim().isNotEmpty ||
+      _avatarPath != null ||
+      _podId != widget.initialPodId;
+
+  bool get _page1Valid => _firstName.text.trim().isNotEmpty;
+
+  @override
+  void dispose() {
+    _firstName.dispose();
+    _lastName.dispose();
+    _parentName.dispose();
+    _notes.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final last = _lastName.text.trim();
+    final parent = _parentName.text.trim();
+    final notes = _notes.text.trim();
+    await ref.read(kidsRepositoryProvider).addKid(
+          firstName: _firstName.text.trim(),
+          lastName: last.isEmpty ? null : last,
+          podId: _podId,
+          notes: notes.isEmpty ? null : notes,
+          avatarPath: _avatarPath,
+          parentName: parent.isEmpty ? null : parent,
+        );
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StepWizardScaffold(
+      title: 'New kid',
+      dirty: _dirty,
+      finalActionLabel: 'Add kid',
+      onFinalAction: _submit,
+      steps: [
+        WizardStep(
+          headline: "What's their name?",
+          subtitle: 'First name is enough; last name and photo are optional.',
+          canProceed: _page1Valid,
+          content: _buildNamePage(),
+        ),
+        WizardStep(
+          headline: 'Which pod?',
+          subtitle:
+              'Pods are how the app groups kids for schedules and trips.',
+          canSkip: true,
+          content: _buildPodPage(),
+        ),
+        WizardStep(
+          headline: 'Parent or guardian',
+          subtitle:
+              'Used to pre-fill parent concern notes and future parent contact.',
+          canSkip: true,
+          content: AppTextField(
+            controller: _parentName,
+            label: 'Parent or guardian (optional)',
+            hint: 'Their name',
+          ),
+        ),
+        WizardStep(
+          headline: 'Anything staff should know?',
+          subtitle:
+              'Allergies, quirks, accommodations, etc. Skip if nothing yet.',
+          canSkip: true,
+          content: AppTextField(
+            controller: _notes,
+            label: 'Notes (optional)',
+            maxLines: 4,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNamePage() {
+    final initial = _firstName.text.trim().isNotEmpty
+        ? _firstName.text.trim().characters.first.toUpperCase()
+        : '?';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Center(
+          child: AvatarPicker(
+            currentPath: _avatarPath,
+            fallbackInitial: initial,
+            onChanged: (p) => setState(() => _avatarPath = p),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xl),
+        AppTextField(
+          controller: _firstName,
+          label: 'First name',
+          hint: 'e.g. Jordan',
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        AppTextField(
+          controller: _lastName,
+          label: 'Last name (optional)',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPodPage() {
+    final theme = Theme.of(context);
+    if (widget.pods.isEmpty) {
+      return Text(
+        'No pods yet. You can add one from the Kids tab after this kid '
+        'is created.',
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            ChoiceChip(
+              label: const Text('Unassigned'),
+              selected: _podId == null,
+              onSelected: (_) => setState(() => _podId = null),
+            ),
+            for (final pod in widget.pods)
+              ChoiceChip(
+                label: Text(pod.name),
+                selected: _podId == pod.id,
+                onSelected: (_) => setState(() => _podId = pod.id),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}

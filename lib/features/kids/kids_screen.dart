@@ -1,8 +1,8 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/kids/kids_repository.dart';
-import 'package:basecamp/features/kids/widgets/add_pod_sheet.dart';
-import 'package:basecamp/features/kids/widgets/edit_kid_sheet.dart';
 import 'package:basecamp/features/kids/widgets/kid_tile.dart';
+import 'package:basecamp/features/kids/widgets/new_kid_wizard.dart';
+import 'package:basecamp/features/kids/widgets/new_pod_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,11 +51,11 @@ class KidsScreen extends ConsumerWidget {
   }
 
   Future<void> _openAddPod(BuildContext context) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => const AddPodSheet(),
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const NewPodWizardScreen(),
+      ),
     );
   }
 
@@ -63,11 +63,11 @@ class KidsScreen extends ConsumerWidget {
     BuildContext context, {
     required List<Pod> pods,
   }) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => EditKidSheet(pods: pods),
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => NewKidWizardScreen(pods: pods),
+      ),
     );
   }
 }
@@ -213,11 +213,11 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.xl),
             FilledButton.icon(
-              onPressed: () => showModalBottomSheet<void>(
-                context: context,
-                isScrollControlled: true,
-                showDragHandle: true,
-                builder: (_) => const AddPodSheet(),
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  fullscreenDialog: true,
+                  builder: (_) => const NewPodWizardScreen(),
+                ),
               ),
               icon: const Icon(Icons.group_add_outlined),
               label: const Text('Create pod'),

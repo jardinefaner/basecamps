@@ -1,5 +1,5 @@
 import 'package:basecamp/features/trips/trips_repository.dart';
-import 'package:basecamp/features/trips/widgets/add_trip_sheet.dart';
+import 'package:basecamp/features/trips/widgets/new_trip_wizard.dart';
 import 'package:basecamp/features/trips/widgets/trip_card.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
@@ -74,11 +74,11 @@ class TripsScreen extends ConsumerWidget {
   }
 
   Future<void> _openSheet(BuildContext context) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => const AddTripSheet(),
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const NewTripWizardScreen(),
+      ),
     );
   }
 }

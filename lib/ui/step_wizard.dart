@@ -86,6 +86,7 @@ class _StepWizardScaffoldState extends State<StepWizardScaffold> {
   bool _submitting = false;
 
   bool get _isLast => _index == widget.steps.length - 1;
+  bool get _hasMultipleSteps => widget.steps.length > 1;
   WizardStep get _step => widget.steps[_index];
 
   @override
@@ -198,11 +199,12 @@ class _StepWizardScaffoldState extends State<StepWizardScaffold> {
         ),
         body: Column(
           children: [
-            _ProgressStrip(
-              count: widget.steps.length,
-              index: _index,
-              onTap: _goTo,
-            ),
+            if (_hasMultipleSteps)
+              _ProgressStrip(
+                count: widget.steps.length,
+                index: _index,
+                onTap: _goTo,
+              ),
             Expanded(
               child: PageView.builder(
                 controller: _pageController,
@@ -221,15 +223,17 @@ class _StepWizardScaffoldState extends State<StepWizardScaffold> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          'Step ${i + 1} of ${widget.steps.length}',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.primary,
-                            letterSpacing: 0.8,
-                            fontWeight: FontWeight.w700,
+                        if (_hasMultipleSteps) ...[
+                          Text(
+                            'Step ${i + 1} of ${widget.steps.length}',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                              letterSpacing: 0.8,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: AppSpacing.sm),
+                          const SizedBox(height: AppSpacing.sm),
+                        ],
                         Text(
                           step.headline,
                           style: theme.textTheme.headlineSmall?.copyWith(

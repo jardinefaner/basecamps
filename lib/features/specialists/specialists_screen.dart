@@ -1,6 +1,7 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/features/specialists/widgets/edit_specialist_sheet.dart';
+import 'package:basecamp/features/specialists/widgets/new_specialist_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
@@ -48,6 +49,17 @@ class SpecialistsScreen extends ConsumerWidget {
   }
 
   Future<void> _openSheet(BuildContext context, {Specialist? specialist}) async {
+    // Create flow goes through the page-by-page wizard; editing an
+    // existing specialist keeps the dense sheet for fast tweaks.
+    if (specialist == null) {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => const NewSpecialistWizardScreen(),
+        ),
+      );
+      return;
+    }
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,

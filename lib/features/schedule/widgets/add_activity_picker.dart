@@ -1,5 +1,5 @@
-import 'package:basecamp/features/schedule/widgets/add_full_day_event_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
+import 'package:basecamp/features/schedule/widgets/new_full_day_event_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
@@ -58,12 +58,13 @@ class AddActivityPicker extends StatelessWidget {
   }
 
   Future<void> _openFullDay(BuildContext context) async {
-    Navigator.of(context).pop();
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => AddFullDayEventSheet(initialDate: initialDate),
+    final navigator = Navigator.of(context)..pop();
+    await navigator.push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) =>
+            NewFullDayEventWizardScreen(initialDate: initialDate),
+      ),
     );
   }
 }
