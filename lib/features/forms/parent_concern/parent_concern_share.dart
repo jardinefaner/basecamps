@@ -1,18 +1,16 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_export.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+import 'package:flutter/services.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 
 /// Bottom-sheet menu of export / share / print actions for a saved
-/// Parent Concern Note. Keeps the three formats (PDF, markdown,
+/// Parent Concern Note. Keeps the four paths (PDF, text body, copy,
 /// print) in one place so the form screen's app bar only needs a
 /// single Share button.
 Future<void> showParentConcernShareSheet(
@@ -44,7 +42,9 @@ Future<void> showParentConcernShareSheet(
           ListTile(
             leading: const Icon(Icons.picture_as_pdf_outlined),
             title: const Text('Share as PDF'),
-            subtitle: const Text('Formatted document with signatures embedded'),
+            subtitle: const Text(
+              'Formatted document with signatures embedded',
+            ),
             onTap: () {
               Navigator.of(ctx).pop();
               unawaited(_shareAsPdf(note));
@@ -52,18 +52,40 @@ Future<void> showParentConcernShareSheet(
           ),
           ListTile(
             leading: const Icon(Icons.notes_outlined),
-            title: const Text('Share as markdown'),
-            subtitle: const Text('Plain-text friendly, easy to paste into email'),
+            title: const Text('Share as text'),
+            subtitle: const Text(
+              'Markdown in the email / message body — no attachment',
+            ),
             onTap: () {
               Navigator.of(ctx).pop();
-              unawaited(_shareAsMarkdown(note));
+              unawaited(_shareAsText(note));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.copy_outlined),
+            title: const Text('Copy to clipboard'),
+            subtitle: const Text(
+              'Paste into an email, note, or anywhere',
+            ),
+            onTap: () async {
+              Navigator.of(ctx).pop();
+              await _copyAsText(note);
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Copied to clipboard'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
             },
           ),
           if (!kIsWeb)
             ListTile(
               leading: const Icon(Icons.print_outlined),
               title: const Text('Print'),
-              subtitle: const Text('Send to a physical printer or save as PDF'),
+              subtitle: const Text(
+                'Send to a physical printer or save as PDF',
+              ),
               onTap: () {
                 Navigator.of(ctx).pop();
                 unawaited(_printPdf(note));
@@ -90,20 +112,26 @@ Future<void> _printPdf(ParentConcernNote note) async {
   );
 }
 
-Future<void> _shareAsMarkdown(ParentConcernNote note) async {
+/// Shares the markdown as the BODY of whatever target the user
+/// picks (email, messages, notes). A previous version attached a
+/// `.md` file, but iOS Mail and Gmail both mangle unfamiliar
+/// attachment types — users reported nothing downloadable on the
+/// receiving side. Putting the content in the share-sheet's text
+/// payload sidesteps that entirely: every target treats it as the
+/// message body and the recipient reads it immediately.
+Future<void> _shareAsText(ParentConcernNote note) async {
   final md = buildParentConcernMarkdown(note);
-  // Write to a temp file so the recipient gets a real .md attachment
-  // (share text APIs across platforms are inconsistent about long
-  // bodies; a file is always handled correctly).
-  final dir = await getTemporaryDirectory();
-  final file = File(p.join(dir.path, _safeFilename(note, 'md')));
-  await file.writeAsString(md);
   await SharePlus.instance.share(
     ShareParams(
-      files: [XFile(file.path, mimeType: 'text/markdown')],
+      text: md,
       subject: 'Parent Concern Note',
     ),
   );
+}
+
+Future<void> _copyAsText(ParentConcernNote note) async {
+  final md = buildParentConcernMarkdown(note);
+  await Clipboard.setData(ClipboardData(text: md));
 }
 
 String _safeFilename(ParentConcernNote note, String ext) {
