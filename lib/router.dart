@@ -124,8 +124,13 @@ final routerProvider = Provider<GoRouter>((ref) {
                         routes: [
                           GoRoute(
                             path: 'new',
-                            builder: (_, _) =>
-                                const ParentConcernFormScreen(),
+                            // Creation flows through the step wizard so
+                            // first-timers aren't faced with seven
+                            // sections at once; editing keeps the
+                            // scroll layout.
+                            builder: (_, _) => const ParentConcernFormScreen(
+                              presentation: ConcernFormPresentation.wizard,
+                            ),
                           ),
                           GoRoute(
                             path: ':id',

@@ -334,7 +334,9 @@ class _QuickActionData {
         await Navigator.of(ctx).push<void>(
           MaterialPageRoute(
             fullscreenDialog: true,
-            builder: (_) => const ParentConcernFormScreen(),
+            builder: (_) => const ParentConcernFormScreen(
+              presentation: ConcernFormPresentation.wizard,
+            ),
           ),
         );
       },

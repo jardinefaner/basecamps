@@ -11,21 +11,36 @@ import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/confirm_dialog.dart';
+import 'package:basecamp/ui/step_wizard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+/// Layout shape for [ParentConcernFormScreen]. Creation walks the
+/// teacher through the seven sections one page at a time (matches
+/// the rest of the app's "new thing → wizard" convention); editing
+/// keeps every section visible at once so a quick tweak is a
+/// tap-and-go instead of a seven-step tour.
+enum ConcernFormPresentation { wizard, scroll }
+
 /// Full-screen editor for a Parent Concern Note. Broken into seven
-/// self-contained cards so staff can fill them in any order, save,
-/// and come back to finish later. Each card mirrors a paper-form
-/// section; fields that take narrative text expose a mic button for
-/// Deepgram dictation, and the signatures card expands an inline
-/// signature pad when the teacher taps "Sign now".
+/// self-contained sections staff can fill in any order. Fields that
+/// take narrative text expose a mic button for Deepgram dictation,
+/// and the signatures section expands an inline signature pad when
+/// the teacher taps "Sign now".
 ///
 /// Pass [noteId] to edit an existing row; leave null to start fresh.
+/// [presentation] defaults to [ConcernFormPresentation.scroll] —
+/// creation sites explicitly pass `wizard` so the new-note flow
+/// mirrors the new-activity / new-kid wizards.
 class ParentConcernFormScreen extends ConsumerStatefulWidget {
-  const ParentConcernFormScreen({this.noteId, super.key});
+  const ParentConcernFormScreen({
+    this.noteId,
+    this.presentation = ConcernFormPresentation.scroll,
+    super.key,
+  });
 
   final String? noteId;
+  final ConcernFormPresentation presentation;
 
   @override
   ConsumerState<ParentConcernFormScreen> createState() =>
@@ -302,6 +317,34 @@ class _ParentConcernFormScreenState
       );
     }
 
+    if (widget.presentation == ConcernFormPresentation.wizard) {
+      return _buildWizard();
+    }
+    return _buildScroll(theme);
+  }
+
+  // ---- wizard layout (create flow) ----
+
+  Widget _buildWizard() {
+    return StepWizardScaffold(
+      title: _isEdit ? 'Edit concern note' : 'New concern note',
+      finalActionLabel: _isEdit ? 'Save changes' : 'Save note',
+      onFinalAction: _save,
+      steps: [
+        for (final section in _sections(context))
+          WizardStep(
+            headline: section.title,
+            subtitle: section.subtitle,
+            canSkip: true,
+            content: section.content,
+          ),
+      ],
+    );
+  }
+
+  // ---- scroll layout (edit flow) ----
+
+  Widget _buildScroll(ThemeData theme) {
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
       appBar: AppBar(
@@ -335,19 +378,15 @@ class _ParentConcernFormScreenState
                 AppSpacing.lg,
               ),
               children: [
-                _buildAboutCard(),
-                const SizedBox(height: AppSpacing.md),
-                _buildMethodCard(),
-                const SizedBox(height: AppSpacing.md),
-                _buildConcernCard(),
-                const SizedBox(height: AppSpacing.md),
-                _buildResponseCard(),
-                const SizedBox(height: AppSpacing.md),
-                _buildFollowUpCard(),
-                const SizedBox(height: AppSpacing.md),
-                _buildAdditionalNotesCard(),
-                const SizedBox(height: AppSpacing.md),
-                _buildSignaturesCard(),
+                for (final section in _sections(context)) ...[
+                  FormSectionCard(
+                    icon: section.icon,
+                    title: section.title,
+                    subtitle: section.subtitle,
+                    child: section.content,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                ],
                 const SizedBox(height: AppSpacing.xxxl),
               ],
             ),
@@ -358,17 +397,71 @@ class _ParentConcernFormScreenState
     );
   }
 
-  // ---- cards ----
+  // ---- section list (shared between scroll + wizard) ----
 
-  Widget _buildAboutCard() {
+  List<_ConcernSection> _sections(BuildContext context) {
+    return [
+      _ConcernSection(
+        icon: Icons.info_outline,
+        title: 'About this concern',
+        subtitle: 'Who, when, and who received it',
+        content: _aboutContent(context),
+      ),
+      _ConcernSection(
+        icon: Icons.forum_outlined,
+        title: 'Method of communication',
+        subtitle: 'Select every channel that applied',
+        content: _methodContent(),
+      ),
+      _ConcernSection(
+        icon: Icons.flag_outlined,
+        title: 'Concern reported',
+        subtitle: "Brief description in the parent or guardian's words",
+        content: VoiceDictationField(
+          controller: _concernDescription,
+          hint: 'Briefly describe the concern shared…',
+        ),
+      ),
+      _ConcernSection(
+        icon: Icons.reply_outlined,
+        title: 'Immediate response / actions taken',
+        subtitle: 'What you communicated and did at the time',
+        content: VoiceDictationField(
+          controller: _immediateResponse,
+          hint: 'How it was handled in the moment…',
+        ),
+      ),
+      _ConcernSection(
+        icon: Icons.event_repeat_outlined,
+        title: 'Follow-up plan',
+        subtitle: 'Next steps, if any',
+        content: _followUpContent(context),
+      ),
+      _ConcernSection(
+        icon: Icons.note_outlined,
+        title: 'Additional notes',
+        subtitle: 'Anything else worth logging',
+        content: VoiceDictationField(
+          controller: _additionalNotes,
+          hint: 'Context, background, related observations…',
+        ),
+      ),
+      _ConcernSection(
+        icon: Icons.draw_outlined,
+        title: 'Signatures',
+        subtitle: 'Type the signer\u2019s name, then draw your signature',
+        content: _signaturesContent(context),
+      ),
+    ];
+  }
+
+  // ---- section content builders ----
+
+  Widget _aboutContent(BuildContext context) {
     final theme = Theme.of(context);
-    return FormSectionCard(
-      icon: Icons.info_outline,
-      title: 'About this concern',
-      subtitle: 'Who, when, and who received it',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
           Text('Child / children', style: theme.textTheme.titleSmall),
           const SizedBox(height: AppSpacing.sm),
           KidChipPicker(
@@ -433,158 +526,110 @@ class _ParentConcernFormScreenState
             hint: 'Or type another name (optional)',
           ),
         ],
-      ),
+      );
+  }
+
+  Widget _methodContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            FilterChip(
+              label: const Text('In person'),
+              avatar: const Icon(Icons.people_outline, size: 18),
+              selected: _input.methodInPerson,
+              onSelected: (v) => setState(() => _input.methodInPerson = v),
+            ),
+            FilterChip(
+              label: const Text('Phone'),
+              avatar: const Icon(Icons.phone_outlined, size: 18),
+              selected: _input.methodPhone,
+              onSelected: (v) => setState(() => _input.methodPhone = v),
+            ),
+            FilterChip(
+              label: const Text('Email'),
+              avatar: const Icon(Icons.email_outlined, size: 18),
+              selected: _input.methodEmail,
+              onSelected: (v) => setState(() => _input.methodEmail = v),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        AppTextField(
+          controller: _methodOther,
+          label: 'Other (optional)',
+          hint: 'e.g. Text message, after-care chat',
+        ),
+      ],
     );
   }
 
-  Widget _buildMethodCard() {
-    return FormSectionCard(
-      icon: Icons.forum_outlined,
-      title: 'Method of communication',
-      subtitle: 'Select every channel that applied',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              FilterChip(
-                label: const Text('In person'),
-                avatar: const Icon(Icons.people_outline, size: 18),
-                selected: _input.methodInPerson,
-                onSelected: (v) =>
-                    setState(() => _input.methodInPerson = v),
-              ),
-              FilterChip(
-                label: const Text('Phone'),
-                avatar: const Icon(Icons.phone_outlined, size: 18),
-                selected: _input.methodPhone,
-                onSelected: (v) => setState(() => _input.methodPhone = v),
-              ),
-              FilterChip(
-                label: const Text('Email'),
-                avatar: const Icon(Icons.email_outlined, size: 18),
-                selected: _input.methodEmail,
-                onSelected: (v) => setState(() => _input.methodEmail = v),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          AppTextField(
-            controller: _methodOther,
-            label: 'Other (optional)',
-            hint: 'e.g. Text message, after-care chat',
-          ),
-        ],
-      ),
+  // concernContent + responseContent + additionalNotesContent live
+  // inline in the section list — they're each a single
+  // VoiceDictationField so there's no helper to factor out.
+
+  Widget _followUpContent(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            FilterChip(
+              label: const Text('Monitor situation'),
+              selected: _input.followUpMonitor,
+              onSelected: (v) =>
+                  setState(() => _input.followUpMonitor = v),
+            ),
+            FilterChip(
+              label: const Text('Staff check-ins with child'),
+              selected: _input.followUpStaffCheckIns,
+              onSelected: (v) =>
+                  setState(() => _input.followUpStaffCheckIns = v),
+            ),
+            FilterChip(
+              label: const Text('Supervisor review'),
+              selected: _input.followUpSupervisorReview,
+              onSelected: (v) =>
+                  setState(() => _input.followUpSupervisorReview = v),
+            ),
+            FilterChip(
+              label: const Text('Parent follow-up conversation'),
+              selected: _input.followUpParentConversation,
+              onSelected: (v) =>
+                  setState(() => _input.followUpParentConversation = v),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        AppTextField(
+          controller: _followUpOther,
+          label: 'Other (optional)',
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        Text(
+          'Follow-up date & time (optional)',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        FormDateField(
+          value: _input.followUpDate,
+          includeTime: true,
+          onChanged: (d) => setState(() => _input.followUpDate = d),
+        ),
+      ],
     );
   }
 
-  Widget _buildConcernCard() {
-    return FormSectionCard(
-      icon: Icons.flag_outlined,
-      title: 'Concern reported',
-      subtitle: "Brief description in the parent or guardian's words",
-      child: VoiceDictationField(
-        controller: _concernDescription,
-        hint: 'Briefly describe the concern shared…',
-      ),
-    );
-  }
-
-  Widget _buildResponseCard() {
-    return FormSectionCard(
-      icon: Icons.reply_outlined,
-      title: 'Immediate response / actions taken',
-      subtitle: 'What you communicated and did at the time',
-      child: VoiceDictationField(
-        controller: _immediateResponse,
-        hint: 'How it was handled in the moment…',
-      ),
-    );
-  }
-
-  Widget _buildFollowUpCard() {
-    return FormSectionCard(
-      icon: Icons.event_repeat_outlined,
-      title: 'Follow-up plan',
-      subtitle: 'Next steps, if any',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              FilterChip(
-                label: const Text('Monitor situation'),
-                selected: _input.followUpMonitor,
-                onSelected: (v) =>
-                    setState(() => _input.followUpMonitor = v),
-              ),
-              FilterChip(
-                label: const Text('Staff check-ins with child'),
-                selected: _input.followUpStaffCheckIns,
-                onSelected: (v) =>
-                    setState(() => _input.followUpStaffCheckIns = v),
-              ),
-              FilterChip(
-                label: const Text('Supervisor review'),
-                selected: _input.followUpSupervisorReview,
-                onSelected: (v) =>
-                    setState(() => _input.followUpSupervisorReview = v),
-              ),
-              FilterChip(
-                label: const Text('Parent follow-up conversation'),
-                selected: _input.followUpParentConversation,
-                onSelected: (v) =>
-                    setState(() => _input.followUpParentConversation = v),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          AppTextField(
-            controller: _followUpOther,
-            label: 'Other (optional)',
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Text(
-            'Follow-up date & time (optional)',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          FormDateField(
-            value: _input.followUpDate,
-            includeTime: true,
-            onChanged: (d) => setState(() => _input.followUpDate = d),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAdditionalNotesCard() {
-    return FormSectionCard(
-      icon: Icons.note_outlined,
-      title: 'Additional notes',
-      subtitle: 'Anything else worth logging',
-      child: VoiceDictationField(
-        controller: _additionalNotes,
-        hint: 'Context, background, related observations…',
-      ),
-    );
-  }
-
-  Widget _buildSignaturesCard() {
+  Widget _signaturesContent(BuildContext context) {
     final theme = Theme.of(context);
-    return FormSectionCard(
-      icon: Icons.draw_outlined,
-      title: 'Signatures',
-      subtitle: 'Type the signer\u2019s name, then draw your signature',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
           // Staff
           AppTextField(
             controller: _staffSignature,
@@ -651,8 +696,7 @@ class _ParentConcernFormScreenState
               onCancel: () =>
                   setState(() => _showSupervisorSigPad = false),
             ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -770,4 +814,22 @@ class _ParentConcernFormScreenState
     final minutes = dt.minute.toString().padLeft(2, '0');
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year} · $hour12:$minutes$period';
   }
+}
+
+/// Metadata + widget for one section of the concern note form. Shared
+/// between the scroll layout (wrapped in a [FormSectionCard]) and the
+/// wizard layout (lifted into a [WizardStep]) — same content,
+/// different chrome.
+class _ConcernSection {
+  const _ConcernSection({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.content,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget content;
 }
