@@ -273,22 +273,19 @@ class _ListFeed extends ConsumerStatefulWidget {
 }
 
 class _ListFeedState extends ConsumerState<_ListFeed> {
-  final _controller = ScrollController();
   int _lastCount = 0;
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _scrollToNewest() {
-    if (!_controller.hasClients) return;
+  void _scrollToNewest(BuildContext context) {
+    // Driven by the PrimaryScrollController that NestedScrollView
+    // injects — owning our own controller would cut us off from the
+    // outer scroll, which is what makes the AppBar hide on scroll.
+    final controller = PrimaryScrollController.maybeOf(context);
+    if (controller == null || !controller.hasClients) return;
     // Reverse-mode list: offset 0 renders at the bottom of the viewport,
     // which is where items[0] (newest) lives. Jumping short distances
     // feels cheap — use a quick animate.
     unawaited(
-      _controller.animateTo(
+      controller.animateTo(
         0,
         duration: const Duration(milliseconds: 260),
         curve: Curves.easeOut,
@@ -307,7 +304,7 @@ class _ListFeedState extends ConsumerState<_ListFeed> {
           // the feed back to the newest so the teacher sees what just
           // landed.
           WidgetsBinding.instance.addPostFrameCallback(
-            (_) => _scrollToNewest(),
+            (_) => _scrollToNewest(context),
           );
         }
         _lastCount = count;
@@ -325,7 +322,10 @@ class _ListFeedState extends ConsumerState<_ListFeed> {
           return const _EmptyState();
         }
         return ListView.separated(
-          controller: _controller,
+          // No custom controller — the PrimaryScrollController injected
+          // by the parent NestedScrollView drives both this list AND
+          // the collapsing SliverAppBar. Keeping our own controller
+          // severs that link and the AppBar stops hiding on scroll.
           reverse: true,
           padding: const EdgeInsets.only(
             left: AppSpacing.lg,

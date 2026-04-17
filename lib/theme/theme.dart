@@ -2,6 +2,7 @@ import 'package:basecamp/theme/colors.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/theme/typography.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 ThemeData lightTheme() => _buildTheme(AppColors.light);
 ThemeData darkTheme() => _buildTheme(AppColors.dark);
@@ -22,6 +23,18 @@ ThemeData _buildTheme(ColorScheme colorScheme) {
       foregroundColor: colorScheme.onSurface,
       centerTitle: false,
       titleTextStyle: textTheme.titleLarge,
+      // Transparent AppBar leaves Flutter unable to auto-infer status
+      // bar icon color, which was giving light icons (invisible) on
+      // our off-white surface in light mode. Pin the overlay style to
+      // the theme's brightness so battery / clock / signal stay
+      // readable on both.
+      //
+      // Note: SystemUiOverlayStyle.dark means *dark icons* (for light
+      // backgrounds) and .light means *light icons* — the naming is
+      // counterintuitive.
+      systemOverlayStyle: colorScheme.brightness == Brightness.light
+          ? SystemUiOverlayStyle.dark
+          : SystemUiOverlayStyle.light,
     ),
     cardTheme: CardThemeData(
       elevation: 0,
