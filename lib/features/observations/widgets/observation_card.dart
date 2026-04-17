@@ -15,12 +15,20 @@ class ObservationCard extends ConsumerWidget {
   const ObservationCard({
     required this.observation,
     this.onTap,
+    this.onLongPress,
+    this.selected = false,
     this.hideAttachments = false,
     super.key,
   });
 
   final Observation observation;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+
+  /// When true, the card paints with the selection tint + primary
+  /// outline (via AppCard) and the top-right corner shows a check
+  /// badge so the card reads as "picked" in bulk-select mode.
+  final bool selected;
 
   /// Strip the attachment thumbnails off the card — used by the Notes
   /// filter on the Observe tab so teachers can scan text at a glance.
@@ -54,6 +62,8 @@ class ObservationCard extends ConsumerWidget {
 
     return AppCard(
       onTap: onTap,
+      onLongPress: onLongPress,
+      selected: selected,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -62,7 +72,9 @@ class ObservationCard extends ConsumerWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.only(top: 2),
-                child: _SentimentIcon(sentiment: sentiment),
+                child: selected
+                    ? _SelectCheck(theme: theme)
+                    : _SentimentIcon(sentiment: sentiment),
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
@@ -296,6 +308,33 @@ class _DomainChipList extends StatelessWidget {
         chip(primary == ObservationDomain.other ? primary.label : primary.code),
         if (extra > 0) chip('+$extra'),
       ],
+    );
+  }
+}
+
+/// Replaces the sentiment glyph in the card header while the card is
+/// selected in multi-pick mode. Small filled primary circle with a
+/// white check — mirrors the indicator colour on the grid media tile.
+class _SelectCheck extends StatelessWidget {
+  const _SelectCheck({required this.theme});
+
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 18,
+      height: 18,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary,
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+      child: Icon(
+        Icons.check,
+        size: 12,
+        color: theme.colorScheme.onPrimary,
+      ),
     );
   }
 }

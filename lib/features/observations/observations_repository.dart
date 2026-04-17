@@ -450,6 +450,38 @@ class ObservationsRepository {
       await _deleteLocalFile(a.localPath);
     }
   }
+
+  /// Batch version. Groups the DB delete into a single `WHERE id IN`
+  /// so the stream providers only emit once, then fires a best-effort
+  /// file cleanup for every attachment in the removed set.
+  Future<void> deleteObservations(Iterable<String> ids) async {
+    final list = ids.toList();
+    if (list.isEmpty) return;
+    final attachments = await (_db.select(_db.observationAttachments)
+          ..where((a) => a.observationId.isIn(list)))
+        .get();
+    await (_db.delete(_db.observations)..where((o) => o.id.isIn(list)))
+        .go();
+    for (final a in attachments) {
+      await _deleteLocalFile(a.localPath);
+    }
+  }
+
+  /// Batch version of [deleteAttachment]. One DB delete, plus a file
+  /// cleanup per path — same shape as [deleteObservations].
+  Future<void> deleteAttachments(Iterable<String> ids) async {
+    final list = ids.toList();
+    if (list.isEmpty) return;
+    final rows = await (_db.select(_db.observationAttachments)
+          ..where((a) => a.id.isIn(list)))
+        .get();
+    await (_db.delete(_db.observationAttachments)
+          ..where((a) => a.id.isIn(list)))
+        .go();
+    for (final r in rows) {
+      await _deleteLocalFile(r.localPath);
+    }
+  }
 }
 
 /// Minimal descriptor used when creating an observation. Local-first:

@@ -8,6 +8,7 @@ import 'package:basecamp/features/observations/widgets/observation_card.dart';
 import 'package:basecamp/features/observations/widgets/observation_composer.dart';
 import 'package:basecamp/features/observations/widgets/observation_edit_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,6 +35,18 @@ class ObservationsScreen extends ConsumerStatefulWidget {
 class _ObservationsScreenState extends ConsumerState<ObservationsScreen> {
   _ObserveFilter _filter = _ObserveFilter.all;
 
+  /// Bulk-select state. The observation set drives selection in the
+  /// All/Notes feed; the attachment set drives it in the Media grid.
+  /// Filter switches clear both so a half-selected feed doesn't bleed
+  /// across tabs.
+  final Set<String> _selectedObservationIds = <String>{};
+  final Set<String> _selectedAttachmentIds = <String>{};
+
+  bool get _selectingObservations => _selectedObservationIds.isNotEmpty;
+  bool get _selectingAttachments => _selectedAttachmentIds.isNotEmpty;
+  bool get _selecting =>
+      _selectingObservations || _selectingAttachments;
+
   Future<void> _openEditSheet(Observation observation) {
     return showModalBottomSheet<void>(
       context: context,
@@ -44,49 +57,154 @@ class _ObservationsScreenState extends ConsumerState<ObservationsScreen> {
     );
   }
 
+  void _toggleObservation(String id) {
+    setState(() {
+      if (!_selectedObservationIds.add(id)) _selectedObservationIds.remove(id);
+    });
+  }
+
+  void _toggleAttachment(String id) {
+    setState(() {
+      if (!_selectedAttachmentIds.add(id)) _selectedAttachmentIds.remove(id);
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectedObservationIds.clear();
+      _selectedAttachmentIds.clear();
+    });
+  }
+
+  Future<void> _deleteSelectedObservations() async {
+    final count = _selectedObservationIds.length;
+    if (count == 0) return;
+    final confirmed = await showConfirmDialog(
+      context: context,
+      title: count == 1
+          ? 'Delete this observation?'
+          : 'Delete $count observations?',
+      message:
+          'Every tagged kid, domain, photo and video goes with them. '
+          'Cannot be undone.',
+      confirmLabel: count == 1 ? 'Delete' : 'Delete $count',
+    );
+    if (!confirmed) return;
+    await ref
+        .read(observationsRepositoryProvider)
+        .deleteObservations(_selectedObservationIds.toList());
+    if (!mounted) return;
+    _clearSelection();
+  }
+
+  Future<void> _deleteSelectedAttachments() async {
+    final count = _selectedAttachmentIds.length;
+    if (count == 0) return;
+    final confirmed = await showConfirmDialog(
+      context: context,
+      title: count == 1
+          ? 'Delete this attachment?'
+          : 'Delete $count attachments?',
+      message:
+          'Files are removed from the device too. The observations they '
+          'belong to stay put. Cannot be undone.',
+      confirmLabel: count == 1 ? 'Delete' : 'Delete $count',
+    );
+    if (!confirmed) return;
+    await ref
+        .read(observationsRepositoryProvider)
+        .deleteAttachments(_selectedAttachmentIds.toList());
+    if (!mounted) return;
+    _clearSelection();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Observe')),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.sm,
-              AppSpacing.lg,
-              AppSpacing.sm,
+    final theme = Theme.of(context);
+
+    return PopScope(
+      canPop: !_selecting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_selecting) _clearSelection();
+      },
+      child: Scaffold(
+        appBar: _selecting ? _buildSelectionAppBar(theme) : _buildAppBar(),
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.sm,
+                AppSpacing.lg,
+                AppSpacing.sm,
+              ),
+              child: SegmentedButton<_ObserveFilter>(
+                segments: const [
+                  ButtonSegment(
+                    value: _ObserveFilter.all,
+                    label: Text('All'),
+                    icon: Icon(Icons.view_agenda_outlined),
+                  ),
+                  ButtonSegment(
+                    value: _ObserveFilter.notes,
+                    label: Text('Notes'),
+                    icon: Icon(Icons.notes_outlined),
+                  ),
+                  ButtonSegment(
+                    value: _ObserveFilter.media,
+                    label: Text('Media'),
+                    icon: Icon(Icons.photo_library_outlined),
+                  ),
+                ],
+                selected: {_filter},
+                onSelectionChanged: (s) => setState(() {
+                  _filter = s.first;
+                  _selectedObservationIds.clear();
+                  _selectedAttachmentIds.clear();
+                }),
+                showSelectedIcon: false,
+              ),
             ),
-            child: SegmentedButton<_ObserveFilter>(
-              segments: const [
-                ButtonSegment(
-                  value: _ObserveFilter.all,
-                  label: Text('All'),
-                  icon: Icon(Icons.view_agenda_outlined),
-                ),
-                ButtonSegment(
-                  value: _ObserveFilter.notes,
-                  label: Text('Notes'),
-                  icon: Icon(Icons.notes_outlined),
-                ),
-                ButtonSegment(
-                  value: _ObserveFilter.media,
-                  label: Text('Media'),
-                  icon: Icon(Icons.photo_library_outlined),
-                ),
-              ],
-              selected: {_filter},
-              onSelectionChanged: (s) => setState(() => _filter = s.first),
-              showSelectedIcon: false,
-            ),
-          ),
-          Expanded(child: _body()),
-          // The composer is a capture surface. Media mode is a
-          // view-oriented gallery — hide the composer there so the
-          // screen really is "just the pictures".
-          if (_filter != _ObserveFilter.media) const ObservationComposer(),
-        ],
+            Expanded(child: _body()),
+            // Composer is hidden in Media mode (view-only gallery) AND
+            // while bulk-selecting anywhere — no room for it, and
+            // sending wouldn't clear the selection anyway.
+            if (_filter != _ObserveFilter.media && !_selecting)
+              const ObservationComposer(),
+          ],
+        ),
       ),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(title: const Text('Observe'));
+  }
+
+  PreferredSizeWidget _buildSelectionAppBar(ThemeData theme) {
+    final count = _selectingObservations
+        ? _selectedObservationIds.length
+        : _selectedAttachmentIds.length;
+    return AppBar(
+      backgroundColor: theme.colorScheme.primaryContainer,
+      foregroundColor: theme.colorScheme.onPrimaryContainer,
+      leading: IconButton(
+        tooltip: 'Cancel selection',
+        icon: const Icon(Icons.close),
+        onPressed: _clearSelection,
+      ),
+      title: Text('$count selected'),
+      actions: [
+        IconButton(
+          tooltip: 'Delete',
+          icon: const Icon(Icons.delete_outline),
+          onPressed: _selectingObservations
+              ? _deleteSelectedObservations
+              : _deleteSelectedAttachments,
+        ),
+        const SizedBox(width: AppSpacing.xs),
+      ],
     );
   }
 
@@ -96,14 +214,21 @@ class _ObservationsScreenState extends ConsumerState<ObservationsScreen> {
         return _ListFeed(
           onTapObservation: _openEditSheet,
           notesOnly: false,
+          selectedIds: _selectedObservationIds,
+          onToggleSelect: _toggleObservation,
         );
       case _ObserveFilter.notes:
         return _ListFeed(
           onTapObservation: _openEditSheet,
           notesOnly: true,
+          selectedIds: _selectedObservationIds,
+          onToggleSelect: _toggleObservation,
         );
       case _ObserveFilter.media:
-        return const _MediaGallery();
+        return _MediaGallery(
+          selectedIds: _selectedAttachmentIds,
+          onToggleSelect: _toggleAttachment,
+        );
     }
   }
 }
@@ -118,10 +243,14 @@ class _ListFeed extends ConsumerStatefulWidget {
   const _ListFeed({
     required this.onTapObservation,
     required this.notesOnly,
+    required this.selectedIds,
+    required this.onToggleSelect,
   });
 
   final Future<void> Function(Observation) onTapObservation;
   final bool notesOnly;
+  final Set<String> selectedIds;
+  final ValueChanged<String> onToggleSelect;
 
   @override
   ConsumerState<_ListFeed> createState() => _ListFeedState();
@@ -170,6 +299,7 @@ class _ListFeedState extends ConsumerState<_ListFeed> {
     );
 
     final observationsAsync = ref.watch(observationsProvider);
+    final selecting = widget.selectedIds.isNotEmpty;
 
     return observationsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -189,25 +319,43 @@ class _ListFeedState extends ConsumerState<_ListFeed> {
           ),
           itemCount: items.length,
           separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
-          itemBuilder: (_, i) => ObservationCard(
-            observation: items[i],
-            hideAttachments: widget.notesOnly,
-            onTap: () => widget.onTapObservation(items[i]),
-          ),
+          itemBuilder: (_, i) {
+            final obs = items[i];
+            final selected = widget.selectedIds.contains(obs.id);
+            return ObservationCard(
+              observation: obs,
+              hideAttachments: widget.notesOnly,
+              selected: selected,
+              // In selection mode a tap toggles; otherwise it edits.
+              // Long-press always toggles so the first pick can kick
+              // off the mode.
+              onTap: selecting
+                  ? () => widget.onToggleSelect(obs.id)
+                  : () => widget.onTapObservation(obs),
+              onLongPress: () => widget.onToggleSelect(obs.id),
+            );
+          },
         );
       },
     );
   }
 }
 
-/// Read-only grid of every attachment. The whole point: teachers scan
-/// what they shot. Tap = full-screen viewer. No card chrome, no editing.
+/// Read-only grid of every attachment. Long-press to enter bulk-select
+/// mode, which the parent screen translates into a delete action.
 class _MediaGallery extends ConsumerWidget {
-  const _MediaGallery();
+  const _MediaGallery({
+    required this.selectedIds,
+    required this.onToggleSelect,
+  });
+
+  final Set<String> selectedIds;
+  final ValueChanged<String> onToggleSelect;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final attachmentsAsync = ref.watch(allAttachmentsProvider);
+    final selecting = selectedIds.isNotEmpty;
 
     return attachmentsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -224,17 +372,25 @@ class _MediaGallery extends ConsumerWidget {
             mainAxisSpacing: 2,
           ),
           itemCount: atts.length,
-          itemBuilder: (context, i) => _GalleryTile(
-            attachment: atts[i],
-            onTap: () => AttachmentViewer.open(
-              context,
-              atts,
-              initialIndex: i,
-              onDelete: (a) => ref
-                  .read(observationsRepositoryProvider)
-                  .deleteAttachment(a.id),
-            ),
-          ),
+          itemBuilder: (context, i) {
+            final att = atts[i];
+            final selected = selectedIds.contains(att.id);
+            return _GalleryTile(
+              attachment: att,
+              selected: selected,
+              onTap: selecting
+                  ? () => onToggleSelect(att.id)
+                  : () => AttachmentViewer.open(
+                        context,
+                        atts,
+                        initialIndex: i,
+                        onDelete: (a) => ref
+                            .read(observationsRepositoryProvider)
+                            .deleteAttachment(a.id),
+                      ),
+              onLongPress: () => onToggleSelect(att.id),
+            );
+          },
         );
       },
     );
@@ -242,10 +398,17 @@ class _MediaGallery extends ConsumerWidget {
 }
 
 class _GalleryTile extends StatelessWidget {
-  const _GalleryTile({required this.attachment, required this.onTap});
+  const _GalleryTile({
+    required this.attachment,
+    required this.onTap,
+    required this.onLongPress,
+    this.selected = false,
+  });
 
   final ObservationAttachment attachment;
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -253,6 +416,7 @@ class _GalleryTile extends StatelessWidget {
     final isPhoto = attachment.kind == 'photo';
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerHigh,
@@ -303,6 +467,32 @@ class _GalleryTile extends StatelessWidget {
                   ),
                 ),
               ),
+            // Selection veil + top-left check badge. Drawn last so
+            // it sits on top of the thumbnail and the video indicator.
+            if (selected) ...[
+              Container(
+                color: theme.colorScheme.primary.withValues(alpha: 0.3),
+              ),
+              Positioned(
+                top: 6,
+                left: 6,
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    Icons.check,
+                    size: 12,
+                    color: theme.colorScheme.onPrimary,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
