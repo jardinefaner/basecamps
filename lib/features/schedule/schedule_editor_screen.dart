@@ -192,7 +192,10 @@ class _ScheduleEditorScreenState
         isScrollControlled: true,
         showDragHandle: true,
         isDismissible: false,
-        builder: (_) => EditTemplateSheet(template: template),
+        builder: (_) => EditTemplateSheet(
+          template: template,
+          occurrenceDate: item.date,
+        ),
       );
       return;
     }

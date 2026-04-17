@@ -18,6 +18,7 @@ class ScheduleItem {
     required this.title,
     required this.isFromTemplate,
     required this.podIds,
+    required this.date,
     this.specialistId,
     this.location,
     this.notes,
@@ -37,6 +38,12 @@ class ScheduleItem {
   final bool isFromTemplate;
   final String? templateId;
   final String? entryId;
+
+  /// The concrete calendar date this item renders on. Set by the
+  /// repository while expanding templates and entries into day-
+  /// specific slots, so tap handlers can tell "Art on April 21" from
+  /// "Art on April 23" when the same template produces both.
+  final DateTime date;
 
   bool get isOneOff => !isFromTemplate;
   bool get isAllPods => podIds.isEmpty;
@@ -89,8 +96,12 @@ class ScheduleRepository {
       final byDay = <int, List<ScheduleItem>>{};
       for (final t in templates) {
         final pods = await podsForTemplate(t.id);
+        // Date is meaningless for the weekly-template view — callers
+        // that care about concrete dates use `watchScheduleForWeek` or
+        // `watchScheduleForDate`. Sentinel keeps the field non-null.
         final item = ScheduleItem(
           id: t.id,
+          date: DateTime(1970),
           startTime: t.startTime,
           endTime: t.endTime,
           isFullDay: t.isFullDay,
@@ -396,6 +407,7 @@ class ScheduleRepository {
             }).toList();
 
             result[dayOfWeek] = _merge(
+              date: date,
               templates: dayTemplates,
               entries: dayEntries,
               templatePods: templatePodMap,
@@ -471,6 +483,7 @@ class ScheduleRepository {
             entryPodMap[en.id] = await podsForEntry(en.id);
           }
           final merged = _merge(
+            date: day,
             templates: filteredTemplates,
             entries: e,
             templatePods: templatePodMap,
@@ -499,6 +512,7 @@ class ScheduleRepository {
   }
 
   List<ScheduleItem> _merge({
+    required DateTime date,
     required List<ScheduleTemplate> templates,
     required List<ScheduleEntry> entries,
     required Map<String, List<String>> templatePods,
@@ -524,6 +538,7 @@ class ScheduleRepository {
         items.add(
           ScheduleItem(
             id: override.id,
+            date: date,
             startTime: override.startTime,
             endTime: override.endTime,
             isFullDay: override.isFullDay,
@@ -541,6 +556,7 @@ class ScheduleRepository {
         items.add(
           ScheduleItem(
             id: t.id,
+            date: date,
             startTime: t.startTime,
             endTime: t.endTime,
             isFullDay: t.isFullDay,
@@ -561,6 +577,7 @@ class ScheduleRepository {
         items.add(
           ScheduleItem(
             id: e.id,
+            date: date,
             startTime: e.startTime,
             endTime: e.endTime,
             isFullDay: e.isFullDay,

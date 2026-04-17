@@ -16,10 +16,22 @@ import 'package:intl/intl.dart';
 const _dayShortLabels = ['M', 'T', 'W', 'T', 'F'];
 
 class EditTemplateSheet extends ConsumerStatefulWidget {
-  const EditTemplateSheet({super.key, this.template, this.initialDays});
+  const EditTemplateSheet({
+    super.key,
+    this.template,
+    this.initialDays,
+    this.occurrenceDate,
+  });
 
   final ScheduleTemplate? template;
   final Set<int>? initialDays;
+
+  /// The concrete date the teacher tapped to open this sheet. When
+  /// set, the delete flow offers "Delete this day only" (adds a
+  /// cancellation entry for just that date) alongside the usual
+  /// "Delete every occurrence". Null for new-template creation and
+  /// any caller that doesn't have a date in context.
+  final DateTime? occurrenceDate;
 
   @override
   ConsumerState<EditTemplateSheet> createState() => _EditTemplateSheetState();
@@ -174,14 +186,46 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
 
   Future<void> _delete() async {
     if (!_isEdit) return;
+    final template = widget.template!;
+    final occ = widget.occurrenceDate;
+    final repo = ref.read(scheduleRepositoryProvider);
+
+    // Two-path flow when we know the specific date the teacher tapped:
+    // "this day only" writes a cancellation entry for that date;
+    // "every occurrence" nukes the whole template. No-date callers
+    // (e.g. opening from an empty state) fall back to the single
+    // all-or-nothing dialog.
+    if (occ != null) {
+      final choice = await showModalBottomSheet<_DeleteChoice>(
+        context: context,
+        showDragHandle: true,
+        builder: (ctx) => _DeleteOptionsSheet(
+          title: template.title,
+          occurrenceDate: occ,
+        ),
+      );
+      if (choice == null) return;
+      if (choice == _DeleteChoice.thisDay) {
+        await repo.cancelTemplateForDate(
+          templateId: template.id,
+          date: occ,
+        );
+      } else {
+        await repo.deleteTemplate(template.id);
+      }
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete every occurrence?'),
         content: Text(
-          'This removes "${widget.template!.title}" from every day it '
-          'runs — every week within its date range (or forever if no '
-          'range is set). Cannot be undone.',
+          'This removes "${template.title}" from every day it runs — '
+          'every week within its date range (or forever if no range is '
+          'set). Cannot be undone.',
         ),
         actions: [
           TextButton(
@@ -200,9 +244,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
       ),
     );
     if (confirmed != true) return;
-    await ref
-        .read(scheduleRepositoryProvider)
-        .deleteTemplate(widget.template!.id);
+    await repo.deleteTemplate(template.id);
     if (!mounted) return;
     Navigator.of(context).pop();
   }
@@ -761,6 +803,76 @@ class _DurationChip extends StatelessWidget {
       label: Text(label),
       onPressed: onTap,
       visualDensity: VisualDensity.compact,
+    );
+  }
+}
+
+enum _DeleteChoice { thisDay, allDays }
+
+/// Two-option chooser for deleting a template-sourced activity — one
+/// day vs every occurrence. Pops with the chosen value or null on
+/// dismiss.
+class _DeleteOptionsSheet extends StatelessWidget {
+  const _DeleteOptionsSheet({
+    required this.title,
+    required this.occurrenceDate,
+  });
+
+  final String title;
+  final DateTime occurrenceDate;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dateLabel = DateFormat.yMMMMEEEEd().format(occurrenceDate);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.xl,
+          AppSpacing.sm,
+          AppSpacing.xl,
+          AppSpacing.md,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              child: Text(
+                'Delete "$title"',
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.event_busy_outlined),
+              title: const Text('Delete this day only'),
+              subtitle: Text(
+                'Skip $dateLabel. The activity still runs on every '
+                'other day it normally would.',
+              ),
+              onTap: () =>
+                  Navigator.of(context).pop(_DeleteChoice.thisDay),
+            ),
+            const Divider(),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                Icons.delete_sweep_outlined,
+                color: theme.colorScheme.error,
+              ),
+              title: const Text('Delete every occurrence'),
+              subtitle: const Text(
+                'Remove from every day it runs — every week within its '
+                'date range (or forever if no range is set).',
+              ),
+              onTap: () =>
+                  Navigator.of(context).pop(_DeleteChoice.allDays),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
