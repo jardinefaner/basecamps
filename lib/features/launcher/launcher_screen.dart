@@ -67,30 +67,114 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
         if (_matches(l.title)) l,
     ];
 
-    final pinnedIds = ref.watch(pinnedActionsProvider);
-    // Split actions into pinned (order follows pinnedIds) and the rest.
-    // The search filter applies to both sides so typing narrows either
-    // column without hiding the "pinned" affordance.
-    final pinnedActions = <_QuickActionData>[
-      for (final id in pinnedIds)
-        if (_QuickActionData.byId(id) case final a?)
-          if (_matches(a.label)) a,
+    final pinnedIds = ref.watch(pinnedItemsProvider);
+    // Resolve each pinned id to a live tile. Async entries (child,
+    // specialist, library) look up their current display name from
+    // the providers already watched above; an id that no longer
+    // resolves (e.g. child was deleted) is skipped silently.
+    Widget? resolvePinnedTile(String storedId) {
+      final parsed = parsePinId(storedId);
+      if (parsed == null) return null;
+      switch (parsed.kind) {
+        case PinnedKinds.action:
+          final a = _QuickActionData.byId(parsed.id);
+          if (a == null || !_matches(a.label)) return null;
+          return _PinnableTile(
+            pinId: storedId,
+            child: _QuickActionTile(action: a, ref: ref),
+          );
+        case PinnedKinds.destination:
+          final d = _DestinationData.all
+              .where((x) => x.path == parsed.id)
+              .firstOrNull;
+          if (d == null || !_matches(d.label)) return null;
+          return _PinnableTile(
+            pinId: storedId,
+            child: _DestinationTile(destination: d),
+          );
+        case PinnedKinds.child:
+          final k = children.where((x) => x.id == parsed.id).firstOrNull;
+          if (k == null ||
+              !_matches(_displayName(k.firstName, k.lastName))) {
+            return null;
+          }
+          return _PinnableTile(
+            pinId: storedId,
+            child: _PersonCell(
+              name: _displayName(k.firstName, k.lastName),
+              avatarPath: k.avatarPath,
+              fallbackInitial: k.firstName.isEmpty
+                  ? '?'
+                  : k.firstName.characters.first.toUpperCase(),
+              route: '/children/${k.id}',
+            ),
+          );
+        case PinnedKinds.specialist:
+          final s =
+              specialists.where((x) => x.id == parsed.id).firstOrNull;
+          if (s == null ||
+              !(_matches(s.name) || _matches(s.role ?? ''))) {
+            return null;
+          }
+          return _PinnableTile(
+            pinId: storedId,
+            child: _PersonCell(
+              name: s.name,
+              avatarPath: s.avatarPath,
+              fallbackInitial: s.name.isEmpty
+                  ? '?'
+                  : s.name.characters.first.toUpperCase(),
+              route: '/more/specialists/${s.id}',
+            ),
+          );
+        case PinnedKinds.library:
+          final l = library.where((x) => x.id == parsed.id).firstOrNull;
+          if (l == null || !_matches(l.title)) return null;
+          return _PinnableTile(
+            pinId: storedId,
+            child: _LibraryPill(item: l),
+          );
+      }
+      return null;
+    }
+
+    final pinnedTiles = <Widget>[
+      for (final id in pinnedIds) ?resolvePinnedTile(id),
     ];
+
+    // Each source section only shows items not already pinned — so
+    // items appear in exactly one place at a time (same semantics as
+    // the children tab's group reassignment).
     final unpinnedActions = _QuickActionData.all
-        .where((a) => !pinnedIds.contains(a.id))
+        .where((a) =>
+            !pinnedIds.contains(pinId(PinnedKinds.action, a.id)))
         .where((a) => _matches(a.label))
         .toList();
+    final unpinnedKids = filteredKids
+        .where((k) =>
+            !pinnedIds.contains(pinId(PinnedKinds.child, k.id)))
+        .toList();
+    final unpinnedSpecialists = filteredSpecialists
+        .where((s) =>
+            !pinnedIds.contains(pinId(PinnedKinds.specialist, s.id)))
+        .toList();
+    final unpinnedLibrary = filteredLibrary
+        .where((l) =>
+            !pinnedIds.contains(pinId(PinnedKinds.library, l.id)))
+        .toList();
     final destinations = _DestinationData.all
+        .where((d) =>
+            !pinnedIds.contains(pinId(PinnedKinds.destination, d.path)))
         .where((d) => _matches(d.label))
         .toList();
 
     final hasAnyResults = _query.isEmpty ||
-        pinnedActions.isNotEmpty ||
+        pinnedTiles.isNotEmpty ||
         unpinnedActions.isNotEmpty ||
         destinations.isNotEmpty ||
-        filteredKids.isNotEmpty ||
-        filteredSpecialists.isNotEmpty ||
-        filteredLibrary.isNotEmpty;
+        unpinnedKids.isNotEmpty ||
+        unpinnedSpecialists.isNotEmpty ||
+        unpinnedLibrary.isNotEmpty;
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
@@ -112,55 +196,72 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                         bottom: AppSpacing.xxxl,
                       ),
                       children: [
-                        // Pinned section always renders (empty becomes a
-                        // drop target with a placeholder) so teachers
-                        // have an obvious place to drag a tile to.
+                        // Smart Shelf — always visible. Accepts drops
+                        // of any pinnable tile (action, destination,
+                        // child, specialist, library item). Tiles
+                        // already pinned appear here and disappear
+                        // from their source section.
                         _Section(
                           label: 'Pinned',
-                          child: _PinnedActionsRow(
-                            actions: pinnedActions,
+                          child: _SmartShelf(
+                            tiles: pinnedTiles,
                             isFiltered: _query.isNotEmpty,
                           ),
                         ),
                         if (unpinnedActions.isNotEmpty)
                           _Section(
                             label: 'Quick actions',
-                            child: _QuickActionsRow(
-                              actions: unpinnedActions,
+                            child: _UnpinTarget(
+                              kind: PinnedKinds.action,
+                              child: _QuickActionsRow(
+                                actions: unpinnedActions,
+                              ),
                             ),
                           ),
-                        if (filteredKids.isNotEmpty)
+                        if (unpinnedKids.isNotEmpty)
                           _Section(
                             label: 'Children',
-                            count: filteredKids.length,
+                            count: unpinnedKids.length,
                             total: children.length,
                             query: _query,
-                            child: _PeopleWrap.fromKids(filteredKids),
+                            child: _UnpinTarget(
+                              kind: PinnedKinds.child,
+                              child: _PeopleWrap.fromKids(unpinnedKids),
+                            ),
                           ),
-                        if (filteredSpecialists.isNotEmpty)
+                        if (unpinnedSpecialists.isNotEmpty)
                           _Section(
                             label: 'Specialists',
-                            count: filteredSpecialists.length,
+                            count: unpinnedSpecialists.length,
                             total: specialists.length,
                             query: _query,
-                            child: _PeopleWrap.fromSpecialists(
-                              filteredSpecialists,
+                            child: _UnpinTarget(
+                              kind: PinnedKinds.specialist,
+                              child: _PeopleWrap.fromSpecialists(
+                                unpinnedSpecialists,
+                              ),
                             ),
                           ),
                         if (destinations.isNotEmpty)
                           _Section(
                             label: 'Sections',
-                            child: _DestinationsGrid(
-                              destinations: destinations,
+                            child: _UnpinTarget(
+                              kind: PinnedKinds.destination,
+                              child: _DestinationsGrid(
+                                destinations: destinations,
+                              ),
                             ),
                           ),
-                        if (filteredLibrary.isNotEmpty)
+                        if (unpinnedLibrary.isNotEmpty)
                           _Section(
                             label: 'Activity library',
-                            count: filteredLibrary.length,
+                            count: unpinnedLibrary.length,
                             total: library.length,
                             query: _query,
-                            child: _LibraryWrap(items: filteredLibrary),
+                            child: _UnpinTarget(
+                              kind: PinnedKinds.library,
+                              child: _LibraryWrap(items: unpinnedLibrary),
+                            ),
                           ),
                       ],
                     ),
@@ -392,16 +493,16 @@ class _QuickActionData {
   }
 }
 
-/// Pinned section — DragTarget that accepts tiles dragged from the
-/// Quick actions row, and renders the teacher's pinned set. Always
-/// visible (placeholder when empty) so the drop zone is discoverable.
-class _PinnedActionsRow extends ConsumerWidget {
-  const _PinnedActionsRow({
-    required this.actions,
+/// Smart Shelf — DragTarget that accepts any pinnable tile id (action,
+/// destination, child, specialist, library item). Always visible;
+/// placeholder copy when empty so the drop zone is discoverable.
+class _SmartShelf extends ConsumerWidget {
+  const _SmartShelf({
+    required this.tiles,
     required this.isFiltered,
   });
 
-  final List<_QuickActionData> actions;
+  final List<Widget> tiles;
 
   /// True when a search query is active — changes the empty-state copy
   /// so "no pinned matches" doesn't get confused with "no pins yet".
@@ -410,11 +511,11 @@ class _PinnedActionsRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    return DragTarget<_QuickActionData>(
+    return DragTarget<String>(
       onWillAcceptWithDetails: (d) =>
-          !ref.read(pinnedActionsProvider).contains(d.data.id),
+          !ref.read(pinnedItemsProvider).contains(d.data),
       onAcceptWithDetails: (d) =>
-          ref.read(pinnedActionsProvider.notifier).pin(d.data.id),
+          ref.read(pinnedItemsProvider.notifier).pin(d.data),
       builder: (context, candidates, _) {
         final hovering = candidates.isNotEmpty;
         return AnimatedContainer(
@@ -433,15 +534,13 @@ class _PinnedActionsRow extends ConsumerWidget {
               width: hovering ? 1.5 : 1,
             ),
           ),
-          child: actions.isEmpty
-              ? _PinnedEmpty(hovering: hovering, isFiltered: isFiltered)
+          child: tiles.isEmpty
+              ? _ShelfEmpty(hovering: hovering, isFiltered: isFiltered)
               : Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.sm,
-                  children: [
-                    for (final a in actions)
-                      _DraggableActionTile(action: a, ref: ref, pinned: true),
-                  ],
+                  spacing: AppSpacing.md,
+                  runSpacing: AppSpacing.md,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: tiles,
                 ),
         );
       },
@@ -449,8 +548,8 @@ class _PinnedActionsRow extends ConsumerWidget {
   }
 }
 
-class _PinnedEmpty extends StatelessWidget {
-  const _PinnedEmpty({required this.hovering, required this.isFiltered});
+class _ShelfEmpty extends StatelessWidget {
+  const _ShelfEmpty({required this.hovering, required this.isFiltered});
 
   final bool hovering;
   final bool isFiltered;
@@ -466,8 +565,8 @@ class _PinnedEmpty extends StatelessWidget {
           hovering
               ? 'Drop here to pin'
               : isFiltered
-                  ? 'No pinned actions match this search.'
-                  : 'Long-press any action below and drag here to pin.',
+                  ? 'No pinned items match this search.'
+                  : 'Long-press any tile below and drag here to pin.',
           textAlign: TextAlign.center,
           style: theme.textTheme.bodySmall?.copyWith(
             color: hovering
@@ -481,29 +580,32 @@ class _PinnedEmpty extends StatelessWidget {
   }
 }
 
-/// Quick actions row — DragTarget that accepts tiles dragged from the
-/// Pinned row (unpins them) and renders everything not pinned.
-class _QuickActionsRow extends ConsumerWidget {
-  const _QuickActionsRow({required this.actions});
+/// Wraps a source section so dragging a pinned tile back into its
+/// original home unpins it. Narrow-by-kind so dropping an action on
+/// the Children section is a no-op (can't unpin across kinds).
+class _UnpinTarget extends ConsumerWidget {
+  const _UnpinTarget({required this.kind, required this.child});
 
-  final List<_QuickActionData> actions;
+  final String kind;
+  final Widget child;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    return DragTarget<_QuickActionData>(
-      // Only take drops that are actually pinned — dropping an already-
-      // unpinned tile is a no-op.
-      onWillAcceptWithDetails: (d) =>
-          ref.read(pinnedActionsProvider).contains(d.data.id),
+    return DragTarget<String>(
+      onWillAcceptWithDetails: (d) {
+        final parsed = parsePinId(d.data);
+        if (parsed == null || parsed.kind != kind) return false;
+        return ref.read(pinnedItemsProvider).contains(d.data);
+      },
       onAcceptWithDetails: (d) =>
-          ref.read(pinnedActionsProvider.notifier).unpin(d.data.id),
+          ref.read(pinnedItemsProvider.notifier).unpin(d.data),
       builder: (context, candidates, _) {
         final hovering = candidates.isNotEmpty;
         return AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           curve: Curves.easeOut,
-          padding: const EdgeInsets.all(AppSpacing.sm),
+          padding: const EdgeInsets.all(AppSpacing.xs),
           decoration: BoxDecoration(
             color: hovering
                 ? theme.colorScheme.surfaceContainerHigh
@@ -516,52 +618,60 @@ class _QuickActionsRow extends ConsumerWidget {
               width: hovering ? 1.5 : 0,
             ),
           ),
-          child: Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              for (final a in actions)
-                _DraggableActionTile(action: a, ref: ref, pinned: false),
-            ],
-          ),
+          child: child,
         );
       },
     );
   }
 }
 
-/// Long-press-draggable quick-action tile. Tap runs the action; long
-/// press starts a drag so it can be dropped on the opposite section
-/// (pin / unpin). Same gesture idiom as the children tab's group
-/// reassignment.
-class _DraggableActionTile extends StatelessWidget {
-  const _DraggableActionTile({
-    required this.action,
-    required this.ref,
-    required this.pinned,
-  });
+/// Wraps any launcher tile in a long-press-draggable. [pinId] is the
+/// stored-format identifier with kind prefix (e.g. `action:new-activity`,
+/// `child:abc123`). Same gesture idiom the Children tab uses for
+/// group reassignment.
+class _PinnableTile extends StatelessWidget {
+  const _PinnableTile({required this.pinId, required this.child});
 
-  final _QuickActionData action;
-  final WidgetRef ref;
-
-  /// Decides which section this tile lives in right now — only affects
-  /// the visual hint label, not the drag payload.
-  final bool pinned;
+  final String pinId;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final tile = _QuickActionTile(action: action, ref: ref);
-    return LongPressDraggable<_QuickActionData>(
-      data: action,
+    return LongPressDraggable<String>(
+      data: pinId,
       feedback: Material(
         color: Colors.transparent,
         child: Transform.scale(
           scale: 1.06,
-          child: Opacity(opacity: 0.94, child: tile),
+          child: Opacity(opacity: 0.94, child: child),
         ),
       ),
-      childWhenDragging: Opacity(opacity: 0.35, child: tile),
-      child: tile,
+      childWhenDragging: Opacity(opacity: 0.35, child: child),
+      child: child,
+    );
+  }
+}
+
+/// Renders the unpinned quick actions. The wrapping DragTarget lives
+/// on the outer [_UnpinTarget]; each tile here is individually
+/// draggable so teachers can pin them.
+class _QuickActionsRow extends ConsumerWidget {
+  const _QuickActionsRow({required this.actions});
+
+  final List<_QuickActionData> actions;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        for (final a in actions)
+          _PinnableTile(
+            pinId: pinId(PinnedKinds.action, a.id),
+            child: _QuickActionTile(action: a, ref: ref),
+          ),
+      ],
     );
   }
 }
@@ -621,19 +731,22 @@ class _QuickActionTile extends StatelessWidget {
 // ================================================================
 
 class _PeopleWrap extends StatelessWidget {
-  const _PeopleWrap({required this.cells});
+  const _PeopleWrap({required this.tiles});
 
   factory _PeopleWrap.fromKids(List<Child> children) {
     return _PeopleWrap(
-      cells: [
+      tiles: [
         for (final k in children)
-          _PersonCell(
-            name: _displayName(k.firstName, k.lastName),
-            avatarPath: k.avatarPath,
-            fallbackInitial: k.firstName.isEmpty
-                ? '?'
-                : k.firstName.characters.first.toUpperCase(),
-            route: '/children/${k.id}',
+          _PinnableTile(
+            pinId: pinId(PinnedKinds.child, k.id),
+            child: _PersonCell(
+              name: _displayName(k.firstName, k.lastName),
+              avatarPath: k.avatarPath,
+              fallbackInitial: k.firstName.isEmpty
+                  ? '?'
+                  : k.firstName.characters.first.toUpperCase(),
+              route: '/children/${k.id}',
+            ),
           ),
       ],
     );
@@ -641,28 +754,31 @@ class _PeopleWrap extends StatelessWidget {
 
   factory _PeopleWrap.fromSpecialists(List<Specialist> specialists) {
     return _PeopleWrap(
-      cells: [
+      tiles: [
         for (final s in specialists)
-          _PersonCell(
-            name: s.name,
-            avatarPath: s.avatarPath,
-            fallbackInitial: s.name.isEmpty
-                ? '?'
-                : s.name.characters.first.toUpperCase(),
-            route: '/more/specialists/${s.id}',
+          _PinnableTile(
+            pinId: pinId(PinnedKinds.specialist, s.id),
+            child: _PersonCell(
+              name: s.name,
+              avatarPath: s.avatarPath,
+              fallbackInitial: s.name.isEmpty
+                  ? '?'
+                  : s.name.characters.first.toUpperCase(),
+              route: '/more/specialists/${s.id}',
+            ),
           ),
       ],
     );
   }
 
-  final List<_PersonCell> cells;
+  final List<Widget> tiles;
 
   @override
   Widget build(BuildContext context) {
     return Wrap(
       spacing: AppSpacing.md,
       runSpacing: AppSpacing.md,
-      children: cells,
+      children: tiles,
     );
   }
 }
@@ -806,7 +922,13 @@ class _DestinationsGrid extends StatelessWidget {
         childAspectRatio: 1.15,
       ),
       itemCount: destinations.length,
-      itemBuilder: (_, i) => _DestinationTile(destination: destinations[i]),
+      itemBuilder: (_, i) {
+        final d = destinations[i];
+        return _PinnableTile(
+          pinId: pinId(PinnedKinds.destination, d.path),
+          child: _DestinationTile(destination: d),
+        );
+      },
     );
   }
 }
@@ -874,7 +996,11 @@ class _LibraryWrap extends StatelessWidget {
       spacing: AppSpacing.sm,
       runSpacing: AppSpacing.sm,
       children: [
-        for (final item in items) _LibraryPill(item: item),
+        for (final item in items)
+          _PinnableTile(
+            pinId: pinId(PinnedKinds.library, item.id),
+            child: _LibraryPill(item: item),
+          ),
       ],
     );
   }
