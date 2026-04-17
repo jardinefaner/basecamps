@@ -1,5 +1,7 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/kids/kids_repository.dart';
+import 'package:basecamp/features/kids/pod_colors.dart';
+import 'package:basecamp/features/kids/widgets/edit_pod_sheet.dart';
 import 'package:basecamp/features/kids/widgets/kid_tile.dart';
 import 'package:basecamp/features/kids/widgets/new_kid_wizard.dart';
 import 'package:basecamp/features/kids/widgets/new_pod_wizard.dart';
@@ -117,10 +119,22 @@ class _PodSection extends StatelessWidget {
   final Pod? pod;
   final List<Kid> kids;
 
+  Future<void> _openEdit(BuildContext context) async {
+    final current = pod;
+    if (current == null) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => EditPodSheet(pod: current),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final title = pod?.name ?? 'Unassigned';
+    final swatch = podColorFromHex(pod?.colorHex);
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -130,27 +144,53 @@ class _PodSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(
-              left: AppSpacing.xs,
-              bottom: AppSpacing.sm,
-            ),
-            child: Row(
-              children: [
-                Text(
-                  title.toUpperCase(),
-                  style: theme.textTheme.labelMedium,
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  '${kids.length}',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+          // Pod header is a tappable surface on real pods — opens the
+          // edit sheet. Unassigned is never tappable (no pod to edit).
+          InkWell(
+            onTap: pod == null ? null : () => _openEdit(context),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xs,
+                vertical: AppSpacing.xs,
+              ),
+              child: Row(
+                children: [
+                  if (swatch != null) ...[
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: swatch,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                  ],
+                  Text(
+                    title.toUpperCase(),
+                    style: theme.textTheme.labelMedium,
                   ),
-                ),
-              ],
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    '${kids.length}',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  if (pod != null) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    Icon(
+                      Icons.edit_outlined,
+                      size: 12,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
+          const SizedBox(height: AppSpacing.xs),
           if (kids.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(

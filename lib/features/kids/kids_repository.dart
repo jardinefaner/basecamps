@@ -44,6 +44,13 @@ class KidsRepository {
         .getSingleOrNull();
   }
 
+  /// Stream a single pod so screens (section headers, detail sheets,
+  /// etc.) rebuild on rename or color change.
+  Stream<Pod?> watchPod(String id) {
+    return (_db.select(_db.pods)..where((p) => p.id.equals(id)))
+        .watchSingleOrNull();
+  }
+
   Future<String> addPod({required String name, String? colorHex}) async {
     final id = newId();
     await _db.into(_db.pods).insert(
@@ -54,6 +61,26 @@ class KidsRepository {
           ),
         );
     return id;
+  }
+
+  /// Partial pod edit. Passing `null` means "leave alone"; use
+  /// [clearColor] to drop the color back to null. Matches the
+  /// clear-vs-absent convention the kids/observations repos use.
+  Future<void> updatePod({
+    required String id,
+    String? name,
+    String? colorHex,
+    bool clearColor = false,
+  }) async {
+    await (_db.update(_db.pods)..where((p) => p.id.equals(id))).write(
+      PodsCompanion(
+        name: name == null ? const Value.absent() : Value(name),
+        colorHex: clearColor
+            ? const Value<String?>(null)
+            : (colorHex == null ? const Value.absent() : Value(colorHex)),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
   }
 
   Future<String> addKid({
@@ -165,6 +192,6 @@ final kidProvider = StreamProvider.family<Kid?, String>((ref, id) {
 
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types
-final podProvider = FutureProvider.family<Pod?, String>((ref, id) {
-  return ref.watch(kidsRepositoryProvider).getPod(id);
+final podProvider = StreamProvider.family<Pod?, String>((ref, id) {
+  return ref.watch(kidsRepositoryProvider).watchPod(id);
 });
