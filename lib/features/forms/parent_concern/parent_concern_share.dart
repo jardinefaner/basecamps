@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_export.dart';
@@ -119,14 +120,60 @@ Future<void> _printPdf(ParentConcernNote note) async {
 /// receiving side. Putting the content in the share-sheet's text
 /// payload sidesteps that entirely: every target treats it as the
 /// message body and the recipient reads it immediately.
+///
+/// Drawn signatures ride along as PNG attachments — the markdown
+/// references them by filename so the recipient can match which
+/// image belongs to which signer, and PNGs travel cleanly through
+/// every mail / messaging client we've tested.
 Future<void> _shareAsText(ParentConcernNote note) async {
-  final md = buildParentConcernMarkdown(note);
+  final attachments = <XFile>[];
+  final staffFile = await _signatureAttachment(
+    path: note.staffSignaturePath,
+    role: 'staff',
+    note: note,
+  );
+  if (staffFile != null) attachments.add(staffFile);
+  final supervisorFile = await _signatureAttachment(
+    path: note.supervisorSignaturePath,
+    role: 'supervisor',
+    note: note,
+  );
+  if (supervisorFile != null) attachments.add(supervisorFile);
+
+  final md = buildParentConcernMarkdown(
+    note,
+    staffSignatureAttachmentName: staffFile?.name,
+    supervisorSignatureAttachmentName: supervisorFile?.name,
+  );
+
   await SharePlus.instance.share(
     ShareParams(
       text: md,
+      files: attachments.isEmpty ? null : attachments,
       subject: 'Parent Concern Note',
     ),
   );
+}
+
+/// Copies a saved signature to a share-friendly temp file with a
+/// predictable name (so the markdown can reference it). Returns null
+/// when there's no signature on file or the source has been moved.
+Future<XFile?> _signatureAttachment({
+  required String? path,
+  required String role,
+  required ParentConcernNote note,
+}) async {
+  if (path == null || kIsWeb) return null;
+  final source = File(path);
+  if (!source.existsSync()) return null;
+  // Predictable name so the markdown can call it out. Keep the
+  // timestamp from the filename helper so multi-note shares don't
+  // collide if the recipient saves them off.
+  final child = note.childNames.trim().isEmpty ? 'note' : note.childNames;
+  final safe = child.replaceAll(RegExp('[^A-Za-z0-9_-]+'), '-');
+  final stamp = DateTime.now().millisecondsSinceEpoch.toString();
+  final filename = 'signature-$role-$safe-$stamp.png';
+  return XFile(source.path, name: filename, mimeType: 'image/png');
 }
 
 Future<void> _copyAsText(ParentConcernNote note) async {

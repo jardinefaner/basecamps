@@ -222,6 +222,15 @@ pw.Widget _signatureBlock({
       ? '(No printed name)'
       : printedName.trim();
 
+  // Signature box sizing: a real drawn sig is usually short and wide
+  // (letter-like), so cap the rendering box at 240 × 70pt — roughly
+  // a 3:1 aspect ratio that holds handwriting without dwarfing the
+  // rest of the signatures card. The missing-signature placeholder
+  // uses the same box so the layout doesn't jump between signed and
+  // unsigned notes.
+  const boxWidth = 240.0;
+  const boxHeight = 70.0;
+
   return pw.Column(
     crossAxisAlignment: pw.CrossAxisAlignment.start,
     children: [
@@ -232,7 +241,8 @@ pw.Widget _signatureBlock({
       pw.SizedBox(height: 4),
       if (image != null)
         pw.Container(
-          height: 80,
+          width: boxWidth,
+          height: boxHeight,
           decoration: pw.BoxDecoration(
             border: pw.Border.all(color: PdfColors.grey400, width: 0.5),
           ),
@@ -242,7 +252,8 @@ pw.Widget _signatureBlock({
         )
       else
         pw.Container(
-          height: 56,
+          width: boxWidth,
+          height: boxHeight,
           decoration: pw.BoxDecoration(
             border: pw.Border.all(
               color: PdfColors.grey300,
@@ -393,7 +404,17 @@ String _formatDateTime(DateTime d) {
 /// appear as `[Signed Apr 17, 2026 · 3:30p]` callouts rather than
 /// embedded images, since inline base64 images balloon email size
 /// and break in many renderers.
-String buildParentConcernMarkdown(ParentConcernNote note) {
+///
+/// Pass `staffSignatureAttachmentName` / `supervisorSignatureAttachmentName`
+/// when the caller is also attaching the drawn-signature PNGs (e.g.
+/// via share_plus files). The signature line then points at the
+/// attachment by filename so the recipient knows which image
+/// corresponds to which signer.
+String buildParentConcernMarkdown(
+  ParentConcernNote note, {
+  String? staffSignatureAttachmentName,
+  String? supervisorSignatureAttachmentName,
+}) {
   final b = StringBuffer();
 
   b.writeln('# Parent Concern Note');
@@ -465,6 +486,7 @@ String buildParentConcernMarkdown(ParentConcernNote note) {
     printedName: note.staffSignature,
     signedAt: note.staffSignatureDate,
     drawn: note.staffSignaturePath != null,
+    attachmentName: staffSignatureAttachmentName,
   );
   _mdSignature(
     b,
@@ -472,6 +494,7 @@ String buildParentConcernMarkdown(ParentConcernNote note) {
     printedName: note.supervisorSignature,
     signedAt: note.supervisorSignatureDate,
     drawn: note.supervisorSignaturePath != null,
+    attachmentName: supervisorSignatureAttachmentName,
   );
 
   return b.toString();
@@ -500,12 +523,18 @@ void _mdSignature(
   required String? printedName,
   required DateTime? signedAt,
   required bool drawn,
+  String? attachmentName,
 }) {
   final name = (printedName == null || printedName.trim().isEmpty)
       ? '_(no printed name)_'
       : '**${printedName.trim()}**';
+  final drawnBlurb = drawn
+      ? (attachmentName != null
+          ? ' · drawn signature attached (`$attachmentName`)'
+          : ' · drawn signature on file')
+      : '';
   final signed = signedAt == null
       ? '_(not signed)_'
-      : '_signed ${_formatDateTime(signedAt)}${drawn ? " · drawn signature on file" : ""}_';
+      : '_signed ${_formatDateTime(signedAt)}${drawnBlurb}_';
   b.writeln('- **$role:** $name — $signed');
 }
