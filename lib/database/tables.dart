@@ -241,6 +241,13 @@ class ScheduleTemplates extends Table {
   TextColumn get endTime => text()();
   BoolColumn get isFullDay => boolean().withDefault(const Constant(false))();
   TextColumn get title => text()();
+  // Shared id for templates created together in the same wizard pass
+  // (one row per picked day). Used by "delete every occurrence" to
+  // wipe every weekday's instance of the same activity at once, not
+  // just the one row the teacher happened to tap. Null for legacy
+  // rows predating the column and for single-day templates; deletion
+  // semantics fall back to a row-by-row delete in that case.
+  TextColumn get groupId => text().nullable()();
   TextColumn get podId =>
       text().nullable().references(Pods, #id, onDelete: KeyAction.setNull)();
   // Deprecated: use specialistId instead. Retained for migration backfill only.

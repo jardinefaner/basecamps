@@ -196,12 +196,15 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     // (e.g. opening from an empty state) fall back to the single
     // all-or-nothing dialog.
     if (occ != null) {
+      final groupCount = await repo.countTemplatesInGroupFor(template.id);
+      if (!mounted) return;
       final choice = await showModalBottomSheet<_DeleteChoice>(
         context: context,
         showDragHandle: true,
         builder: (ctx) => _DeleteOptionsSheet(
           title: template.title,
           occurrenceDate: occ,
+          groupCount: groupCount,
         ),
       );
       if (choice == null) return;
@@ -211,21 +214,27 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
           date: occ,
         );
       } else {
-        await repo.deleteTemplate(template.id);
+        await repo.deleteTemplateGroupFor(template.id);
       }
       if (!mounted) return;
       Navigator.of(context).pop();
       return;
     }
 
+    final count = await repo.countTemplatesInGroupFor(template.id);
+    if (!mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete every occurrence?'),
         content: Text(
-          'This removes "${template.title}" from every day it runs — '
-          'every week within its date range (or forever if no range is '
-          'set). Cannot be undone.',
+          count > 1
+              ? 'This removes "${template.title}" from all $count days '
+                  'it runs (every week within any date range set). '
+                  'Cannot be undone.'
+              : 'This removes "${template.title}" from every day it '
+                  'runs — every week within its date range (or forever '
+                  'if no range is set). Cannot be undone.',
         ),
         actions: [
           TextButton(
@@ -244,7 +253,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
       ),
     );
     if (confirmed != true) return;
-    await repo.deleteTemplate(template.id);
+    await repo.deleteTemplateGroupFor(template.id);
     if (!mounted) return;
     Navigator.of(context).pop();
   }
@@ -816,10 +825,16 @@ class _DeleteOptionsSheet extends StatelessWidget {
   const _DeleteOptionsSheet({
     required this.title,
     required this.occurrenceDate,
+    required this.groupCount,
   });
 
   final String title;
   final DateTime occurrenceDate;
+
+  /// Total number of template rows that share this activity — shown
+  /// in the subtitle so the teacher knows the tap-to-confirm blast
+  /// radius before committing.
+  final int groupCount;
 
   @override
   Widget build(BuildContext context) {
@@ -862,10 +877,18 @@ class _DeleteOptionsSheet extends StatelessWidget {
                 Icons.delete_sweep_outlined,
                 color: theme.colorScheme.error,
               ),
-              title: const Text('Delete every occurrence'),
-              subtitle: const Text(
-                'Remove from every day it runs — every week within its '
-                'date range (or forever if no range is set).',
+              title: Text(
+                groupCount > 1
+                    ? 'Delete all $groupCount days'
+                    : 'Delete every occurrence',
+              ),
+              subtitle: Text(
+                groupCount > 1
+                    ? 'Removes "$title" from every weekday it runs — all '
+                        '$groupCount days, every week within any date '
+                        'range set.'
+                    : 'Remove from every day it runs — every week within '
+                        'its date range (or forever if no range is set).',
               ),
               onTap: () =>
                   Navigator.of(context).pop(_DeleteChoice.allDays),

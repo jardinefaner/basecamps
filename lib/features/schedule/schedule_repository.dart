@@ -184,6 +184,7 @@ class ScheduleRepository {
     String? notes,
     DateTime? startDate,
     DateTime? endDate,
+    String? groupId,
   }) async {
     final id = newId();
     await _db.transaction(() async {
@@ -200,6 +201,7 @@ class ScheduleRepository {
               notes: Value(notes),
               startDate: Value(startDate == null ? null : _dayOnly(startDate)),
               endDate: Value(endDate == null ? null : _dayOnly(endDate)),
+              groupId: Value(groupId),
             ),
           );
       for (final podId in podIds) {
@@ -257,6 +259,56 @@ class ScheduleRepository {
   Future<void> deleteTemplate(String id) async {
     await (_db.delete(_db.scheduleTemplates)..where((t) => t.id.equals(id)))
         .go();
+  }
+
+  /// Deletes every template that represents the same activity as the
+  /// one with this id — i.e. every weekday-row of the "Mon + Wed + Fri
+  /// Art" set the wizard created together. New rows use the explicit
+  /// `groupId` column; legacy rows (created before group tracking was
+  /// added, and single-day templates) fall back to a shape match on
+  /// title + startTime + endTime.
+  Future<int> deleteTemplateGroupFor(String id) async {
+    final siblings = await _siblingTemplatesFor(id);
+    if (siblings.isEmpty) return 0;
+    return (_db.delete(_db.scheduleTemplates)
+          ..where((t) => t.id.isIn(siblings.map((r) => r.id))))
+        .go();
+  }
+
+  /// Count of templates the "delete every occurrence" confirmation
+  /// will actually remove — the shape-aware group size.
+  Future<int> countTemplatesInGroupFor(String id) async {
+    final siblings = await _siblingTemplatesFor(id);
+    return siblings.length;
+  }
+
+  /// Returns every template that belongs to the same activity group
+  /// as the row with this id. Group identity is:
+  ///   - `groupId` when set (authoritative; wizard stamps a fresh one
+  ///     per create pass),
+  ///   - otherwise same (title, startTime, endTime) pre-migration.
+  /// The tapped row is always included in the result.
+  Future<List<ScheduleTemplate>> _siblingTemplatesFor(String id) async {
+    final row = await (_db.select(_db.scheduleTemplates)
+          ..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    if (row == null) return const [];
+    final group = row.groupId;
+    if (group != null) {
+      return (_db.select(_db.scheduleTemplates)
+            ..where((t) => t.groupId.equals(group)))
+          .get();
+    }
+    // Legacy fallback — shape match on the three fields a teacher
+    // would recognise as "same activity, different day".
+    return (_db.select(_db.scheduleTemplates)
+          ..where(
+            (t) =>
+                t.title.equals(row.title) &
+                t.startTime.equals(row.startTime) &
+                t.endTime.equals(row.endTime),
+          ))
+        .get();
   }
 
   /// Duplicates all templates from [sourceDay] into each of [targetDays].

@@ -38,7 +38,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 19;
+  int get schemaVersion => 20;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -268,6 +268,15 @@ class AppDatabase extends _$AppDatabase {
             // in their own table so the specialist detail screen can
             // show "when I work" distinct from "activities I run".
             await _createTableIfMissing(m, specialistAvailability);
+          }
+          if (from < 20) {
+            // Group id on templates — lets "delete every occurrence"
+            // sweep every weekday row the wizard created together.
+            await _addColumnIfMissing(
+              m,
+              scheduleTemplates,
+              scheduleTemplates.groupId,
+            );
           }
         },
       );

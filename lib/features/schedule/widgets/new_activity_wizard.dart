@@ -1,3 +1,4 @@
+import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/forms/widgets/specialist_chip_picker.dart';
@@ -156,6 +157,10 @@ class _NewActivityWizardScreenState
     // activities actually are, and keeps the schedule from filling up
     // with perpetual rows people forget about.
     final bounds = _effectiveRange();
+    // One fresh group id per wizard pass, so "delete every occurrence"
+    // on any tapped day can later nuke every weekday row this submit
+    // is about to create.
+    final groupId = _selectedDays.length > 1 ? newId() : null;
     for (final day in _selectedDays) {
       await repo.addTemplate(
         dayOfWeek: day,
@@ -167,6 +172,7 @@ class _NewActivityWizardScreenState
         location: location,
         startDate: bounds.start,
         endDate: bounds.end,
+        groupId: groupId,
       );
     }
     if (!mounted) return;

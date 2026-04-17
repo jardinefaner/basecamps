@@ -5842,6 +5842,17 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _groupIdMeta = const VerificationMeta(
+    'groupId',
+  );
+  @override
+  late final GeneratedColumn<String> groupId = GeneratedColumn<String>(
+    'group_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _podIdMeta = const VerificationMeta('podId');
   @override
   late final GeneratedColumn<String> podId = GeneratedColumn<String>(
@@ -5953,6 +5964,7 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
     endTime,
     isFullDay,
     title,
+    groupId,
     podId,
     specialistName,
     specialistId,
@@ -6017,6 +6029,12 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
       );
     } else if (isInserting) {
       context.missing(_titleMeta);
+    }
+    if (data.containsKey('group_id')) {
+      context.handle(
+        _groupIdMeta,
+        groupId.isAcceptableOrUnknown(data['group_id']!, _groupIdMeta),
+      );
     }
     if (data.containsKey('pod_id')) {
       context.handle(
@@ -6111,6 +6129,10 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
         DriftSqlType.string,
         data['${effectivePrefix}title'],
       )!,
+      groupId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}group_id'],
+      ),
       podId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}pod_id'],
@@ -6164,6 +6186,7 @@ class ScheduleTemplate extends DataClass
   final String endTime;
   final bool isFullDay;
   final String title;
+  final String? groupId;
   final String? podId;
   final String? specialistName;
   final String? specialistId;
@@ -6180,6 +6203,7 @@ class ScheduleTemplate extends DataClass
     required this.endTime,
     required this.isFullDay,
     required this.title,
+    this.groupId,
     this.podId,
     this.specialistName,
     this.specialistId,
@@ -6199,6 +6223,9 @@ class ScheduleTemplate extends DataClass
     map['end_time'] = Variable<String>(endTime);
     map['is_full_day'] = Variable<bool>(isFullDay);
     map['title'] = Variable<String>(title);
+    if (!nullToAbsent || groupId != null) {
+      map['group_id'] = Variable<String>(groupId);
+    }
     if (!nullToAbsent || podId != null) {
       map['pod_id'] = Variable<String>(podId);
     }
@@ -6233,6 +6260,9 @@ class ScheduleTemplate extends DataClass
       endTime: Value(endTime),
       isFullDay: Value(isFullDay),
       title: Value(title),
+      groupId: groupId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(groupId),
       podId: podId == null && nullToAbsent
           ? const Value.absent()
           : Value(podId),
@@ -6271,6 +6301,7 @@ class ScheduleTemplate extends DataClass
       endTime: serializer.fromJson<String>(json['endTime']),
       isFullDay: serializer.fromJson<bool>(json['isFullDay']),
       title: serializer.fromJson<String>(json['title']),
+      groupId: serializer.fromJson<String?>(json['groupId']),
       podId: serializer.fromJson<String?>(json['podId']),
       specialistName: serializer.fromJson<String?>(json['specialistName']),
       specialistId: serializer.fromJson<String?>(json['specialistId']),
@@ -6292,6 +6323,7 @@ class ScheduleTemplate extends DataClass
       'endTime': serializer.toJson<String>(endTime),
       'isFullDay': serializer.toJson<bool>(isFullDay),
       'title': serializer.toJson<String>(title),
+      'groupId': serializer.toJson<String?>(groupId),
       'podId': serializer.toJson<String?>(podId),
       'specialistName': serializer.toJson<String?>(specialistName),
       'specialistId': serializer.toJson<String?>(specialistId),
@@ -6311,6 +6343,7 @@ class ScheduleTemplate extends DataClass
     String? endTime,
     bool? isFullDay,
     String? title,
+    Value<String?> groupId = const Value.absent(),
     Value<String?> podId = const Value.absent(),
     Value<String?> specialistName = const Value.absent(),
     Value<String?> specialistId = const Value.absent(),
@@ -6327,6 +6360,7 @@ class ScheduleTemplate extends DataClass
     endTime: endTime ?? this.endTime,
     isFullDay: isFullDay ?? this.isFullDay,
     title: title ?? this.title,
+    groupId: groupId.present ? groupId.value : this.groupId,
     podId: podId.present ? podId.value : this.podId,
     specialistName: specialistName.present
         ? specialistName.value
@@ -6347,6 +6381,7 @@ class ScheduleTemplate extends DataClass
       endTime: data.endTime.present ? data.endTime.value : this.endTime,
       isFullDay: data.isFullDay.present ? data.isFullDay.value : this.isFullDay,
       title: data.title.present ? data.title.value : this.title,
+      groupId: data.groupId.present ? data.groupId.value : this.groupId,
       podId: data.podId.present ? data.podId.value : this.podId,
       specialistName: data.specialistName.present
           ? data.specialistName.value
@@ -6372,6 +6407,7 @@ class ScheduleTemplate extends DataClass
           ..write('endTime: $endTime, ')
           ..write('isFullDay: $isFullDay, ')
           ..write('title: $title, ')
+          ..write('groupId: $groupId, ')
           ..write('podId: $podId, ')
           ..write('specialistName: $specialistName, ')
           ..write('specialistId: $specialistId, ')
@@ -6393,6 +6429,7 @@ class ScheduleTemplate extends DataClass
     endTime,
     isFullDay,
     title,
+    groupId,
     podId,
     specialistName,
     specialistId,
@@ -6413,6 +6450,7 @@ class ScheduleTemplate extends DataClass
           other.endTime == this.endTime &&
           other.isFullDay == this.isFullDay &&
           other.title == this.title &&
+          other.groupId == this.groupId &&
           other.podId == this.podId &&
           other.specialistName == this.specialistName &&
           other.specialistId == this.specialistId &&
@@ -6431,6 +6469,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
   final Value<String> endTime;
   final Value<bool> isFullDay;
   final Value<String> title;
+  final Value<String?> groupId;
   final Value<String?> podId;
   final Value<String?> specialistName;
   final Value<String?> specialistId;
@@ -6448,6 +6487,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     this.endTime = const Value.absent(),
     this.isFullDay = const Value.absent(),
     this.title = const Value.absent(),
+    this.groupId = const Value.absent(),
     this.podId = const Value.absent(),
     this.specialistName = const Value.absent(),
     this.specialistId = const Value.absent(),
@@ -6466,6 +6506,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     required String endTime,
     this.isFullDay = const Value.absent(),
     required String title,
+    this.groupId = const Value.absent(),
     this.podId = const Value.absent(),
     this.specialistName = const Value.absent(),
     this.specialistId = const Value.absent(),
@@ -6488,6 +6529,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     Expression<String>? endTime,
     Expression<bool>? isFullDay,
     Expression<String>? title,
+    Expression<String>? groupId,
     Expression<String>? podId,
     Expression<String>? specialistName,
     Expression<String>? specialistId,
@@ -6506,6 +6548,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
       if (endTime != null) 'end_time': endTime,
       if (isFullDay != null) 'is_full_day': isFullDay,
       if (title != null) 'title': title,
+      if (groupId != null) 'group_id': groupId,
       if (podId != null) 'pod_id': podId,
       if (specialistName != null) 'specialist_name': specialistName,
       if (specialistId != null) 'specialist_id': specialistId,
@@ -6526,6 +6569,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     Value<String>? endTime,
     Value<bool>? isFullDay,
     Value<String>? title,
+    Value<String?>? groupId,
     Value<String?>? podId,
     Value<String?>? specialistName,
     Value<String?>? specialistId,
@@ -6544,6 +6588,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
       endTime: endTime ?? this.endTime,
       isFullDay: isFullDay ?? this.isFullDay,
       title: title ?? this.title,
+      groupId: groupId ?? this.groupId,
       podId: podId ?? this.podId,
       specialistName: specialistName ?? this.specialistName,
       specialistId: specialistId ?? this.specialistId,
@@ -6577,6 +6622,9 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     }
     if (title.present) {
       map['title'] = Variable<String>(title.value);
+    }
+    if (groupId.present) {
+      map['group_id'] = Variable<String>(groupId.value);
     }
     if (podId.present) {
       map['pod_id'] = Variable<String>(podId.value);
@@ -6620,6 +6668,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
           ..write('endTime: $endTime, ')
           ..write('isFullDay: $isFullDay, ')
           ..write('title: $title, ')
+          ..write('groupId: $groupId, ')
           ..write('podId: $podId, ')
           ..write('specialistName: $specialistName, ')
           ..write('specialistId: $specialistId, ')
@@ -16789,6 +16838,7 @@ typedef $$ScheduleTemplatesTableCreateCompanionBuilder =
       required String endTime,
       Value<bool> isFullDay,
       required String title,
+      Value<String?> groupId,
       Value<String?> podId,
       Value<String?> specialistName,
       Value<String?> specialistId,
@@ -16808,6 +16858,7 @@ typedef $$ScheduleTemplatesTableUpdateCompanionBuilder =
       Value<String> endTime,
       Value<bool> isFullDay,
       Value<String> title,
+      Value<String?> groupId,
       Value<String?> podId,
       Value<String?> specialistName,
       Value<String?> specialistId,
@@ -16955,6 +17006,11 @@ class $$ScheduleTemplatesTableFilterComposer
 
   ColumnFilters<String> get title => $composableBuilder(
     column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get groupId => $composableBuilder(
+    column: $table.groupId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -17129,6 +17185,11 @@ class $$ScheduleTemplatesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get groupId => $composableBuilder(
+    column: $table.groupId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get specialistName => $composableBuilder(
     column: $table.specialistName,
     builder: (column) => ColumnOrderings(column),
@@ -17237,6 +17298,9 @@ class $$ScheduleTemplatesTableAnnotationComposer
 
   GeneratedColumn<String> get title =>
       $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get groupId =>
+      $composableBuilder(column: $table.groupId, builder: (column) => column);
 
   GeneratedColumn<String> get specialistName => $composableBuilder(
     column: $table.specialistName,
@@ -17402,6 +17466,7 @@ class $$ScheduleTemplatesTableTableManager
                 Value<String> endTime = const Value.absent(),
                 Value<bool> isFullDay = const Value.absent(),
                 Value<String> title = const Value.absent(),
+                Value<String?> groupId = const Value.absent(),
                 Value<String?> podId = const Value.absent(),
                 Value<String?> specialistName = const Value.absent(),
                 Value<String?> specialistId = const Value.absent(),
@@ -17419,6 +17484,7 @@ class $$ScheduleTemplatesTableTableManager
                 endTime: endTime,
                 isFullDay: isFullDay,
                 title: title,
+                groupId: groupId,
                 podId: podId,
                 specialistName: specialistName,
                 specialistId: specialistId,
@@ -17438,6 +17504,7 @@ class $$ScheduleTemplatesTableTableManager
                 required String endTime,
                 Value<bool> isFullDay = const Value.absent(),
                 required String title,
+                Value<String?> groupId = const Value.absent(),
                 Value<String?> podId = const Value.absent(),
                 Value<String?> specialistName = const Value.absent(),
                 Value<String?> specialistId = const Value.absent(),
@@ -17455,6 +17522,7 @@ class $$ScheduleTemplatesTableTableManager
                 endTime: endTime,
                 isFullDay: isFullDay,
                 title: title,
+                groupId: groupId,
                 podId: podId,
                 specialistName: specialistName,
                 specialistId: specialistId,
