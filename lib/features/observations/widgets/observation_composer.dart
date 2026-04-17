@@ -49,6 +49,20 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
   void initState() {
     super.initState();
     _noteController.addListener(() => setState(() {}));
+    // Focus drives the Speak → Send flip: the moment the teacher taps
+    // into the field the keyboard appears and the primary button should
+    // already read "Send".
+    _noteFocus.addListener(() => setState(() {}));
+  }
+
+  /// Three-way mode for the bottom row. See build() for the layout each
+  /// state produces.
+  _ComposerMode get _mode {
+    if (_voiceActive) return _ComposerMode.recording;
+    // Once there's content, or the field has focus, commit to Send mode
+    // so "Speak" doesn't flash back in mid-typing.
+    if (_hasContent || _noteFocus.hasFocus) return _ComposerMode.send;
+    return _ComposerMode.speak;
   }
 
   @override
@@ -323,6 +337,76 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
     );
   }
 
+  /// The bottom-row layout shifts based on [_mode]:
+  /// * speak    — idle & empty: big "Speak" primary, no disabled Send.
+  /// * recording — mic turned into a prominent red Stop with live caption.
+  /// * send     — typing or post-voice: small mic beside camera, Send
+  ///              primary (disabled only if there's truly nothing to send).
+  Widget _buildActionRow(ThemeData theme) {
+    final camera = IconButton(
+      onPressed: _showAttachSheet,
+      icon: const Icon(Icons.add_photo_alternate_outlined),
+      tooltip: 'Attach photo or video',
+    );
+
+    switch (_mode) {
+      case _ComposerMode.speak:
+        return Row(
+          key: const ValueKey('speak'),
+          children: [
+            camera,
+            const Spacer(),
+            FilledButton.icon(
+              onPressed: _onMicPressed,
+              icon: const Icon(Icons.mic_none_outlined, size: 18),
+              label: const Text('Speak'),
+            ),
+          ],
+        );
+      case _ComposerMode.recording:
+        return Row(
+          key: const ValueKey('recording'),
+          children: [
+            camera,
+            const Spacer(),
+            FilledButton.icon(
+              onPressed: _onMicPressed,
+              style: FilledButton.styleFrom(
+                backgroundColor: theme.colorScheme.errorContainer,
+                foregroundColor: theme.colorScheme.onErrorContainer,
+              ),
+              icon: const Icon(Icons.stop, size: 18),
+              label: const Text('Stop'),
+            ),
+          ],
+        );
+      case _ComposerMode.send:
+        return Row(
+          key: const ValueKey('send'),
+          children: [
+            camera,
+            IconButton(
+              onPressed: _onMicPressed,
+              icon: const Icon(Icons.mic_none_outlined),
+              tooltip: 'Voice input',
+            ),
+            const Spacer(),
+            FilledButton.icon(
+              onPressed: _hasContent && !_submitting ? _submit : null,
+              icon: _submitting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.arrow_upward, size: 18),
+              label: const Text('Send'),
+            ),
+          ],
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -418,40 +502,11 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
                 AppSpacing.sm,
                 AppSpacing.sm,
               ),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: _showAttachSheet,
-                    icon: const Icon(Icons.add_photo_alternate_outlined),
-                    tooltip: 'Attach photo or video',
-                  ),
-                  IconButton(
-                    onPressed: _onMicPressed,
-                    style: _voiceActive
-                        ? IconButton.styleFrom(
-                            backgroundColor: theme.colorScheme.errorContainer,
-                            foregroundColor:
-                                theme.colorScheme.onErrorContainer,
-                          )
-                        : null,
-                    icon: Icon(
-                      _voiceActive ? Icons.stop : Icons.mic_none_outlined,
-                    ),
-                    tooltip: _voiceActive ? 'Stop' : 'Voice input',
-                  ),
-                  const Spacer(),
-                  FilledButton.icon(
-                    onPressed: _hasContent && !_submitting ? _submit : null,
-                    icon: _submitting
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.arrow_upward, size: 18),
-                    label: const Text('Send'),
-                  ),
-                ],
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                child: _buildActionRow(theme),
               ),
             ),
           ],
@@ -460,6 +515,10 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
     );
   }
 }
+
+/// Which bottom-row layout the composer shows. Picked fresh every build
+/// from controller content, focus state, and active voice session.
+enum _ComposerMode { speak, recording, send }
 
 class _PendingAttachment {
   _PendingAttachment({required this.kind, required this.path});
