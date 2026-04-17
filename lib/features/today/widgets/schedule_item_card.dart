@@ -8,13 +8,28 @@ import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+/// List card for an activity on Today. Shows time, title, pod/specialist/
+/// location subtitle, status badges, and (when relevant) three dynamic
+/// affordances:
+///
+/// * **Next-up badge** — the very next upcoming activity displays an
+///   "IN N MIN" chip so the teacher can prep.
+/// * **Obs prompt** — past activities with zero observations today surface
+///   a subtle "Log observations →" strip; tapping jumps to Observe.
+/// * **Concern flag** — a red chip when any kid in this activity's pod
+///   has an active concern logged today; tapping opens that concern.
 class ScheduleItemCard extends ConsumerWidget {
   const ScheduleItemCard({
     required this.item,
     required this.isNow,
     required this.isPast,
     this.conflicts = const [],
+    this.minutesUntilStart,
+    this.showLogObservationsPrompt = false,
+    this.concernMatch,
     this.onTap,
+    this.onLogObservations,
+    this.onOpenConcern,
     super.key,
   });
 
@@ -22,7 +37,24 @@ class ScheduleItemCard extends ConsumerWidget {
   final bool isNow;
   final bool isPast;
   final List<ConflictInfo> conflicts;
+
+  /// Non-null only for the single "next up" activity. When ≤ 60 the card
+  /// shows an "IN N MIN" chip to cue the teacher to wrap up and prep.
+  final int? minutesUntilStart;
+
+  /// When true, renders a "Log observations →" strip under the subtitle.
+  /// Only the parent knows what counts as "past with zero logs" — it
+  /// resolves the flag from today's activity-count map.
+  final bool showLogObservationsPrompt;
+
+  /// A concern to surface if any kid in this activity's pod matches.
+  /// The parent does the pod-to-concern lookup; this card just renders
+  /// whatever it's handed.
+  final ConcernMatch? concernMatch;
+
   final VoidCallback? onTap;
+  final VoidCallback? onLogObservations;
+  final VoidCallback? onOpenConcern;
 
   bool get _hasConflict => conflicts.isNotEmpty;
 
@@ -35,106 +67,119 @@ class ScheduleItemCard extends ConsumerWidget {
 
     return AppCard(
       onTap: onTap,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            width: 60,
-            child: item.isFullDay
-                ? Text(
-                    'All\nday',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: isNow ? theme.colorScheme.primary : textColor,
-                    ),
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _formatTime(item.startTime),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: isNow ? theme.colorScheme.primary : textColor,
-                          fontWeight: isNow ? FontWeight.w700 : null,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 60,
+                child: item.isFullDay
+                    ? Text(
+                        'All\nday',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: isNow
+                              ? theme.colorScheme.primary
+                              : textColor,
                         ),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _formatTime(item.startTime),
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: isNow
+                                  ? theme.colorScheme.primary
+                                  : textColor,
+                              fontWeight: isNow ? FontWeight.w700 : null,
+                            ),
+                          ),
+                          Text(
+                            _formatTime(item.endTime),
+                            style: theme.textTheme.labelMedium,
+                          ),
+                        ],
                       ),
-                      Text(
-                        _formatTime(item.endTime),
-                        style: theme.textTheme.labelMedium,
-                      ),
-                    ],
-                  ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Container(
-            width: 3,
-            height: 48,
-            decoration: BoxDecoration(
-              color: isNow
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.outlineVariant,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Container(
+                width: 3,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: isNow
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        item.title,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: textColor,
-                        ),
-                      ),
-                    ),
-                    if (_hasConflict) ...[
-                      Tooltip(
-                        message: 'Tap to see conflict',
-                        child: InkResponse(
-                          radius: 18,
-                          onTap: () => _openConflictSheet(context),
-                          child: Padding(
-                            padding: const EdgeInsets.all(2),
-                            child: Icon(
-                              Icons.warning_amber_rounded,
-                              size: 18,
-                              color: theme.colorScheme.error,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.title,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: textColor,
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                    ],
-                    if (isNow)
-                      _StatusBadge(
-                        label: 'NOW',
-                        color: theme.colorScheme.primary,
-                        textColor: theme.colorScheme.onPrimary,
-                      )
-                    else if (item.isOneOff)
-                      _StatusBadge(
-                        label: 'TODAY ONLY',
-                        color: theme.colorScheme.tertiaryContainer,
-                        textColor: theme.colorScheme.onTertiaryContainer,
+                        if (_hasConflict) ...[
+                          Tooltip(
+                            message: 'Tap to see conflict',
+                            child: InkResponse(
+                              radius: 18,
+                              onTap: () => _openConflictSheet(context),
+                              child: Padding(
+                                padding: const EdgeInsets.all(2),
+                                child: Icon(
+                                  Icons.warning_amber_rounded,
+                                  size: 18,
+                                  color: theme.colorScheme.error,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.xs),
+                        ],
+                        _TrailingBadge(
+                          isNow: isNow,
+                          minutesUntilStart: minutesUntilStart,
+                          isOneOff: item.isOneOff,
+                        ),
+                      ],
+                    ),
+                    if (_subtitle(ref) != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          _subtitle(ref)!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
                       ),
                   ],
                 ),
-                if (_subtitle(ref) != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      _subtitle(ref)!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+              ),
+            ],
           ),
+          if (concernMatch != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _ConcernStrip(
+              match: concernMatch!,
+              onTap: onOpenConcern,
+            ),
+          ],
+          if (showLogObservationsPrompt) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _LogObservationsStrip(onTap: onLogObservations),
+          ],
         ],
       ),
     );
@@ -181,16 +226,61 @@ class ScheduleItemCard extends ConsumerWidget {
   }
 }
 
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({
-    required this.label,
-    required this.color,
-    required this.textColor,
+/// Payload the parent hands the card when a pod-matching concern exists
+/// for today. [preview] is a short string to show on the strip (first
+/// line of the concern, typically).
+class ConcernMatch {
+  const ConcernMatch({required this.id, required this.preview});
+  final String id;
+  final String preview;
+}
+
+class _TrailingBadge extends StatelessWidget {
+  const _TrailingBadge({
+    required this.isNow,
+    required this.minutesUntilStart,
+    required this.isOneOff,
   });
 
+  final bool isNow;
+  final int? minutesUntilStart;
+  final bool isOneOff;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (isNow) {
+      return _Chip(
+        label: 'NOW',
+        bg: theme.colorScheme.primary,
+        fg: theme.colorScheme.onPrimary,
+      );
+    }
+    final mins = minutesUntilStart;
+    if (mins != null && mins > 0 && mins <= 60) {
+      return _Chip(
+        label: mins <= 1 ? 'IN 1 MIN' : 'IN $mins MIN',
+        bg: theme.colorScheme.secondaryContainer,
+        fg: theme.colorScheme.onSecondaryContainer,
+      );
+    }
+    if (isOneOff) {
+      return _Chip(
+        label: 'TODAY ONLY',
+        bg: theme.colorScheme.tertiaryContainer,
+        fg: theme.colorScheme.onTertiaryContainer,
+      );
+    }
+    return const SizedBox.shrink();
+  }
+}
+
+class _Chip extends StatelessWidget {
+  const _Chip({required this.label, required this.bg, required this.fg});
+
   final String label;
-  final Color color;
-  final Color textColor;
+  final Color bg;
+  final Color fg;
 
   @override
   Widget build(BuildContext context) {
@@ -201,15 +291,119 @@ class _StatusBadge extends StatelessWidget {
         vertical: 2,
       ),
       decoration: BoxDecoration(
-        color: color,
+        color: bg,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         label,
         style: theme.textTheme.labelSmall?.copyWith(
-          color: textColor,
+          color: fg,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+}
+
+class _LogObservationsStrip extends StatelessWidget {
+  const _LogObservationsStrip({this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: 6,
+        ),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primary.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.edit_note_outlined,
+              size: 16,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Expanded(
+              child: Text(
+                'Log observations',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward,
+              size: 14,
+              color: theme.colorScheme.primary,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ConcernStrip extends StatelessWidget {
+  const _ConcernStrip({required this.match, this.onTap});
+
+  final ConcernMatch match;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: 6,
+        ),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.errorContainer.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: theme.colorScheme.error.withValues(alpha: 0.4),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.priority_high_rounded,
+              size: 16,
+              color: theme.colorScheme.error,
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Expanded(
+              child: Text(
+                match.preview,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onErrorContainer,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward,
+              size: 14,
+              color: theme.colorScheme.error,
+            ),
+          ],
         ),
       ),
     );

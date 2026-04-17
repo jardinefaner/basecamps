@@ -131,6 +131,34 @@ class ObservationsRepository {
     return query.watch();
   }
 
+  /// Count of observations logged today, bucketed by activity label.
+  /// Keys are the raw `activityLabel` string exactly as stored — callers
+  /// match against schedule item titles.
+  ///
+  /// Observations with no activity label aren't counted (they're not
+  /// attached to any specific slot). Rebuilds when any observation for
+  /// the given day changes.
+  Stream<Map<String, int>> watchActivityCountsForDay(DateTime day) {
+    final start = DateTime(day.year, day.month, day.day);
+    final end = start.add(const Duration(days: 1));
+    final query = _db.select(_db.observations)
+      ..where(
+        (o) =>
+            o.createdAt.isBiggerOrEqualValue(start) &
+            o.createdAt.isSmallerThanValue(end) &
+            o.activityLabel.isNotNull(),
+      );
+    return query.watch().map((rows) {
+      final map = <String, int>{};
+      for (final r in rows) {
+        final label = r.activityLabel;
+        if (label == null || label.isEmpty) continue;
+        map[label] = (map[label] ?? 0) + 1;
+      }
+      return map;
+    });
+  }
+
   Stream<List<Observation>> watchForKid(String kidId) {
     // Pulls observations via the join table (multi-kid) PLUS any legacy
     // single-kid rows where kidId matches.
@@ -520,6 +548,20 @@ final observationsRepositoryProvider =
 
 final observationsProvider = StreamProvider<List<Observation>>((ref) {
   return ref.watch(observationsRepositoryProvider).watchAll();
+});
+
+/// Today's observation counts keyed by `activityLabel` — the Today
+/// screen uses this to decide whether to show a "Log observations →"
+/// nudge on activities that have already ended.
+///
+/// Deliberately snapshots `DateTime.now()` once at provider creation;
+/// the app is re-launched over midnight in practice so rollover is not
+/// a concern worth the extra wiring.
+final todayActivityCountsProvider =
+    StreamProvider<Map<String, int>>((ref) {
+  return ref
+      .watch(observationsRepositoryProvider)
+      .watchActivityCountsForDay(DateTime.now());
 });
 
 // Riverpod family return type is complex; inference is intentional.

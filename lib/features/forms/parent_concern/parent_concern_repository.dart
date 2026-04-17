@@ -107,6 +107,26 @@ class ParentConcernRepository {
         .watch();
   }
 
+  /// Notes whose `concernDate` falls on the given day, plus any notes
+  /// with no concernDate that were created/updated today — teachers
+  /// often leave that field blank when typing a note on the fly. The
+  /// Today screen uses this to surface an "active concern" flag.
+  Stream<List<ParentConcernNote>> watchForDay(DateTime day) {
+    final start = DateTime(day.year, day.month, day.day);
+    final end = start.add(const Duration(days: 1));
+    return (_db.select(_db.parentConcernNotes)
+          ..where(
+            (n) =>
+                (n.concernDate.isBiggerOrEqualValue(start) &
+                        n.concernDate.isSmallerThanValue(end)) |
+                    (n.concernDate.isNull() &
+                        n.updatedAt.isBiggerOrEqualValue(start) &
+                        n.updatedAt.isSmallerThanValue(end)),
+          )
+          ..orderBy([(n) => OrderingTerm.desc(n.updatedAt)]))
+        .watch();
+  }
+
   Stream<ParentConcernNote?> watchOne(String id) {
     return (_db.select(_db.parentConcernNotes)
           ..where((n) => n.id.equals(id)))
@@ -200,6 +220,15 @@ final parentConcernRepositoryProvider =
 final parentConcernNotesProvider =
     StreamProvider<List<ParentConcernNote>>((ref) {
   return ref.watch(parentConcernRepositoryProvider).watchAll();
+});
+
+/// Concern notes dated (or captured) today. Feeds the Today dashboard's
+/// concern flags and day-summary strip.
+final todayConcernNotesProvider =
+    StreamProvider<List<ParentConcernNote>>((ref) {
+  return ref
+      .watch(parentConcernRepositoryProvider)
+      .watchForDay(DateTime.now());
 });
 
 // Riverpod family return type is complex; inference is intentional.
