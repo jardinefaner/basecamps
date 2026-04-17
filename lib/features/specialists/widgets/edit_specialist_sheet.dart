@@ -10,7 +10,6 @@ import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 class EditSpecialistSheet extends ConsumerStatefulWidget {
   const EditSpecialistSheet({super.key, this.specialist});
@@ -169,9 +168,12 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
         .read(specialistsRepositoryProvider)
         .deleteSpecialist(widget.specialist!.id);
     if (!mounted) return;
-    // Reset the stack to the Specialists list so the teacher doesn't
-    // land on the now-orphaned detail screen.
-    context.go('/more/specialists');
+    // Pop the sheet AND the detail screen beneath it so the teacher
+    // lands back on the Specialists list. Captures the navigator
+    // first because `context` is invalidated by the first pop.
+    Navigator.of(context)
+      ..pop() // sheet
+      ..pop(); // detail
   }
 
   @override
