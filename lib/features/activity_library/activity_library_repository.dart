@@ -9,8 +9,11 @@ class ActivityLibraryRepository {
   final AppDatabase _db;
 
   Stream<List<ActivityLibraryData>> watchAll() {
+    // Newest first — the user's spec for the creation flow ends with
+    // the freshly-generated card appearing at the top of the bucket,
+    // and that's the intuitive order for a bucket anyway.
     final query = _db.select(_db.activityLibrary)
-      ..orderBy([(a) => OrderingTerm.asc(a.title)]);
+      ..orderBy([(a) => OrderingTerm.desc(a.createdAt)]);
     return query.watch();
   }
 
@@ -25,6 +28,17 @@ class ActivityLibraryRepository {
     String? specialistId,
     String? location,
     String? notes,
+    // Rich card fields — all optional so legacy "just a preset" rows
+    // (title + duration etc.) still work through the same API.
+    int? audienceMinAge,
+    int? audienceMaxAge,
+    String? hook,
+    String? summary,
+    String? keyPoints,
+    String? learningGoals,
+    int? engagementTimeMin,
+    String? sourceUrl,
+    String? sourceAttribution,
   }) async {
     final id = newId();
     await _db.into(_db.activityLibrary).insert(
@@ -35,6 +49,15 @@ class ActivityLibraryRepository {
             specialistId: Value(specialistId),
             location: Value(location),
             notes: Value(notes),
+            audienceMinAge: Value(audienceMinAge),
+            audienceMaxAge: Value(audienceMaxAge),
+            hook: Value(hook),
+            summary: Value(summary),
+            keyPoints: Value(keyPoints),
+            learningGoals: Value(learningGoals),
+            engagementTimeMin: Value(engagementTimeMin),
+            sourceUrl: Value(sourceUrl),
+            sourceAttribution: Value(sourceAttribution),
           ),
         );
     return id;
@@ -47,6 +70,15 @@ class ActivityLibraryRepository {
     String? specialistId,
     String? location,
     String? notes,
+    int? audienceMinAge,
+    int? audienceMaxAge,
+    String? hook,
+    String? summary,
+    String? keyPoints,
+    String? learningGoals,
+    int? engagementTimeMin,
+    String? sourceUrl,
+    String? sourceAttribution,
   }) async {
     await (_db.update(_db.activityLibrary)..where((a) => a.id.equals(id)))
         .write(
@@ -56,6 +88,15 @@ class ActivityLibraryRepository {
         specialistId: Value(specialistId),
         location: Value(location),
         notes: Value(notes),
+        audienceMinAge: Value(audienceMinAge),
+        audienceMaxAge: Value(audienceMaxAge),
+        hook: Value(hook),
+        summary: Value(summary),
+        keyPoints: Value(keyPoints),
+        learningGoals: Value(learningGoals),
+        engagementTimeMin: Value(engagementTimeMin),
+        sourceUrl: Value(sourceUrl),
+        sourceAttribution: Value(sourceAttribution),
         updatedAt: Value(DateTime.now()),
       ),
     );

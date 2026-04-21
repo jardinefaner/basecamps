@@ -1,5 +1,7 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/activity_library/activity_card_ai.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
+import 'package:basecamp/features/activity_library/widgets/activity_card_preview.dart';
 import 'package:basecamp/features/activity_library/widgets/edit_library_item_sheet.dart';
 import 'package:basecamp/features/activity_library/widgets/new_library_item_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -22,12 +24,22 @@ class _ActivityLibraryScreenState extends ConsumerState<ActivityLibraryScreen>
   Future<void> _openSheet({ActivityLibraryData? item}) async {
     // Create flow uses the wizard; editing keeps the dense sheet.
     if (item == null) {
-      await Navigator.of(context).push<void>(
+      final saved = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
           fullscreenDialog: true,
           builder: (_) => const NewLibraryItemWizardScreen(),
         ),
       );
+      if (saved == true && mounted) {
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('Added to your activity bucket'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+      }
       return;
     }
     await showModalBottomSheet<void>(
@@ -127,6 +139,89 @@ class _LibraryTile extends StatelessWidget {
     required this.onTap,
     required this.onLongPress,
     this.selected = false,
+  });
+
+  final ActivityLibraryData item;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final bool selected;
+
+  /// True for rows populated by the new AI-card flow — they have at
+  /// minimum a summary and an audience. Legacy preset rows (title +
+  /// duration only) fall back to the tight tile layout.
+  bool get _isRichCard =>
+      item.summary != null ||
+      item.audienceMinAge != null ||
+      item.hook != null;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isRichCard) {
+      return InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            ActivityCardPreview(
+              title: item.title,
+              audienceLabel: item.audienceMinAge != null &&
+                      item.audienceMaxAge != null
+                  ? audienceLabelFor(
+                      item.audienceMinAge!,
+                      item.audienceMaxAge!,
+                    )
+                  : null,
+              hook: item.hook,
+              summary: item.summary,
+              engagementTimeMin: item.engagementTimeMin,
+              sourceAttribution: item.sourceAttribution,
+              compact: true,
+            ),
+            if (selected)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: _SelectBadge(),
+              ),
+          ],
+        ),
+      );
+    }
+    return _LegacyTile(
+      item: item,
+      onTap: onTap,
+      onLongPress: onLongPress,
+      selected: selected,
+    );
+  }
+}
+
+class _SelectBadge extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary,
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        Icons.check,
+        size: 14,
+        color: theme.colorScheme.onPrimary,
+      ),
+    );
+  }
+}
+
+class _LegacyTile extends StatelessWidget {
+  const _LegacyTile({
+    required this.item,
+    required this.onTap,
+    required this.onLongPress,
+    required this.selected,
   });
 
   final ActivityLibraryData item;

@@ -5393,6 +5393,104 @@ class $ActivityLibraryTable extends ActivityLibrary
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _audienceMinAgeMeta = const VerificationMeta(
+    'audienceMinAge',
+  );
+  @override
+  late final GeneratedColumn<int> audienceMinAge = GeneratedColumn<int>(
+    'audience_min_age',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _audienceMaxAgeMeta = const VerificationMeta(
+    'audienceMaxAge',
+  );
+  @override
+  late final GeneratedColumn<int> audienceMaxAge = GeneratedColumn<int>(
+    'audience_max_age',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _hookMeta = const VerificationMeta('hook');
+  @override
+  late final GeneratedColumn<String> hook = GeneratedColumn<String>(
+    'hook',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _summaryMeta = const VerificationMeta(
+    'summary',
+  );
+  @override
+  late final GeneratedColumn<String> summary = GeneratedColumn<String>(
+    'summary',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _keyPointsMeta = const VerificationMeta(
+    'keyPoints',
+  );
+  @override
+  late final GeneratedColumn<String> keyPoints = GeneratedColumn<String>(
+    'key_points',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _learningGoalsMeta = const VerificationMeta(
+    'learningGoals',
+  );
+  @override
+  late final GeneratedColumn<String> learningGoals = GeneratedColumn<String>(
+    'learning_goals',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _engagementTimeMinMeta = const VerificationMeta(
+    'engagementTimeMin',
+  );
+  @override
+  late final GeneratedColumn<int> engagementTimeMin = GeneratedColumn<int>(
+    'engagement_time_min',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sourceUrlMeta = const VerificationMeta(
+    'sourceUrl',
+  );
+  @override
+  late final GeneratedColumn<String> sourceUrl = GeneratedColumn<String>(
+    'source_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sourceAttributionMeta = const VerificationMeta(
+    'sourceAttribution',
+  );
+  @override
+  late final GeneratedColumn<String> sourceAttribution =
+      GeneratedColumn<String>(
+        'source_attribution',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -5425,6 +5523,15 @@ class $ActivityLibraryTable extends ActivityLibrary
     specialistId,
     location,
     notes,
+    audienceMinAge,
+    audienceMaxAge,
+    hook,
+    summary,
+    keyPoints,
+    learningGoals,
+    engagementTimeMin,
+    sourceUrl,
+    sourceAttribution,
     createdAt,
     updatedAt,
   ];
@@ -5483,6 +5590,75 @@ class $ActivityLibraryTable extends ActivityLibrary
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('audience_min_age')) {
+      context.handle(
+        _audienceMinAgeMeta,
+        audienceMinAge.isAcceptableOrUnknown(
+          data['audience_min_age']!,
+          _audienceMinAgeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('audience_max_age')) {
+      context.handle(
+        _audienceMaxAgeMeta,
+        audienceMaxAge.isAcceptableOrUnknown(
+          data['audience_max_age']!,
+          _audienceMaxAgeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('hook')) {
+      context.handle(
+        _hookMeta,
+        hook.isAcceptableOrUnknown(data['hook']!, _hookMeta),
+      );
+    }
+    if (data.containsKey('summary')) {
+      context.handle(
+        _summaryMeta,
+        summary.isAcceptableOrUnknown(data['summary']!, _summaryMeta),
+      );
+    }
+    if (data.containsKey('key_points')) {
+      context.handle(
+        _keyPointsMeta,
+        keyPoints.isAcceptableOrUnknown(data['key_points']!, _keyPointsMeta),
+      );
+    }
+    if (data.containsKey('learning_goals')) {
+      context.handle(
+        _learningGoalsMeta,
+        learningGoals.isAcceptableOrUnknown(
+          data['learning_goals']!,
+          _learningGoalsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('engagement_time_min')) {
+      context.handle(
+        _engagementTimeMinMeta,
+        engagementTimeMin.isAcceptableOrUnknown(
+          data['engagement_time_min']!,
+          _engagementTimeMinMeta,
+        ),
+      );
+    }
+    if (data.containsKey('source_url')) {
+      context.handle(
+        _sourceUrlMeta,
+        sourceUrl.isAcceptableOrUnknown(data['source_url']!, _sourceUrlMeta),
+      );
+    }
+    if (data.containsKey('source_attribution')) {
+      context.handle(
+        _sourceAttributionMeta,
+        sourceAttribution.isAcceptableOrUnknown(
+          data['source_attribution']!,
+          _sourceAttributionMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -5528,6 +5704,42 @@ class $ActivityLibraryTable extends ActivityLibrary
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      audienceMinAge: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}audience_min_age'],
+      ),
+      audienceMaxAge: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}audience_max_age'],
+      ),
+      hook: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}hook'],
+      ),
+      summary: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}summary'],
+      ),
+      keyPoints: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}key_points'],
+      ),
+      learningGoals: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}learning_goals'],
+      ),
+      engagementTimeMin: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}engagement_time_min'],
+      ),
+      sourceUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_url'],
+      ),
+      sourceAttribution: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_attribution'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -5553,6 +5765,40 @@ class ActivityLibraryData extends DataClass
   final String? specialistId;
   final String? location;
   final String? notes;
+
+  /// Inclusive lower bound of the intended audience age. When
+  /// [audienceMaxAge] equals this, the card is for a single age; when
+  /// it's bigger, the card targets a range. When both are null, the
+  /// row is a legacy preset / untargeted item.
+  final int? audienceMinAge;
+  final int? audienceMaxAge;
+
+  /// One-line hook that teasers the card.
+  final String? hook;
+
+  /// 2-4 sentence summary at the audience's reading level.
+  final String? summary;
+
+  /// Key points, one per line (newline-joined). Rendered as a bulleted
+  /// list. Using a single text column instead of a join table keeps
+  /// the schema tight — these are short, display-only, and never
+  /// queried for.
+  final String? keyPoints;
+
+  /// Suggested learning goals, newline-joined. Same rationale as
+  /// [keyPoints].
+  final String? learningGoals;
+
+  /// Rough "how long this'll hold the kid's attention" in minutes.
+  final int? engagementTimeMin;
+
+  /// The URL the teacher pasted. Preserved so we can link back to the
+  /// source and re-generate from it later if needed.
+  final String? sourceUrl;
+
+  /// Human-readable attribution — e.g. "via BBC.com" — derived from
+  /// the scraped page's title or host during generation.
+  final String? sourceAttribution;
   final DateTime createdAt;
   final DateTime updatedAt;
   const ActivityLibraryData({
@@ -5562,6 +5808,15 @@ class ActivityLibraryData extends DataClass
     this.specialistId,
     this.location,
     this.notes,
+    this.audienceMinAge,
+    this.audienceMaxAge,
+    this.hook,
+    this.summary,
+    this.keyPoints,
+    this.learningGoals,
+    this.engagementTimeMin,
+    this.sourceUrl,
+    this.sourceAttribution,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -5581,6 +5836,33 @@ class ActivityLibraryData extends DataClass
     }
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
+    }
+    if (!nullToAbsent || audienceMinAge != null) {
+      map['audience_min_age'] = Variable<int>(audienceMinAge);
+    }
+    if (!nullToAbsent || audienceMaxAge != null) {
+      map['audience_max_age'] = Variable<int>(audienceMaxAge);
+    }
+    if (!nullToAbsent || hook != null) {
+      map['hook'] = Variable<String>(hook);
+    }
+    if (!nullToAbsent || summary != null) {
+      map['summary'] = Variable<String>(summary);
+    }
+    if (!nullToAbsent || keyPoints != null) {
+      map['key_points'] = Variable<String>(keyPoints);
+    }
+    if (!nullToAbsent || learningGoals != null) {
+      map['learning_goals'] = Variable<String>(learningGoals);
+    }
+    if (!nullToAbsent || engagementTimeMin != null) {
+      map['engagement_time_min'] = Variable<int>(engagementTimeMin);
+    }
+    if (!nullToAbsent || sourceUrl != null) {
+      map['source_url'] = Variable<String>(sourceUrl);
+    }
+    if (!nullToAbsent || sourceAttribution != null) {
+      map['source_attribution'] = Variable<String>(sourceAttribution);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -5603,6 +5885,31 @@ class ActivityLibraryData extends DataClass
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      audienceMinAge: audienceMinAge == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audienceMinAge),
+      audienceMaxAge: audienceMaxAge == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audienceMaxAge),
+      hook: hook == null && nullToAbsent ? const Value.absent() : Value(hook),
+      summary: summary == null && nullToAbsent
+          ? const Value.absent()
+          : Value(summary),
+      keyPoints: keyPoints == null && nullToAbsent
+          ? const Value.absent()
+          : Value(keyPoints),
+      learningGoals: learningGoals == null && nullToAbsent
+          ? const Value.absent()
+          : Value(learningGoals),
+      engagementTimeMin: engagementTimeMin == null && nullToAbsent
+          ? const Value.absent()
+          : Value(engagementTimeMin),
+      sourceUrl: sourceUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceUrl),
+      sourceAttribution: sourceAttribution == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceAttribution),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -5620,6 +5927,17 @@ class ActivityLibraryData extends DataClass
       specialistId: serializer.fromJson<String?>(json['specialistId']),
       location: serializer.fromJson<String?>(json['location']),
       notes: serializer.fromJson<String?>(json['notes']),
+      audienceMinAge: serializer.fromJson<int?>(json['audienceMinAge']),
+      audienceMaxAge: serializer.fromJson<int?>(json['audienceMaxAge']),
+      hook: serializer.fromJson<String?>(json['hook']),
+      summary: serializer.fromJson<String?>(json['summary']),
+      keyPoints: serializer.fromJson<String?>(json['keyPoints']),
+      learningGoals: serializer.fromJson<String?>(json['learningGoals']),
+      engagementTimeMin: serializer.fromJson<int?>(json['engagementTimeMin']),
+      sourceUrl: serializer.fromJson<String?>(json['sourceUrl']),
+      sourceAttribution: serializer.fromJson<String?>(
+        json['sourceAttribution'],
+      ),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -5634,6 +5952,15 @@ class ActivityLibraryData extends DataClass
       'specialistId': serializer.toJson<String?>(specialistId),
       'location': serializer.toJson<String?>(location),
       'notes': serializer.toJson<String?>(notes),
+      'audienceMinAge': serializer.toJson<int?>(audienceMinAge),
+      'audienceMaxAge': serializer.toJson<int?>(audienceMaxAge),
+      'hook': serializer.toJson<String?>(hook),
+      'summary': serializer.toJson<String?>(summary),
+      'keyPoints': serializer.toJson<String?>(keyPoints),
+      'learningGoals': serializer.toJson<String?>(learningGoals),
+      'engagementTimeMin': serializer.toJson<int?>(engagementTimeMin),
+      'sourceUrl': serializer.toJson<String?>(sourceUrl),
+      'sourceAttribution': serializer.toJson<String?>(sourceAttribution),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -5646,6 +5973,15 @@ class ActivityLibraryData extends DataClass
     Value<String?> specialistId = const Value.absent(),
     Value<String?> location = const Value.absent(),
     Value<String?> notes = const Value.absent(),
+    Value<int?> audienceMinAge = const Value.absent(),
+    Value<int?> audienceMaxAge = const Value.absent(),
+    Value<String?> hook = const Value.absent(),
+    Value<String?> summary = const Value.absent(),
+    Value<String?> keyPoints = const Value.absent(),
+    Value<String?> learningGoals = const Value.absent(),
+    Value<int?> engagementTimeMin = const Value.absent(),
+    Value<String?> sourceUrl = const Value.absent(),
+    Value<String?> sourceAttribution = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => ActivityLibraryData(
@@ -5657,6 +5993,25 @@ class ActivityLibraryData extends DataClass
     specialistId: specialistId.present ? specialistId.value : this.specialistId,
     location: location.present ? location.value : this.location,
     notes: notes.present ? notes.value : this.notes,
+    audienceMinAge: audienceMinAge.present
+        ? audienceMinAge.value
+        : this.audienceMinAge,
+    audienceMaxAge: audienceMaxAge.present
+        ? audienceMaxAge.value
+        : this.audienceMaxAge,
+    hook: hook.present ? hook.value : this.hook,
+    summary: summary.present ? summary.value : this.summary,
+    keyPoints: keyPoints.present ? keyPoints.value : this.keyPoints,
+    learningGoals: learningGoals.present
+        ? learningGoals.value
+        : this.learningGoals,
+    engagementTimeMin: engagementTimeMin.present
+        ? engagementTimeMin.value
+        : this.engagementTimeMin,
+    sourceUrl: sourceUrl.present ? sourceUrl.value : this.sourceUrl,
+    sourceAttribution: sourceAttribution.present
+        ? sourceAttribution.value
+        : this.sourceAttribution,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -5672,6 +6027,25 @@ class ActivityLibraryData extends DataClass
           : this.specialistId,
       location: data.location.present ? data.location.value : this.location,
       notes: data.notes.present ? data.notes.value : this.notes,
+      audienceMinAge: data.audienceMinAge.present
+          ? data.audienceMinAge.value
+          : this.audienceMinAge,
+      audienceMaxAge: data.audienceMaxAge.present
+          ? data.audienceMaxAge.value
+          : this.audienceMaxAge,
+      hook: data.hook.present ? data.hook.value : this.hook,
+      summary: data.summary.present ? data.summary.value : this.summary,
+      keyPoints: data.keyPoints.present ? data.keyPoints.value : this.keyPoints,
+      learningGoals: data.learningGoals.present
+          ? data.learningGoals.value
+          : this.learningGoals,
+      engagementTimeMin: data.engagementTimeMin.present
+          ? data.engagementTimeMin.value
+          : this.engagementTimeMin,
+      sourceUrl: data.sourceUrl.present ? data.sourceUrl.value : this.sourceUrl,
+      sourceAttribution: data.sourceAttribution.present
+          ? data.sourceAttribution.value
+          : this.sourceAttribution,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -5686,6 +6060,15 @@ class ActivityLibraryData extends DataClass
           ..write('specialistId: $specialistId, ')
           ..write('location: $location, ')
           ..write('notes: $notes, ')
+          ..write('audienceMinAge: $audienceMinAge, ')
+          ..write('audienceMaxAge: $audienceMaxAge, ')
+          ..write('hook: $hook, ')
+          ..write('summary: $summary, ')
+          ..write('keyPoints: $keyPoints, ')
+          ..write('learningGoals: $learningGoals, ')
+          ..write('engagementTimeMin: $engagementTimeMin, ')
+          ..write('sourceUrl: $sourceUrl, ')
+          ..write('sourceAttribution: $sourceAttribution, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -5700,6 +6083,15 @@ class ActivityLibraryData extends DataClass
     specialistId,
     location,
     notes,
+    audienceMinAge,
+    audienceMaxAge,
+    hook,
+    summary,
+    keyPoints,
+    learningGoals,
+    engagementTimeMin,
+    sourceUrl,
+    sourceAttribution,
     createdAt,
     updatedAt,
   );
@@ -5713,6 +6105,15 @@ class ActivityLibraryData extends DataClass
           other.specialistId == this.specialistId &&
           other.location == this.location &&
           other.notes == this.notes &&
+          other.audienceMinAge == this.audienceMinAge &&
+          other.audienceMaxAge == this.audienceMaxAge &&
+          other.hook == this.hook &&
+          other.summary == this.summary &&
+          other.keyPoints == this.keyPoints &&
+          other.learningGoals == this.learningGoals &&
+          other.engagementTimeMin == this.engagementTimeMin &&
+          other.sourceUrl == this.sourceUrl &&
+          other.sourceAttribution == this.sourceAttribution &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -5724,6 +6125,15 @@ class ActivityLibraryCompanion extends UpdateCompanion<ActivityLibraryData> {
   final Value<String?> specialistId;
   final Value<String?> location;
   final Value<String?> notes;
+  final Value<int?> audienceMinAge;
+  final Value<int?> audienceMaxAge;
+  final Value<String?> hook;
+  final Value<String?> summary;
+  final Value<String?> keyPoints;
+  final Value<String?> learningGoals;
+  final Value<int?> engagementTimeMin;
+  final Value<String?> sourceUrl;
+  final Value<String?> sourceAttribution;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -5734,6 +6144,15 @@ class ActivityLibraryCompanion extends UpdateCompanion<ActivityLibraryData> {
     this.specialistId = const Value.absent(),
     this.location = const Value.absent(),
     this.notes = const Value.absent(),
+    this.audienceMinAge = const Value.absent(),
+    this.audienceMaxAge = const Value.absent(),
+    this.hook = const Value.absent(),
+    this.summary = const Value.absent(),
+    this.keyPoints = const Value.absent(),
+    this.learningGoals = const Value.absent(),
+    this.engagementTimeMin = const Value.absent(),
+    this.sourceUrl = const Value.absent(),
+    this.sourceAttribution = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -5745,6 +6164,15 @@ class ActivityLibraryCompanion extends UpdateCompanion<ActivityLibraryData> {
     this.specialistId = const Value.absent(),
     this.location = const Value.absent(),
     this.notes = const Value.absent(),
+    this.audienceMinAge = const Value.absent(),
+    this.audienceMaxAge = const Value.absent(),
+    this.hook = const Value.absent(),
+    this.summary = const Value.absent(),
+    this.keyPoints = const Value.absent(),
+    this.learningGoals = const Value.absent(),
+    this.engagementTimeMin = const Value.absent(),
+    this.sourceUrl = const Value.absent(),
+    this.sourceAttribution = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -5757,6 +6185,15 @@ class ActivityLibraryCompanion extends UpdateCompanion<ActivityLibraryData> {
     Expression<String>? specialistId,
     Expression<String>? location,
     Expression<String>? notes,
+    Expression<int>? audienceMinAge,
+    Expression<int>? audienceMaxAge,
+    Expression<String>? hook,
+    Expression<String>? summary,
+    Expression<String>? keyPoints,
+    Expression<String>? learningGoals,
+    Expression<int>? engagementTimeMin,
+    Expression<String>? sourceUrl,
+    Expression<String>? sourceAttribution,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -5769,6 +6206,15 @@ class ActivityLibraryCompanion extends UpdateCompanion<ActivityLibraryData> {
       if (specialistId != null) 'specialist_id': specialistId,
       if (location != null) 'location': location,
       if (notes != null) 'notes': notes,
+      if (audienceMinAge != null) 'audience_min_age': audienceMinAge,
+      if (audienceMaxAge != null) 'audience_max_age': audienceMaxAge,
+      if (hook != null) 'hook': hook,
+      if (summary != null) 'summary': summary,
+      if (keyPoints != null) 'key_points': keyPoints,
+      if (learningGoals != null) 'learning_goals': learningGoals,
+      if (engagementTimeMin != null) 'engagement_time_min': engagementTimeMin,
+      if (sourceUrl != null) 'source_url': sourceUrl,
+      if (sourceAttribution != null) 'source_attribution': sourceAttribution,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -5782,6 +6228,15 @@ class ActivityLibraryCompanion extends UpdateCompanion<ActivityLibraryData> {
     Value<String?>? specialistId,
     Value<String?>? location,
     Value<String?>? notes,
+    Value<int?>? audienceMinAge,
+    Value<int?>? audienceMaxAge,
+    Value<String?>? hook,
+    Value<String?>? summary,
+    Value<String?>? keyPoints,
+    Value<String?>? learningGoals,
+    Value<int?>? engagementTimeMin,
+    Value<String?>? sourceUrl,
+    Value<String?>? sourceAttribution,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -5793,6 +6248,15 @@ class ActivityLibraryCompanion extends UpdateCompanion<ActivityLibraryData> {
       specialistId: specialistId ?? this.specialistId,
       location: location ?? this.location,
       notes: notes ?? this.notes,
+      audienceMinAge: audienceMinAge ?? this.audienceMinAge,
+      audienceMaxAge: audienceMaxAge ?? this.audienceMaxAge,
+      hook: hook ?? this.hook,
+      summary: summary ?? this.summary,
+      keyPoints: keyPoints ?? this.keyPoints,
+      learningGoals: learningGoals ?? this.learningGoals,
+      engagementTimeMin: engagementTimeMin ?? this.engagementTimeMin,
+      sourceUrl: sourceUrl ?? this.sourceUrl,
+      sourceAttribution: sourceAttribution ?? this.sourceAttribution,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -5820,6 +6284,33 @@ class ActivityLibraryCompanion extends UpdateCompanion<ActivityLibraryData> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (audienceMinAge.present) {
+      map['audience_min_age'] = Variable<int>(audienceMinAge.value);
+    }
+    if (audienceMaxAge.present) {
+      map['audience_max_age'] = Variable<int>(audienceMaxAge.value);
+    }
+    if (hook.present) {
+      map['hook'] = Variable<String>(hook.value);
+    }
+    if (summary.present) {
+      map['summary'] = Variable<String>(summary.value);
+    }
+    if (keyPoints.present) {
+      map['key_points'] = Variable<String>(keyPoints.value);
+    }
+    if (learningGoals.present) {
+      map['learning_goals'] = Variable<String>(learningGoals.value);
+    }
+    if (engagementTimeMin.present) {
+      map['engagement_time_min'] = Variable<int>(engagementTimeMin.value);
+    }
+    if (sourceUrl.present) {
+      map['source_url'] = Variable<String>(sourceUrl.value);
+    }
+    if (sourceAttribution.present) {
+      map['source_attribution'] = Variable<String>(sourceAttribution.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -5841,6 +6332,15 @@ class ActivityLibraryCompanion extends UpdateCompanion<ActivityLibraryData> {
           ..write('specialistId: $specialistId, ')
           ..write('location: $location, ')
           ..write('notes: $notes, ')
+          ..write('audienceMinAge: $audienceMinAge, ')
+          ..write('audienceMaxAge: $audienceMaxAge, ')
+          ..write('hook: $hook, ')
+          ..write('summary: $summary, ')
+          ..write('keyPoints: $keyPoints, ')
+          ..write('learningGoals: $learningGoals, ')
+          ..write('engagementTimeMin: $engagementTimeMin, ')
+          ..write('sourceUrl: $sourceUrl, ')
+          ..write('sourceAttribution: $sourceAttribution, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -17693,6 +18193,15 @@ typedef $$ActivityLibraryTableCreateCompanionBuilder =
       Value<String?> specialistId,
       Value<String?> location,
       Value<String?> notes,
+      Value<int?> audienceMinAge,
+      Value<int?> audienceMaxAge,
+      Value<String?> hook,
+      Value<String?> summary,
+      Value<String?> keyPoints,
+      Value<String?> learningGoals,
+      Value<int?> engagementTimeMin,
+      Value<String?> sourceUrl,
+      Value<String?> sourceAttribution,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -17705,6 +18214,15 @@ typedef $$ActivityLibraryTableUpdateCompanionBuilder =
       Value<String?> specialistId,
       Value<String?> location,
       Value<String?> notes,
+      Value<int?> audienceMinAge,
+      Value<int?> audienceMaxAge,
+      Value<String?> hook,
+      Value<String?> summary,
+      Value<String?> keyPoints,
+      Value<String?> learningGoals,
+      Value<int?> engagementTimeMin,
+      Value<String?> sourceUrl,
+      Value<String?> sourceAttribution,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -17780,6 +18298,51 @@ class $$ActivityLibraryTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<int> get audienceMinAge => $composableBuilder(
+    column: $table.audienceMinAge,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get audienceMaxAge => $composableBuilder(
+    column: $table.audienceMaxAge,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get hook => $composableBuilder(
+    column: $table.hook,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get keyPoints => $composableBuilder(
+    column: $table.keyPoints,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get learningGoals => $composableBuilder(
+    column: $table.learningGoals,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get engagementTimeMin => $composableBuilder(
+    column: $table.engagementTimeMin,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceUrl => $composableBuilder(
+    column: $table.sourceUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceAttribution => $composableBuilder(
+    column: $table.sourceAttribution,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnFilters(column),
@@ -17848,6 +18411,51 @@ class $$ActivityLibraryTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get audienceMinAge => $composableBuilder(
+    column: $table.audienceMinAge,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get audienceMaxAge => $composableBuilder(
+    column: $table.audienceMaxAge,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get hook => $composableBuilder(
+    column: $table.hook,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get keyPoints => $composableBuilder(
+    column: $table.keyPoints,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get learningGoals => $composableBuilder(
+    column: $table.learningGoals,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get engagementTimeMin => $composableBuilder(
+    column: $table.engagementTimeMin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceUrl => $composableBuilder(
+    column: $table.sourceUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceAttribution => $composableBuilder(
+    column: $table.sourceAttribution,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -17907,6 +18515,43 @@ class $$ActivityLibraryTableAnnotationComposer
 
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<int> get audienceMinAge => $composableBuilder(
+    column: $table.audienceMinAge,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get audienceMaxAge => $composableBuilder(
+    column: $table.audienceMaxAge,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get hook =>
+      $composableBuilder(column: $table.hook, builder: (column) => column);
+
+  GeneratedColumn<String> get summary =>
+      $composableBuilder(column: $table.summary, builder: (column) => column);
+
+  GeneratedColumn<String> get keyPoints =>
+      $composableBuilder(column: $table.keyPoints, builder: (column) => column);
+
+  GeneratedColumn<String> get learningGoals => $composableBuilder(
+    column: $table.learningGoals,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get engagementTimeMin => $composableBuilder(
+    column: $table.engagementTimeMin,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceUrl =>
+      $composableBuilder(column: $table.sourceUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceAttribution => $composableBuilder(
+    column: $table.sourceAttribution,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -17974,6 +18619,15 @@ class $$ActivityLibraryTableTableManager
                 Value<String?> specialistId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<int?> audienceMinAge = const Value.absent(),
+                Value<int?> audienceMaxAge = const Value.absent(),
+                Value<String?> hook = const Value.absent(),
+                Value<String?> summary = const Value.absent(),
+                Value<String?> keyPoints = const Value.absent(),
+                Value<String?> learningGoals = const Value.absent(),
+                Value<int?> engagementTimeMin = const Value.absent(),
+                Value<String?> sourceUrl = const Value.absent(),
+                Value<String?> sourceAttribution = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -17984,6 +18638,15 @@ class $$ActivityLibraryTableTableManager
                 specialistId: specialistId,
                 location: location,
                 notes: notes,
+                audienceMinAge: audienceMinAge,
+                audienceMaxAge: audienceMaxAge,
+                hook: hook,
+                summary: summary,
+                keyPoints: keyPoints,
+                learningGoals: learningGoals,
+                engagementTimeMin: engagementTimeMin,
+                sourceUrl: sourceUrl,
+                sourceAttribution: sourceAttribution,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -17996,6 +18659,15 @@ class $$ActivityLibraryTableTableManager
                 Value<String?> specialistId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<int?> audienceMinAge = const Value.absent(),
+                Value<int?> audienceMaxAge = const Value.absent(),
+                Value<String?> hook = const Value.absent(),
+                Value<String?> summary = const Value.absent(),
+                Value<String?> keyPoints = const Value.absent(),
+                Value<String?> learningGoals = const Value.absent(),
+                Value<int?> engagementTimeMin = const Value.absent(),
+                Value<String?> sourceUrl = const Value.absent(),
+                Value<String?> sourceAttribution = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -18006,6 +18678,15 @@ class $$ActivityLibraryTableTableManager
                 specialistId: specialistId,
                 location: location,
                 notes: notes,
+                audienceMinAge: audienceMinAge,
+                audienceMaxAge: audienceMaxAge,
+                hook: hook,
+                summary: summary,
+                keyPoints: keyPoints,
+                learningGoals: learningGoals,
+                engagementTimeMin: engagementTimeMin,
+                sourceUrl: sourceUrl,
+                sourceAttribution: sourceAttribution,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,

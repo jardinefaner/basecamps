@@ -180,9 +180,16 @@ class Observations extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-/// Reusable activity definitions. Picking one from the library during
-/// schedule creation prefills the title, default duration, specialist,
-/// location and notes.
+/// Reusable activity definitions. Originally a set of scheduling
+/// presets (title + duration + location + specialist) — the original
+/// columns stay for backwards compatibility with existing rows and the
+/// library picker used by the schedule wizards.
+///
+/// As of schema v26 the table also holds rich "activity cards" — AI-
+/// generated learning-activity summaries scoped to an audience age or
+/// age range, sourced from a URL the teacher pasted into the creation
+/// wizard. All the new fields are nullable so legacy preset rows and
+/// fresh rich cards coexist in the same table.
 class ActivityLibrary extends Table {
   TextColumn get id => text()();
   TextColumn get title => text()();
@@ -192,6 +199,43 @@ class ActivityLibrary extends Table {
       .references(Specialists, #id, onDelete: KeyAction.setNull)();
   TextColumn get location => text().nullable()();
   TextColumn get notes => text().nullable()();
+
+  // -- Rich "activity card" fields (v26) --
+
+  /// Inclusive lower bound of the intended audience age. When
+  /// [audienceMaxAge] equals this, the card is for a single age; when
+  /// it's bigger, the card targets a range. When both are null, the
+  /// row is a legacy preset / untargeted item.
+  IntColumn get audienceMinAge => integer().nullable()();
+  IntColumn get audienceMaxAge => integer().nullable()();
+
+  /// One-line hook that teasers the card.
+  TextColumn get hook => text().nullable()();
+
+  /// 2-4 sentence summary at the audience's reading level.
+  TextColumn get summary => text().nullable()();
+
+  /// Key points, one per line (newline-joined). Rendered as a bulleted
+  /// list. Using a single text column instead of a join table keeps
+  /// the schema tight — these are short, display-only, and never
+  /// queried for.
+  TextColumn get keyPoints => text().nullable()();
+
+  /// Suggested learning goals, newline-joined. Same rationale as
+  /// [keyPoints].
+  TextColumn get learningGoals => text().nullable()();
+
+  /// Rough "how long this'll hold the kid's attention" in minutes.
+  IntColumn get engagementTimeMin => integer().nullable()();
+
+  /// The URL the teacher pasted. Preserved so we can link back to the
+  /// source and re-generate from it later if needed.
+  TextColumn get sourceUrl => text().nullable()();
+
+  /// Human-readable attribution — e.g. "via BBC.com" — derived from
+  /// the scraped page's title or host during generation.
+  TextColumn get sourceAttribution => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>

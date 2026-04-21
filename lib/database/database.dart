@@ -39,7 +39,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 25;
+  int get schemaVersion => 26;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -168,6 +168,48 @@ class AppDatabase extends _$AppDatabase {
             await _runSilent(
               'ALTER TABLE "attendance" '
               'RENAME COLUMN "kid_id" TO "child_id"',
+            );
+          }
+          if (from < 26) {
+            // v26: rich activity-card fields. Adding nullable columns
+            // is safe on existing rows — legacy preset items keep NULL
+            // and render as plain tiles; new AI-generated cards fill
+            // them in.
+            await _runSilent(
+              'ALTER TABLE "activity_library" '
+              'ADD COLUMN "audience_min_age" INTEGER NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "activity_library" '
+              'ADD COLUMN "audience_max_age" INTEGER NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "activity_library" '
+              'ADD COLUMN "hook" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "activity_library" '
+              'ADD COLUMN "summary" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "activity_library" '
+              'ADD COLUMN "key_points" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "activity_library" '
+              'ADD COLUMN "learning_goals" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "activity_library" '
+              'ADD COLUMN "engagement_time_min" INTEGER NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "activity_library" '
+              'ADD COLUMN "source_url" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "activity_library" '
+              'ADD COLUMN "source_attribution" TEXT NULL',
             );
           }
         },
