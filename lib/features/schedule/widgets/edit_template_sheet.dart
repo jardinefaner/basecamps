@@ -16,6 +16,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+/// What the edit sheet popped with. Used by callers (e.g. the Today
+/// detail sheet) to decide whether to stay open, refresh, or
+/// co-dismiss after the teacher's interaction.
+///
+/// - [EditTemplateResult.saved]    — fields were edited and persisted.
+///   Callers that were showing a snapshot of this template should pop
+///   too (snapshot is now stale) or refresh from the DB.
+/// - [EditTemplateResult.deleted]  — the template (or this day of the
+///   series) was deleted. Callers that owned a reference should pop
+///   themselves — there's nothing left to show.
+/// - `null` (no enum) — the teacher closed without saving. Callers
+///   can safely stay open; the snapshot they hold is still valid.
+enum EditTemplateResult { saved, deleted }
+
 const _dayShortLabels = ['M', 'T', 'W', 'T', 'F'];
 
 class EditTemplateSheet extends ConsumerStatefulWidget {
@@ -235,7 +249,9 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
       }
     }
     if (!mounted) return;
-    Navigator.of(context).pop();
+    Navigator.of(context).pop<EditTemplateResult>(
+      _isEdit ? EditTemplateResult.saved : null,
+    );
   }
 
   Future<void> _delete() async {
@@ -271,7 +287,9 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
         await repo.deleteTemplateGroupFor(template.id);
       }
       if (!mounted) return;
-      Navigator.of(context).pop();
+      Navigator.of(context).pop<EditTemplateResult>(
+        EditTemplateResult.deleted,
+      );
       return;
     }
 
@@ -292,7 +310,9 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     if (!confirmed) return;
     await repo.deleteTemplateGroupFor(template.id);
     if (!mounted) return;
-    Navigator.of(context).pop();
+    Navigator.of(context).pop<EditTemplateResult>(
+      EditTemplateResult.deleted,
+    );
   }
 
   void _applyDurationPreset(Duration duration) {

@@ -147,14 +147,20 @@ class ActivityDetailSheet extends ConsumerWidget {
     final navigator = Navigator.of(context);
     final repo = ref.read(scheduleRepositoryProvider);
 
+    // Intentionally DON'T pop this detail sheet before opening the
+    // editor — stacking lets the teacher close the editor and land
+    // back on the details view (which is what they came here to see).
+    // If they commit a change (save) or delete, we co-dismiss the
+    // detail sheet after the editor closes, because its snapshot is
+    // now stale / orphaned.
+
     // Template-sourced → open EditTemplateSheet.
     final templateId = item.templateId;
     if (item.isFromTemplate && templateId != null) {
       final template = await repo.getTemplate(templateId);
-      if (template == null || !navigator.mounted) return;
-      navigator.pop();
-      await showModalBottomSheet<void>(
-        context: navigator.context,
+      if (template == null || !context.mounted) return;
+      final result = await showModalBottomSheet<EditTemplateResult>(
+        context: context,
         isScrollControlled: true,
         showDragHandle: true,
         isDismissible: false,
@@ -163,21 +169,30 @@ class ActivityDetailSheet extends ConsumerWidget {
           occurrenceDate: item.date,
         ),
       );
+      if (result != null && navigator.mounted) {
+        // Committed change or delete → close the (now-stale) detail
+        // sheet too. User lands on Today, which is reactive and will
+        // reflect the new state.
+        navigator.pop();
+      }
       return;
     }
 
-    // One-off entry → open the full-day wizard in edit mode.
+    // One-off entry → open the full-day wizard in edit mode. The
+    // wizard pops with a CreatedActivity on save, null on close.
     final entryId = item.entryId;
     if (entryId == null) return;
     final entry = await repo.getEntry(entryId);
-    if (entry == null || !navigator.mounted) return;
-    navigator.pop();
-    await navigator.push<Object?>(
+    if (entry == null || !context.mounted) return;
+    final result = await navigator.push<Object?>(
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => NewFullDayEventWizardScreen(existing: entry),
       ),
     );
+    if (result != null && navigator.mounted) {
+      navigator.pop();
+    }
   }
 
   /// Only show override actions on a concrete date — the specialist-
