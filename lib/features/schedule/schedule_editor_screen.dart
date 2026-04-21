@@ -159,12 +159,17 @@ class _ScheduleEditorScreenState
   }
 
   Future<void> _openPicker() async {
-    await showModalBottomSheet<void>(
+    // The picker pushes a wizard and forwards its result when the
+    // teacher completes creation — so the bottom sheet's result is a
+    // [CreatedActivity] (or null if the teacher bailed out).
+    final result = await showModalBottomSheet<CreatedActivity>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => AddActivityPicker(initialDate: _weekStart),
     );
+    if (!mounted || result == null) return;
+    _onActivityCreated(result);
   }
 
   Future<void> _openRecurring({Set<int>? initialDays}) async {
@@ -172,13 +177,52 @@ class _ScheduleEditorScreenState
     // sheet was too much for first-timers. Editing an existing row
     // still opens the dense sheet (see _handleItemTap), which is the
     // right shape for quick tweaks.
-    await Navigator.of(context).push<void>(
+    final result = await Navigator.of(context).push<CreatedActivity>(
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => NewActivityWizardScreen(initialDays: initialDays),
       ),
     );
+    if (!mounted || result == null) return;
+    _onActivityCreated(result);
   }
+
+  /// Post-create feedback: jump the week view to where the activity
+  /// actually lives, and surface a snackbar so the teacher sees
+  /// confirmation that creation happened. Previously, activities with a
+  /// future startDate would save correctly but remain invisible on the
+  /// current week — teachers assumed the save had failed and tried
+  /// again.
+  void _onActivityCreated(CreatedActivity created) {
+    final start = created.startDate;
+    if (start != null) {
+      final newMonday = _mondayOf(start);
+      if (newMonday != _weekStart) {
+        setState(() => _weekStart = newMonday);
+      }
+    }
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(_describeCreated(created)),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+  }
+
+  String _describeCreated(CreatedActivity c) {
+    final title = c.title.isEmpty ? 'Activity' : c.title;
+    final dayPart = c.dayCount == 1 ? 'added' : 'added on ${c.dayCount} days';
+    final range = c.startDate == null
+        ? ''
+        : (c.endDate == null
+            ? ', starting ${_fmtDate(c.startDate!)}'
+            : ', ${_fmtDate(c.startDate!)} → ${_fmtDate(c.endDate!)}');
+    return '$title $dayPart$range';
+  }
+
+  String _fmtDate(DateTime d) => DateFormat.MMMd().format(d);
 
   Future<void> _handleItemTap(ScheduleItem item) async {
     // Template-sourced item → edit the template. Per-date entry → detail sheet

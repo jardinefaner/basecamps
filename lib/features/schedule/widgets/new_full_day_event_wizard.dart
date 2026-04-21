@@ -3,6 +3,8 @@ import 'package:basecamp/features/activity_library/activity_library_repository.d
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/widgets/specialist_chip_picker.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart'
+    show CreatedActivity;
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/step_wizard.dart';
@@ -98,6 +100,7 @@ class _NewFullDayEventWizardScreenState
           startTime: '00:00',
           endTime: '23:59',
           isFullDay: true,
+          allGroups: _allGroups,
           title: _title.text.trim(),
           groupIds: _allGroups ? const [] : _groupIds.toList(),
           specialistId: _specialistId,
@@ -105,7 +108,17 @@ class _NewFullDayEventWizardScreenState
           notes: notes.isEmpty ? null : notes,
         );
     if (!mounted) return;
-    Navigator.of(context).pop();
+    // Return the bounds so the schedule editor can jump its week view
+    // to where the event lives + flash a snackbar. Otherwise events
+    // dated in the future save silently and look like no-ops.
+    Navigator.of(context).pop<CreatedActivity>(
+      CreatedActivity(
+        title: _title.text.trim(),
+        startDate: _date,
+        endDate: _endDate,
+        dayCount: _daysInRange(),
+      ),
+    );
   }
 
   @override

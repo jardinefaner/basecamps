@@ -4,6 +4,10 @@ import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
 
+/// Public alias so callers of [AddActivityPicker] can match against the
+/// pop result without depending on the wizard file directly.
+typedef ActivityCreated = CreatedActivity;
+
 /// First-step sheet that asks "what kind of activity?" — recurring template
 /// (weekly pattern) vs full-day event (specific date).
 class AddActivityPicker extends StatelessWidget {
@@ -49,24 +53,37 @@ class AddActivityPicker extends StatelessWidget {
   }
 
   Future<void> _openRecurring(BuildContext context) async {
-    final navigator = Navigator.of(context)..pop();
-    await navigator.push<void>(
+    // Push the wizard BEFORE popping the picker, so we can forward the
+    // wizard's result up through the picker's own pop. If we popped the
+    // picker first, the wizard's pop would return to the editor with no
+    // way to re-enter the picker's return channel — the editor would
+    // never find out what got created, so it couldn't jump the week
+    // view or flash a confirmation snackbar.
+    final navigator = Navigator.of(context);
+    final result = await navigator.push<CreatedActivity>(
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => NewActivityWizardScreen(initialDays: initialDays),
       ),
     );
+    // Pop the picker sheet, carrying the wizard's result upward.
+    if (navigator.mounted) {
+      navigator.pop(result);
+    }
   }
 
   Future<void> _openFullDay(BuildContext context) async {
-    final navigator = Navigator.of(context)..pop();
-    await navigator.push<void>(
+    final navigator = Navigator.of(context);
+    final result = await navigator.push<CreatedActivity>(
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) =>
             NewFullDayEventWizardScreen(initialDate: initialDate),
       ),
     );
+    if (navigator.mounted) {
+      navigator.pop(result);
+    }
   }
 }
 

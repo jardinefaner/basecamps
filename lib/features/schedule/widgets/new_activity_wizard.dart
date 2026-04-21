@@ -180,7 +180,19 @@ class _NewActivityWizardScreenState
       );
     }
     if (!mounted) return;
-    Navigator.of(context).pop();
+    // Hand the start date back to the caller so the schedule editor
+    // can jump its week view to where the activity actually lives.
+    // Without this, activities scheduled for a future date range are
+    // saved correctly but invisible on the current week — the teacher
+    // thinks nothing happened.
+    Navigator.of(context).pop<_CreatedActivity>(
+      _CreatedActivity(
+        title: _title.text.trim(),
+        startDate: bounds.start,
+        endDate: bounds.end,
+        dayCount: _selectedDays.length,
+      ),
+    );
   }
 
   ({DateTime? start, DateTime? end}) _effectiveRange() {
@@ -853,6 +865,27 @@ class _RangePreview extends StatelessWidget {
     return count;
   }
 }
+
+/// Result handed back from the wizard so the schedule editor can jump
+/// its week view and show a confirmation. Public so other callers
+/// (e.g. schedule_editor_screen) can pattern-match the pop result.
+class CreatedActivity {
+  const CreatedActivity({
+    required this.title,
+    required this.startDate,
+    required this.endDate,
+    required this.dayCount,
+  });
+
+  final String title;
+  final DateTime? startDate;
+  final DateTime? endDate;
+  final int dayCount;
+}
+
+// Private alias so the class stays typed in _submit's return, while
+// callers reference the public name.
+typedef _CreatedActivity = CreatedActivity;
 
 String _formatDate(DateTime d) {
   const months = [
