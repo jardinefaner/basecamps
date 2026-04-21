@@ -98,29 +98,39 @@ class ObservationCard extends ConsumerWidget {
                     ),
               orElse: () => const SizedBox.shrink(),
             ),
-          if (observation.activityLabel != null &&
-              observation.activityLabel!.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Row(
-              children: [
-                Icon(
-                  Icons.schedule_outlined,
-                  size: 14,
-                  color: theme.colorScheme.onSurfaceVariant,
+          const SizedBox(height: AppSpacing.sm),
+          // Footer: timestamp + (optional) "· During {activity}" on the
+          // same row. Previously this was two stacked rows, wasting
+          // vertical space on every card in the feed.
+          Row(
+            children: [
+              Icon(
+                Icons.schedule_outlined,
+                size: 14,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 4),
+              Text(time, style: theme.textTheme.labelMedium),
+              if (observation.activityLabel != null &&
+                  observation.activityLabel!.isNotEmpty) ...[
+                Text(
+                  ' · ',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
-                const SizedBox(width: 4),
                 Flexible(
                   child: Text(
                     'During ${observation.activityLabel!}',
-                    style: theme.textTheme.labelSmall,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
-            ),
-          ],
-          const SizedBox(height: AppSpacing.sm),
-          Text(time, style: theme.textTheme.labelMedium),
+            ],
+          ),
         ],
       ),
     );

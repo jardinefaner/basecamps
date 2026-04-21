@@ -143,11 +143,22 @@ bool _timeOverlaps(ScheduleItem a, ScheduleItem b) {
 }
 
 bool _sharePod(ScheduleItem a, ScheduleItem b) {
+  // Respect the three-state audience. An intentionally-empty audience
+  // (isNoGroups — teacher toggled "All groups" off and picked nothing,
+  // staff prep / closure-style entries) doesn't target any children,
+  // so it can't share a group with anything. Treating it as a wildcard
+  // caused a spurious conflict flag to fire on every other activity
+  // on the same day.
+  if (a.isNoGroups || b.isNoGroups) return false;
+  // Broadcast cases (allGroups=true) still act as wildcards that
+  // overlap with any targeted audience on the same day.
   if (a.groupIds.isEmpty || b.groupIds.isEmpty) return true;
   return a.groupIds.toSet().intersection(b.groupIds.toSet()).isNotEmpty;
 }
 
 Set<String> _sharedPodIds(ScheduleItem a, ScheduleItem b) {
+  // No-groups activities never share with anyone (see _sharePod).
+  if (a.isNoGroups || b.isNoGroups) return const <String>{};
   if (a.groupIds.isEmpty || b.groupIds.isEmpty) return const <String>{};
   return a.groupIds.toSet().intersection(b.groupIds.toSet());
 }
