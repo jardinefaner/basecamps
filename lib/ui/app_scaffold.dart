@@ -1,6 +1,5 @@
 import 'package:basecamp/ui/animated_nav_bar.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 /// Shell branch indexing. The launcher sits at index 0 (no nav tile);
@@ -52,8 +51,6 @@ class AppScaffold extends StatefulWidget {
 }
 
 class _AppScaffoldState extends State<AppScaffold> {
-  DateTime? _lastBackPress;
-
   int get _lastBranchIndex => _firstTabBranchIndex + _navItems.length - 1;
 
   /// Nav-bar selection derived from the current shell branch. Returns
@@ -66,29 +63,18 @@ class _AppScaffoldState extends State<AppScaffold> {
     return shellIndex - _firstTabBranchIndex;
   }
 
-  /// Back-button handler at the app root. On Android, the system back
-  /// button would otherwise exit the app instantly from the root tab —
-  /// teachers reported accidentally doing this mid-capture. Now the first
-  /// back press flashes a toast, and a second press within 2 seconds
-  /// actually exits. iOS and web aren't affected.
-  Future<void> _onPopInvoked(bool didPop, Object? _) async {
-    if (didPop) return;
-    final now = DateTime.now();
-    final last = _lastBackPress;
-    if (last != null && now.difference(last) < const Duration(seconds: 2)) {
-      await SystemNavigator.pop();
-      return;
-    }
-    _lastBackPress = now;
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text('Press back again to exit'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+  /// Back-button / edge-swipe handler at the app root. Every handled
+  /// pop on the root becomes a no-op — teachers were accidentally
+  /// exiting mid-capture. The system gesture (Android edge swipe,
+  /// Android back button) is absorbed silently; to leave the app the
+  /// user goes through the home button / app switcher. iOS's
+  /// interactive pop gesture never triggers this path at the root,
+  /// so it's unaffected.
+  void _onPopInvoked(bool didPop, Object? _) {
+    // No-op on purpose. PopScope(canPop: false) already blocks the
+    // pop — we just don't offer any escape hatch here. The moment
+    // we start routing the back gesture somewhere (e.g. double-tap
+    // to exit) teachers hit it accidentally.
   }
 
   void _goToBranch(int shellIndex) {

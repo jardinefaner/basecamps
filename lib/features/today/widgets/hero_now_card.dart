@@ -185,17 +185,17 @@ class HeroNowCard extends ConsumerWidget {
                 ],
               ),
             ],
-            if (groupChildren.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.md),
-              _ChildrenRow(children: groupChildren),
-            ],
+            // Audience label — plain text, not avatars. For all-groups
+            // activities (which are the common case for Morning Circle,
+            // lunch, etc.) this replaces the decorative row — the
+            // avatar strip with "+34" overflow chip was both noisy and
+            // uninformative. A line of text conveys the same thing
+            // ("All groups · 40 kids") and leaves room for the
+            // attendance strip below for group-scoped activities.
+            const SizedBox(height: AppSpacing.md),
+            _AudienceLine(item: item, totalChildren: groupChildren.length),
             if (attendance != null) ...[
               const SizedBox(height: AppSpacing.md),
-              // Tap-to-open attendance summary. Inlining the full
-              // AttendanceTilesView here looked great for 5 kids and
-              // awful for 40 — the hero stretched down the screen,
-              // pushing Capture below the fold. Keep the sheet behind
-              // a modal.
               _HeroAttendanceStrip(
                 summary: attendance!,
                 onTap: onOpenAttendance,
@@ -341,82 +341,59 @@ class _HeroAttendanceStrip extends StatelessWidget {
   }
 }
 
-class _ChildrenRow extends StatelessWidget {
-  const _ChildrenRow({required this.children});
+/// One-line audience summary: "All groups · N kids" for broadcast
+/// activities, "Seedlings · N kids" for group-scoped, "Staff only"
+/// for intentionally-empty audiences. Replaces the decorative avatar
+/// row that used to live here — for the common all-groups case the
+/// avatars were just overflow-chipped noise, and the count alone is
+/// what teachers actually want to see.
+class _AudienceLine extends ConsumerWidget {
+  const _AudienceLine({
+    required this.item,
+    required this.totalChildren,
+  });
 
-  final List<Child> children;
+  final ScheduleItem item;
+  final int totalChildren;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    const maxVisible = 6;
-    final visible = children.take(maxVisible).toList();
-    final overflow = children.length - visible.length;
-
+    final String label;
+    if (item.isNoGroups) {
+      label = 'Staff only';
+    } else if (item.isAllGroups) {
+      label = totalChildren == 1
+          ? 'All groups · 1 kid'
+          : 'All groups · $totalChildren kids';
+    } else {
+      final names = <String>[];
+      for (final id in item.groupIds) {
+        final group = ref.watch(groupProvider(id)).asData?.value;
+        if (group != null) names.add(group.name);
+      }
+      final namePart = names.isEmpty ? 'Group' : names.join(' + ');
+      final kidPart = totalChildren == 1 ? '1 kid' : '$totalChildren kids';
+      label = '$namePart · $kidPart';
+    }
     return Row(
       children: [
-        for (final k in visible) ...[
-          _ChildInitial(child: k),
-          const SizedBox(width: 6),
-        ],
-        if (overflow > 0)
-          Container(
-            width: 26,
-            height: 26,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHigh,
-              shape: BoxShape.circle,
-              border: Border.all(color: theme.colorScheme.outlineVariant),
-            ),
-            child: Text(
-              '+$overflow',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        const SizedBox(width: AppSpacing.sm),
+        Icon(
+          Icons.groups_outlined,
+          size: 16,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        const SizedBox(width: 6),
         Flexible(
           child: Text(
-            children.length == 1 ? '1 child' : '${children.length} children',
+            label,
             style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
-    );
-  }
-}
-
-class _ChildInitial extends StatelessWidget {
-  const _ChildInitial({required this.child});
-
-  final Child child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final initial = child.firstName.isEmpty
-        ? '?'
-        : child.firstName.characters.first.toUpperCase();
-    return Container(
-      width: 26,
-      height: 26,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary.withValues(alpha: 0.18),
-        shape: BoxShape.circle,
-      ),
-      child: Text(
-        initial,
-        style: theme.textTheme.labelMedium?.copyWith(
-          color: theme.colorScheme.primary,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
     );
   }
 }

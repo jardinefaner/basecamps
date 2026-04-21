@@ -228,9 +228,11 @@ class _Body extends ConsumerWidget {
         .length;
 
     AttendanceSummary? attendanceFor(ScheduleItem item) {
-      // Only roll up for group-scoped activities — "all groups" is
-      // everyone (use the whole-day check-in flow elsewhere), "no
-      // groups" has nobody to track.
+      // Attendance strip is only useful for group-scoped activities.
+      // All-groups = "everyone" — use the whole-day check-in flow
+      // elsewhere; cluttering the hero with a strip for Morning
+      // Circle (i.e. literally every kid) is noise. Staff-prep
+      // activities have no children to track.
       if (item.groupIds.isEmpty || item.isAllGroups || item.isNoGroups) {
         return null;
       }
