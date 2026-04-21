@@ -33,7 +33,11 @@ class AttendanceSheet extends ConsumerWidget {
     final theme = Theme.of(context);
     final insets = MediaQuery.of(context).viewInsets.bottom;
     final kidsAsync = ref.watch(childrenProvider);
-    final attendanceAsync = ref.watch(todayAttendanceProvider);
+    // Read attendance for the specific [date] passed in — not today.
+    // Normalize to date-only so callers with a time component share
+    // one provider instance, not one per millisecond.
+    final dayOnly = DateTime(date.year, date.month, date.day);
+    final attendanceAsync = ref.watch(attendanceForDayProvider(dayOnly));
 
     return Padding(
       padding: EdgeInsets.only(

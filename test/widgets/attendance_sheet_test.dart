@@ -30,11 +30,7 @@ void main() {
 
   group('summary row', () {
     testWidgets('shows present / absent / pending counts', (tester) async {
-      // The sheet's current implementation reads via todayAttendanceProvider
-      // (DateTime.now()) regardless of the `date` prop, so seed at today's
-      // calendar date. (Tracked as a product bug — see spawn task.)
-      final now = DateTime.now();
-      final date = DateTime(now.year, now.month, now.day);
+      final date = DateTime(2026, 4, 20);
       await att.setStatus(
         childId: maya,
         date: date,
@@ -59,11 +55,7 @@ void main() {
 
     testWidgets('pending=0 hides "Mark remaining present" button',
         (tester) async {
-      // The sheet's current implementation reads via todayAttendanceProvider
-      // (DateTime.now()) regardless of the `date` prop, so seed at today's
-      // calendar date. (Tracked as a product bug — see spawn task.)
-      final now = DateTime.now();
-      final date = DateTime(now.year, now.month, now.day);
+      final date = DateTime(2026, 4, 20);
       await att.setStatus(
         childId: maya,
         date: date,

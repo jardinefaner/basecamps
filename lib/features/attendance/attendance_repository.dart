@@ -138,9 +138,26 @@ final attendanceRepositoryProvider =
   return AttendanceRepository(ref.watch(databaseProvider));
 });
 
-/// Live map of today's attendance — feeds both the Today dashboard's
-/// per-group summaries and the inline AttendanceSheet.
+/// Live map of attendance for the given calendar day. The family is
+/// parameterized so date-aware callers (the attendance sheet for a
+/// tapped past-day card, any future attendance history surface) read
+/// the right slice, instead of everyone being stuck on "today" via a
+/// single global [todayAttendanceProvider]. Pass a `DateTime` stripped
+/// of its time-of-day component so identical dates share one
+/// subscription.
+// ignore: specify_nonobvious_property_types
+final attendanceForDayProvider = StreamProvider.family<
+    Map<String, AttendanceRecord>, DateTime>((ref, date) {
+  return ref.watch(attendanceRepositoryProvider).watchForDay(date);
+});
+
+/// Shortcut for the Today dashboard — resolves to today's slice. Kept
+/// as a dedicated provider (rather than piping through the family) so
+/// existing consumers don't have to know about [attendanceForDayProvider]
+/// or care about date normalization.
 final todayAttendanceProvider =
     StreamProvider<Map<String, AttendanceRecord>>((ref) {
-  return ref.watch(attendanceRepositoryProvider).watchForDay(DateTime.now());
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  return ref.watch(attendanceRepositoryProvider).watchForDay(today);
 });
