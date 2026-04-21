@@ -168,6 +168,9 @@ class _NewFullDayEventWizardScreenState
         specialistId: _specialistId,
         location: location.isEmpty ? null : location,
         notes: notes.isEmpty ? null : notes,
+        // Link back to the library row so the detail sheet can show
+        // a "view activity card" tap on the title.
+        sourceLibraryItemId: _fromLibrary?.id,
       );
     }
     if (!mounted) return;

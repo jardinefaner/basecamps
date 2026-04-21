@@ -185,6 +185,10 @@ class _NewActivityWizardScreenState
         startDate: bounds.start,
         endDate: bounds.end,
         seriesId: seriesId,
+        // Link back to the library row when the wizard was seeded
+        // from a library pick — lets the Today detail sheet show a
+        // "view activity card" affordance with the rich content.
+        sourceLibraryItemId: _fromLibrary?.id,
       );
     }
     if (!mounted) return;

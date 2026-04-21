@@ -27,6 +27,7 @@ class ScheduleItem {
     this.notes,
     this.templateId,
     this.entryId,
+    this.sourceLibraryItemId,
   });
 
   final String id;
@@ -47,6 +48,13 @@ class ScheduleItem {
   final bool isFromTemplate;
   final String? templateId;
   final String? entryId;
+
+  /// When the teacher created this activity via "From library", this
+  /// holds the library row's id so the Today detail sheet can link
+  /// back to the full activity card (hook / summary / key points /
+  /// learning goals / source URL). Null for activities typed from
+  /// scratch.
+  final String? sourceLibraryItemId;
 
   /// The concrete calendar date this item renders on. Set by the
   /// repository while expanding templates and entries into day-
@@ -153,6 +161,7 @@ class ScheduleRepository {
           notes: t.notes,
           isFromTemplate: true,
           templateId: t.id,
+          sourceLibraryItemId: t.sourceLibraryItemId,
         );
         byDay.putIfAbsent(t.dayOfWeek, () => []).add(item);
       }
@@ -205,6 +214,9 @@ class ScheduleRepository {
     // multi-day create pass. Renamed from `groupId` in schema v25
     // because that name now refers to the people-group reference.
     String? seriesId,
+    // Back-reference to the activity library row (when the teacher
+    // picked "From library"). Null for typed-from-scratch activities.
+    String? sourceLibraryItemId,
   }) async {
     final id = newId();
     await _db.transaction(() async {
@@ -223,6 +235,7 @@ class ScheduleRepository {
               startDate: Value(startDate == null ? null : _dayOnly(startDate)),
               endDate: Value(endDate == null ? null : _dayOnly(endDate)),
               seriesId: Value(seriesId),
+              sourceLibraryItemId: Value(sourceLibraryItemId),
             ),
           );
       for (final groupId in groupIds) {
@@ -393,6 +406,7 @@ class ScheduleRepository {
     String? specialistId,
     String? location,
     String? notes,
+    String? sourceLibraryItemId,
   }) async {
     final id = newId();
     // Normalize bounds so the range is always [start, end] with
@@ -416,6 +430,7 @@ class ScheduleRepository {
               specialistId: Value(specialistId),
               location: Value(location),
               notes: Value(notes),
+              sourceLibraryItemId: Value(sourceLibraryItemId),
               kind: 'addition',
             ),
           );
@@ -821,6 +836,9 @@ class ScheduleRepository {
             isFromTemplate: true,
             templateId: t.id,
             entryId: override.id,
+            // Attribution follows the template — the override only
+            // shifts time/groups/etc. for a single day.
+            sourceLibraryItemId: t.sourceLibraryItemId,
           ),
         );
       } else {
@@ -839,6 +857,7 @@ class ScheduleRepository {
             notes: t.notes,
             isFromTemplate: true,
             templateId: t.id,
+            sourceLibraryItemId: t.sourceLibraryItemId,
           ),
         );
       }
@@ -864,6 +883,7 @@ class ScheduleRepository {
             notes: e.notes,
             isFromTemplate: false,
             entryId: e.id,
+            sourceLibraryItemId: e.sourceLibraryItemId,
           ),
         );
       }

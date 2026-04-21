@@ -327,6 +327,17 @@ class ScheduleTemplates extends Table {
   TextColumn get notes => text().nullable()();
   DateTimeColumn get startDate => dateTime().nullable()();
   DateTimeColumn get endDate => dateTime().nullable()();
+  // Back-reference to the activity library row this template was created
+  // from (via "From library" in the wizard). Null when the teacher
+  // typed the activity from scratch. Used by the Today detail sheet to
+  // offer a "view activity card" link back to the rich library content
+  // (hook / summary / key points / learning goals). setNull on delete
+  // so removing the library entry doesn't nuke the scheduled row.
+  TextColumn get sourceLibraryItemId => text().nullable().references(
+        ActivityLibrary,
+        #id,
+        onDelete: KeyAction.setNull,
+      )();
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -519,6 +530,14 @@ class ScheduleEntries extends Table {
       text().nullable().references(Trips, #id, onDelete: KeyAction.cascade)();
   TextColumn get overridesTemplateId => text().nullable().references(
         ScheduleTemplates,
+        #id,
+        onDelete: KeyAction.setNull,
+      )();
+  // Mirror of [ScheduleTemplates.sourceLibraryItemId]. Same rules:
+  // null when created from scratch; setNull on library delete so the
+  // entry survives.
+  TextColumn get sourceLibraryItemId => text().nullable().references(
+        ActivityLibrary,
         #id,
         onDelete: KeyAction.setNull,
       )();

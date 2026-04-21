@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/activity_library/activity_library_repository.dart';
+import 'package:basecamp/features/activity_library/widgets/library_card_detail_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/edit_template_sheet.dart';
@@ -43,25 +45,12 @@ class ActivityDetailSheet extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Title row with an Edit affordance on the right for rows
-            // that have one. The title itself is NOT tappable — it's
-            // read-only identity, not a navigation target.
-            Row(
-              children: [
-                Expanded(
-                  child: Text(item.title, style: theme.textTheme.titleLarge),
-                ),
-                if ((item.isFromTemplate && item.templateId != null) ||
-                    (item.entryId != null))
-                  TextButton.icon(
-                    onPressed: () => _openEdit(context, ref),
-                    icon: const Icon(Icons.edit_outlined, size: 16),
-                    label: const Text('Edit'),
-                    style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ),
-              ],
+            _TitleRow(
+              item: item,
+              hasEditor: (item.isFromTemplate && item.templateId != null) ||
+                  (item.entryId != null),
+              onEdit: () => _openEdit(context, ref),
+              onOpenLibrary: () => _openLibraryCard(context, ref),
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
@@ -202,6 +191,31 @@ class ActivityDetailSheet extends ConsumerWidget {
     if (result != null && navigator.mounted) {
       navigator.pop();
     }
+  }
+
+  /// Open the source activity-library card (hook / summary / key
+  /// points / learning goals / source). Only reachable when the
+  /// activity was created from a library pick — scheduled rows typed
+  /// from scratch have no library back-reference.
+  Future<void> _openLibraryCard(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final libraryId = item.sourceLibraryItemId;
+    if (libraryId == null) return;
+    final libraryItem = await ref
+        .read(activityLibraryRepositoryProvider)
+        .getItem(libraryId);
+    if (libraryItem == null || !context.mounted) return;
+    // Stacks on top of the detail sheet — closing returns here, so
+    // the teacher can read the rich card and then keep going.
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (_) => LibraryCardDetailSheet(item: libraryItem),
+    );
   }
 
   /// Only show override actions on a concrete date — the specialist-
@@ -469,6 +483,85 @@ class _GroupsRow extends ConsumerWidget {
     return _MetaRow(
       icon: Icons.groups_outlined,
       text: names.join(' + '),
+    );
+  }
+}
+
+/// Title row at the top of the detail sheet. Shape depends on whether
+/// the activity has a library source and/or an editor:
+///   - No source, no editor  → plain title text (rare, legacy rows)
+///   - No source, editor     → title + Edit button
+///   - Has source, editor    → tappable title (↗ opens library card)
+///                             + Edit button
+/// The library-source tap is the ask: "title should open activity
+/// detail" meaning the rich library card with hook/summary/key points.
+class _TitleRow extends StatelessWidget {
+  const _TitleRow({
+    required this.item,
+    required this.hasEditor,
+    required this.onEdit,
+    required this.onOpenLibrary,
+  });
+
+  final ScheduleItem item;
+  final bool hasEditor;
+  final VoidCallback onEdit;
+  final VoidCallback onOpenLibrary;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasLibrarySource = item.sourceLibraryItemId != null;
+
+    final titleWidget = hasLibrarySource
+        ? InkWell(
+            onTap: onOpenLibrary,
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: 4,
+                horizontal: 4,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      item.title,
+                      style: theme.textTheme.titleLarge,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    // Subtle hint that the title opens something.
+                    Icons.north_east,
+                    size: 14,
+                    color: theme.colorScheme.primary,
+                  ),
+                ],
+              ),
+            ),
+          )
+        : Text(item.title, style: theme.textTheme.titleLarge);
+
+    return Row(
+      children: [
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: titleWidget,
+          ),
+        ),
+        if (hasEditor)
+          TextButton.icon(
+            onPressed: onEdit,
+            icon: const Icon(Icons.edit_outlined, size: 16),
+            label: const Text('Edit'),
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+      ],
     );
   }
 }

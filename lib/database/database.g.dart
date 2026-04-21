@@ -6528,6 +6528,20 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _sourceLibraryItemIdMeta =
+      const VerificationMeta('sourceLibraryItemId');
+  @override
+  late final GeneratedColumn<String> sourceLibraryItemId =
+      GeneratedColumn<String>(
+        'source_library_item_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES activity_library (id) ON DELETE SET NULL',
+        ),
+      );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -6569,6 +6583,7 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
     notes,
     startDate,
     endDate,
+    sourceLibraryItemId,
     createdAt,
     updatedAt,
   ];
@@ -6687,6 +6702,15 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
         endDate.isAcceptableOrUnknown(data['end_date']!, _endDateMeta),
       );
     }
+    if (data.containsKey('source_library_item_id')) {
+      context.handle(
+        _sourceLibraryItemIdMeta,
+        sourceLibraryItemId.isAcceptableOrUnknown(
+          data['source_library_item_id']!,
+          _sourceLibraryItemIdMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -6768,6 +6792,10 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
         DriftSqlType.dateTime,
         data['${effectivePrefix}end_date'],
       ),
+      sourceLibraryItemId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_library_item_id'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -6802,6 +6830,7 @@ class ScheduleTemplate extends DataClass
   final String? notes;
   final DateTime? startDate;
   final DateTime? endDate;
+  final String? sourceLibraryItemId;
   final DateTime createdAt;
   final DateTime updatedAt;
   const ScheduleTemplate({
@@ -6820,6 +6849,7 @@ class ScheduleTemplate extends DataClass
     this.notes,
     this.startDate,
     this.endDate,
+    this.sourceLibraryItemId,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -6856,6 +6886,9 @@ class ScheduleTemplate extends DataClass
     }
     if (!nullToAbsent || endDate != null) {
       map['end_date'] = Variable<DateTime>(endDate);
+    }
+    if (!nullToAbsent || sourceLibraryItemId != null) {
+      map['source_library_item_id'] = Variable<String>(sourceLibraryItemId);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -6895,6 +6928,9 @@ class ScheduleTemplate extends DataClass
       endDate: endDate == null && nullToAbsent
           ? const Value.absent()
           : Value(endDate),
+      sourceLibraryItemId: sourceLibraryItemId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceLibraryItemId),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -6921,6 +6957,9 @@ class ScheduleTemplate extends DataClass
       notes: serializer.fromJson<String?>(json['notes']),
       startDate: serializer.fromJson<DateTime?>(json['startDate']),
       endDate: serializer.fromJson<DateTime?>(json['endDate']),
+      sourceLibraryItemId: serializer.fromJson<String?>(
+        json['sourceLibraryItemId'],
+      ),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -6944,6 +6983,7 @@ class ScheduleTemplate extends DataClass
       'notes': serializer.toJson<String?>(notes),
       'startDate': serializer.toJson<DateTime?>(startDate),
       'endDate': serializer.toJson<DateTime?>(endDate),
+      'sourceLibraryItemId': serializer.toJson<String?>(sourceLibraryItemId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -6965,6 +7005,7 @@ class ScheduleTemplate extends DataClass
     Value<String?> notes = const Value.absent(),
     Value<DateTime?> startDate = const Value.absent(),
     Value<DateTime?> endDate = const Value.absent(),
+    Value<String?> sourceLibraryItemId = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => ScheduleTemplate(
@@ -6985,6 +7026,9 @@ class ScheduleTemplate extends DataClass
     notes: notes.present ? notes.value : this.notes,
     startDate: startDate.present ? startDate.value : this.startDate,
     endDate: endDate.present ? endDate.value : this.endDate,
+    sourceLibraryItemId: sourceLibraryItemId.present
+        ? sourceLibraryItemId.value
+        : this.sourceLibraryItemId,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -7009,6 +7053,9 @@ class ScheduleTemplate extends DataClass
       notes: data.notes.present ? data.notes.value : this.notes,
       startDate: data.startDate.present ? data.startDate.value : this.startDate,
       endDate: data.endDate.present ? data.endDate.value : this.endDate,
+      sourceLibraryItemId: data.sourceLibraryItemId.present
+          ? data.sourceLibraryItemId.value
+          : this.sourceLibraryItemId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -7032,6 +7079,7 @@ class ScheduleTemplate extends DataClass
           ..write('notes: $notes, ')
           ..write('startDate: $startDate, ')
           ..write('endDate: $endDate, ')
+          ..write('sourceLibraryItemId: $sourceLibraryItemId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -7055,6 +7103,7 @@ class ScheduleTemplate extends DataClass
     notes,
     startDate,
     endDate,
+    sourceLibraryItemId,
     createdAt,
     updatedAt,
   );
@@ -7077,6 +7126,7 @@ class ScheduleTemplate extends DataClass
           other.notes == this.notes &&
           other.startDate == this.startDate &&
           other.endDate == this.endDate &&
+          other.sourceLibraryItemId == this.sourceLibraryItemId &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -7097,6 +7147,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
   final Value<String?> notes;
   final Value<DateTime?> startDate;
   final Value<DateTime?> endDate;
+  final Value<String?> sourceLibraryItemId;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -7116,6 +7167,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     this.notes = const Value.absent(),
     this.startDate = const Value.absent(),
     this.endDate = const Value.absent(),
+    this.sourceLibraryItemId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -7136,6 +7188,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     this.notes = const Value.absent(),
     this.startDate = const Value.absent(),
     this.endDate = const Value.absent(),
+    this.sourceLibraryItemId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -7160,6 +7213,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     Expression<String>? notes,
     Expression<DateTime>? startDate,
     Expression<DateTime>? endDate,
+    Expression<String>? sourceLibraryItemId,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -7180,6 +7234,8 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
       if (notes != null) 'notes': notes,
       if (startDate != null) 'start_date': startDate,
       if (endDate != null) 'end_date': endDate,
+      if (sourceLibraryItemId != null)
+        'source_library_item_id': sourceLibraryItemId,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -7202,6 +7258,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     Value<String?>? notes,
     Value<DateTime?>? startDate,
     Value<DateTime?>? endDate,
+    Value<String?>? sourceLibraryItemId,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -7222,6 +7279,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
       notes: notes ?? this.notes,
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
+      sourceLibraryItemId: sourceLibraryItemId ?? this.sourceLibraryItemId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -7276,6 +7334,11 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     if (endDate.present) {
       map['end_date'] = Variable<DateTime>(endDate.value);
     }
+    if (sourceLibraryItemId.present) {
+      map['source_library_item_id'] = Variable<String>(
+        sourceLibraryItemId.value,
+      );
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -7306,6 +7369,7 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
           ..write('notes: $notes, ')
           ..write('startDate: $startDate, ')
           ..write('endDate: $endDate, ')
+          ..write('sourceLibraryItemId: $sourceLibraryItemId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -7506,6 +7570,20 @@ class $ScheduleEntriesTable extends ScheduleEntries
           'REFERENCES schedule_templates (id) ON DELETE SET NULL',
         ),
       );
+  static const VerificationMeta _sourceLibraryItemIdMeta =
+      const VerificationMeta('sourceLibraryItemId');
+  @override
+  late final GeneratedColumn<String> sourceLibraryItemId =
+      GeneratedColumn<String>(
+        'source_library_item_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES activity_library (id) ON DELETE SET NULL',
+        ),
+      );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -7548,6 +7626,7 @@ class $ScheduleEntriesTable extends ScheduleEntries
     kind,
     sourceTripId,
     overridesTemplateId,
+    sourceLibraryItemId,
     createdAt,
     updatedAt,
   ];
@@ -7680,6 +7759,15 @@ class $ScheduleEntriesTable extends ScheduleEntries
         ),
       );
     }
+    if (data.containsKey('source_library_item_id')) {
+      context.handle(
+        _sourceLibraryItemIdMeta,
+        sourceLibraryItemId.isAcceptableOrUnknown(
+          data['source_library_item_id']!,
+          _sourceLibraryItemIdMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -7765,6 +7853,10 @@ class $ScheduleEntriesTable extends ScheduleEntries
         DriftSqlType.string,
         data['${effectivePrefix}overrides_template_id'],
       ),
+      sourceLibraryItemId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_library_item_id'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -7799,6 +7891,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
   final String kind;
   final String? sourceTripId;
   final String? overridesTemplateId;
+  final String? sourceLibraryItemId;
   final DateTime createdAt;
   final DateTime updatedAt;
   const ScheduleEntry({
@@ -7818,6 +7911,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     required this.kind,
     this.sourceTripId,
     this.overridesTemplateId,
+    this.sourceLibraryItemId,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -7855,6 +7949,9 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     }
     if (!nullToAbsent || overridesTemplateId != null) {
       map['overrides_template_id'] = Variable<String>(overridesTemplateId);
+    }
+    if (!nullToAbsent || sourceLibraryItemId != null) {
+      map['source_library_item_id'] = Variable<String>(sourceLibraryItemId);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -7895,6 +7992,9 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       overridesTemplateId: overridesTemplateId == null && nullToAbsent
           ? const Value.absent()
           : Value(overridesTemplateId),
+      sourceLibraryItemId: sourceLibraryItemId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceLibraryItemId),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -7924,6 +8024,9 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       overridesTemplateId: serializer.fromJson<String?>(
         json['overridesTemplateId'],
       ),
+      sourceLibraryItemId: serializer.fromJson<String?>(
+        json['sourceLibraryItemId'],
+      ),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -7948,6 +8051,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       'kind': serializer.toJson<String>(kind),
       'sourceTripId': serializer.toJson<String?>(sourceTripId),
       'overridesTemplateId': serializer.toJson<String?>(overridesTemplateId),
+      'sourceLibraryItemId': serializer.toJson<String?>(sourceLibraryItemId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -7970,6 +8074,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     String? kind,
     Value<String?> sourceTripId = const Value.absent(),
     Value<String?> overridesTemplateId = const Value.absent(),
+    Value<String?> sourceLibraryItemId = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => ScheduleEntry(
@@ -7993,6 +8098,9 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     overridesTemplateId: overridesTemplateId.present
         ? overridesTemplateId.value
         : this.overridesTemplateId,
+    sourceLibraryItemId: sourceLibraryItemId.present
+        ? sourceLibraryItemId.value
+        : this.sourceLibraryItemId,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -8022,6 +8130,9 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       overridesTemplateId: data.overridesTemplateId.present
           ? data.overridesTemplateId.value
           : this.overridesTemplateId,
+      sourceLibraryItemId: data.sourceLibraryItemId.present
+          ? data.sourceLibraryItemId.value
+          : this.sourceLibraryItemId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -8046,6 +8157,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
           ..write('kind: $kind, ')
           ..write('sourceTripId: $sourceTripId, ')
           ..write('overridesTemplateId: $overridesTemplateId, ')
+          ..write('sourceLibraryItemId: $sourceLibraryItemId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -8070,6 +8182,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     kind,
     sourceTripId,
     overridesTemplateId,
+    sourceLibraryItemId,
     createdAt,
     updatedAt,
   );
@@ -8093,6 +8206,7 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
           other.kind == this.kind &&
           other.sourceTripId == this.sourceTripId &&
           other.overridesTemplateId == this.overridesTemplateId &&
+          other.sourceLibraryItemId == this.sourceLibraryItemId &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -8114,6 +8228,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
   final Value<String> kind;
   final Value<String?> sourceTripId;
   final Value<String?> overridesTemplateId;
+  final Value<String?> sourceLibraryItemId;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -8134,6 +8249,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     this.kind = const Value.absent(),
     this.sourceTripId = const Value.absent(),
     this.overridesTemplateId = const Value.absent(),
+    this.sourceLibraryItemId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -8155,6 +8271,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     required String kind,
     this.sourceTripId = const Value.absent(),
     this.overridesTemplateId = const Value.absent(),
+    this.sourceLibraryItemId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -8181,6 +8298,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     Expression<String>? kind,
     Expression<String>? sourceTripId,
     Expression<String>? overridesTemplateId,
+    Expression<String>? sourceLibraryItemId,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -8203,6 +8321,8 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
       if (sourceTripId != null) 'source_trip_id': sourceTripId,
       if (overridesTemplateId != null)
         'overrides_template_id': overridesTemplateId,
+      if (sourceLibraryItemId != null)
+        'source_library_item_id': sourceLibraryItemId,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -8226,6 +8346,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     Value<String>? kind,
     Value<String?>? sourceTripId,
     Value<String?>? overridesTemplateId,
+    Value<String?>? sourceLibraryItemId,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -8247,6 +8368,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
       kind: kind ?? this.kind,
       sourceTripId: sourceTripId ?? this.sourceTripId,
       overridesTemplateId: overridesTemplateId ?? this.overridesTemplateId,
+      sourceLibraryItemId: sourceLibraryItemId ?? this.sourceLibraryItemId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -8306,6 +8428,11 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
         overridesTemplateId.value,
       );
     }
+    if (sourceLibraryItemId.present) {
+      map['source_library_item_id'] = Variable<String>(
+        sourceLibraryItemId.value,
+      );
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -8337,6 +8464,7 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
           ..write('kind: $kind, ')
           ..write('sourceTripId: $sourceTripId, ')
           ..write('overridesTemplateId: $overridesTemplateId, ')
+          ..write('sourceLibraryItemId: $sourceLibraryItemId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -11312,6 +11440,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
+        'activity_library',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('schedule_templates', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
         'groups',
         limitUpdateKind: UpdateKind.delete,
       ),
@@ -11334,6 +11469,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     WritePropagation(
       on: TableUpdateQuery.onTableName(
         'schedule_templates',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('schedule_entries', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'activity_library',
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('schedule_entries', kind: UpdateKind.update)],
@@ -18262,6 +18404,58 @@ final class $$ActivityLibraryTableReferences
       manager.$state.copyWith(prefetchedData: [item]),
     );
   }
+
+  static MultiTypedResultKey<$ScheduleTemplatesTable, List<ScheduleTemplate>>
+  _scheduleTemplatesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.scheduleTemplates,
+        aliasName: $_aliasNameGenerator(
+          db.activityLibrary.id,
+          db.scheduleTemplates.sourceLibraryItemId,
+        ),
+      );
+
+  $$ScheduleTemplatesTableProcessedTableManager get scheduleTemplatesRefs {
+    final manager =
+        $$ScheduleTemplatesTableTableManager(
+          $_db,
+          $_db.scheduleTemplates,
+        ).filter(
+          (f) =>
+              f.sourceLibraryItemId.id.sqlEquals($_itemColumn<String>('id')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(
+      _scheduleTemplatesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ScheduleEntriesTable, List<ScheduleEntry>>
+  _scheduleEntriesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.scheduleEntries,
+    aliasName: $_aliasNameGenerator(
+      db.activityLibrary.id,
+      db.scheduleEntries.sourceLibraryItemId,
+    ),
+  );
+
+  $$ScheduleEntriesTableProcessedTableManager get scheduleEntriesRefs {
+    final manager =
+        $$ScheduleEntriesTableTableManager($_db, $_db.scheduleEntries).filter(
+          (f) =>
+              f.sourceLibraryItemId.id.sqlEquals($_itemColumn<String>('id')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(
+      _scheduleEntriesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$ActivityLibraryTableFilterComposer
@@ -18374,6 +18568,56 @@ class $$ActivityLibraryTableFilterComposer
           ),
     );
     return composer;
+  }
+
+  Expression<bool> scheduleTemplatesRefs(
+    Expression<bool> Function($$ScheduleTemplatesTableFilterComposer f) f,
+  ) {
+    final $$ScheduleTemplatesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleTemplates,
+      getReferencedColumn: (t) => t.sourceLibraryItemId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleTemplatesTableFilterComposer(
+            $db: $db,
+            $table: $db.scheduleTemplates,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> scheduleEntriesRefs(
+    Expression<bool> Function($$ScheduleEntriesTableFilterComposer f) f,
+  ) {
+    final $$ScheduleEntriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleEntries,
+      getReferencedColumn: (t) => t.sourceLibraryItemId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleEntriesTableFilterComposer(
+            $db: $db,
+            $table: $db.scheduleEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
   }
 }
 
@@ -18581,6 +18825,57 @@ class $$ActivityLibraryTableAnnotationComposer
     );
     return composer;
   }
+
+  Expression<T> scheduleTemplatesRefs<T extends Object>(
+    Expression<T> Function($$ScheduleTemplatesTableAnnotationComposer a) f,
+  ) {
+    final $$ScheduleTemplatesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.scheduleTemplates,
+          getReferencedColumn: (t) => t.sourceLibraryItemId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ScheduleTemplatesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.scheduleTemplates,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> scheduleEntriesRefs<T extends Object>(
+    Expression<T> Function($$ScheduleEntriesTableAnnotationComposer a) f,
+  ) {
+    final $$ScheduleEntriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.scheduleEntries,
+      getReferencedColumn: (t) => t.sourceLibraryItemId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ScheduleEntriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.scheduleEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ActivityLibraryTableTableManager
@@ -18596,7 +18891,11 @@ class $$ActivityLibraryTableTableManager
           $$ActivityLibraryTableUpdateCompanionBuilder,
           (ActivityLibraryData, $$ActivityLibraryTableReferences),
           ActivityLibraryData,
-          PrefetchHooks Function({bool specialistId})
+          PrefetchHooks Function({
+            bool specialistId,
+            bool scheduleTemplatesRefs,
+            bool scheduleEntriesRefs,
+          })
         > {
   $$ActivityLibraryTableTableManager(
     _$AppDatabase db,
@@ -18699,49 +18998,100 @@ class $$ActivityLibraryTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({specialistId = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (specialistId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.specialistId,
-                                referencedTable:
-                                    $$ActivityLibraryTableReferences
-                                        ._specialistIdTable(db),
-                                referencedColumn:
-                                    $$ActivityLibraryTableReferences
-                                        ._specialistIdTable(db)
-                                        .id,
-                              )
-                              as T;
-                    }
+          prefetchHooksCallback:
+              ({
+                specialistId = false,
+                scheduleTemplatesRefs = false,
+                scheduleEntriesRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (scheduleTemplatesRefs) db.scheduleTemplates,
+                    if (scheduleEntriesRefs) db.scheduleEntries,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (specialistId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.specialistId,
+                                    referencedTable:
+                                        $$ActivityLibraryTableReferences
+                                            ._specialistIdTable(db),
+                                    referencedColumn:
+                                        $$ActivityLibraryTableReferences
+                                            ._specialistIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
 
-                    return state;
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (scheduleTemplatesRefs)
+                        await $_getPrefetchedData<
+                          ActivityLibraryData,
+                          $ActivityLibraryTable,
+                          ScheduleTemplate
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ActivityLibraryTableReferences
+                              ._scheduleTemplatesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ActivityLibraryTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scheduleTemplatesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.sourceLibraryItemId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (scheduleEntriesRefs)
+                        await $_getPrefetchedData<
+                          ActivityLibraryData,
+                          $ActivityLibraryTable,
+                          ScheduleEntry
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ActivityLibraryTableReferences
+                              ._scheduleEntriesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ActivityLibraryTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).scheduleEntriesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.sourceLibraryItemId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
                   },
-              getPrefetchedDataCallback: (items) async {
-                return [];
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -18758,7 +19108,11 @@ typedef $$ActivityLibraryTableProcessedTableManager =
       $$ActivityLibraryTableUpdateCompanionBuilder,
       (ActivityLibraryData, $$ActivityLibraryTableReferences),
       ActivityLibraryData,
-      PrefetchHooks Function({bool specialistId})
+      PrefetchHooks Function({
+        bool specialistId,
+        bool scheduleTemplatesRefs,
+        bool scheduleEntriesRefs,
+      })
     >;
 typedef $$ScheduleTemplatesTableCreateCompanionBuilder =
     ScheduleTemplatesCompanion Function({
@@ -18777,6 +19131,7 @@ typedef $$ScheduleTemplatesTableCreateCompanionBuilder =
       Value<String?> notes,
       Value<DateTime?> startDate,
       Value<DateTime?> endDate,
+      Value<String?> sourceLibraryItemId,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -18798,6 +19153,7 @@ typedef $$ScheduleTemplatesTableUpdateCompanionBuilder =
       Value<String?> notes,
       Value<DateTime?> startDate,
       Value<DateTime?> endDate,
+      Value<String?> sourceLibraryItemId,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -18850,6 +19206,28 @@ final class $$ScheduleTemplatesTableReferences
       $_db.specialists,
     ).filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_specialistIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $ActivityLibraryTable _sourceLibraryItemIdTable(_$AppDatabase db) =>
+      db.activityLibrary.createAlias(
+        $_aliasNameGenerator(
+          db.scheduleTemplates.sourceLibraryItemId,
+          db.activityLibrary.id,
+        ),
+      );
+
+  $$ActivityLibraryTableProcessedTableManager? get sourceLibraryItemId {
+    final $_column = $_itemColumn<String>('source_library_item_id');
+    if ($_column == null) return null;
+    final manager = $$ActivityLibraryTableTableManager(
+      $_db,
+      $_db.activityLibrary,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_sourceLibraryItemIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -19023,6 +19401,29 @@ class $$ScheduleTemplatesTableFilterComposer
           }) => $$SpecialistsTableFilterComposer(
             $db: $db,
             $table: $db.specialists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ActivityLibraryTableFilterComposer get sourceLibraryItemId {
+    final $$ActivityLibraryTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceLibraryItemId,
+      referencedTable: $db.activityLibrary,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ActivityLibraryTableFilterComposer(
+            $db: $db,
+            $table: $db.activityLibrary,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -19212,6 +19613,29 @@ class $$ScheduleTemplatesTableOrderingComposer
     );
     return composer;
   }
+
+  $$ActivityLibraryTableOrderingComposer get sourceLibraryItemId {
+    final $$ActivityLibraryTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceLibraryItemId,
+      referencedTable: $db.activityLibrary,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ActivityLibraryTableOrderingComposer(
+            $db: $db,
+            $table: $db.activityLibrary,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$ScheduleTemplatesTableAnnotationComposer
@@ -19316,6 +19740,29 @@ class $$ScheduleTemplatesTableAnnotationComposer
     return composer;
   }
 
+  $$ActivityLibraryTableAnnotationComposer get sourceLibraryItemId {
+    final $$ActivityLibraryTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceLibraryItemId,
+      referencedTable: $db.activityLibrary,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ActivityLibraryTableAnnotationComposer(
+            $db: $db,
+            $table: $db.activityLibrary,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
   Expression<T> scheduleEntriesRefs<T extends Object>(
     Expression<T> Function($$ScheduleEntriesTableAnnotationComposer a) f,
   ) {
@@ -19383,6 +19830,7 @@ class $$ScheduleTemplatesTableTableManager
           PrefetchHooks Function({
             bool groupId,
             bool specialistId,
+            bool sourceLibraryItemId,
             bool scheduleEntriesRefs,
             bool templateGroupsRefs,
           })
@@ -19420,6 +19868,7 @@ class $$ScheduleTemplatesTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<DateTime?> startDate = const Value.absent(),
                 Value<DateTime?> endDate = const Value.absent(),
+                Value<String?> sourceLibraryItemId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -19439,6 +19888,7 @@ class $$ScheduleTemplatesTableTableManager
                 notes: notes,
                 startDate: startDate,
                 endDate: endDate,
+                sourceLibraryItemId: sourceLibraryItemId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -19460,6 +19910,7 @@ class $$ScheduleTemplatesTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<DateTime?> startDate = const Value.absent(),
                 Value<DateTime?> endDate = const Value.absent(),
+                Value<String?> sourceLibraryItemId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -19479,6 +19930,7 @@ class $$ScheduleTemplatesTableTableManager
                 notes: notes,
                 startDate: startDate,
                 endDate: endDate,
+                sourceLibraryItemId: sourceLibraryItemId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -19495,6 +19947,7 @@ class $$ScheduleTemplatesTableTableManager
               ({
                 groupId = false,
                 specialistId = false,
+                sourceLibraryItemId = false,
                 scheduleEntriesRefs = false,
                 templateGroupsRefs = false,
               }) {
@@ -19546,6 +19999,21 @@ class $$ScheduleTemplatesTableTableManager
                                     referencedColumn:
                                         $$ScheduleTemplatesTableReferences
                                             ._specialistIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (sourceLibraryItemId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.sourceLibraryItemId,
+                                    referencedTable:
+                                        $$ScheduleTemplatesTableReferences
+                                            ._sourceLibraryItemIdTable(db),
+                                    referencedColumn:
+                                        $$ScheduleTemplatesTableReferences
+                                            ._sourceLibraryItemIdTable(db)
                                             .id,
                                   )
                                   as T;
@@ -19620,6 +20088,7 @@ typedef $$ScheduleTemplatesTableProcessedTableManager =
       PrefetchHooks Function({
         bool groupId,
         bool specialistId,
+        bool sourceLibraryItemId,
         bool scheduleEntriesRefs,
         bool templateGroupsRefs,
       })
@@ -19642,6 +20111,7 @@ typedef $$ScheduleEntriesTableCreateCompanionBuilder =
       required String kind,
       Value<String?> sourceTripId,
       Value<String?> overridesTemplateId,
+      Value<String?> sourceLibraryItemId,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -19664,6 +20134,7 @@ typedef $$ScheduleEntriesTableUpdateCompanionBuilder =
       Value<String> kind,
       Value<String?> sourceTripId,
       Value<String?> overridesTemplateId,
+      Value<String?> sourceLibraryItemId,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -19753,6 +20224,28 @@ final class $$ScheduleEntriesTableReferences
       $_db.scheduleTemplates,
     ).filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_overridesTemplateIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $ActivityLibraryTable _sourceLibraryItemIdTable(_$AppDatabase db) =>
+      db.activityLibrary.createAlias(
+        $_aliasNameGenerator(
+          db.scheduleEntries.sourceLibraryItemId,
+          db.activityLibrary.id,
+        ),
+      );
+
+  $$ActivityLibraryTableProcessedTableManager? get sourceLibraryItemId {
+    final $_column = $_itemColumn<String>('source_library_item_id');
+    if ($_column == null) return null;
+    final manager = $$ActivityLibraryTableTableManager(
+      $_db,
+      $_db.activityLibrary,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_sourceLibraryItemIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -19943,6 +20436,29 @@ class $$ScheduleEntriesTableFilterComposer
           }) => $$ScheduleTemplatesTableFilterComposer(
             $db: $db,
             $table: $db.scheduleTemplates,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ActivityLibraryTableFilterComposer get sourceLibraryItemId {
+    final $$ActivityLibraryTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceLibraryItemId,
+      referencedTable: $db.activityLibrary,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ActivityLibraryTableFilterComposer(
+            $db: $db,
+            $table: $db.activityLibrary,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -20148,6 +20664,29 @@ class $$ScheduleEntriesTableOrderingComposer
     );
     return composer;
   }
+
+  $$ActivityLibraryTableOrderingComposer get sourceLibraryItemId {
+    final $$ActivityLibraryTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceLibraryItemId,
+      referencedTable: $db.activityLibrary,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ActivityLibraryTableOrderingComposer(
+            $db: $db,
+            $table: $db.activityLibrary,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$ScheduleEntriesTableAnnotationComposer
@@ -20296,6 +20835,29 @@ class $$ScheduleEntriesTableAnnotationComposer
     return composer;
   }
 
+  $$ActivityLibraryTableAnnotationComposer get sourceLibraryItemId {
+    final $$ActivityLibraryTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceLibraryItemId,
+      referencedTable: $db.activityLibrary,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ActivityLibraryTableAnnotationComposer(
+            $db: $db,
+            $table: $db.activityLibrary,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
   Expression<T> entryGroupsRefs<T extends Object>(
     Expression<T> Function($$EntryGroupsTableAnnotationComposer a) f,
   ) {
@@ -20340,6 +20902,7 @@ class $$ScheduleEntriesTableTableManager
             bool specialistId,
             bool sourceTripId,
             bool overridesTemplateId,
+            bool sourceLibraryItemId,
             bool entryGroupsRefs,
           })
         > {
@@ -20374,6 +20937,7 @@ class $$ScheduleEntriesTableTableManager
                 Value<String> kind = const Value.absent(),
                 Value<String?> sourceTripId = const Value.absent(),
                 Value<String?> overridesTemplateId = const Value.absent(),
+                Value<String?> sourceLibraryItemId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -20394,6 +20958,7 @@ class $$ScheduleEntriesTableTableManager
                 kind: kind,
                 sourceTripId: sourceTripId,
                 overridesTemplateId: overridesTemplateId,
+                sourceLibraryItemId: sourceLibraryItemId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -20416,6 +20981,7 @@ class $$ScheduleEntriesTableTableManager
                 required String kind,
                 Value<String?> sourceTripId = const Value.absent(),
                 Value<String?> overridesTemplateId = const Value.absent(),
+                Value<String?> sourceLibraryItemId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -20436,6 +21002,7 @@ class $$ScheduleEntriesTableTableManager
                 kind: kind,
                 sourceTripId: sourceTripId,
                 overridesTemplateId: overridesTemplateId,
+                sourceLibraryItemId: sourceLibraryItemId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -20454,6 +21021,7 @@ class $$ScheduleEntriesTableTableManager
                 specialistId = false,
                 sourceTripId = false,
                 overridesTemplateId = false,
+                sourceLibraryItemId = false,
                 entryGroupsRefs = false,
               }) {
                 return PrefetchHooks(
@@ -20537,6 +21105,21 @@ class $$ScheduleEntriesTableTableManager
                                   )
                                   as T;
                         }
+                        if (sourceLibraryItemId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.sourceLibraryItemId,
+                                    referencedTable:
+                                        $$ScheduleEntriesTableReferences
+                                            ._sourceLibraryItemIdTable(db),
+                                    referencedColumn:
+                                        $$ScheduleEntriesTableReferences
+                                            ._sourceLibraryItemIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
 
                         return state;
                       },
@@ -20588,6 +21171,7 @@ typedef $$ScheduleEntriesTableProcessedTableManager =
         bool specialistId,
         bool sourceTripId,
         bool overridesTemplateId,
+        bool sourceLibraryItemId,
         bool entryGroupsRefs,
       })
     >;

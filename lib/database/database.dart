@@ -39,7 +39,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 26;
+  int get schemaVersion => 27;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -210,6 +210,23 @@ class AppDatabase extends _$AppDatabase {
             await _runSilent(
               'ALTER TABLE "activity_library" '
               'ADD COLUMN "source_attribution" TEXT NULL',
+            );
+          }
+          if (from < 27) {
+            // v27: link scheduled rows back to their source library
+            // card (when created via "From library"). Lets the Today
+            // detail sheet's title tap drill into the rich library
+            // content without losing the schedule context. Nullable
+            // + FK setNull on library delete.
+            await _runSilent(
+              'ALTER TABLE "schedule_templates" '
+              'ADD COLUMN "source_library_item_id" TEXT NULL '
+              'REFERENCES "activity_library"("id") ON DELETE SET NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "schedule_entries" '
+              'ADD COLUMN "source_library_item_id" TEXT NULL '
+              'REFERENCES "activity_library"("id") ON DELETE SET NULL',
             );
           }
         },
