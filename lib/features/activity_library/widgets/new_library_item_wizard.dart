@@ -82,10 +82,19 @@ class _NewLibraryItemWizardScreenState
       _minAge = min;
       _maxAge = max;
       _step = _WizardStep.source;
+      // Clear any stale error from a previous source-step visit —
+      // otherwise the teacher sees an old "Paste a link..." / scrape
+      // failure banner on their fresh audience pick.
+      _urlError = null;
+      _generateError = null;
     });
   }
 
   Future<void> _submitUrl() async {
+    // Guard against rapid double-taps — a second tap before the
+    // state-change to `.generating` propagates would otherwise kick
+    // off a second (duplicate, wasteful) OpenAI + scrape round-trip.
+    if (_step == _WizardStep.generating) return;
     final raw = _urlController.text.trim();
     if (raw.isEmpty) {
       setState(() => _urlError = 'Paste a link to a web page, article, or video.');
@@ -153,7 +162,11 @@ class _NewLibraryItemWizardScreenState
       }
 
       if (!mounted) return;
-      if (card.isEmpty) {
+      // Require at least a usable title — everything else can be thin
+      // and still produce a reasonable preview the teacher can save or
+      // regenerate. An empty title means the generator really returned
+      // nothing of value.
+      if (card.isEmpty || card.title.trim().isEmpty) {
         setState(() {
           _generateError =
               "The generator didn't return enough to build a card — try a different link.";

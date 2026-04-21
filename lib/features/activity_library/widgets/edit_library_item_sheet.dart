@@ -5,6 +5,7 @@ import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -67,13 +68,17 @@ class _EditLibraryItemSheetState
         : _notesController.text.trim();
 
     if (_isEdit) {
+      // Only send the preset fields this sheet actually exposes; the
+      // rich-card columns (audience/summary/hook/etc.) are left to
+      // Value.absent() so a teacher editing a generated card's
+      // title doesn't nuke its AI content.
       await repo.updateItem(
         id: widget.item!.id,
         title: title,
-        defaultDurationMin: _durationMin,
-        specialistId: _specialistId,
-        location: location,
-        notes: notes,
+        defaultDurationMin: Value(_durationMin),
+        specialistId: Value(_specialistId),
+        location: Value(location),
+        notes: Value(notes),
       );
     } else {
       await repo.addItem(

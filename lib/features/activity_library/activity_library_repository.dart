@@ -63,40 +63,51 @@ class ActivityLibraryRepository {
     return id;
   }
 
+  /// Updates ONLY the fields explicitly provided. Uses Drift's
+  /// `Value.absent()` for anything not passed so a caller that only
+  /// touches preset fields (title/duration/location/…) doesn't
+  /// accidentally null out the rich-card columns (audience, summary,
+  /// hook, etc.) just by virtue of not mentioning them.
+  ///
+  /// Regression fixed here: the edit sheet was calling updateItem with
+  /// positional `null`s for rich fields, which got written to the DB
+  /// and wiped every AI-generated card on its first edit.
   Future<void> updateItem({
     required String id,
-    required String title,
-    int? defaultDurationMin,
-    String? specialistId,
-    String? location,
-    String? notes,
-    int? audienceMinAge,
-    int? audienceMaxAge,
-    String? hook,
-    String? summary,
-    String? keyPoints,
-    String? learningGoals,
-    int? engagementTimeMin,
-    String? sourceUrl,
-    String? sourceAttribution,
+    String? title,
+    // Each field uses a `Value<T>` wrapper so callers can distinguish
+    // "leave this alone" (absent) from "set it to null" (Value(null)).
+    Value<int?> defaultDurationMin = const Value.absent(),
+    Value<String?> specialistId = const Value.absent(),
+    Value<String?> location = const Value.absent(),
+    Value<String?> notes = const Value.absent(),
+    Value<int?> audienceMinAge = const Value.absent(),
+    Value<int?> audienceMaxAge = const Value.absent(),
+    Value<String?> hook = const Value.absent(),
+    Value<String?> summary = const Value.absent(),
+    Value<String?> keyPoints = const Value.absent(),
+    Value<String?> learningGoals = const Value.absent(),
+    Value<int?> engagementTimeMin = const Value.absent(),
+    Value<String?> sourceUrl = const Value.absent(),
+    Value<String?> sourceAttribution = const Value.absent(),
   }) async {
     await (_db.update(_db.activityLibrary)..where((a) => a.id.equals(id)))
         .write(
       ActivityLibraryCompanion(
-        title: Value(title),
-        defaultDurationMin: Value(defaultDurationMin),
-        specialistId: Value(specialistId),
-        location: Value(location),
-        notes: Value(notes),
-        audienceMinAge: Value(audienceMinAge),
-        audienceMaxAge: Value(audienceMaxAge),
-        hook: Value(hook),
-        summary: Value(summary),
-        keyPoints: Value(keyPoints),
-        learningGoals: Value(learningGoals),
-        engagementTimeMin: Value(engagementTimeMin),
-        sourceUrl: Value(sourceUrl),
-        sourceAttribution: Value(sourceAttribution),
+        title: title == null ? const Value.absent() : Value(title),
+        defaultDurationMin: defaultDurationMin,
+        specialistId: specialistId,
+        location: location,
+        notes: notes,
+        audienceMinAge: audienceMinAge,
+        audienceMaxAge: audienceMaxAge,
+        hook: hook,
+        summary: summary,
+        keyPoints: keyPoints,
+        learningGoals: learningGoals,
+        engagementTimeMin: engagementTimeMin,
+        sourceUrl: sourceUrl,
+        sourceAttribution: sourceAttribution,
         updatedAt: Value(DateTime.now()),
       ),
     );
