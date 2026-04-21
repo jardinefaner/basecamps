@@ -12,6 +12,7 @@ import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/add_activity_picker.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
+import 'package:basecamp/features/today/widgets/all_day_carousel.dart';
 import 'package:basecamp/features/today/widgets/day_summary_strip.dart';
 import 'package:basecamp/features/today/widgets/earlier_today_group.dart';
 import 'package:basecamp/features/today/widgets/hero_now_card.dart';
@@ -321,25 +322,32 @@ class _Body extends ConsumerWidget {
         ),
         const SizedBox(height: AppSpacing.lg),
 
-        // All-day activities float above the hero — short, banner-like.
-        for (final item in allDay) ...[
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: ScheduleItemCard(
-              item: item,
-              isNow: true,
-              isPast: false,
-              conflicts: conflicts[item.id] ?? const [],
-              concernMatch: concernForItem(item),
-              attendance: attendanceFor(item),
-              onTap: () => onOpenDetail(item),
-              onOpenConcern: () => _goConcern(
-                context,
-                concernForItem(item)?.id,
-              ),
-              onOpenAttendance: () => openAttendance(item),
-            ),
+        // All-day activities / notes float above the hero. One or many,
+        // they share a single slot — multiple items cycle through a
+        // carousel with autoplay so the vertical space stays constant.
+        // No "NOW" chip here: "all day" already implies current-day
+        // context, and the hero below owns the right-now moment.
+        if (allDay.isNotEmpty) ...[
+          AllDayCarousel(
+            cards: [
+              for (final item in allDay)
+                ScheduleItemCard(
+                  item: item,
+                  isNow: false,
+                  isPast: false,
+                  conflicts: conflicts[item.id] ?? const [],
+                  concernMatch: concernForItem(item),
+                  attendance: attendanceFor(item),
+                  onTap: () => onOpenDetail(item),
+                  onOpenConcern: () => _goConcern(
+                    context,
+                    concernForItem(item)?.id,
+                  ),
+                  onOpenAttendance: () => openAttendance(item),
+                ),
+            ],
           ),
+          const SizedBox(height: AppSpacing.md),
         ],
 
         // Hero "right now" card — dominates the fold when an activity
