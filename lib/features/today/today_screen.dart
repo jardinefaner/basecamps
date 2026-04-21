@@ -327,7 +327,10 @@ class _Body extends ConsumerWidget {
           const SizedBox(height: AppSpacing.lg),
         ],
 
-        // Upcoming. First one gets the "IN N MIN" chip.
+        // Upcoming. First one gets the "IN N MIN" chip. No attendance
+        // strip — it hasn't started yet, so "0/N present · N pending"
+        // is always-true noise that clutters the view. The hero card
+        // owns the attendance affordance once an activity becomes NOW.
         for (var i = 0; i < upcoming.length; i++) ...[
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -338,13 +341,11 @@ class _Body extends ConsumerWidget {
               conflicts: conflicts[upcoming[i].id] ?? const [],
               minutesUntilStart: i == 0 ? nextUpMinutes : null,
               concernMatch: concernForItem(upcoming[i]),
-              attendance: attendanceFor(upcoming[i]),
               onTap: () => onOpenDetail(upcoming[i]),
               onOpenConcern: () => _goConcern(
                 context,
                 concernForItem(upcoming[i])?.id,
               ),
-              onOpenAttendance: () => openAttendance(upcoming[i]),
             ),
           ),
         ],

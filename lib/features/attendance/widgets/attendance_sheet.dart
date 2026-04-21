@@ -9,7 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// the day in one pass. Used from Today — tap the check-in strip on a
 /// card and this opens with the relevant group roster pre-filtered.
 ///
-/// State is live from [todayAttendanceProvider]; tapping a tile cycles
+/// State is live from [attendanceForDayProvider]; tapping a tile cycles
 /// through Pending → Present → Absent → Pending. An overflow menu on
 /// each tile offers Late and Left early for finer control.
 class AttendanceSheet extends ConsumerWidget {
@@ -56,16 +56,7 @@ class AttendanceSheet extends ConsumerWidget {
           child: Center(child: Text('Error: $err')),
         ),
         data: (allKids) {
-          final roster = (groupIds.isEmpty
-              ? List<Child>.from(allKids)
-              : allKids
-                  .where(
-                    (k) =>
-                        k.groupId != null && groupIds.contains(k.groupId),
-                  )
-                  .toList())
-            ..sort((a, b) => a.firstName.compareTo(b.firstName));
-
+          final roster = rosterFor(allKids, groupIds);
           final attendance = attendanceAsync.asData?.value ??
               const <String, AttendanceRecord>{};
           final present = roster
@@ -98,58 +89,119 @@ class AttendanceSheet extends ConsumerWidget {
                   ),
                 ],
                 const SizedBox(height: AppSpacing.md),
-                _SummaryRow(
+                AttendanceSummaryRow(
                   present: present,
                   absent: absent,
                   pending: pending,
                   total: roster.length,
                 ),
                 const SizedBox(height: AppSpacing.md),
-                if (roster.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: AppSpacing.lg,
-                    ),
-                    child: Text(
-                      'No children in these groups yet.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  )
-                else ...[
-                  if (pending > 0)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: OutlinedButton.icon(
-                        onPressed: () => _markAllPresent(ref, roster),
-                        icon: const Icon(Icons.check, size: 16),
-                        label: Text(
-                          pending == roster.length
-                              ? 'Mark everyone present'
-                              : 'Mark remaining present',
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: AppSpacing.sm),
-                  for (final child in roster)
-                    _ChildTile(
-                      child: child,
-                      record: attendance[child.id],
-                      onCycle: () => _cycleStatus(
-                        ref,
-                        child.id,
-                        attendance[child.id]?.status,
-                      ),
-                      onSelectStatus: (s) =>
-                          _setStatus(ref, child.id, s),
-                    ),
-                ],
+                AttendanceTilesView(
+                  roster: roster,
+                  attendance: attendance,
+                  date: date,
+                ),
               ],
             ),
           );
         },
       ),
+    );
+  }
+}
+
+/// Resolves which children belong to [groupIds] for attendance purposes.
+/// Empty `groupIds` means the caller wants everyone (e.g. whole-program
+/// check-in). Sorted by first name so the tiles appear consistently.
+List<Child> rosterFor(List<Child> allKids, List<String> groupIds) {
+  return (groupIds.isEmpty
+      ? List<Child>.from(allKids)
+      : allKids
+          .where(
+            (k) => k.groupId != null && groupIds.contains(k.groupId),
+          )
+          .toList())
+    ..sort((a, b) => a.firstName.compareTo(b.firstName));
+}
+
+/// A reusable check-in tile list for a pre-resolved roster. No padding,
+/// no header — just the "Mark everyone / remaining present" button
+/// (when there's still pending) and a tappable tile per child. The
+/// parent provides whatever scaffolding it needs (a modal sheet, a
+/// hero card, a future history view…).
+class AttendanceTilesView extends ConsumerWidget {
+  const AttendanceTilesView({
+    required this.roster,
+    required this.attendance,
+    required this.date,
+    this.showMarkAllButton = true,
+    this.emptyText = 'No children in these groups yet.',
+    super.key,
+  });
+
+  final List<Child> roster;
+  final Map<String, AttendanceRecord> attendance;
+  final DateTime date;
+
+  /// When false, the "Mark everyone/remaining present" helper is hidden.
+  /// Useful inline on cramped surfaces that already have their own
+  /// primary CTA (e.g. the Capture button on HeroNowCard).
+  final bool showMarkAllButton;
+
+  final String emptyText;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+
+    if (roster.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+        child: Text(
+          emptyText,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      );
+    }
+
+    final pending = roster
+        .where((k) {
+          final s = attendance[k.id]?.status;
+          return s != AttendanceStatus.present &&
+              s != AttendanceStatus.absent;
+        })
+        .length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (showMarkAllButton && pending > 0)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: () => _markAllPresent(ref),
+              icon: const Icon(Icons.check, size: 16),
+              label: Text(
+                pending == roster.length
+                    ? 'Mark everyone present'
+                    : 'Mark remaining present',
+              ),
+            ),
+          ),
+        if (showMarkAllButton && pending > 0)
+          const SizedBox(height: AppSpacing.sm),
+        for (final child in roster)
+          _ChildTile(
+            child: child,
+            record: attendance[child.id],
+            onCycle: () =>
+                _cycleStatus(ref, child.id, attendance[child.id]?.status),
+            onSelectStatus: (s) => _setStatus(ref, child.id, s),
+          ),
+      ],
     );
   }
 
@@ -201,7 +253,7 @@ class AttendanceSheet extends ConsumerWidget {
     );
   }
 
-  Future<void> _markAllPresent(WidgetRef ref, List<Child> roster) async {
+  Future<void> _markAllPresent(WidgetRef ref) async {
     await ref.read(attendanceRepositoryProvider).markAllPresent(
           childIds: roster.map((k) => k.id),
           date: date,
@@ -215,12 +267,16 @@ class AttendanceSheet extends ConsumerWidget {
   }
 }
 
-class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({
+/// Horizontal "N Present · N Absent · N Pending" strip used at the top
+/// of the sheet. Pulled out as a public widget so other surfaces can
+/// reuse the same count layout.
+class AttendanceSummaryRow extends StatelessWidget {
+  const AttendanceSummaryRow({
     required this.present,
     required this.absent,
     required this.pending,
     required this.total,
+    super.key,
   });
 
   final int present;

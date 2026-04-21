@@ -58,7 +58,11 @@ class ActivityDetailSheet extends ConsumerWidget {
                 icon: Icons.place_outlined,
                 text: item.location!,
               ),
-            _GroupsRow(groupIds: item.groupIds),
+            _GroupsRow(
+              groupIds: item.groupIds,
+              isAllGroups: item.isAllGroups,
+              isNoGroups: item.isNoGroups,
+            ),
             if (item.notes != null && item.notes!.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.md),
               Text('Notes', style: theme.textTheme.titleSmall),
@@ -342,16 +346,31 @@ class _SpecialistRow extends ConsumerWidget {
 }
 
 class _GroupsRow extends ConsumerWidget {
-  const _GroupsRow({required this.groupIds});
+  const _GroupsRow({
+    required this.groupIds,
+    required this.isAllGroups,
+    required this.isNoGroups,
+  });
 
   final List<String> groupIds;
+  final bool isAllGroups;
+  final bool isNoGroups;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (groupIds.isEmpty) {
+    // Empty groupIds used to mean "all groups", but that loses the
+    // three-state audience: "everyone" vs "no one (staff prep)" vs
+    // "these specific groups". Honor the flags directly.
+    if (isAllGroups) {
       return const _MetaRow(
         icon: Icons.groups_outlined,
         text: 'All groups',
+      );
+    }
+    if (isNoGroups) {
+      return const _MetaRow(
+        icon: Icons.groups_outlined,
+        text: 'No groups · staff prep',
       );
     }
     final names = <String>[];

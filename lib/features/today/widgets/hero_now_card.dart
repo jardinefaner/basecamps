@@ -1,4 +1,6 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/attendance/attendance_repository.dart';
+import 'package:basecamp/features/attendance/widgets/attendance_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
@@ -57,17 +59,29 @@ class HeroNowCard extends ConsumerWidget {
     final allKids = ref.watch(childrenProvider).asData?.value ?? const <Child>[];
     // Respect the new three-state audience: "all groups" (everyone),
     // specific groups (filter by those), or no groups (teacher explicitly
-    // chose no children — show an empty list).
+    // chose no children — show an empty list). Always returns a new
+    // growable list so the subsequent `.sort()` is safe.
     final List<Child> groupChildren;
     if (item.isAllGroups) {
-      groupChildren = allKids;
+      groupChildren = List<Child>.from(allKids);
     } else if (item.isNoGroups) {
-      groupChildren = const [];
+      groupChildren = <Child>[];
     } else {
       groupChildren = allKids
           .where((k) => k.groupId != null && item.groupIds.contains(k.groupId))
           .toList();
     }
+    groupChildren.sort((a, b) => a.firstName.compareTo(b.firstName));
+    // Inline attendance only makes sense when there's a bounded group
+    // to check in (not "everyone" and not "no one"). For all-groups we
+    // fall back to the avatar row since the universe is too broad.
+    final showInlineAttendance =
+        !item.isAllGroups && !item.isNoGroups && groupChildren.isNotEmpty;
+    final dayOnly = DateTime(now.year, now.month, now.day);
+    final attendanceMap = showInlineAttendance
+        ? (ref.watch(attendanceForDayProvider(dayOnly)).asData?.value ??
+            const <String, AttendanceRecord>{})
+        : const <String, AttendanceRecord>{};
 
     return InkWell(
       borderRadius: BorderRadius.circular(16),
@@ -183,11 +197,22 @@ class HeroNowCard extends ConsumerWidget {
                 ],
               ),
             ],
-            if (groupChildren.isNotEmpty) ...[
+            if (showInlineAttendance) ...[
+              const SizedBox(height: AppSpacing.md),
+              // Inline check-in — replaces the old decorative roster.
+              // The attendance sheet lives right here on the hero so the
+              // teacher can mark kids present/absent without opening a
+              // modal.
+              AttendanceTilesView(
+                roster: groupChildren,
+                attendance: attendanceMap,
+                date: now,
+              ),
+            ] else if (groupChildren.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.md),
               _ChildrenRow(children: groupChildren),
             ],
-            if (attendance != null) ...[
+            if (!showInlineAttendance && attendance != null) ...[
               const SizedBox(height: AppSpacing.md),
               _HeroAttendanceStrip(
                 summary: attendance!,
