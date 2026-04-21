@@ -437,6 +437,7 @@ class _NewActivityWizardScreenState
   Widget _buildPodsPage() {
     final theme = Theme.of(context);
     final podsAsync = ref.watch(groupsProvider);
+    final noGroupsSelected = !_allGroups && _groupIds.isEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -453,6 +454,39 @@ class _NewActivityWizardScreenState
           }),
           contentPadding: EdgeInsets.zero,
         ),
+        // Clarify the "staff prep" state — this used to be a silent
+        // legal-but-weird configuration. Teachers wondering if they'd
+        // mis-set the toggle saw no indication either way.
+        if (noGroupsSelected) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 16,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    'No groups selected — saves as staff-only prep. No '
+                    "children are tracked, and it won't conflict with "
+                    'other activities on the same day.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: AppSpacing.md),
         if (!_allGroups)
           podsAsync.when(

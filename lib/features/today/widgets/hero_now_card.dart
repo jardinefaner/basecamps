@@ -1,6 +1,4 @@
 import 'package:basecamp/database/database.dart';
-import 'package:basecamp/features/attendance/attendance_repository.dart';
-import 'package:basecamp/features/attendance/widgets/attendance_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
@@ -72,16 +70,6 @@ class HeroNowCard extends ConsumerWidget {
           .toList();
     }
     groupChildren.sort((a, b) => a.firstName.compareTo(b.firstName));
-    // Inline attendance only makes sense when there's a bounded group
-    // to check in (not "everyone" and not "no one"). For all-groups we
-    // fall back to the avatar row since the universe is too broad.
-    final showInlineAttendance =
-        !item.isAllGroups && !item.isNoGroups && groupChildren.isNotEmpty;
-    final dayOnly = DateTime(now.year, now.month, now.day);
-    final attendanceMap = showInlineAttendance
-        ? (ref.watch(attendanceForDayProvider(dayOnly)).asData?.value ??
-            const <String, AttendanceRecord>{})
-        : const <String, AttendanceRecord>{};
 
     return InkWell(
       borderRadius: BorderRadius.circular(16),
@@ -197,23 +185,17 @@ class HeroNowCard extends ConsumerWidget {
                 ],
               ),
             ],
-            if (showInlineAttendance) ...[
-              const SizedBox(height: AppSpacing.md),
-              // Inline check-in — replaces the old decorative roster.
-              // The attendance sheet lives right here on the hero so the
-              // teacher can mark kids present/absent without opening a
-              // modal.
-              AttendanceTilesView(
-                roster: groupChildren,
-                attendance: attendanceMap,
-                date: now,
-              ),
-            ] else if (groupChildren.isNotEmpty) ...[
+            if (groupChildren.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.md),
               _ChildrenRow(children: groupChildren),
             ],
-            if (!showInlineAttendance && attendance != null) ...[
+            if (attendance != null) ...[
               const SizedBox(height: AppSpacing.md),
+              // Tap-to-open attendance summary. Inlining the full
+              // AttendanceTilesView here looked great for 5 kids and
+              // awful for 40 — the hero stretched down the screen,
+              // pushing Capture below the fold. Keep the sheet behind
+              // a modal.
               _HeroAttendanceStrip(
                 summary: attendance!,
                 onTap: onOpenAttendance,

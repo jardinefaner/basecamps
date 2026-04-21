@@ -17,10 +17,22 @@ import 'package:intl/intl.dart';
 /// break, spirit week, ongoing note). Writes a single ScheduleEntry
 /// with `isFullDay: true`; when an end date is set the entry applies
 /// to every day in `[date, endDate]`.
+///
+/// When [existing] is non-null the wizard opens in edit mode:
+/// fields prefill from the entry, the action bar reads "Save changes",
+/// and submit calls [ScheduleRepository.updateEntry] on that id instead
+/// of creating a new row.
 class NewFullDayEventWizardScreen extends ConsumerStatefulWidget {
-  const NewFullDayEventWizardScreen({this.initialDate, super.key});
+  const NewFullDayEventWizardScreen({
+    this.initialDate,
+    this.existing,
+    super.key,
+  });
 
   final DateTime? initialDate;
+
+  /// Entry row to edit. When non-null the wizard runs in edit mode.
+  final ScheduleEntry? existing;
 
   @override
   ConsumerState<NewFullDayEventWizardScreen> createState() =>
@@ -29,15 +41,18 @@ class NewFullDayEventWizardScreen extends ConsumerStatefulWidget {
 
 class _NewFullDayEventWizardScreenState
     extends ConsumerState<NewFullDayEventWizardScreen> {
-  final _title = TextEditingController();
-  final _location = TextEditingController();
-  final _notes = TextEditingController();
+  late final _title = TextEditingController(text: widget.existing?.title ?? '');
+  late final _location =
+      TextEditingController(text: widget.existing?.location ?? '');
+  late final _notes = TextEditingController(text: widget.existing?.notes ?? '');
 
-  late DateTime _date = widget.initialDate ?? DateTime.now();
-  DateTime? _endDate;
+  late DateTime _date = widget.existing?.date ?? widget.initialDate ?? DateTime.now();
+  late DateTime? _endDate = widget.existing?.endDate;
   final Set<String> _groupIds = <String>{};
-  bool _allGroups = true;
-  String? _specialistId;
+  late bool _allGroups = widget.existing?.allGroups ?? true;
+  late String? _specialistId = widget.existing?.specialistId;
+
+  bool get _isEdit => widget.existing != null;
 
   /// When non-null, fields were pre-filled from a library pick. We
   /// surface a tiny banner on page 1 and let the teacher unlink.
@@ -55,6 +70,20 @@ class _NewFullDayEventWizardScreenState
   bool get _page1Valid => _title.text.trim().isNotEmpty;
 
   @override
+  void initState() {
+    super.initState();
+    if (_isEdit) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final groups = await ref
+            .read(scheduleRepositoryProvider)
+            .podsForEntry(widget.existing!.id);
+        if (!mounted) return;
+        setState(() => _groupIds.addAll(groups));
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _title.dispose();
     _location.dispose();
@@ -70,14 +99,29 @@ class _NewFullDayEventWizardScreenState
       lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
     );
     if (picked != null && mounted) {
+      // Was the existing end date about to become invalid? Capture
+      // that BEFORE the setState clears it, so we can flag the change
+      // instead of silently turning a multi-day event into a single day.
+      final endDropped =
+          _endDate != null && _endDate!.isBefore(picked);
       setState(() {
         _date = picked;
-        // Keep the range valid — if the existing end is now before the
-        // new start, drop it.
-        if (_endDate != null && _endDate!.isBefore(picked)) {
+        if (endDropped) {
           _endDate = null;
         }
       });
+      if (endDropped) {
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text(
+                'End date cleared — it was before the new start.',
+              ),
+              duration: Duration(seconds: 3),
+            ),
+          );
+      }
     }
   }
 
@@ -94,19 +138,38 @@ class _NewFullDayEventWizardScreenState
   Future<void> _submit() async {
     final location = _location.text.trim();
     final notes = _notes.text.trim();
-    await ref.read(scheduleRepositoryProvider).addOneOffEntry(
-          date: _date,
-          endDate: _endDate,
-          startTime: '00:00',
-          endTime: '23:59',
-          isFullDay: true,
-          allGroups: _allGroups,
-          title: _title.text.trim(),
-          groupIds: _allGroups ? const [] : _groupIds.toList(),
-          specialistId: _specialistId,
-          location: location.isEmpty ? null : location,
-          notes: notes.isEmpty ? null : notes,
-        );
+    final repo = ref.read(scheduleRepositoryProvider);
+    final existing = widget.existing;
+    if (existing != null) {
+      await repo.updateEntry(
+        id: existing.id,
+        date: _date,
+        endDate: _endDate,
+        startTime: '00:00',
+        endTime: '23:59',
+        isFullDay: true,
+        allGroups: _allGroups,
+        title: _title.text.trim(),
+        groupIds: _allGroups ? const [] : _groupIds.toList(),
+        specialistId: _specialistId,
+        location: location.isEmpty ? null : location,
+        notes: notes.isEmpty ? null : notes,
+      );
+    } else {
+      await repo.addOneOffEntry(
+        date: _date,
+        endDate: _endDate,
+        startTime: '00:00',
+        endTime: '23:59',
+        isFullDay: true,
+        allGroups: _allGroups,
+        title: _title.text.trim(),
+        groupIds: _allGroups ? const [] : _groupIds.toList(),
+        specialistId: _specialistId,
+        location: location.isEmpty ? null : location,
+        notes: notes.isEmpty ? null : notes,
+      );
+    }
     if (!mounted) return;
     // Return the bounds so the schedule editor can jump its week view
     // to where the event lives + flash a snackbar. Otherwise events
@@ -124,11 +187,13 @@ class _NewFullDayEventWizardScreenState
   @override
   Widget build(BuildContext context) {
     return StepWizardScaffold(
-      title: 'Event or note',
+      title: _isEdit ? 'Edit event' : 'Event or note',
       dirty: _dirty,
-      finalActionLabel: _endDate == null
-          ? 'Add event'
-          : 'Add across ${_daysInRange()} days',
+      finalActionLabel: _isEdit
+          ? 'Save changes'
+          : (_endDate == null
+              ? 'Add event'
+              : 'Add across ${_daysInRange()} days'),
       onFinalAction: _submit,
       steps: [
         WizardStep(
@@ -261,6 +326,7 @@ class _NewFullDayEventWizardScreenState
   Widget _buildPodsPage() {
     final theme = Theme.of(context);
     final podsAsync = ref.watch(groupsProvider);
+    final noGroupsSelected = !_allGroups && _groupIds.isEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -276,6 +342,40 @@ class _NewFullDayEventWizardScreenState
           }),
           contentPadding: EdgeInsets.zero,
         ),
+        // Clarify what the "no toggle, no picks" state means so the
+        // teacher doesn't think they've mis-configured. This is
+        // legitimate state for staff-prep / closure-style events that
+        // have no children to track.
+        if (noGroupsSelected) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 16,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    'No groups selected — saves as a staff-only event. '
+                    "No children are tracked, and it won't conflict "
+                    'with other activities on the same day.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         if (!_allGroups)
           podsAsync.when(
             loading: () => const LinearProgressIndicator(),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/widgets/library_picker_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
@@ -81,15 +83,33 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
   static String _formatTime(TimeOfDay t) =>
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
+  /// Number of sibling templates in the same series (including this
+  /// row). Resolved async on init for edit mode; stays null until then,
+  /// and the series-scope banner hides if still null or if the count is
+  /// 1 (meaning this is a standalone template, not part of a series).
+  int? _seriesSize;
+
   @override
   void initState() {
     super.initState();
     if (_isEdit) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _loadPods());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_loadPods());
+        unawaited(_loadSeriesSize());
+      });
     } else {
       _groupsLoaded = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => _tryAutofillStart());
     }
+  }
+
+  Future<void> _loadSeriesSize() async {
+    if (!_isEdit) return;
+    final count = await ref
+        .read(scheduleRepositoryProvider)
+        .countTemplatesInGroupFor(widget.template!.id);
+    if (!mounted) return;
+    setState(() => _seriesSize = count);
   }
 
   /// Set of group ids the template started with — snapshot captured
@@ -330,6 +350,12 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     });
   }
 
+  String _dayLabelFor(int isoDay) {
+    // ISO Mon..Fri = 1..5 → scheduleDayLabels[0..4].
+    final idx = isoDay.clamp(1, 5) - 1;
+    return scheduleDayLabels[idx];
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -361,6 +387,18 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Series-scope banner: when this template is one day of a
+          // multi-day series created by the wizard, editing here only
+          // updates this one weekday row. Without this hint teachers
+          // would hit save, then wonder why the other weekdays didn't
+          // pick up the change — now they know.
+          if (_isEdit && _seriesSize != null && _seriesSize! > 1) ...[
+            _SeriesScopeBanner(
+              currentDayLabel: _dayLabelFor(widget.template!.dayOfWeek),
+              otherCount: _seriesSize! - 1,
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
           if (!_isEdit) ...[
             OutlinedButton.icon(
               onPressed: _openLibrary,
@@ -947,6 +985,54 @@ class _DeleteOptionsSheet extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Small banner shown at the top of the edit sheet when the template
+/// belongs to a multi-day series. Clarifies that changes apply to this
+/// weekday only — a subtle point that tripped teachers up before, when
+/// they'd edit once and wonder why the other weekdays didn't update.
+/// The delete sheet already has "Delete every occurrence" for the whole
+/// series; this banner just makes the scope of a save explicit.
+class _SeriesScopeBanner extends StatelessWidget {
+  const _SeriesScopeBanner({
+    required this.currentDayLabel,
+    required this.otherCount,
+  });
+
+  final String currentDayLabel;
+  final int otherCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final plural = otherCount == 1 ? 'day' : 'days';
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.info_outline,
+            size: 16,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              'Editing $currentDayLabel only · '
+              '$otherCount other $plural in this series.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

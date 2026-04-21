@@ -6,6 +6,7 @@ import 'package:basecamp/features/schedule/widgets/conflict_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/copy_day_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/edit_template_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
+import 'package:basecamp/features/schedule/widgets/new_full_day_event_wizard.dart';
 import 'package:basecamp/features/schedule/widgets/week_grid_view.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -655,6 +656,12 @@ class _OneOffEntrySheet extends ConsumerWidget {
             Text(item.notes!, style: theme.textTheme.bodyMedium),
           ],
           const SizedBox(height: AppSpacing.xl),
+          FilledButton.tonalIcon(
+            onPressed: () => _openEdit(context, ref),
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            label: const Text('Edit'),
+          ),
+          const SizedBox(height: AppSpacing.sm),
           OutlinedButton.icon(
             onPressed: () async {
               if (item.isMultiDay) {
@@ -684,6 +691,25 @@ class _OneOffEntrySheet extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Fetch the full entry row, close this sheet, then push the
+  /// full-day wizard in edit mode. Using the repo to re-read rather
+  /// than trusting the ScheduleItem snapshot — the join-row side
+  /// doesn't live on ScheduleItem, and the wizard needs a real
+  /// ScheduleEntry instance to prefill.
+  Future<void> _openEdit(BuildContext context, WidgetRef ref) async {
+    final navigator = Navigator.of(context);
+    final entry =
+        await ref.read(scheduleRepositoryProvider).getEntry(entryId);
+    if (entry == null || !navigator.mounted) return;
+    navigator.pop();
+    await navigator.push<CreatedActivity>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => NewFullDayEventWizardScreen(existing: entry),
       ),
     );
   }

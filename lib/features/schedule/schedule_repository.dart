@@ -539,6 +539,60 @@ class ScheduleRepository {
         .getSingleOrNull();
   }
 
+  /// Edit an existing one-off entry (full-day events, trips, etc.).
+  /// Mirrors [addOneOffEntry] for shape normalization, and replaces the
+  /// entry's group join rows wholesale — same pattern as
+  /// [updateTemplate].
+  Future<void> updateEntry({
+    required String id,
+    required DateTime date,
+    required String startTime,
+    required String endTime,
+    required String title,
+    List<String> groupIds = const [],
+    bool allGroups = true,
+    bool isFullDay = false,
+    DateTime? endDate,
+    String? specialistId,
+    String? location,
+    String? notes,
+  }) async {
+    final start = _dayOnly(date);
+    final normalizedEnd = endDate == null ? null : _dayOnly(endDate);
+    final end = (normalizedEnd != null && normalizedEnd.isBefore(start))
+        ? null
+        : normalizedEnd;
+    await _db.transaction(() async {
+      await (_db.update(_db.scheduleEntries)..where((e) => e.id.equals(id)))
+          .write(
+        ScheduleEntriesCompanion(
+          date: Value(start),
+          endDate: Value(end),
+          startTime: Value(startTime),
+          endTime: Value(endTime),
+          isFullDay: Value(isFullDay),
+          title: Value(title),
+          allGroups: Value(allGroups),
+          specialistId: Value(specialistId),
+          location: Value(location),
+          notes: Value(notes),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      await (_db.delete(_db.entryGroups)
+            ..where((g) => g.entryId.equals(id)))
+          .go();
+      for (final groupId in groupIds) {
+        await _db.into(_db.entryGroups).insert(
+              EntryGroupsCompanion.insert(
+                entryId: id,
+                groupId: groupId,
+              ),
+            );
+      }
+    });
+  }
+
   /// Merged schedule stream for every day in the week starting at the given
   /// Monday. Returns a map keyed by ISO day-of-week (1..7).
   Stream<Map<int, List<ScheduleItem>>> watchScheduleForWeek(
