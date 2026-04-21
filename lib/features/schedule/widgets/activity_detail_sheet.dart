@@ -43,16 +43,25 @@ class ActivityDetailSheet extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Title row. Title is tappable — opens the edit sheet,
-            // same as the Edit button. Larger tap target, and feels
-            // right: teachers often want to drill into the activity
-            // they just tapped, and the title is the most obvious
-            // place to go next.
-            _EditableTitleRow(
-              title: item.title,
-              hasEditor: (item.isFromTemplate && item.templateId != null) ||
-                  (item.entryId != null),
-              onEdit: () => _openEdit(context, ref),
+            // Title row with an Edit affordance on the right for rows
+            // that have one. The title itself is NOT tappable — it's
+            // read-only identity, not a navigation target.
+            Row(
+              children: [
+                Expanded(
+                  child: Text(item.title, style: theme.textTheme.titleLarge),
+                ),
+                if ((item.isFromTemplate && item.templateId != null) ||
+                    (item.entryId != null))
+                  TextButton.icon(
+                    onPressed: () => _openEdit(context, ref),
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('Edit'),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
@@ -123,6 +132,16 @@ class ActivityDetailSheet extends ConsumerWidget {
             ),
             if (_canOverride)
               _JustForTodaySection(item: item),
+            // One-off entries (full-day events, multi-day notes) get a
+            // dedicated delete action — these rows live in
+            // schedule_entries, not templates, so the template-level
+            // "delete every occurrence" flow doesn't apply. Multi-day
+            // entries confirm first so the teacher knows they're
+            // nuking every day in the range.
+            if (item.entryId != null) ...[
+              const SizedBox(height: AppSpacing.lg),
+              _DeleteEntryButton(item: item),
+            ],
           ],
         ),
       ),
@@ -370,55 +389,6 @@ class _JustForTodaySection extends ConsumerWidget {
   }
 }
 
-class _EditableTitleRow extends StatelessWidget {
-  const _EditableTitleRow({
-    required this.title,
-    required this.hasEditor,
-    required this.onEdit,
-  });
-
-  final String title;
-  final bool hasEditor;
-  final VoidCallback onEdit;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final titleWidget = Text(title, style: theme.textTheme.titleLarge);
-    if (!hasEditor) {
-      return Row(children: [Expanded(child: titleWidget)]);
-    }
-    return Row(
-      children: [
-        // The whole title area is a tap target, not just the small
-        // Edit text button. Feels natural — teachers tap the title
-        // when they want to change it, and the extra icon hints that
-        // it's interactive.
-        Expanded(
-          child: InkWell(
-            onTap: onEdit,
-            borderRadius: BorderRadius.circular(6),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  Expanded(child: titleWidget),
-                  const SizedBox(width: AppSpacing.xs),
-                  Icon(
-                    Icons.edit_outlined,
-                    size: 16,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _MetaRow extends StatelessWidget {
   const _MetaRow({required this.icon, required this.text});
 
@@ -499,6 +469,53 @@ class _GroupsRow extends ConsumerWidget {
     return _MetaRow(
       icon: Icons.groups_outlined,
       text: names.join(' + '),
+    );
+  }
+}
+
+class _DeleteEntryButton extends ConsumerWidget {
+  const _DeleteEntryButton({required this.item});
+
+  final ScheduleItem item;
+
+  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+    final entryId = item.entryId;
+    if (entryId == null) return;
+    if (item.isMultiDay) {
+      final ok = await showConfirmDialog(
+        context: context,
+        title: 'Delete every day?',
+        message:
+            'This removes "${item.title}" from all '
+            '${item.rangeEnd!.difference(item.rangeStart!).inDays + 1}'
+            ' days it spans. Cannot be undone.',
+        confirmLabel: 'Delete all days',
+      );
+      if (!ok) return;
+    }
+    await ref.read(scheduleRepositoryProvider).deleteEntry(entryId);
+    if (!context.mounted) return;
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    return OutlinedButton.icon(
+      onPressed: () => _delete(context, ref),
+      icon: Icon(
+        Icons.delete_outline,
+        color: theme.colorScheme.error,
+      ),
+      label: Text(
+        item.isMultiDay ? 'Delete all days' : 'Delete event',
+        style: TextStyle(color: theme.colorScheme.error),
+      ),
+      style: OutlinedButton.styleFrom(
+        side: BorderSide(
+          color: theme.colorScheme.error.withValues(alpha: 0.5),
+        ),
+      ),
     );
   }
 }

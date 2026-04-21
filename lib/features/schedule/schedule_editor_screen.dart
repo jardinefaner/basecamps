@@ -1,16 +1,14 @@
 import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
+import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/add_activity_picker.dart';
 import 'package:basecamp/features/schedule/widgets/conflict_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/copy_day_sheet.dart';
-import 'package:basecamp/features/schedule/widgets/edit_template_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
-import 'package:basecamp/features/schedule/widgets/new_full_day_event_wizard.dart';
 import 'package:basecamp/features/schedule/widgets/week_grid_view.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
-import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -226,33 +224,18 @@ class _ScheduleEditorScreenState
   String _fmtDate(DateTime d) => DateFormat.MMMd().format(d);
 
   Future<void> _handleItemTap(ScheduleItem item) async {
-    // Template-sourced item → edit the template. Per-date entry → detail sheet
-    // with a delete option (editing entries isn't wired yet).
-    if (item.templateId != null && item.isFromTemplate) {
-      final template = await ref
-          .read(scheduleRepositoryProvider)
-          .getTemplate(item.templateId!);
-      if (template == null || !mounted) return;
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        isDismissible: false,
-        builder: (_) => EditTemplateSheet(
-          template: template,
-          occurrenceDate: item.date,
-        ),
-      );
-      return;
-    }
-
-    final entryId = item.entryId;
-    if (entryId == null) return;
+    // Always route through ActivityDetailSheet first — same flow as
+    // Today. View-before-edit makes every activity tap predictable:
+    // you see what you're looking at, then tap Edit if you want to
+    // change it. Previously templates jumped straight into the dense
+    // edit form and one-off entries into their own view sheet —
+    // inconsistent, and the only surface that didn't let you "just
+    // look" before committing.
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => _OneOffEntrySheet(item: item, entryId: entryId),
+      builder: (_) => ActivityDetailSheet(item: item),
     );
   }
 
@@ -603,114 +586,5 @@ class _EditorItemCard extends StatelessWidget {
     final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
     final period = h < 12 ? 'a' : 'p';
     return m == '00' ? '$hour12$period' : '$hour12:$m$period';
-  }
-}
-
-class _OneOffEntrySheet extends ConsumerWidget {
-  const _OneOffEntrySheet({required this.item, required this.entryId});
-
-  final ScheduleItem item;
-  final String entryId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final insets = MediaQuery.of(context).viewInsets.bottom;
-    final rangeDesc = item.isMultiDay
-        ? '${DateFormat.MMMd().format(item.rangeStart!)} → '
-            '${DateFormat.MMMd().format(item.rangeEnd!)} · '
-            '${item.rangeEnd!.difference(item.rangeStart!).inDays + 1} days'
-        : null;
-
-    return Padding(
-      padding: EdgeInsets.only(
-        left: AppSpacing.xl,
-        right: AppSpacing.xl,
-        top: AppSpacing.md,
-        bottom: AppSpacing.xl + insets,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            item.isMultiDay ? 'Multi-day event' : 'One-off event',
-            style: theme.textTheme.titleLarge,
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            item.title,
-            style: theme.textTheme.bodyLarge,
-          ),
-          Text(
-            rangeDesc ??
-                (item.isFullDay
-                    ? 'All day'
-                    : '${item.startTime} – ${item.endTime}'),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          if (item.notes != null && item.notes!.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.md),
-            Text(item.notes!, style: theme.textTheme.bodyMedium),
-          ],
-          const SizedBox(height: AppSpacing.xl),
-          FilledButton.tonalIcon(
-            onPressed: () => _openEdit(context, ref),
-            icon: const Icon(Icons.edit_outlined, size: 18),
-            label: const Text('Edit'),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          OutlinedButton.icon(
-            onPressed: () async {
-              if (item.isMultiDay) {
-                final ok = await showConfirmDialog(
-                  context: context,
-                  title: 'Delete every day?',
-                  message:
-                      'This removes "${item.title}" from all '
-                      '${item.rangeEnd!.difference(item.rangeStart!).inDays + 1}'
-                      ' days it spans. Cannot be undone.',
-                  confirmLabel: 'Delete all days',
-                );
-                if (!ok) return;
-              }
-              await ref
-                  .read(scheduleRepositoryProvider)
-                  .deleteEntry(entryId);
-              if (context.mounted) Navigator.of(context).pop();
-            },
-            icon: Icon(
-              Icons.delete_outline,
-              color: theme.colorScheme.error,
-            ),
-            label: Text(
-              item.isMultiDay ? 'Delete all days' : 'Delete event',
-              style: TextStyle(color: theme.colorScheme.error),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Fetch the full entry row, close this sheet, then push the
-  /// full-day wizard in edit mode. Using the repo to re-read rather
-  /// than trusting the ScheduleItem snapshot — the join-row side
-  /// doesn't live on ScheduleItem, and the wizard needs a real
-  /// ScheduleEntry instance to prefill.
-  Future<void> _openEdit(BuildContext context, WidgetRef ref) async {
-    final navigator = Navigator.of(context);
-    final entry =
-        await ref.read(scheduleRepositoryProvider).getEntry(entryId);
-    if (entry == null || !navigator.mounted) return;
-    navigator.pop();
-    await navigator.push<CreatedActivity>(
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (_) => NewFullDayEventWizardScreen(existing: entry),
-      ),
-    );
   }
 }
