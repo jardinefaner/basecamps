@@ -36,6 +36,8 @@ class NewLibraryItemWizardScreen extends ConsumerStatefulWidget {
 
 enum _WizardStep { audience, source, generating, preview }
 
+enum _SourceMode { link, describe }
+
 class _NewLibraryItemWizardScreenState
     extends ConsumerState<NewLibraryItemWizardScreen> {
   _WizardStep _step = _WizardStep.audience;
@@ -44,8 +46,12 @@ class _NewLibraryItemWizardScreenState
   int? _minAge;
   int? _maxAge;
 
-  // Source URL / pasted text.
+  // Source step: the teacher either pastes a link or types/dictates
+  // a description of the activity themselves. Each mode has its own
+  // controller so switching back and forth doesn't lose input.
+  _SourceMode _sourceMode = _SourceMode.link;
   final _urlController = TextEditingController();
+  final _descriptionController = TextEditingController();
   String? _urlError;
 
   // Generated card state.
@@ -60,12 +66,14 @@ class _NewLibraryItemWizardScreenState
   @override
   void dispose() {
     _urlController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
   Future<bool> _confirmExit() async {
     final dirty = _minAge != null ||
         _urlController.text.trim().isNotEmpty ||
+        _descriptionController.text.trim().isNotEmpty ||
         _generated != null;
     if (!dirty) return true;
     return showConfirmDialog(
@@ -90,27 +98,86 @@ class _NewLibraryItemWizardScreenState
     });
   }
 
-  Future<void> _submitUrl() async {
+  Future<void> _submitSource() async {
     // Guard against rapid double-taps — a second tap before the
     // state-change to `.generating` propagates would otherwise kick
-    // off a second (duplicate, wasteful) OpenAI + scrape round-trip.
+    // off a second (duplicate, wasteful) OpenAI round-trip.
     if (_step == _WizardStep.generating) return;
-    final raw = _urlController.text.trim();
-    if (raw.isEmpty) {
-      setState(() => _urlError = 'Paste a link to a web page, article, or video.');
-      return;
+    if (_sourceMode == _SourceMode.link) {
+      final raw = _urlController.text.trim();
+      if (raw.isEmpty) {
+        setState(() =>
+            _urlError = 'Paste a link to a web page, article, or video.');
+        return;
+      }
+      setState(() {
+        _urlError = null;
+        _step = _WizardStep.generating;
+        _generated = null;
+        _generateError = null;
+        _generateStatus = 'Reading your link…';
+      });
+      unawaited(_runGenerationFromUrl(raw));
+    } else {
+      final raw = _descriptionController.text.trim();
+      if (raw.length < 15) {
+        setState(() => _urlError =
+            'A sentence or two — enough for the AI to work with.');
+        return;
+      }
+      setState(() {
+        _urlError = null;
+        _step = _WizardStep.generating;
+        _generated = null;
+        _generateError = null;
+        _generateStatus = 'Polishing your description…';
+      });
+      unawaited(_runGenerationFromDescription(raw));
     }
-    setState(() {
-      _urlError = null;
-      _step = _WizardStep.generating;
-      _generated = null;
-      _generateError = null;
-      _generateStatus = 'Reading your link…';
-    });
-    unawaited(_runGeneration(raw));
   }
 
-  Future<void> _runGeneration(String raw) async {
+  Future<void> _runGenerationFromDescription(String description) async {
+    try {
+      if (!mounted) return;
+      setState(() => _generateStatus =
+          'Tailoring it for ${_describeAudience()}…');
+      final card = await generateActivityCardFromDescription(
+        description: description,
+        audienceMinAge: _minAge!,
+        audienceMaxAge: _maxAge!,
+      );
+      if (!mounted) return;
+      if (card.isEmpty || card.title.trim().isEmpty) {
+        setState(() {
+          _generateError =
+              "The generator couldn't build a card from that — try rewording, or be a bit more specific.";
+          _step = _WizardStep.source;
+        });
+        return;
+      }
+      setState(() {
+        _generated = card;
+        // No URL / attribution for description-sourced cards.
+        _sourceUrl = null;
+        _sourceAttribution = null;
+        _step = _WizardStep.preview;
+      });
+    } on GenerateFailure catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _generateError = e.reason;
+        _step = _WizardStep.source;
+      });
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _generateError = 'Something went wrong: $e';
+        _step = _WizardStep.source;
+      });
+    }
+  }
+
+  Future<void> _runGenerationFromUrl(String raw) async {
     // Staged status so the teacher sees movement — 10–30 s feels long
     // without any signal the machine is doing something.
     try {
@@ -244,15 +311,24 @@ class _NewLibraryItemWizardScreenState
   }
 
   Future<void> _regenerate() async {
-    final raw = _sourceUrl ?? _urlController.text.trim();
-    if (raw.isEmpty) return;
     setState(() {
       _generated = null;
       _generateError = null;
-      _generateStatus = 'Re-reading your link…';
       _step = _WizardStep.generating;
     });
-    unawaited(_runGeneration(raw));
+    // Route to the same path that produced the current card — URL if
+    // there's a sourceUrl, description otherwise.
+    if (_sourceUrl != null || _sourceMode == _SourceMode.link) {
+      final raw = _sourceUrl ?? _urlController.text.trim();
+      if (raw.isEmpty) return;
+      setState(() => _generateStatus = 'Re-reading your link…');
+      unawaited(_runGenerationFromUrl(raw));
+    } else {
+      final desc = _descriptionController.text.trim();
+      if (desc.isEmpty) return;
+      setState(() => _generateStatus = 'Re-polishing your description…');
+      unawaited(_runGenerationFromDescription(desc));
+    }
   }
 
   @override
@@ -291,18 +367,29 @@ class _NewLibraryItemWizardScreenState
             _WizardStep.source => _SourceStep(
                 audienceLabel:
                     audienceLabelFor(_minAge ?? 0, _maxAge ?? 0),
-                controller: _urlController,
+                mode: _sourceMode,
+                urlController: _urlController,
+                descriptionController: _descriptionController,
                 error: _urlError ?? _generateError,
                 onEditAudience: () => setState(() {
                   _step = _WizardStep.audience;
                   _generateError = null;
                 }),
-                onSubmit: _submitUrl,
-                onPasteSupport: true,
+                onModeChange: (m) => setState(() {
+                  _sourceMode = m;
+                  _urlError = null;
+                  _generateError = null;
+                }),
+                onSubmit: _submitSource,
               ),
             _WizardStep.generating => _GeneratingStep(
                 status: _generateStatus,
-                sourceUrl: _urlController.text.trim(),
+                // For link mode, echo the URL so the teacher knows
+                // we're working on it. For describe mode, skip it —
+                // there's no URL to show.
+                sourceUrl: _sourceMode == _SourceMode.link
+                    ? _urlController.text.trim()
+                    : '',
                 audienceLabel:
                     audienceLabelFor(_minAge ?? 0, _maxAge ?? 0),
               ),
@@ -609,33 +696,38 @@ class _NumberStepper extends StatelessWidget {
 class _SourceStep extends StatelessWidget {
   const _SourceStep({
     required this.audienceLabel,
-    required this.controller,
+    required this.mode,
+    required this.urlController,
+    required this.descriptionController,
     required this.onEditAudience,
+    required this.onModeChange,
     required this.onSubmit,
     required this.error,
-    required this.onPasteSupport,
   });
 
   final String audienceLabel;
-  final TextEditingController controller;
+  final _SourceMode mode;
+  final TextEditingController urlController;
+  final TextEditingController descriptionController;
   final VoidCallback onEditAudience;
+  final ValueChanged<_SourceMode> onModeChange;
   final VoidCallback onSubmit;
   final String? error;
-  final bool onPasteSupport;
 
   Future<void> _paste() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final text = data?.text;
     if (text == null || text.trim().isEmpty) return;
-    controller.text = text.trim();
-    controller.selection = TextSelection.fromPosition(
-      TextPosition(offset: controller.text.length),
+    urlController.text = text.trim();
+    urlController.selection = TextSelection.fromPosition(
+      TextPosition(offset: urlController.text.length),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isLink = mode == _SourceMode.link;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.xl,
@@ -646,7 +738,6 @@ class _SourceStep extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Audience chip with tap-to-edit.
           Align(
             alignment: Alignment.centerLeft,
             child: ActionChip(
@@ -656,29 +747,53 @@ class _SourceStep extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.xl),
+          // Mode toggle — segmented button picks between pasting a
+          // link and describing the activity. Keeps both inputs
+          // mounted behind the scenes so switching back preserves
+          // whatever was typed.
+          SegmentedButton<_SourceMode>(
+            segments: const [
+              ButtonSegment(
+                value: _SourceMode.link,
+                icon: Icon(Icons.link, size: 16),
+                label: Text('Link'),
+              ),
+              ButtonSegment(
+                value: _SourceMode.describe,
+                icon: Icon(Icons.edit_note_outlined, size: 16),
+                label: Text('Describe'),
+              ),
+            ],
+            selected: {mode},
+            onSelectionChanged: (s) => onModeChange(s.first),
+          ),
+          const SizedBox(height: AppSpacing.lg),
           Text(
-            'Paste a link',
+            isLink ? 'Paste a link' : 'Describe the activity',
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            "Article, video, or web page you'd like to turn into an "
-            'activity card.',
+            isLink
+                ? "Article, video, or web page you'd like to turn into "
+                    'an activity card.'
+                : 'A sentence or two is enough — the AI will polish '
+                    'and structure it for the audience.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
-          AppTextField(
-            controller: controller,
-            label: 'Link',
-            hint: 'https://example.com/cool-article',
-            keyboardType: TextInputType.url,
-            onChanged: (_) {},
-          ),
-          if (onPasteSupport) ...[
+          if (isLink) ...[
+            AppTextField(
+              controller: urlController,
+              label: 'Link',
+              hint: 'https://example.com/cool-article',
+              keyboardType: TextInputType.url,
+              onChanged: (_) {},
+            ),
             const SizedBox(height: AppSpacing.sm),
             Align(
               alignment: Alignment.centerLeft,
@@ -690,6 +805,16 @@ class _SourceStep extends StatelessWidget {
                   visualDensity: VisualDensity.compact,
                 ),
               ),
+            ),
+          ] else ...[
+            AppTextField(
+              controller: descriptionController,
+              label: 'What is the activity?',
+              hint:
+                  'e.g. A nature walk where kids collect leaves and '
+                  'sort them by color and shape.',
+              maxLines: 5,
+              onChanged: (_) {},
             ),
           ],
           if (error != null) ...[

@@ -224,6 +224,94 @@ Future<GeneratedCard> generateActivityCardFromUrlOnly({
   }
 }
 
+/// Third generation path — the teacher describes the activity in their
+/// own words instead of pasting a URL. We polish and structure their
+/// description into a card at the audience's reading level, without
+/// embellishing beyond what they said.
+///
+/// Distinct system prompt from the URL path: this one treats the input
+/// as the teacher's first-person intent, not a third-party article to
+/// summarize. Goal is "make it readable and kid-appropriate," not
+/// "summarize a source."
+Future<GeneratedCard> generateActivityCardFromDescription({
+  required String description,
+  required int audienceMinAge,
+  required int audienceMaxAge,
+  Duration timeout = const Duration(seconds: 30),
+  http.Client? client,
+}) async {
+  if (!Env.hasOpenAi) {
+    throw const GenerateFailure(
+      'AI generation is off in this build — set OPENAI_API_KEY.',
+    );
+  }
+  final trimmed = description.trim();
+  if (trimmed.length < 15) {
+    // Tiny inputs produce tiny, low-value cards. Push back.
+    throw const GenerateFailure(
+      'Give me a bit more to work with — a sentence or two is enough.',
+    );
+  }
+  final audienceLabel = audienceLabelFor(audienceMinAge, audienceMaxAge);
+  final c = client ?? http.Client();
+  try {
+    final response = await c
+        .post(
+          Uri.parse('https://api.openai.com/v1/chat/completions'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ${Env.openaiApiKey}',
+          },
+          body: jsonEncode({
+            'model': 'gpt-4o-mini',
+            'temperature': 0.4,
+            'response_format': {'type': 'json_object'},
+            'messages': [
+              {'role': 'system', 'content': _systemPromptDescription},
+              {
+                'role': 'user',
+                'content':
+                    "Audience: $audienceLabel\n\nTeacher's description:\n$trimmed",
+              },
+            ],
+          }),
+        )
+        .timeout(timeout);
+    if (response.statusCode != 200) {
+      throw GenerateFailure(
+        'The generator returned HTTP ${response.statusCode}.',
+      );
+    }
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final choices = body['choices'] as List<dynamic>?;
+    if (choices == null || choices.isEmpty) {
+      throw const GenerateFailure('The generator returned no content.');
+    }
+    final message = (choices.first as Map<String, dynamic>)['message']
+        as Map<String, dynamic>?;
+    final content = message?['content'] as String?;
+    if (content == null || content.trim().isEmpty) {
+      throw const GenerateFailure('The generator returned empty JSON.');
+    }
+    final parsed = _parseCardJson(content);
+    return GeneratedCard(
+      title: parsed.title,
+      hook: parsed.hook,
+      summary: parsed.summary,
+      keyPoints: parsed.keyPoints,
+      learningGoals: parsed.learningGoals,
+      engagementTimeMin: parsed.engagementTimeMin,
+      // No source attribution — the teacher wrote this themselves.
+    );
+  } on GenerateFailure {
+    rethrow;
+  } on Object catch (e) {
+    throw GenerateFailure("Couldn't generate a card: $e");
+  } finally {
+    if (client == null) c.close();
+  }
+}
+
 /// Display label for an audience range: "Age 7" for single-age,
 /// "Ages 5–7" for ranges. Used by the wizard's audience chips and the
 /// card tile in the library.
@@ -315,6 +403,29 @@ String _userPrompt({
     ..writeln(snippet);
   return buf.toString();
 }
+
+const String _systemPromptDescription = '''
+You turn a teacher's informal description of an activity into a clean, age-appropriate "activity card" they can save to their library.
+
+Return ONLY JSON, exactly these keys:
+
+{
+  "title": "Short card title (under 60 chars).",
+  "hook": "One short sentence that makes the kid curious.",
+  "summary": "2-4 sentences at the audience's reading level, faithfully capturing what the teacher described. Don't embellish beyond their intent.",
+  "key_points": ["3-5 short bullets", "each under 12 words"],
+  "learning_goals": ["1-3 things a kid this age might learn or practice"],
+  "engagement_time_min": 15
+}
+
+Rules:
+- Stick to what the teacher described. Do NOT invent new concepts, examples, or materials they didn't mention.
+- Polish grammar, trim filler, structure into a readable card. Treat it like dictation — the teacher was probably rushed.
+- Write AT the audience's reading level (plain words for young ages, richer vocabulary for older).
+- If the description is ambiguous about how to structure a bullet, pick the most useful interpretation.
+- `engagement_time_min` is your estimate (5–60 range). If the teacher specified a duration, honor it.
+- All JSON keys required. Empty strings / empty arrays are allowed for fields the description doesn't support.
+''';
 
 const String _systemPromptUrlOnly = '''
 You turn a URL (alone, without scraped page text) into an age-appropriate "activity card" a teacher can use. You may have prior knowledge of the host/topic from your training.

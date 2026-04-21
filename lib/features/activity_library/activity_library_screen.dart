@@ -3,6 +3,7 @@ import 'package:basecamp/features/activity_library/activity_card_ai.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/activity_library/widgets/activity_card_preview.dart';
 import 'package:basecamp/features/activity_library/widgets/edit_library_item_sheet.dart';
+import 'package:basecamp/features/activity_library/widgets/library_card_detail_sheet.dart';
 import 'package:basecamp/features/activity_library/widgets/new_library_item_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -22,7 +23,8 @@ class ActivityLibraryScreen extends ConsumerStatefulWidget {
 class _ActivityLibraryScreenState extends ConsumerState<ActivityLibraryScreen>
     with BulkSelectionMixin {
   Future<void> _openSheet({ActivityLibraryData? item}) async {
-    // Create flow uses the wizard; editing keeps the dense sheet.
+    // Create flow uses the wizard; existing rows open a surface that
+    // matches their shape.
     if (item == null) {
       final saved = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
@@ -40,6 +42,24 @@ class _ActivityLibraryScreenState extends ConsumerState<ActivityLibraryScreen>
             ),
           );
       }
+      return;
+    }
+    // Rich AI cards → full detail view so the teacher can actually
+    // *see* what they saved (hook, summary, key points, goals, source).
+    // Previously this jumped straight to the dense preset-edit sheet,
+    // which hid every AI field — saving a card felt one-way.
+    // Legacy preset-only rows still use the edit sheet directly.
+    final isRichCard = item.summary != null ||
+        item.audienceMinAge != null ||
+        item.hook != null;
+    if (isRichCard) {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        useSafeArea: true,
+        builder: (_) => LibraryCardDetailSheet(item: item),
+      );
       return;
     }
     await showModalBottomSheet<void>(
