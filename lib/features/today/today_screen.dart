@@ -10,6 +10,8 @@ import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
+import 'package:basecamp/features/schedule/widgets/add_activity_picker.dart';
+import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
 import 'package:basecamp/features/today/widgets/day_summary_strip.dart';
 import 'package:basecamp/features/today/widgets/earlier_today_group.dart';
 import 'package:basecamp/features/today/widgets/hero_now_card.dart';
@@ -36,6 +38,41 @@ class TodayScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _openAddPicker(BuildContext context, DateTime now) async {
+    // Same picker the Schedule editor uses — keeps the add flow single
+    // across both surfaces. The picker forwards a CreatedActivity up
+    // through its own pop when a wizard actually creates something.
+    final result = await showModalBottomSheet<CreatedActivity>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => AddActivityPicker(initialDate: now),
+    );
+    if (result == null || !context.mounted) return;
+    // Confirmation snackbar so the teacher sees that creation happened
+    // even when the activity is dated outside today (in which case it
+    // won't appear on the Today tab — e.g. a "next Monday" one-off).
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(_describeCreated(result)),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+  }
+
+  String _describeCreated(CreatedActivity c) {
+    final title = c.title.isEmpty ? 'Activity' : c.title;
+    final dayPart = c.dayCount == 1 ? 'added' : 'added on ${c.dayCount} days';
+    final range = c.startDate == null
+        ? ''
+        : (c.endDate == null
+            ? ', starting ${DateFormat.MMMd().format(c.startDate!)}'
+            : ', ${DateFormat.MMMd().format(c.startDate!)} → ${DateFormat.MMMd().format(c.endDate!)}');
+    return '$title $dayPart$range';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Watching this rebuilds the screen on every wall-clock minute so
@@ -49,6 +86,11 @@ class TodayScreen extends ConsumerWidget {
     final dateLabel = DateFormat('EEEE · MMMM d').format(now);
 
     return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _openAddPicker(context, now),
+        icon: const Icon(Icons.add),
+        label: const Text('Add'),
+      ),
       body: CustomScrollView(
         slivers: [
           SliverAppBar(

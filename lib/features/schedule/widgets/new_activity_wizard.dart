@@ -50,15 +50,23 @@ class _NewActivityWizardScreenState
 
   late final Set<int> _selectedDays = widget.initialDays?.toSet() ??
       <int>{clampToScheduleDay(DateTime.now().weekday)};
-  TimeOfDay _start = const TimeOfDay(hour: 9, minute: 0);
-  TimeOfDay _end = const TimeOfDay(hour: 10, minute: 0);
+  // Default to the next full-hour slot — if it's 10:34 now, start at
+  // 11:00; 11:00 + 1h = 12:00. Beats hardcoded 9–10 which was always
+  // stale the moment someone opened the wizard mid-morning.
+  late TimeOfDay _start = _nextHourSlot(DateTime.now());
+  late TimeOfDay _end = _addOneHour(_start);
 
   final Set<String> _groupIds = <String>{};
   bool _allGroups = true;
 
   late String? _specialistId = widget.initialSpecialistId;
 
-  DateTime? _startDate;
+  // Start date defaults to today so the range tile always shows
+  // something concrete — teachers were confused when it said "Pick a
+  // date" and left it blank, wondering if/when their activity would
+  // run. End date stays null → "runs from today, weekly, forever"
+  // unless the teacher bounds it.
+  late DateTime? _startDate = _today();
   DateTime? _endDate;
 
   /// When non-null, the wizard is populated from a library item.
@@ -209,6 +217,26 @@ class _NewActivityWizardScreenState
     final monday = todayOnly.subtract(Duration(days: todayOnly.weekday - 1));
     final friday = monday.add(const Duration(days: 4));
     return (monday, friday);
+  }
+
+  // Round [now] up to the next full hour slot — e.g. 10:34 → 11:00,
+  // 10:00 → 11:00. Never returns a slot that's already past, so the
+  // wizard's initial time never looks stale.
+  static TimeOfDay _nextHourSlot(DateTime now) {
+    final nextHour = now.hour + 1;
+    // Wrap midnight: 23:xx → 00:00 next day (we only care about the
+    // time-of-day, the rest of the app handles the date).
+    return TimeOfDay(hour: nextHour % 24, minute: 0);
+  }
+
+  // Returns [t] + 1 hour, wrapping at midnight like [_nextHourSlot].
+  static TimeOfDay _addOneHour(TimeOfDay t) {
+    return TimeOfDay(hour: (t.hour + 1) % 24, minute: t.minute);
+  }
+
+  static DateTime _today() {
+    final n = DateTime.now();
+    return DateTime(n.year, n.month, n.day);
   }
 
   // ---- build ----

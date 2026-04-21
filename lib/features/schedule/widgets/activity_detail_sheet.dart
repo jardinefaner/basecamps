@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/schedule/widgets/edit_template_sheet.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -41,7 +42,26 @@ class ActivityDetailSheet extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(item.title, style: theme.textTheme.titleLarge),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(item.title, style: theme.textTheme.titleLarge),
+                ),
+                // Edit affordance — only for template-sourced items,
+                // since one-off entries don't have an edit flow (yet).
+                // Saves the teacher a trip to Schedule → pick the row
+                // → open edit sheet just to tweak a title/time.
+                if (item.isFromTemplate && item.templateId != null)
+                  TextButton.icon(
+                    onPressed: () => _openEdit(context, ref),
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('Edit'),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(height: AppSpacing.xs),
             Text(
               item.isFullDay
@@ -113,6 +133,34 @@ class ActivityDetailSheet extends ConsumerWidget {
               _JustForTodaySection(item: item),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Close this sheet and open the template editor. Fetching the row
+  /// by id (rather than constructing one from [item]) ensures the edit
+  /// sheet sees the authoritative data — timing of inserts/updates
+  /// elsewhere could otherwise leave a stale snapshot on the UI side.
+  Future<void> _openEdit(BuildContext context, WidgetRef ref) async {
+    final templateId = item.templateId;
+    if (templateId == null) return;
+    final navigator = Navigator.of(context);
+    final template =
+        await ref.read(scheduleRepositoryProvider).getTemplate(templateId);
+    if (template == null || !navigator.mounted) return;
+    // Pop the detail sheet before showing the edit sheet so the user
+    // doesn't end up with two stacked modals and a double-pop to close.
+    // After the pop, NavigatorState is still mounted — its .context is
+    // the valid root context for pushing the edit sheet.
+    navigator.pop();
+    await showModalBottomSheet<void>(
+      context: navigator.context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      isDismissible: false,
+      builder: (_) => EditTemplateSheet(
+        template: template,
+        occurrenceDate: item.date,
       ),
     );
   }
