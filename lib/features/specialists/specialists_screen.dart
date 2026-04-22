@@ -131,6 +131,7 @@ class _SpecialistTile extends StatelessWidget {
         ? specialist.name.characters.first.toUpperCase()
         : '?';
 
+    final adultRole = AdultRole.fromDb(specialist.adultRole);
     return AppCard(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -148,7 +149,17 @@ class _SpecialistTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(specialist.name, style: theme.textTheme.titleMedium),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        specialist.name,
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ),
+                    _RoleChip(role: adultRole),
+                  ],
+                ),
                 if (specialist.role != null && specialist.role!.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
@@ -165,6 +176,50 @@ class _SpecialistTile extends StatelessWidget {
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Small role pill on each adult tile. Colors picked to stay legible
+/// in both light + dark: Lead uses the primary tint, Specialist the
+/// tertiary, Ambient neutral surface.
+class _RoleChip extends StatelessWidget {
+  const _RoleChip({required this.role});
+  final AdultRole role;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final (bg, fg, label) = switch (role) {
+      AdultRole.lead => (
+          theme.colorScheme.primaryContainer,
+          theme.colorScheme.onPrimaryContainer,
+          'Lead',
+        ),
+      AdultRole.specialist => (
+          theme.colorScheme.tertiaryContainer,
+          theme.colorScheme.onTertiaryContainer,
+          'Specialist',
+        ),
+      AdultRole.ambient => (
+          theme.colorScheme.surfaceContainerHighest,
+          theme.colorScheme.onSurface,
+          'Ambient',
+        ),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: fg,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

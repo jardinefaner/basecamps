@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/features/specialists/widgets/availability_editor.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -8,6 +9,7 @@ import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -30,6 +32,18 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
       TextEditingController(text: widget.specialist?.notes ?? '');
 
   late String? _avatarPath = widget.specialist?.avatarPath;
+
+  /// Structural role (v28) — what kind of adult this person is on
+  /// the schedule. Defaults to specialist (rover) for new rows and
+  /// reads through for existing ones via AdultRole.fromDb.
+  late AdultRole _adultRole = widget.specialist == null
+      ? AdultRole.specialist
+      : AdultRole.fromDb(widget.specialist!.adultRole);
+
+  /// Which group this adult anchors (leads only). Ignored when
+  /// [_adultRole] isn't [AdultRole.lead]; the UI clears it on role
+  /// change to avoid stale state surviving a save.
+  late String? _anchoredGroupId = widget.specialist?.anchoredGroupId;
 
   final Map<int, AvailabilityBlock> _availability = {};
   bool _availabilityLoaded = false;
@@ -56,6 +70,8 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
         _notesController.text.trim().isEmpty ? null : _notesController.text.trim();
     if (currentNotes != specialist.notes) return true;
     if (_avatarPath != specialist.avatarPath) return true;
+    if (_adultRole.dbValue != specialist.adultRole) return true;
+    if (_anchoredGroupId != specialist.anchoredGroupId) return true;
     if (!_availabilityLoaded) return false;
     final current = _currentAvailabilitySig();
     if (current.length != _availabilityBaseline.length) return true;
@@ -131,6 +147,11 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
         ? null
         : _notesController.text.trim();
 
+    // Anchor only applies to leads; clear it for specialists/ambient
+    // so role toggles don't leave stale group pointers.
+    final effectiveAnchor =
+        _adultRole == AdultRole.lead ? _anchoredGroupId : null;
+
     String id;
     if (_isEdit) {
       final existing = widget.specialist!;
@@ -142,6 +163,8 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
         avatarPath: _avatarPath,
         clearAvatarPath:
             _avatarPath == null && existing.avatarPath != null,
+        adultRole: Value(_adultRole.dbValue),
+        anchoredGroupId: Value(effectiveAnchor),
       );
       id = existing.id;
     } else {
@@ -150,6 +173,8 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
         role: role,
         notes: notes,
         avatarPath: _avatarPath,
+        adultRole: _adultRole,
+        anchoredGroupId: effectiveAnchor,
       );
     }
     if (_availabilityLoaded) {
@@ -219,10 +244,25 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
           const SizedBox(height: AppSpacing.lg),
           AppTextField(
             controller: _roleController,
-            label: 'Role (optional)',
-            hint: 'e.g. Art teacher',
+            label: 'Job title (optional)',
+            hint: 'e.g. Art teacher · Director · Head cook',
             onChanged: (_) => setState(() {}),
           ),
+          const SizedBox(height: AppSpacing.xl),
+          _RolePicker(
+            selected: _adultRole,
+            onChanged: (r) => setState(() {
+              _adultRole = r;
+              if (r != AdultRole.lead) _anchoredGroupId = null;
+            }),
+          ),
+          if (_adultRole == AdultRole.lead) ...[
+            const SizedBox(height: AppSpacing.lg),
+            _AnchorGroupPicker(
+              selectedGroupId: _anchoredGroupId,
+              onChanged: (id) => setState(() => _anchoredGroupId = id),
+            ),
+          ],
           const SizedBox(height: AppSpacing.xl),
           Text('Availability', style: theme.textTheme.titleSmall),
           const SizedBox(height: AppSpacing.sm),
@@ -271,6 +311,46 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
                   _availability[day] = existing.copyWith(end: picked);
                 });
               },
+              onPickBreak: (day) => _pickWindow(
+                day,
+                existingStart: _availability[day]?.breakStart,
+                existingEnd: _availability[day]?.breakEnd,
+                fallbackStart: const TimeOfDay(hour: 10, minute: 30),
+                fallbackEnd: const TimeOfDay(hour: 10, minute: 45),
+                onPicked: (start, end) {
+                  final existing = _availability[day];
+                  if (existing == null) return;
+                  _availability[day] = existing.copyWith(
+                    breakStart: start,
+                    breakEnd: end,
+                  );
+                },
+              ),
+              onPickLunch: (day) => _pickWindow(
+                day,
+                existingStart: _availability[day]?.lunchStart,
+                existingEnd: _availability[day]?.lunchEnd,
+                fallbackStart: const TimeOfDay(hour: 12, minute: 0),
+                fallbackEnd: const TimeOfDay(hour: 13, minute: 0),
+                onPicked: (start, end) {
+                  final existing = _availability[day];
+                  if (existing == null) return;
+                  _availability[day] = existing.copyWith(
+                    lunchStart: start,
+                    lunchEnd: end,
+                  );
+                },
+              ),
+              onClearBreak: (day) => setState(() {
+                final existing = _availability[day];
+                if (existing == null) return;
+                _availability[day] = existing.copyWith(clearBreak: true);
+              }),
+              onClearLunch: (day) => setState(() {
+                final existing = _availability[day];
+                if (existing == null) return;
+                _availability[day] = existing.copyWith(clearLunch: true);
+              }),
             ),
           const SizedBox(height: AppSpacing.lg),
           AppTextField(
@@ -281,6 +361,169 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Prompt for a start/end time pair. Used for both break and lunch
+  /// so the picker flow is consistent: tap once, pick the start time,
+  /// then the end time. Cancelling either step aborts the whole pick.
+  Future<void> _pickWindow(
+    int dayOfWeek, {
+    required TimeOfDay? existingStart,
+    required TimeOfDay? existingEnd,
+    required TimeOfDay fallbackStart,
+    required TimeOfDay fallbackEnd,
+    required void Function(TimeOfDay start, TimeOfDay end) onPicked,
+  }) async {
+    final startSeed = existingStart ?? fallbackStart;
+    final start = await showTimePicker(
+      context: context,
+      initialTime: startSeed,
+      helpText: 'Starts at',
+    );
+    if (start == null || !mounted) return;
+    final endSeed = existingEnd ??
+        _addMinutes(
+          start,
+          existingEnd == null && existingStart == null
+              ? _windowDefaultMinutes(startSeed, fallbackEnd)
+              : 15,
+        );
+    final end = await showTimePicker(
+      context: context,
+      initialTime: endSeed,
+      helpText: 'Ends at',
+    );
+    if (end == null || !mounted) return;
+    setState(() => onPicked(start, end));
+  }
+
+  int _windowDefaultMinutes(TimeOfDay start, TimeOfDay fallbackEnd) {
+    final startMin = start.hour * 60 + start.minute;
+    final endMin = fallbackEnd.hour * 60 + fallbackEnd.minute;
+    final diff = endMin - startMin;
+    return diff > 0 ? diff : 30;
+  }
+
+  TimeOfDay _addMinutes(TimeOfDay t, int minutes) {
+    final total = t.hour * 60 + t.minute + minutes;
+    final wrapped = ((total % (24 * 60)) + 24 * 60) % (24 * 60);
+    return TimeOfDay(hour: wrapped ~/ 60, minute: wrapped % 60);
+  }
+}
+
+/// Three-chip picker for the structural adult role. Plain FilterChips
+/// because these roles aren't mutually exclusive in *capability* (a
+/// lead can also cover activities) — just in *default placement* on
+/// the schedule. Keep it simple.
+class _RolePicker extends StatelessWidget {
+  const _RolePicker({required this.selected, required this.onChanged});
+
+  final AdultRole selected;
+  final ValueChanged<AdultRole> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Role on the schedule', style: theme.textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'How this person shows up on Today. Leads anchor a group all '
+          'day. Specialists rotate between activities. Ambient staff '
+          "(director, nurse, kitchen) have a shift but aren't on the "
+          'activity grid.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            for (final r in AdultRole.values)
+              ChoiceChip(
+                label: Text(_labelFor(r)),
+                selected: selected == r,
+                onSelected: (_) => onChanged(r),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  String _labelFor(AdultRole r) {
+    switch (r) {
+      case AdultRole.lead:
+        return 'Lead';
+      case AdultRole.specialist:
+        return 'Specialist';
+      case AdultRole.ambient:
+        return 'Ambient staff';
+    }
+  }
+}
+
+/// Group chip picker shown only when the adult is a lead. Used to
+/// anchor them to one group. Lazily loads the group list; shows a
+/// helper message when the DB has none.
+class _AnchorGroupPicker extends ConsumerWidget {
+  const _AnchorGroupPicker({
+    required this.selectedGroupId,
+    required this.onChanged,
+  });
+
+  final String? selectedGroupId;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final groupsAsync = ref.watch(groupsProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Anchor group', style: theme.textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'The group this lead stays with all day. Their schedule on '
+          "Today follows this group's activity schedule.",
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        groupsAsync.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (err, _) => Text('Error: $err'),
+          data: (groups) {
+            if (groups.isEmpty) {
+              return Text(
+                'No groups yet — add some in the Children tab first.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              );
+            }
+            return Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final g in groups)
+                  ChoiceChip(
+                    label: Text(g.name),
+                    selected: selectedGroupId == g.id,
+                    onSelected: (_) => onChanged(g.id),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
     );
   }
 }

@@ -17,6 +17,7 @@ import 'package:basecamp/features/today/widgets/day_summary_strip.dart';
 import 'package:basecamp/features/today/widgets/earlier_today_group.dart';
 import 'package:basecamp/features/today/widgets/hero_now_card.dart';
 import 'package:basecamp/features/today/widgets/schedule_item_card.dart';
+import 'package:basecamp/features/today/widgets/staff_today_strip.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -322,6 +323,12 @@ class _Body extends ConsumerWidget {
               context.push('/more/forms/parent-concern'),
           onTapPending: () => context.go('/observations'),
         ),
+        const SizedBox(height: AppSpacing.sm),
+        // Collapsible "who's on shift today" strip — shows leads,
+        // specialists, and ambient staff with their shift window +
+        // current break/lunch status. Self-hides when no one has a
+        // shift row for today.
+        StaffTodayStrip(now: now),
         const SizedBox(height: AppSpacing.lg),
 
         // All-day activities / notes float above the hero. One or many,
