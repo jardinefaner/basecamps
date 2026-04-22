@@ -1,6 +1,7 @@
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/trips/trips_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:basecamp/ui/address_field.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/step_wizard.dart';
 import 'package:flutter/material.dart';
@@ -150,10 +151,13 @@ class _NewTripWizardScreenState extends ConsumerState<NewTripWizardScreen> {
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: AppSpacing.lg),
-        AppTextField(
+        // Address field + "Find on map" button. Opens Google Maps
+        // externally so the teacher can pick the exact pin and paste
+        // the address back — no API key / billing required on our
+        // side.
+        AddressField(
           controller: _location,
           label: 'Location (optional)',
-          hint: 'e.g. Monterey Bay Aquarium',
         ),
       ],
     );

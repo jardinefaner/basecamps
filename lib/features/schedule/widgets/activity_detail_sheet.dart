@@ -10,6 +10,7 @@ import 'package:basecamp/features/schedule/widgets/edit_template_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/new_full_day_event_wizard.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:basecamp/ui/address_field.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:flutter/material.dart';
@@ -444,8 +445,11 @@ class _SpecialistRow extends ConsumerWidget {
 }
 
 /// Location row that prefers the tracked-room name (when set),
-/// otherwise falls back to the free-form location string. No row at
-/// all when both are empty.
+/// otherwise falls back to the free-form location string. Free-form
+/// strings render as a tappable AddressRow that opens Google Maps —
+/// so teachers tapping a "Aquarium day" detail can go straight to
+/// directions. Tracked rooms stay as a plain meta row (no map for
+/// in-building locations).
 class _LocationRow extends ConsumerWidget {
   const _LocationRow({required this.roomId, required this.fallback});
 
@@ -466,9 +470,9 @@ class _LocationRow extends ConsumerWidget {
     if (fallback == null || fallback!.isEmpty) {
       return const SizedBox.shrink();
     }
-    return _MetaRow(
-      icon: Icons.place_outlined,
-      text: fallback!,
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xs),
+      child: AddressRow(address: fallback!),
     );
   }
 }

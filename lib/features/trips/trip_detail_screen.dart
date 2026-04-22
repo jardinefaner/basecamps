@@ -1,6 +1,7 @@
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/trips/trips_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:basecamp/ui/address_field.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:flutter/material.dart';
@@ -54,8 +55,14 @@ class TripDetailScreen extends ConsumerWidget {
                     trip.returnTime,
                   ),
                 ),
-              if (trip.location != null)
-                _MetaRow(icon: Icons.place_outlined, text: trip.location!),
+              if (trip.location != null && trip.location!.isNotEmpty)
+                // Tappable address row — opens Google Maps externally
+                // searched at the saved address. No API key / billing
+                // setup, just a URL scheme deep link.
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.xs),
+                  child: AddressRow(address: trip.location!),
+                ),
               _GroupsRow(tripId: trip.id),
               const SizedBox(height: AppSpacing.xl),
               if (trip.notes != null && trip.notes!.isNotEmpty) ...[

@@ -3,6 +3,7 @@ import 'package:basecamp/features/rooms/rooms_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Room picker surface used by the activity creation + edit forms.
 /// A compact chip grid of tracked rooms plus a "Custom location…"
@@ -16,6 +17,7 @@ class RoomPicker extends ConsumerWidget {
     required this.selectedRoomId,
     required this.onRoomSelected,
     required this.customLocationController,
+    this.showMapButton = false,
     super.key,
   });
 
@@ -32,6 +34,28 @@ class RoomPicker extends ConsumerWidget {
   /// (custom mode). Shared with the parent so the wizard can persist
   /// it on save.
   final TextEditingController customLocationController;
+
+  /// When true and the teacher is in custom-location mode, shows a
+  /// "Find on map" button that opens Google Maps at the typed address.
+  /// Turn on for surfaces that deal with off-site addresses (full-day
+  /// events / trips); leave off for in-building activity forms where
+  /// the custom text is usually a location note ("north corner of
+  /// the gym"), not a searchable address.
+  final bool showMapButton;
+
+  Future<void> _findOnMap(BuildContext context) async {
+    final query = customLocationController.text.trim();
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query='
+      '${Uri.encodeQueryComponent(query.isEmpty ? ' ' : query)}',
+    );
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't open Google Maps.")),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -81,11 +105,28 @@ class RoomPicker extends ConsumerWidget {
               const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: customLocationController,
-                decoration: const InputDecoration(
-                  labelText: 'Custom location',
-                  hintText: 'e.g. North corner of the gym · Playground',
+                decoration: InputDecoration(
+                  labelText:
+                      showMapButton ? 'Address' : 'Custom location',
+                  hintText: showMapButton
+                      ? 'e.g. Monterey Bay Aquarium · 886 Cannery Row'
+                      : 'e.g. North corner of the gym · Playground',
                 ),
               ),
+              if (showMapButton) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => _findOnMap(context),
+                    icon: const Icon(Icons.map_outlined, size: 16),
+                    label: const Text('Find on map'),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: AppSpacing.xs),
               Text(
                 "Custom locations don't participate in room conflict "

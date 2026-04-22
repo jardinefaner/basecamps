@@ -450,6 +450,9 @@ class _NewFullDayEventWizardScreenState
           selectedRoomId: _roomId,
           customLocationController: _location,
           onRoomSelected: (id) => setState(() => _roomId = id),
+          // Full-day events can be off-site (field trips, "aquarium
+          // day") — offer the map-pick affordance on the custom path.
+          showMapButton: true,
         ),
         const SizedBox(height: AppSpacing.lg),
         AppTextField(
