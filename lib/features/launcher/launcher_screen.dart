@@ -124,7 +124,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
               fallbackInitial: s.name.isEmpty
                   ? '?'
                   : s.name.characters.first.toUpperCase(),
-              route: '/more/specialists/${s.id}',
+              route: '/more/adults/${s.id}',
             ),
           );
         case PinnedKinds.library:
@@ -225,7 +225,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                           ),
                         if (unpinnedSpecialists.isNotEmpty)
                           _Section(
-                            label: 'Specialists',
+                            label: 'Adults',
                             count: unpinnedSpecialists.length,
                             total: specialists.length,
                             query: _query,
@@ -731,7 +731,7 @@ class _PeopleWrap extends StatelessWidget {
               fallbackInitial: s.name.isEmpty
                   ? '?'
                   : s.name.characters.first.toUpperCase(),
-              route: '/more/specialists/${s.id}',
+              route: '/more/adults/${s.id}',
             ),
           ),
       ],
@@ -857,9 +857,9 @@ class _DestinationData {
       path: '/more/forms',
     ),
     _DestinationData(
-      label: 'Specialists',
+      label: 'Adults',
       icon: Icons.badge_outlined,
-      path: '/more/specialists',
+      path: '/more/adults',
     ),
     _DestinationData(
       label: 'Library',

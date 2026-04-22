@@ -62,7 +62,10 @@ class DaySummaryStrip extends StatelessWidget {
             child: _Stat(
               icon: Icons.person_outline,
               value: '$specialists',
-              label: specialists == 1 ? 'specialist' : 'specialists',
+              // Count of unique adults leading activities today — all
+              // roles (lead/specialist/ambient) count once if their id
+              // is on an activity.
+              label: specialists == 1 ? 'adult leading' : 'adults leading',
             ),
           ),
           _Divider(),

@@ -101,7 +101,9 @@ class _ConflictCard extends ConsumerWidget {
       ));
     }
     if (info.specialistClash) {
-      var label = 'Specialist double-booked';
+      // Default when the adult row was deleted / can't be resolved —
+      // don't leak the "specialist" label to teachers.
+      var label = 'Adult double-booked';
       final sid = other.specialistId;
       if (sid != null) {
         final specialist = ref.watch(specialistProvider(sid)).asData?.value;

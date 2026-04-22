@@ -37,7 +37,7 @@ class SpecialistChipPicker extends ConsumerWidget {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
             child: Text(
-              'No staff on file yet. Add them in More → Specialists '
+              'No adults on file yet. Add them in More → Adults '
               'and they will show up here.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,

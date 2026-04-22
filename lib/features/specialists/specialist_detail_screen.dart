@@ -57,7 +57,7 @@ class SpecialistDetailScreen extends ConsumerWidget {
         error: (err, _) => Center(child: Text('Error: $err')),
         data: (s) {
           if (s == null) {
-            return const Center(child: Text('Specialist not found'));
+            return const Center(child: Text('Adult not found'));
           }
           return ListView(
             padding: const EdgeInsets.fromLTRB(

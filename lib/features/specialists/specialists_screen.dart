@@ -33,12 +33,10 @@ class _SpecialistsScreenState extends ConsumerState<SpecialistsScreen>
     if (count == 0) return;
     final confirmed = await showConfirmDialog(
       context: context,
-      title: count == 1
-          ? 'Remove this specialist?'
-          : 'Remove $count specialists?',
+      title: count == 1 ? 'Remove this adult?' : 'Remove $count adults?',
       message:
           'Activities they were running keep their times and details — '
-          'the specialist slot just becomes empty.',
+          'the adult slot just becomes empty.',
       confirmLabel: count == 1 ? 'Remove' : 'Remove $count',
     );
     if (!confirmed) return;
@@ -67,13 +65,13 @@ class _SpecialistsScreenState extends ConsumerState<SpecialistsScreen>
                 onCancel: clearSelection,
                 onDelete: _deleteSelected,
               )
-            : AppBar(title: const Text('Specialists')),
+            : AppBar(title: const Text('Adults')),
         floatingActionButton: isSelecting
             ? null
             : FloatingActionButton.extended(
                 onPressed: _openWizard,
                 icon: const Icon(Icons.add),
-                label: const Text('Specialist'),
+                label: const Text('Adult'),
               ),
         body: specialistsAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -99,7 +97,7 @@ class _SpecialistsScreenState extends ConsumerState<SpecialistsScreen>
                   selected: isSelected(s.id),
                   onTap: isSelecting
                       ? () => toggleSelection(s.id)
-                      : () => context.push('/more/specialists/${s.id}'),
+                      : () => context.push('/more/adults/${s.id}'),
                   onLongPress: () => toggleSelection(s.id),
                 );
               },
@@ -245,10 +243,11 @@ class _EmptyState extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: AppSpacing.lg),
-            Text('No specialists yet', style: theme.textTheme.titleLarge),
+            Text('No adults yet', style: theme.textTheme.titleLarge),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Add staff who run specific activities — art, swim, nature, etc.',
+              'Add everyone who works the program — leads, specialists, '
+              'director, kitchen, nurse.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -258,7 +257,7 @@ class _EmptyState extends StatelessWidget {
             FilledButton.icon(
               onPressed: onAdd,
               icon: const Icon(Icons.add),
-              label: const Text('Add specialist'),
+              label: const Text('Add adult'),
             ),
           ],
         ),

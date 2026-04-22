@@ -285,7 +285,7 @@ class _NewActivityWizardScreenState
         ),
         WizardStep(
           headline: "Who's running it, and where?",
-          subtitle: 'Assign a specialist and a location if it matters.',
+          subtitle: 'Assign an adult and a location if it matters.',
           content: _buildSpecialistPage(),
           canSkip: true,
         ),
@@ -542,7 +542,7 @@ class _NewActivityWizardScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Specialist', style: theme.textTheme.titleSmall),
+        Text("Who's leading?", style: theme.textTheme.titleSmall),
         const SizedBox(height: AppSpacing.sm),
         SpecialistChipPicker(
           selectedId: _specialistId,

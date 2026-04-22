@@ -225,7 +225,8 @@ class _NewFullDayEventWizardScreenState
         ),
         WizardStep(
           headline: 'Details',
-          subtitle: 'Specialist, location, notes — whatever helps staff.',
+          subtitle:
+              "Who's running it, location, notes — whatever helps staff.",
           canSkip: true,
           content: _buildDetailsPage(),
         ),
@@ -429,7 +430,7 @@ class _NewFullDayEventWizardScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Specialist', style: theme.textTheme.titleSmall),
+        Text("Who's leading?", style: theme.textTheme.titleSmall),
         const SizedBox(height: AppSpacing.sm),
         SpecialistChipPicker(
           selectedId: _specialistId,

@@ -755,10 +755,13 @@ class _SpecialistPicker extends ConsumerWidget {
         Row(
           children: [
             Expanded(
-              child: Text('Specialist', style: theme.textTheme.titleSmall),
+              child: Text(
+                "Who's leading?",
+                style: theme.textTheme.titleSmall,
+              ),
             ),
             TextButton.icon(
-              onPressed: () => context.push('/more/specialists'),
+              onPressed: () => context.push('/more/adults'),
               icon: const Icon(Icons.add, size: 16),
               label: const Text('Manage'),
               style: TextButton.styleFrom(
@@ -774,7 +777,7 @@ class _SpecialistPicker extends ConsumerWidget {
           data: (specialists) {
             if (specialists.isEmpty) {
               return Text(
-                'No specialists yet — add one in More → Specialists.',
+                'No adults yet — add one in More → Adults.',
                 style: theme.textTheme.bodySmall,
               );
             }

@@ -22,9 +22,11 @@ class MoreScreen extends StatelessWidget {
               delegate: SliverChildListDelegate([
                 _MoreTile(
                   icon: Icons.badge_outlined,
-                  label: 'Specialists',
-                  subtitle: 'Staff who run specific activities',
-                  onTap: () => context.push('/more/specialists'),
+                  label: 'Adults',
+                  subtitle:
+                      'Leads, specialists, director, kitchen — '
+                      'everyone on shift',
+                  onTap: () => context.push('/more/adults'),
                 ),
                 _MoreTile(
                   icon: Icons.bookmarks_outlined,

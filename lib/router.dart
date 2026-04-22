@@ -125,7 +125,12 @@ final routerProvider = Provider<GoRouter>((ref) {
                 builder: (_, _) => const MoreScreen(),
                 routes: [
                   GoRoute(
-                    path: 'specialists',
+                    // Route renamed from 'specialists' to 'adults' in
+                    // the v28 refactor — the feature now covers leads,
+                    // specialists, AND ambient staff. Table names and
+                    // Dart class names stay as-is (backwards compat +
+                    // not user-visible); the URL is.
+                    path: 'adults',
                     builder: (_, _) => const SpecialistsScreen(),
                     routes: [
                       GoRoute(

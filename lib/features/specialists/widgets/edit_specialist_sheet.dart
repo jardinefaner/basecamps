@@ -194,8 +194,8 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
         .deleteSpecialist(widget.specialist!.id);
     if (!mounted) return;
     // Pop the sheet AND the detail screen beneath it so the teacher
-    // lands back on the Specialists list. Captures the navigator
-    // first because `context` is invalidated by the first pop.
+    // lands back on the Adults list. Captures the navigator first
+    // because `context` is invalidated by the first pop.
     Navigator.of(context)
       ..pop() // sheet
       ..pop(); // detail
@@ -206,7 +206,7 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
     final theme = Theme.of(context);
 
     return StickyActionSheet(
-      title: _isEdit ? 'Edit specialist' : 'New specialist',
+      title: _isEdit ? 'Edit adult' : 'New adult',
       titleTrailing: _isEdit
           ? IconButton(
               onPressed: _delete,
@@ -218,7 +218,7 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
           : null,
       actionBar: AppButton.primary(
         onPressed: _isValid && (!_isEdit || _hasChanges) ? _submit : null,
-        label: _isEdit ? 'Save' : 'Add specialist',
+        label: _isEdit ? 'Save' : 'Add adult',
         isLoading: _submitting,
       ),
       child: Column(

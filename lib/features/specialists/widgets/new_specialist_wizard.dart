@@ -68,13 +68,13 @@ class _NewSpecialistWizardScreenState
   @override
   Widget build(BuildContext context) {
     return StepWizardScaffold(
-      title: 'New specialist',
+      title: 'New adult',
       dirty: _dirty,
-      finalActionLabel: 'Add specialist',
+      finalActionLabel: 'Add adult',
       onFinalAction: _submit,
       steps: [
         WizardStep(
-          headline: "Who's the specialist?",
+          headline: "Who's this?",
           subtitle: 'Name and photo — you can change the photo later too.',
           canProceed: _page1Valid,
           content: _buildNamePage(),
