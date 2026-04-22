@@ -33,6 +33,13 @@ class MoreScreen extends StatelessWidget {
                   onTap: () => context.push('/more/library'),
                 ),
                 _MoreTile(
+                  icon: Icons.meeting_room_outlined,
+                  label: 'Rooms',
+                  subtitle:
+                      'Tracked rooms + home-room defaults for groups',
+                  onTap: () => context.push('/more/rooms'),
+                ),
+                _MoreTile(
                   icon: Icons.assignment_outlined,
                   label: 'Forms & surveys',
                   subtitle: 'Attendance, incidents, parent concerns',

@@ -7,6 +7,7 @@ import 'package:basecamp/features/forms/parent_concern/parent_concern_notes_scre
 import 'package:basecamp/features/launcher/launcher_screen.dart';
 import 'package:basecamp/features/more/more_screen.dart';
 import 'package:basecamp/features/observations/observations_screen.dart';
+import 'package:basecamp/features/rooms/rooms_screen.dart';
 import 'package:basecamp/features/schedule/schedule_editor_screen.dart';
 import 'package:basecamp/features/specialists/specialist_detail_screen.dart';
 import 'package:basecamp/features/specialists/specialists_screen.dart';
@@ -138,6 +139,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'library',
                     builder: (_, _) => const ActivityLibraryScreen(),
+                  ),
+                  GoRoute(
+                    path: 'rooms',
+                    builder: (_, _) => const RoomsScreen(),
                   ),
                   GoRoute(
                     path: 'forms',

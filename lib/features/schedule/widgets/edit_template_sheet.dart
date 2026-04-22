@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/widgets/library_picker_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/rooms/widgets/room_picker.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
@@ -11,6 +12,7 @@ import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -60,6 +62,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
   late final _locationController =
       TextEditingController(text: widget.template?.location ?? '');
   late String? _specialistId = widget.template?.specialistId;
+  late String? _roomId = widget.template?.roomId;
 
   late final Set<int> _selectedDays = widget.template != null
       ? {widget.template!.dayOfWeek}
@@ -186,6 +189,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     if (_formatTime(_start) != template.startTime) return true;
     if (_formatTime(_end) != template.endTime) return true;
     if (_specialistId != template.specialistId) return true;
+    if (_roomId != template.roomId) return true;
     if (trimOrNull(_locationController.text) != template.location) return true;
     if (_rangeStart != template.startDate) return true;
     if (_rangeEnd != template.endDate) return true;
@@ -231,6 +235,10 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
         location: location,
         startDate: _rangeStart,
         endDate: _rangeEnd,
+        // Explicit Value so switching from a room to custom (or back)
+        // is persisted — the default Value.absent() would leave the
+        // field untouched.
+        roomId: Value(_roomId),
       );
     } else {
       for (final day in _selectedDays) {
@@ -245,6 +253,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
           location: location,
           startDate: _rangeStart,
           endDate: _rangeEnd,
+          roomId: _roomId,
         );
       }
     }
@@ -525,10 +534,12 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
             onChanged: (id) => setState(() => _specialistId = id),
           ),
           const SizedBox(height: AppSpacing.lg),
-          AppTextField(
-            controller: _locationController,
-            label: 'Location (optional)',
-            onChanged: (_) => setState(() {}),
+          Text('Location', style: theme.textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.sm),
+          RoomPicker(
+            selectedRoomId: _roomId,
+            customLocationController: _locationController,
+            onRoomSelected: (id) => setState(() => _roomId = id),
           ),
           const SizedBox(height: AppSpacing.lg),
           _DateRangeSection(

@@ -1,4 +1,5 @@
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/rooms/rooms_repository.dart';
 import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
@@ -110,6 +111,20 @@ class _ConflictCard extends ConsumerWidget {
       }
       reasonChips.add(_ReasonChip(
         icon: Icons.badge_outlined,
+        label: label,
+      ));
+    }
+    if (info.roomClash) {
+      var label = 'Same room double-booked';
+      final rid = other.roomId;
+      if (rid != null) {
+        final room = ref.watch(roomProvider(rid)).asData?.value;
+        if (room != null) {
+          label = '${room.name} double-booked';
+        }
+      }
+      reasonChips.add(_ReasonChip(
+        icon: Icons.meeting_room_outlined,
         label: label,
       ));
     }

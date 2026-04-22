@@ -3,6 +3,7 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/widgets/specialist_chip_picker.dart';
+import 'package:basecamp/features/rooms/widgets/room_picker.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -60,6 +61,12 @@ class _NewActivityWizardScreenState
   bool _allGroups = true;
 
   late String? _specialistId = widget.initialSpecialistId;
+
+  /// Tracked room for this activity. When null, the teacher is in
+  /// "custom location" mode (free-form text in [_location]) and no
+  /// room conflict detection applies. When set, [_location] is treated
+  /// as a display fallback only.
+  String? _roomId;
 
   // Start date defaults to today so the range tile always shows
   // something concrete — teachers were confused when it said "Pick a
@@ -189,6 +196,9 @@ class _NewActivityWizardScreenState
         // from a library pick — lets the Today detail sheet show a
         // "view activity card" affordance with the rich content.
         sourceLibraryItemId: _fromLibrary?.id,
+        // Tracked room when picked; null = custom location mode
+        // (location string in _location still saved as display fallback).
+        roomId: _roomId,
       );
     }
     if (!mounted) return;
@@ -539,10 +549,12 @@ class _NewActivityWizardScreenState
           onChanged: (id) => setState(() => _specialistId = id),
         ),
         const SizedBox(height: AppSpacing.xl),
-        AppTextField(
-          controller: _location,
-          label: 'Location',
-          hint: 'Room, gym, field, etc.',
+        Text('Location', style: theme.textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.sm),
+        RoomPicker(
+          selectedRoomId: _roomId,
+          customLocationController: _location,
+          onRoomSelected: (id) => setState(() => _roomId = id),
         ),
       ],
     );

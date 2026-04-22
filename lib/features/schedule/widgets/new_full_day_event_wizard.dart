@@ -2,12 +2,14 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/widgets/specialist_chip_picker.dart';
+import 'package:basecamp/features/rooms/widgets/room_picker.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart'
     show CreatedActivity;
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/step_wizard.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -53,6 +55,10 @@ class _NewFullDayEventWizardScreenState
   late String? _specialistId = widget.existing?.specialistId;
 
   bool get _isEdit => widget.existing != null;
+
+  /// Tracked room for in-building events. Null = free-form / off-site
+  /// address in [_location] (field trips, "at the aquarium").
+  late String? _roomId = widget.existing?.roomId;
 
   /// When non-null, fields were pre-filled from a library pick. We
   /// surface a tiny banner on page 1 and let the teacher unlink.
@@ -154,6 +160,10 @@ class _NewFullDayEventWizardScreenState
         specialistId: _specialistId,
         location: location.isEmpty ? null : location,
         notes: notes.isEmpty ? null : notes,
+        // Explicit Value(_roomId) so switching from a room to custom
+        // (or back) writes the change through. Without this the edit
+        // path would never touch roomId.
+        roomId: Value(_roomId),
       );
     } else {
       await repo.addOneOffEntry(
@@ -171,6 +181,7 @@ class _NewFullDayEventWizardScreenState
         // Link back to the library row so the detail sheet can show
         // a "view activity card" tap on the title.
         sourceLibraryItemId: _fromLibrary?.id,
+        roomId: _roomId,
       );
     }
     if (!mounted) return;
@@ -425,9 +436,20 @@ class _NewFullDayEventWizardScreenState
           onChanged: (id) => setState(() => _specialistId = id),
         ),
         const SizedBox(height: AppSpacing.xl),
-        AppTextField(
-          controller: _location,
-          label: 'Location (optional)',
+        Text('Location', style: theme.textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          'Pick a tracked room for in-building events, or use Custom '
+          'for off-site addresses (field trips).',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        RoomPicker(
+          selectedRoomId: _roomId,
+          customLocationController: _location,
+          onRoomSelected: (id) => setState(() => _roomId = id),
         ),
         const SizedBox(height: AppSpacing.lg),
         AppTextField(

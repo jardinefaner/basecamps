@@ -4,6 +4,7 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/activity_library/widgets/library_card_detail_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/rooms/rooms_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/edit_template_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/new_full_day_event_wizard.dart';
@@ -63,11 +64,7 @@ class ActivityDetailSheet extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.lg),
             _SpecialistRow(specialistId: item.specialistId),
-            if (item.location != null && item.location!.isNotEmpty)
-              _MetaRow(
-                icon: Icons.place_outlined,
-                text: item.location!,
-              ),
+            _LocationRow(roomId: item.roomId, fallback: item.location),
             _GroupsRow(
               groupIds: item.groupIds,
               isAllGroups: item.isAllGroups,
@@ -443,6 +440,36 @@ class _SpecialistRow extends ConsumerWidget {
         ? specialist.name
         : '${specialist.name} · ${specialist.role}';
     return _MetaRow(icon: Icons.badge_outlined, text: label);
+  }
+}
+
+/// Location row that prefers the tracked-room name (when set),
+/// otherwise falls back to the free-form location string. No row at
+/// all when both are empty.
+class _LocationRow extends ConsumerWidget {
+  const _LocationRow({required this.roomId, required this.fallback});
+
+  final String? roomId;
+  final String? fallback;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (roomId != null) {
+      final room = ref.watch(roomProvider(roomId!)).asData?.value;
+      if (room != null) {
+        return _MetaRow(
+          icon: Icons.meeting_room_outlined,
+          text: room.name,
+        );
+      }
+    }
+    if (fallback == null || fallback!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return _MetaRow(
+      icon: Icons.place_outlined,
+      text: fallback!,
+    );
   }
 }
 
