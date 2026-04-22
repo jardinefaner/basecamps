@@ -3,6 +3,35 @@ import 'package:basecamp/database/database.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+/// Structural role an adult plays on the schedule (v28). Distinct from
+/// [Specialist.role], which is the free-form job-title blurb
+/// ("Art teacher", "Director").
+///
+///   - [AdultRole.lead]       — anchored to one group all day; the
+///                               "steady" adult in that group's room
+///   - [AdultRole.specialist] — rover that rotates across activities
+///                               (existing behavior; default for
+///                               legacy rows)
+///   - [AdultRole.ambient]    — present in the building but not on the
+///                               activity grid (director, nurse,
+///                               kitchen, front desk)
+enum AdultRole {
+  lead('lead'),
+  specialist('specialist'),
+  ambient('ambient');
+
+  const AdultRole(this.dbValue);
+  final String dbValue;
+
+  static AdultRole fromDb(String raw) {
+    for (final r in AdultRole.values) {
+      if (r.dbValue == raw) return r;
+    }
+    // Any bad / pre-v28 value falls back to the legacy behavior.
+    return AdultRole.specialist;
+  }
+}
+
 class SpecialistsRepository {
   SpecialistsRepository(this._db);
 
@@ -30,6 +59,8 @@ class SpecialistsRepository {
     String? role,
     String? notes,
     String? avatarPath,
+    AdultRole adultRole = AdultRole.specialist,
+    String? anchoredGroupId,
   }) async {
     final id = newId();
     await _db.into(_db.specialists).insert(
@@ -39,6 +70,8 @@ class SpecialistsRepository {
             role: Value(role),
             notes: Value(notes),
             avatarPath: Value(avatarPath),
+            adultRole: Value(adultRole.dbValue),
+            anchoredGroupId: Value(anchoredGroupId),
           ),
         );
     return id;
@@ -51,6 +84,11 @@ class SpecialistsRepository {
     String? notes,
     String? avatarPath,
     bool clearAvatarPath = false,
+    // Both default to Value.absent() so callers that only touch the
+    // legacy fields (name / role / notes / avatar) don't accidentally
+    // clobber adultRole / anchoredGroupId back to their defaults.
+    Value<String> adultRole = const Value.absent(),
+    Value<String?> anchoredGroupId = const Value.absent(),
   }) async {
     await (_db.update(_db.specialists)..where((s) => s.id.equals(id))).write(
       SpecialistsCompanion(
@@ -62,6 +100,8 @@ class SpecialistsRepository {
             : (avatarPath == null
                 ? const Value.absent()
                 : Value(avatarPath)),
+        adultRole: adultRole,
+        anchoredGroupId: anchoredGroupId,
         updatedAt: Value(DateTime.now()),
       ),
     );
@@ -110,6 +150,10 @@ class SpecialistsRepository {
     required String endTime,
     DateTime? startDate,
     DateTime? endDate,
+    String? breakStart,
+    String? breakEnd,
+    String? lunchStart,
+    String? lunchEnd,
   }) async {
     final id = newId();
     await _db.into(_db.specialistAvailability).insert(
@@ -121,6 +165,10 @@ class SpecialistsRepository {
             endTime: endTime,
             startDate: Value(startDate),
             endDate: Value(endDate),
+            breakStart: Value(breakStart),
+            breakEnd: Value(breakEnd),
+            lunchStart: Value(lunchStart),
+            lunchEnd: Value(lunchEnd),
           ),
         );
     return id;
@@ -153,6 +201,10 @@ class SpecialistsRepository {
                 endTime: b.endTime,
                 startDate: Value(b.startDate),
                 endDate: Value(b.endDate),
+                breakStart: Value(b.breakStart),
+                breakEnd: Value(b.breakEnd),
+                lunchStart: Value(b.lunchStart),
+                lunchEnd: Value(b.lunchEnd),
               ),
             );
       }
@@ -169,6 +221,10 @@ class AvailabilityInput {
     required this.endTime,
     this.startDate,
     this.endDate,
+    this.breakStart,
+    this.breakEnd,
+    this.lunchStart,
+    this.lunchEnd,
   });
 
   final int dayOfWeek;
@@ -176,6 +232,12 @@ class AvailabilityInput {
   final String endTime;
   final DateTime? startDate;
   final DateTime? endDate;
+  // HH:MM short break + lunch inside this shift. All nullable — many
+  // shifts are short enough to have neither.
+  final String? breakStart;
+  final String? breakEnd;
+  final String? lunchStart;
+  final String? lunchEnd;
 }
 
 final specialistsRepositoryProvider = Provider<SpecialistsRepository>((ref) {

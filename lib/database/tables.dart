@@ -250,6 +250,11 @@ class ActivityLibrary extends Table {
 /// Mon 13–17) to model split shifts, and each row can be bounded by
 /// [startDate]/[endDate] to model seasonal work or time off. Same ISO
 /// day-of-week convention (1..7) the schedule uses everywhere else.
+///
+/// v28: added [breakStart]/[breakEnd] + [lunchStart]/[lunchEnd] to
+/// encode each adult's daily break + lunch inside their shift, so the
+/// Today view can show "on lunch until 1:00" and the conflict layer
+/// can warn when activities are scheduled on top of breaks.
 class SpecialistAvailability extends Table {
   TextColumn get id => text()();
   TextColumn get specialistId => text()
@@ -259,6 +264,10 @@ class SpecialistAvailability extends Table {
   TextColumn get endTime => text()();
   DateTimeColumn get startDate => dateTime().nullable()();
   DateTimeColumn get endDate => dateTime().nullable()();
+  TextColumn get breakStart => text().nullable()();
+  TextColumn get breakEnd => text().nullable()();
+  TextColumn get lunchStart => text().nullable()();
+  TextColumn get lunchEnd => text().nullable()();
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -268,8 +277,22 @@ class SpecialistAvailability extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-/// Named people who run activities (art teacher, swim instructor, etc.).
-/// Not user accounts yet — just named entities linked from schedule items.
+/// Adults in the program — teachers, specialists, directors, kitchen,
+/// nurse, etc. Table name stays "specialists" for backwards compat with
+/// pre-v28 rows and existing foreign keys. The UI surfaces these as
+/// "Adults."
+///
+/// Structural role (v28) governs how the adult participates in the
+/// schedule:
+///   - 'lead'       → anchored to a single group all day, in that
+///                     group's home room by default
+///   - 'specialist' → rover who rotates between activities (existing
+///                     behavior)
+///   - 'ambient'    → present in the building but not on the activity
+///                     grid (director, nurse, kitchen, front desk)
+///
+/// [role] (the free-form text) stays as the job-title blurb
+/// ("Art teacher", "Head cook"). [adultRole] is the structural one.
 class Specialists extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
@@ -277,6 +300,58 @@ class Specialists extends Table {
   TextColumn get notes => text().nullable()();
   // Local file path for the specialist's photo. Remote upload comes later.
   TextColumn get avatarPath => text().nullable()();
+
+  // -- v28: adult roles --
+
+  /// 'lead' | 'specialist' | 'ambient'. Null-defaults to 'specialist'
+  /// on existing rows (matches current behavior — every adult was
+  /// treated as a rover).
+  TextColumn get adultRole =>
+      text().withDefault(const Constant('specialist'))();
+
+  /// For leads: the single group they're anchored to all day. For
+  /// specialists and ambient staff: null. FK setNull on delete so
+  /// removing a group doesn't orphan the adult.
+  TextColumn get anchoredGroupId => text()
+      .nullable()
+      .references(Groups, #id, onDelete: KeyAction.setNull)();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Physical rooms / zones in the building where activities happen.
+/// Named entities (v28) instead of free-form location strings, so the
+/// conflict layer can catch "two rovers in the same room at once"
+/// reliably. Playground, Outdoor Field, Main Room — all rooms.
+///
+/// Off-site addresses (field trips to the zoo) are NOT rooms; those
+/// stay as free-form text on the trip / entry row with a Google Maps
+/// tap-to-open affordance, and aren't subject to room conflict rules.
+class Rooms extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+
+  /// Optional soft cap on headcount. Used by the conflict layer's
+  /// future "this room is oversubscribed" rule; no hard enforcement.
+  IntColumn get capacity => integer().nullable()();
+
+  TextColumn get notes => text().nullable()();
+
+  /// When set, this is a group's "home room" — the default location
+  /// for any activity with that group. Auto-fills the room picker in
+  /// the activity form. Nullable: shared rooms (the gym) have no
+  /// default group. FK setNull so deleting a group leaves the room in
+  /// place, just un-anchored.
+  TextColumn get defaultForGroupId => text()
+      .nullable()
+      .references(Groups, #id, onDelete: KeyAction.setNull)();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -338,6 +413,13 @@ class ScheduleTemplates extends Table {
         #id,
         onDelete: KeyAction.setNull,
       )();
+  /// Optional reference to a tracked room (v28). When set, this is the
+  /// authoritative location and participates in room conflict detection.
+  /// The free-form [location] string stays for ad-hoc notes ("north
+  /// corner of the gym") and for backwards compat with pre-v28 rows.
+  TextColumn get roomId => text()
+      .nullable()
+      .references(Rooms, #id, onDelete: KeyAction.setNull)();
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -541,6 +623,12 @@ class ScheduleEntries extends Table {
         #id,
         onDelete: KeyAction.setNull,
       )();
+  /// Mirror of [ScheduleTemplates.roomId]. Participates in room
+  /// conflict detection. Null for off-site / free-form locations
+  /// (field trips — those keep their address in [location]).
+  TextColumn get roomId => text()
+      .nullable()
+      .references(Rooms, #id, onDelete: KeyAction.setNull)();
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>

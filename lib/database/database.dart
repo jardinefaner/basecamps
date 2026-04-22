@@ -23,6 +23,7 @@ QueryExecutor _openConnection() {
     ObservationDomainTags,
     Specialists,
     SpecialistAvailability,
+    Rooms,
     ActivityLibrary,
     ScheduleTemplates,
     ScheduleEntries,
@@ -39,7 +40,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 27;
+  int get schemaVersion => 28;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -227,6 +228,74 @@ class AppDatabase extends _$AppDatabase {
               'ALTER TABLE "schedule_entries" '
               'ADD COLUMN "source_library_item_id" TEXT NULL '
               'REFERENCES "activity_library"("id") ON DELETE SET NULL',
+            );
+          }
+          if (from < 28) {
+            // v28: adults (lead/specialist/ambient roles + anchor) and
+            // rooms (tracked entities for collision detection).
+            //
+            // Specialists gain two columns:
+            //   - adult_role: 'lead' | 'specialist' | 'ambient'
+            //     (defaults to 'specialist' so existing rows keep
+            //     their current rover behavior)
+            //   - anchored_group_id: for leads, which group they stay
+            //     with. Nullable, setNull on group delete.
+            await _runSilent(
+              'ALTER TABLE "specialists" '
+              "ADD COLUMN \"adult_role\" TEXT NOT NULL DEFAULT 'specialist'",
+            );
+            await _runSilent(
+              'ALTER TABLE "specialists" '
+              'ADD COLUMN "anchored_group_id" TEXT NULL '
+              'REFERENCES "groups"("id") ON DELETE SET NULL',
+            );
+            // Break + lunch on each availability row, all nullable
+            // HH:MM strings same as start/end time.
+            await _runSilent(
+              'ALTER TABLE "specialist_availability" '
+              'ADD COLUMN "break_start" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "specialist_availability" '
+              'ADD COLUMN "break_end" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "specialist_availability" '
+              'ADD COLUMN "lunch_start" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "specialist_availability" '
+              'ADD COLUMN "lunch_end" TEXT NULL',
+            );
+            // New rooms table. onCreate isn't called during upgrade —
+            // we build it by hand matching the Drift-generated DDL.
+            await _runSilent(
+              'CREATE TABLE IF NOT EXISTS "rooms" ( '
+              '"id" TEXT NOT NULL PRIMARY KEY, '
+              '"name" TEXT NOT NULL, '
+              '"capacity" INTEGER NULL, '
+              '"notes" TEXT NULL, '
+              '"default_for_group_id" TEXT NULL '
+              'REFERENCES "groups"("id") ON DELETE SET NULL, '
+              '"created_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now')), "
+              '"updated_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now'))"
+              ' )',
+            );
+            // Templates and entries gain a roomId FK — nullable so
+            // legacy rows keep their free-form location string
+            // untouched. When both are set, room wins for conflict
+            // detection; location stays as the display fallback.
+            await _runSilent(
+              'ALTER TABLE "schedule_templates" '
+              'ADD COLUMN "room_id" TEXT NULL '
+              'REFERENCES "rooms"("id") ON DELETE SET NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "schedule_entries" '
+              'ADD COLUMN "room_id" TEXT NULL '
+              'REFERENCES "rooms"("id") ON DELETE SET NULL',
             );
           }
         },

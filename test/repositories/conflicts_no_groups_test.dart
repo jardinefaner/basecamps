@@ -14,6 +14,7 @@ ScheduleItem _item({
   bool allGroups = true,
   List<String> groupIds = const [],
   String? specialistId,
+  String? roomId,
   DateTime? date,
 }) {
   return ScheduleItem(
@@ -26,6 +27,7 @@ ScheduleItem _item({
     groupIds: groupIds,
     allGroups: allGroups,
     specialistId: specialistId,
+    roomId: roomId,
     date: date ?? DateTime(2026, 4, 20),
   );
 }
@@ -89,6 +91,102 @@ void main() {
       );
       final conflicts = detectConflictingIds([a, b]);
       expect(conflicts, containsAll({'a', 'b'}));
+    });
+
+    test('room clash fires even when groups differ', () {
+      // Two activities at the same time, in the same tracked room,
+      // but targeting different groups. Previously (v27) this was
+      // invisible because location was a free-form string. Now roomId
+      // catches it.
+      final a = _item(
+        id: 'a',
+        title: 'Art · Seedlings',
+        start: '09:00',
+        end: '10:00',
+        groupIds: const ['seedlings'],
+        allGroups: false,
+        roomId: 'art-room',
+      );
+      final b = _item(
+        id: 'b',
+        title: 'Art · Sprouts',
+        start: '09:30',
+        end: '10:30',
+        groupIds: const ['sprouts'],
+        allGroups: false,
+        roomId: 'art-room',
+      );
+      expect(detectConflictingIds([a, b]), containsAll({'a', 'b'}));
+    });
+
+    test('same-room, non-overlapping times does NOT clash', () {
+      // Back-to-back slots in the same room — this is the normal
+      // rotation pattern. Must not flag.
+      final a = _item(
+        id: 'a',
+        title: 'Art · Seedlings',
+        start: '09:00',
+        end: '10:00',
+        groupIds: const ['seedlings'],
+        allGroups: false,
+        roomId: 'art-room',
+      );
+      final b = _item(
+        id: 'b',
+        title: 'Art · Sprouts',
+        start: '10:00',
+        end: '11:00',
+        groupIds: const ['sprouts'],
+        allGroups: false,
+        roomId: 'art-room',
+      );
+      expect(detectConflictingIds([a, b]), isEmpty);
+    });
+
+    test('different rooms, overlapping times does NOT clash', () {
+      final a = _item(
+        id: 'a',
+        title: 'Art',
+        start: '09:00',
+        end: '10:00',
+        groupIds: const ['seedlings'],
+        allGroups: false,
+        roomId: 'art-room',
+      );
+      final b = _item(
+        id: 'b',
+        title: 'Music',
+        start: '09:30',
+        end: '10:30',
+        groupIds: const ['sprouts'],
+        allGroups: false,
+        roomId: 'music-room',
+      );
+      expect(detectConflictingIds([a, b]), isEmpty);
+    });
+
+    test('free-form location strings still never clash (no roomId)', () {
+      // Pre-v28 rows and field-trip entries carry only free-form
+      // text. They must never produce a false conflict based on
+      // string equality. Using different specific groups so the
+      // group rule doesn't fire either.
+      final a = _item(
+        id: 'a',
+        title: 'Trip A',
+        start: '09:00',
+        end: '12:00',
+        groupIds: const ['seedlings'],
+        allGroups: false,
+      );
+      final b = _item(
+        id: 'b',
+        title: 'Trip B',
+        start: '10:00',
+        end: '11:00',
+        groupIds: const ['sprouts'],
+        allGroups: false,
+      );
+      expect(detectConflictingIds([a, b]), isEmpty);
     });
 
     test('specialist clash still fires even when one side isNoGroups', () {

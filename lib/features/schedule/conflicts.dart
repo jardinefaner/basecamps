@@ -33,6 +33,7 @@ Map<String, List<ConflictInfo>> conflictsByItemId(List<ScheduleItem> items) {
               other: b,
               podClash: res.podClash,
               specialistClash: res.specialistClash,
+              roomClash: res.roomClash,
               sharedPodIds: _sharedPodIds(a, b),
             ),
           );
@@ -46,12 +47,18 @@ class ConflictInfo {
     required this.other,
     required this.podClash,
     required this.specialistClash,
+    required this.roomClash,
     required this.sharedPodIds,
   });
 
   final ScheduleItem other;
   final bool podClash;
   final bool specialistClash;
+
+  /// Two activities tracked to the same [ScheduleItem.roomId] at
+  /// overlapping times. Only set when both sides have a roomId — free-
+  /// form location strings don't participate.
+  final bool roomClash;
 
   /// Group ids that both activities target directly. Empty when the clash
   /// comes from one side being "all groups" (broadcast).
@@ -63,6 +70,10 @@ class ConflictInfo {
 /// - **Specialists**: if both items target the same specialist, they conflict
 ///   whenever their time ranges could actually overlap (a full-day item is
 ///   treated as covering every time slot for this rule).
+/// - **Rooms**: if both items reference the same `roomId` and their time
+///   ranges overlap, they conflict. Free-form location strings don't
+///   participate — only tracked rooms. Off-site / trip addresses never
+///   conflict.
 /// - **Groups (timed ↔ timed)**: overlapping times + any shared group clash.
 ///   "All groups" (empty list) is treated as a wildcard that shares with any
 ///   other targeted group set.
@@ -70,11 +81,26 @@ class ConflictInfo {
 ///   the same date is a conflict (can't have two camp-wide events overlap).
 /// - **Groups (full-day ↔ timed)**: NOT a conflict on its own. A full-day
 ///   label (e.g. "Tax Day", "Teacher appreciation") doesn't block timed
-///   activities unless it also needs the same specialist.
+///   activities unless it also needs the same specialist or room.
 _DetectionResult _detect(ScheduleItem a, ScheduleItem b) {
   final specialistClash =
       a.specialistId != null && a.specialistId == b.specialistId;
+  final roomClash = _roomClash(a, b);
   final sharedPods = _sharePod(a, b);
+
+  // A room clash fires whenever two items are booked into the same
+  // room at overlapping times — regardless of whether the groups
+  // match. "Ms. Park in Art Room with Seedlings" and "Mr. Chen in
+  // Art Room with Sprouts" at the same time IS a room clash even
+  // though no group is shared.
+  if (roomClash) {
+    return _DetectionResult(
+      isConflict: true,
+      podClash: sharedPods && (!a.isFullDay && !b.isFullDay),
+      specialistClash: specialistClash,
+      roomClash: true,
+    );
+  }
 
   if (specialistClash) {
     final timeOverlap = _timeOverlaps(a, b);
@@ -83,21 +109,25 @@ _DetectionResult _detect(ScheduleItem a, ScheduleItem b) {
         isConflict: true,
         podClash: sharedPods && (!a.isFullDay && !b.isFullDay),
         specialistClash: true,
+        roomClash: false,
       );
     }
     return const _DetectionResult(
       isConflict: false,
       podClash: false,
       specialistClash: false,
+      roomClash: false,
     );
   }
 
-  // No specialist overlap. Any group-based clash then requires time overlap.
+  // No specialist / room overlap. Any group-based clash then requires
+  // time overlap.
   if (a.isFullDay && b.isFullDay) {
     return _DetectionResult(
       isConflict: sharedPods,
       podClash: sharedPods,
       specialistClash: false,
+      roomClash: false,
     );
   }
   if (a.isFullDay || b.isFullDay) {
@@ -105,10 +135,11 @@ _DetectionResult _detect(ScheduleItem a, ScheduleItem b) {
       isConflict: false,
       podClash: false,
       specialistClash: false,
+      roomClash: false,
     );
   }
 
-  // Both timed, no specialist clash.
+  // Both timed, no specialist or room clash.
   final timeOverlap =
       a.startMinutes < b.endMinutes && b.startMinutes < a.endMinutes;
   if (timeOverlap && sharedPods) {
@@ -116,12 +147,14 @@ _DetectionResult _detect(ScheduleItem a, ScheduleItem b) {
       isConflict: true,
       podClash: true,
       specialistClash: false,
+      roomClash: false,
     );
   }
   return const _DetectionResult(
     isConflict: false,
     podClash: false,
     specialistClash: false,
+    roomClash: false,
   );
 }
 
@@ -130,16 +163,29 @@ class _DetectionResult {
     required this.isConflict,
     required this.podClash,
     required this.specialistClash,
+    required this.roomClash,
   });
 
   final bool isConflict;
   final bool podClash;
   final bool specialistClash;
+  final bool roomClash;
 }
 
 bool _timeOverlaps(ScheduleItem a, ScheduleItem b) {
   if (a.isFullDay || b.isFullDay) return true;
   return a.startMinutes < b.endMinutes && b.startMinutes < a.endMinutes;
+}
+
+/// Room clash = same tracked roomId + overlapping times. Free-form
+/// location strings (null roomId) never trigger, even if the strings
+/// happen to match — offsite / ad-hoc rooms aren't in scope.
+bool _roomClash(ScheduleItem a, ScheduleItem b) {
+  final aRoom = a.roomId;
+  final bRoom = b.roomId;
+  if (aRoom == null || bRoom == null) return false;
+  if (aRoom != bRoom) return false;
+  return _timeOverlaps(a, b);
 }
 
 bool _sharePod(ScheduleItem a, ScheduleItem b) {

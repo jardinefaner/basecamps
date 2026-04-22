@@ -28,6 +28,7 @@ class ScheduleItem {
     this.templateId,
     this.entryId,
     this.sourceLibraryItemId,
+    this.roomId,
   });
 
   final String id;
@@ -55,6 +56,12 @@ class ScheduleItem {
   /// learning goals / source URL). Null for activities typed from
   /// scratch.
   final String? sourceLibraryItemId;
+
+  /// Tracked-room reference (v28). When set, this is the authoritative
+  /// location — the free-form [location] string is a display fallback
+  /// and ad-hoc note escape hatch. Room conflict detection fires when
+  /// two items share the same [roomId] at overlapping times.
+  final String? roomId;
 
   /// The concrete calendar date this item renders on. Set by the
   /// repository while expanding templates and entries into day-
@@ -162,6 +169,7 @@ class ScheduleRepository {
           isFromTemplate: true,
           templateId: t.id,
           sourceLibraryItemId: t.sourceLibraryItemId,
+          roomId: t.roomId,
         );
         byDay.putIfAbsent(t.dayOfWeek, () => []).add(item);
       }
@@ -217,6 +225,9 @@ class ScheduleRepository {
     // Back-reference to the activity library row (when the teacher
     // picked "From library"). Null for typed-from-scratch activities.
     String? sourceLibraryItemId,
+    // Tracked-room FK (v28). When set, drives room conflict detection
+    // and overrides the free-form [location] string for display.
+    String? roomId,
   }) async {
     final id = newId();
     await _db.transaction(() async {
@@ -236,6 +247,7 @@ class ScheduleRepository {
               endDate: Value(endDate == null ? null : _dayOnly(endDate)),
               seriesId: Value(seriesId),
               sourceLibraryItemId: Value(sourceLibraryItemId),
+              roomId: Value(roomId),
             ),
           );
       for (final groupId in groupIds) {
@@ -261,6 +273,9 @@ class ScheduleRepository {
     String? notes,
     DateTime? startDate,
     DateTime? endDate,
+    // Value.absent() so the existing edit sheet (which doesn't know
+    // about rooms yet) doesn't accidentally clear roomId on save.
+    Value<String?> roomId = const Value.absent(),
   }) async {
     await _db.transaction(() async {
       await (_db.update(_db.scheduleTemplates)
@@ -278,6 +293,7 @@ class ScheduleRepository {
           notes: Value(notes),
           startDate: Value(startDate == null ? null : _dayOnly(startDate)),
           endDate: Value(endDate == null ? null : _dayOnly(endDate)),
+          roomId: roomId,
           updatedAt: Value(DateTime.now()),
         ),
       );
@@ -407,6 +423,7 @@ class ScheduleRepository {
     String? location,
     String? notes,
     String? sourceLibraryItemId,
+    String? roomId,
   }) async {
     final id = newId();
     // Normalize bounds so the range is always [start, end] with
@@ -431,6 +448,7 @@ class ScheduleRepository {
               location: Value(location),
               notes: Value(notes),
               sourceLibraryItemId: Value(sourceLibraryItemId),
+              roomId: Value(roomId),
               kind: 'addition',
             ),
           );
@@ -571,6 +589,8 @@ class ScheduleRepository {
     String? specialistId,
     String? location,
     String? notes,
+    // Same absent-unless-set pattern as updateTemplate.
+    Value<String?> roomId = const Value.absent(),
   }) async {
     final start = _dayOnly(date);
     final normalizedEnd = endDate == null ? null : _dayOnly(endDate);
@@ -591,6 +611,7 @@ class ScheduleRepository {
           specialistId: Value(specialistId),
           location: Value(location),
           notes: Value(notes),
+          roomId: roomId,
           updatedAt: Value(DateTime.now()),
         ),
       );
@@ -839,6 +860,10 @@ class ScheduleRepository {
             // Attribution follows the template — the override only
             // shifts time/groups/etc. for a single day.
             sourceLibraryItemId: t.sourceLibraryItemId,
+            // Room: prefer the override's room when set, else inherit
+            // the template's. Lets a "just for today" move to a
+            // different room show up correctly on the day.
+            roomId: override.roomId ?? t.roomId,
           ),
         );
       } else {
@@ -858,6 +883,7 @@ class ScheduleRepository {
             isFromTemplate: true,
             templateId: t.id,
             sourceLibraryItemId: t.sourceLibraryItemId,
+            roomId: t.roomId,
           ),
         );
       }
@@ -884,6 +910,7 @@ class ScheduleRepository {
             isFromTemplate: false,
             entryId: e.id,
             sourceLibraryItemId: e.sourceLibraryItemId,
+            roomId: e.roomId,
           ),
         );
       }
