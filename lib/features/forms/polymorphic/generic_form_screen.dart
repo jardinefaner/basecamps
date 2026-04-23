@@ -75,7 +75,8 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
   }
 
   Future<void> _load() async {
-    if (_resolvedSubmissionId != null) {
+    final isFresh = _resolvedSubmissionId == null;
+    if (!isFresh) {
       final row = await ref
           .read(formSubmissionRepositoryProvider)
           .getSubmission(_resolvedSubmissionId!);
@@ -88,6 +89,24 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
     // its previously-saved values overwritten by parent context.
     for (final entry in widget.prefillData.entries) {
       _values.putIfAbsent(entry.key, () => entry.value);
+    }
+    // Fresh-submission auto-fills. Any field that declares a
+    // default-at-creation behavior (currently just
+    // FormDateField.defaultsToNow) gets seeded here so the first
+    // render already shows the stamp — teacher sees "today, 9:30am"
+    // without having to tap the picker. Editing an existing row
+    // doesn't hit this path (isFresh=false).
+    if (isFresh) {
+      final now = DateTime.now();
+      for (final section in widget.definition.sections) {
+        for (final field in section.fields) {
+          if (field is fd.FormDateField &&
+              field.defaultsToNow &&
+              !_values.containsKey(field.key)) {
+            _values[field.key] = now.toIso8601String();
+          }
+        }
+      }
     }
     _ensureControllers();
     if (mounted) setState(() => _loading = false);
@@ -283,13 +302,42 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
           ? 'Save'
           : 'Start monitoring',
       onFinalAction: _submit,
+      // Persist the draft on every step advance so the teacher's
+      // partial work (vehicle identity on step 1, checklist items
+      // as they walk through) survives swiping away, restarts, or
+      // a mid-form phone call. Silent save — no snackbar per step.
+      onStepAdvance: () async {
+        await _flushTextControllers();
+        final repo = ref.read(formSubmissionRepositoryProvider);
+        if (_resolvedSubmissionId == null) {
+          _resolvedSubmissionId = await repo.createDraft(
+            formType: widget.definition.typeKey,
+            data: Map<String, dynamic>.from(_values),
+            childId: widget.prefillChildId,
+            groupId: widget.prefillGroupId,
+            tripId: widget.prefillTripId,
+            parentSubmissionId: widget.parentSubmissionId,
+            reviewDueAt: _computeReviewDueAt(),
+          );
+        } else {
+          await repo.updateSubmission(
+            id: _resolvedSubmissionId!,
+            data: Map<String, dynamic>.from(_values),
+          );
+        }
+      },
       steps: [
-        for (final section in def.sections)
+        for (final (i, section) in def.sections.indexed)
           WizardStep(
             headline: section.title,
             subtitle: section.subtitle,
             canSkip: true,
             needsKeyboard: sectionNeedsKeyboard(section),
+            // Step 1 reads "Save" so the teacher knows the vehicle
+            // identity is committed before they walk the checklist.
+            // Subsequent steps keep the default "Next" label;
+            // per-step auto-save is silent plumbing either way.
+            nextLabelOverride: i == 0 ? 'Save' : null,
             content: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

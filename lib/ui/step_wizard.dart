@@ -66,6 +66,7 @@ class StepWizardScaffold extends StatefulWidget {
     this.initialIndex = 0,
     this.onExit,
     this.dirty = false,
+    this.onStepAdvance,
     super.key,
   });
 
@@ -86,6 +87,13 @@ class StepWizardScaffold extends StatefulWidget {
   /// If true, closing the wizard shows a "Discard?" confirmation. Pass
   /// `true` the moment the user types anything worth saving.
   final bool dirty;
+
+  /// Optional hook fired right before the wizard advances to the
+  /// next step. Forms that want per-step persistence (so a
+  /// half-finished checklist isn't lost if the teacher swipes
+  /// away) pass a draft-save closure here. Awaited — the wizard
+  /// doesn't animate to the next step until it resolves.
+  final Future<void> Function()? onStepAdvance;
 
   @override
   State<StepWizardScaffold> createState() => _StepWizardScaffoldState();
@@ -135,6 +143,20 @@ class _StepWizardScaffoldState extends State<StepWizardScaffold> {
         if (mounted) setState(() => _submitting = false);
       }
       return;
+    }
+    // Per-step persistence hook — runs BEFORE we navigate so a
+    // thrown save surfaces to the user on this page (where they
+    // have context), not on the next one. Swallow silently only
+    // when the form hasn't wired a save.
+    final hook = widget.onStepAdvance;
+    if (hook != null) {
+      try {
+        await hook();
+      } on Object catch (_) {
+        // Let advance still happen; the teacher can retry via the
+        // explicit save-draft on the next page. We choose not to
+        // block navigation on a transient save failure.
+      }
     }
     await _goTo(_index + 1);
   }

@@ -39,6 +39,7 @@ const FormDefinition vehicleCheckForm = FormDefinition(
           key: 'check_datetime',
           label: 'Date & time',
           includeTime: true,
+          defaultsToNow: true,
         ),
         FormTextField(
           key: 'odometer',

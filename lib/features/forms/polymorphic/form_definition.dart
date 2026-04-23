@@ -82,6 +82,12 @@ class FormTextField extends FormField {
 
 /// Date picker. [includeTime] adds a time-of-day component when the
 /// form actually cares when-of-day (most vehicle checks do).
+///
+/// [defaultsToNow] pre-fills the field with `DateTime.now()` on a
+/// fresh submission so teachers don't have to tap through a picker
+/// for "just stamp it with when I'm filling this out." Ignored for
+/// existing submissions — editing an old row keeps the value that
+/// was already there.
 class FormDateField extends FormField {
   const FormDateField({
     required super.key,
@@ -89,8 +95,10 @@ class FormDateField extends FormField {
     super.helpText,
     super.required,
     this.includeTime = false,
+    this.defaultsToNow = false,
   });
   final bool includeTime;
+  final bool defaultsToNow;
 }
 
 /// Three-state check-mark / x / unset. Mirrors the paper checklists'
