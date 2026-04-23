@@ -56,8 +56,8 @@ class MoreScreen extends StatelessWidget {
                 _MoreTile(
                   icon: Icons.settings_outlined,
                   label: 'Settings',
-                  subtitle: 'Notifications, theme, sync',
-                  onTap: () {},
+                  subtitle: 'Grace windows, program-wide knobs',
+                  onTap: () => context.push('/more/settings'),
                 ),
                 const Divider(),
                 Padding(

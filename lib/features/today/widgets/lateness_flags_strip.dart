@@ -3,6 +3,7 @@ import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/attendance/widgets/attendance_sheet.dart';
 import 'package:basecamp/features/children/child_schedule_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/settings/program_settings.dart';
 import 'package:basecamp/features/today/lateness.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
@@ -35,18 +36,21 @@ class LatenessFlagsStrip extends ConsumerWidget {
         const <String, AttendanceRecord>{};
     final overrides = ref.watch(todayOverridesProvider).asData?.value ??
         const <String, ChildScheduleOverride>{};
+    final settings = ref.watch(programSettingsProvider);
 
     final lateFlags = computeLatenessFlags(
       now: now,
       children: kids,
       attendance: attendance,
       overrides: overrides,
+      graceMinutes: settings.latenessGraceMinutes,
     );
     final overdueFlags = computeOverduePickupFlags(
       now: now,
       children: kids,
       attendance: attendance,
       overrides: overrides,
+      graceMinutes: settings.pickupGraceMinutes,
     );
     if (lateFlags.isEmpty && overdueFlags.isEmpty) {
       return const SizedBox.shrink();

@@ -9,6 +9,7 @@ import 'package:basecamp/features/more/more_screen.dart';
 import 'package:basecamp/features/observations/observations_screen.dart';
 import 'package:basecamp/features/rooms/rooms_screen.dart';
 import 'package:basecamp/features/schedule/schedule_editor_screen.dart';
+import 'package:basecamp/features/settings/program_settings_screen.dart';
 import 'package:basecamp/features/specialists/specialist_detail_screen.dart';
 import 'package:basecamp/features/specialists/specialists_screen.dart';
 import 'package:basecamp/features/today/today_screen.dart';
@@ -148,6 +149,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'rooms',
                     builder: (_, _) => const RoomsScreen(),
+                  ),
+                  GoRoute(
+                    path: 'settings',
+                    builder: (_, _) => const ProgramSettingsScreen(),
                   ),
                   GoRoute(
                     path: 'forms',
