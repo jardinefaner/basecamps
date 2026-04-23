@@ -90,6 +90,8 @@ class ChildrenRepository {
     String? notes,
     String? avatarPath,
     String? parentName,
+    String? expectedArrival,
+    String? expectedPickup,
   }) async {
     final id = newId();
     await _db.into(_db.children).insert(
@@ -101,6 +103,8 @@ class ChildrenRepository {
             notes: Value(notes),
             avatarPath: Value(avatarPath),
             parentName: Value(parentName),
+            expectedArrival: Value(expectedArrival),
+            expectedPickup: Value(expectedPickup),
           ),
         );
     return id;
@@ -135,6 +139,10 @@ class ChildrenRepository {
     bool clearAvatarPath = false,
     String? parentName,
     bool clearParentName = false,
+    String? expectedArrival,
+    bool clearExpectedArrival = false,
+    String? expectedPickup,
+    bool clearExpectedPickup = false,
   }) async {
     final companion = ChildrenCompanion(
       firstName:
@@ -158,6 +166,16 @@ class ChildrenRepository {
           : (parentName == null
               ? const Value.absent()
               : Value(parentName)),
+      expectedArrival: clearExpectedArrival
+          ? const Value<String?>(null)
+          : (expectedArrival == null
+              ? const Value.absent()
+              : Value(expectedArrival)),
+      expectedPickup: clearExpectedPickup
+          ? const Value<String?>(null)
+          : (expectedPickup == null
+              ? const Value.absent()
+              : Value(expectedPickup)),
       updatedAt: Value(DateTime.now()),
     );
     await (_db.update(_db.children)..where((k) => k.id.equals(id))).write(companion);

@@ -32,6 +32,7 @@ QueryExecutor _openConnection() {
     ParentConcernNotes,
     ParentConcernChildren,
     Attendance,
+    ChildScheduleOverrides,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -40,7 +41,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 28;
+  int get schemaVersion => 29;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -296,6 +297,45 @@ class AppDatabase extends _$AppDatabase {
               'ALTER TABLE "schedule_entries" '
               'ADD COLUMN "room_id" TEXT NULL '
               'REFERENCES "rooms"("id") ON DELETE SET NULL',
+            );
+          }
+          if (from < 29) {
+            // v29: per-child expected arrival + pickup times, and a
+            // per-(child, date) override table for daily exceptions
+            // ("mom texted — running late today"). Both columns on
+            // Children default to NULL — existing rows are flexible-
+            // schedule kids and never trigger lateness flags.
+            await _runSilent(
+              'ALTER TABLE "children" '
+              'ADD COLUMN "expected_arrival" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "children" '
+              'ADD COLUMN "expected_pickup" TEXT NULL',
+            );
+            await _runSilent(
+              'CREATE TABLE IF NOT EXISTS "child_schedule_overrides" ( '
+              '"id" TEXT NOT NULL PRIMARY KEY, '
+              '"child_id" TEXT NOT NULL '
+              'REFERENCES "children"("id") ON DELETE CASCADE, '
+              '"date" INTEGER NOT NULL, '
+              '"expected_arrival_override" TEXT NULL, '
+              '"expected_pickup_override" TEXT NULL, '
+              '"note" TEXT NULL, '
+              '"created_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now')), "
+              '"updated_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now'))"
+              ' )',
+            );
+            // One-override-per-day-per-child is enforced at the
+            // repository layer (upsert-on-save). An index speeds up
+            // the "did Noah have an override today?" lookup every
+            // pod card does during the flag pass.
+            await _runSilent(
+              'CREATE INDEX IF NOT EXISTS '
+              '"idx_child_override_child_date" '
+              'ON "child_schedule_overrides" ("child_id", "date")',
             );
           }
         },

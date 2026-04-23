@@ -51,6 +51,12 @@ class _EditChildSheetState extends ConsumerState<EditChildSheet> {
   /// flips to null when the teacher taps "Remove photo".
   late String? _avatarPath = widget.child?.avatarPath;
 
+  /// Standing drop-off / pickup times stored as "HH:mm" strings.
+  /// Null = no expected time (drop-in kids); a set value drives the
+  /// lateness flag on Today.
+  late String? _expectedArrival = widget.child?.expectedArrival;
+  late String? _expectedPickup = widget.child?.expectedPickup;
+
   bool _submitting = false;
 
   bool get _isEdit => widget.child != null;
@@ -67,6 +73,8 @@ class _EditChildSheetState extends ConsumerState<EditChildSheet> {
     if (trimOrNull(_parentNameController.text) != child.parentName) return true;
     if (trimOrNull(_notesController.text) != child.notes) return true;
     if (_avatarPath != child.avatarPath) return true;
+    if (_expectedArrival != child.expectedArrival) return true;
+    if (_expectedPickup != child.expectedPickup) return true;
     return false;
   }
 
@@ -97,6 +105,8 @@ class _EditChildSheetState extends ConsumerState<EditChildSheet> {
         notes: notes.isEmpty ? null : notes,
         avatarPath: _avatarPath,
         parentName: parentName.isEmpty ? null : parentName,
+        expectedArrival: _expectedArrival,
+        expectedPickup: _expectedPickup,
       );
     } else {
       await repo.updateChild(
@@ -114,6 +124,12 @@ class _EditChildSheetState extends ConsumerState<EditChildSheet> {
         parentName: parentName.isEmpty ? null : parentName,
         clearParentName:
             parentName.isEmpty && existing.parentName != null,
+        expectedArrival: _expectedArrival,
+        clearExpectedArrival:
+            _expectedArrival == null && existing.expectedArrival != null,
+        expectedPickup: _expectedPickup,
+        clearExpectedPickup:
+            _expectedPickup == null && existing.expectedPickup != null,
       );
     }
     if (!mounted) return;
@@ -228,6 +244,61 @@ class _EditChildSheetState extends ConsumerState<EditChildSheet> {
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: AppSpacing.lg),
+          Text('Daily schedule', style: theme.textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            "Drop-off time lights up Today's late-arrivals flag. Leave "
+            'blank for drop-in / flexible-schedule kids — they never '
+            'trigger it.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              Expanded(
+                child: _TimeChipField(
+                  label: 'Drop-off',
+                  value: _expectedArrival,
+                  onPick: () async {
+                    final picked = await _pickTime(
+                      context,
+                      seed: _expectedArrival,
+                      fallbackHour: 8,
+                      fallbackMinute: 30,
+                    );
+                    if (picked == null) return;
+                    setState(() => _expectedArrival = picked);
+                  },
+                  onClear: _expectedArrival == null
+                      ? null
+                      : () => setState(() => _expectedArrival = null),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: _TimeChipField(
+                  label: 'Pickup',
+                  value: _expectedPickup,
+                  onPick: () async {
+                    final picked = await _pickTime(
+                      context,
+                      seed: _expectedPickup,
+                      fallbackHour: 17,
+                      fallbackMinute: 0,
+                    );
+                    if (picked == null) return;
+                    setState(() => _expectedPickup = picked);
+                  },
+                  onClear: _expectedPickup == null
+                      ? null
+                      : () => setState(() => _expectedPickup = null),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
           AppTextField(
             controller: _notesController,
             label: 'Notes (optional)',
@@ -238,5 +309,123 @@ class _EditChildSheetState extends ConsumerState<EditChildSheet> {
         ],
       ),
     );
+  }
+
+  /// Opens a showTimePicker seeded with the existing value, falling
+  /// back to the reasonable default ([fallbackHour], [fallbackMinute])
+  /// when the field is empty — saves teachers from hunting back to 8am
+  /// on a freshly opened pickup picker.
+  Future<String?> _pickTime(
+    BuildContext context, {
+    required String? seed,
+    required int fallbackHour,
+    required int fallbackMinute,
+  }) async {
+    TimeOfDay initial;
+    if (seed != null) {
+      final parts = seed.split(':');
+      initial = TimeOfDay(
+        hour: int.parse(parts[0]),
+        minute: int.parse(parts[1]),
+      );
+    } else {
+      initial = TimeOfDay(hour: fallbackHour, minute: fallbackMinute);
+    }
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: initial,
+    );
+    if (picked == null) return null;
+    return '${picked.hour.toString().padLeft(2, '0')}:'
+        '${picked.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+/// Label + tappable chip showing a stored HH:mm value or the
+/// placeholder "Set" prompt. Includes a small × to clear. Used for
+/// the standing drop-off / pickup fields on the child edit sheet;
+/// broken out so both fields share the same look without one getting
+/// visually heavier than the other.
+class _TimeChipField extends StatelessWidget {
+  const _TimeChipField({
+    required this.label,
+    required this.value,
+    required this.onPick,
+    this.onClear,
+  });
+
+  final String label;
+  final String? value;
+  final VoidCallback onPick;
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final display = value == null ? 'Set' : _fmt12h(value!);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            letterSpacing: 0.6,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        InkWell(
+          onTap: onPick,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.sm,
+            ),
+            decoration: BoxDecoration(
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    display,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: value == null
+                          ? theme.colorScheme.onSurfaceVariant
+                          : null,
+                    ),
+                  ),
+                ),
+                if (onClear != null)
+                  InkWell(
+                    onTap: onClear,
+                    borderRadius: BorderRadius.circular(4),
+                    child: Padding(
+                      padding: const EdgeInsets.all(2),
+                      child: Icon(
+                        Icons.close,
+                        size: 14,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _fmt12h(String hhmm) {
+    final parts = hhmm.split(':');
+    final h = int.parse(parts[0]);
+    final m = int.parse(parts[1]);
+    final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+    final period = h >= 12 ? 'PM' : 'AM';
+    return '$hour12:${m.toString().padLeft(2, '0')} $period';
   }
 }

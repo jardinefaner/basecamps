@@ -36,6 +36,55 @@ class Children extends Table {
   TextColumn get parentName => text().nullable()();
   // Local file path for the child's photo. Remote upload comes later.
   TextColumn get avatarPath => text().nullable()();
+
+  // Standing expected drop-off / pickup time for this child, stored
+  // as "HH:mm" strings (matches how schedule times are stored in
+  // ScheduleTemplates). Nullable — a child with no expected time
+  // never triggers lateness flags, which is the right default for
+  // drop-in / flexible-schedule kids. Daily variations go through
+  // [ChildScheduleOverrides] below.
+  TextColumn get expectedArrival => text().nullable()();
+  TextColumn get expectedPickup => text().nullable()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Per-child, per-day override for the standing [Children.expectedArrival]
+/// / [Children.expectedPickup] times. Row exists iff the teacher logged
+/// an exception for today ("mom texted, Noah's running late; expect him
+/// at 9:30 instead of 8:30"). Absence = use standing times.
+///
+/// Date-scoped: one row per (child, date). Repository ON CONFLICT-
+/// replaces on save so editing the override is idempotent.
+@DataClassName('ChildScheduleOverride')
+class ChildScheduleOverrides extends Table {
+  TextColumn get id => text()();
+  TextColumn get childId => text()
+      .references(Children, #id, onDelete: KeyAction.cascade)();
+
+  /// Calendar date the override applies to. Time-of-day is ignored
+  /// at read time — the repository normalizes to local midnight
+  /// when querying.
+  DateTimeColumn get date => dateTime()();
+
+  // Both nullable even though the row exists: the teacher might
+  // override just arrival ("mom running late") without touching
+  // pickup, and vice versa. Null here means "use the standing value
+  // for this half of the day."
+  TextColumn get expectedArrivalOverride => text().nullable()();
+  TextColumn get expectedPickupOverride => text().nullable()();
+
+  /// Free-form context on why this override exists. Shown in the
+  /// child detail / flags list when the teacher taps to see "why is
+  /// Noah late" — "running late, mom texting" answers that.
+  TextColumn get note => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>

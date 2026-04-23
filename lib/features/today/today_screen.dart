@@ -19,6 +19,7 @@ import 'package:basecamp/features/today/widgets/all_day_carousel.dart';
 import 'package:basecamp/features/today/widgets/day_summary_strip.dart';
 import 'package:basecamp/features/today/widgets/earlier_today_group.dart';
 import 'package:basecamp/features/today/widgets/hero_now_card.dart';
+import 'package:basecamp/features/today/widgets/lateness_flags_strip.dart';
 import 'package:basecamp/features/today/widgets/pod_today_card.dart';
 import 'package:basecamp/features/today/widgets/schedule_item_card.dart';
 import 'package:basecamp/features/today/widgets/staff_today_strip.dart';
@@ -312,6 +313,10 @@ class _Body extends ConsumerWidget {
         delegate: SliverChildListDelegate([
         _DateLabel(label: dateLabel),
         const SizedBox(height: AppSpacing.sm),
+        // Loud-when-needed strip: self-hides when zero kids are flagged.
+        // Sits above the day-summary so a late child pulls the eye before
+        // the neutral counts do.
+        LatenessFlagsStrip(now: now),
         DaySummaryStrip(
           activities: items.length,
           children: childrenInActivityGroups.length,

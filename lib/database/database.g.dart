@@ -460,6 +460,28 @@ class $ChildrenTable extends Children with TableInfo<$ChildrenTable, Child> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _expectedArrivalMeta = const VerificationMeta(
+    'expectedArrival',
+  );
+  @override
+  late final GeneratedColumn<String> expectedArrival = GeneratedColumn<String>(
+    'expected_arrival',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _expectedPickupMeta = const VerificationMeta(
+    'expectedPickup',
+  );
+  @override
+  late final GeneratedColumn<String> expectedPickup = GeneratedColumn<String>(
+    'expected_pickup',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -495,6 +517,8 @@ class $ChildrenTable extends Children with TableInfo<$ChildrenTable, Child> {
     notes,
     parentName,
     avatarPath,
+    expectedArrival,
+    expectedPickup,
     createdAt,
     updatedAt,
   ];
@@ -565,6 +589,24 @@ class $ChildrenTable extends Children with TableInfo<$ChildrenTable, Child> {
         avatarPath.isAcceptableOrUnknown(data['avatar_path']!, _avatarPathMeta),
       );
     }
+    if (data.containsKey('expected_arrival')) {
+      context.handle(
+        _expectedArrivalMeta,
+        expectedArrival.isAcceptableOrUnknown(
+          data['expected_arrival']!,
+          _expectedArrivalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('expected_pickup')) {
+      context.handle(
+        _expectedPickupMeta,
+        expectedPickup.isAcceptableOrUnknown(
+          data['expected_pickup']!,
+          _expectedPickupMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -622,6 +664,14 @@ class $ChildrenTable extends Children with TableInfo<$ChildrenTable, Child> {
         DriftSqlType.string,
         data['${effectivePrefix}avatar_path'],
       ),
+      expectedArrival: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}expected_arrival'],
+      ),
+      expectedPickup: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}expected_pickup'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -649,6 +699,8 @@ class Child extends DataClass implements Insertable<Child> {
   final String? notes;
   final String? parentName;
   final String? avatarPath;
+  final String? expectedArrival;
+  final String? expectedPickup;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Child({
@@ -661,6 +713,8 @@ class Child extends DataClass implements Insertable<Child> {
     this.notes,
     this.parentName,
     this.avatarPath,
+    this.expectedArrival,
+    this.expectedPickup,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -690,6 +744,12 @@ class Child extends DataClass implements Insertable<Child> {
     if (!nullToAbsent || avatarPath != null) {
       map['avatar_path'] = Variable<String>(avatarPath);
     }
+    if (!nullToAbsent || expectedArrival != null) {
+      map['expected_arrival'] = Variable<String>(expectedArrival);
+    }
+    if (!nullToAbsent || expectedPickup != null) {
+      map['expected_pickup'] = Variable<String>(expectedPickup);
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -718,6 +778,12 @@ class Child extends DataClass implements Insertable<Child> {
       avatarPath: avatarPath == null && nullToAbsent
           ? const Value.absent()
           : Value(avatarPath),
+      expectedArrival: expectedArrival == null && nullToAbsent
+          ? const Value.absent()
+          : Value(expectedArrival),
+      expectedPickup: expectedPickup == null && nullToAbsent
+          ? const Value.absent()
+          : Value(expectedPickup),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -738,6 +804,8 @@ class Child extends DataClass implements Insertable<Child> {
       notes: serializer.fromJson<String?>(json['notes']),
       parentName: serializer.fromJson<String?>(json['parentName']),
       avatarPath: serializer.fromJson<String?>(json['avatarPath']),
+      expectedArrival: serializer.fromJson<String?>(json['expectedArrival']),
+      expectedPickup: serializer.fromJson<String?>(json['expectedPickup']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -755,6 +823,8 @@ class Child extends DataClass implements Insertable<Child> {
       'notes': serializer.toJson<String?>(notes),
       'parentName': serializer.toJson<String?>(parentName),
       'avatarPath': serializer.toJson<String?>(avatarPath),
+      'expectedArrival': serializer.toJson<String?>(expectedArrival),
+      'expectedPickup': serializer.toJson<String?>(expectedPickup),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -770,6 +840,8 @@ class Child extends DataClass implements Insertable<Child> {
     Value<String?> notes = const Value.absent(),
     Value<String?> parentName = const Value.absent(),
     Value<String?> avatarPath = const Value.absent(),
+    Value<String?> expectedArrival = const Value.absent(),
+    Value<String?> expectedPickup = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Child(
@@ -782,6 +854,12 @@ class Child extends DataClass implements Insertable<Child> {
     notes: notes.present ? notes.value : this.notes,
     parentName: parentName.present ? parentName.value : this.parentName,
     avatarPath: avatarPath.present ? avatarPath.value : this.avatarPath,
+    expectedArrival: expectedArrival.present
+        ? expectedArrival.value
+        : this.expectedArrival,
+    expectedPickup: expectedPickup.present
+        ? expectedPickup.value
+        : this.expectedPickup,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -800,6 +878,12 @@ class Child extends DataClass implements Insertable<Child> {
       avatarPath: data.avatarPath.present
           ? data.avatarPath.value
           : this.avatarPath,
+      expectedArrival: data.expectedArrival.present
+          ? data.expectedArrival.value
+          : this.expectedArrival,
+      expectedPickup: data.expectedPickup.present
+          ? data.expectedPickup.value
+          : this.expectedPickup,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -817,6 +901,8 @@ class Child extends DataClass implements Insertable<Child> {
           ..write('notes: $notes, ')
           ..write('parentName: $parentName, ')
           ..write('avatarPath: $avatarPath, ')
+          ..write('expectedArrival: $expectedArrival, ')
+          ..write('expectedPickup: $expectedPickup, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -834,6 +920,8 @@ class Child extends DataClass implements Insertable<Child> {
     notes,
     parentName,
     avatarPath,
+    expectedArrival,
+    expectedPickup,
     createdAt,
     updatedAt,
   );
@@ -850,6 +938,8 @@ class Child extends DataClass implements Insertable<Child> {
           other.notes == this.notes &&
           other.parentName == this.parentName &&
           other.avatarPath == this.avatarPath &&
+          other.expectedArrival == this.expectedArrival &&
+          other.expectedPickup == this.expectedPickup &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -864,6 +954,8 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
   final Value<String?> notes;
   final Value<String?> parentName;
   final Value<String?> avatarPath;
+  final Value<String?> expectedArrival;
+  final Value<String?> expectedPickup;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -877,6 +969,8 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     this.notes = const Value.absent(),
     this.parentName = const Value.absent(),
     this.avatarPath = const Value.absent(),
+    this.expectedArrival = const Value.absent(),
+    this.expectedPickup = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -891,6 +985,8 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     this.notes = const Value.absent(),
     this.parentName = const Value.absent(),
     this.avatarPath = const Value.absent(),
+    this.expectedArrival = const Value.absent(),
+    this.expectedPickup = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -906,6 +1002,8 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     Expression<String>? notes,
     Expression<String>? parentName,
     Expression<String>? avatarPath,
+    Expression<String>? expectedArrival,
+    Expression<String>? expectedPickup,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -920,6 +1018,8 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
       if (notes != null) 'notes': notes,
       if (parentName != null) 'parent_name': parentName,
       if (avatarPath != null) 'avatar_path': avatarPath,
+      if (expectedArrival != null) 'expected_arrival': expectedArrival,
+      if (expectedPickup != null) 'expected_pickup': expectedPickup,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -936,6 +1036,8 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     Value<String?>? notes,
     Value<String?>? parentName,
     Value<String?>? avatarPath,
+    Value<String?>? expectedArrival,
+    Value<String?>? expectedPickup,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -950,6 +1052,8 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
       notes: notes ?? this.notes,
       parentName: parentName ?? this.parentName,
       avatarPath: avatarPath ?? this.avatarPath,
+      expectedArrival: expectedArrival ?? this.expectedArrival,
+      expectedPickup: expectedPickup ?? this.expectedPickup,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -986,6 +1090,12 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     if (avatarPath.present) {
       map['avatar_path'] = Variable<String>(avatarPath.value);
     }
+    if (expectedArrival.present) {
+      map['expected_arrival'] = Variable<String>(expectedArrival.value);
+    }
+    if (expectedPickup.present) {
+      map['expected_pickup'] = Variable<String>(expectedPickup.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -1010,6 +1120,8 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
           ..write('notes: $notes, ')
           ..write('parentName: $parentName, ')
           ..write('avatarPath: $avatarPath, ')
+          ..write('expectedArrival: $expectedArrival, ')
+          ..write('expectedPickup: $expectedPickup, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -12164,6 +12276,560 @@ class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
   }
 }
 
+class $ChildScheduleOverridesTable extends ChildScheduleOverrides
+    with TableInfo<$ChildScheduleOverridesTable, ChildScheduleOverride> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ChildScheduleOverridesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _childIdMeta = const VerificationMeta(
+    'childId',
+  );
+  @override
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+    'child_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES children (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _dateMeta = const VerificationMeta('date');
+  @override
+  late final GeneratedColumn<DateTime> date = GeneratedColumn<DateTime>(
+    'date',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _expectedArrivalOverrideMeta =
+      const VerificationMeta('expectedArrivalOverride');
+  @override
+  late final GeneratedColumn<String> expectedArrivalOverride =
+      GeneratedColumn<String>(
+        'expected_arrival_override',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _expectedPickupOverrideMeta =
+      const VerificationMeta('expectedPickupOverride');
+  @override
+  late final GeneratedColumn<String> expectedPickupOverride =
+      GeneratedColumn<String>(
+        'expected_pickup_override',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    childId,
+    date,
+    expectedArrivalOverride,
+    expectedPickupOverride,
+    note,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'child_schedule_overrides';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ChildScheduleOverride> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('child_id')) {
+      context.handle(
+        _childIdMeta,
+        childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_childIdMeta);
+    }
+    if (data.containsKey('date')) {
+      context.handle(
+        _dateMeta,
+        date.isAcceptableOrUnknown(data['date']!, _dateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dateMeta);
+    }
+    if (data.containsKey('expected_arrival_override')) {
+      context.handle(
+        _expectedArrivalOverrideMeta,
+        expectedArrivalOverride.isAcceptableOrUnknown(
+          data['expected_arrival_override']!,
+          _expectedArrivalOverrideMeta,
+        ),
+      );
+    }
+    if (data.containsKey('expected_pickup_override')) {
+      context.handle(
+        _expectedPickupOverrideMeta,
+        expectedPickupOverride.isAcceptableOrUnknown(
+          data['expected_pickup_override']!,
+          _expectedPickupOverrideMeta,
+        ),
+      );
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ChildScheduleOverride map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ChildScheduleOverride(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      childId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}child_id'],
+      )!,
+      date: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}date'],
+      )!,
+      expectedArrivalOverride: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}expected_arrival_override'],
+      ),
+      expectedPickupOverride: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}expected_pickup_override'],
+      ),
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ChildScheduleOverridesTable createAlias(String alias) {
+    return $ChildScheduleOverridesTable(attachedDatabase, alias);
+  }
+}
+
+class ChildScheduleOverride extends DataClass
+    implements Insertable<ChildScheduleOverride> {
+  final String id;
+  final String childId;
+
+  /// Calendar date the override applies to. Time-of-day is ignored
+  /// at read time — the repository normalizes to local midnight
+  /// when querying.
+  final DateTime date;
+  final String? expectedArrivalOverride;
+  final String? expectedPickupOverride;
+
+  /// Free-form context on why this override exists. Shown in the
+  /// child detail / flags list when the teacher taps to see "why is
+  /// Noah late" — "running late, mom texting" answers that.
+  final String? note;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const ChildScheduleOverride({
+    required this.id,
+    required this.childId,
+    required this.date,
+    this.expectedArrivalOverride,
+    this.expectedPickupOverride,
+    this.note,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['child_id'] = Variable<String>(childId);
+    map['date'] = Variable<DateTime>(date);
+    if (!nullToAbsent || expectedArrivalOverride != null) {
+      map['expected_arrival_override'] = Variable<String>(
+        expectedArrivalOverride,
+      );
+    }
+    if (!nullToAbsent || expectedPickupOverride != null) {
+      map['expected_pickup_override'] = Variable<String>(
+        expectedPickupOverride,
+      );
+    }
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  ChildScheduleOverridesCompanion toCompanion(bool nullToAbsent) {
+    return ChildScheduleOverridesCompanion(
+      id: Value(id),
+      childId: Value(childId),
+      date: Value(date),
+      expectedArrivalOverride: expectedArrivalOverride == null && nullToAbsent
+          ? const Value.absent()
+          : Value(expectedArrivalOverride),
+      expectedPickupOverride: expectedPickupOverride == null && nullToAbsent
+          ? const Value.absent()
+          : Value(expectedPickupOverride),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory ChildScheduleOverride.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ChildScheduleOverride(
+      id: serializer.fromJson<String>(json['id']),
+      childId: serializer.fromJson<String>(json['childId']),
+      date: serializer.fromJson<DateTime>(json['date']),
+      expectedArrivalOverride: serializer.fromJson<String?>(
+        json['expectedArrivalOverride'],
+      ),
+      expectedPickupOverride: serializer.fromJson<String?>(
+        json['expectedPickupOverride'],
+      ),
+      note: serializer.fromJson<String?>(json['note']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'childId': serializer.toJson<String>(childId),
+      'date': serializer.toJson<DateTime>(date),
+      'expectedArrivalOverride': serializer.toJson<String?>(
+        expectedArrivalOverride,
+      ),
+      'expectedPickupOverride': serializer.toJson<String?>(
+        expectedPickupOverride,
+      ),
+      'note': serializer.toJson<String?>(note),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  ChildScheduleOverride copyWith({
+    String? id,
+    String? childId,
+    DateTime? date,
+    Value<String?> expectedArrivalOverride = const Value.absent(),
+    Value<String?> expectedPickupOverride = const Value.absent(),
+    Value<String?> note = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => ChildScheduleOverride(
+    id: id ?? this.id,
+    childId: childId ?? this.childId,
+    date: date ?? this.date,
+    expectedArrivalOverride: expectedArrivalOverride.present
+        ? expectedArrivalOverride.value
+        : this.expectedArrivalOverride,
+    expectedPickupOverride: expectedPickupOverride.present
+        ? expectedPickupOverride.value
+        : this.expectedPickupOverride,
+    note: note.present ? note.value : this.note,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  ChildScheduleOverride copyWithCompanion(
+    ChildScheduleOverridesCompanion data,
+  ) {
+    return ChildScheduleOverride(
+      id: data.id.present ? data.id.value : this.id,
+      childId: data.childId.present ? data.childId.value : this.childId,
+      date: data.date.present ? data.date.value : this.date,
+      expectedArrivalOverride: data.expectedArrivalOverride.present
+          ? data.expectedArrivalOverride.value
+          : this.expectedArrivalOverride,
+      expectedPickupOverride: data.expectedPickupOverride.present
+          ? data.expectedPickupOverride.value
+          : this.expectedPickupOverride,
+      note: data.note.present ? data.note.value : this.note,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ChildScheduleOverride(')
+          ..write('id: $id, ')
+          ..write('childId: $childId, ')
+          ..write('date: $date, ')
+          ..write('expectedArrivalOverride: $expectedArrivalOverride, ')
+          ..write('expectedPickupOverride: $expectedPickupOverride, ')
+          ..write('note: $note, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    childId,
+    date,
+    expectedArrivalOverride,
+    expectedPickupOverride,
+    note,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ChildScheduleOverride &&
+          other.id == this.id &&
+          other.childId == this.childId &&
+          other.date == this.date &&
+          other.expectedArrivalOverride == this.expectedArrivalOverride &&
+          other.expectedPickupOverride == this.expectedPickupOverride &&
+          other.note == this.note &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ChildScheduleOverridesCompanion
+    extends UpdateCompanion<ChildScheduleOverride> {
+  final Value<String> id;
+  final Value<String> childId;
+  final Value<DateTime> date;
+  final Value<String?> expectedArrivalOverride;
+  final Value<String?> expectedPickupOverride;
+  final Value<String?> note;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const ChildScheduleOverridesCompanion({
+    this.id = const Value.absent(),
+    this.childId = const Value.absent(),
+    this.date = const Value.absent(),
+    this.expectedArrivalOverride = const Value.absent(),
+    this.expectedPickupOverride = const Value.absent(),
+    this.note = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ChildScheduleOverridesCompanion.insert({
+    required String id,
+    required String childId,
+    required DateTime date,
+    this.expectedArrivalOverride = const Value.absent(),
+    this.expectedPickupOverride = const Value.absent(),
+    this.note = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       childId = Value(childId),
+       date = Value(date);
+  static Insertable<ChildScheduleOverride> custom({
+    Expression<String>? id,
+    Expression<String>? childId,
+    Expression<DateTime>? date,
+    Expression<String>? expectedArrivalOverride,
+    Expression<String>? expectedPickupOverride,
+    Expression<String>? note,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (childId != null) 'child_id': childId,
+      if (date != null) 'date': date,
+      if (expectedArrivalOverride != null)
+        'expected_arrival_override': expectedArrivalOverride,
+      if (expectedPickupOverride != null)
+        'expected_pickup_override': expectedPickupOverride,
+      if (note != null) 'note': note,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ChildScheduleOverridesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? childId,
+    Value<DateTime>? date,
+    Value<String?>? expectedArrivalOverride,
+    Value<String?>? expectedPickupOverride,
+    Value<String?>? note,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return ChildScheduleOverridesCompanion(
+      id: id ?? this.id,
+      childId: childId ?? this.childId,
+      date: date ?? this.date,
+      expectedArrivalOverride:
+          expectedArrivalOverride ?? this.expectedArrivalOverride,
+      expectedPickupOverride:
+          expectedPickupOverride ?? this.expectedPickupOverride,
+      note: note ?? this.note,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
+    }
+    if (date.present) {
+      map['date'] = Variable<DateTime>(date.value);
+    }
+    if (expectedArrivalOverride.present) {
+      map['expected_arrival_override'] = Variable<String>(
+        expectedArrivalOverride.value,
+      );
+    }
+    if (expectedPickupOverride.present) {
+      map['expected_pickup_override'] = Variable<String>(
+        expectedPickupOverride.value,
+      );
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ChildScheduleOverridesCompanion(')
+          ..write('id: $id, ')
+          ..write('childId: $childId, ')
+          ..write('date: $date, ')
+          ..write('expectedArrivalOverride: $expectedArrivalOverride, ')
+          ..write('expectedPickupOverride: $expectedPickupOverride, ')
+          ..write('note: $note, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -12201,6 +12867,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ParentConcernChildrenTable parentConcernChildren =
       $ParentConcernChildrenTable(this);
   late final $AttendanceTable attendance = $AttendanceTable(this);
+  late final $ChildScheduleOverridesTable childScheduleOverrides =
+      $ChildScheduleOverridesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -12227,6 +12895,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     parentConcernNotes,
     parentConcernChildren,
     attendance,
+    childScheduleOverrides,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -12467,6 +13136,15 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('attendance', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'children',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('child_schedule_overrides', kind: UpdateKind.delete),
+      ],
     ),
   ]);
 }
@@ -13537,6 +14215,8 @@ typedef $$ChildrenTableCreateCompanionBuilder =
       Value<String?> notes,
       Value<String?> parentName,
       Value<String?> avatarPath,
+      Value<String?> expectedArrival,
+      Value<String?> expectedPickup,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -13552,6 +14232,8 @@ typedef $$ChildrenTableUpdateCompanionBuilder =
       Value<String?> notes,
       Value<String?> parentName,
       Value<String?> avatarPath,
+      Value<String?> expectedArrival,
+      Value<String?> expectedPickup,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -13689,6 +14371,34 @@ final class $$ChildrenTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<
+    $ChildScheduleOverridesTable,
+    List<ChildScheduleOverride>
+  >
+  _childScheduleOverridesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.childScheduleOverrides,
+        aliasName: $_aliasNameGenerator(
+          db.children.id,
+          db.childScheduleOverrides.childId,
+        ),
+      );
+
+  $$ChildScheduleOverridesTableProcessedTableManager
+  get childScheduleOverridesRefs {
+    final manager = $$ChildScheduleOverridesTableTableManager(
+      $_db,
+      $_db.childScheduleOverrides,
+    ).filter((f) => f.childId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _childScheduleOverridesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$ChildrenTableFilterComposer
@@ -13737,6 +14447,16 @@ class $$ChildrenTableFilterComposer
 
   ColumnFilters<String> get avatarPath => $composableBuilder(
     column: $table.avatarPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get expectedArrival => $composableBuilder(
+    column: $table.expectedArrival,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get expectedPickup => $composableBuilder(
+    column: $table.expectedPickup,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -13898,6 +14618,32 @@ class $$ChildrenTableFilterComposer
     );
     return f(composer);
   }
+
+  Expression<bool> childScheduleOverridesRefs(
+    Expression<bool> Function($$ChildScheduleOverridesTableFilterComposer f) f,
+  ) {
+    final $$ChildScheduleOverridesTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.childScheduleOverrides,
+          getReferencedColumn: (t) => t.childId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ChildScheduleOverridesTableFilterComposer(
+                $db: $db,
+                $table: $db.childScheduleOverrides,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$ChildrenTableOrderingComposer
@@ -13946,6 +14692,16 @@ class $$ChildrenTableOrderingComposer
 
   ColumnOrderings<String> get avatarPath => $composableBuilder(
     column: $table.avatarPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get expectedArrival => $composableBuilder(
+    column: $table.expectedArrival,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get expectedPickup => $composableBuilder(
+    column: $table.expectedPickup,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -14017,6 +14773,16 @@ class $$ChildrenTableAnnotationComposer
 
   GeneratedColumn<String> get avatarPath => $composableBuilder(
     column: $table.avatarPath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get expectedArrival => $composableBuilder(
+    column: $table.expectedArrival,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get expectedPickup => $composableBuilder(
+    column: $table.expectedPickup,
     builder: (column) => column,
   );
 
@@ -14175,6 +14941,32 @@ class $$ChildrenTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> childScheduleOverridesRefs<T extends Object>(
+    Expression<T> Function($$ChildScheduleOverridesTableAnnotationComposer a) f,
+  ) {
+    final $$ChildScheduleOverridesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.childScheduleOverrides,
+          getReferencedColumn: (t) => t.childId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ChildScheduleOverridesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.childScheduleOverrides,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$ChildrenTableTableManager
@@ -14197,6 +14989,7 @@ class $$ChildrenTableTableManager
             bool observationChildrenRefs,
             bool parentConcernChildrenRefs,
             bool attendanceRefs,
+            bool childScheduleOverridesRefs,
           })
         > {
   $$ChildrenTableTableManager(_$AppDatabase db, $ChildrenTable table)
@@ -14221,6 +15014,8 @@ class $$ChildrenTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<String?> parentName = const Value.absent(),
                 Value<String?> avatarPath = const Value.absent(),
+                Value<String?> expectedArrival = const Value.absent(),
+                Value<String?> expectedPickup = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -14234,6 +15029,8 @@ class $$ChildrenTableTableManager
                 notes: notes,
                 parentName: parentName,
                 avatarPath: avatarPath,
+                expectedArrival: expectedArrival,
+                expectedPickup: expectedPickup,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -14249,6 +15046,8 @@ class $$ChildrenTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<String?> parentName = const Value.absent(),
                 Value<String?> avatarPath = const Value.absent(),
+                Value<String?> expectedArrival = const Value.absent(),
+                Value<String?> expectedPickup = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -14262,6 +15061,8 @@ class $$ChildrenTableTableManager
                 notes: notes,
                 parentName: parentName,
                 avatarPath: avatarPath,
+                expectedArrival: expectedArrival,
+                expectedPickup: expectedPickup,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -14282,6 +15083,7 @@ class $$ChildrenTableTableManager
                 observationChildrenRefs = false,
                 parentConcernChildrenRefs = false,
                 attendanceRefs = false,
+                childScheduleOverridesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -14291,6 +15093,7 @@ class $$ChildrenTableTableManager
                     if (observationChildrenRefs) db.observationChildren,
                     if (parentConcernChildrenRefs) db.parentConcernChildren,
                     if (attendanceRefs) db.attendance,
+                    if (childScheduleOverridesRefs) db.childScheduleOverrides,
                   ],
                   addJoins:
                       <
@@ -14431,6 +15234,27 @@ class $$ChildrenTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (childScheduleOverridesRefs)
+                        await $_getPrefetchedData<
+                          Child,
+                          $ChildrenTable,
+                          ChildScheduleOverride
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ChildrenTableReferences
+                              ._childScheduleOverridesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ChildrenTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).childScheduleOverridesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.childId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -14458,6 +15282,7 @@ typedef $$ChildrenTableProcessedTableManager =
         bool observationChildrenRefs,
         bool parentConcernChildrenRefs,
         bool attendanceRefs,
+        bool childScheduleOverridesRefs,
       })
     >;
 typedef $$TripsTableCreateCompanionBuilder =
@@ -25542,6 +26367,408 @@ typedef $$AttendanceTableProcessedTableManager =
       AttendanceData,
       PrefetchHooks Function({bool childId})
     >;
+typedef $$ChildScheduleOverridesTableCreateCompanionBuilder =
+    ChildScheduleOverridesCompanion Function({
+      required String id,
+      required String childId,
+      required DateTime date,
+      Value<String?> expectedArrivalOverride,
+      Value<String?> expectedPickupOverride,
+      Value<String?> note,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$ChildScheduleOverridesTableUpdateCompanionBuilder =
+    ChildScheduleOverridesCompanion Function({
+      Value<String> id,
+      Value<String> childId,
+      Value<DateTime> date,
+      Value<String?> expectedArrivalOverride,
+      Value<String?> expectedPickupOverride,
+      Value<String?> note,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$ChildScheduleOverridesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $ChildScheduleOverridesTable,
+          ChildScheduleOverride
+        > {
+  $$ChildScheduleOverridesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ChildrenTable _childIdTable(_$AppDatabase db) =>
+      db.children.createAlias(
+        $_aliasNameGenerator(db.childScheduleOverrides.childId, db.children.id),
+      );
+
+  $$ChildrenTableProcessedTableManager get childId {
+    final $_column = $_itemColumn<String>('child_id')!;
+
+    final manager = $$ChildrenTableTableManager(
+      $_db,
+      $_db.children,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_childIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ChildScheduleOverridesTableFilterComposer
+    extends Composer<_$AppDatabase, $ChildScheduleOverridesTable> {
+  $$ChildScheduleOverridesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get expectedArrivalOverride => $composableBuilder(
+    column: $table.expectedArrivalOverride,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get expectedPickupOverride => $composableBuilder(
+    column: $table.expectedPickupOverride,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ChildrenTableFilterComposer get childId {
+    final $$ChildrenTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChildrenTableFilterComposer(
+            $db: $db,
+            $table: $db.children,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ChildScheduleOverridesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ChildScheduleOverridesTable> {
+  $$ChildScheduleOverridesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get expectedArrivalOverride => $composableBuilder(
+    column: $table.expectedArrivalOverride,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get expectedPickupOverride => $composableBuilder(
+    column: $table.expectedPickupOverride,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ChildrenTableOrderingComposer get childId {
+    final $$ChildrenTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChildrenTableOrderingComposer(
+            $db: $db,
+            $table: $db.children,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ChildScheduleOverridesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ChildScheduleOverridesTable> {
+  $$ChildScheduleOverridesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get date =>
+      $composableBuilder(column: $table.date, builder: (column) => column);
+
+  GeneratedColumn<String> get expectedArrivalOverride => $composableBuilder(
+    column: $table.expectedArrivalOverride,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get expectedPickupOverride => $composableBuilder(
+    column: $table.expectedPickupOverride,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$ChildrenTableAnnotationComposer get childId {
+    final $$ChildrenTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChildrenTableAnnotationComposer(
+            $db: $db,
+            $table: $db.children,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ChildScheduleOverridesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ChildScheduleOverridesTable,
+          ChildScheduleOverride,
+          $$ChildScheduleOverridesTableFilterComposer,
+          $$ChildScheduleOverridesTableOrderingComposer,
+          $$ChildScheduleOverridesTableAnnotationComposer,
+          $$ChildScheduleOverridesTableCreateCompanionBuilder,
+          $$ChildScheduleOverridesTableUpdateCompanionBuilder,
+          (ChildScheduleOverride, $$ChildScheduleOverridesTableReferences),
+          ChildScheduleOverride,
+          PrefetchHooks Function({bool childId})
+        > {
+  $$ChildScheduleOverridesTableTableManager(
+    _$AppDatabase db,
+    $ChildScheduleOverridesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ChildScheduleOverridesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ChildScheduleOverridesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ChildScheduleOverridesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> childId = const Value.absent(),
+                Value<DateTime> date = const Value.absent(),
+                Value<String?> expectedArrivalOverride = const Value.absent(),
+                Value<String?> expectedPickupOverride = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ChildScheduleOverridesCompanion(
+                id: id,
+                childId: childId,
+                date: date,
+                expectedArrivalOverride: expectedArrivalOverride,
+                expectedPickupOverride: expectedPickupOverride,
+                note: note,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String childId,
+                required DateTime date,
+                Value<String?> expectedArrivalOverride = const Value.absent(),
+                Value<String?> expectedPickupOverride = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ChildScheduleOverridesCompanion.insert(
+                id: id,
+                childId: childId,
+                date: date,
+                expectedArrivalOverride: expectedArrivalOverride,
+                expectedPickupOverride: expectedPickupOverride,
+                note: note,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ChildScheduleOverridesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({childId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (childId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.childId,
+                                referencedTable:
+                                    $$ChildScheduleOverridesTableReferences
+                                        ._childIdTable(db),
+                                referencedColumn:
+                                    $$ChildScheduleOverridesTableReferences
+                                        ._childIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ChildScheduleOverridesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ChildScheduleOverridesTable,
+      ChildScheduleOverride,
+      $$ChildScheduleOverridesTableFilterComposer,
+      $$ChildScheduleOverridesTableOrderingComposer,
+      $$ChildScheduleOverridesTableAnnotationComposer,
+      $$ChildScheduleOverridesTableCreateCompanionBuilder,
+      $$ChildScheduleOverridesTableUpdateCompanionBuilder,
+      (ChildScheduleOverride, $$ChildScheduleOverridesTableReferences),
+      ChildScheduleOverride,
+      PrefetchHooks Function({bool childId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -25594,4 +26821,9 @@ class $AppDatabaseManager {
       $$ParentConcernChildrenTableTableManager(_db, _db.parentConcernChildren);
   $$AttendanceTableTableManager get attendance =>
       $$AttendanceTableTableManager(_db, _db.attendance);
+  $$ChildScheduleOverridesTableTableManager get childScheduleOverrides =>
+      $$ChildScheduleOverridesTableTableManager(
+        _db,
+        _db.childScheduleOverrides,
+      );
 }
