@@ -129,17 +129,10 @@ class _NewSpecialistWizardScreenState
         ),
         WizardStep(
           headline: 'When do they work?',
-          subtitle: 'Mon–Fri, toggle any day off, tweak the hours. '
-              "You'll set breaks on the next page.",
+          subtitle: 'Mon–Fri shift. Tap Add break / Add lunch on any '
+              'day to set an optional window inside the shift.',
           canSkip: true,
-          content: _buildAvailabilityPage(withBreaks: false),
-        ),
-        WizardStep(
-          headline: 'Break & lunch?',
-          subtitle: 'Optional — tap "Add break" or "Add lunch" on any '
-              'day to set a window inside the shift.',
-          canSkip: true,
-          content: _buildAvailabilityPage(withBreaks: true),
+          content: _buildAvailabilityPage(),
         ),
         WizardStep(
           headline: 'Anything worth noting?',
@@ -268,7 +261,7 @@ class _NewSpecialistWizardScreenState
     );
   }
 
-  Widget _buildAvailabilityPage({required bool withBreaks}) {
+  Widget _buildAvailabilityPage() {
     return AvailabilityEditor(
       blocksByDay: _availability,
       onToggleDay: (day, {required enabled}) {
@@ -308,44 +301,34 @@ class _NewSpecialistWizardScreenState
           _availability[day] = existing.copyWith(end: picked);
         });
       },
-      // Break + lunch pickers only hooked up on the dedicated page —
-      // keeps the shift page focused on shift hours.
-      onPickBreak: withBreaks
-          ? (day) => _pickWindow(
-                day,
-                seedStart: const TimeOfDay(hour: 10, minute: 30),
-                seedDurationMinutes: 15,
-                readStart: (b) => b.breakStart,
-                readEnd: (b) => b.breakEnd,
-                apply: (b, start, end) =>
-                    b.copyWith(breakStart: start, breakEnd: end),
-              )
-          : null,
-      onPickLunch: withBreaks
-          ? (day) => _pickWindow(
-                day,
-                seedStart: const TimeOfDay(hour: 12, minute: 0),
-                seedDurationMinutes: 60,
-                readStart: (b) => b.lunchStart,
-                readEnd: (b) => b.lunchEnd,
-                apply: (b, start, end) =>
-                    b.copyWith(lunchStart: start, lunchEnd: end),
-              )
-          : null,
-      onClearBreak: withBreaks
-          ? (day) => setState(() {
-                final existing = _availability[day];
-                if (existing == null) return;
-                _availability[day] = existing.copyWith(clearBreak: true);
-              })
-          : null,
-      onClearLunch: withBreaks
-          ? (day) => setState(() {
-                final existing = _availability[day];
-                if (existing == null) return;
-                _availability[day] = existing.copyWith(clearLunch: true);
-              })
-          : null,
+      onPickBreak: (day) => _pickWindow(
+        day,
+        seedStart: const TimeOfDay(hour: 10, minute: 30),
+        seedDurationMinutes: 15,
+        readStart: (b) => b.breakStart,
+        readEnd: (b) => b.breakEnd,
+        apply: (b, start, end) =>
+            b.copyWith(breakStart: start, breakEnd: end),
+      ),
+      onPickLunch: (day) => _pickWindow(
+        day,
+        seedStart: const TimeOfDay(hour: 12, minute: 0),
+        seedDurationMinutes: 60,
+        readStart: (b) => b.lunchStart,
+        readEnd: (b) => b.lunchEnd,
+        apply: (b, start, end) =>
+            b.copyWith(lunchStart: start, lunchEnd: end),
+      ),
+      onClearBreak: (day) => setState(() {
+        final existing = _availability[day];
+        if (existing == null) return;
+        _availability[day] = existing.copyWith(clearBreak: true);
+      }),
+      onClearLunch: (day) => setState(() {
+        final existing = _availability[day];
+        if (existing == null) return;
+        _availability[day] = existing.copyWith(clearLunch: true);
+      }),
     );
   }
 
