@@ -14,15 +14,11 @@ import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/add_activity_picker.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
-import 'package:basecamp/features/specialists/adult_timeline_repository.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
-import 'package:basecamp/features/today/adult_staffing.dart';
 import 'package:basecamp/features/today/last_expanded_group.dart';
 import 'package:basecamp/features/today/today_buckets.dart';
 import 'package:basecamp/features/today/widgets/all_day_carousel.dart';
 import 'package:basecamp/features/today/widgets/day_summary_strip.dart';
 import 'package:basecamp/features/today/widgets/earlier_today_group.dart';
-import 'package:basecamp/features/today/widgets/group_today_card.dart';
 import 'package:basecamp/features/today/widgets/hero_now_card.dart';
 import 'package:basecamp/features/today/widgets/lateness_flags_strip.dart';
 import 'package:basecamp/features/today/widgets/schedule_item_card.dart';
@@ -106,7 +102,22 @@ class TodayScreen extends ConsumerWidget {
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            title: const Text('Today'),
+            // Title carries today's date inline so a quick glance
+            // confirms the day without scrolling. Weekday + short
+            // date — the full year is visible enough elsewhere.
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Today'),
+                Text(
+                  dateLabel,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
             floating: true,
             snap: true,
             actions: [
@@ -114,6 +125,11 @@ class TodayScreen extends ConsumerWidget {
                 icon: const Icon(Icons.tune_outlined),
                 tooltip: 'Schedule',
                 onPressed: () => context.push('/today/schedule'),
+              ),
+              IconButton(
+                icon: const Icon(Icons.settings_outlined),
+                tooltip: 'Program settings',
+                onPressed: () => context.push('/more/settings'),
               ),
               const SizedBox(width: AppSpacing.xs),
             ],
@@ -189,32 +205,39 @@ class _Body extends ConsumerWidget {
             const <String, AttendanceRecord>{};
 
     // -- Bucket items by time relative to now --
-    // Groups now own their own schedules — each group card handles
-    // its own current/next. The hero slot is reserved for items that
-    // dominate the whole program (Morning Circle, all-hands); narrow
-    // group-scoped activities below the fold would duplicate what
-    // the group stack already shows. Split current/upcoming/past
-    // between "program-wide" (hero/banner/chronological) and "group-
-    // scoped" (group cards consume them).
     final buckets = bucketTodayItems(items, nowMinutes);
     final current = buckets.current;
     final upcoming = buckets.upcoming;
     final past = buckets.past;
     final allDay = buckets.allDay;
 
-    // Program-wide = all-groups OR explicitly no-groups (staff prep).
-    // Anything with a concrete group list is the group stack's job.
-    bool isProgramWide(ScheduleItem i) => i.isAllGroups || i.isNoGroups;
+    // Selected group from the chip row. Null → first-available
+    // fallback happens in _GroupChipRow; by the time we land here
+    // we treat null as "show everything" (legacy behavior for
+    // installs with no groups yet).
+    final selectedGroupId = ref.watch(lastExpandedGroupProvider);
 
-    final programCurrent = current.where(isProgramWide).toList();
-    final programUpcoming = upcoming.where(isProgramWide).toList();
+    // Filter by selection: group-scoped items for the selected group
+    // PLUS program-wide items (Morning Circle for everyone). Staff-
+    // prep (no-groups) items land in the selected view too because
+    // they're relevant to anyone running the program that day.
+    bool inSelectedView(ScheduleItem i) {
+      if (selectedGroupId == null) return true;
+      if (i.isAllGroups || i.isNoGroups) return true;
+      return i.groupIds.contains(selectedGroupId);
+    }
+
+    final filteredCurrent = current.where(inSelectedView).toList();
+    final filteredUpcoming = upcoming.where(inSelectedView).toList();
+    final filteredPast = past.where(inSelectedView).toList();
     final primaryCurrent =
-        programCurrent.isEmpty ? null : programCurrent.first;
-    final alsoNow = programCurrent.length > 1
-        ? programCurrent.sublist(1)
+        filteredCurrent.isEmpty ? null : filteredCurrent.first;
+    final alsoNow = filteredCurrent.length > 1
+        ? filteredCurrent.sublist(1)
         : const <ScheduleItem>[];
 
-    final nextUp = programUpcoming.isEmpty ? null : programUpcoming.first;
+    final nextUp =
+        filteredUpcoming.isEmpty ? null : filteredUpcoming.first;
     final nextUpMinutes = nextUp == null
         ? null
         : nextUp.startMinutes - nowMinutes;
@@ -326,18 +349,30 @@ class _Body extends ConsumerWidget {
       ),
       sliver: SliverList(
         delegate: SliverChildListDelegate([
-        _DateLabel(label: dateLabel),
-        const SizedBox(height: AppSpacing.sm),
-        // Loud-when-needed strip: self-hides when zero kids are flagged.
-        // Sits right below the date so a late child pulls the eye
-        // before anything else on the screen.
+        // Loud-when-needed strip: self-hides when zero kids are flagged
+        // and no reviews are due. Sits at the top so a late child or
+        // overdue review pulls the eye before anything else.
         LatenessFlagsStrip(now: now),
 
-        // All-day activities / notes float above the hero. One or many,
-        // they share a single slot — multiple items cycle through a
-        // carousel with autoplay so the vertical space stays constant.
-        // No "NOW" chip here: "all day" already implies current-day
-        // context, and the hero below owns the right-now moment.
+        // Program stats — one compact strip at the top of the scroll.
+        // Numbers read at a glance (activities · children · adults +
+        // concerns + pending obs) so teachers don't have to scroll
+        // through content to get a program-wide health check.
+        DaySummaryStrip(
+          activities: items.length,
+          children: childrenInActivityGroups.length,
+          specialists: uniqueSpecialists.length,
+          concerns: concerns.length,
+          pendingObs: pendingObs,
+          onTapConcerns: () =>
+              context.push('/more/forms/parent-concern'),
+          onTapPending: () => context.go('/observations'),
+        ),
+        const SizedBox(height: AppSpacing.md),
+
+        // All-day activities / notes float above the per-group view.
+        // Program-wide context (field trip banners, whole-day notes)
+        // isn't tied to a specific group's chip selection.
         if (allDay.isNotEmpty) ...[
           AllDayCarousel(
             cards: [
@@ -361,20 +396,14 @@ class _Body extends ConsumerWidget {
           const SizedBox(height: AppSpacing.md),
         ],
 
-        // Group stack — one collapsible card per group with that
-        // NOW + NEXT + anchor leads. Additive to the hero/upcoming
-        // group's at-a-glance; scan the groups first, drill into
-        // the chronological list if you need the whole day. Groups
-        // self-hide when none are set up yet — brand-new installs
-        // fall through to the classic hero layout unchanged.
-        _GroupStack(
-          items: items,
-          now: now,
-          attendanceMap: attendanceMap,
-          allKids: allKids,
-          onOpenDetail: onOpenDetail,
-          onOpenAttendance: openAttendance,
-        ),
+        // Group chip selector — horizontally scrollable row of groups.
+        // Tap a chip to filter the hero / upcoming / earlier sections
+        // below to that group's schedule (their own activities plus
+        // program-wide items). Self-hides when no groups exist, in
+        // which case the lower sections show the full unfiltered
+        // schedule so brand-new installs still see a useful Today.
+        const _GroupChipRow(),
+        const SizedBox(height: AppSpacing.md),
 
         // Hero "right now" card — dominates the fold when an activity
         // is in progress. When several activities overlap the primary
@@ -413,37 +442,35 @@ class _Body extends ConsumerWidget {
           const SizedBox(height: AppSpacing.lg),
         ],
 
-        // Upcoming — program-wide items only. Group-scoped upcoming
-        // activities show up in their group card's "Next" line, so
-        // repeating them here would duplicate. First program-wide
-        // upcoming gets the "IN N MIN" chip.
-        for (var i = 0; i < programUpcoming.length; i++) ...[
+        // Upcoming — filtered to the selected group's schedule (plus
+        // program-wide items). First gets the "IN N MIN" chip.
+        for (var i = 0; i < filteredUpcoming.length; i++) ...[
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
             child: ScheduleItemCard(
-              item: programUpcoming[i],
+              item: filteredUpcoming[i],
               isNow: false,
               isPast: false,
-              conflicts: conflicts[programUpcoming[i].id] ?? const [],
+              conflicts: conflicts[filteredUpcoming[i].id] ?? const [],
               minutesUntilStart: i == 0 ? nextUpMinutes : null,
-              concernMatch: concernForItem(programUpcoming[i]),
-              onTap: () => onOpenDetail(programUpcoming[i]),
+              concernMatch: concernForItem(filteredUpcoming[i]),
+              onTap: () => onOpenDetail(filteredUpcoming[i]),
               onOpenConcern: () => _goConcern(
                 context,
-                concernForItem(programUpcoming[i])?.id,
+                concernForItem(filteredUpcoming[i])?.id,
               ),
             ),
           ),
         ],
 
-        // Earlier today — collapsible so the morning doesn't clutter
-        // the afternoon view.
-        if (past.isNotEmpty) ...[
+        // Earlier today — filtered to the selected group. Collapsible
+        // so the morning doesn't clutter the afternoon view.
+        if (filteredPast.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.xs),
           EarlierTodayGroup(
-            count: past.length,
+            count: filteredPast.length,
             children: [
-              for (final item in past)
+              for (final item in filteredPast)
                 Padding(
                   padding: const EdgeInsets.only(
                     top: AppSpacing.sm,
@@ -469,21 +496,11 @@ class _Body extends ConsumerWidget {
             ],
           ),
         ],
-        // Program stats drawer — counts + staff shift overview. Lives
-        // at the bottom collapsed by default because these are review-
-        // mode numbers (pre-open / end-of-day glance), not something
-        // the teacher needs to scan while mid-day.
+        // Staff-today strip at the bottom — still collapsible, still
+        // handy for end-of-day roll review. Kept below earlier-today
+        // so it doesn't compete with the day's chronological flow.
         const SizedBox(height: AppSpacing.md),
-        _ProgramStatsDrawer(
-          now: now,
-          activityCount: items.length,
-          childrenCount: childrenInActivityGroups.length,
-          specialistCount: uniqueSpecialists.length,
-          concernCount: concerns.length,
-          pendingObs: pendingObs,
-          onTapConcerns: () => context.push('/more/forms/parent-concern'),
-          onTapPending: () => context.go('/observations'),
-        ),
+        StaffTodayStrip(now: now),
         ]),
       ),
     );
@@ -652,235 +669,129 @@ class _WrapUpBanner extends StatelessWidget {
   }
 }
 
-/// The group stack on Today — one collapsible [GroupTodayCard] per group,
-/// each showing that group's NOW + NEXT + staffing. Listens to
-/// `groupSummariesProvider` and `lastExpandedGroupProvider`; the latter
-/// persists across app restarts so the teacher's group opens to the
-/// same card they last looked at.
+/// Horizontally scrolling chip row — one chip per group plus a
+/// long-press affordance per chip to open the group detail screen.
+/// Selection drives the hero / upcoming / earlier filter on Today;
+/// selection state persists across app launches via
+/// `lastExpandedGroupProvider` (name kept from the pre-redesign
+/// "last-expanded" semantics; same SharedPreferences key, same
+/// meaning — which group the teacher is focused on).
 ///
-/// Self-hides when no groups exist yet (brand-new install) — the screen
-/// falls back to the classic hero layout without the group section.
-class _GroupStack extends ConsumerWidget {
-  const _GroupStack({
-    required this.items,
-    required this.now,
-    required this.attendanceMap,
-    required this.allKids,
-    required this.onOpenDetail,
-    required this.onOpenAttendance,
-  });
-
-  final List<ScheduleItem> items;
-  final DateTime now;
-  final Map<String, AttendanceRecord> attendanceMap;
-  final List<Child> allKids;
-  final ValueChanged<ScheduleItem> onOpenDetail;
-  final Future<void> Function(ScheduleItem) onOpenAttendance;
+/// Self-hides when no groups exist (brand-new install), in which
+/// case the sections below fall through to the unfiltered schedule.
+class _GroupChipRow extends ConsumerStatefulWidget {
+  const _GroupChipRow();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final summariesAsync = ref.watch(groupSummariesProvider);
-    final summaries = summariesAsync.asData?.value ?? const <GroupSummary>[];
-    if (summaries.isEmpty) return const SizedBox.shrink();
-
-    final expandedId = ref.watch(lastExpandedGroupProvider);
-    final nowMinutes = now.hour * 60 + now.minute;
-
-    // Adult day-timeline resolution (v30). Watching these here keeps
-    // the "who's leading this group right now" computation live —
-    // edits to a block on the adult edit sheet rebuild the group card
-    // without a screen re-mount.
-    final specialists =
-        ref.watch(specialistsProvider).asData?.value ?? const <Specialist>[];
-    final blockRows = ref.watch(todayAdultBlocksProvider).asData?.value ??
-        const <AdultDayBlock>[];
-    final blocksBySpecialist = groupBlocksBySpecialist(blockRows);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final g in summaries) ...[
-          GroupTodayCard(
-            group: g,
-            now: now,
-            current: _currentFor(g, nowMinutes),
-            next: _nextFor(g, nowMinutes),
-            attendance: _attendanceFor(g),
-            leadsNow: _leadsNowFor(
-              group: g,
-              nowMinutes: nowMinutes,
-              specialists: specialists,
-              blocksBySpecialist: blocksBySpecialist,
-            ),
-            expanded: expandedId == g.id,
-            onToggle: () =>
-                ref.read(lastExpandedGroupProvider.notifier).toggle(g.id),
-            onOpenDetail: onOpenDetail,
-            onOpenAttendance: onOpenAttendance,
-            onOpenGroupDetail: () =>
-                GroupDetailScreen.open(context, g.id),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-        ],
-        const SizedBox(height: AppSpacing.sm),
-      ],
-    );
-  }
-
-  /// Resolves adults currently anchoring `group` — timeline-lead
-  /// blocks straddling now plus static-anchor leads (for adults with
-  /// no timeline). Returns the `Specialist` rows in lead-name order
-  /// so the avatars render predictably.
-  List<Specialist> _leadsNowFor({
-    required GroupSummary group,
-    required int nowMinutes,
-    required List<Specialist> specialists,
-    required Map<String, List<AdultTimelineBlock>> blocksBySpecialist,
-  }) {
-    final leadIds = leadsInGroupNow(
-      groupId: group.id,
-      nowMinutes: nowMinutes,
-      specialists: specialists,
-      blocksBySpecialist: blocksBySpecialist,
-    );
-    final byId = {for (final s in specialists) s.id: s};
-    final leads = [
-      for (final id in leadIds)
-        if (byId[id] != null) byId[id]!,
-    ]..sort((a, b) => a.name.compareTo(b.name));
-    return leads;
-  }
-
-  /// The group's current in-progress activity, if any. A group-scoped
-  /// item matches when `groupIds` contains the group's id; earliest-
-  /// started wins the slot the same way the global hero does.
-  ScheduleItem? _currentFor(GroupSummary group, int nowMinutes) {
-    ScheduleItem? best;
-    for (final item in items) {
-      if (item.isFullDay) continue;
-      if (!item.groupIds.contains(group.id)) continue;
-      final start = item.startMinutes;
-      final end = item.endMinutes;
-      if (nowMinutes < start || nowMinutes >= end) continue;
-      if (best == null || item.startMinutes < best.startMinutes) {
-        best = item;
-      }
-    }
-    return best;
-  }
-
-  /// The group's next upcoming activity. First future item whose
-  /// groupIds include the group. Skips full-day items.
-  ScheduleItem? _nextFor(GroupSummary group, int nowMinutes) {
-    ScheduleItem? best;
-    for (final item in items) {
-      if (item.isFullDay) continue;
-      if (!item.groupIds.contains(group.id)) continue;
-      if (item.startMinutes <= nowMinutes) continue;
-      if (best == null || item.startMinutes < best.startMinutes) {
-        best = item;
-      }
-    }
-    return best;
-  }
-
-  /// Today's attendance summary for the group — present/absent/total
-  /// count rolled up from the kids assigned to this group. Null when
-  /// the group has no kids yet (brand-new group).
-  AttendanceSummary? _attendanceFor(GroupSummary group) {
-    var present = 0;
-    var absent = 0;
-    var total = 0;
-    for (final k in allKids) {
-      if (k.groupId != group.id) continue;
-      total++;
-      final status = attendanceMap[k.id]?.status;
-      if (status == AttendanceStatus.present) {
-        present++;
-      } else if (status == AttendanceStatus.absent) {
-        absent++;
-      }
-    }
-    if (total == 0) return null;
-    return AttendanceSummary(
-      present: present,
-      absent: absent,
-      total: total,
-    );
-  }
+  ConsumerState<_GroupChipRow> createState() => _GroupChipRowState();
 }
 
-/// Bottom-of-Today drawer collapsing the day-summary numbers and
-/// staff-today strip behind a single tap. Keeps the fold quiet — the
-/// counts are pre-open / end-of-day review material, not something
-/// the teacher needs while mid-day. Expanding shows both in the
-/// order they used to live at the top.
-class _ProgramStatsDrawer extends StatelessWidget {
-  const _ProgramStatsDrawer({
-    required this.now,
-    required this.activityCount,
-    required this.childrenCount,
-    required this.specialistCount,
-    required this.concernCount,
-    required this.pendingObs,
-    required this.onTapConcerns,
-    required this.onTapPending,
-  });
-
-  final DateTime now;
-  final int activityCount;
-  final int childrenCount;
-  final int specialistCount;
-  final int concernCount;
-  final int pendingObs;
-  final VoidCallback onTapConcerns;
-  final VoidCallback onTapPending;
+class _GroupChipRowState extends ConsumerState<_GroupChipRow> {
+  bool _autoSelected = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Theme(
-      // Kill the default ExpansionTile divider; we already sit inside
-      // a padded scroll view and the extra rule reads as noise.
-      data: theme.copyWith(dividerColor: Colors.transparent),
-      child: ExpansionTile(
-        tilePadding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm,
-        ),
-        childrenPadding: const EdgeInsets.only(top: AppSpacing.sm),
-        leading: Icon(
-          Icons.insights_outlined,
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-        title: Text(
-          'Program stats',
-          style: theme.textTheme.titleSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        subtitle: Text(
-          '$activityCount activities · $childrenCount children · '
-          '$specialistCount adults',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
+    final summariesAsync = ref.watch(groupSummariesProvider);
+    final summaries =
+        summariesAsync.asData?.value ?? const <GroupSummary>[];
+    if (summaries.isEmpty) return const SizedBox.shrink();
+
+    final selectedId = ref.watch(lastExpandedGroupProvider);
+
+    // First launch / stale selection → default-select the first
+    // group so the sections below have something to filter by. Done
+    // as a post-frame side effect to avoid modifying provider state
+    // during build.
+    if (!_autoSelected &&
+        (selectedId == null ||
+            !summaries.any((g) => g.id == selectedId))) {
+      _autoSelected = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(
+          ref
+              .read(lastExpandedGroupProvider.notifier)
+              .toggle(summaries.first.id),
+        );
+      });
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
         children: [
-          DaySummaryStrip(
-            activities: activityCount,
-            children: childrenCount,
-            specialists: specialistCount,
-            concerns: concernCount,
-            pendingObs: pendingObs,
-            onTapConcerns: onTapConcerns,
-            onTapPending: onTapPending,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          StaffTodayStrip(now: now),
+          for (final g in summaries) ...[
+            _GroupChip(
+              summary: g,
+              selected: g.id == selectedId,
+              onSelected: () => ref
+                  .read(lastExpandedGroupProvider.notifier)
+                  .toggle(g.id),
+              onLongPress: () =>
+                  GroupDetailScreen.open(context, g.id),
+              theme: theme,
+            ),
+            const SizedBox(width: AppSpacing.xs),
+          ],
         ],
       ),
     );
+  }
+}
+
+/// Single chip in the group row. Color dot pulls from the group's
+/// hex (falls back to primary) so the chip pops visually without
+/// fighting the global theme. Long-press drills into the group's
+/// detail screen — the common tap toggles selection.
+class _GroupChip extends StatelessWidget {
+  const _GroupChip({
+    required this.summary,
+    required this.selected,
+    required this.onSelected,
+    required this.onLongPress,
+    required this.theme,
+  });
+
+  final GroupSummary summary;
+  final bool selected;
+  final VoidCallback onSelected;
+  final VoidCallback onLongPress;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _parseHex(summary.group.colorHex) ??
+        theme.colorScheme.primary;
+    return GestureDetector(
+      onLongPress: onLongPress,
+      child: FilterChip(
+        selected: selected,
+        onSelected: (_) => onSelected(),
+        showCheckmark: false,
+        avatar: Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        label: Text(
+          '${summary.name} · ${summary.childCount}',
+          style: theme.textTheme.labelMedium,
+        ),
+      ),
+    );
+  }
+
+  Color? _parseHex(String? hex) {
+    if (hex == null) return null;
+    final h = hex.startsWith('#') ? hex.substring(1) : hex;
+    if (h.length != 6 && h.length != 8) return null;
+    final intVal = int.tryParse(h, radix: 16);
+    if (intVal == null) return null;
+    return Color(h.length == 6 ? 0xFF000000 | intVal : intVal);
   }
 }
 
