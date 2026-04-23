@@ -188,6 +188,22 @@ class ChildrenRepository {
   Future<void> deleteChild(String id) async {
     await (_db.delete(_db.children)..where((k) => k.id.equals(id))).go();
   }
+
+  /// Re-insert a previously-deleted group row. Used by the undo
+  /// snackbar on delete. Cascaded joins (children's groupId pointers
+  /// set null, rooms' default_for_group_id set null, etc.) are NOT
+  /// automatically re-linked — the group comes back empty. That's
+  /// an accepted tradeoff for the 5-second undo window; a mistaken
+  /// delete typically hasn't lost meaningful pairings.
+  Future<void> restoreGroup(Group row) async {
+    await _db.into(_db.groups).insertOnConflictUpdate(row);
+  }
+
+  /// Re-insert a previously-deleted child row. See [restoreGroup]
+  /// for the cascade caveat.
+  Future<void> restoreChild(Child row) async {
+    await _db.into(_db.children).insertOnConflictUpdate(row);
+  }
 }
 
 final childrenRepositoryProvider = Provider<ChildrenRepository>((ref) {

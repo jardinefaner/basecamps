@@ -4,8 +4,8 @@ import 'package:basecamp/features/rooms/rooms_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
-import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
+import 'package:basecamp/ui/undo_delete.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -82,16 +82,21 @@ class _EditRoomSheetState extends ConsumerState<EditRoomSheet> {
   Future<void> _delete() async {
     if (!_isEdit) return;
     final room = widget.room!;
-    final confirmed = await showConfirmDialog(
+    final navigator = Navigator.of(context);
+    final confirmed = await confirmDeleteWithUndo(
       context: context,
       title: 'Delete "${room.name}"?',
-      message: 'Activities that pointed at this room keep their free-form '
-          'location string; the link just goes away. Cannot be undone.',
+      message: 'Activities that pointed at this room keep their '
+          'free-form location string; the link just goes away. '
+          "You'll get a 5-second window to undo.",
+      onDelete: () =>
+          ref.read(roomsRepositoryProvider).deleteRoom(room.id),
+      undoLabel: '"${room.name}" removed',
+      onUndo: () =>
+          ref.read(roomsRepositoryProvider).restoreRoom(room),
     );
     if (!confirmed || !mounted) return;
-    await ref.read(roomsRepositoryProvider).deleteRoom(room.id);
-    if (!mounted) return;
-    Navigator.of(context).pop();
+    navigator.pop();
   }
 
   @override

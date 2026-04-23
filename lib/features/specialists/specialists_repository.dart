@@ -117,6 +117,23 @@ class SpecialistsRepository {
     await (_db.delete(_db.specialists)..where((s) => s.id.isIn(list))).go();
   }
 
+  /// Re-insert a previously-deleted adult row. Used by the undo
+  /// snackbar on delete. Cascaded joins (availability rows, day-
+  /// timeline blocks, observation authorship by name) aren't
+  /// restored — same 5-second-window tradeoff as other restores.
+  Future<void> restoreSpecialist(Specialist row) async {
+    await _db.into(_db.specialists).insertOnConflictUpdate(row);
+  }
+
+  /// Batch restore for bulk-undo on the Adults screen.
+  Future<void> restoreSpecialists(Iterable<Specialist> rows) async {
+    await _db.transaction(() async {
+      for (final row in rows) {
+        await _db.into(_db.specialists).insertOnConflictUpdate(row);
+      }
+    });
+  }
+
   // -------- Availability --------
 
   Stream<List<SpecialistAvailabilityData>> watchAvailabilityFor(

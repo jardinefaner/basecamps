@@ -103,6 +103,23 @@ class TripsRepository {
     await (_db.delete(_db.trips)..where((t) => t.id.isIn(list))).go();
   }
 
+  /// Re-insert a previously-deleted trip row for the undo snackbar.
+  /// Cascaded joins (trip_groups, any schedule_entries that
+  /// referenced this trip) aren't restored.
+  Future<void> restoreTrip(Trip row) async {
+    await _db.into(_db.trips).insertOnConflictUpdate(row);
+  }
+
+  /// Batch restore for bulk-undo. Writes in one transaction so
+  /// partial failures don't leave half a selection re-inserted.
+  Future<void> restoreTrips(Iterable<Trip> rows) async {
+    await _db.transaction(() async {
+      for (final row in rows) {
+        await _db.into(_db.trips).insertOnConflictUpdate(row);
+      }
+    });
+  }
+
   DateTime _dayOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 }
 

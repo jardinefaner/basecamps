@@ -11,6 +11,7 @@ import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
+import 'package:basecamp/ui/undo_delete.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -191,14 +192,26 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
 
   Future<void> _delete() async {
     if (!_isEdit) return;
-    await ref
-        .read(specialistsRepositoryProvider)
-        .deleteSpecialist(widget.specialist!.id);
-    if (!mounted) return;
+    final existing = widget.specialist!;
+    final navigator = Navigator.of(context);
+    final confirmed = await confirmDeleteWithUndo(
+      context: context,
+      title: 'Remove ${existing.name}?',
+      message: "You'll get a 5-second window to undo.",
+      onDelete: () => ref
+          .read(specialistsRepositoryProvider)
+          .deleteSpecialist(existing.id),
+      undoLabel: '${existing.name} removed',
+      onUndo: () => ref
+          .read(specialistsRepositoryProvider)
+          .restoreSpecialist(existing),
+    );
+    if (!confirmed || !mounted) return;
     // Pop the sheet AND the detail screen beneath it so the teacher
-    // lands back on the Adults list. Captures the navigator first
-    // because `context` is invalidated by the first pop.
-    Navigator.of(context)
+    // lands back on the Adults list. If they hit Undo, the sheet is
+    // already closed but the row reappears in the list — that's
+    // fine.
+    navigator
       ..pop() // sheet
       ..pop(); // detail
   }

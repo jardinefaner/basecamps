@@ -4,8 +4,8 @@ import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
-import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
+import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -139,21 +139,26 @@ class _EditChildSheetState extends ConsumerState<EditChildSheet> {
   Future<void> _delete() async {
     final existing = widget.child;
     if (existing == null) return;
-    final confirmed = await showConfirmDialog(
+    final navigator = Navigator.of(context);
+    final confirmed = await confirmDeleteWithUndo(
       context: context,
       title: 'Remove ${existing.firstName}?',
       message:
-          'Observations and tags stay — only this child record is removed.',
-      confirmLabel: 'Remove',
+          'Observations and tags stay — only this child record is '
+          "removed. You'll get a 5-second window to undo.",
+      onDelete: () => ref
+          .read(childrenRepositoryProvider)
+          .deleteChild(existing.id),
+      undoLabel: '${existing.firstName} removed',
+      onUndo: () => ref
+          .read(childrenRepositoryProvider)
+          .restoreChild(existing),
     );
-    if (!confirmed) return;
-    await ref.read(childrenRepositoryProvider).deleteChild(existing.id);
-    if (!mounted) return;
+    if (!confirmed || !mounted) return;
     // Pop the sheet AND the detail screen beneath it so the teacher
     // lands back on the Children list — otherwise they'd be stranded
-    // on a "Child not found" page. Captures the navigator first
-    // because `context` is invalidated by the first pop.
-    Navigator.of(context)
+    // on a "Child not found" page.
+    navigator
       ..pop() // sheet
       ..pop(); // detail
   }

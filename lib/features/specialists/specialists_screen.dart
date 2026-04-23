@@ -5,7 +5,7 @@ import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:basecamp/ui/bulk_selection.dart';
-import 'package:basecamp/ui/confirm_dialog.dart';
+import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -35,19 +35,33 @@ class _SpecialistsScreenState extends ConsumerState<SpecialistsScreen>
   Future<void> _deleteSelected() async {
     final count = selectedCount;
     if (count == 0) return;
-    final confirmed = await showConfirmDialog(
+    // Snapshot the selected rows before delete so undo can restore
+    // them — ids alone aren't enough; we need the full Specialist
+    // objects to re-insert.
+    final toDelete = selectedIds.toList();
+    final all =
+        ref.read(specialistsProvider).asData?.value ??
+            const <Specialist>[];
+    final snapshot = [
+      for (final s in all)
+        if (toDelete.contains(s.id)) s,
+    ];
+    final confirmed = await confirmDeleteWithUndo(
       context: context,
       title: count == 1 ? 'Remove this adult?' : 'Remove $count adults?',
       message:
           'Activities they were running keep their times and details — '
           'the adult slot just becomes empty.',
       confirmLabel: count == 1 ? 'Remove' : 'Remove $count',
+      onDelete: () => ref
+          .read(specialistsRepositoryProvider)
+          .deleteSpecialists(toDelete),
+      undoLabel: count == 1 ? 'Adult removed' : '$count adults removed',
+      onUndo: () => ref
+          .read(specialistsRepositoryProvider)
+          .restoreSpecialists(snapshot),
     );
-    if (!confirmed) return;
-    await ref
-        .read(specialistsRepositoryProvider)
-        .deleteSpecialists(selectedIds.toList());
-    if (!mounted) return;
+    if (!confirmed || !mounted) return;
     clearSelection();
   }
 

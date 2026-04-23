@@ -3,7 +3,7 @@ import 'package:basecamp/features/trips/trips_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/address_field.dart';
 import 'package:basecamp/ui/app_card.dart';
-import 'package:basecamp/ui/confirm_dialog.dart';
+import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -119,15 +119,22 @@ class TripDetailScreen extends ConsumerWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showConfirmDialog(
+    final repo = ref.read(tripsRepositoryProvider);
+    final trip = await repo.getTrip(tripId);
+    if (trip == null || !context.mounted) return;
+    final navigator = Navigator.of(context);
+    final confirmed = await confirmDeleteWithUndo(
       context: context,
       title: 'Delete trip?',
-      message: 'This also removes the trip from the calendar. '
-          'Photos and observations tagged to this trip are kept.',
+      message: 'This also removes the trip from the calendar. Photos '
+          'and observations tagged to this trip are kept. '
+          "You'll get a 5-second window to undo.",
+      onDelete: () => repo.deleteTrip(tripId),
+      undoLabel: '"${trip.name}" removed',
+      onUndo: () => repo.restoreTrip(trip),
     );
-    if (!confirmed || !context.mounted) return;
-    await ref.read(tripsRepositoryProvider).deleteTrip(tripId);
-    if (context.mounted) Navigator.of(context).pop();
+    if (!confirmed) return;
+    navigator.pop();
   }
 
   String _formatRange(String? start, String? end) {

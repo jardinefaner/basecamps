@@ -1,9 +1,10 @@
+import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/trips/trips_repository.dart';
 import 'package:basecamp/features/trips/widgets/new_trip_wizard.dart';
 import 'package:basecamp/features/trips/widgets/trip_card.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/bulk_selection.dart';
-import 'package:basecamp/ui/confirm_dialog.dart';
+import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -29,19 +30,29 @@ class _TripsScreenState extends ConsumerState<TripsScreen>
   Future<void> _deleteSelected() async {
     final count = selectedCount;
     if (count == 0) return;
-    final confirmed = await showConfirmDialog(
+    final toDelete = selectedIds.toList();
+    final all = ref.read(tripsProvider).asData?.value ?? const <Trip>[];
+    final snapshot = [
+      for (final t in all)
+        if (toDelete.contains(t.id)) t,
+    ];
+    final confirmed = await confirmDeleteWithUndo(
       context: context,
       title: count == 1 ? 'Delete this trip?' : 'Delete $count trips?',
       message:
-          'Linked schedule entries go with them. Observations and photos '
-          'tagged to these trips are kept.',
+          'Linked schedule entries go with them. Observations and '
+          "photos tagged to these trips are kept. You'll get a "
+          '5-second window to undo.',
       confirmLabel: count == 1 ? 'Delete' : 'Delete $count',
+      onDelete: () => ref
+          .read(tripsRepositoryProvider)
+          .deleteTrips(toDelete),
+      undoLabel: count == 1 ? 'Trip removed' : '$count trips removed',
+      onUndo: () => ref
+          .read(tripsRepositoryProvider)
+          .restoreTrips(snapshot),
     );
-    if (!confirmed) return;
-    await ref
-        .read(tripsRepositoryProvider)
-        .deleteTrips(selectedIds.toList());
-    if (!mounted) return;
+    if (!confirmed || !mounted) return;
     clearSelection();
   }
 

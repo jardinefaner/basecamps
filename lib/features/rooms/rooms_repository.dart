@@ -89,6 +89,13 @@ class RoomsRepository {
   Future<void> deleteRoom(String id) async {
     await (_db.delete(_db.rooms)..where((r) => r.id.equals(id))).go();
   }
+
+  /// Re-insert a previously-deleted room row for the undo snackbar.
+  /// Cascaded nulls (schedule_entries.room_id, adults' references)
+  /// aren't re-linked — the room comes back unassigned.
+  Future<void> restoreRoom(Room row) async {
+    await _db.into(_db.rooms).insertOnConflictUpdate(row);
+  }
 }
 
 final roomsRepositoryProvider = Provider<RoomsRepository>((ref) {

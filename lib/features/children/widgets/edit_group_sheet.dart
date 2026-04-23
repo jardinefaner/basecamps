@@ -4,8 +4,8 @@ import 'package:basecamp/features/children/group_colors.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
-import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
+import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -56,18 +56,23 @@ class _EditGroupSheetState extends ConsumerState<EditGroupSheet> {
   }
 
   Future<void> _delete() async {
-    final confirmed = await showConfirmDialog(
+    final group = widget.group;
+    final navigator = Navigator.of(context);
+    final confirmed = await confirmDeleteWithUndo(
       context: context,
-      title: 'Delete "${widget.group.name}"?',
-      message: 'Children in this group become unassigned — they stay on the '
-          'Children tab and keep their profiles, notes, and observations. '
-          'Cannot be undone.',
+      title: 'Delete "${group.name}"?',
+      message: 'Children in this group become unassigned — they stay on '
+          'the Children tab and keep their profiles, notes, and '
+          "observations. You'll get a 5-second window to undo.",
       confirmLabel: 'Delete group',
+      onDelete: () =>
+          ref.read(childrenRepositoryProvider).deleteGroup(group.id),
+      undoLabel: '"${group.name}" removed',
+      onUndo: () =>
+          ref.read(childrenRepositoryProvider).restoreGroup(group),
     );
-    if (!confirmed) return;
-    await ref.read(childrenRepositoryProvider).deleteGroup(widget.group.id);
-    if (!mounted) return;
-    Navigator.of(context).pop();
+    if (!confirmed || !mounted) return;
+    navigator.pop();
   }
 
   @override
