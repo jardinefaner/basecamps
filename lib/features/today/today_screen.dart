@@ -16,6 +16,7 @@ import 'package:basecamp/features/schedule/widgets/add_activity_picker.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
 import 'package:basecamp/features/today/last_expanded_group.dart';
 import 'package:basecamp/features/today/today_buckets.dart';
+import 'package:basecamp/features/today/today_mode.dart';
 import 'package:basecamp/features/today/widgets/all_day_carousel.dart';
 import 'package:basecamp/features/today/widgets/day_summary_strip.dart';
 import 'package:basecamp/features/today/widgets/earlier_today_group.dart';
@@ -23,6 +24,7 @@ import 'package:basecamp/features/today/widgets/hero_now_card.dart';
 import 'package:basecamp/features/today/widgets/lateness_flags_strip.dart';
 import 'package:basecamp/features/today/widgets/schedule_item_card.dart';
 import 'package:basecamp/features/today/widgets/staff_today_strip.dart';
+import 'package:basecamp/features/today/widgets/today_agenda.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
@@ -396,14 +398,28 @@ class _Body extends ConsumerWidget {
           const SizedBox(height: AppSpacing.md),
         ],
 
+        // Mode toggle — Groups view vs Agenda view. Coexist by
+        // design; teachers pick based on the question they want
+        // answered right now. Persists across launches via
+        // todayModeProvider.
+        _TodayModeToggle(mode: ref.watch(todayModeProvider)),
+        const SizedBox(height: AppSpacing.md),
+
         // Group chip selector — horizontally scrollable row of groups.
-        // Tap a chip to filter the hero / upcoming / earlier sections
-        // below to that group's schedule (their own activities plus
-        // program-wide items). Self-hides when no groups exist, in
-        // which case the lower sections show the full unfiltered
-        // schedule so brand-new installs still see a useful Today.
+        // Same in both modes: in Groups mode it drives the hero/
+        // upcoming/earlier filter; in Agenda mode it scopes the
+        // chronological feed to the selected group + program-wide +
+        // that group's leads' breaks.
         const _GroupChipRow(),
         const SizedBox(height: AppSpacing.md),
+
+        // Body branches on mode. Agenda mode renders the calendar
+        // synthesizer's chronological feed; Groups mode keeps the
+        // hero / upcoming / earlier layout below.
+        if (ref.watch(todayModeProvider) == TodayMode.agenda) ...[
+          TodayAgendaView(now: now),
+          const SizedBox(height: AppSpacing.xl),
+        ] else ...[
 
         // Hero "right now" card — dominates the fold when an activity
         // is in progress. When several activities overlap the primary
@@ -496,9 +512,9 @@ class _Body extends ConsumerWidget {
             ],
           ),
         ],
-        // Staff-today strip at the bottom — still collapsible, still
-        // handy for end-of-day roll review. Kept below earlier-today
-        // so it doesn't compete with the day's chronological flow.
+        ], // end Groups-mode body
+        // Staff-today strip at the bottom in both modes — still
+        // collapsible, still handy for end-of-day roll review.
         const SizedBox(height: AppSpacing.md),
         StaffTodayStrip(now: now),
         ]),
@@ -664,6 +680,42 @@ class _WrapUpBanner extends StatelessWidget {
               child: const Text('Review'),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Groups vs Agenda mode toggle. Small pill row — "Groups" lens
+/// for the per-group NOW / NEXT / EARLIER focus, "Agenda" lens for
+/// the chronological feed that weaves activities + trips + (for
+/// the selected group's leads) breaks.
+class _TodayModeToggle extends ConsumerWidget {
+  const _TodayModeToggle({required this.mode});
+
+  final TodayMode mode;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SegmentedButton<TodayMode>(
+      segments: const [
+        ButtonSegment<TodayMode>(
+          value: TodayMode.groups,
+          label: Text('Groups'),
+          icon: Icon(Icons.groups_2_outlined, size: 16),
+        ),
+        ButtonSegment<TodayMode>(
+          value: TodayMode.agenda,
+          label: Text('Agenda'),
+          icon: Icon(Icons.schedule_outlined, size: 16),
+        ),
+      ],
+      selected: {mode},
+      onSelectionChanged: (set) {
+        if (set.isEmpty) return;
+        unawaited(ref.read(todayModeProvider.notifier).set(set.first));
+      },
+      style: const ButtonStyle(
+        visualDensity: VisualDensity.compact,
       ),
     );
   }
