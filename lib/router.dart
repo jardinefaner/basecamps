@@ -4,6 +4,8 @@ import 'package:basecamp/features/children/children_screen.dart';
 import 'package:basecamp/features/forms/forms_hub_screen.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_notes_screen.dart';
+import 'package:basecamp/features/forms/polymorphic/generic_form_list_screen.dart';
+import 'package:basecamp/features/forms/polymorphic/registry.dart';
 import 'package:basecamp/features/launcher/launcher_screen.dart';
 import 'package:basecamp/features/more/more_screen.dart';
 import 'package:basecamp/features/observations/observations_screen.dart';
@@ -17,7 +19,7 @@ import 'package:basecamp/features/today/today_screen.dart';
 import 'package:basecamp/features/trips/trip_detail_screen.dart';
 import 'package:basecamp/features/trips/trips_screen.dart';
 import 'package:basecamp/ui/app_scaffold.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -164,6 +166,32 @@ final routerProvider = Provider<GoRouter>((ref) {
                     path: 'forms',
                     builder: (_, _) => const FormsHubScreen(),
                     routes: [
+                      GoRoute(
+                        path: 'type/:typeKey',
+                        builder: (_, state) {
+                          final typeKey =
+                              state.pathParameters['typeKey']!;
+                          final def = formDefinitionFor(typeKey);
+                          if (def == null) {
+                            return Scaffold(
+                              appBar: AppBar(
+                                title: const Text('Forms'),
+                              ),
+                              body: Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Text(
+                                    'Unknown form type: $typeKey',
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                          return GenericFormListScreen(
+                            definition: def,
+                          );
+                        },
+                      ),
                       GoRoute(
                         path: 'parent-concern',
                         builder: (_, _) =>

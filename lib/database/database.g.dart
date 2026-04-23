@@ -13765,6 +13765,813 @@ class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
   }
 }
 
+class $FormSubmissionsTable extends FormSubmissions
+    with TableInfo<$FormSubmissionsTable, FormSubmission> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FormSubmissionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _formTypeMeta = const VerificationMeta(
+    'formType',
+  );
+  @override
+  late final GeneratedColumn<String> formType = GeneratedColumn<String>(
+    'form_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('draft'),
+  );
+  static const VerificationMeta _submittedAtMeta = const VerificationMeta(
+    'submittedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> submittedAt = GeneratedColumn<DateTime>(
+    'submitted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _authorNameMeta = const VerificationMeta(
+    'authorName',
+  );
+  @override
+  late final GeneratedColumn<String> authorName = GeneratedColumn<String>(
+    'author_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _childIdMeta = const VerificationMeta(
+    'childId',
+  );
+  @override
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+    'child_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES children (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _groupIdMeta = const VerificationMeta(
+    'groupId',
+  );
+  @override
+  late final GeneratedColumn<String> groupId = GeneratedColumn<String>(
+    'group_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES "groups" (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _tripIdMeta = const VerificationMeta('tripId');
+  @override
+  late final GeneratedColumn<String> tripId = GeneratedColumn<String>(
+    'trip_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES trips (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _parentSubmissionIdMeta =
+      const VerificationMeta('parentSubmissionId');
+  @override
+  late final GeneratedColumn<String> parentSubmissionId =
+      GeneratedColumn<String>(
+        'parent_submission_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES form_submissions (id) ON DELETE SET NULL',
+        ),
+      );
+  static const VerificationMeta _reviewDueAtMeta = const VerificationMeta(
+    'reviewDueAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> reviewDueAt = GeneratedColumn<DateTime>(
+    'review_due_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _dataMeta = const VerificationMeta('data');
+  @override
+  late final GeneratedColumn<String> data = GeneratedColumn<String>(
+    'data',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    formType,
+    status,
+    submittedAt,
+    authorName,
+    childId,
+    groupId,
+    tripId,
+    parentSubmissionId,
+    reviewDueAt,
+    data,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'form_submissions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<FormSubmission> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('form_type')) {
+      context.handle(
+        _formTypeMeta,
+        formType.isAcceptableOrUnknown(data['form_type']!, _formTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_formTypeMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('submitted_at')) {
+      context.handle(
+        _submittedAtMeta,
+        submittedAt.isAcceptableOrUnknown(
+          data['submitted_at']!,
+          _submittedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('author_name')) {
+      context.handle(
+        _authorNameMeta,
+        authorName.isAcceptableOrUnknown(data['author_name']!, _authorNameMeta),
+      );
+    }
+    if (data.containsKey('child_id')) {
+      context.handle(
+        _childIdMeta,
+        childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta),
+      );
+    }
+    if (data.containsKey('group_id')) {
+      context.handle(
+        _groupIdMeta,
+        groupId.isAcceptableOrUnknown(data['group_id']!, _groupIdMeta),
+      );
+    }
+    if (data.containsKey('trip_id')) {
+      context.handle(
+        _tripIdMeta,
+        tripId.isAcceptableOrUnknown(data['trip_id']!, _tripIdMeta),
+      );
+    }
+    if (data.containsKey('parent_submission_id')) {
+      context.handle(
+        _parentSubmissionIdMeta,
+        parentSubmissionId.isAcceptableOrUnknown(
+          data['parent_submission_id']!,
+          _parentSubmissionIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('review_due_at')) {
+      context.handle(
+        _reviewDueAtMeta,
+        reviewDueAt.isAcceptableOrUnknown(
+          data['review_due_at']!,
+          _reviewDueAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('data')) {
+      context.handle(
+        _dataMeta,
+        this.data.isAcceptableOrUnknown(data['data']!, _dataMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  FormSubmission map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FormSubmission(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      formType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}form_type'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      submittedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}submitted_at'],
+      ),
+      authorName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}author_name'],
+      ),
+      childId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}child_id'],
+      ),
+      groupId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}group_id'],
+      ),
+      tripId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trip_id'],
+      ),
+      parentSubmissionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}parent_submission_id'],
+      ),
+      reviewDueAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}review_due_at'],
+      ),
+      data: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}data'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $FormSubmissionsTable createAlias(String alias) {
+    return $FormSubmissionsTable(attachedDatabase, alias);
+  }
+}
+
+class FormSubmission extends DataClass implements Insertable<FormSubmission> {
+  final String id;
+
+  /// Short string that identifies the form type — e.g. 'vehicle_check',
+  /// 'behavior_monitoring'. Resolved to a `FormDefinition` in Dart.
+  /// Values stay stable forever (they're the on-disk encoding); new
+  /// form types are new strings, not renames.
+  final String formType;
+
+  /// Lifecycle state. 'draft' is the default for a just-opened form;
+  /// 'active', 'completed', 'archived' are form-type-specific phase
+  /// labels — the monitoring form moves through active → completed;
+  /// simpler forms jump straight to completed on save.
+  final String status;
+
+  /// Stamped when the teacher hits Save on a finished submission.
+  /// Null while still being edited.
+  final DateTime? submittedAt;
+
+  /// Free-text author for now. Becomes a logged-in-user FK later
+  /// without a schema change.
+  final String? authorName;
+  final String? childId;
+  final String? groupId;
+  final String? tripId;
+
+  /// Self-reference — a Behavior Monitoring submission points at the
+  /// Parent Concern it follows up on. Generalizable to any
+  /// follow-up-style form linking to a parent form.
+  final String? parentSubmissionId;
+
+  /// Optional review / follow-up deadline. Today's flags strip scans
+  /// this column across all form types to surface "monitoring review
+  /// due" and future "incident report overdue" signals with one
+  /// query. Null = no deadline.
+  final DateTime? reviewDueAt;
+
+  /// JSON-encoded map of answers keyed by FormField.key. Defaults to
+  /// an empty object so a fresh draft row is valid.
+  final String data;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const FormSubmission({
+    required this.id,
+    required this.formType,
+    required this.status,
+    this.submittedAt,
+    this.authorName,
+    this.childId,
+    this.groupId,
+    this.tripId,
+    this.parentSubmissionId,
+    this.reviewDueAt,
+    required this.data,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['form_type'] = Variable<String>(formType);
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || submittedAt != null) {
+      map['submitted_at'] = Variable<DateTime>(submittedAt);
+    }
+    if (!nullToAbsent || authorName != null) {
+      map['author_name'] = Variable<String>(authorName);
+    }
+    if (!nullToAbsent || childId != null) {
+      map['child_id'] = Variable<String>(childId);
+    }
+    if (!nullToAbsent || groupId != null) {
+      map['group_id'] = Variable<String>(groupId);
+    }
+    if (!nullToAbsent || tripId != null) {
+      map['trip_id'] = Variable<String>(tripId);
+    }
+    if (!nullToAbsent || parentSubmissionId != null) {
+      map['parent_submission_id'] = Variable<String>(parentSubmissionId);
+    }
+    if (!nullToAbsent || reviewDueAt != null) {
+      map['review_due_at'] = Variable<DateTime>(reviewDueAt);
+    }
+    map['data'] = Variable<String>(data);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  FormSubmissionsCompanion toCompanion(bool nullToAbsent) {
+    return FormSubmissionsCompanion(
+      id: Value(id),
+      formType: Value(formType),
+      status: Value(status),
+      submittedAt: submittedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(submittedAt),
+      authorName: authorName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(authorName),
+      childId: childId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(childId),
+      groupId: groupId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(groupId),
+      tripId: tripId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(tripId),
+      parentSubmissionId: parentSubmissionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(parentSubmissionId),
+      reviewDueAt: reviewDueAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reviewDueAt),
+      data: Value(data),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory FormSubmission.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FormSubmission(
+      id: serializer.fromJson<String>(json['id']),
+      formType: serializer.fromJson<String>(json['formType']),
+      status: serializer.fromJson<String>(json['status']),
+      submittedAt: serializer.fromJson<DateTime?>(json['submittedAt']),
+      authorName: serializer.fromJson<String?>(json['authorName']),
+      childId: serializer.fromJson<String?>(json['childId']),
+      groupId: serializer.fromJson<String?>(json['groupId']),
+      tripId: serializer.fromJson<String?>(json['tripId']),
+      parentSubmissionId: serializer.fromJson<String?>(
+        json['parentSubmissionId'],
+      ),
+      reviewDueAt: serializer.fromJson<DateTime?>(json['reviewDueAt']),
+      data: serializer.fromJson<String>(json['data']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'formType': serializer.toJson<String>(formType),
+      'status': serializer.toJson<String>(status),
+      'submittedAt': serializer.toJson<DateTime?>(submittedAt),
+      'authorName': serializer.toJson<String?>(authorName),
+      'childId': serializer.toJson<String?>(childId),
+      'groupId': serializer.toJson<String?>(groupId),
+      'tripId': serializer.toJson<String?>(tripId),
+      'parentSubmissionId': serializer.toJson<String?>(parentSubmissionId),
+      'reviewDueAt': serializer.toJson<DateTime?>(reviewDueAt),
+      'data': serializer.toJson<String>(data),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  FormSubmission copyWith({
+    String? id,
+    String? formType,
+    String? status,
+    Value<DateTime?> submittedAt = const Value.absent(),
+    Value<String?> authorName = const Value.absent(),
+    Value<String?> childId = const Value.absent(),
+    Value<String?> groupId = const Value.absent(),
+    Value<String?> tripId = const Value.absent(),
+    Value<String?> parentSubmissionId = const Value.absent(),
+    Value<DateTime?> reviewDueAt = const Value.absent(),
+    String? data,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => FormSubmission(
+    id: id ?? this.id,
+    formType: formType ?? this.formType,
+    status: status ?? this.status,
+    submittedAt: submittedAt.present ? submittedAt.value : this.submittedAt,
+    authorName: authorName.present ? authorName.value : this.authorName,
+    childId: childId.present ? childId.value : this.childId,
+    groupId: groupId.present ? groupId.value : this.groupId,
+    tripId: tripId.present ? tripId.value : this.tripId,
+    parentSubmissionId: parentSubmissionId.present
+        ? parentSubmissionId.value
+        : this.parentSubmissionId,
+    reviewDueAt: reviewDueAt.present ? reviewDueAt.value : this.reviewDueAt,
+    data: data ?? this.data,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  FormSubmission copyWithCompanion(FormSubmissionsCompanion data) {
+    return FormSubmission(
+      id: data.id.present ? data.id.value : this.id,
+      formType: data.formType.present ? data.formType.value : this.formType,
+      status: data.status.present ? data.status.value : this.status,
+      submittedAt: data.submittedAt.present
+          ? data.submittedAt.value
+          : this.submittedAt,
+      authorName: data.authorName.present
+          ? data.authorName.value
+          : this.authorName,
+      childId: data.childId.present ? data.childId.value : this.childId,
+      groupId: data.groupId.present ? data.groupId.value : this.groupId,
+      tripId: data.tripId.present ? data.tripId.value : this.tripId,
+      parentSubmissionId: data.parentSubmissionId.present
+          ? data.parentSubmissionId.value
+          : this.parentSubmissionId,
+      reviewDueAt: data.reviewDueAt.present
+          ? data.reviewDueAt.value
+          : this.reviewDueAt,
+      data: data.data.present ? data.data.value : this.data,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FormSubmission(')
+          ..write('id: $id, ')
+          ..write('formType: $formType, ')
+          ..write('status: $status, ')
+          ..write('submittedAt: $submittedAt, ')
+          ..write('authorName: $authorName, ')
+          ..write('childId: $childId, ')
+          ..write('groupId: $groupId, ')
+          ..write('tripId: $tripId, ')
+          ..write('parentSubmissionId: $parentSubmissionId, ')
+          ..write('reviewDueAt: $reviewDueAt, ')
+          ..write('data: $data, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    formType,
+    status,
+    submittedAt,
+    authorName,
+    childId,
+    groupId,
+    tripId,
+    parentSubmissionId,
+    reviewDueAt,
+    data,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FormSubmission &&
+          other.id == this.id &&
+          other.formType == this.formType &&
+          other.status == this.status &&
+          other.submittedAt == this.submittedAt &&
+          other.authorName == this.authorName &&
+          other.childId == this.childId &&
+          other.groupId == this.groupId &&
+          other.tripId == this.tripId &&
+          other.parentSubmissionId == this.parentSubmissionId &&
+          other.reviewDueAt == this.reviewDueAt &&
+          other.data == this.data &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class FormSubmissionsCompanion extends UpdateCompanion<FormSubmission> {
+  final Value<String> id;
+  final Value<String> formType;
+  final Value<String> status;
+  final Value<DateTime?> submittedAt;
+  final Value<String?> authorName;
+  final Value<String?> childId;
+  final Value<String?> groupId;
+  final Value<String?> tripId;
+  final Value<String?> parentSubmissionId;
+  final Value<DateTime?> reviewDueAt;
+  final Value<String> data;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const FormSubmissionsCompanion({
+    this.id = const Value.absent(),
+    this.formType = const Value.absent(),
+    this.status = const Value.absent(),
+    this.submittedAt = const Value.absent(),
+    this.authorName = const Value.absent(),
+    this.childId = const Value.absent(),
+    this.groupId = const Value.absent(),
+    this.tripId = const Value.absent(),
+    this.parentSubmissionId = const Value.absent(),
+    this.reviewDueAt = const Value.absent(),
+    this.data = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  FormSubmissionsCompanion.insert({
+    required String id,
+    required String formType,
+    this.status = const Value.absent(),
+    this.submittedAt = const Value.absent(),
+    this.authorName = const Value.absent(),
+    this.childId = const Value.absent(),
+    this.groupId = const Value.absent(),
+    this.tripId = const Value.absent(),
+    this.parentSubmissionId = const Value.absent(),
+    this.reviewDueAt = const Value.absent(),
+    this.data = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       formType = Value(formType);
+  static Insertable<FormSubmission> custom({
+    Expression<String>? id,
+    Expression<String>? formType,
+    Expression<String>? status,
+    Expression<DateTime>? submittedAt,
+    Expression<String>? authorName,
+    Expression<String>? childId,
+    Expression<String>? groupId,
+    Expression<String>? tripId,
+    Expression<String>? parentSubmissionId,
+    Expression<DateTime>? reviewDueAt,
+    Expression<String>? data,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (formType != null) 'form_type': formType,
+      if (status != null) 'status': status,
+      if (submittedAt != null) 'submitted_at': submittedAt,
+      if (authorName != null) 'author_name': authorName,
+      if (childId != null) 'child_id': childId,
+      if (groupId != null) 'group_id': groupId,
+      if (tripId != null) 'trip_id': tripId,
+      if (parentSubmissionId != null)
+        'parent_submission_id': parentSubmissionId,
+      if (reviewDueAt != null) 'review_due_at': reviewDueAt,
+      if (data != null) 'data': data,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  FormSubmissionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? formType,
+    Value<String>? status,
+    Value<DateTime?>? submittedAt,
+    Value<String?>? authorName,
+    Value<String?>? childId,
+    Value<String?>? groupId,
+    Value<String?>? tripId,
+    Value<String?>? parentSubmissionId,
+    Value<DateTime?>? reviewDueAt,
+    Value<String>? data,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return FormSubmissionsCompanion(
+      id: id ?? this.id,
+      formType: formType ?? this.formType,
+      status: status ?? this.status,
+      submittedAt: submittedAt ?? this.submittedAt,
+      authorName: authorName ?? this.authorName,
+      childId: childId ?? this.childId,
+      groupId: groupId ?? this.groupId,
+      tripId: tripId ?? this.tripId,
+      parentSubmissionId: parentSubmissionId ?? this.parentSubmissionId,
+      reviewDueAt: reviewDueAt ?? this.reviewDueAt,
+      data: data ?? this.data,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (formType.present) {
+      map['form_type'] = Variable<String>(formType.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (submittedAt.present) {
+      map['submitted_at'] = Variable<DateTime>(submittedAt.value);
+    }
+    if (authorName.present) {
+      map['author_name'] = Variable<String>(authorName.value);
+    }
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
+    }
+    if (groupId.present) {
+      map['group_id'] = Variable<String>(groupId.value);
+    }
+    if (tripId.present) {
+      map['trip_id'] = Variable<String>(tripId.value);
+    }
+    if (parentSubmissionId.present) {
+      map['parent_submission_id'] = Variable<String>(parentSubmissionId.value);
+    }
+    if (reviewDueAt.present) {
+      map['review_due_at'] = Variable<DateTime>(reviewDueAt.value);
+    }
+    if (data.present) {
+      map['data'] = Variable<String>(data.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FormSubmissionsCompanion(')
+          ..write('id: $id, ')
+          ..write('formType: $formType, ')
+          ..write('status: $status, ')
+          ..write('submittedAt: $submittedAt, ')
+          ..write('authorName: $authorName, ')
+          ..write('childId: $childId, ')
+          ..write('groupId: $groupId, ')
+          ..write('tripId: $tripId, ')
+          ..write('parentSubmissionId: $parentSubmissionId, ')
+          ..write('reviewDueAt: $reviewDueAt, ')
+          ..write('data: $data, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -13805,6 +14612,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ChildScheduleOverridesTable childScheduleOverrides =
       $ChildScheduleOverridesTable(this);
   late final $AdultDayBlocksTable adultDayBlocks = $AdultDayBlocksTable(this);
+  late final $FormSubmissionsTable formSubmissions = $FormSubmissionsTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -13833,6 +14643,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     attendance,
     childScheduleOverrides,
     adultDayBlocks,
+    formSubmissions,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -14104,6 +14915,34 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       ),
       result: [TableUpdate('adult_day_blocks', kind: UpdateKind.update)],
     ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'children',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('form_submissions', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'groups',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('form_submissions', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'trips',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('form_submissions', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'form_submissions',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('form_submissions', kind: UpdateKind.update)],
+    ),
   ]);
 }
 
@@ -14317,6 +15156,26 @@ final class $$GroupsTableReferences
     ).filter((f) => f.groupId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_adultDayBlocksRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$FormSubmissionsTable, List<FormSubmission>>
+  _formSubmissionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.formSubmissions,
+    aliasName: $_aliasNameGenerator(db.groups.id, db.formSubmissions.groupId),
+  );
+
+  $$FormSubmissionsTableProcessedTableManager get formSubmissionsRefs {
+    final manager = $$FormSubmissionsTableTableManager(
+      $_db,
+      $_db.formSubmissions,
+    ).filter((f) => f.groupId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _formSubmissionsRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -14598,6 +15457,31 @@ class $$GroupsTableFilterComposer
           }) => $$AdultDayBlocksTableFilterComposer(
             $db: $db,
             $table: $db.adultDayBlocks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> formSubmissionsRefs(
+    Expression<bool> Function($$FormSubmissionsTableFilterComposer f) f,
+  ) {
+    final $$FormSubmissionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.formSubmissions,
+      getReferencedColumn: (t) => t.groupId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FormSubmissionsTableFilterComposer(
+            $db: $db,
+            $table: $db.formSubmissions,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -14917,6 +15801,31 @@ class $$GroupsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> formSubmissionsRefs<T extends Object>(
+    Expression<T> Function($$FormSubmissionsTableAnnotationComposer a) f,
+  ) {
+    final $$FormSubmissionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.formSubmissions,
+      getReferencedColumn: (t) => t.groupId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FormSubmissionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.formSubmissions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$GroupsTableTableManager
@@ -14943,6 +15852,7 @@ class $$GroupsTableTableManager
             bool templateGroupsRefs,
             bool entryGroupsRefs,
             bool adultDayBlocksRefs,
+            bool formSubmissionsRefs,
           })
         > {
   $$GroupsTableTableManager(_$AppDatabase db, $GroupsTable table)
@@ -15006,6 +15916,7 @@ class $$GroupsTableTableManager
                 templateGroupsRefs = false,
                 entryGroupsRefs = false,
                 adultDayBlocksRefs = false,
+                formSubmissionsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -15020,6 +15931,7 @@ class $$GroupsTableTableManager
                     if (templateGroupsRefs) db.templateGroups,
                     if (entryGroupsRefs) db.entryGroups,
                     if (adultDayBlocksRefs) db.adultDayBlocks,
+                    if (formSubmissionsRefs) db.formSubmissions,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -15222,6 +16134,27 @@ class $$GroupsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (formSubmissionsRefs)
+                        await $_getPrefetchedData<
+                          Group,
+                          $GroupsTable,
+                          FormSubmission
+                        >(
+                          currentTable: table,
+                          referencedTable: $$GroupsTableReferences
+                              ._formSubmissionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$GroupsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).formSubmissionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.groupId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -15253,6 +16186,7 @@ typedef $$GroupsTableProcessedTableManager =
         bool templateGroupsRefs,
         bool entryGroupsRefs,
         bool adultDayBlocksRefs,
+        bool formSubmissionsRefs,
       })
     >;
 typedef $$ChildrenTableCreateCompanionBuilder =
@@ -15445,6 +16379,26 @@ final class $$ChildrenTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _childScheduleOverridesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$FormSubmissionsTable, List<FormSubmission>>
+  _formSubmissionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.formSubmissions,
+    aliasName: $_aliasNameGenerator(db.children.id, db.formSubmissions.childId),
+  );
+
+  $$FormSubmissionsTableProcessedTableManager get formSubmissionsRefs {
+    final manager = $$FormSubmissionsTableTableManager(
+      $_db,
+      $_db.formSubmissions,
+    ).filter((f) => f.childId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _formSubmissionsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -15693,6 +16647,31 @@ class $$ChildrenTableFilterComposer
                     $removeJoinBuilderFromRootComposer,
               ),
         );
+    return f(composer);
+  }
+
+  Expression<bool> formSubmissionsRefs(
+    Expression<bool> Function($$FormSubmissionsTableFilterComposer f) f,
+  ) {
+    final $$FormSubmissionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.formSubmissions,
+      getReferencedColumn: (t) => t.childId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FormSubmissionsTableFilterComposer(
+            $db: $db,
+            $table: $db.formSubmissions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
     return f(composer);
   }
 }
@@ -16018,6 +16997,31 @@ class $$ChildrenTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> formSubmissionsRefs<T extends Object>(
+    Expression<T> Function($$FormSubmissionsTableAnnotationComposer a) f,
+  ) {
+    final $$FormSubmissionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.formSubmissions,
+      getReferencedColumn: (t) => t.childId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FormSubmissionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.formSubmissions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ChildrenTableTableManager
@@ -16041,6 +17045,7 @@ class $$ChildrenTableTableManager
             bool parentConcernChildrenRefs,
             bool attendanceRefs,
             bool childScheduleOverridesRefs,
+            bool formSubmissionsRefs,
           })
         > {
   $$ChildrenTableTableManager(_$AppDatabase db, $ChildrenTable table)
@@ -16135,6 +17140,7 @@ class $$ChildrenTableTableManager
                 parentConcernChildrenRefs = false,
                 attendanceRefs = false,
                 childScheduleOverridesRefs = false,
+                formSubmissionsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -16145,6 +17151,7 @@ class $$ChildrenTableTableManager
                     if (parentConcernChildrenRefs) db.parentConcernChildren,
                     if (attendanceRefs) db.attendance,
                     if (childScheduleOverridesRefs) db.childScheduleOverrides,
+                    if (formSubmissionsRefs) db.formSubmissions,
                   ],
                   addJoins:
                       <
@@ -16306,6 +17313,27 @@ class $$ChildrenTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (formSubmissionsRefs)
+                        await $_getPrefetchedData<
+                          Child,
+                          $ChildrenTable,
+                          FormSubmission
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ChildrenTableReferences
+                              ._formSubmissionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ChildrenTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).formSubmissionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.childId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -16334,6 +17362,7 @@ typedef $$ChildrenTableProcessedTableManager =
         bool parentConcernChildrenRefs,
         bool attendanceRefs,
         bool childScheduleOverridesRefs,
+        bool formSubmissionsRefs,
       })
     >;
 typedef $$TripsTableCreateCompanionBuilder =
@@ -16441,6 +17470,26 @@ final class $$TripsTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _scheduleEntriesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$FormSubmissionsTable, List<FormSubmission>>
+  _formSubmissionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.formSubmissions,
+    aliasName: $_aliasNameGenerator(db.trips.id, db.formSubmissions.tripId),
+  );
+
+  $$FormSubmissionsTableProcessedTableManager get formSubmissionsRefs {
+    final manager = $$FormSubmissionsTableTableManager(
+      $_db,
+      $_db.formSubmissions,
+    ).filter((f) => f.tripId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _formSubmissionsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -16597,6 +17646,31 @@ class $$TripsTableFilterComposer extends Composer<_$AppDatabase, $TripsTable> {
           }) => $$ScheduleEntriesTableFilterComposer(
             $db: $db,
             $table: $db.scheduleEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> formSubmissionsRefs(
+    Expression<bool> Function($$FormSubmissionsTableFilterComposer f) f,
+  ) {
+    final $$FormSubmissionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.formSubmissions,
+      getReferencedColumn: (t) => t.tripId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FormSubmissionsTableFilterComposer(
+            $db: $db,
+            $table: $db.formSubmissions,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -16809,6 +17883,31 @@ class $$TripsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> formSubmissionsRefs<T extends Object>(
+    Expression<T> Function($$FormSubmissionsTableAnnotationComposer a) f,
+  ) {
+    final $$FormSubmissionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.formSubmissions,
+      getReferencedColumn: (t) => t.tripId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FormSubmissionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.formSubmissions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$TripsTableTableManager
@@ -16829,6 +17928,7 @@ class $$TripsTableTableManager
             bool capturesRefs,
             bool observationsRefs,
             bool scheduleEntriesRefs,
+            bool formSubmissionsRefs,
           })
         > {
   $$TripsTableTableManager(_$AppDatabase db, $TripsTable table)
@@ -16906,6 +18006,7 @@ class $$TripsTableTableManager
                 capturesRefs = false,
                 observationsRefs = false,
                 scheduleEntriesRefs = false,
+                formSubmissionsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -16914,6 +18015,7 @@ class $$TripsTableTableManager
                     if (capturesRefs) db.captures,
                     if (observationsRefs) db.observations,
                     if (scheduleEntriesRefs) db.scheduleEntries,
+                    if (formSubmissionsRefs) db.formSubmissions,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -16994,6 +18096,27 @@ class $$TripsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (formSubmissionsRefs)
+                        await $_getPrefetchedData<
+                          Trip,
+                          $TripsTable,
+                          FormSubmission
+                        >(
+                          currentTable: table,
+                          referencedTable: $$TripsTableReferences
+                              ._formSubmissionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$TripsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).formSubmissionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.tripId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -17019,6 +18142,7 @@ typedef $$TripsTableProcessedTableManager =
         bool capturesRefs,
         bool observationsRefs,
         bool scheduleEntriesRefs,
+        bool formSubmissionsRefs,
       })
     >;
 typedef $$TripGroupsTableCreateCompanionBuilder =
@@ -28715,6 +29839,779 @@ typedef $$AdultDayBlocksTableProcessedTableManager =
       AdultDayBlock,
       PrefetchHooks Function({bool specialistId, bool groupId})
     >;
+typedef $$FormSubmissionsTableCreateCompanionBuilder =
+    FormSubmissionsCompanion Function({
+      required String id,
+      required String formType,
+      Value<String> status,
+      Value<DateTime?> submittedAt,
+      Value<String?> authorName,
+      Value<String?> childId,
+      Value<String?> groupId,
+      Value<String?> tripId,
+      Value<String?> parentSubmissionId,
+      Value<DateTime?> reviewDueAt,
+      Value<String> data,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$FormSubmissionsTableUpdateCompanionBuilder =
+    FormSubmissionsCompanion Function({
+      Value<String> id,
+      Value<String> formType,
+      Value<String> status,
+      Value<DateTime?> submittedAt,
+      Value<String?> authorName,
+      Value<String?> childId,
+      Value<String?> groupId,
+      Value<String?> tripId,
+      Value<String?> parentSubmissionId,
+      Value<DateTime?> reviewDueAt,
+      Value<String> data,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$FormSubmissionsTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $FormSubmissionsTable, FormSubmission> {
+  $$FormSubmissionsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ChildrenTable _childIdTable(_$AppDatabase db) =>
+      db.children.createAlias(
+        $_aliasNameGenerator(db.formSubmissions.childId, db.children.id),
+      );
+
+  $$ChildrenTableProcessedTableManager? get childId {
+    final $_column = $_itemColumn<String>('child_id');
+    if ($_column == null) return null;
+    final manager = $$ChildrenTableTableManager(
+      $_db,
+      $_db.children,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_childIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $GroupsTable _groupIdTable(_$AppDatabase db) => db.groups.createAlias(
+    $_aliasNameGenerator(db.formSubmissions.groupId, db.groups.id),
+  );
+
+  $$GroupsTableProcessedTableManager? get groupId {
+    final $_column = $_itemColumn<String>('group_id');
+    if ($_column == null) return null;
+    final manager = $$GroupsTableTableManager(
+      $_db,
+      $_db.groups,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_groupIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $TripsTable _tripIdTable(_$AppDatabase db) => db.trips.createAlias(
+    $_aliasNameGenerator(db.formSubmissions.tripId, db.trips.id),
+  );
+
+  $$TripsTableProcessedTableManager? get tripId {
+    final $_column = $_itemColumn<String>('trip_id');
+    if ($_column == null) return null;
+    final manager = $$TripsTableTableManager(
+      $_db,
+      $_db.trips,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_tripIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $FormSubmissionsTable _parentSubmissionIdTable(_$AppDatabase db) =>
+      db.formSubmissions.createAlias(
+        $_aliasNameGenerator(
+          db.formSubmissions.parentSubmissionId,
+          db.formSubmissions.id,
+        ),
+      );
+
+  $$FormSubmissionsTableProcessedTableManager? get parentSubmissionId {
+    final $_column = $_itemColumn<String>('parent_submission_id');
+    if ($_column == null) return null;
+    final manager = $$FormSubmissionsTableTableManager(
+      $_db,
+      $_db.formSubmissions,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_parentSubmissionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$FormSubmissionsTableFilterComposer
+    extends Composer<_$AppDatabase, $FormSubmissionsTable> {
+  $$FormSubmissionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get formType => $composableBuilder(
+    column: $table.formType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get submittedAt => $composableBuilder(
+    column: $table.submittedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get authorName => $composableBuilder(
+    column: $table.authorName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get reviewDueAt => $composableBuilder(
+    column: $table.reviewDueAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get data => $composableBuilder(
+    column: $table.data,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ChildrenTableFilterComposer get childId {
+    final $$ChildrenTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChildrenTableFilterComposer(
+            $db: $db,
+            $table: $db.children,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GroupsTableFilterComposer get groupId {
+    final $$GroupsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GroupsTableFilterComposer(
+            $db: $db,
+            $table: $db.groups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$TripsTableFilterComposer get tripId {
+    final $$TripsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.tripId,
+      referencedTable: $db.trips,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TripsTableFilterComposer(
+            $db: $db,
+            $table: $db.trips,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FormSubmissionsTableFilterComposer get parentSubmissionId {
+    final $$FormSubmissionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.parentSubmissionId,
+      referencedTable: $db.formSubmissions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FormSubmissionsTableFilterComposer(
+            $db: $db,
+            $table: $db.formSubmissions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FormSubmissionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $FormSubmissionsTable> {
+  $$FormSubmissionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get formType => $composableBuilder(
+    column: $table.formType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get submittedAt => $composableBuilder(
+    column: $table.submittedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get authorName => $composableBuilder(
+    column: $table.authorName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get reviewDueAt => $composableBuilder(
+    column: $table.reviewDueAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get data => $composableBuilder(
+    column: $table.data,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ChildrenTableOrderingComposer get childId {
+    final $$ChildrenTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChildrenTableOrderingComposer(
+            $db: $db,
+            $table: $db.children,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GroupsTableOrderingComposer get groupId {
+    final $$GroupsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GroupsTableOrderingComposer(
+            $db: $db,
+            $table: $db.groups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$TripsTableOrderingComposer get tripId {
+    final $$TripsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.tripId,
+      referencedTable: $db.trips,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TripsTableOrderingComposer(
+            $db: $db,
+            $table: $db.trips,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FormSubmissionsTableOrderingComposer get parentSubmissionId {
+    final $$FormSubmissionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.parentSubmissionId,
+      referencedTable: $db.formSubmissions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FormSubmissionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.formSubmissions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FormSubmissionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FormSubmissionsTable> {
+  $$FormSubmissionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get formType =>
+      $composableBuilder(column: $table.formType, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get submittedAt => $composableBuilder(
+    column: $table.submittedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get authorName => $composableBuilder(
+    column: $table.authorName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get reviewDueAt => $composableBuilder(
+    column: $table.reviewDueAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get data =>
+      $composableBuilder(column: $table.data, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$ChildrenTableAnnotationComposer get childId {
+    final $$ChildrenTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChildrenTableAnnotationComposer(
+            $db: $db,
+            $table: $db.children,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GroupsTableAnnotationComposer get groupId {
+    final $$GroupsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GroupsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.groups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$TripsTableAnnotationComposer get tripId {
+    final $$TripsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.tripId,
+      referencedTable: $db.trips,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TripsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.trips,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FormSubmissionsTableAnnotationComposer get parentSubmissionId {
+    final $$FormSubmissionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.parentSubmissionId,
+      referencedTable: $db.formSubmissions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FormSubmissionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.formSubmissions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FormSubmissionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FormSubmissionsTable,
+          FormSubmission,
+          $$FormSubmissionsTableFilterComposer,
+          $$FormSubmissionsTableOrderingComposer,
+          $$FormSubmissionsTableAnnotationComposer,
+          $$FormSubmissionsTableCreateCompanionBuilder,
+          $$FormSubmissionsTableUpdateCompanionBuilder,
+          (FormSubmission, $$FormSubmissionsTableReferences),
+          FormSubmission,
+          PrefetchHooks Function({
+            bool childId,
+            bool groupId,
+            bool tripId,
+            bool parentSubmissionId,
+          })
+        > {
+  $$FormSubmissionsTableTableManager(
+    _$AppDatabase db,
+    $FormSubmissionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FormSubmissionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FormSubmissionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FormSubmissionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> formType = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<DateTime?> submittedAt = const Value.absent(),
+                Value<String?> authorName = const Value.absent(),
+                Value<String?> childId = const Value.absent(),
+                Value<String?> groupId = const Value.absent(),
+                Value<String?> tripId = const Value.absent(),
+                Value<String?> parentSubmissionId = const Value.absent(),
+                Value<DateTime?> reviewDueAt = const Value.absent(),
+                Value<String> data = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => FormSubmissionsCompanion(
+                id: id,
+                formType: formType,
+                status: status,
+                submittedAt: submittedAt,
+                authorName: authorName,
+                childId: childId,
+                groupId: groupId,
+                tripId: tripId,
+                parentSubmissionId: parentSubmissionId,
+                reviewDueAt: reviewDueAt,
+                data: data,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String formType,
+                Value<String> status = const Value.absent(),
+                Value<DateTime?> submittedAt = const Value.absent(),
+                Value<String?> authorName = const Value.absent(),
+                Value<String?> childId = const Value.absent(),
+                Value<String?> groupId = const Value.absent(),
+                Value<String?> tripId = const Value.absent(),
+                Value<String?> parentSubmissionId = const Value.absent(),
+                Value<DateTime?> reviewDueAt = const Value.absent(),
+                Value<String> data = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => FormSubmissionsCompanion.insert(
+                id: id,
+                formType: formType,
+                status: status,
+                submittedAt: submittedAt,
+                authorName: authorName,
+                childId: childId,
+                groupId: groupId,
+                tripId: tripId,
+                parentSubmissionId: parentSubmissionId,
+                reviewDueAt: reviewDueAt,
+                data: data,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$FormSubmissionsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                childId = false,
+                groupId = false,
+                tripId = false,
+                parentSubmissionId = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (childId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.childId,
+                                    referencedTable:
+                                        $$FormSubmissionsTableReferences
+                                            ._childIdTable(db),
+                                    referencedColumn:
+                                        $$FormSubmissionsTableReferences
+                                            ._childIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (groupId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.groupId,
+                                    referencedTable:
+                                        $$FormSubmissionsTableReferences
+                                            ._groupIdTable(db),
+                                    referencedColumn:
+                                        $$FormSubmissionsTableReferences
+                                            ._groupIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (tripId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.tripId,
+                                    referencedTable:
+                                        $$FormSubmissionsTableReferences
+                                            ._tripIdTable(db),
+                                    referencedColumn:
+                                        $$FormSubmissionsTableReferences
+                                            ._tripIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (parentSubmissionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.parentSubmissionId,
+                                    referencedTable:
+                                        $$FormSubmissionsTableReferences
+                                            ._parentSubmissionIdTable(db),
+                                    referencedColumn:
+                                        $$FormSubmissionsTableReferences
+                                            ._parentSubmissionIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$FormSubmissionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FormSubmissionsTable,
+      FormSubmission,
+      $$FormSubmissionsTableFilterComposer,
+      $$FormSubmissionsTableOrderingComposer,
+      $$FormSubmissionsTableAnnotationComposer,
+      $$FormSubmissionsTableCreateCompanionBuilder,
+      $$FormSubmissionsTableUpdateCompanionBuilder,
+      (FormSubmission, $$FormSubmissionsTableReferences),
+      FormSubmission,
+      PrefetchHooks Function({
+        bool childId,
+        bool groupId,
+        bool tripId,
+        bool parentSubmissionId,
+      })
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -28774,4 +30671,6 @@ class $AppDatabaseManager {
       );
   $$AdultDayBlocksTableTableManager get adultDayBlocks =>
       $$AdultDayBlocksTableTableManager(_db, _db.adultDayBlocks);
+  $$FormSubmissionsTableTableManager get formSubmissions =>
+      $$FormSubmissionsTableTableManager(_db, _db.formSubmissions);
 }

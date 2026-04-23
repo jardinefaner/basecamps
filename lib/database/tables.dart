@@ -712,6 +712,85 @@ class Attendance extends Table {
 /// `childNames` is still kept on the concern row for display/export
 /// purposes (the parent's words), but this table is the source of
 /// truth for "which children are involved".
+/// Generic submission row for the polymorphic forms system (v34). A
+/// single row represents one filled-in form of any type — vehicle
+/// check, behavior monitoring, future custom forms. The
+/// form-type-specific fields live in the `data` JSON blob keyed by
+/// the field's key; the columns here are just the axes
+/// the UI and reports query on (type, context, status, dates).
+///
+/// Why hybrid (typed columns + JSON blob):
+///   - Indexable columns for the common question axes (child, group,
+///     trip, type, status, due-at) — Today's flags-strip scan and
+///     "every concern for Noah" lookups stay fast.
+///   - JSON `data` for the form-type-specific fields — new forms
+///     don't require a migration, and we're not on the hook for
+///     maintaining 200 bespoke columns as new forms land.
+///
+/// ParentConcernNotes stays as-is (bespoke table) for compatibility;
+/// new forms go through this table from day one. Migrating the old
+/// concern rows over is a later slice.
+@DataClassName('FormSubmission')
+class FormSubmissions extends Table {
+  TextColumn get id => text()();
+
+  /// Short string that identifies the form type — e.g. 'vehicle_check',
+  /// 'behavior_monitoring'. Resolved to a `FormDefinition` in Dart.
+  /// Values stay stable forever (they're the on-disk encoding); new
+  /// form types are new strings, not renames.
+  TextColumn get formType => text()();
+
+  /// Lifecycle state. 'draft' is the default for a just-opened form;
+  /// 'active', 'completed', 'archived' are form-type-specific phase
+  /// labels — the monitoring form moves through active → completed;
+  /// simpler forms jump straight to completed on save.
+  TextColumn get status =>
+      text().withDefault(const Constant('draft'))();
+
+  /// Stamped when the teacher hits Save on a finished submission.
+  /// Null while still being edited.
+  DateTimeColumn get submittedAt => dateTime().nullable()();
+
+  /// Free-text author for now. Becomes a logged-in-user FK later
+  /// without a schema change.
+  TextColumn get authorName => text().nullable()();
+
+  // -- Indexed context links. Nullable because not every form scopes
+  //    to every kind of subject. The form definition declares which
+  //    subject kind it expects.
+  TextColumn get childId =>
+      text().nullable().references(Children, #id, onDelete: KeyAction.setNull)();
+  TextColumn get groupId =>
+      text().nullable().references(Groups, #id, onDelete: KeyAction.setNull)();
+  TextColumn get tripId =>
+      text().nullable().references(Trips, #id, onDelete: KeyAction.setNull)();
+
+  /// Self-reference — a Behavior Monitoring submission points at the
+  /// Parent Concern it follows up on. Generalizable to any
+  /// follow-up-style form linking to a parent form.
+  TextColumn get parentSubmissionId =>
+      text().nullable().references(FormSubmissions, #id, onDelete: KeyAction.setNull)();
+
+  /// Optional review / follow-up deadline. Today's flags strip scans
+  /// this column across all form types to surface "monitoring review
+  /// due" and future "incident report overdue" signals with one
+  /// query. Null = no deadline.
+  DateTimeColumn get reviewDueAt => dateTime().nullable()();
+
+  /// JSON-encoded map of answers keyed by FormField.key. Defaults to
+  /// an empty object so a fresh draft row is valid.
+  TextColumn get data =>
+      text().withDefault(const Constant('{}'))();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 class ParentConcernChildren extends Table {
   TextColumn get concernId => text().references(
         ParentConcernNotes,

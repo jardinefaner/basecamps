@@ -34,6 +34,7 @@ QueryExecutor _openConnection() {
     Attendance,
     ChildScheduleOverrides,
     AdultDayBlocks,
+    FormSubmissions,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -42,7 +43,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 33;
+  int get schemaVersion => 34;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -394,6 +395,59 @@ class AppDatabase extends _$AppDatabase {
             await _runSilent(
               'ALTER TABLE "attendance" '
               'ADD COLUMN "picked_up_by" TEXT NULL',
+            );
+          }
+          if (from < 34) {
+            // v34: polymorphic forms table. One row = one submission
+            // of any form type (vehicle_check, behavior_monitoring,
+            // future additions). Form-specific fields live in the
+            // JSON `data` column; typed columns cover the axes the
+            // UI actually queries on (type, status, context, dates).
+            await _runSilent(
+              'CREATE TABLE IF NOT EXISTS "form_submissions" ( '
+              '"id" TEXT NOT NULL PRIMARY KEY, '
+              '"form_type" TEXT NOT NULL, '
+              "\"status\" TEXT NOT NULL DEFAULT 'draft', "
+              '"submitted_at" INTEGER NULL, '
+              '"author_name" TEXT NULL, '
+              '"child_id" TEXT NULL '
+              'REFERENCES "children"("id") ON DELETE SET NULL, '
+              '"group_id" TEXT NULL '
+              'REFERENCES "groups"("id") ON DELETE SET NULL, '
+              '"trip_id" TEXT NULL '
+              'REFERENCES "trips"("id") ON DELETE SET NULL, '
+              '"parent_submission_id" TEXT NULL '
+              'REFERENCES "form_submissions"("id") ON DELETE SET NULL, '
+              '"review_due_at" INTEGER NULL, '
+              "\"data\" TEXT NOT NULL DEFAULT '{}', "
+              '"created_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now')), "
+              '"updated_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now'))"
+              ' )',
+            );
+            // Indexes for the hot queries: list-by-type (forms hub),
+            // child / group timelines (detail screens), and the
+            // Today flags scan of review-due-at across all types.
+            await _runSilent(
+              'CREATE INDEX IF NOT EXISTS '
+              '"idx_form_sub_type" '
+              'ON "form_submissions" ("form_type", "submitted_at")',
+            );
+            await _runSilent(
+              'CREATE INDEX IF NOT EXISTS '
+              '"idx_form_sub_child" '
+              'ON "form_submissions" ("child_id")',
+            );
+            await _runSilent(
+              'CREATE INDEX IF NOT EXISTS '
+              '"idx_form_sub_parent" '
+              'ON "form_submissions" ("parent_submission_id")',
+            );
+            await _runSilent(
+              'CREATE INDEX IF NOT EXISTS '
+              '"idx_form_sub_review_due" '
+              'ON "form_submissions" ("review_due_at", "status")',
             );
           }
           if (from < 33) {
