@@ -328,6 +328,21 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
                   );
                 },
               ),
+              onPickBreak2: (day) => _pickWindow(
+                day,
+                existingStart: _availability[day]?.break2Start,
+                existingEnd: _availability[day]?.break2End,
+                fallbackStart: const TimeOfDay(hour: 14, minute: 30),
+                fallbackEnd: const TimeOfDay(hour: 14, minute: 45),
+                onPicked: (start, end) {
+                  final existing = _availability[day];
+                  if (existing == null) return;
+                  _availability[day] = existing.copyWith(
+                    break2Start: start,
+                    break2End: end,
+                  );
+                },
+              ),
               onPickLunch: (day) => _pickWindow(
                 day,
                 existingStart: _availability[day]?.lunchStart,
@@ -347,6 +362,11 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
                 final existing = _availability[day];
                 if (existing == null) return;
                 _availability[day] = existing.copyWith(clearBreak: true);
+              }),
+              onClearBreak2: (day) => setState(() {
+                final existing = _availability[day];
+                if (existing == null) return;
+                _availability[day] = existing.copyWith(clearBreak2: true);
               }),
               onClearLunch: (day) => setState(() {
                 final existing = _availability[day];

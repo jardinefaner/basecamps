@@ -43,7 +43,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 34;
+  int get schemaVersion => 35;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -395,6 +395,21 @@ class AppDatabase extends _$AppDatabase {
             await _runSilent(
               'ALTER TABLE "attendance" '
               'ADD COLUMN "picked_up_by" TEXT NULL',
+            );
+          }
+          if (from < 35) {
+            // v35: second break window on adult availability. v28 added
+            // one break + one lunch; some programs run a morning AND
+            // afternoon break, so break2_start/end is additive and
+            // nullable (any combination of zero/one/two breaks is
+            // valid).
+            await _runSilent(
+              'ALTER TABLE "specialist_availability" '
+              'ADD COLUMN "break2_start" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "specialist_availability" '
+              'ADD COLUMN "break2_end" TEXT NULL',
             );
           }
           if (from < 34) {

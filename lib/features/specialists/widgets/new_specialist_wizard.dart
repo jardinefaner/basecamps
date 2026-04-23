@@ -371,6 +371,14 @@ class _NewSpecialistWizardScreenState
               apply: (b, start, end) =>
                   b.copyWith(breakStart: start, breakEnd: end),
             ),
+            onPickBreak2: () => _pickUniformWindow(
+              seedStart: const TimeOfDay(hour: 14, minute: 30),
+              seedDurationMinutes: 15,
+              readStart: (b) => b.break2Start,
+              readEnd: (b) => b.break2End,
+              apply: (b, start, end) =>
+                  b.copyWith(break2Start: start, break2End: end),
+            ),
             onPickLunch: () => _pickUniformWindow(
               seedStart: const TimeOfDay(hour: 12, minute: 0),
               seedDurationMinutes: 60,
@@ -381,6 +389,9 @@ class _NewSpecialistWizardScreenState
             ),
             onClearBreak: () => setState(() {
               _uniformBlock = _uniformBlock.copyWith(clearBreak: true);
+            }),
+            onClearBreak2: () => setState(() {
+              _uniformBlock = _uniformBlock.copyWith(clearBreak2: true);
             }),
             onClearLunch: () => setState(() {
               _uniformBlock = _uniformBlock.copyWith(clearLunch: true);
@@ -441,6 +452,15 @@ class _NewSpecialistWizardScreenState
         apply: (b, start, end) =>
             b.copyWith(breakStart: start, breakEnd: end),
       ),
+      onPickBreak2: (day) => _pickWindow(
+        day,
+        seedStart: const TimeOfDay(hour: 14, minute: 30),
+        seedDurationMinutes: 15,
+        readStart: (b) => b.break2Start,
+        readEnd: (b) => b.break2End,
+        apply: (b, start, end) =>
+            b.copyWith(break2Start: start, break2End: end),
+      ),
       onPickLunch: (day) => _pickWindow(
         day,
         seedStart: const TimeOfDay(hour: 12, minute: 0),
@@ -454,6 +474,11 @@ class _NewSpecialistWizardScreenState
         final existing = _availability[day];
         if (existing == null) return;
         _availability[day] = existing.copyWith(clearBreak: true);
+      }),
+      onClearBreak2: (day) => setState(() {
+        final existing = _availability[day];
+        if (existing == null) return;
+        _availability[day] = existing.copyWith(clearBreak2: true);
       }),
       onClearLunch: (day) => setState(() {
         final existing = _availability[day];

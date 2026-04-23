@@ -217,6 +217,8 @@ class SpecialistsRepository {
                 endDate: Value(b.endDate),
                 breakStart: Value(b.breakStart),
                 breakEnd: Value(b.breakEnd),
+                break2Start: Value(b.break2Start),
+                break2End: Value(b.break2End),
                 lunchStart: Value(b.lunchStart),
                 lunchEnd: Value(b.lunchEnd),
               ),
@@ -237,6 +239,8 @@ class AvailabilityInput {
     this.endDate,
     this.breakStart,
     this.breakEnd,
+    this.break2Start,
+    this.break2End,
     this.lunchStart,
     this.lunchEnd,
   });
@@ -246,10 +250,14 @@ class AvailabilityInput {
   final String endTime;
   final DateTime? startDate;
   final DateTime? endDate;
-  // HH:MM short break + lunch inside this shift. All nullable — many
-  // shifts are short enough to have neither.
+  // HH:MM short breaks + lunch inside this shift. All nullable —
+  // many shifts are short enough to have neither. break2 is a second
+  // break window for programs that run morning AND afternoon breaks
+  // (schema v35).
   final String? breakStart;
   final String? breakEnd;
+  final String? break2Start;
+  final String? break2End;
   final String? lunchStart;
   final String? lunchEnd;
 }

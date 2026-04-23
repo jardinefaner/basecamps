@@ -17,6 +17,8 @@ class AvailabilityBlock {
     required this.end,
     this.breakStart,
     this.breakEnd,
+    this.break2Start,
+    this.break2End,
     this.lunchStart,
     this.lunchEnd,
   });
@@ -26,6 +28,8 @@ class AvailabilityBlock {
   TimeOfDay end;
   TimeOfDay? breakStart;
   TimeOfDay? breakEnd;
+  TimeOfDay? break2Start;
+  TimeOfDay? break2End;
   TimeOfDay? lunchStart;
   TimeOfDay? lunchEnd;
 
@@ -39,9 +43,12 @@ class AvailabilityBlock {
     // new value through explicitly.
     TimeOfDay? breakStart,
     TimeOfDay? breakEnd,
+    TimeOfDay? break2Start,
+    TimeOfDay? break2End,
     TimeOfDay? lunchStart,
     TimeOfDay? lunchEnd,
     bool clearBreak = false,
+    bool clearBreak2 = false,
     bool clearLunch = false,
   }) {
     return AvailabilityBlock(
@@ -50,6 +57,9 @@ class AvailabilityBlock {
       end: end ?? this.end,
       breakStart: clearBreak ? null : (breakStart ?? this.breakStart),
       breakEnd: clearBreak ? null : (breakEnd ?? this.breakEnd),
+      break2Start:
+          clearBreak2 ? null : (break2Start ?? this.break2Start),
+      break2End: clearBreak2 ? null : (break2End ?? this.break2End),
       lunchStart: clearLunch ? null : (lunchStart ?? this.lunchStart),
       lunchEnd: clearLunch ? null : (lunchEnd ?? this.lunchEnd),
     );
@@ -61,6 +71,8 @@ class AvailabilityBlock {
         endTime: _fmt(end),
         breakStart: breakStart == null ? null : _fmt(breakStart!),
         breakEnd: breakEnd == null ? null : _fmt(breakEnd!),
+        break2Start: break2Start == null ? null : _fmt(break2Start!),
+        break2End: break2End == null ? null : _fmt(break2End!),
         lunchStart: lunchStart == null ? null : _fmt(lunchStart!),
         lunchEnd: lunchEnd == null ? null : _fmt(lunchEnd!),
       );
@@ -95,6 +107,8 @@ List<AvailabilityBlock> availabilityFromRows(
           end: _parse(r.endTime),
           breakStart: _parseNullable(r.breakStart),
           breakEnd: _parseNullable(r.breakEnd),
+          break2Start: _parseNullable(r.break2Start),
+          break2End: _parseNullable(r.break2End),
           lunchStart: _parseNullable(r.lunchStart),
           lunchEnd: _parseNullable(r.lunchEnd),
         ),
@@ -130,14 +144,16 @@ class UniformAvailabilityEditor extends StatelessWidget {
     required this.onPickStart,
     required this.onPickEnd,
     required this.onPickBreak,
+    required this.onPickBreak2,
     required this.onPickLunch,
     required this.onClearBreak,
+    required this.onClearBreak2,
     required this.onClearLunch,
     super.key,
   });
 
-  /// The shared block — hours, break, lunch. Applies to every day in
-  /// [days].
+  /// The shared block — hours, breaks, lunch. Applies to every day
+  /// in [days].
   final AvailabilityBlock block;
 
   /// Which weekdays the block applies to (ISO 1..5).
@@ -149,8 +165,10 @@ class UniformAvailabilityEditor extends StatelessWidget {
   final VoidCallback onPickStart;
   final VoidCallback onPickEnd;
   final Future<void> Function() onPickBreak;
+  final Future<void> Function() onPickBreak2;
   final Future<void> Function() onPickLunch;
   final VoidCallback onClearBreak;
+  final VoidCallback onClearBreak2;
   final VoidCallback onClearLunch;
 
   @override
@@ -212,9 +230,17 @@ class UniformAvailabilityEditor extends StatelessWidget {
               icon: Icons.coffee_outlined,
               start: block.breakStart,
               end: block.breakEnd,
-              emptyLabel: 'Add break',
+              emptyLabel: 'Add break 1',
               onTap: onPickBreak,
               onClear: onClearBreak,
+            ),
+            _BreakChip(
+              icon: Icons.coffee_outlined,
+              start: block.break2Start,
+              end: block.break2End,
+              emptyLabel: 'Add break 2',
+              onTap: onPickBreak2,
+              onClear: onClearBreak2,
             ),
             _BreakChip(
               icon: Icons.restaurant_outlined,
@@ -247,6 +273,8 @@ Map<int, AvailabilityBlock> expandUniform({
         end: block.end,
         breakStart: block.breakStart,
         breakEnd: block.breakEnd,
+        break2Start: block.break2Start,
+        break2End: block.break2End,
         lunchStart: block.lunchStart,
         lunchEnd: block.lunchEnd,
       ),
@@ -270,6 +298,8 @@ Map<int, AvailabilityBlock> expandUniform({
     if (b.end != first.end) return (uniform: false, seed: first, days: days);
     if (b.breakStart != first.breakStart) return (uniform: false, seed: first, days: days);
     if (b.breakEnd != first.breakEnd) return (uniform: false, seed: first, days: days);
+    if (b.break2Start != first.break2Start) return (uniform: false, seed: first, days: days);
+    if (b.break2End != first.break2End) return (uniform: false, seed: first, days: days);
     if (b.lunchStart != first.lunchStart) return (uniform: false, seed: first, days: days);
     if (b.lunchEnd != first.lunchEnd) return (uniform: false, seed: first, days: days);
   }
@@ -286,8 +316,10 @@ class AvailabilityEditor extends StatelessWidget {
     required this.onPickStart,
     required this.onPickEnd,
     this.onPickBreak,
+    this.onPickBreak2,
     this.onPickLunch,
     this.onClearBreak,
+    this.onClearBreak2,
     this.onClearLunch,
     super.key,
   });
@@ -304,8 +336,10 @@ class AvailabilityEditor extends StatelessWidget {
   /// start + end picker callbacks via [onPickBreak]; we never prompt
   /// for one half without the other.
   final Future<void> Function(int dayOfWeek)? onPickBreak;
+  final Future<void> Function(int dayOfWeek)? onPickBreak2;
   final Future<void> Function(int dayOfWeek)? onPickLunch;
   final void Function(int dayOfWeek)? onClearBreak;
+  final void Function(int dayOfWeek)? onClearBreak2;
   final void Function(int dayOfWeek)? onClearLunch;
 
   @override
@@ -322,10 +356,14 @@ class AvailabilityEditor extends StatelessWidget {
             onPickEnd: () => onPickEnd(d),
             onPickBreak:
                 onPickBreak == null ? null : () => onPickBreak!(d),
+            onPickBreak2:
+                onPickBreak2 == null ? null : () => onPickBreak2!(d),
             onPickLunch:
                 onPickLunch == null ? null : () => onPickLunch!(d),
             onClearBreak:
                 onClearBreak == null ? null : () => onClearBreak!(d),
+            onClearBreak2:
+                onClearBreak2 == null ? null : () => onClearBreak2!(d),
             onClearLunch:
                 onClearLunch == null ? null : () => onClearLunch!(d),
           ),
@@ -342,8 +380,10 @@ class _Row extends StatelessWidget {
     required this.onPickStart,
     required this.onPickEnd,
     this.onPickBreak,
+    this.onPickBreak2,
     this.onPickLunch,
     this.onClearBreak,
+    this.onClearBreak2,
     this.onClearLunch,
   });
 
@@ -353,8 +393,10 @@ class _Row extends StatelessWidget {
   final VoidCallback onPickStart;
   final VoidCallback onPickEnd;
   final VoidCallback? onPickBreak;
+  final VoidCallback? onPickBreak2;
   final VoidCallback? onPickLunch;
   final VoidCallback? onClearBreak;
+  final VoidCallback? onClearBreak2;
   final VoidCallback? onClearLunch;
 
   @override
@@ -435,9 +477,18 @@ class _Row extends StatelessWidget {
                       icon: Icons.coffee_outlined,
                       start: block!.breakStart,
                       end: block!.breakEnd,
-                      emptyLabel: 'Add break',
+                      emptyLabel: 'Add break 1',
                       onTap: onPickBreak!,
                       onClear: onClearBreak,
+                    ),
+                  if (onPickBreak2 != null)
+                    _BreakChip(
+                      icon: Icons.coffee_outlined,
+                      start: block!.break2Start,
+                      end: block!.break2End,
+                      emptyLabel: 'Add break 2',
+                      onTap: onPickBreak2!,
+                      onClear: onClearBreak2,
                     ),
                   if (onPickLunch != null)
                     _BreakChip(

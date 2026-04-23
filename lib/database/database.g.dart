@@ -5804,6 +5804,28 @@ class $SpecialistAvailabilityTable extends SpecialistAvailability
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _break2StartMeta = const VerificationMeta(
+    'break2Start',
+  );
+  @override
+  late final GeneratedColumn<String> break2Start = GeneratedColumn<String>(
+    'break2_start',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _break2EndMeta = const VerificationMeta(
+    'break2End',
+  );
+  @override
+  late final GeneratedColumn<String> break2End = GeneratedColumn<String>(
+    'break2_end',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _lunchStartMeta = const VerificationMeta(
     'lunchStart',
   );
@@ -5861,6 +5883,8 @@ class $SpecialistAvailabilityTable extends SpecialistAvailability
     endDate,
     breakStart,
     breakEnd,
+    break2Start,
+    break2End,
     lunchStart,
     lunchEnd,
     createdAt,
@@ -5942,6 +5966,21 @@ class $SpecialistAvailabilityTable extends SpecialistAvailability
         breakEnd.isAcceptableOrUnknown(data['break_end']!, _breakEndMeta),
       );
     }
+    if (data.containsKey('break2_start')) {
+      context.handle(
+        _break2StartMeta,
+        break2Start.isAcceptableOrUnknown(
+          data['break2_start']!,
+          _break2StartMeta,
+        ),
+      );
+    }
+    if (data.containsKey('break2_end')) {
+      context.handle(
+        _break2EndMeta,
+        break2End.isAcceptableOrUnknown(data['break2_end']!, _break2EndMeta),
+      );
+    }
     if (data.containsKey('lunch_start')) {
       context.handle(
         _lunchStartMeta,
@@ -6014,6 +6053,14 @@ class $SpecialistAvailabilityTable extends SpecialistAvailability
         DriftSqlType.string,
         data['${effectivePrefix}break_end'],
       ),
+      break2Start: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}break2_start'],
+      ),
+      break2End: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}break2_end'],
+      ),
       lunchStart: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}lunch_start'],
@@ -6050,6 +6097,8 @@ class SpecialistAvailabilityData extends DataClass
   final DateTime? endDate;
   final String? breakStart;
   final String? breakEnd;
+  final String? break2Start;
+  final String? break2End;
   final String? lunchStart;
   final String? lunchEnd;
   final DateTime createdAt;
@@ -6064,6 +6113,8 @@ class SpecialistAvailabilityData extends DataClass
     this.endDate,
     this.breakStart,
     this.breakEnd,
+    this.break2Start,
+    this.break2End,
     this.lunchStart,
     this.lunchEnd,
     required this.createdAt,
@@ -6088,6 +6139,12 @@ class SpecialistAvailabilityData extends DataClass
     }
     if (!nullToAbsent || breakEnd != null) {
       map['break_end'] = Variable<String>(breakEnd);
+    }
+    if (!nullToAbsent || break2Start != null) {
+      map['break2_start'] = Variable<String>(break2Start);
+    }
+    if (!nullToAbsent || break2End != null) {
+      map['break2_end'] = Variable<String>(break2End);
     }
     if (!nullToAbsent || lunchStart != null) {
       map['lunch_start'] = Variable<String>(lunchStart);
@@ -6119,6 +6176,12 @@ class SpecialistAvailabilityData extends DataClass
       breakEnd: breakEnd == null && nullToAbsent
           ? const Value.absent()
           : Value(breakEnd),
+      break2Start: break2Start == null && nullToAbsent
+          ? const Value.absent()
+          : Value(break2Start),
+      break2End: break2End == null && nullToAbsent
+          ? const Value.absent()
+          : Value(break2End),
       lunchStart: lunchStart == null && nullToAbsent
           ? const Value.absent()
           : Value(lunchStart),
@@ -6145,6 +6208,8 @@ class SpecialistAvailabilityData extends DataClass
       endDate: serializer.fromJson<DateTime?>(json['endDate']),
       breakStart: serializer.fromJson<String?>(json['breakStart']),
       breakEnd: serializer.fromJson<String?>(json['breakEnd']),
+      break2Start: serializer.fromJson<String?>(json['break2Start']),
+      break2End: serializer.fromJson<String?>(json['break2End']),
       lunchStart: serializer.fromJson<String?>(json['lunchStart']),
       lunchEnd: serializer.fromJson<String?>(json['lunchEnd']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -6164,6 +6229,8 @@ class SpecialistAvailabilityData extends DataClass
       'endDate': serializer.toJson<DateTime?>(endDate),
       'breakStart': serializer.toJson<String?>(breakStart),
       'breakEnd': serializer.toJson<String?>(breakEnd),
+      'break2Start': serializer.toJson<String?>(break2Start),
+      'break2End': serializer.toJson<String?>(break2End),
       'lunchStart': serializer.toJson<String?>(lunchStart),
       'lunchEnd': serializer.toJson<String?>(lunchEnd),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -6181,6 +6248,8 @@ class SpecialistAvailabilityData extends DataClass
     Value<DateTime?> endDate = const Value.absent(),
     Value<String?> breakStart = const Value.absent(),
     Value<String?> breakEnd = const Value.absent(),
+    Value<String?> break2Start = const Value.absent(),
+    Value<String?> break2End = const Value.absent(),
     Value<String?> lunchStart = const Value.absent(),
     Value<String?> lunchEnd = const Value.absent(),
     DateTime? createdAt,
@@ -6195,6 +6264,8 @@ class SpecialistAvailabilityData extends DataClass
     endDate: endDate.present ? endDate.value : this.endDate,
     breakStart: breakStart.present ? breakStart.value : this.breakStart,
     breakEnd: breakEnd.present ? breakEnd.value : this.breakEnd,
+    break2Start: break2Start.present ? break2Start.value : this.break2Start,
+    break2End: break2End.present ? break2End.value : this.break2End,
     lunchStart: lunchStart.present ? lunchStart.value : this.lunchStart,
     lunchEnd: lunchEnd.present ? lunchEnd.value : this.lunchEnd,
     createdAt: createdAt ?? this.createdAt,
@@ -6217,6 +6288,10 @@ class SpecialistAvailabilityData extends DataClass
           ? data.breakStart.value
           : this.breakStart,
       breakEnd: data.breakEnd.present ? data.breakEnd.value : this.breakEnd,
+      break2Start: data.break2Start.present
+          ? data.break2Start.value
+          : this.break2Start,
+      break2End: data.break2End.present ? data.break2End.value : this.break2End,
       lunchStart: data.lunchStart.present
           ? data.lunchStart.value
           : this.lunchStart,
@@ -6238,6 +6313,8 @@ class SpecialistAvailabilityData extends DataClass
           ..write('endDate: $endDate, ')
           ..write('breakStart: $breakStart, ')
           ..write('breakEnd: $breakEnd, ')
+          ..write('break2Start: $break2Start, ')
+          ..write('break2End: $break2End, ')
           ..write('lunchStart: $lunchStart, ')
           ..write('lunchEnd: $lunchEnd, ')
           ..write('createdAt: $createdAt, ')
@@ -6257,6 +6334,8 @@ class SpecialistAvailabilityData extends DataClass
     endDate,
     breakStart,
     breakEnd,
+    break2Start,
+    break2End,
     lunchStart,
     lunchEnd,
     createdAt,
@@ -6275,6 +6354,8 @@ class SpecialistAvailabilityData extends DataClass
           other.endDate == this.endDate &&
           other.breakStart == this.breakStart &&
           other.breakEnd == this.breakEnd &&
+          other.break2Start == this.break2Start &&
+          other.break2End == this.break2End &&
           other.lunchStart == this.lunchStart &&
           other.lunchEnd == this.lunchEnd &&
           other.createdAt == this.createdAt &&
@@ -6292,6 +6373,8 @@ class SpecialistAvailabilityCompanion
   final Value<DateTime?> endDate;
   final Value<String?> breakStart;
   final Value<String?> breakEnd;
+  final Value<String?> break2Start;
+  final Value<String?> break2End;
   final Value<String?> lunchStart;
   final Value<String?> lunchEnd;
   final Value<DateTime> createdAt;
@@ -6307,6 +6390,8 @@ class SpecialistAvailabilityCompanion
     this.endDate = const Value.absent(),
     this.breakStart = const Value.absent(),
     this.breakEnd = const Value.absent(),
+    this.break2Start = const Value.absent(),
+    this.break2End = const Value.absent(),
     this.lunchStart = const Value.absent(),
     this.lunchEnd = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -6323,6 +6408,8 @@ class SpecialistAvailabilityCompanion
     this.endDate = const Value.absent(),
     this.breakStart = const Value.absent(),
     this.breakEnd = const Value.absent(),
+    this.break2Start = const Value.absent(),
+    this.break2End = const Value.absent(),
     this.lunchStart = const Value.absent(),
     this.lunchEnd = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -6343,6 +6430,8 @@ class SpecialistAvailabilityCompanion
     Expression<DateTime>? endDate,
     Expression<String>? breakStart,
     Expression<String>? breakEnd,
+    Expression<String>? break2Start,
+    Expression<String>? break2End,
     Expression<String>? lunchStart,
     Expression<String>? lunchEnd,
     Expression<DateTime>? createdAt,
@@ -6359,6 +6448,8 @@ class SpecialistAvailabilityCompanion
       if (endDate != null) 'end_date': endDate,
       if (breakStart != null) 'break_start': breakStart,
       if (breakEnd != null) 'break_end': breakEnd,
+      if (break2Start != null) 'break2_start': break2Start,
+      if (break2End != null) 'break2_end': break2End,
       if (lunchStart != null) 'lunch_start': lunchStart,
       if (lunchEnd != null) 'lunch_end': lunchEnd,
       if (createdAt != null) 'created_at': createdAt,
@@ -6377,6 +6468,8 @@ class SpecialistAvailabilityCompanion
     Value<DateTime?>? endDate,
     Value<String?>? breakStart,
     Value<String?>? breakEnd,
+    Value<String?>? break2Start,
+    Value<String?>? break2End,
     Value<String?>? lunchStart,
     Value<String?>? lunchEnd,
     Value<DateTime>? createdAt,
@@ -6393,6 +6486,8 @@ class SpecialistAvailabilityCompanion
       endDate: endDate ?? this.endDate,
       breakStart: breakStart ?? this.breakStart,
       breakEnd: breakEnd ?? this.breakEnd,
+      break2Start: break2Start ?? this.break2Start,
+      break2End: break2End ?? this.break2End,
       lunchStart: lunchStart ?? this.lunchStart,
       lunchEnd: lunchEnd ?? this.lunchEnd,
       createdAt: createdAt ?? this.createdAt,
@@ -6431,6 +6526,12 @@ class SpecialistAvailabilityCompanion
     if (breakEnd.present) {
       map['break_end'] = Variable<String>(breakEnd.value);
     }
+    if (break2Start.present) {
+      map['break2_start'] = Variable<String>(break2Start.value);
+    }
+    if (break2End.present) {
+      map['break2_end'] = Variable<String>(break2End.value);
+    }
     if (lunchStart.present) {
       map['lunch_start'] = Variable<String>(lunchStart.value);
     }
@@ -6461,6 +6562,8 @@ class SpecialistAvailabilityCompanion
           ..write('endDate: $endDate, ')
           ..write('breakStart: $breakStart, ')
           ..write('breakEnd: $breakEnd, ')
+          ..write('break2Start: $break2Start, ')
+          ..write('break2End: $break2End, ')
           ..write('lunchStart: $lunchStart, ')
           ..write('lunchEnd: $lunchEnd, ')
           ..write('createdAt: $createdAt, ')
@@ -23108,6 +23211,8 @@ typedef $$SpecialistAvailabilityTableCreateCompanionBuilder =
       Value<DateTime?> endDate,
       Value<String?> breakStart,
       Value<String?> breakEnd,
+      Value<String?> break2Start,
+      Value<String?> break2End,
       Value<String?> lunchStart,
       Value<String?> lunchEnd,
       Value<DateTime> createdAt,
@@ -23125,6 +23230,8 @@ typedef $$SpecialistAvailabilityTableUpdateCompanionBuilder =
       Value<DateTime?> endDate,
       Value<String?> breakStart,
       Value<String?> breakEnd,
+      Value<String?> break2Start,
+      Value<String?> break2End,
       Value<String?> lunchStart,
       Value<String?> lunchEnd,
       Value<DateTime> createdAt,
@@ -23214,6 +23321,16 @@ class $$SpecialistAvailabilityTableFilterComposer
 
   ColumnFilters<String> get breakEnd => $composableBuilder(
     column: $table.breakEnd,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get break2Start => $composableBuilder(
+    column: $table.break2Start,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get break2End => $composableBuilder(
+    column: $table.break2End,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -23310,6 +23427,16 @@ class $$SpecialistAvailabilityTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get break2Start => $composableBuilder(
+    column: $table.break2Start,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get break2End => $composableBuilder(
+    column: $table.break2End,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get lunchStart => $composableBuilder(
     column: $table.lunchStart,
     builder: (column) => ColumnOrderings(column),
@@ -23388,6 +23515,14 @@ class $$SpecialistAvailabilityTableAnnotationComposer
 
   GeneratedColumn<String> get breakEnd =>
       $composableBuilder(column: $table.breakEnd, builder: (column) => column);
+
+  GeneratedColumn<String> get break2Start => $composableBuilder(
+    column: $table.break2Start,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get break2End =>
+      $composableBuilder(column: $table.break2End, builder: (column) => column);
 
   GeneratedColumn<String> get lunchStart => $composableBuilder(
     column: $table.lunchStart,
@@ -23475,6 +23610,8 @@ class $$SpecialistAvailabilityTableTableManager
                 Value<DateTime?> endDate = const Value.absent(),
                 Value<String?> breakStart = const Value.absent(),
                 Value<String?> breakEnd = const Value.absent(),
+                Value<String?> break2Start = const Value.absent(),
+                Value<String?> break2End = const Value.absent(),
                 Value<String?> lunchStart = const Value.absent(),
                 Value<String?> lunchEnd = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -23490,6 +23627,8 @@ class $$SpecialistAvailabilityTableTableManager
                 endDate: endDate,
                 breakStart: breakStart,
                 breakEnd: breakEnd,
+                break2Start: break2Start,
+                break2End: break2End,
                 lunchStart: lunchStart,
                 lunchEnd: lunchEnd,
                 createdAt: createdAt,
@@ -23507,6 +23646,8 @@ class $$SpecialistAvailabilityTableTableManager
                 Value<DateTime?> endDate = const Value.absent(),
                 Value<String?> breakStart = const Value.absent(),
                 Value<String?> breakEnd = const Value.absent(),
+                Value<String?> break2Start = const Value.absent(),
+                Value<String?> break2End = const Value.absent(),
                 Value<String?> lunchStart = const Value.absent(),
                 Value<String?> lunchEnd = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -23522,6 +23663,8 @@ class $$SpecialistAvailabilityTableTableManager
                 endDate: endDate,
                 breakStart: breakStart,
                 breakEnd: breakEnd,
+                break2Start: break2Start,
+                break2End: break2End,
                 lunchStart: lunchStart,
                 lunchEnd: lunchEnd,
                 createdAt: createdAt,

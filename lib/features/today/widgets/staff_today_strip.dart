@@ -167,6 +167,10 @@ class _StaffRow extends ConsumerWidget {
     if (brk != null && nowMin >= brk.$1 && nowMin < brk.$2) {
       return _ActiveStatus.onBreak(end: a.breakEnd!);
     }
+    final brk2 = _windowMinutes(a.break2Start, a.break2End);
+    if (brk2 != null && nowMin >= brk2.$1 && nowMin < brk2.$2) {
+      return _ActiveStatus.onBreak(end: a.break2End!);
+    }
     final shift = _windowMinutes(a.startTime, a.endTime);
     if (shift != null && nowMin >= shift.$1 && nowMin < shift.$2) {
       return const _ActiveStatus.working();
@@ -236,6 +240,9 @@ class _StaffRow extends ConsumerWidget {
     }
     if (a.breakStart != null && a.breakEnd != null) {
       parts.add('break ${_timeRange(a.breakStart!, a.breakEnd!)}');
+    }
+    if (a.break2Start != null && a.break2End != null) {
+      parts.add('break ${_timeRange(a.break2Start!, a.break2End!)}');
     }
     return parts.join(' · ');
   }

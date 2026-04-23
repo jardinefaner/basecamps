@@ -357,13 +357,22 @@ class _AdultRow extends StatelessWidget {
                   // Timeline role blocks. Gaps are implied off, so we
                   // just render what's there.
                   for (final b in blocks) _roleBlock(theme, b),
-                  // Break + lunch overlays on top of whatever block
-                  // they fall inside.
+                  // Break 1 + break 2 + lunch overlays on top of
+                  // whatever block they fall inside.
                   if (availability?.breakStart != null &&
                       availability?.breakEnd != null)
                     _BreakOverlay(
                       startMin: _parseHHmm(availability!.breakStart!),
                       endMin: _parseHHmm(availability!.breakEnd!),
+                      trackWidth: trackWidth,
+                      label: 'Break',
+                      color: theme.colorScheme.tertiaryContainer,
+                    ),
+                  if (availability?.break2Start != null &&
+                      availability?.break2End != null)
+                    _BreakOverlay(
+                      startMin: _parseHHmm(availability!.break2Start!),
+                      endMin: _parseHHmm(availability!.break2End!),
                       trackWidth: trackWidth,
                       label: 'Break',
                       color: theme.colorScheme.tertiaryContainer,

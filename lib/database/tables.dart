@@ -337,8 +337,14 @@ class SpecialistAvailability extends Table {
   TextColumn get endTime => text()();
   DateTimeColumn get startDate => dateTime().nullable()();
   DateTimeColumn get endDate => dateTime().nullable()();
+  // v28 added a single break window. v35 added a second break so
+  // programs that run morning + afternoon breaks can record both.
+  // `break2Start/End` are the second window; both nullable so any
+  // combination of "no breaks / one break / two breaks" is valid.
   TextColumn get breakStart => text().nullable()();
   TextColumn get breakEnd => text().nullable()();
+  TextColumn get break2Start => text().nullable()();
+  TextColumn get break2End => text().nullable()();
   TextColumn get lunchStart => text().nullable()();
   TextColumn get lunchEnd => text().nullable()();
   DateTimeColumn get createdAt =>
