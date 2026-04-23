@@ -12,6 +12,11 @@ const FormDefinition vehicleCheckForm = FormDefinition(
   subtitle: 'Pre-trip safety inspection — lights, tires, brakes.',
   icon: Icons.directions_bus_outlined,
   subjectKind: FormSubjectKind.trip,
+  // Linear wizard: the whole point of a pre-trip check is to walk
+  // every row, not to cherry-pick. Page-per-section forces that
+  // discipline, and the teacher can't accidentally ship without
+  // looking at brakes.
+  presentation: FormPresentation.wizard,
   sections: [
     FormSection(
       title: 'Vehicle',

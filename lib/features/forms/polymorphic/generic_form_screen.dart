@@ -4,6 +4,7 @@ import 'package:basecamp/features/forms/polymorphic/form_submission_repository.d
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/step_wizard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -207,6 +208,15 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
         body: const Center(child: CircularProgressIndicator()),
       );
     }
+    return switch (def.presentation) {
+      fd.FormPresentation.scroll => _buildScroll(def),
+      fd.FormPresentation.wizard => _buildWizard(def),
+    };
+  }
+
+  // ---- Presentation: scroll ----
+
+  Widget _buildScroll(fd.FormDefinition def) {
     return Scaffold(
       appBar: AppBar(
         title: Text(def.title),
@@ -245,6 +255,49 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
           const SizedBox(height: AppSpacing.xxxl),
         ],
       ),
+    );
+  }
+
+  // ---- Presentation: wizard ----
+
+  /// Wraps each section of the form in a [WizardStep] and hands the
+  /// whole list to the shared wizard scaffold. The final action is
+  /// the same Save / Start-monitoring the scroll layout uses.
+  ///
+  /// Wizard pages don't pre-validate fields — draft saves are always
+  /// allowed, so a half-filled checklist is fine between sessions.
+  /// The final step's primary button runs `_submit` (which transitions
+  /// the row out of `draft`).
+  Widget _buildWizard(fd.FormDefinition def) {
+    // Figure out which pages have text inputs so the wizard scaffold
+    // knows when to leave the keyboard alone (pages with no text
+    // input dismiss focus on transition, so a previous typing page
+    // doesn't leave the keyboard up).
+    bool sectionNeedsKeyboard(fd.FormSection s) =>
+        s.fields.any((f) => f is fd.FormTextField);
+
+    return StepWizardScaffold(
+      title: def.title,
+      dirty: _values.isNotEmpty,
+      finalActionLabel: widget.definition.parentTypeKey == null
+          ? 'Save'
+          : 'Start monitoring',
+      onFinalAction: _submit,
+      steps: [
+        for (final section in def.sections)
+          WizardStep(
+            headline: section.title,
+            subtitle: section.subtitle,
+            canSkip: true,
+            needsKeyboard: sectionNeedsKeyboard(section),
+            content: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final field in section.fields) _buildField(field),
+              ],
+            ),
+          ),
+      ],
     );
   }
 
@@ -352,8 +405,13 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
           ),
         ],
         selected: {current},
-        onSelectionChanged: (set) =>
-            setState(() => _values[field.key] = set.first),
+        onSelectionChanged: (set) => setState(() {
+          // `emptySelectionAllowed` means tapping the selected
+          // segment deselects it — that lands here as an empty set,
+          // not as a `{null}` selection. Treat empty as "clear the
+          // value back to unset."
+          _values[field.key] = set.isEmpty ? null : set.first;
+        }),
         emptySelectionAllowed: true,
         showSelectedIcon: false,
         style: ButtonStyle(

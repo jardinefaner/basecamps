@@ -156,6 +156,14 @@ class FormSection {
   final List<FormField> fields;
 }
 
+/// Layout shape for a form. `scroll` renders every section stacked
+/// on a single screen — right for short forms and for editing
+/// existing rows where the teacher wants random access. `wizard`
+/// renders one section per page with Next/Back buttons — right for
+/// fill-from-scratch checklists where working top-to-bottom keeps
+/// the teacher from missing rows.
+enum FormPresentation { scroll, wizard }
+
 /// Top-level description of a form type. One of these per form
 /// (vehicle_check, behavior_monitoring, …). The generic renderer
 /// walks it to build the UI; the registry maps `typeKey` strings
@@ -171,6 +179,7 @@ class FormDefinition {
     required this.sections,
     this.parentTypeKey,
     this.reviewDueAfterDays,
+    this.presentation = FormPresentation.scroll,
   });
 
   /// On-disk encoding — stays stable forever. 'vehicle_check', etc.
@@ -198,4 +207,9 @@ class FormDefinition {
   /// How many days after creation the form should flag "review due"
   /// on Today. Null = never flags.
   final int? reviewDueAfterDays;
+
+  /// Scroll (one-page-all-sections) vs wizard (one-section-per-page).
+  /// Defaults to scroll; form types that benefit from forced linear
+  /// progression (checklists, end-of-day reports) flip to wizard.
+  final FormPresentation presentation;
 }
