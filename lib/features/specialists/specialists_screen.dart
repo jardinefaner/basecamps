@@ -1,6 +1,6 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
-import 'package:basecamp/features/specialists/widgets/edit_specialist_sheet.dart';
+import 'package:basecamp/features/specialists/widgets/new_specialist_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
@@ -20,17 +20,15 @@ class SpecialistsScreen extends ConsumerStatefulWidget {
 class _SpecialistsScreenState extends ConsumerState<SpecialistsScreen>
     with BulkSelectionMixin {
   Future<void> _openWizard() async {
-    // Both add and edit go through the same sheet so the full v28
-    // field set (role, anchor group, break/lunch, availability) is
-    // available at creation time — the old 4-page wizard only asked
-    // for name / job title / shift / notes, leaving the rest to be
-    // re-found in edit mode.
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      useSafeArea: true,
-      builder: (_) => const EditSpecialistSheet(),
+    // Full step-by-step wizard walks a first-timer through every v28
+    // field — identity, job title, role, anchor group (when Lead),
+    // shift, break/lunch, notes. Editing an existing row still opens
+    // the dense [EditSpecialistSheet]; wizard is creation-only.
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const NewSpecialistWizardScreen(),
+      ),
     );
   }
 
