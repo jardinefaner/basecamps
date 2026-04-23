@@ -69,7 +69,18 @@ class _SpecialistsScreenState extends ConsumerState<SpecialistsScreen>
                 onCancel: clearSelection,
                 onDelete: _deleteSelected,
               )
-            : AppBar(title: const Text('Adults')),
+            : AppBar(
+                title: const Text('Adults'),
+                actions: [
+                  IconButton(
+                    tooltip: 'Program timeline',
+                    icon: const Icon(Icons.view_timeline_outlined),
+                    onPressed: () =>
+                        context.push('/more/adults/timeline'),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                ],
+              ),
         floatingActionButton: isSelecting
             ? null
             : FloatingActionButton.extended(

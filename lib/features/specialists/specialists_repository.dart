@@ -131,6 +131,20 @@ class SpecialistsRepository {
         .watch();
   }
 
+  /// All availability rows across every adult. Feeds the whole-
+  /// program timeline view — one watched stream instead of N
+  /// per-adult subscriptions, which matters once the program has
+  /// 10+ adults running across 5 weekdays.
+  Stream<List<SpecialistAvailabilityData>> watchAllAvailability() {
+    return (_db.select(_db.specialistAvailability)
+          ..orderBy([
+            (a) => OrderingTerm.asc(a.specialistId),
+            (a) => OrderingTerm.asc(a.dayOfWeek),
+            (a) => OrderingTerm.asc(a.startTime),
+          ]))
+        .watch();
+  }
+
   Future<List<SpecialistAvailabilityData>> availabilityFor(
     String specialistId,
   ) {
@@ -262,4 +276,12 @@ final specialistAvailabilityProvider = StreamProvider.family<
   return ref
       .watch(specialistsRepositoryProvider)
       .watchAvailabilityFor(specialistId);
+});
+
+/// Every availability row across the whole program. Used by the
+/// program-wide timeline screen — one subscription beats N per-adult
+/// family reads.
+final allAvailabilityProvider =
+    StreamProvider<List<SpecialistAvailabilityData>>((ref) {
+  return ref.watch(specialistsRepositoryProvider).watchAllAvailability();
 });
