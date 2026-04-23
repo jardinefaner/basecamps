@@ -9,8 +9,8 @@ import 'package:basecamp/features/observations/widgets/multi_capture_camera.dart
 import 'package:basecamp/features/observations/widgets/refineable_note_editor.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
-import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
+import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -184,17 +184,21 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
   }
 
   Future<void> _delete() async {
-    final confirmed = await showConfirmDialog(
+    final repo = ref.read(observationsRepositoryProvider);
+    final id = widget.observation.id;
+    final snapshot = await repo.snapshotObservation(id);
+    if (snapshot.isEmpty || !mounted) return;
+    final navigator = Navigator.of(context);
+    final confirmed = await confirmDeleteWithUndo(
       context: context,
       title: 'Delete observation?',
-      message: 'This cannot be undone.',
+      message: "You'll get a 5-second window to undo.",
+      onDelete: () => repo.deleteObservation(id),
+      undoLabel: 'Observation removed',
+      onUndo: () => repo.restoreObservations(snapshot),
     );
     if (!confirmed) return;
-    await ref
-        .read(observationsRepositoryProvider)
-        .deleteObservation(widget.observation.id);
-    if (!mounted) return;
-    Navigator.of(context).pop();
+    navigator.pop();
   }
 
   /// Opens the in-app multi-capture camera. Same flow as the composer:

@@ -8,7 +8,7 @@ import 'package:basecamp/features/observations/widgets/observation_card.dart';
 import 'package:basecamp/features/observations/widgets/observation_composer.dart';
 import 'package:basecamp/features/observations/widgets/observation_edit_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
-import 'package:basecamp/ui/confirm_dialog.dart';
+import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -85,42 +85,53 @@ class _ObservationsScreenState extends ConsumerState<ObservationsScreen> {
   Future<void> _deleteSelectedObservations() async {
     final count = _selectedObservationIds.length;
     if (count == 0) return;
-    final confirmed = await showConfirmDialog(
+    final repo = ref.read(observationsRepositoryProvider);
+    final ids = _selectedObservationIds.toList();
+    final snapshot = await repo.snapshotObservations(ids);
+    if (!mounted) return;
+    final confirmed = await confirmDeleteWithUndo(
       context: context,
       title: count == 1
           ? 'Delete this observation?'
           : 'Delete $count observations?',
       message:
-          'Every tagged child, domain, photo and video goes with them. '
-          'Cannot be undone.',
+          'Every tagged child, domain, photo and video goes with '
+          "them. You'll get a 5-second window to undo.",
       confirmLabel: count == 1 ? 'Delete' : 'Delete $count',
+      onDelete: () => repo.deleteObservations(ids),
+      undoLabel: count == 1
+          ? 'Observation removed'
+          : '$count observations removed',
+      onUndo: () => repo.restoreObservations(snapshot),
     );
-    if (!confirmed) return;
-    await ref
-        .read(observationsRepositoryProvider)
-        .deleteObservations(_selectedObservationIds.toList());
-    if (!mounted) return;
+    if (!confirmed || !mounted) return;
     _clearSelection();
   }
 
   Future<void> _deleteSelectedAttachments() async {
     final count = _selectedAttachmentIds.length;
     if (count == 0) return;
-    final confirmed = await showConfirmDialog(
+    final repo = ref.read(observationsRepositoryProvider);
+    final ids = _selectedAttachmentIds.toList();
+    final snapshot = await repo.snapshotAttachments(ids);
+    if (!mounted) return;
+    final confirmed = await confirmDeleteWithUndo(
       context: context,
       title: count == 1
           ? 'Delete this attachment?'
           : 'Delete $count attachments?',
       message:
-          'Files are removed from the device too. The observations they '
-          'belong to stay put. Cannot be undone.',
+          'The observations they belong to stay put. The files '
+          "survive on disk until the next app launch. You'll get a "
+          '5-second window to undo.',
       confirmLabel: count == 1 ? 'Delete' : 'Delete $count',
+      onDelete: () => repo.deleteAttachments(ids),
+      undoLabel: count == 1
+          ? 'Attachment removed'
+          : '$count attachments removed',
+      onUndo: () => repo.restoreAttachments(snapshot),
     );
-    if (!confirmed) return;
-    await ref
-        .read(observationsRepositoryProvider)
-        .deleteAttachments(_selectedAttachmentIds.toList());
-    if (!mounted) return;
+    if (!confirmed || !mounted) return;
     _clearSelection();
   }
 

@@ -80,8 +80,10 @@ class _AttachmentViewerState extends State<AttachmentViewer> {
     final confirmed = await showConfirmDialog(
       context: context,
       title: current.kind == 'video' ? 'Delete this video?' : 'Delete this photo?',
-      message: 'This removes it from the observation and wipes the '
-          'file off the device. Cannot be undone.',
+      message: 'This removes it from the observation. The file '
+          'itself stays on the device until the next app launch '
+          'in case you change your mind — reopen the observation '
+          'to re-attach.',
     );
     if (!confirmed || !mounted) return;
 

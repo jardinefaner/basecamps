@@ -367,31 +367,15 @@ class ObservationsRepository {
     return id;
   }
 
+  /// Delete a single attachment row. The on-disk media file is
+  /// deliberately left in place so an undo snackbar within the 5
+  /// second window can restore the row against an intact file —
+  /// orphaned files are reaped later by
+  /// [sweepOrphanedAttachmentFiles].
   Future<void> deleteAttachment(String id) async {
-    // Pull the path before the row goes away so the on-disk file can
-    // be cleaned up too — the DB delete alone would leak megabytes of
-    // photos and videos.
-    final row = await (_db.select(_db.observationAttachments)
-          ..where((a) => a.id.equals(id)))
-        .getSingleOrNull();
     await (_db.delete(_db.observationAttachments)
           ..where((a) => a.id.equals(id)))
         .go();
-    if (row != null) await _deleteLocalFile(row.localPath);
-  }
-
-  /// Best-effort removal of a local media file. Swallows every error
-  /// on purpose — a stale path, a permissions hiccup, or web (no
-  /// dart:io) shouldn't block a DB delete the user has already
-  /// confirmed.
-  Future<void> _deleteLocalFile(String path) async {
-    if (kIsWeb) return;
-    try {
-      final file = File(path);
-      if (file.existsSync()) await file.delete();
-    } on Object {
-      // swallow
-    }
   }
 
   /// Partial update. Anything left as `null` (or not passed) is left
@@ -492,50 +476,199 @@ class ObservationsRepository {
     });
   }
 
-  Future<void> deleteObservation(String id) async {
-    // Grab every attachment's path before we drop the row — once the
-    // observation goes the FK cascade nukes the attachment rows, but
-    // the local media files are ours to clean up explicitly.
+  /// Captures everything that CASCADE would wipe on delete, so the
+  /// undo snackbar can restore the observation with its joins intact.
+  /// Doesn't touch the DB — it's a pre-delete read.
+  Future<ObservationSnapshot> snapshotObservation(String id) async {
+    final observation = await (_db.select(_db.observations)
+          ..where((o) => o.id.equals(id)))
+        .getSingleOrNull();
+    if (observation == null) {
+      return const ObservationSnapshot.empty();
+    }
+    final childLinks = await (_db.select(_db.observationChildren)
+          ..where((c) => c.observationId.equals(id)))
+        .get();
     final attachments = await (_db.select(_db.observationAttachments)
           ..where((a) => a.observationId.equals(id)))
         .get();
-    await (_db.delete(_db.observations)..where((o) => o.id.equals(id))).go();
-    for (final a in attachments) {
-      await _deleteLocalFile(a.localPath);
-    }
+    final tags = await (_db.select(_db.observationDomainTags)
+          ..where((t) => t.observationId.equals(id)))
+        .get();
+    return ObservationSnapshot(
+      observations: [observation],
+      childLinks: childLinks,
+      attachments: attachments,
+      tags: tags,
+    );
   }
 
-  /// Batch version. Groups the DB delete into a single `WHERE id IN`
-  /// so the stream providers only emit once, then fires a best-effort
-  /// file cleanup for every attachment in the removed set.
-  Future<void> deleteObservations(Iterable<String> ids) async {
+  /// Batch snapshot for bulk delete. Single roundtrip per join table.
+  Future<ObservationSnapshot> snapshotObservations(
+    Iterable<String> ids,
+  ) async {
     final list = ids.toList();
-    if (list.isEmpty) return;
+    if (list.isEmpty) return const ObservationSnapshot.empty();
+    final observations = await (_db.select(_db.observations)
+          ..where((o) => o.id.isIn(list)))
+        .get();
+    final childLinks = await (_db.select(_db.observationChildren)
+          ..where((c) => c.observationId.isIn(list)))
+        .get();
     final attachments = await (_db.select(_db.observationAttachments)
           ..where((a) => a.observationId.isIn(list)))
         .get();
-    await (_db.delete(_db.observations)..where((o) => o.id.isIn(list)))
-        .go();
-    for (final a in attachments) {
-      await _deleteLocalFile(a.localPath);
-    }
+    final tags = await (_db.select(_db.observationDomainTags)
+          ..where((t) => t.observationId.isIn(list)))
+        .get();
+    return ObservationSnapshot(
+      observations: observations,
+      childLinks: childLinks,
+      attachments: attachments,
+      tags: tags,
+    );
   }
 
-  /// Batch version of [deleteAttachment]. One DB delete, plus a file
-  /// cleanup per path — same shape as [deleteObservations].
+  /// Drops the observation row. CASCADE wipes domain tags, child
+  /// links, and attachment rows; the LOCAL FILES are deliberately
+  /// left alone so an undo within the snackbar window can restore
+  /// everything — attachment files live on disk until the orphan
+  /// sweeper reaps them (see [sweepOrphanedAttachmentFiles]).
+  Future<void> deleteObservation(String id) async {
+    await (_db.delete(_db.observations)..where((o) => o.id.equals(id))).go();
+  }
+
+  /// Batch version. Groups the DB delete into a single `WHERE id IN`
+  /// so the stream providers only emit once. Files stay on disk —
+  /// swept later.
+  Future<void> deleteObservations(Iterable<String> ids) async {
+    final list = ids.toList();
+    if (list.isEmpty) return;
+    await (_db.delete(_db.observations)..where((o) => o.id.isIn(list)))
+        .go();
+  }
+
+  /// Re-inserts an observation (or a batch of them) + every join row
+  /// the snapshot captured. Used by the undo snackbar.
+  Future<void> restoreObservations(ObservationSnapshot snap) async {
+    await _db.transaction(() async {
+      for (final o in snap.observations) {
+        await _db.into(_db.observations).insertOnConflictUpdate(o);
+      }
+      for (final t in snap.tags) {
+        await _db.into(_db.observationDomainTags).insertOnConflictUpdate(t);
+      }
+      for (final c in snap.childLinks) {
+        await _db
+            .into(_db.observationChildren)
+            .insertOnConflictUpdate(c);
+      }
+      for (final a in snap.attachments) {
+        await _db
+            .into(_db.observationAttachments)
+            .insertOnConflictUpdate(a);
+      }
+    });
+  }
+
+  /// Delete attachment rows without touching the on-disk files. Used
+  /// by the attachment viewer when a teacher removes a single photo
+  /// or video — file cleanup is deferred to the orphan sweeper so
+  /// undo can restore the row against an intact file.
   Future<void> deleteAttachments(Iterable<String> ids) async {
     final list = ids.toList();
     if (list.isEmpty) return;
-    final rows = await (_db.select(_db.observationAttachments)
-          ..where((a) => a.id.isIn(list)))
-        .get();
     await (_db.delete(_db.observationAttachments)
           ..where((a) => a.id.isIn(list)))
         .go();
-    for (final r in rows) {
-      await _deleteLocalFile(r.localPath);
-    }
   }
+
+  /// Snapshot (+ restore) for single attachment deletes.
+  Future<List<ObservationAttachment>> snapshotAttachments(
+    Iterable<String> ids,
+  ) {
+    final list = ids.toList();
+    if (list.isEmpty) return Future.value(const []);
+    return (_db.select(_db.observationAttachments)
+          ..where((a) => a.id.isIn(list)))
+        .get();
+  }
+
+  Future<void> restoreAttachments(
+    Iterable<ObservationAttachment> rows,
+  ) async {
+    await _db.transaction(() async {
+      for (final r in rows) {
+        await _db
+            .into(_db.observationAttachments)
+            .insertOnConflictUpdate(r);
+      }
+    });
+  }
+
+  /// Sweeps local media files that no attachment row points at.
+  /// Designed to be called on app startup — reaps orphans left
+  /// behind by undo-enabled deletes that weren't undone within
+  /// the snackbar window. Safe to run any time.
+  ///
+  /// Scans only the files currently referenced vs. the app-owned
+  /// media directory. Anything outside that dir (user-picked photo
+  /// paths, camera-roll shares) is left alone — not ours to delete.
+  Future<int> sweepOrphanedAttachmentFiles({
+    required Directory mediaDir,
+  }) async {
+    if (kIsWeb) return 0;
+    if (!mediaDir.existsSync()) return 0;
+    final referenced = await _db
+        .select(_db.observationAttachments)
+        .get()
+        .then((rows) => rows.map((r) => r.localPath).toSet());
+    var swept = 0;
+    try {
+      final entries = mediaDir.listSync(followLinks: false);
+      for (final e in entries) {
+        if (e is! File) continue;
+        if (referenced.contains(e.path)) continue;
+        try {
+          e.deleteSync();
+          swept++;
+        } on Object {
+          // Ignore — stale handle, permission, etc. Sweep again
+          // next launch.
+        }
+      }
+    } on Object {
+      // Directory may have vanished or been replaced mid-scan.
+      // Not a hard error.
+    }
+    return swept;
+  }
+}
+
+/// Bundle of rows captured before an observation delete — the
+/// observation itself plus every CASCADE-wiped join row. Used by the
+/// undo snackbar's restore callback so every side of the observation
+/// (tags, child links, attachments) comes back together.
+class ObservationSnapshot {
+  const ObservationSnapshot({
+    required this.observations,
+    required this.childLinks,
+    required this.attachments,
+    required this.tags,
+  });
+
+  const ObservationSnapshot.empty()
+      : observations = const [],
+        childLinks = const [],
+        attachments = const [],
+        tags = const [];
+
+  final List<Observation> observations;
+  final List<ObservationChildrenData> childLinks;
+  final List<ObservationAttachment> attachments;
+  final List<ObservationDomainTag> tags;
+
+  bool get isEmpty => observations.isEmpty;
 }
 
 /// Minimal descriptor used when creating an observation. Local-first:
