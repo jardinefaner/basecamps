@@ -655,49 +655,67 @@ class _BlockRow extends ConsumerWidget {
     final theme = Theme.of(context);
     final role = AdultBlockRole.fromDb(block.role);
 
-    // Resolve destination label + the group's own anchor.
+    // Resolve destination label.
     //
     // Lead block: block.groupId is the anchored group — name it.
-    // Specialist block: no groupId on the block itself; look up
-    // scheduled templates for this adult on this weekday that
-    // time-overlap the block, then name the groups those activities
-    // are scoped to.
+    // Specialist block: render one row per overlapping scheduled
+    // template (rotating into different activities through the
+    // day), each resolved to the destination group + that group's
+    // anchor-lead name inside a dedicated child widget.
     final summariesByGroupId = {
       for (final g in ref.watch(groupSummariesProvider).asData?.value ??
           const <GroupSummary>[])
         g.id: g,
     };
 
-    String destinationLabel;
-    var anchorHints = <String>[];
+    Widget destinationContent;
     if (role == AdultBlockRole.lead) {
       final g = block.groupId == null
           ? null
           : summariesByGroupId[block.groupId!];
-      destinationLabel = g?.name ?? 'No group set';
-      // Anchor hint for a lead block is redundant (they ARE the
-      // anchor), so leave anchorHints empty.
+      destinationContent = Text(
+        g?.name ?? 'No group set',
+        style: theme.textTheme.bodyMedium,
+      );
     } else {
-      // Specialist — cross-ref scheduled templates.
-      final templates =
+      // Specialist — cross-ref scheduled templates that overlap the
+      // block window. Each gets its own line with the destination
+      // group + anchor-lead name resolved through the
+      // templateGroupsProvider join.
+      final allTemplates =
           ref.watch(templatesBySpecialistProvider(specialistId))
                   .asData?.value ??
               const <ScheduleTemplate>[];
-      final dests = _resolveSpecialistDestinations(
-        block: block,
-        templates: templates,
-        summariesByGroupId: summariesByGroupId,
-      );
-      destinationLabel = dests.isEmpty
-          ? 'Rotating · no activity scheduled'
-          : dests
-              .map((d) => d.groupName ?? d.activityTitle)
-              .join(' · ');
-      anchorHints = [
-        for (final d in dests)
-          if (d.anchorName != null && d.groupName != null)
-            '${d.groupName!} anchor: ${d.anchorName!}',
-      ];
+      final blockStart = _parseHHmm(block.startTime);
+      final blockEnd = _parseHHmm(block.endTime);
+      final overlapping = [
+        for (final t in allTemplates)
+          if (t.dayOfWeek == block.dayOfWeek &&
+              _parseHHmm(t.startTime) < blockEnd &&
+              _parseHHmm(t.endTime) > blockStart)
+            t,
+      ]..sort((a, b) => a.startTime.compareTo(b.startTime));
+
+      if (overlapping.isEmpty) {
+        destinationContent = Text(
+          'Rotating · no activity scheduled',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontStyle: FontStyle.italic,
+          ),
+        );
+      } else {
+        destinationContent = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final t in overlapping)
+              _SpecialistDestinationLine(
+                template: t,
+                summariesByGroupId: summariesByGroupId,
+              ),
+          ],
+        );
+      }
     }
 
     return Padding(
@@ -721,24 +739,9 @@ class _BlockRow extends ConsumerWidget {
                   children: [
                     _MiniRoleChip(role: role),
                     const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        destinationLabel,
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    ),
+                    Expanded(child: destinationContent),
                   ],
                 ),
-                for (final h in anchorHints)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      h,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
               ],
             ),
           ),
@@ -757,49 +760,97 @@ class _BlockRow extends ConsumerWidget {
   }
 }
 
-/// Destination of a specialist block. Currently carries just the
-/// activity title — resolving to the destination group + the
-/// group's anchor lead requires a per-template group join
-/// (templateGroupsProvider) that isn't threaded through here yet.
-/// Follow-up.
-class _SpecialistDestination {
-  const _SpecialistDestination({required this.activityTitle});
-  final String activityTitle;
-  String? get groupName => null;
-  String? get anchorName => null;
-}
+/// One line inside a specialist block — describes a single activity
+/// they're running during that block, with the destination group(s)
+/// and each group's anchor-lead name so the covering lead knows
+/// where they're heading and who the "home" lead there is.
+///
+/// Watches [templateGroupsProvider] for its own template so the
+/// parent row doesn't have to thread N async lookups. Loading
+/// state shows a muted activity title only; once the join lands,
+/// destinations + anchors fill in.
+class _SpecialistDestinationLine extends ConsumerWidget {
+  const _SpecialistDestinationLine({
+    required this.template,
+    required this.summariesByGroupId,
+  });
 
-/// Finds scheduled templates that overlap the specialist block's
-/// time window and resolves each to a destination group + anchor
-/// lead. Templates that don't scope to a group (all-groups or
-/// no-groups activities) fall back to just the activity title.
-List<_SpecialistDestination> _resolveSpecialistDestinations({
-  required AdultDayBlock block,
-  required List<ScheduleTemplate> templates,
-  required Map<String, GroupSummary> summariesByGroupId,
-}) {
-  final startMin = _parseHHmm(block.startTime);
-  final endMin = _parseHHmm(block.endTime);
-  final out = <_SpecialistDestination>[];
-  for (final t in templates) {
-    if (t.dayOfWeek != block.dayOfWeek) continue;
-    final tStart = _parseHHmm(t.startTime);
-    final tEnd = _parseHHmm(t.endTime);
-    // Overlap = any minute in the block falls inside the template.
-    final overlaps = tStart < endMin && tEnd > startMin;
-    if (!overlaps) continue;
-    // Resolve the first groupId the template carries into a group
-    // name + anchor. Templates that are all-groups / no-groups
-    // show just the activity title.
-    //
-    // ScheduleTemplate stores groups via a separate template_groups
-    // table; without a provider giving us that join, we fall back
-    // to just the template title for now. Upgrading this to name
-    // destination groups properly is a small follow-up — the
-    // activity title alone is still useful signal.
-    out.add(_SpecialistDestination(activityTitle: t.title));
+  final ScheduleTemplate template;
+  final Map<String, GroupSummary> summariesByGroupId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final groupIdsAsync =
+        ref.watch(templateGroupsProvider(template.id));
+
+    // Build the destination phrase based on the template's scope.
+    String? destination;
+    if (template.allGroups) {
+      destination = 'all groups';
+    } else {
+      final groupIds = groupIdsAsync.asData?.value ?? const <String>[];
+      if (groupIds.isEmpty && !groupIdsAsync.isLoading) {
+        // No-groups activity (explicit staff-prep etc). Leave
+        // destination null so the line renders just the title.
+      } else {
+        final dests = <String>[];
+        for (final gid in groupIds) {
+          final summary = summariesByGroupId[gid];
+          if (summary == null) continue;
+          // Each anchor-lead name surfaces alongside the group so
+          // the rotator sees "Butterflies (with Sarah)" at a glance.
+          // Groups with multiple anchors list just the first by name
+          // order (leadsInPodNow resolution is a Today concern, not
+          // a schedule-static one).
+          final anchor = summary.anchorLeads.isEmpty
+              ? null
+              : summary.anchorLeads.first.name;
+          dests.add(
+            anchor == null
+                ? summary.name
+                : '${summary.name} (with $anchor)',
+          );
+        }
+        if (dests.isNotEmpty) destination = dests.join(' · ');
+      }
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            template.title,
+            style: theme.textTheme.bodyMedium,
+          ),
+          if (destination != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.arrow_right_alt,
+                    size: 14,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 2),
+                  Expanded(
+                    child: Text(
+                      destination,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
   }
-  return out;
 }
 
 int _parseHHmm(String hhmm) {
