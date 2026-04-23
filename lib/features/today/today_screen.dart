@@ -7,16 +7,19 @@ import 'package:basecamp/features/attendance/widgets/attendance_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_repository.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
+import 'package:basecamp/features/pods/pods_repository.dart';
 import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/add_activity_picker.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
+import 'package:basecamp/features/today/last_expanded_pod.dart';
 import 'package:basecamp/features/today/today_buckets.dart';
 import 'package:basecamp/features/today/widgets/all_day_carousel.dart';
 import 'package:basecamp/features/today/widgets/day_summary_strip.dart';
 import 'package:basecamp/features/today/widgets/earlier_today_group.dart';
 import 'package:basecamp/features/today/widgets/hero_now_card.dart';
+import 'package:basecamp/features/today/widgets/pod_today_card.dart';
 import 'package:basecamp/features/today/widgets/schedule_item_card.dart';
 import 'package:basecamp/features/today/widgets/staff_today_strip.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -355,6 +358,21 @@ class _Body extends ConsumerWidget {
           const SizedBox(height: AppSpacing.md),
         ],
 
+        // Pod stack — one collapsible card per pod with that pod's
+        // NOW + NEXT + anchor leads. Additive to the hero/upcoming
+        // list below; the idea is "scan the pods first, drill into
+        // the chronological list if you need the whole day." Pods
+        // self-hide when none are set up yet — brand-new installs
+        // fall through to the classic hero layout unchanged.
+        _PodStack(
+          items: items,
+          now: now,
+          attendanceMap: attendanceMap,
+          allKids: allKids,
+          onOpenDetail: onOpenDetail,
+          onOpenAttendance: openAttendance,
+        ),
+
         // Hero "right now" card — dominates the fold when an activity
         // is in progress. When several activities overlap the primary
         // (earliest-started) is the hero; the rest surface compactly
@@ -612,6 +630,122 @@ class _WrapUpBanner extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// The pod stack on Today — one collapsible [PodTodayCard] per pod,
+/// each showing that pod's NOW + NEXT + staffing. Listens to
+/// `podsProvider` and `lastExpandedPodProvider`; the latter
+/// persists across app restarts so the teacher's pod opens to the
+/// same card they last looked at.
+///
+/// Self-hides when no pods exist yet (brand-new install) — the screen
+/// falls back to the classic hero layout without the pod section.
+class _PodStack extends ConsumerWidget {
+  const _PodStack({
+    required this.items,
+    required this.now,
+    required this.attendanceMap,
+    required this.allKids,
+    required this.onOpenDetail,
+    required this.onOpenAttendance,
+  });
+
+  final List<ScheduleItem> items;
+  final DateTime now;
+  final Map<String, AttendanceRecord> attendanceMap;
+  final List<Child> allKids;
+  final ValueChanged<ScheduleItem> onOpenDetail;
+  final Future<void> Function(ScheduleItem) onOpenAttendance;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final podsAsync = ref.watch(podsProvider);
+    final pods = podsAsync.asData?.value ?? const <Pod>[];
+    if (pods.isEmpty) return const SizedBox.shrink();
+
+    final expandedId = ref.watch(lastExpandedPodProvider);
+    final nowMinutes = now.hour * 60 + now.minute;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final pod in pods) ...[
+          PodTodayCard(
+            pod: pod,
+            now: now,
+            current: _currentFor(pod, nowMinutes),
+            next: _nextFor(pod, nowMinutes),
+            attendance: _attendanceFor(pod),
+            expanded: expandedId == pod.id,
+            onToggle: () =>
+                ref.read(lastExpandedPodProvider.notifier).toggle(pod.id),
+            onOpenDetail: onOpenDetail,
+            onOpenAttendance: onOpenAttendance,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+        ],
+        const SizedBox(height: AppSpacing.sm),
+      ],
+    );
+  }
+
+  /// The pod's current in-progress activity, if any. A pod-scoped item
+  /// matches when `groupIds` contains the pod's group id; earliest-
+  /// started wins the slot the same way the global hero does.
+  ScheduleItem? _currentFor(Pod pod, int nowMinutes) {
+    ScheduleItem? best;
+    for (final item in items) {
+      if (item.isFullDay) continue;
+      if (!item.groupIds.contains(pod.id)) continue;
+      final start = item.startMinutes;
+      final end = item.endMinutes;
+      if (nowMinutes < start || nowMinutes >= end) continue;
+      if (best == null || item.startMinutes < best.startMinutes) {
+        best = item;
+      }
+    }
+    return best;
+  }
+
+  /// The pod's next upcoming activity. First future item whose
+  /// groupIds include the pod. Skips full-day items.
+  ScheduleItem? _nextFor(Pod pod, int nowMinutes) {
+    ScheduleItem? best;
+    for (final item in items) {
+      if (item.isFullDay) continue;
+      if (!item.groupIds.contains(pod.id)) continue;
+      if (item.startMinutes <= nowMinutes) continue;
+      if (best == null || item.startMinutes < best.startMinutes) {
+        best = item;
+      }
+    }
+    return best;
+  }
+
+  /// Today's attendance summary for the pod — present/absent/total
+  /// count rolled up from the kids assigned to the pod's group.
+  /// Null when the pod has no kids yet (brand-new pod).
+  AttendanceSummary? _attendanceFor(Pod pod) {
+    var present = 0;
+    var absent = 0;
+    var total = 0;
+    for (final k in allKids) {
+      if (k.groupId != pod.id) continue;
+      total++;
+      final status = attendanceMap[k.id]?.status;
+      if (status == AttendanceStatus.present) {
+        present++;
+      } else if (status == AttendanceStatus.absent) {
+        absent++;
+      }
+    }
+    if (total == 0) return null;
+    return AttendanceSummary(
+      present: present,
+      absent: absent,
+      total: total,
     );
   }
 }
