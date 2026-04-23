@@ -4,6 +4,7 @@ import 'package:basecamp/features/children/widgets/edit_child_sheet.dart';
 import 'package:basecamp/features/children/widgets/edit_group_sheet.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
 import 'package:basecamp/features/rooms/rooms_repository.dart';
+import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -140,6 +141,8 @@ class _Body extends ConsumerWidget {
         _RoomSection(summary: summary),
         const SizedBox(height: AppSpacing.lg),
         _LeadsSection(summary: summary),
+        const SizedBox(height: AppSpacing.lg),
+        _VisitorsTodaySection(summary: summary),
         const SizedBox(height: AppSpacing.lg),
         _KidsSection(summary: summary, kids: kidsInGroup),
         const SizedBox(height: AppSpacing.xxxl),
@@ -807,4 +810,183 @@ class _SectionCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "Visitors today" section — lists adults who are rotating into
+/// this group today as specialists. Two data sources merge here:
+///
+///   1. Scheduled activities (weekly templates) where this group is
+///      in the activity's group list AND the activity has a
+///      specialistId set. These are the "Sarah is running Art for
+///      Butterflies at 11" scheduled rotations.
+///   2. Adult day-timeline blocks marking someone as specialist —
+///      filtered to blocks whose scheduled activity overlaps this
+///      group. Redundant with (1) when the schedule already pins
+///      the specialist, but covers the "day-timeline says Sarah is
+///      the floating rotator 11-12, scheduled activity slot has no
+///      specialistId yet" case.
+///
+/// Self-hides when no visitors today. Mostly a list viewer —
+/// edits happen on the adult's timeline sheet or in the schedule
+/// editor.
+class _VisitorsTodaySection extends ConsumerWidget {
+  const _VisitorsTodaySection({required this.summary});
+
+  final GroupSummary summary;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final today = DateTime.now();
+    final dayOfWeek = today.weekday;
+    // Weekends read from Monday so an idle weekend glance at a
+    // group isn't empty-by-accident.
+    final effectiveDay =
+        (dayOfWeek >= 1 && dayOfWeek <= 5) ? dayOfWeek : 1;
+
+    // Specialists by scheduled activity this group is in.
+    final visitors = _resolveVisitors(ref, effectiveDay);
+    if (visitors.isEmpty) return const SizedBox.shrink();
+
+    return _SectionCard(
+      title: 'VISITING TODAY',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final v in visitors)
+            _VisitorRow(visitor: v),
+        ],
+      ),
+    );
+  }
+
+  /// Resolves the visitor list by scanning scheduled templates that
+  /// both (a) target this group and (b) declare a specialist. Sorted
+  /// by activity start time so the list reads chronologically.
+  List<_VisitorInfo> _resolveVisitors(WidgetRef ref, int dayOfWeek) {
+    final specialists =
+        ref.watch(specialistsProvider).asData?.value ??
+            const <Specialist>[];
+    if (specialists.isEmpty) return const [];
+    final byId = {for (final s in specialists) s.id: s};
+
+    // templatesForGroupProvider isn't a thing yet; scan each
+    // specialist's templates and filter to this group + this day.
+    // N is small (program has ~10 adults); even linear is fine.
+    final out = <_VisitorInfo>[];
+    for (final s in specialists) {
+      final tplAsync =
+          ref.watch(templatesBySpecialistProvider(s.id));
+      final templates = tplAsync.asData?.value ??
+          const <ScheduleTemplate>[];
+      for (final t in templates) {
+        if (t.dayOfWeek != dayOfWeek) continue;
+        // Watch the template's group list to know whether this
+        // group is a target. A null from the future means "still
+        // loading" — skip for now, the row re-renders when it
+        // lands.
+        final groupsAsync = ref.watch(templateGroupsProvider(t.id));
+        final groupIds = groupsAsync.asData?.value;
+        if (groupIds == null) continue;
+        final targetsThisGroup = groupIds.contains(summary.id) ||
+            (groupIds.isEmpty && t.allGroups);
+        if (!targetsThisGroup) continue;
+        out.add(
+          _VisitorInfo(
+            specialist: byId[s.id]!,
+            template: t,
+          ),
+        );
+      }
+    }
+    out.sort((a, b) => a.template.startTime.compareTo(b.template.startTime));
+    return out;
+  }
+}
+
+/// One visitor row — avatar + name + activity they're running + time.
+/// Taps through to that adult's detail screen.
+class _VisitorRow extends ConsumerWidget {
+  const _VisitorRow({required this.visitor});
+
+  final _VisitorInfo visitor;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final s = visitor.specialist;
+    final t = visitor.template;
+    // Distinguish lead rotators (someone whose day-timeline says
+    // they're specialist here) from static specialists. Useful
+    // context: "your lead-now-visiting-us" reads differently than
+    // "the house specialist."
+    final staticRole = AdultRole.fromDb(s.adultRole);
+    final tag = switch (staticRole) {
+      AdultRole.lead => 'Lead · visiting',
+      AdultRole.specialist => 'Specialist',
+      AdultRole.ambient => 'Ambient',
+    };
+    return InkWell(
+      onTap: () => context.push('/more/adults/${s.id}'),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+        child: Row(
+          children: [
+            SmallAvatar(
+              path: s.avatarPath,
+              fallbackInitial: s.name.isNotEmpty
+                  ? s.name.characters.first.toUpperCase()
+                  : '?',
+              radius: 18,
+              backgroundColor: theme.colorScheme.tertiaryContainer,
+              foregroundColor: theme.colorScheme.onTertiaryContainer,
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(s.name, style: theme.textTheme.titleSmall),
+                  Text(
+                    '${t.title} · ${_fmt12h(t.startTime)}–${_fmt12h(t.endTime)}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  Text(
+                    tag,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant
+                          .withValues(alpha: 0.75),
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: theme.colorScheme.onSurfaceVariant,
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _fmt12h(String hhmm) {
+    final parts = hhmm.split(':');
+    final h = int.parse(parts[0]);
+    final m = int.parse(parts[1]);
+    final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+    final period = h >= 12 ? 'p' : 'a';
+    return '$hour12${m == 0 ? "" : ":${m.toString().padLeft(2, "0")}"}$period';
+  }
+}
+
+/// Bundle of "which adult + which activity" for the visitors list.
+class _VisitorInfo {
+  const _VisitorInfo({required this.specialist, required this.template});
+  final Specialist specialist;
+  final ScheduleTemplate template;
 }
