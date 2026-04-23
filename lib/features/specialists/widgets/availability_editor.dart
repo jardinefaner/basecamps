@@ -113,6 +113,169 @@ List<AvailabilityBlock> defaultAvailability() => [
 /// "keep as-is"; returning a TimeOfDay replaces the value.
 typedef TimePick = Future<TimeOfDay?> Function();
 
+/// Compact "same every day" editor. One set of start/end pickers,
+/// one break + lunch, plus a Mon–Fri chip row picking which days the
+/// same block applies to. Fast path for the common case where a
+/// teacher works the same hours all five days — the per-day
+/// [AvailabilityEditor] was 5x the taps.
+///
+/// Stateless on purpose: the parent owns both the uniform block and
+/// the set of picked days, so the edit sheet + wizard can share this
+/// with no hidden state.
+class UniformAvailabilityEditor extends StatelessWidget {
+  const UniformAvailabilityEditor({
+    required this.block,
+    required this.days,
+    required this.onToggleDay,
+    required this.onPickStart,
+    required this.onPickEnd,
+    required this.onPickBreak,
+    required this.onPickLunch,
+    required this.onClearBreak,
+    required this.onClearLunch,
+    super.key,
+  });
+
+  /// The shared block — hours, break, lunch. Applies to every day in
+  /// [days].
+  final AvailabilityBlock block;
+
+  /// Which weekdays the block applies to (ISO 1..5).
+  final Set<int> days;
+
+  /// Parent toggles a weekday on/off. Turning every day off = "off".
+  final void Function(int dayOfWeek, {required bool enabled}) onToggleDay;
+
+  final VoidCallback onPickStart;
+  final VoidCallback onPickEnd;
+  final Future<void> Function() onPickBreak;
+  final Future<void> Function() onPickLunch;
+  final VoidCallback onClearBreak;
+  final VoidCallback onClearLunch;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Days', style: theme.textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            for (final d in scheduleDayValues)
+              FilterChip(
+                label: Text(scheduleDayShortLabels[d - 1]),
+                selected: days.contains(d),
+                onSelected: (v) => onToggleDay(d, enabled: v),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        Text('Hours', style: theme.textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Expanded(
+              child: _TimeChip(
+                label: block.start.format(context),
+                onTap: onPickStart,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+              ),
+              child: Text(
+                '→',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            Expanded(
+              child: _TimeChip(
+                label: block.end.format(context),
+                onTap: onPickEnd,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            _BreakChip(
+              icon: Icons.coffee_outlined,
+              start: block.breakStart,
+              end: block.breakEnd,
+              emptyLabel: 'Add break',
+              onTap: onPickBreak,
+              onClear: onClearBreak,
+            ),
+            _BreakChip(
+              icon: Icons.restaurant_outlined,
+              start: block.lunchStart,
+              end: block.lunchEnd,
+              emptyLabel: 'Add lunch',
+              onTap: onPickLunch,
+              onClear: onClearLunch,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Expands a uniform block across a set of selected weekdays into the
+/// per-day Map representation the rest of the code works with. Used
+/// when the parent is saving a uniform-mode edit, or when toggling
+/// uniform OFF to hydrate per-day state.
+Map<int, AvailabilityBlock> expandUniform({
+  required AvailabilityBlock block,
+  required Set<int> days,
+}) {
+  return {
+    for (final d in days)
+      d: AvailabilityBlock(
+        dayOfWeek: d,
+        start: block.start,
+        end: block.end,
+        breakStart: block.breakStart,
+        breakEnd: block.breakEnd,
+        lunchStart: block.lunchStart,
+        lunchEnd: block.lunchEnd,
+      ),
+  };
+}
+
+/// Detects whether a per-day map is already "same every day" — i.e.
+/// every enabled day has matching hours + break + lunch. Used on edit
+/// sheet load to default the uniform toggle ON when the existing data
+/// is uniform, OFF otherwise.
+({bool uniform, AvailabilityBlock? seed, Set<int> days}) detectUniform(
+  Map<int, AvailabilityBlock> perDay,
+) {
+  if (perDay.isEmpty) {
+    return (uniform: true, seed: null, days: const <int>{});
+  }
+  final days = perDay.keys.toSet();
+  final first = perDay.values.first;
+  for (final b in perDay.values) {
+    if (b.start != first.start) return (uniform: false, seed: first, days: days);
+    if (b.end != first.end) return (uniform: false, seed: first, days: days);
+    if (b.breakStart != first.breakStart) return (uniform: false, seed: first, days: days);
+    if (b.breakEnd != first.breakEnd) return (uniform: false, seed: first, days: days);
+    if (b.lunchStart != first.lunchStart) return (uniform: false, seed: first, days: days);
+    if (b.lunchEnd != first.lunchEnd) return (uniform: false, seed: first, days: days);
+  }
+  return (uniform: true, seed: first, days: days);
+}
+
 /// Per-weekday editable rows. Null row = day off. Callers pass the
 /// current list and get change callbacks back; this widget is purely
 /// a UI — state ownership stays with the parent wizard/sheet.

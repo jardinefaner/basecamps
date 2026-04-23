@@ -39,11 +39,24 @@ class _NewSpecialistWizardScreenState
   AdultRole _adultRole = AdultRole.specialist;
   String? _anchoredGroupId;
 
-  /// Weekly shift sketch — seeded with Mon–Fri 9–5 so a "just tap
-  /// Next" teacher gets a sensible default instead of an empty week.
+  /// Weekly shift sketch (per-day branch). Seeded with Mon–Fri 9–5
+  /// so a "just tap Next" teacher gets a sensible default instead of
+  /// an empty week. Used when [_uniformMode] is false.
   late final Map<int, AvailabilityBlock> _availability = {
     for (final b in defaultAvailability()) b.dayOfWeek: b,
   };
+
+  /// Uniform-mode state. Defaults to ON because "same hours every
+  /// day" is the common case and we don't want teachers tapping Mon,
+  /// Tue, Wed, Thu, Fri to set 9-5 on each. When they need nuance
+  /// they flip the switch off and get per-day editing.
+  bool _uniformMode = true;
+  AvailabilityBlock _uniformBlock = AvailabilityBlock(
+    dayOfWeek: 1,
+    start: const TimeOfDay(hour: 9, minute: 0),
+    end: const TimeOfDay(hour: 17, minute: 0),
+  );
+  Set<int> _uniformDays = {1, 2, 3, 4, 5};
 
   bool get _dirty =>
       _name.text.trim().isNotEmpty ||
@@ -79,9 +92,17 @@ class _NewSpecialistWizardScreenState
       adultRole: _adultRole,
       anchoredGroupId: effectiveAnchor,
     );
+    // Uniform mode: expand the single block across selected days on
+    // save. Per-day mode: just serialize the map as-is.
+    final blocks = _uniformMode
+        ? expandUniform(block: _uniformBlock, days: _uniformDays)
+            .values
+            .map((b) => b.toInput())
+            .toList()
+        : _availability.values.map((b) => b.toInput()).toList();
     await repo.replaceAvailability(
       specialistId: id,
-      blocks: _availability.values.map((b) => b.toInput()).toList(),
+      blocks: blocks,
     );
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -262,6 +283,116 @@ class _NewSpecialistWizardScreenState
   }
 
   Widget _buildAvailabilityPage() {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SwitchListTile(
+          title: const Text('Same hours every day'),
+          subtitle: const Text(
+            'Turn off for different hours on different days.',
+          ),
+          value: _uniformMode,
+          onChanged: (v) => setState(() {
+            if (v) {
+              // Per-day → Uniform: use Monday's values as the seed
+              // if any are set, otherwise keep the current uniform
+              // defaults.
+              final pd = _availability;
+              if (pd.isNotEmpty) {
+                final seed = pd.values.first;
+                _uniformBlock = AvailabilityBlock(
+                  dayOfWeek: 1,
+                  start: seed.start,
+                  end: seed.end,
+                  breakStart: seed.breakStart,
+                  breakEnd: seed.breakEnd,
+                  lunchStart: seed.lunchStart,
+                  lunchEnd: seed.lunchEnd,
+                );
+                _uniformDays = pd.keys.toSet();
+              }
+            } else {
+              // Uniform → Per-day: expand the shared block across
+              // the selected days so the teacher doesn't lose their
+              // hours when switching.
+              _availability
+                ..clear()
+                ..addAll(
+                  expandUniform(
+                    block: _uniformBlock,
+                    days: _uniformDays,
+                  ),
+                );
+            }
+            _uniformMode = v;
+          }),
+          contentPadding: EdgeInsets.zero,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        if (_uniformMode)
+          UniformAvailabilityEditor(
+            block: _uniformBlock,
+            days: _uniformDays,
+            onToggleDay: (day, {required enabled}) {
+              setState(() {
+                if (enabled) {
+                  _uniformDays.add(day);
+                } else {
+                  _uniformDays.remove(day);
+                }
+              });
+            },
+            onPickStart: () async {
+              final picked = await showTimePicker(
+                context: context,
+                initialTime: _uniformBlock.start,
+              );
+              if (picked == null || !mounted) return;
+              setState(() {
+                _uniformBlock = _uniformBlock.copyWith(start: picked);
+              });
+            },
+            onPickEnd: () async {
+              final picked = await showTimePicker(
+                context: context,
+                initialTime: _uniformBlock.end,
+              );
+              if (picked == null || !mounted) return;
+              setState(() {
+                _uniformBlock = _uniformBlock.copyWith(end: picked);
+              });
+            },
+            onPickBreak: () => _pickUniformWindow(
+              seedStart: const TimeOfDay(hour: 10, minute: 30),
+              seedDurationMinutes: 15,
+              readStart: (b) => b.breakStart,
+              readEnd: (b) => b.breakEnd,
+              apply: (b, start, end) =>
+                  b.copyWith(breakStart: start, breakEnd: end),
+            ),
+            onPickLunch: () => _pickUniformWindow(
+              seedStart: const TimeOfDay(hour: 12, minute: 0),
+              seedDurationMinutes: 60,
+              readStart: (b) => b.lunchStart,
+              readEnd: (b) => b.lunchEnd,
+              apply: (b, start, end) =>
+                  b.copyWith(lunchStart: start, lunchEnd: end),
+            ),
+            onClearBreak: () => setState(() {
+              _uniformBlock = _uniformBlock.copyWith(clearBreak: true);
+            }),
+            onClearLunch: () => setState(() {
+              _uniformBlock = _uniformBlock.copyWith(clearLunch: true);
+            }),
+          )
+        else
+          _buildPerDayEditor(theme),
+      ],
+    );
+  }
+
+  Widget _buildPerDayEditor(ThemeData theme) {
     return AvailabilityEditor(
       blocksByDay: _availability,
       onToggleDay: (day, {required enabled}) {
@@ -330,6 +461,39 @@ class _NewSpecialistWizardScreenState
         _availability[day] = existing.copyWith(clearLunch: true);
       }),
     );
+  }
+
+  /// Uniform-mode twin of [_pickWindow]. Pops the same start→end
+    /// picker pair, but writes the result back to the single shared
+    /// [_uniformBlock] instead of a per-day row.
+  Future<void> _pickUniformWindow({
+    required TimeOfDay seedStart,
+    required int seedDurationMinutes,
+    required TimeOfDay? Function(AvailabilityBlock) readStart,
+    required TimeOfDay? Function(AvailabilityBlock) readEnd,
+    required AvailabilityBlock Function(
+      AvailabilityBlock,
+      TimeOfDay,
+      TimeOfDay,
+    ) apply,
+  }) async {
+    final existingStart = readStart(_uniformBlock);
+    final existingEnd = readEnd(_uniformBlock);
+    final start = await showTimePicker(
+      context: context,
+      initialTime: existingStart ?? seedStart,
+      helpText: 'Starts at',
+    );
+    if (start == null || !mounted) return;
+    final end = await showTimePicker(
+      context: context,
+      initialTime: existingEnd ?? _addMinutes(start, seedDurationMinutes),
+      helpText: 'Ends at',
+    );
+    if (end == null || !mounted) return;
+    setState(() {
+      _uniformBlock = apply(_uniformBlock, start, end);
+    });
   }
 
   Future<void> _pickWindow(
