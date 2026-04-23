@@ -2,6 +2,11 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_repository.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_share.dart';
+import 'package:basecamp/features/forms/polymorphic/definitions/behavior_monitoring.dart';
+import 'package:basecamp/features/forms/polymorphic/form_definition.dart'
+    as fd;
+import 'package:basecamp/features/forms/polymorphic/form_submission_repository.dart';
+import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
 import 'package:basecamp/features/forms/widgets/child_chip_picker.dart';
 import 'package:basecamp/features/forms/widgets/form_section_card.dart';
 import 'package:basecamp/features/forms/widgets/inline_signature_pad.dart';
@@ -444,6 +449,8 @@ class _ParentConcernFormScreenState
                   ),
                   const SizedBox(height: AppSpacing.md),
                 ],
+                if (_isEdit)
+                  _MonitoringSection(concernId: widget.noteId!),
                 const SizedBox(height: AppSpacing.xxxl),
               ],
             ),
@@ -891,4 +898,247 @@ class _ConcernSection {
   final String title;
   final String subtitle;
   final Widget content;
+}
+
+/// Section dropped at the bottom of the concern-edit scroll showing
+/// the Behavior Monitoring follow-up that hangs off this concern. One
+/// of three states:
+///   - No monitoring yet → "Start monitoring" button. Tap creates a
+///     draft monitoring linked to this concern and jumps into the
+///     form pre-seeded with the concern description.
+///   - Monitoring exists → tile showing status + review-due date.
+///     Tap opens the monitoring form.
+///
+/// Deliberately lives here (not on the notes list screen) because
+/// monitoring attaches to one concern at a time — the natural place
+/// to reach for it is while looking at the concern itself.
+class _MonitoringSection extends ConsumerWidget {
+  const _MonitoringSection({required this.concernId});
+
+  final String concernId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final childrenAsync =
+        ref.watch(formSubmissionChildrenProvider(concernId));
+    return FormSectionCard(
+      icon: Icons.visibility_outlined,
+      title: 'Behavior monitoring',
+      subtitle: '1–2 week follow-up on this concern.',
+      child: childrenAsync.when(
+        loading: () => const Padding(
+          padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+          child: LinearProgressIndicator(),
+        ),
+        error: (err, _) => Text('Error: $err'),
+        data: (rows) {
+          // Only monitorings under THIS concern, regardless of type;
+          // behavior-monitoring is currently the only child form, but
+          // this filter keeps the section correct if more child form
+          // types land later.
+          final monitorings = rows
+              .where((r) => r.formType == behaviorMonitoringForm.typeKey)
+              .toList();
+          if (monitorings.isEmpty) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding:
+                      const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: Text(
+                    'If this concern needs a monitoring period, '
+                    "start one here. You'll fill in the setup now "
+                    'and the review / follow-up at the end of the '
+                    'period.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _startMonitoring(context, ref),
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('Start monitoring'),
+                ),
+              ],
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final m in monitorings)
+                _MonitoringTile(
+                  submission: m,
+                  onTap: () => _openMonitoring(context, m.id),
+                ),
+              const SizedBox(height: AppSpacing.sm),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => _startMonitoring(context, ref),
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Add another monitoring'),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// Creates the draft monitoring row + jumps the teacher into the
+  /// form. Pre-seeds child names and concern description from the
+  /// parent concern so they aren't retyping context.
+  Future<void> _startMonitoring(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final concernRepo = ref.read(parentConcernRepositoryProvider);
+    final note = await concernRepo.getOne(concernId);
+    if (!context.mounted) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => GenericFormScreen(
+          definition: behaviorMonitoringForm,
+          parentSubmissionId: concernId,
+          prefillData: {
+            if (note?.childNames.trim().isNotEmpty ?? false)
+              'child_names': note!.childNames,
+            if (note?.concernDescription.trim().isNotEmpty ?? false)
+              'concern_description': note!.concernDescription,
+            if (note?.supervisorNotified?.trim().isNotEmpty ?? false)
+              'supervisor': note!.supervisorNotified,
+            if (note?.staffReceiving.trim().isNotEmpty ?? false)
+              'staff_involved': note!.staffReceiving,
+            'monitoring_began': DateTime.now().toIso8601String(),
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openMonitoring(BuildContext context, String id) {
+    return Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => GenericFormScreen(
+          definition: behaviorMonitoringForm,
+          submissionId: id,
+        ),
+      ),
+    );
+  }
+}
+
+/// Row for one monitoring under a concern. Shows status + dates;
+/// tap opens the form.
+class _MonitoringTile extends StatelessWidget {
+  const _MonitoringTile({required this.submission, required this.onTap});
+
+  final FormSubmission submission;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final status = fd.FormStatus.fromDb(submission.status);
+    final due = submission.reviewDueAt;
+    final dueLabel = due == null
+        ? null
+        : _daysFromNow(due);
+    final started = submission.createdAt;
+    final (chipLabel, chipBg, chipFg) = switch (status) {
+      fd.FormStatus.draft => (
+          'DRAFT',
+          theme.colorScheme.surfaceContainerHighest,
+          theme.colorScheme.onSurfaceVariant,
+        ),
+      fd.FormStatus.active => (
+          'ACTIVE',
+          theme.colorScheme.tertiaryContainer,
+          theme.colorScheme.onTertiaryContainer,
+        ),
+      fd.FormStatus.completed => (
+          'COMPLETED',
+          theme.colorScheme.secondaryContainer,
+          theme.colorScheme.onSecondaryContainer,
+        ),
+      fd.FormStatus.archived => (
+          'ARCHIVED',
+          theme.colorScheme.surfaceContainerLow,
+          theme.colorScheme.onSurfaceVariant,
+        ),
+    };
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 6,
+                vertical: 2,
+              ),
+              decoration: BoxDecoration(
+                color: chipBg,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                chipLabel,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: chipFg,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Started ${_shortDate(started)}',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  if (dueLabel != null &&
+                      status != fd.FormStatus.completed)
+                    Text(
+                      'Review $dueLabel',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: theme.colorScheme.onSurfaceVariant,
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _shortDate(DateTime d) =>
+      '${d.month}/${d.day}/${d.year % 100}';
+
+  String _daysFromNow(DateTime due) {
+    final now = DateTime.now();
+    final diff = due.difference(now).inDays;
+    if (diff < 0) return 'was due ${-diff} days ago';
+    if (diff == 0) return 'due today';
+    if (diff == 1) return 'due tomorrow';
+    return 'due in $diff days';
+  }
 }

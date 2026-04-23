@@ -3,6 +3,9 @@ import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/attendance/widgets/attendance_sheet.dart';
 import 'package:basecamp/features/children/child_schedule_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/forms/polymorphic/form_submission_repository.dart';
+import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
+import 'package:basecamp/features/forms/polymorphic/registry.dart';
 import 'package:basecamp/features/settings/program_settings.dart';
 import 'package:basecamp/features/today/lateness.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -52,7 +55,16 @@ class LatenessFlagsStrip extends ConsumerWidget {
       overrides: overrides,
       graceMinutes: settings.pickupGraceMinutes,
     );
-    if (lateFlags.isEmpty && overdueFlags.isEmpty) {
+    // Cross-form "review due" scan — behavior monitorings past their
+    // review-due date, plus any future form types that set
+    // reviewDueAfterDays. One query for all of them, no form-specific
+    // knowledge here.
+    final reviewDue =
+        ref.watch(todayReviewDueProvider).asData?.value ??
+            const <FormSubmission>[];
+    if (lateFlags.isEmpty &&
+        overdueFlags.isEmpty &&
+        reviewDue.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -114,6 +126,25 @@ class LatenessFlagsStrip extends ConsumerWidget {
                   overdueFlags[i].child,
                 ),
               ),
+            ],
+          ],
+          if ((lateFlags.isNotEmpty || overdueFlags.isNotEmpty) &&
+              reviewDue.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+              child: _sectionDivider(theme),
+            ),
+          if (reviewDue.isNotEmpty) ...[
+            _SectionHeader(
+              icon: Icons.fact_check_outlined,
+              label: reviewDue.length == 1
+                  ? '1 REVIEW DUE'
+                  : '${reviewDue.length} REVIEWS DUE',
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            for (var i = 0; i < reviewDue.length; i++) ...[
+              if (i > 0) _sectionDivider(theme),
+              _ReviewDueRow(submission: reviewDue[i]),
             ],
           ],
         ],
@@ -274,4 +305,81 @@ String _fmt12h(String hhmm) {
   final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
   final period = h >= 12 ? 'PM' : 'AM';
   return '$hour12:${m.toString().padLeft(2, '0')} $period';
+}
+
+/// Row for a form submission whose review is due. Pulls the
+/// definition from the registry to know what to call it ("Behavior
+/// monitoring review") and opens the form on tap.
+class _ReviewDueRow extends StatelessWidget {
+  const _ReviewDueRow({required this.submission});
+
+  final FormSubmission submission;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final c = theme.colorScheme.onTertiaryContainer;
+    final def = formDefinitionFor(submission.formType);
+    final title = def?.shortTitle ?? submission.formType;
+    final due = submission.reviewDueAt;
+    final detail = due == null
+        ? 'review due'
+        : _formatDue(due);
+    return InkWell(
+      onTap: () async {
+        if (def == null) return;
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => GenericFormScreen(
+              definition: def,
+              submissionId: submission.id,
+            ),
+          ),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: c,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    detail,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: c.withValues(alpha: 0.85),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: c.withValues(alpha: 0.65),
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDue(DateTime due) {
+    final now = DateTime.now();
+    final diff = due.difference(now).inDays;
+    if (diff < 0) return 'review was due ${-diff} days ago';
+    if (diff == 0) return 'review due today';
+    if (diff == 1) return 'review due tomorrow';
+    return 'review due in $diff days';
+  }
 }

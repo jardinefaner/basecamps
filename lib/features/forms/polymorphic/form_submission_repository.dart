@@ -196,3 +196,16 @@ final formSubmissionChildrenProvider =
       .watch(formSubmissionRepositoryProvider)
       .watchChildrenOf(parentId);
 });
+
+/// Submissions with a review deadline at-or-before today, across all
+/// form types. Drives Today's "review due" flag entry — one query
+/// answers "is anything overdue right now?" for the whole polymorphic
+/// forms system.
+final todayReviewDueProvider =
+    StreamProvider<List<FormSubmission>>((ref) {
+  final now = DateTime.now();
+  final endOfToday = DateTime(now.year, now.month, now.day, 23, 59, 59);
+  return ref
+      .watch(formSubmissionRepositoryProvider)
+      .watchReviewsDueBy(endOfToday);
+});
