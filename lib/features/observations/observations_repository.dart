@@ -219,6 +219,14 @@ class ObservationsRepository {
     // When the teacher saved an AI-refined note, [noteOriginal] holds the
     // pre-refine text so the edit sheet can still flip back to it.
     String? noteOriginal,
+    // v33: structural link to the activity occurrence. Callers that
+    // capture during a scheduled activity pass these so reports can
+    // slice by the exact Morning-Circle-on-April-23-Butterflies
+    // instance instead of a free-form activityLabel string.
+    String? scheduleSourceKind,
+    String? scheduleSourceId,
+    DateTime? activityDate,
+    String? roomId,
   }) async {
     assert(
       domains.isNotEmpty,
@@ -251,6 +259,10 @@ class ObservationsRepository {
               noteOriginal: Value(noteOriginal),
               tripId: Value(tripId),
               authorName: Value(authorName),
+              scheduleSourceKind: Value(scheduleSourceKind),
+              scheduleSourceId: Value(scheduleSourceId),
+              activityDate: Value(activityDate),
+              roomId: Value(roomId),
             ),
           );
       for (final d in uniqueDomains) {

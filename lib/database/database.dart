@@ -42,7 +42,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 32;
+  int get schemaVersion => 33;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -394,6 +394,31 @@ class AppDatabase extends _$AppDatabase {
             await _runSilent(
               'ALTER TABLE "attendance" '
               'ADD COLUMN "picked_up_by" TEXT NULL',
+            );
+          }
+          if (from < 33) {
+            // v33: structural activity-context on observations. Four
+            // nullable columns: schedule_source_kind / _id / date
+            // pin the observation to the exact scheduled occurrence
+            // (template or entry row, on a specific date), and
+            // room_id disambiguates which pod's instance of a
+            // program-wide activity the observation came from.
+            await _runSilent(
+              'ALTER TABLE "observations" '
+              'ADD COLUMN "schedule_source_kind" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "observations" '
+              'ADD COLUMN "schedule_source_id" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "observations" '
+              'ADD COLUMN "activity_date" INTEGER NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "observations" '
+              'ADD COLUMN "room_id" TEXT NULL '
+              'REFERENCES "rooms"("id") ON DELETE SET NULL',
             );
           }
           if (from < 32) {

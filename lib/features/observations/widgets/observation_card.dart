@@ -4,6 +4,7 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/observations/widgets/attachment_viewer.dart';
+import 'package:basecamp/features/rooms/rooms_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/foundation.dart';
@@ -99,37 +100,111 @@ class ObservationCard extends ConsumerWidget {
               orElse: () => const SizedBox.shrink(),
             ),
           const SizedBox(height: AppSpacing.sm),
-          // Footer: timestamp + (optional) "· During {activity}" on the
-          // same row. Previously this was two stacked rows, wasting
-          // vertical space on every card in the feed.
-          Row(
-            children: [
-              Icon(
-                Icons.schedule_outlined,
-                size: 14,
+          // Footer: timestamp + context chips ("During Morning Circle",
+          // "@ Butterflies", "in Main Room"). Only the chips that
+          // apply show up — legacy observations with just activityLabel
+          // keep rendering unchanged, and an impromptu observation with
+          // no activity/group/room shows just the timestamp.
+          _ContextFooter(observation: observation, time: time),
+        ],
+      ),
+    );
+  }
+}
+
+/// Card footer — time + a variable-length strip of context chips
+/// (activity / group / room). Splits out of the main build so the
+/// wrapping and chip logic don't clutter the card's layout.
+class _ContextFooter extends ConsumerWidget {
+  const _ContextFooter({required this.observation, required this.time});
+
+  final Observation observation;
+  final String time;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final groupId = observation.groupId;
+    final roomId = observation.roomId;
+    final hasActivity = observation.activityLabel != null &&
+        observation.activityLabel!.isNotEmpty;
+    final groupName = groupId == null
+        ? null
+        : ref.watch(groupProvider(groupId)).asData?.value?.name;
+    final roomName = roomId == null
+        ? null
+        : ref.watch(roomProvider(roomId)).asData?.value?.name;
+
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: AppSpacing.sm,
+      runSpacing: 4,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.schedule_outlined,
+              size: 14,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 4),
+            Text(time, style: theme.textTheme.labelMedium),
+          ],
+        ),
+        if (hasActivity)
+          _ContextChip(
+            icon: Icons.auto_awesome_mosaic_outlined,
+            label: observation.activityLabel!,
+          ),
+        if (groupName != null)
+          _ContextChip(icon: Icons.groups_2_outlined, label: groupName),
+        if (roomName != null)
+          _ContextChip(
+            icon: Icons.meeting_room_outlined,
+            label: roomName,
+          ),
+      ],
+    );
+  }
+}
+
+/// Small pill used in the context footer. Same shape every time so
+/// adding / removing chips doesn't shift the layout heavily.
+class _ContextChip extends StatelessWidget {
+  const _ContextChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 12,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 4),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 140),
+            child: Text(
+              label,
+              style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
-              const SizedBox(width: 4),
-              Text(time, style: theme.textTheme.labelMedium),
-              if (observation.activityLabel != null &&
-                  observation.activityLabel!.isNotEmpty) ...[
-                Text(
-                  ' · ',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                Flexible(
-                  child: Text(
-                    'During ${observation.activityLabel!}',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ],
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
           ),
         ],
       ),

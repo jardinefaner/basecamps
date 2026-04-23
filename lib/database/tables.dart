@@ -220,6 +220,30 @@ class Observations extends Table {
   TextColumn get tripId =>
       text().nullable().references(Trips, #id, onDelete: KeyAction.setNull)();
   TextColumn get authorName => text().nullable()();
+
+  /// v33: structural link to the activity occurrence this observation
+  /// was captured during. activityLabel remains the display fallback
+  /// (and the only link for observations typed outside any scheduled
+  /// activity); these three columns together identify "Morning Circle
+  /// on April 23, Butterflies instance" unambiguously so reports can
+  /// ask precise questions.
+  ///
+  /// scheduleSourceKind is 'template' or 'entry'. Null across all
+  /// three = no structural link (impromptu observation).
+  TextColumn get scheduleSourceKind => text().nullable()();
+  TextColumn get scheduleSourceId => text().nullable()();
+  DateTimeColumn get activityDate => dateTime().nullable()();
+
+  /// Optional room the observation happened in. Useful for
+  /// program-wide activities that split across rooms (Morning Circle
+  /// in Butterflies Room vs Ladybugs Room) — the room pinpoints
+  /// which pod's instance even when activityLabel is the same.
+  TextColumn get roomId => text().nullable().references(
+        Rooms,
+        #id,
+        onDelete: KeyAction.setNull,
+      )();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>

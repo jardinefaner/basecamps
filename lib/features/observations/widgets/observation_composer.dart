@@ -7,6 +7,7 @@ import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/observations/voice_service.dart';
 import 'package:basecamp/features/observations/widgets/multi_capture_camera.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/today/last_expanded_group.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -105,9 +106,29 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
           )
           .toList(),
       activityLabel: currentActivity?.title,
-      groupId: currentActivity != null && currentActivity.groupIds.length == 1
-          ? currentActivity.groupIds.first
-          : null,
+      // Group resolution: for group-scoped activities (one concrete
+      // groupId) the link is unambiguous. For program-wide activities
+      // (all-groups / no-groups) fall back to the group the teacher
+      // most recently looked at on Today — that's "their" group, and
+      // the observation they're typing is almost always about that
+      // group's instance of the activity. Absence of both leaves
+      // groupId null and the observation reads as program-wide.
+      groupId: _resolveGroupId(currentActivity),
+      // v33 structural activity context — pins the observation to
+      // this specific occurrence so reports can ask "what happened
+      // in Butterflies during Morning Circle on April 23?" by row id
+      // instead of grepping activityLabel strings.
+      scheduleSourceKind: currentActivity == null
+          ? null
+          : currentActivity.templateId != null
+              ? 'template'
+              : currentActivity.entryId != null
+                  ? 'entry'
+                  : null,
+      scheduleSourceId:
+          currentActivity?.templateId ?? currentActivity?.entryId,
+      activityDate: currentActivity?.date,
+      roomId: currentActivity?.roomId,
     );
     unawaited(_refineTagsWithAi(observationId, note));
 
@@ -153,6 +174,26 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
       if (mins >= item.startMinutes && mins < item.endMinutes) return item;
     }
     return null;
+  }
+
+  /// Resolves which group the observation belongs to, in priority
+  /// order:
+  ///   1. If the current activity is scoped to a single group, use it.
+  ///   2. If the activity is program-wide (all-groups) OR there's no
+  ///      current activity, fall back to the group the teacher last
+  ///      expanded on Today. That's effectively "the group I work
+  ///      with," self-trained from use.
+  ///   3. Otherwise null — reads as program-wide.
+  ///
+  /// Multi-group-but-not-all activities (a combined Butterflies +
+  /// Ladybugs block) fall through to the last-expanded fallback too,
+  /// since neither group is more-correct and picking one silently
+  /// would mis-tag the observation half the time.
+  String? _resolveGroupId(ScheduleItem? activity) {
+    if (activity != null && activity.groupIds.length == 1) {
+      return activity.groupIds.first;
+    }
+    return ref.read(lastExpandedGroupProvider);
   }
 
   // -- Voice --
