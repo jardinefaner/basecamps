@@ -64,7 +64,7 @@ void main() {
 
     test('concurrent activities all end up in current, earliest first',
         () {
-      // Simulates a pod running two things at 10:15 — one started at
+      // Simulates a group running two things at 10:15 — one started at
       // 10:00, one started at 10:10. Before this bucket helper, the
       // second one would silently overwrite the first and disappear
       // from the Today view.

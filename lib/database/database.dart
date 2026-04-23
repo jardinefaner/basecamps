@@ -42,7 +42,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 31;
+  int get schemaVersion => 32;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -332,7 +332,7 @@ class AppDatabase extends _$AppDatabase {
             // One-override-per-day-per-child is enforced at the
             // repository layer (upsert-on-save). An index speeds up
             // the "did Noah have an override today?" lookup every
-            // pod card does during the flag pass.
+            // group card does during the flag pass.
             await _runSilent(
               'CREATE INDEX IF NOT EXISTS '
               '"idx_child_override_child_date" '
@@ -342,8 +342,8 @@ class AppDatabase extends _$AppDatabase {
           if (from < 30) {
             // v30: adult day-timeline. Per-adult-per-day role blocks
             // ('lead' / 'specialist') that subdivide the shift so
-            // "pod lead 8:30-11, specialist rotator 11-12, back to
-            // pod lead 12-3" is representable. Gaps are implied off;
+            // "group lead 8:30-11, specialist rotator 11-12, back to
+            // group lead 12-3" is representable. Gaps are implied off;
             // adults with zero blocks fall back to the static
             // `specialists.adult_role` for compatibility.
             await _runSilent(
@@ -365,7 +365,7 @@ class AppDatabase extends _$AppDatabase {
             );
             // "What is Sarah doing today?" — one lookup per adult
             // on Today; an index on (specialist_id, day_of_week) keeps
-            // the pod-card staffing pass O(n) in the block count, not
+            // the group-card staffing pass O(n) in the block count, not
             // table size.
             await _runSilent(
               'CREATE INDEX IF NOT EXISTS '
@@ -373,7 +373,7 @@ class AppDatabase extends _$AppDatabase {
               'ON "adult_day_blocks" ("specialist_id", "day_of_week")',
             );
             // "Which leads are anchoring Butterflies at 10:15?" — per-
-            // pod scan during the pod card build. Index on (pod_id,
+            // group scan during the group card build. Index on (group_id,
             // day_of_week) keeps that pass bounded too.
             await _runSilent(
               'CREATE INDEX IF NOT EXISTS '
@@ -394,6 +394,38 @@ class AppDatabase extends _$AppDatabase {
             await _runSilent(
               'ALTER TABLE "attendance" '
               'ADD COLUMN "picked_up_by" TEXT NULL',
+            );
+          }
+          if (from < 32) {
+            // v32: internal "pod" naming retired in favor of "group"
+            // (the word this codebase uses everywhere else). Column +
+            // index rename; also updates observations.target_kind
+            // values from 'pod' to 'group' so the kind-marker string
+            // matches the current vocabulary.
+            //
+            // SQLite 3.25+ supports RENAME COLUMN; our bundled
+            // libraries are well past that. No schema-rewrite needed.
+            await _runSilent(
+              'ALTER TABLE "adult_day_blocks" '
+              'RENAME COLUMN "pod_id" TO "group_id"',
+            );
+            // Swap the index name to match. Drop-then-recreate is
+            // fine; the table is small and this runs once.
+            await _runSilent(
+              'DROP INDEX IF EXISTS "idx_adult_block_pod_day"',
+            );
+            await _runSilent(
+              'CREATE INDEX IF NOT EXISTS '
+              '"idx_adult_block_group_day" '
+              'ON "adult_day_blocks" ("group_id", "day_of_week")',
+            );
+            // Legacy observations that targeted a group now target a
+            // group in the kind-marker string. Plain UPDATE — no
+            // data loss.
+            await _runSilent(
+              'UPDATE "observations" '
+              "SET \"target_kind\" = 'group' "
+              "WHERE \"target_kind\" = 'pod'",
             );
           }
         },

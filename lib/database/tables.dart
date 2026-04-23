@@ -327,9 +327,9 @@ class SpecialistAvailability extends Table {
 }
 
 /// Per-adult, per-day role timeline — subdivides an adult's shift
-/// into labeled blocks. Models the "pod lead 8:30-11, then specialist
-/// rotator 11-12, then back to pod lead 12-3" pattern that the static
-/// `Specialist.adultRole` alone can't express.
+/// into labeled blocks. Models the "group lead 8:30-11, then
+/// specialist rotator 11-12, then back to group lead 12-3" pattern
+/// that the static `Specialist.adultRole` alone can't express.
 ///
 /// Gaps between blocks on a given day are implied "off". Adults with
 /// NO blocks for a day fall back to `Specialist.adultRole` interpreted
@@ -343,8 +343,8 @@ class SpecialistAvailability extends Table {
 /// lunch into this table would be noise for the common case.
 ///
 /// `role` values:
-///   - 'lead'       — anchored to a pod (requires `pod_id`)
-///   - 'specialist' — rotating, no pod
+///   - 'lead'       — anchored to a group (requires `group_id`)
+///   - 'specialist' — rotating, no group
 @DataClassName('AdultDayBlock')
 class AdultDayBlocks extends Table {
   TextColumn get id => text()();
@@ -367,12 +367,12 @@ class AdultDayBlocks extends Table {
   /// field on Specialists.
   TextColumn get role => text()();
 
-  /// For lead blocks — which pod (group) the adult is anchoring
-  /// during this span. Null for specialist blocks. FK to groups
-  /// with setNull on delete so deleting a pod silently detaches any
+  /// For lead blocks — which group the adult is anchoring during
+  /// this span. Null for specialist blocks. FK to groups with
+  /// setNull on delete so deleting a group silently detaches any
   /// legacy lead blocks rather than cascading-deleting the whole
   /// timeline.
-  TextColumn get podId => text()
+  TextColumn get groupId => text()
       .nullable()
       .references(Groups, #id, onDelete: KeyAction.setNull)();
 

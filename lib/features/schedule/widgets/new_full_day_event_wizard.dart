@@ -82,7 +82,7 @@ class _NewFullDayEventWizardScreenState
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         final groups = await ref
             .read(scheduleRepositoryProvider)
-            .podsForEntry(widget.existing!.id);
+            .groupsForEntry(widget.existing!.id);
         if (!mounted) return;
         setState(() => _groupIds.addAll(groups));
       });
@@ -221,7 +221,7 @@ class _NewFullDayEventWizardScreenState
           headline: "Who's going?",
           subtitle: 'Leave as "All groups" if the whole program is included.',
           canSkip: true,
-          content: _buildPodsPage(),
+          content: _buildGroupsPage(),
         ),
         WizardStep(
           headline: 'Details',
@@ -338,9 +338,9 @@ class _NewFullDayEventWizardScreenState
     return end.difference(start).inDays + 1;
   }
 
-  Widget _buildPodsPage() {
+  Widget _buildGroupsPage() {
     final theme = Theme.of(context);
-    final podsAsync = ref.watch(groupsProvider);
+    final groupsAsync = ref.watch(groupsProvider);
     final noGroupsSelected = !_allGroups && _groupIds.isEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -392,7 +392,7 @@ class _NewFullDayEventWizardScreenState
           ),
         ],
         if (!_allGroups)
-          podsAsync.when(
+          groupsAsync.when(
             loading: () => const LinearProgressIndicator(),
             error: (err, _) => Text('Error: $err'),
             data: (groups) {

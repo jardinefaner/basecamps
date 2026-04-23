@@ -412,8 +412,8 @@ class _TargetLabel extends ConsumerWidget {
         }
         final groupId = observation.groupId;
         if (groupId != null) {
-          final podAsync = ref.watch(groupProvider(groupId));
-          return podAsync.maybeWhen(
+          final groupAsync = ref.watch(groupProvider(groupId));
+          return groupAsync.maybeWhen(
             data: (p) => Text(
               p?.name ?? 'Unknown group',
               style: theme.textTheme.titleMedium,

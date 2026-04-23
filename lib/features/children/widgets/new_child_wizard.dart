@@ -14,12 +14,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class NewChildWizardScreen extends ConsumerStatefulWidget {
   const NewChildWizardScreen({
     required this.groups,
-    this.initialPodId,
+    this.initialGroupId,
     super.key,
   });
 
   final List<Group> groups;
-  final String? initialPodId;
+  final String? initialGroupId;
 
   @override
   ConsumerState<NewChildWizardScreen> createState() =>
@@ -33,7 +33,7 @@ class _NewChildWizardScreenState extends ConsumerState<NewChildWizardScreen> {
   final _notes = TextEditingController();
 
   String? _avatarPath;
-  late String? _groupId = widget.initialPodId;
+  late String? _groupId = widget.initialGroupId;
 
   bool get _dirty =>
       _firstName.text.trim().isNotEmpty ||
@@ -41,7 +41,7 @@ class _NewChildWizardScreenState extends ConsumerState<NewChildWizardScreen> {
       _parentName.text.trim().isNotEmpty ||
       _notes.text.trim().isNotEmpty ||
       _avatarPath != null ||
-      _groupId != widget.initialPodId;
+      _groupId != widget.initialGroupId;
 
   bool get _page1Valid => _firstName.text.trim().isNotEmpty;
 
@@ -89,7 +89,7 @@ class _NewChildWizardScreenState extends ConsumerState<NewChildWizardScreen> {
           subtitle:
               'Groups are how the app organizes children for schedules and trips.',
           canSkip: true,
-          content: _buildPodPage(),
+          content: _buildGroupPage(),
         ),
         WizardStep(
           headline: 'Parent or guardian',
@@ -147,7 +147,7 @@ class _NewChildWizardScreenState extends ConsumerState<NewChildWizardScreen> {
     );
   }
 
-  Widget _buildPodPage() {
+  Widget _buildGroupPage() {
     final theme = Theme.of(context);
     if (widget.groups.isEmpty) {
       return Text(

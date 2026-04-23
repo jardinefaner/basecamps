@@ -121,7 +121,7 @@ class _NewTripWizardScreenState extends ConsumerState<NewTripWizardScreen> {
           headline: "Who's going?",
           subtitle: 'Leave as "All groups" if everyone at the program is in.',
           canSkip: true,
-          content: _buildPodsPage(),
+          content: _buildGroupsPage(),
         ),
         WizardStep(
           headline: 'Anything staff should know?',
@@ -237,9 +237,9 @@ class _NewTripWizardScreenState extends ConsumerState<NewTripWizardScreen> {
     );
   }
 
-  Widget _buildPodsPage() {
+  Widget _buildGroupsPage() {
     final theme = Theme.of(context);
-    final podsAsync = ref.watch(groupsProvider);
+    final groupsAsync = ref.watch(groupsProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -254,7 +254,7 @@ class _NewTripWizardScreenState extends ConsumerState<NewTripWizardScreen> {
           contentPadding: EdgeInsets.zero,
         ),
         if (!_allGroups)
-          podsAsync.when(
+          groupsAsync.when(
             loading: () => const LinearProgressIndicator(),
             error: (err, _) => Text('Error: $err'),
             data: (groups) {

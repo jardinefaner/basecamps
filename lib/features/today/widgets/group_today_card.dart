@@ -1,5 +1,5 @@
 import 'package:basecamp/database/database.dart';
-import 'package:basecamp/features/pods/pods_repository.dart';
+import 'package:basecamp/features/groups/group_summary_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/today/widgets/schedule_item_card.dart'
     show AttendanceSummary;
@@ -8,21 +8,21 @@ import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
 
-/// Today view of a single [Pod] — collapsed it's a one-line "at-a-
-/// glance" scannable row; expanded it unfolds into the hero-style NOW
-/// card, up-next preview, and an avatar row of the anchor leads.
+/// Today view of a single [GroupSummary] — collapsed it's a one-line
+/// "at-a-glance" scannable row; expanded it unfolds into a NOW tile,
+/// up-next preview, and an avatar row of the anchor leads.
 ///
-/// One card per pod in the pod stack. The parent screen owns the
-/// "which pod is expanded" state (via `lastExpandedPodProvider`), so
-/// only one card is expanded at a time — the accordion semantics keep
-/// the vertical footprint constant regardless of pod count.
+/// One card per group in the group stack. The parent screen owns the
+/// "which group is expanded" state (via `lastExpandedGroupProvider`),
+/// so only one card is expanded at a time — the accordion semantics
+/// keep the vertical footprint constant regardless of group count.
 ///
 /// Data is pushed down, not pulled: the parent already filters the
-/// day's schedule items to this pod's groupId and computes the roll
+/// day's schedule items to this group's id and computes the roll
 /// summary against today's attendance map. This widget stays dumb.
-class PodTodayCard extends StatelessWidget {
-  const PodTodayCard({
-    required this.pod,
+class GroupTodayCard extends StatelessWidget {
+  const GroupTodayCard({
+    required this.group,
     required this.now,
     required this.current,
     required this.next,
@@ -35,25 +35,25 @@ class PodTodayCard extends StatelessWidget {
     super.key,
   });
 
-  final Pod pod;
+  final GroupSummary group;
   final DateTime now;
 
-  /// Adults currently leading this pod. Derived from the v30 day-
+  /// Adults currently leading this group. Derived from the v30 day-
   /// timeline when present, falling back to the static anchor when
   /// an adult has no timeline set. The parent computes this so the
   /// card stays a dumb renderer.
   final List<Specialist> leadsNow;
 
-  /// Activity for this pod that's in progress right now, if any.
+  /// Activity for this group that's in progress right now, if any.
   /// First entry wins when multiple overlap (earliest-started — same
   /// rule the Today bucketer uses for the hero slot).
   final ScheduleItem? current;
 
-  /// Next-up activity for this pod, if any.
+  /// Next-up activity for this group, if any.
   final ScheduleItem? next;
 
-  /// Roll summary for the kids assigned to this pod's group. Null when
-  /// no kids are assigned yet (brand-new pod).
+  /// Roll summary for the kids assigned to this group. Null when no
+  /// kids are assigned yet (brand-new group).
   final AttendanceSummary? attendance;
 
   final bool expanded;
@@ -70,7 +70,7 @@ class PodTodayCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _Header(
-            pod: pod,
+            group: group,
             current: current,
             now: now,
             attendance: attendance,
@@ -84,7 +84,7 @@ class PodTodayCard extends StatelessWidget {
               color: theme.colorScheme.outlineVariant,
             ),
             _ExpandedBody(
-              pod: pod,
+              group: group,
               now: now,
               current: current,
               next: next,
@@ -101,11 +101,11 @@ class PodTodayCard extends StatelessWidget {
 }
 
 /// Collapsed tappable row. Tap anywhere on it → toggle expand/collapse.
-/// Shows just enough to scan pod status in ~1s from the pod stack:
+/// Shows just enough to scan group status in ~1s from the group stack:
 /// color dot, name, roll summary, current activity subtitle.
 class _Header extends StatelessWidget {
   const _Header({
-    required this.pod,
+    required this.group,
     required this.current,
     required this.now,
     required this.attendance,
@@ -113,7 +113,7 @@ class _Header extends StatelessWidget {
     required this.onToggle,
   });
 
-  final Pod pod;
+  final GroupSummary group;
   final ScheduleItem? current;
   final DateTime now;
   final AttendanceSummary? attendance;
@@ -133,7 +133,7 @@ class _Header extends StatelessWidget {
         ),
         child: Row(
           children: [
-            _PodDot(colorHex: pod.group.colorHex),
+            _GroupDot(colorHex: group.group.colorHex),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Column(
@@ -143,7 +143,7 @@ class _Header extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          pod.name,
+                          group.name,
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w700,
                           ),
@@ -152,7 +152,7 @@ class _Header extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.xs),
-                      _RollPill(pod: pod, attendance: attendance),
+                      _RollPill(group: group, attendance: attendance),
                     ],
                   ),
                   if (subtitle.isNotEmpty)
@@ -181,10 +181,10 @@ class _Header extends StatelessWidget {
     );
   }
 
-  /// Collapsed subtitle — what's happening in this pod right now.
+  /// Collapsed subtitle — what's happening in this group right now.
   /// "Art Rotation · ends 10:45" / "Free block · Outdoor Play @ 11:00".
   /// Empty string when nothing interesting is happening (no current,
-  /// no imminent next-up); header falls back to just the pod name.
+  /// no imminent next-up); header falls back to just the group name.
   String _subtitle() {
     final c = current;
     if (c == null) return '';
@@ -209,10 +209,10 @@ class _Header extends StatelessWidget {
 }
 
 /// Color dot pulled from the group's optional `colorHex`. Falls back
-/// to the theme primary when the pod hasn't been tinted yet — keeps
+/// to the theme primary when the group hasn't been tinted yet — keeps
 /// the row balanced instead of missing the leading visual anchor.
-class _PodDot extends StatelessWidget {
-  const _PodDot({required this.colorHex});
+class _GroupDot extends StatelessWidget {
+  const _GroupDot({required this.colorHex});
 
   final String? colorHex;
 
@@ -243,11 +243,11 @@ class _PodDot extends StatelessWidget {
 /// Compact "12/14" pill with color based on attendance completeness.
 /// Quiet neutral when all settled, amber hint when kids are still
 /// pending (haven't been checked in yet and it's past opening). Total
-/// child count alone is shown for pods with no attendance yet.
+/// child count alone is shown for groups with no attendance yet.
 class _RollPill extends StatelessWidget {
-  const _RollPill({required this.pod, required this.attendance});
+  const _RollPill({required this.group, required this.attendance});
 
-  final Pod pod;
+  final GroupSummary group;
   final AttendanceSummary? attendance;
 
   @override
@@ -256,7 +256,7 @@ class _RollPill extends StatelessWidget {
     final a = attendance;
     final (label, bg, fg) = a == null
         ? (
-            '${pod.childCount} kids',
+            '${group.childCount} kids',
             theme.colorScheme.surfaceContainerHighest,
             theme.colorScheme.onSurfaceVariant,
           )
@@ -286,11 +286,11 @@ class _RollPill extends StatelessWidget {
   }
 }
 
-/// The unfolded content under an expanded pod card. Holds the NOW
+/// The unfolded content under an expanded group card. Holds the NOW
 /// slot, the up-next line, and the staffing row.
 class _ExpandedBody extends StatelessWidget {
   const _ExpandedBody({
-    required this.pod,
+    required this.group,
     required this.now,
     required this.current,
     required this.next,
@@ -300,7 +300,7 @@ class _ExpandedBody extends StatelessWidget {
     required this.onOpenAttendance,
   });
 
-  final Pod pod;
+  final GroupSummary group;
   final DateTime now;
   final ScheduleItem? current;
   final ScheduleItem? next;
@@ -331,10 +331,14 @@ class _ExpandedBody extends StatelessWidget {
               onOpenAttendance: () => onOpenAttendance(current!),
             )
           else
-            _IdleSlot(pod: pod),
+            _IdleSlot(group: group),
           if (next != null) ...[
             const SizedBox(height: AppSpacing.sm),
-            _NextUpLine(item: next!, now: now, onTap: () => onOpenDetail(next!)),
+            _NextUpLine(
+              item: next!,
+              now: now,
+              onTap: () => onOpenDetail(next!),
+            ),
           ],
           if (leadsNow.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.md),
@@ -355,7 +359,7 @@ class _ExpandedBody extends StatelessWidget {
   }
 }
 
-/// "NOW" tile inside an expanded pod — title + time + room + tap-to-
+/// "NOW" tile inside an expanded group — title + time + room + tap-to-
 /// open-detail. Shrinks the hero NOW card down to something that fits
 /// multiple times on a mobile screen.
 class _NowSlot extends StatelessWidget {
@@ -475,13 +479,14 @@ class _NowSlot extends StatelessWidget {
   }
 }
 
-/// Shown in place of the NOW tile when this pod has nothing scheduled
-/// right now — keeps the expanded card from feeling empty and tells
-/// the teacher explicitly "you're between things, next up is …"
+/// Shown in place of the NOW tile when this group has nothing
+/// scheduled right now — keeps the expanded card from feeling empty
+/// and tells the teacher explicitly "you're between things, next up
+/// is …"
 class _IdleSlot extends StatelessWidget {
-  const _IdleSlot({required this.pod});
+  const _IdleSlot({required this.group});
 
-  final Pod pod;
+  final GroupSummary group;
 
   @override
   Widget build(BuildContext context) {
@@ -503,7 +508,7 @@ class _IdleSlot extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
-              'Nothing scheduled for ${pod.name} right now.',
+              'Nothing scheduled for ${group.name} right now.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -583,9 +588,9 @@ class _NextUpLine extends StatelessWidget {
   }
 }
 
-/// Avatar + name row for the pod's anchor leads. Shown only when the
-/// pod has at least one lead assigned (a just-seeded pod can legally
-/// have zero).
+/// Avatar + name row for the group's anchor leads. Shown only when
+/// the group has at least one lead assigned (a just-seeded group can
+/// legally have zero).
 class _LeadsRow extends StatelessWidget {
   const _LeadsRow({required this.leads});
 
@@ -608,10 +613,8 @@ class _LeadsRow extends StatelessWidget {
                     ? s.name.characters.first.toUpperCase()
                     : '?',
                 radius: 14,
-                backgroundColor:
-                    theme.colorScheme.secondaryContainer,
-                foregroundColor:
-                    theme.colorScheme.onSecondaryContainer,
+                backgroundColor: theme.colorScheme.secondaryContainer,
+                foregroundColor: theme.colorScheme.onSecondaryContainer,
               ),
               const SizedBox(width: AppSpacing.xs),
               Text(s.name, style: theme.textTheme.bodyMedium),

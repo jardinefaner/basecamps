@@ -1,14 +1,15 @@
 import 'package:basecamp/database/database.dart';
-import 'package:basecamp/features/pods/pods_repository.dart';
+import 'package:basecamp/features/groups/group_summary_repository.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Pod is a derived view over groups + specialists + rooms + children.
-/// These tests seed an in-memory DB with a realistic pod shape and
-/// assert the join produces the right bundle. The join logic itself
-/// is non-trivial (three indexes, two filters) and easy to regress.
+/// GroupSummary is a derived view over groups + specialists + rooms +
+/// children. These tests seed an in-memory DB with a realistic group
+/// shape and assert the join produces the right bundle. The join
+/// logic itself is non-trivial (three indexes, two filters) and easy
+/// to regress.
 
 AppDatabase _db() => AppDatabase.forTesting(NativeDatabase.memory());
 
@@ -18,12 +19,15 @@ ProviderContainer _container(AppDatabase db) {
   );
 }
 
-Future<void> _waitForPods(ProviderContainer c) async {
+Future<void> _waitForSummaries(ProviderContainer c) async {
   // A derived Provider only reflects upstream stream values once those
   // streams have emitted — and Drift streams only emit while they
   // have an active listener. `listen(...)` wires one up for the span
   // of the test.
-  final sub = c.listen<AsyncValue<List<Pod>>>(podsProvider, (_, _) {});
+  final sub = c.listen<AsyncValue<List<GroupSummary>>>(
+    groupSummariesProvider,
+    (_, _) {},
+  );
   addTearDown(sub.close);
   for (var i = 0; i < 20; i++) {
     if (sub.read().hasValue) return;
@@ -32,12 +36,12 @@ Future<void> _waitForPods(ProviderContainer c) async {
 }
 
 void main() {
-  group('podsProvider', () {
+  group('groupSummariesProvider', () {
     test('joins group + leads + default room + child count', () async {
       final db = _db();
       addTearDown(db.close);
 
-      // Two pods: Butterflies (anchored by Sarah), Ladybugs (anchored
+      // Two groups: Butterflies (anchored by Sarah), Ladybugs (anchored
       // by Mike + Jen). Plus a rotator (Alex) and an ambient (Pat) who
       // should NEVER appear as anchors regardless of whose group they
       // loosely point at.
@@ -126,39 +130,44 @@ void main() {
               groupId: const Value('g-l'),
             ),
           );
-      // Unassigned child — should be counted against no pod.
+      // Unassigned child — should be counted against no group.
       await db.into(db.children).insert(
             ChildrenCompanion.insert(id: 'k4', firstName: 'Ava'),
           );
 
       final c = _container(db);
       addTearDown(c.dispose);
-      await _waitForPods(c);
+      await _waitForSummaries(c);
 
-      final pods = c.read(podsProvider).requireValue;
-      expect(pods.map((p) => p.id).toSet(), {'g-b', 'g-l'});
+      final summaries = c.read(groupSummariesProvider).requireValue;
+      expect(summaries.map((s) => s.id).toSet(), {'g-b', 'g-l'});
 
-      final butterflies = pods.firstWhere((p) => p.id == 'g-b');
+      final butterflies = summaries.firstWhere((s) => s.id == 'g-b');
       expect(butterflies.name, 'Butterflies');
-      expect(butterflies.anchorLeads.map((s) => s.name).toList(), ['Sarah']);
+      expect(
+        butterflies.anchorLeads.map((s) => s.name).toList(),
+        ['Sarah'],
+      );
       expect(butterflies.defaultRoom?.id, 'r-main');
       expect(butterflies.childCount, 2);
 
-      final ladybugs = pods.firstWhere((p) => p.id == 'g-l');
+      final ladybugs = summaries.firstWhere((s) => s.id == 'g-l');
       // Anchor leads sorted by name — Jen before Mike.
-      expect(ladybugs.anchorLeads.map((s) => s.name).toList(),
-          ['Jen', 'Mike']);
+      expect(
+        ladybugs.anchorLeads.map((s) => s.name).toList(),
+        ['Jen', 'Mike'],
+      );
       expect(ladybugs.defaultRoom, isNull);
       expect(ladybugs.childCount, 1);
     });
 
-    test('empty db → empty pod list', () async {
+    test('empty db → empty summary list', () async {
       final db = _db();
       addTearDown(db.close);
       final c = _container(db);
       addTearDown(c.dispose);
-      await _waitForPods(c);
-      expect(c.read(podsProvider).requireValue, isEmpty);
+      await _waitForSummaries(c);
+      expect(c.read(groupSummariesProvider).requireValue, isEmpty);
     });
 
     test('specialist with lead role but no anchor is ignored', () async {
@@ -172,22 +181,22 @@ void main() {
               id: 's-1',
               name: 'Unassigned Lead',
               adultRole: const Value('lead'),
-              // anchoredGroupId left null — a lead without a pod
-              // assignment shouldn't appear on any pod.
+              // anchoredGroupId left null — a lead without a group
+              // assignment shouldn't appear on any summary.
             ),
           );
 
       final c = _container(db);
       addTearDown(c.dispose);
-      await _waitForPods(c);
+      await _waitForSummaries(c);
 
-      final pods = c.read(podsProvider).requireValue;
-      expect(pods.single.anchorLeads, isEmpty);
+      final summaries = c.read(groupSummariesProvider).requireValue;
+      expect(summaries.single.anchorLeads, isEmpty);
     });
   });
 
-  group('podProvider(id)', () {
-    test('returns the matching pod', () async {
+  group('groupSummaryProvider(id)', () {
+    test('returns the matching summary', () async {
       final db = _db();
       addTearDown(db.close);
       await db.into(db.groups).insert(
@@ -195,8 +204,11 @@ void main() {
           );
       final c = _container(db);
       addTearDown(c.dispose);
-      await _waitForPods(c);
-      expect(c.read(podProvider('g-b')).requireValue?.name, 'Butterflies');
+      await _waitForSummaries(c);
+      expect(
+        c.read(groupSummaryProvider('g-b')).requireValue?.name,
+        'Butterflies',
+      );
     });
 
     test('returns null for an unknown id', () async {
@@ -204,8 +216,8 @@ void main() {
       addTearDown(db.close);
       final c = _container(db);
       addTearDown(c.dispose);
-      await _waitForPods(c);
-      expect(c.read(podProvider('nope')).requireValue, isNull);
+      await _waitForSummaries(c);
+      expect(c.read(groupSummaryProvider('nope')).requireValue, isNull);
     });
   });
 }

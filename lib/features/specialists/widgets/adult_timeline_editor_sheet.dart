@@ -10,7 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Per-adult day-timeline editor. Opens from the adult edit sheet
 /// for adults whose day is more complicated than "specialist all
-/// day" or "lead anchored to pod X" — lets them mark out "lead
+/// day" or "lead anchored to group X" — lets them mark out "lead
 /// Butterflies 8:30-11, specialist rotator 11-12, back to
 /// Butterflies 12-3."
 ///
@@ -68,10 +68,10 @@ class _AdultTimelineEditorSheetState
             startTime: b.startTime!.hhmm(),
             endTime: b.endTime!.hhmm(),
             role: b.role,
-            // Non-lead blocks drop any leftover podId — a specialist
-            // block never anchors a pod regardless of what picker
+            // Non-lead blocks drop any leftover groupId — a specialist
+            // block never anchors a group regardless of what picker
             // state the editor might have cached.
-            podId: b.role == AdultBlockRole.lead ? b.podId : null,
+            groupId: b.role == AdultBlockRole.lead ? b.groupId : null,
           ),
       ];
       await ref.read(adultTimelineRepositoryProvider).replaceBlocks(
@@ -295,7 +295,7 @@ class _BlockRow extends StatelessWidget {
                     selected: block.role == r,
                     onSelected: (_) {
                       block.role = r;
-                      if (r != AdultBlockRole.lead) block.podId = null;
+                      if (r != AdultBlockRole.lead) block.groupId = null;
                       onChanged();
                     },
                   ),
@@ -307,18 +307,18 @@ class _BlockRow extends StatelessWidget {
           ),
           if (block.role == AdultBlockRole.lead) ...[
             const SizedBox(height: AppSpacing.sm),
-            // Pod picker only appears for lead blocks — specialist
-            // blocks don't anchor a pod, and showing a grayed-out
+            // Group picker only appears for lead blocks — specialist
+            // blocks don't anchor a group, and showing a grayed-out
             // dropdown for them would be clutter.
             DropdownButtonFormField<String?>(
-              initialValue: block.podId,
+              initialValue: block.groupId,
               decoration: const InputDecoration(
-                labelText: 'Pod',
+                labelText: 'Group',
                 isDense: true,
               ),
               items: [
                 const DropdownMenuItem<String?>(
-                  child: Text('— pick pod —'),
+                  child: Text('— pick group —'),
                 ),
                 for (final g in groups)
                   DropdownMenuItem<String?>(
@@ -327,7 +327,7 @@ class _BlockRow extends StatelessWidget {
                   ),
               ],
               onChanged: (v) {
-                block.podId = v;
+                block.groupId = v;
                 onChanged();
               },
             ),
@@ -383,7 +383,7 @@ class _EditableBlock {
     this.startTime,
     this.endTime,
     this.role = AdultBlockRole.specialist,
-    this.podId,
+    this.groupId,
   });
 
   factory _EditableBlock.blank({required int dayOfWeek}) =>
@@ -395,14 +395,14 @@ class _EditableBlock {
         startTime: _parseHHmm(b.startTime),
         endTime: _parseHHmm(b.endTime),
         role: b.role,
-        podId: b.podId,
+        groupId: b.groupId,
       );
 
   int dayOfWeek;
   TimeOfDay? startTime;
   TimeOfDay? endTime;
   AdultBlockRole role;
-  String? podId;
+  String? groupId;
 }
 
 TimeOfDay _parseHHmm(String hhmm) {

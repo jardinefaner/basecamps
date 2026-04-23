@@ -111,7 +111,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     super.initState();
     if (_isEdit) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        unawaited(_loadPods());
+        unawaited(_loadGroups());
         unawaited(_loadSeriesSize());
       });
     } else {
@@ -130,16 +130,16 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
   }
 
   /// Set of group ids the template started with — snapshot captured
-  /// right after [_loadPods] so we can tell a pristine edit from one
+  /// right after [_loadGroups] so we can tell a pristine edit from one
   /// where the teacher actually toggled something.
   Set<String> _groupsBaseline = const <String>{};
   late final bool _allGroupsBaseline = widget.template?.allGroups ?? true;
 
-  Future<void> _loadPods() async {
+  Future<void> _loadGroups() async {
     if (!_isEdit) return;
     final groups = await ref
         .read(scheduleRepositoryProvider)
-        .podsForTemplate(widget.template!.id);
+        .groupsForTemplate(widget.template!.id);
     if (!mounted) return;
     setState(() {
       _selectedGroupIds.addAll(groups);
@@ -388,7 +388,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final podsAsync = ref.watch(groupsProvider);
+    final groupsAsync = ref.watch(groupsProvider);
 
     return StickyActionSheet(
       title: _isEdit ? 'Edit activity' : 'New activity',
@@ -503,20 +503,20 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
           const SizedBox(height: AppSpacing.lg),
           Text('Groups', style: theme.textTheme.titleSmall),
           const SizedBox(height: AppSpacing.sm),
-          podsAsync.when(
+          groupsAsync.when(
             loading: () => const LinearProgressIndicator(),
             error: (err, _) => Text('Error: $err'),
             data: (groups) {
               if (!_groupsLoaded) return const LinearProgressIndicator();
               return _GroupSelector(
                 groups: groups,
-                selectedPodIds: _selectedGroupIds,
+                selectedGroupIds: _selectedGroupIds,
                 allGroups: _allGroups,
                 onAllToggle: () => setState(() {
                   _allGroups = true;
                   _selectedGroupIds.clear();
                 }),
-                onPodToggle: (id) => setState(() {
+                onGroupToggle: (id) => setState(() {
                   if (!_selectedGroupIds.add(id)) {
                     _selectedGroupIds.remove(id);
                   }
@@ -559,17 +559,17 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
 class _GroupSelector extends StatelessWidget {
   const _GroupSelector({
     required this.groups,
-    required this.selectedPodIds,
+    required this.selectedGroupIds,
     required this.allGroups,
     required this.onAllToggle,
-    required this.onPodToggle,
+    required this.onGroupToggle,
   });
 
   final List<Group> groups;
-  final Set<String> selectedPodIds;
+  final Set<String> selectedGroupIds;
   final bool allGroups;
   final VoidCallback onAllToggle;
-  final ValueChanged<String> onPodToggle;
+  final ValueChanged<String> onGroupToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -580,7 +580,7 @@ class _GroupSelector extends StatelessWidget {
         style: theme.textTheme.bodySmall,
       );
     }
-    final noneChosen = selectedPodIds.isEmpty && !allGroups;
+    final noneChosen = selectedGroupIds.isEmpty && !allGroups;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -590,14 +590,14 @@ class _GroupSelector extends StatelessWidget {
           children: [
             FilterChip(
               label: const Text('All groups'),
-              selected: allGroups && selectedPodIds.isEmpty,
+              selected: allGroups && selectedGroupIds.isEmpty,
               onSelected: (_) => onAllToggle(),
             ),
             for (final group in groups)
               FilterChip(
                 label: Text(group.name),
-                selected: selectedPodIds.contains(group.id),
-                onSelected: (_) => onPodToggle(group.id),
+                selected: selectedGroupIds.contains(group.id),
+                onSelected: (_) => onGroupToggle(group.id),
               ),
           ],
         ),

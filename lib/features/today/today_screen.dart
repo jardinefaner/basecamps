@@ -6,8 +6,8 @@ import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/attendance/widgets/attendance_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_repository.dart';
+import 'package:basecamp/features/groups/group_summary_repository.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
-import 'package:basecamp/features/pods/pods_repository.dart';
 import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
@@ -16,14 +16,14 @@ import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
 import 'package:basecamp/features/specialists/adult_timeline_repository.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/features/today/adult_staffing.dart';
-import 'package:basecamp/features/today/last_expanded_pod.dart';
+import 'package:basecamp/features/today/last_expanded_group.dart';
 import 'package:basecamp/features/today/today_buckets.dart';
 import 'package:basecamp/features/today/widgets/all_day_carousel.dart';
 import 'package:basecamp/features/today/widgets/day_summary_strip.dart';
 import 'package:basecamp/features/today/widgets/earlier_today_group.dart';
+import 'package:basecamp/features/today/widgets/group_today_card.dart';
 import 'package:basecamp/features/today/widgets/hero_now_card.dart';
 import 'package:basecamp/features/today/widgets/lateness_flags_strip.dart';
-import 'package:basecamp/features/today/widgets/pod_today_card.dart';
 import 'package:basecamp/features/today/widgets/schedule_item_card.dart';
 import 'package:basecamp/features/today/widgets/staff_today_strip.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -188,7 +188,7 @@ class _Body extends ConsumerWidget {
             const <String, AttendanceRecord>{};
 
     // -- Bucket items by time relative to now --
-    // `current` is a list: pods now run concurrent activities (lead
+    // `current` is a list: groups now run concurrent activities (lead
     // anchors the home group while a specialist rotates into another),
     // so more than one thing can be "right now." Primary = earliest-
     // started → hero. The rest go in the "Also now" strip below.
@@ -366,13 +366,13 @@ class _Body extends ConsumerWidget {
           const SizedBox(height: AppSpacing.md),
         ],
 
-        // Pod stack — one collapsible card per pod with that pod's
+        // Group stack — one collapsible card per group with that
         // NOW + NEXT + anchor leads. Additive to the hero/upcoming
-        // list below; the idea is "scan the pods first, drill into
-        // the chronological list if you need the whole day." Pods
+        // group's at-a-glance; scan the groups first, drill into
+        // the chronological list if you need the whole day. Groups
         // self-hide when none are set up yet — brand-new installs
         // fall through to the classic hero layout unchanged.
-        _PodStack(
+        _GroupStack(
           items: items,
           now: now,
           attendanceMap: attendanceMap,
@@ -642,16 +642,16 @@ class _WrapUpBanner extends StatelessWidget {
   }
 }
 
-/// The pod stack on Today — one collapsible [PodTodayCard] per pod,
-/// each showing that pod's NOW + NEXT + staffing. Listens to
-/// `podsProvider` and `lastExpandedPodProvider`; the latter
-/// persists across app restarts so the teacher's pod opens to the
+/// The group stack on Today — one collapsible [GroupTodayCard] per group,
+/// each showing that group's NOW + NEXT + staffing. Listens to
+/// `groupSummariesProvider` and `lastExpandedGroupProvider`; the latter
+/// persists across app restarts so the teacher's group opens to the
 /// same card they last looked at.
 ///
-/// Self-hides when no pods exist yet (brand-new install) — the screen
-/// falls back to the classic hero layout without the pod section.
-class _PodStack extends ConsumerWidget {
-  const _PodStack({
+/// Self-hides when no groups exist yet (brand-new install) — the screen
+/// falls back to the classic hero layout without the group section.
+class _GroupStack extends ConsumerWidget {
+  const _GroupStack({
     required this.items,
     required this.now,
     required this.attendanceMap,
@@ -669,16 +669,16 @@ class _PodStack extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final podsAsync = ref.watch(podsProvider);
-    final pods = podsAsync.asData?.value ?? const <Pod>[];
-    if (pods.isEmpty) return const SizedBox.shrink();
+    final summariesAsync = ref.watch(groupSummariesProvider);
+    final summaries = summariesAsync.asData?.value ?? const <GroupSummary>[];
+    if (summaries.isEmpty) return const SizedBox.shrink();
 
-    final expandedId = ref.watch(lastExpandedPodProvider);
+    final expandedId = ref.watch(lastExpandedGroupProvider);
     final nowMinutes = now.hour * 60 + now.minute;
 
     // Adult day-timeline resolution (v30). Watching these here keeps
-    // the "who's leading this pod right now" computation live —
-    // edits to a block on the adult edit sheet rebuild the pod card
+    // the "who's leading this group right now" computation live —
+    // edits to a block on the adult edit sheet rebuild the group card
     // without a screen re-mount.
     final specialists =
         ref.watch(specialistsProvider).asData?.value ?? const <Specialist>[];
@@ -689,22 +689,22 @@ class _PodStack extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final pod in pods) ...[
-          PodTodayCard(
-            pod: pod,
+        for (final g in summaries) ...[
+          GroupTodayCard(
+            group: g,
             now: now,
-            current: _currentFor(pod, nowMinutes),
-            next: _nextFor(pod, nowMinutes),
-            attendance: _attendanceFor(pod),
+            current: _currentFor(g, nowMinutes),
+            next: _nextFor(g, nowMinutes),
+            attendance: _attendanceFor(g),
             leadsNow: _leadsNowFor(
-              pod: pod,
+              group: g,
               nowMinutes: nowMinutes,
               specialists: specialists,
               blocksBySpecialist: blocksBySpecialist,
             ),
-            expanded: expandedId == pod.id,
+            expanded: expandedId == g.id,
             onToggle: () =>
-                ref.read(lastExpandedPodProvider.notifier).toggle(pod.id),
+                ref.read(lastExpandedGroupProvider.notifier).toggle(g.id),
             onOpenDetail: onOpenDetail,
             onOpenAttendance: onOpenAttendance,
           ),
@@ -715,18 +715,18 @@ class _PodStack extends ConsumerWidget {
     );
   }
 
-  /// Resolves adults currently anchoring [pod] — timeline-lead blocks
-  /// straddling now plus static-anchor leads (for adults with no
-  /// timeline). Returns the `Specialist` rows in lead-name order so
-  /// the avatars render predictably.
+  /// Resolves adults currently anchoring `group` — timeline-lead
+  /// blocks straddling now plus static-anchor leads (for adults with
+  /// no timeline). Returns the `Specialist` rows in lead-name order
+  /// so the avatars render predictably.
   List<Specialist> _leadsNowFor({
-    required Pod pod,
+    required GroupSummary group,
     required int nowMinutes,
     required List<Specialist> specialists,
     required Map<String, List<AdultTimelineBlock>> blocksBySpecialist,
   }) {
-    final leadIds = leadsInPodNow(
-      podId: pod.id,
+    final leadIds = leadsInGroupNow(
+      groupId: group.id,
       nowMinutes: nowMinutes,
       specialists: specialists,
       blocksBySpecialist: blocksBySpecialist,
@@ -739,14 +739,14 @@ class _PodStack extends ConsumerWidget {
     return leads;
   }
 
-  /// The pod's current in-progress activity, if any. A pod-scoped item
-  /// matches when `groupIds` contains the pod's group id; earliest-
+  /// The group's current in-progress activity, if any. A group-scoped
+  /// item matches when `groupIds` contains the group's id; earliest-
   /// started wins the slot the same way the global hero does.
-  ScheduleItem? _currentFor(Pod pod, int nowMinutes) {
+  ScheduleItem? _currentFor(GroupSummary group, int nowMinutes) {
     ScheduleItem? best;
     for (final item in items) {
       if (item.isFullDay) continue;
-      if (!item.groupIds.contains(pod.id)) continue;
+      if (!item.groupIds.contains(group.id)) continue;
       final start = item.startMinutes;
       final end = item.endMinutes;
       if (nowMinutes < start || nowMinutes >= end) continue;
@@ -757,13 +757,13 @@ class _PodStack extends ConsumerWidget {
     return best;
   }
 
-  /// The pod's next upcoming activity. First future item whose
-  /// groupIds include the pod. Skips full-day items.
-  ScheduleItem? _nextFor(Pod pod, int nowMinutes) {
+  /// The group's next upcoming activity. First future item whose
+  /// groupIds include the group. Skips full-day items.
+  ScheduleItem? _nextFor(GroupSummary group, int nowMinutes) {
     ScheduleItem? best;
     for (final item in items) {
       if (item.isFullDay) continue;
-      if (!item.groupIds.contains(pod.id)) continue;
+      if (!item.groupIds.contains(group.id)) continue;
       if (item.startMinutes <= nowMinutes) continue;
       if (best == null || item.startMinutes < best.startMinutes) {
         best = item;
@@ -772,15 +772,15 @@ class _PodStack extends ConsumerWidget {
     return best;
   }
 
-  /// Today's attendance summary for the pod — present/absent/total
-  /// count rolled up from the kids assigned to the pod's group.
-  /// Null when the pod has no kids yet (brand-new pod).
-  AttendanceSummary? _attendanceFor(Pod pod) {
+  /// Today's attendance summary for the group — present/absent/total
+  /// count rolled up from the kids assigned to this group. Null when
+  /// the group has no kids yet (brand-new group).
+  AttendanceSummary? _attendanceFor(GroupSummary group) {
     var present = 0;
     var absent = 0;
     var total = 0;
     for (final k in allKids) {
-      if (k.groupId != pod.id) continue;
+      if (k.groupId != group.id) continue;
       total++;
       final status = attendanceMap[k.id]?.status;
       if (status == AttendanceStatus.present) {

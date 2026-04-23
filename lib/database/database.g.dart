@@ -13018,10 +13018,12 @@ class $AdultDayBlocksTable extends AdultDayBlocks
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _podIdMeta = const VerificationMeta('podId');
+  static const VerificationMeta _groupIdMeta = const VerificationMeta(
+    'groupId',
+  );
   @override
-  late final GeneratedColumn<String> podId = GeneratedColumn<String>(
-    'pod_id',
+  late final GeneratedColumn<String> groupId = GeneratedColumn<String>(
+    'group_id',
     aliasedName,
     true,
     type: DriftSqlType.string,
@@ -13062,7 +13064,7 @@ class $AdultDayBlocksTable extends AdultDayBlocks
     startTime,
     endTime,
     role,
-    podId,
+    groupId,
     createdAt,
     updatedAt,
   ];
@@ -13126,10 +13128,10 @@ class $AdultDayBlocksTable extends AdultDayBlocks
     } else if (isInserting) {
       context.missing(_roleMeta);
     }
-    if (data.containsKey('pod_id')) {
+    if (data.containsKey('group_id')) {
       context.handle(
-        _podIdMeta,
-        podId.isAcceptableOrUnknown(data['pod_id']!, _podIdMeta),
+        _groupIdMeta,
+        groupId.isAcceptableOrUnknown(data['group_id']!, _groupIdMeta),
       );
     }
     if (data.containsKey('created_at')) {
@@ -13177,9 +13179,9 @@ class $AdultDayBlocksTable extends AdultDayBlocks
         DriftSqlType.string,
         data['${effectivePrefix}role'],
       )!,
-      podId: attachedDatabase.typeMapping.read(
+      groupId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}pod_id'],
+        data['${effectivePrefix}group_id'],
       ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -13218,12 +13220,12 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
   /// field on Specialists.
   final String role;
 
-  /// For lead blocks — which pod (group) the adult is anchoring
-  /// during this span. Null for specialist blocks. FK to groups
-  /// with setNull on delete so deleting a pod silently detaches any
+  /// For lead blocks — which group the adult is anchoring during
+  /// this span. Null for specialist blocks. FK to groups with
+  /// setNull on delete so deleting a group silently detaches any
   /// legacy lead blocks rather than cascading-deleting the whole
   /// timeline.
-  final String? podId;
+  final String? groupId;
   final DateTime createdAt;
   final DateTime updatedAt;
   const AdultDayBlock({
@@ -13233,7 +13235,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
     required this.startTime,
     required this.endTime,
     required this.role,
-    this.podId,
+    this.groupId,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -13246,8 +13248,8 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
     map['start_time'] = Variable<String>(startTime);
     map['end_time'] = Variable<String>(endTime);
     map['role'] = Variable<String>(role);
-    if (!nullToAbsent || podId != null) {
-      map['pod_id'] = Variable<String>(podId);
+    if (!nullToAbsent || groupId != null) {
+      map['group_id'] = Variable<String>(groupId);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -13262,9 +13264,9 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
       startTime: Value(startTime),
       endTime: Value(endTime),
       role: Value(role),
-      podId: podId == null && nullToAbsent
+      groupId: groupId == null && nullToAbsent
           ? const Value.absent()
-          : Value(podId),
+          : Value(groupId),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -13282,7 +13284,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
       startTime: serializer.fromJson<String>(json['startTime']),
       endTime: serializer.fromJson<String>(json['endTime']),
       role: serializer.fromJson<String>(json['role']),
-      podId: serializer.fromJson<String?>(json['podId']),
+      groupId: serializer.fromJson<String?>(json['groupId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -13297,7 +13299,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
       'startTime': serializer.toJson<String>(startTime),
       'endTime': serializer.toJson<String>(endTime),
       'role': serializer.toJson<String>(role),
-      'podId': serializer.toJson<String?>(podId),
+      'groupId': serializer.toJson<String?>(groupId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -13310,7 +13312,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
     String? startTime,
     String? endTime,
     String? role,
-    Value<String?> podId = const Value.absent(),
+    Value<String?> groupId = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => AdultDayBlock(
@@ -13320,7 +13322,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
     startTime: startTime ?? this.startTime,
     endTime: endTime ?? this.endTime,
     role: role ?? this.role,
-    podId: podId.present ? podId.value : this.podId,
+    groupId: groupId.present ? groupId.value : this.groupId,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -13334,7 +13336,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
       startTime: data.startTime.present ? data.startTime.value : this.startTime,
       endTime: data.endTime.present ? data.endTime.value : this.endTime,
       role: data.role.present ? data.role.value : this.role,
-      podId: data.podId.present ? data.podId.value : this.podId,
+      groupId: data.groupId.present ? data.groupId.value : this.groupId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -13349,7 +13351,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
           ..write('startTime: $startTime, ')
           ..write('endTime: $endTime, ')
           ..write('role: $role, ')
-          ..write('podId: $podId, ')
+          ..write('groupId: $groupId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -13364,7 +13366,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
     startTime,
     endTime,
     role,
-    podId,
+    groupId,
     createdAt,
     updatedAt,
   );
@@ -13378,7 +13380,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
           other.startTime == this.startTime &&
           other.endTime == this.endTime &&
           other.role == this.role &&
-          other.podId == this.podId &&
+          other.groupId == this.groupId &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -13390,7 +13392,7 @@ class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
   final Value<String> startTime;
   final Value<String> endTime;
   final Value<String> role;
-  final Value<String?> podId;
+  final Value<String?> groupId;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -13401,7 +13403,7 @@ class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
     this.startTime = const Value.absent(),
     this.endTime = const Value.absent(),
     this.role = const Value.absent(),
-    this.podId = const Value.absent(),
+    this.groupId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -13413,7 +13415,7 @@ class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
     required String startTime,
     required String endTime,
     required String role,
-    this.podId = const Value.absent(),
+    this.groupId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -13430,7 +13432,7 @@ class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
     Expression<String>? startTime,
     Expression<String>? endTime,
     Expression<String>? role,
-    Expression<String>? podId,
+    Expression<String>? groupId,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -13442,7 +13444,7 @@ class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
       if (startTime != null) 'start_time': startTime,
       if (endTime != null) 'end_time': endTime,
       if (role != null) 'role': role,
-      if (podId != null) 'pod_id': podId,
+      if (groupId != null) 'group_id': groupId,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -13456,7 +13458,7 @@ class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
     Value<String>? startTime,
     Value<String>? endTime,
     Value<String>? role,
-    Value<String?>? podId,
+    Value<String?>? groupId,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -13468,7 +13470,7 @@ class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,
       role: role ?? this.role,
-      podId: podId ?? this.podId,
+      groupId: groupId ?? this.groupId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -13496,8 +13498,8 @@ class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
     if (role.present) {
       map['role'] = Variable<String>(role.value);
     }
-    if (podId.present) {
-      map['pod_id'] = Variable<String>(podId.value);
+    if (groupId.present) {
+      map['group_id'] = Variable<String>(groupId.value);
     }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
@@ -13520,7 +13522,7 @@ class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
           ..write('startTime: $startTime, ')
           ..write('endTime: $endTime, ')
           ..write('role: $role, ')
-          ..write('podId: $podId, ')
+          ..write('groupId: $groupId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -14064,14 +14066,14 @@ final class $$GroupsTableReferences
   static MultiTypedResultKey<$AdultDayBlocksTable, List<AdultDayBlock>>
   _adultDayBlocksRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.adultDayBlocks,
-    aliasName: $_aliasNameGenerator(db.groups.id, db.adultDayBlocks.podId),
+    aliasName: $_aliasNameGenerator(db.groups.id, db.adultDayBlocks.groupId),
   );
 
   $$AdultDayBlocksTableProcessedTableManager get adultDayBlocksRefs {
     final manager = $$AdultDayBlocksTableTableManager(
       $_db,
       $_db.adultDayBlocks,
-    ).filter((f) => f.podId.id.sqlEquals($_itemColumn<String>('id')!));
+    ).filter((f) => f.groupId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_adultDayBlocksRefsTable($_db));
     return ProcessedTableManager(
@@ -14346,7 +14348,7 @@ class $$GroupsTableFilterComposer
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.adultDayBlocks,
-      getReferencedColumn: (t) => t.podId,
+      getReferencedColumn: (t) => t.groupId,
       builder:
           (
             joinBuilder, {
@@ -14657,7 +14659,7 @@ class $$GroupsTableAnnotationComposer
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.adultDayBlocks,
-      getReferencedColumn: (t) => t.podId,
+      getReferencedColumn: (t) => t.groupId,
       builder:
           (
             joinBuilder, {
@@ -14975,7 +14977,7 @@ class $$GroupsTableTableManager
                               ).adultDayBlocksRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.podId == item.id,
+                                (e) => e.groupId == item.id,
                               ),
                           typedResults: items,
                         ),
@@ -27723,7 +27725,7 @@ typedef $$AdultDayBlocksTableCreateCompanionBuilder =
       required String startTime,
       required String endTime,
       required String role,
-      Value<String?> podId,
+      Value<String?> groupId,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -27736,7 +27738,7 @@ typedef $$AdultDayBlocksTableUpdateCompanionBuilder =
       Value<String> startTime,
       Value<String> endTime,
       Value<String> role,
-      Value<String?> podId,
+      Value<String?> groupId,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -27769,18 +27771,18 @@ final class $$AdultDayBlocksTableReferences
     );
   }
 
-  static $GroupsTable _podIdTable(_$AppDatabase db) => db.groups.createAlias(
-    $_aliasNameGenerator(db.adultDayBlocks.podId, db.groups.id),
+  static $GroupsTable _groupIdTable(_$AppDatabase db) => db.groups.createAlias(
+    $_aliasNameGenerator(db.adultDayBlocks.groupId, db.groups.id),
   );
 
-  $$GroupsTableProcessedTableManager? get podId {
-    final $_column = $_itemColumn<String>('pod_id');
+  $$GroupsTableProcessedTableManager? get groupId {
+    final $_column = $_itemColumn<String>('group_id');
     if ($_column == null) return null;
     final manager = $$GroupsTableTableManager(
       $_db,
       $_db.groups,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_podIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_groupIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -27855,10 +27857,10 @@ class $$AdultDayBlocksTableFilterComposer
     return composer;
   }
 
-  $$GroupsTableFilterComposer get podId {
+  $$GroupsTableFilterComposer get groupId {
     final $$GroupsTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
+      getCurrentColumn: (t) => t.groupId,
       referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
@@ -27946,10 +27948,10 @@ class $$AdultDayBlocksTableOrderingComposer
     return composer;
   }
 
-  $$GroupsTableOrderingComposer get podId {
+  $$GroupsTableOrderingComposer get groupId {
     final $$GroupsTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
+      getCurrentColumn: (t) => t.groupId,
       referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
@@ -28023,10 +28025,10 @@ class $$AdultDayBlocksTableAnnotationComposer
     return composer;
   }
 
-  $$GroupsTableAnnotationComposer get podId {
+  $$GroupsTableAnnotationComposer get groupId {
     final $$GroupsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.podId,
+      getCurrentColumn: (t) => t.groupId,
       referencedTable: $db.groups,
       getReferencedColumn: (t) => t.id,
       builder:
@@ -28060,7 +28062,7 @@ class $$AdultDayBlocksTableTableManager
           $$AdultDayBlocksTableUpdateCompanionBuilder,
           (AdultDayBlock, $$AdultDayBlocksTableReferences),
           AdultDayBlock,
-          PrefetchHooks Function({bool specialistId, bool podId})
+          PrefetchHooks Function({bool specialistId, bool groupId})
         > {
   $$AdultDayBlocksTableTableManager(
     _$AppDatabase db,
@@ -28083,7 +28085,7 @@ class $$AdultDayBlocksTableTableManager
                 Value<String> startTime = const Value.absent(),
                 Value<String> endTime = const Value.absent(),
                 Value<String> role = const Value.absent(),
-                Value<String?> podId = const Value.absent(),
+                Value<String?> groupId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -28094,7 +28096,7 @@ class $$AdultDayBlocksTableTableManager
                 startTime: startTime,
                 endTime: endTime,
                 role: role,
-                podId: podId,
+                groupId: groupId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -28107,7 +28109,7 @@ class $$AdultDayBlocksTableTableManager
                 required String startTime,
                 required String endTime,
                 required String role,
-                Value<String?> podId = const Value.absent(),
+                Value<String?> groupId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -28118,7 +28120,7 @@ class $$AdultDayBlocksTableTableManager
                 startTime: startTime,
                 endTime: endTime,
                 role: role,
-                podId: podId,
+                groupId: groupId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -28131,7 +28133,7 @@ class $$AdultDayBlocksTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({specialistId = false, podId = false}) {
+          prefetchHooksCallback: ({specialistId = false, groupId = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [],
@@ -28165,16 +28167,16 @@ class $$AdultDayBlocksTableTableManager
                               )
                               as T;
                     }
-                    if (podId) {
+                    if (groupId) {
                       state =
                           state.withJoin(
                                 currentTable: table,
-                                currentColumn: table.podId,
+                                currentColumn: table.groupId,
                                 referencedTable: $$AdultDayBlocksTableReferences
-                                    ._podIdTable(db),
+                                    ._groupIdTable(db),
                                 referencedColumn:
                                     $$AdultDayBlocksTableReferences
-                                        ._podIdTable(db)
+                                        ._groupIdTable(db)
                                         .id,
                               )
                               as T;
@@ -28203,7 +28205,7 @@ typedef $$AdultDayBlocksTableProcessedTableManager =
       $$AdultDayBlocksTableUpdateCompanionBuilder,
       (AdultDayBlock, $$AdultDayBlocksTableReferences),
       AdultDayBlock,
-      PrefetchHooks Function({bool specialistId, bool podId})
+      PrefetchHooks Function({bool specialistId, bool groupId})
     >;
 
 class $AppDatabaseManager {

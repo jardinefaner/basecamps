@@ -19,7 +19,7 @@ class TripsRepository {
         .getSingleOrNull();
   }
 
-  Future<List<String>> podsForTrip(String tripId) async {
+  Future<List<String>> groupsForTrip(String tripId) async {
     final rows = await (_db.select(_db.tripGroups)
           ..where((p) => p.tripId.equals(tripId)))
         .get();
@@ -29,7 +29,7 @@ class TripsRepository {
   /// Adds a trip and auto-creates a matching ScheduleEntry on the trip's
   /// date so the calendar is in sync. If [departureTime] / [returnTime]
   /// are supplied, the entry is timed; otherwise it's full-day. The trip's
-  /// groups are mirrored onto the entry via EntryPods.
+  /// groups are mirrored onto the entry via EntryGroups.
   Future<String> addTrip({
     required String name,
     required DateTime date,
@@ -122,7 +122,7 @@ final tripProvider = FutureProvider.family<Trip?, String>((ref, id) {
 
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types
-final tripPodsProvider =
+final tripGroupsProvider =
     FutureProvider.family<List<String>, String>((ref, id) {
-  return ref.watch(tripsRepositoryProvider).podsForTrip(id);
+  return ref.watch(tripsRepositoryProvider).groupsForTrip(id);
 });

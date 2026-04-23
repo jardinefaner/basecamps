@@ -202,11 +202,11 @@ class _WeekGridViewState extends State<WeekGridView> {
     if (a.isFullDay != b.isFullDay) return false;
     if (a.specialistId != b.specialistId) return false;
     if (a.location != b.location) return false;
-    final aPods = a.groupIds.toSet();
-    final bPods = b.groupIds.toSet();
-    if (aPods.length != bPods.length) return false;
-    for (final id in aPods) {
-      if (!bPods.contains(id)) return false;
+    final aGroups = a.groupIds.toSet();
+    final bGroups = b.groupIds.toSet();
+    if (aGroups.length != bGroups.length) return false;
+    for (final id in aGroups) {
+      if (!bGroups.contains(id)) return false;
     }
     return true;
   }

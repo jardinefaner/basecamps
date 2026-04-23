@@ -178,8 +178,8 @@ class _GroupsRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final podIdsAsync = ref.watch(tripPodsProvider(tripId));
-    return podIdsAsync.maybeWhen(
+    final groupIdsAsync = ref.watch(tripGroupsProvider(tripId));
+    return groupIdsAsync.maybeWhen(
       data: (groupIds) {
         if (groupIds.isEmpty) {
           return const _MetaRow(
@@ -211,7 +211,7 @@ class _RosterCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final podIdsAsync = ref.watch(tripPodsProvider(tripId));
+    final groupIdsAsync = ref.watch(tripGroupsProvider(tripId));
     final kidsAsync = ref.watch(childrenProvider);
 
     return AppCard(
@@ -220,7 +220,7 @@ class _RosterCard extends ConsumerWidget {
         children: [
           Text("Who's going", style: theme.textTheme.titleMedium),
           const SizedBox(height: AppSpacing.sm),
-          podIdsAsync.when(
+          groupIdsAsync.when(
             loading: () => const LinearProgressIndicator(),
             error: (err, _) => Text('Error: $err'),
             data: (groupIds) {

@@ -228,7 +228,7 @@ class ObservationsRepository {
     final targetKind = childIds.isNotEmpty
         ? 'kids'
         : groupId != null
-            ? 'pod'
+            ? 'group'
             : activityLabel != null && activityLabel.isNotEmpty
                 ? 'activity'
                 : 'general';
@@ -398,7 +398,7 @@ class ObservationsRepository {
     ObservationSentiment? sentiment,
     List<String>? childIds,
     String? groupId,
-    bool clearPodId = false,
+    bool clearGroupId = false,
     String? activityLabel,
     bool clearActivityLabel = false,
   }) async {
@@ -422,7 +422,7 @@ class ObservationsRepository {
             : Value(primaryDomain.name),
         sentiment:
             sentiment == null ? const Value.absent() : Value(sentiment.name),
-        groupId: clearPodId
+        groupId: clearGroupId
             ? const Value<String?>(null)
             : (groupId == null ? const Value.absent() : Value(groupId)),
         activityLabel: clearActivityLabel
@@ -437,7 +437,7 @@ class ObservationsRepository {
       if (childIds != null) {
         nextTargetKind = childIds.isNotEmpty
             ? 'kids'
-            : (clearPodId || groupId == null) &&
+            : (clearGroupId || groupId == null) &&
                     (clearActivityLabel || activityLabel == null)
                 ? 'general'
                 : null;

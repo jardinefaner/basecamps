@@ -280,7 +280,7 @@ class _NewActivityWizardScreenState
         WizardStep(
           headline: "Who's in it?",
           subtitle: 'Leave as "All groups" if the activity is for everyone.',
-          content: _buildPodsPage(),
+          content: _buildGroupsPage(),
           canSkip: true,
         ),
         WizardStep(
@@ -448,9 +448,9 @@ class _NewActivityWizardScreenState
 
   // ---- page 3: groups ----
 
-  Widget _buildPodsPage() {
+  Widget _buildGroupsPage() {
     final theme = Theme.of(context);
-    final podsAsync = ref.watch(groupsProvider);
+    final groupsAsync = ref.watch(groupsProvider);
     final noGroupsSelected = !_allGroups && _groupIds.isEmpty;
 
     return Column(
@@ -503,7 +503,7 @@ class _NewActivityWizardScreenState
         ],
         const SizedBox(height: AppSpacing.md),
         if (!_allGroups)
-          podsAsync.when(
+          groupsAsync.when(
             loading: () => const LinearProgressIndicator(),
             error: (err, _) => Text('Error: $err'),
             data: (groups) {

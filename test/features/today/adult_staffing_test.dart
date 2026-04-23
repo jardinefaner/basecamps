@@ -23,14 +23,14 @@ AdultTimelineBlock _block({
   required String start,
   required String end,
   required AdultBlockRole role,
-  String? podId,
+  String? groupId,
 }) =>
     AdultTimelineBlock(
       dayOfWeek: 1,
       startTime: start,
       endTime: end,
       role: role,
-      podId: podId,
+      groupId: groupId,
     );
 
 int _at(int h, int m) => h * 60 + m;
@@ -45,14 +45,14 @@ void main() {
             start: '08:30',
             end: '11:00',
             role: AdultBlockRole.lead,
-            podId: 'g-b',
+            groupId: 'g-b',
           ),
         ],
         nowMinutes: _at(10, 0),
       );
       expect(state, isNotNull);
       expect(state!.role, AdultBlockRole.lead);
-      expect(state.podId, 'g-b');
+      expect(state.groupId, 'g-b');
       expect(state.blockStartMinutes, _at(8, 30));
       expect(state.blockEndMinutes, _at(11, 0));
     });
@@ -65,13 +65,13 @@ void main() {
             start: '08:30',
             end: '11:00',
             role: AdultBlockRole.lead,
-            podId: 'g-b',
+            groupId: 'g-b',
           ),
           _block(
             start: '12:00',
             end: '15:00',
             role: AdultBlockRole.lead,
-            podId: 'g-b',
+            groupId: 'g-b',
           ),
         ],
         nowMinutes: _at(11, 30),
@@ -89,7 +89,7 @@ void main() {
       );
       expect(state, isNotNull);
       expect(state!.role, AdultBlockRole.lead);
-      expect(state.podId, 'g-b');
+      expect(state.groupId, 'g-b');
       expect(state.blockStartMinutes, isNull);
     });
 
@@ -100,10 +100,10 @@ void main() {
         nowMinutes: _at(10, 0),
       );
       expect(state!.role, AdultBlockRole.specialist);
-      expect(state.podId, isNull);
+      expect(state.groupId, isNull);
     });
 
-    test('no blocks, static ambient → null (not on pod grid)', () {
+    test('no blocks, static ambient → null (not on group grid)', () {
       final state = resolveCurrentState(
         specialist: _sp(id: 'dir', role: 'ambient'),
         blocksForAdult: const [],
@@ -120,7 +120,7 @@ void main() {
             start: '08:30',
             end: '11:00',
             role: AdultBlockRole.lead,
-            podId: 'g-b',
+            groupId: 'g-b',
           ),
         ],
         nowMinutes: _at(8, 30),
@@ -136,7 +136,7 @@ void main() {
             start: '08:30',
             end: '11:00',
             role: AdultBlockRole.lead,
-            podId: 'g-b',
+            groupId: 'g-b',
           ),
         ],
         nowMinutes: _at(11, 0),
@@ -145,7 +145,7 @@ void main() {
     });
   });
 
-  group('leadsInPodNow', () {
+  group('leadsInGroupNow', () {
     test('includes timeline-leads and static-anchor-leads together', () {
       // Sarah: timeline-lead for g-b 8:30-11
       // Mike: static anchored lead for g-b (no timeline)
@@ -163,12 +163,12 @@ void main() {
             start: '08:30',
             end: '11:00',
             role: AdultBlockRole.lead,
-            podId: 'g-b',
+            groupId: 'g-b',
           ),
         ],
       };
-      final leads = leadsInPodNow(
-        podId: 'g-b',
+      final leads = leadsInGroupNow(
+        groupId: 'g-b',
         nowMinutes: _at(10, 0),
         specialists: specialists,
         blocksBySpecialist: blocksBy,
@@ -176,10 +176,10 @@ void main() {
       expect(leads, {'sarah', 'mike'});
     });
 
-    test('rotating specialist in a pod via a lead block at that pod', () {
+    test('rotating specialist in a group via a lead block at that pod', () {
       // Sarah is normally a rotating specialist (static role), but
       // her timeline overrides this morning to anchor g-b as lead.
-      // leadsInPodNow should include her.
+      // leadsInGroupNow should include her.
       final specialists = [_sp(id: 'sarah')];
       final blocksBy = {
         'sarah': [
@@ -187,12 +187,12 @@ void main() {
             start: '09:00',
             end: '10:30',
             role: AdultBlockRole.lead,
-            podId: 'g-b',
+            groupId: 'g-b',
           ),
         ],
       };
-      final leads = leadsInPodNow(
-        podId: 'g-b',
+      final leads = leadsInGroupNow(
+        groupId: 'g-b',
         nowMinutes: _at(9, 30),
         specialists: specialists,
         blocksBySpecialist: blocksBy,
@@ -211,7 +211,7 @@ void main() {
           startTime: '12:00',
           endTime: '15:00',
           role: 'lead',
-          podId: 'g-b',
+          groupId: 'g-b',
           createdAt: DateTime(2026),
           updatedAt: DateTime(2026),
         ),
@@ -222,7 +222,7 @@ void main() {
           startTime: '08:30',
           endTime: '11:00',
           role: 'lead',
-          podId: 'g-b',
+          groupId: 'g-b',
           createdAt: DateTime(2026),
           updatedAt: DateTime(2026),
         ),

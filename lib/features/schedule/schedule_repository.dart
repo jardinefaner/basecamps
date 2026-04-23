@@ -150,7 +150,7 @@ class ScheduleRepository {
     return watchTemplates().asyncMap((templates) async {
       final byDay = <int, List<ScheduleItem>>{};
       for (final t in templates) {
-        final groups = await podsForTemplate(t.id);
+        final groups = await groupsForTemplate(t.id);
         // Date is meaningless for the weekly-template view — callers
         // that care about concrete dates use `watchScheduleForWeek` or
         // `watchScheduleForDate`. Sentinel keeps the field non-null.
@@ -183,14 +183,14 @@ class ScheduleRepository {
     });
   }
 
-  Future<List<String>> podsForTemplate(String templateId) async {
+  Future<List<String>> groupsForTemplate(String templateId) async {
     final rows = await (_db.select(_db.templateGroups)
           ..where((p) => p.templateId.equals(templateId)))
         .get();
     return rows.map((r) => r.groupId).toList();
   }
 
-  Future<List<String>> podsForEntry(String entryId) async {
+  Future<List<String>> groupsForEntry(String entryId) async {
     final rows = await (_db.select(_db.entryGroups)
           ..where((p) => p.entryId.equals(entryId)))
         .get();
@@ -395,7 +395,7 @@ class ScheduleRepository {
                   endDate: Value(src.endDate),
                 ),
               );
-          final groupIds = await podsForTemplate(src.id);
+          final groupIds = await groupsForTemplate(src.id);
           for (final groupId in groupIds) {
             await _db.into(_db.templateGroups).insert(
                   TemplateGroupsCompanion.insert(
@@ -478,7 +478,7 @@ class ScheduleRepository {
     final template = await (_db.select(_db.scheduleTemplates)
           ..where((t) => t.id.equals(templateId)))
         .getSingle();
-    final templateGroups = await podsForTemplate(templateId);
+    final templateGroups = await groupsForTemplate(templateId);
     final dayOnly = _dayOnly(date);
     final nextDay = dayOnly.add(const Duration(days: 1));
 
@@ -661,13 +661,13 @@ class ScheduleRepository {
         final e = entries;
         if (t == null || e == null) return;
         try {
-          final templatePodMap = <String, List<String>>{};
+          final templateGroupMap = <String, List<String>>{};
           for (final tpl in t) {
-            templatePodMap[tpl.id] = await podsForTemplate(tpl.id);
+            templateGroupMap[tpl.id] = await groupsForTemplate(tpl.id);
           }
-          final entryPodMap = <String, List<String>>{};
+          final entryGroupMap = <String, List<String>>{};
           for (final en in e) {
-            entryPodMap[en.id] = await podsForEntry(en.id);
+            entryGroupMap[en.id] = await groupsForEntry(en.id);
           }
 
           final result = <int, List<ScheduleItem>>{};
@@ -695,8 +695,8 @@ class ScheduleRepository {
               date: date,
               templates: dayTemplates,
               entries: dayEntries,
-              templateGroups: templatePodMap,
-              entryGroups: entryPodMap,
+              templateGroups: templateGroupMap,
+              entryGroups: entryGroupMap,
             );
           }
           if (!controller.isClosed) controller.add(result);
@@ -765,20 +765,20 @@ class ScheduleRepository {
         }).toList();
 
         try {
-          final templatePodMap = <String, List<String>>{};
+          final templateGroupMap = <String, List<String>>{};
           for (final tpl in filteredTemplates) {
-            templatePodMap[tpl.id] = await podsForTemplate(tpl.id);
+            templateGroupMap[tpl.id] = await groupsForTemplate(tpl.id);
           }
-          final entryPodMap = <String, List<String>>{};
+          final entryGroupMap = <String, List<String>>{};
           for (final en in e) {
-            entryPodMap[en.id] = await podsForEntry(en.id);
+            entryGroupMap[en.id] = await groupsForEntry(en.id);
           }
           final merged = _merge(
             date: day,
             templates: filteredTemplates,
             entries: e,
-            templateGroups: templatePodMap,
-            entryGroups: entryPodMap,
+            templateGroups: templateGroupMap,
+            entryGroups: entryGroupMap,
           );
           if (!controller.isClosed) controller.add(merged);
         } on Object catch (err, st) {
@@ -979,7 +979,7 @@ final templatesBySpecialistProvider =
 
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types
-final templatePodsProvider =
+final templateGroupsProvider =
     FutureProvider.family<List<String>, String>((ref, templateId) {
-  return ref.watch(scheduleRepositoryProvider).podsForTemplate(templateId);
+  return ref.watch(scheduleRepositoryProvider).groupsForTemplate(templateId);
 });

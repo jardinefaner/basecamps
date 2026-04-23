@@ -57,7 +57,7 @@ void main() {
         groupIds: [g1, g2],
         allGroups: false,
       );
-      final pods = await sch.podsForTemplate(id);
+      final pods = await sch.groupsForTemplate(id);
       expect(pods, containsAll([g1, g2]));
     });
   });

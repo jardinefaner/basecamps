@@ -17,7 +17,7 @@ class EditChildSheet extends ConsumerStatefulWidget {
   const EditChildSheet({
     required this.groups,
     this.child,
-    this.initialPodId,
+    this.initialGroupId,
     super.key,
   });
 
@@ -27,7 +27,7 @@ class EditChildSheet extends ConsumerStatefulWidget {
   final Child? child;
 
   /// Only honored in create mode.
-  final String? initialPodId;
+  final String? initialGroupId;
 
   @override
   ConsumerState<EditChildSheet> createState() => _EditChildSheetState();
@@ -44,7 +44,7 @@ class _EditChildSheetState extends ConsumerState<EditChildSheet> {
       TextEditingController(text: widget.child?.parentName ?? '');
 
   late String? _selectedGroupId = widget.child?.groupId ??
-      widget.initialPodId ??
+      widget.initialGroupId ??
       (widget.groups.isNotEmpty ? widget.groups.first.id : null);
 
   /// Local file path for the avatar. Starts at the existing value and

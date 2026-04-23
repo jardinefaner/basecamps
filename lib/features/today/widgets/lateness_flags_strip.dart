@@ -118,7 +118,7 @@ class LatenessFlagsStrip extends ConsumerWidget {
   }
 
   /// Attendance-sheet entry point used by all flag rows. Scopes to the
-  /// child's pod when they have one, falling back to whole-program on
+  /// child's group when they have one, falling back to whole-program on
   /// Unassigned kids so the sheet never opens empty.
   Future<void> _openAttendanceForChild(BuildContext context, Child child) {
     return showModalBottomSheet<void>(

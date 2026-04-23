@@ -14,7 +14,7 @@ class AdultCurrentState {
   const AdultCurrentState({
     required this.specialistId,
     required this.role,
-    this.podId,
+    this.groupId,
     this.blockStartMinutes,
     this.blockEndMinutes,
   });
@@ -22,9 +22,9 @@ class AdultCurrentState {
   final String specialistId;
   final AdultBlockRole role;
 
-  /// For lead state — which pod (group) they're anchoring right now.
+  /// For lead state — which group (group) they're anchoring right now.
   /// Null for specialist / rotator blocks.
-  final String? podId;
+  final String? groupId;
 
   /// Useful for surfaces that want to show "until 11:00" alongside
   /// the current state. Null when derived from static role (no block
@@ -55,15 +55,15 @@ Map<String, List<AdultTimelineBlock>> groupBlocksBySpecialist(
 /// that has [blocksForAdult] (possibly empty).
 ///
 /// Rules (in order):
-///   1. If any block straddles now, it wins — use its role + podId.
+///   1. If any block straddles now, it wins — use its role + groupId.
 ///   2. If blocks exist for today but none straddles now, the adult
 ///      is between blocks (implied off) → return null.
 ///   3. If no blocks exist, fall back to the static
 ///      `Specialist.adultRole`:
 ///        - lead + anchoredGroupId → lead block covering the whole
-///          day (so Today can still show them as anchoring their pod)
+///          day (so Today can still show them as anchoring their group)
 ///        - specialist → rotating specialist state
-///        - ambient → null (ambient adults aren't on the pod grid)
+///        - ambient → null (ambient adults aren't on the group grid)
 AdultCurrentState? resolveCurrentState({
   required Specialist specialist,
   required List<AdultTimelineBlock> blocksForAdult,
@@ -75,7 +75,7 @@ AdultCurrentState? resolveCurrentState({
         return AdultCurrentState(
           specialistId: specialist.id,
           role: b.role,
-          podId: b.podId,
+          groupId: b.groupId,
           blockStartMinutes: b.startMinutes,
           blockEndMinutes: b.endMinutes,
         );
@@ -93,7 +93,7 @@ AdultCurrentState? resolveCurrentState({
       return AdultCurrentState(
         specialistId: specialist.id,
         role: AdultBlockRole.lead,
-        podId: specialist.anchoredGroupId,
+        groupId: specialist.anchoredGroupId,
       );
     case AdultRole.specialist:
       return AdultCurrentState(
@@ -105,15 +105,15 @@ AdultCurrentState? resolveCurrentState({
   }
 }
 
-/// Which adults are currently leading [podId]? Combines timeline
-/// resolution with the static anchor fallback so pods with a mix of
+/// Which adults are currently leading [groupId]? Combines timeline
+/// resolution with the static anchor fallback so groups with a mix of
 /// "scheduled via timeline" and "just a static anchor" leads both
 /// show up in the same list.
 ///
 /// Returns specialist ids; caller joins with the full specialists
 /// list for display.
-Set<String> leadsInPodNow({
-  required String podId,
+Set<String> leadsInGroupNow({
+  required String groupId,
   required int nowMinutes,
   required List<Specialist> specialists,
   required Map<String, List<AdultTimelineBlock>> blocksBySpecialist,
@@ -128,7 +128,7 @@ Set<String> leadsInPodNow({
     );
     if (state == null) continue;
     if (state.role != AdultBlockRole.lead) continue;
-    if (state.podId != podId) continue;
+    if (state.groupId != groupId) continue;
     ids.add(s.id);
   }
   return ids;

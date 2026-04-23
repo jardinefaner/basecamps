@@ -4,7 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Role an adult has during one block of their day-timeline. Currently
-/// just lead (with a pod anchor) or specialist (rotator, no pod).
+/// just lead (with a group anchor) or specialist (rotator, no group).
 /// Break + lunch live on specialist_availability and overlay on top;
 /// 'off' is implied by absent blocks.
 enum AdultBlockRole {
@@ -35,7 +35,7 @@ class AdultTimelineBlock {
     required this.startTime,
     required this.endTime,
     required this.role,
-    this.podId,
+    this.groupId,
   });
 
   factory AdultTimelineBlock.fromRow(AdultDayBlock row) =>
@@ -44,14 +44,14 @@ class AdultTimelineBlock {
         startTime: row.startTime,
         endTime: row.endTime,
         role: AdultBlockRole.fromDb(row.role),
-        podId: row.podId,
+        groupId: row.groupId,
       );
 
   final int dayOfWeek;
   final String startTime;
   final String endTime;
   final AdultBlockRole role;
-  final String? podId;
+  final String? groupId;
 
   int get startMinutes => _parseHHmm(startTime);
   int get endMinutes => _parseHHmm(endTime);
@@ -113,7 +113,7 @@ class AdultTimelineRepository {
                 startTime: b.startTime,
                 endTime: b.endTime,
                 role: b.role.dbValue,
-                podId: Value(b.podId),
+                groupId: Value(b.groupId),
               ),
             );
       }

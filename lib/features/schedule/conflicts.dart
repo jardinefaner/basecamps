@@ -31,10 +31,10 @@ Map<String, List<ConflictInfo>> conflictsByItemId(List<ScheduleItem> items) {
       result.putIfAbsent(a.id, () => <ConflictInfo>[]).add(
             ConflictInfo(
               other: b,
-              podClash: res.podClash,
+              groupClash: res.groupClash,
               specialistClash: res.specialistClash,
               roomClash: res.roomClash,
-              sharedPodIds: _sharedPodIds(a, b),
+              sharedGroupIds: _sharedGroupIds(a, b),
             ),
           );
     }
@@ -45,14 +45,14 @@ Map<String, List<ConflictInfo>> conflictsByItemId(List<ScheduleItem> items) {
 class ConflictInfo {
   const ConflictInfo({
     required this.other,
-    required this.podClash,
+    required this.groupClash,
     required this.specialistClash,
     required this.roomClash,
-    required this.sharedPodIds,
+    required this.sharedGroupIds,
   });
 
   final ScheduleItem other;
-  final bool podClash;
+  final bool groupClash;
   final bool specialistClash;
 
   /// Two activities tracked to the same [ScheduleItem.roomId] at
@@ -62,7 +62,7 @@ class ConflictInfo {
 
   /// Group ids that both activities target directly. Empty when the clash
   /// comes from one side being "all groups" (broadcast).
-  final Set<String> sharedPodIds;
+  final Set<String> sharedGroupIds;
 }
 
 /// Conflict rules, per pair of items on the same day:
@@ -86,7 +86,7 @@ _DetectionResult _detect(ScheduleItem a, ScheduleItem b) {
   final specialistClash =
       a.specialistId != null && a.specialistId == b.specialistId;
   final roomClash = _roomClash(a, b);
-  final sharedPods = _sharePod(a, b);
+  final sharedGroups = _shareGroup(a, b);
 
   // A room clash fires whenever two items are booked into the same
   // room at overlapping times — regardless of whether the groups
@@ -96,7 +96,7 @@ _DetectionResult _detect(ScheduleItem a, ScheduleItem b) {
   if (roomClash) {
     return _DetectionResult(
       isConflict: true,
-      podClash: sharedPods && (!a.isFullDay && !b.isFullDay),
+      groupClash: sharedGroups && (!a.isFullDay && !b.isFullDay),
       specialistClash: specialistClash,
       roomClash: true,
     );
@@ -107,14 +107,14 @@ _DetectionResult _detect(ScheduleItem a, ScheduleItem b) {
     if (timeOverlap) {
       return _DetectionResult(
         isConflict: true,
-        podClash: sharedPods && (!a.isFullDay && !b.isFullDay),
+        groupClash: sharedGroups && (!a.isFullDay && !b.isFullDay),
         specialistClash: true,
         roomClash: false,
       );
     }
     return const _DetectionResult(
       isConflict: false,
-      podClash: false,
+      groupClash: false,
       specialistClash: false,
       roomClash: false,
     );
@@ -124,8 +124,8 @@ _DetectionResult _detect(ScheduleItem a, ScheduleItem b) {
   // time overlap.
   if (a.isFullDay && b.isFullDay) {
     return _DetectionResult(
-      isConflict: sharedPods,
-      podClash: sharedPods,
+      isConflict: sharedGroups,
+      groupClash: sharedGroups,
       specialistClash: false,
       roomClash: false,
     );
@@ -133,7 +133,7 @@ _DetectionResult _detect(ScheduleItem a, ScheduleItem b) {
   if (a.isFullDay || b.isFullDay) {
     return const _DetectionResult(
       isConflict: false,
-      podClash: false,
+      groupClash: false,
       specialistClash: false,
       roomClash: false,
     );
@@ -142,17 +142,17 @@ _DetectionResult _detect(ScheduleItem a, ScheduleItem b) {
   // Both timed, no specialist or room clash.
   final timeOverlap =
       a.startMinutes < b.endMinutes && b.startMinutes < a.endMinutes;
-  if (timeOverlap && sharedPods) {
+  if (timeOverlap && sharedGroups) {
     return const _DetectionResult(
       isConflict: true,
-      podClash: true,
+      groupClash: true,
       specialistClash: false,
       roomClash: false,
     );
   }
   return const _DetectionResult(
     isConflict: false,
-    podClash: false,
+    groupClash: false,
     specialistClash: false,
     roomClash: false,
   );
@@ -161,13 +161,13 @@ _DetectionResult _detect(ScheduleItem a, ScheduleItem b) {
 class _DetectionResult {
   const _DetectionResult({
     required this.isConflict,
-    required this.podClash,
+    required this.groupClash,
     required this.specialistClash,
     required this.roomClash,
   });
 
   final bool isConflict;
-  final bool podClash;
+  final bool groupClash;
   final bool specialistClash;
   final bool roomClash;
 }
@@ -188,7 +188,7 @@ bool _roomClash(ScheduleItem a, ScheduleItem b) {
   return _timeOverlaps(a, b);
 }
 
-bool _sharePod(ScheduleItem a, ScheduleItem b) {
+bool _shareGroup(ScheduleItem a, ScheduleItem b) {
   // Respect the three-state audience. An intentionally-empty audience
   // (isNoGroups — teacher toggled "All groups" off and picked nothing,
   // staff prep / closure-style entries) doesn't target any children,
@@ -202,8 +202,8 @@ bool _sharePod(ScheduleItem a, ScheduleItem b) {
   return a.groupIds.toSet().intersection(b.groupIds.toSet()).isNotEmpty;
 }
 
-Set<String> _sharedPodIds(ScheduleItem a, ScheduleItem b) {
-  // No-groups activities never share with anyone (see _sharePod).
+Set<String> _sharedGroupIds(ScheduleItem a, ScheduleItem b) {
+  // No-groups activities never share with anyone (see _shareGroup).
   if (a.isNoGroups || b.isNoGroups) return const <String>{};
   if (a.groupIds.isEmpty || b.groupIds.isEmpty) return const <String>{};
   return a.groupIds.toSet().intersection(b.groupIds.toSet());
