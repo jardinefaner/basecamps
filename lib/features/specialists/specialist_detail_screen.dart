@@ -1,8 +1,11 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/groups/group_summary_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:basecamp/features/schedule/widgets/edit_template_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
+import 'package:basecamp/features/specialists/adult_timeline_repository.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/features/specialists/widgets/edit_specialist_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -69,6 +72,8 @@ class SpecialistDetailScreen extends ConsumerWidget {
             children: [
               _Header(specialist: s, onEdit: () => _openEdit(context, s)),
               const SizedBox(height: AppSpacing.xl),
+              _TodayBlocksSection(specialistId: specialistId),
+              const SizedBox(height: AppSpacing.lg),
               _AvailabilitySection(specialistId: specialistId),
               const SizedBox(height: AppSpacing.lg),
               _AssignedActivitiesSection(
@@ -133,18 +138,27 @@ class SpecialistDetailScreen extends ConsumerWidget {
   }
 }
 
-class _Header extends StatelessWidget {
+class _Header extends ConsumerWidget {
   const _Header({required this.specialist, required this.onEdit});
 
   final Specialist specialist;
   final VoidCallback onEdit;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final initial = specialist.name.isNotEmpty
         ? specialist.name.characters.first.toUpperCase()
         : '?';
+    final role = AdultRole.fromDb(specialist.adultRole);
+    // Anchor group name is only meaningful for leads. Safe-default
+    // to a null watcher when the adult has no anchor so we don't
+    // spin up a provider just to get an empty string back.
+    final anchorId = specialist.anchoredGroupId;
+    final anchorName = anchorId == null
+        ? null
+        : ref.watch(groupProvider(anchorId)).asData?.value?.name;
+
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: onEdit,
@@ -175,11 +189,106 @@ class _Header extends StatelessWidget {
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    runSpacing: 4,
+                    children: [
+                      _RoleChip(role: role),
+                      if (role == AdultRole.lead && anchorName != null)
+                        _AnchorChip(name: anchorName),
+                      if (role == AdultRole.lead && anchorId != null &&
+                          anchorName == null)
+                        const _AnchorChip(name: '…'),
+                    ],
+                  ),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Small role pill next to the adult's name. Mirrors the one on the
+/// Adults list tile so scanning between list + detail stays visually
+/// consistent.
+class _RoleChip extends StatelessWidget {
+  const _RoleChip({required this.role});
+  final AdultRole role;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final (bg, fg, label) = switch (role) {
+      AdultRole.lead => (
+          theme.colorScheme.primaryContainer,
+          theme.colorScheme.onPrimaryContainer,
+          'Lead',
+        ),
+      AdultRole.specialist => (
+          theme.colorScheme.tertiaryContainer,
+          theme.colorScheme.onTertiaryContainer,
+          'Specialist',
+        ),
+      AdultRole.ambient => (
+          theme.colorScheme.surfaceContainerHighest,
+          theme.colorScheme.onSurface,
+          'Ambient',
+        ),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: fg,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+/// "Anchors: Butterflies" chip next to the role. Shown only for
+/// leads with an anchor — specialists + ambient never anchor a
+/// group.
+class _AnchorChip extends StatelessWidget {
+  const _AnchorChip({required this.name});
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.anchor,
+            size: 12,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            name,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -246,6 +355,7 @@ class _AvailabilityRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 48,
@@ -255,20 +365,53 @@ class _AvailabilityRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Text(
-              blocks.isEmpty
-                  ? 'Off'
-                  : blocks
-                      .map((b) => '${_display(b.startTime)}'
-                          ' – ${_display(b.endTime)}')
-                      .join(' · '),
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: blocks.isEmpty
-                    ? theme.colorScheme.onSurfaceVariant
-                    : theme.colorScheme.onSurface,
+            child: blocks.isEmpty
+                ? Text(
+                    'Off',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final b in blocks) _blockLine(theme, b),
+                    ],
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Top line is the shift span; below it, a single muted row lists
+  /// break + lunch windows when set. Kept on one row so a teacher
+  /// scanning the week sees the shape at a glance.
+  Widget _blockLine(ThemeData theme, SpecialistAvailabilityData b) {
+    final extras = <String>[
+      if (b.breakStart != null && b.breakEnd != null)
+        'break ${_display(b.breakStart!)}–${_display(b.breakEnd!)}',
+      if (b.break2Start != null && b.break2End != null)
+        'break ${_display(b.break2Start!)}–${_display(b.break2End!)}',
+      if (b.lunchStart != null && b.lunchEnd != null)
+        'lunch ${_display(b.lunchStart!)}–${_display(b.lunchEnd!)}',
+    ];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${_display(b.startTime)} – ${_display(b.endTime)}',
+            style: theme.textTheme.bodyMedium,
+          ),
+          if (extras.isNotEmpty)
+            Text(
+              extras.join(' · '),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-          ),
         ],
       ),
     );
@@ -430,5 +573,274 @@ class _DayGroup extends StatelessWidget {
     final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
     final period = h < 12 ? 'a' : 'p';
     return m == '00' ? '$hour12$period' : '$hour12:$m$period';
+  }
+}
+
+/// "Today's blocks" section — renders this adult's day timeline
+/// (v30 AdultDayBlocks) for today's weekday, cross-referencing
+/// each block's group assignment.
+///
+/// For LEAD blocks: shows the anchored group's name inline.
+/// For SPECIALIST blocks: cross-references scheduled activities
+/// with this adult assigned + time overlap, and lists the
+/// destination groups (plus each group's own anchor lead name so
+/// the teacher sees "rotating into Butterflies (anchor: Sarah)"
+/// at a glance).
+///
+/// Self-hides when the adult has no timeline set for today — the
+/// Availability section above already tells the teacher what day
+/// shape they're on.
+class _TodayBlocksSection extends ConsumerWidget {
+  const _TodayBlocksSection({required this.specialistId});
+
+  final String specialistId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final today = DateTime.now();
+    final dayOfWeek = today.weekday;
+    // Weekends show Monday's layout — program runs M-F, weekend
+    // view on this screen isn't useful and just lands empty.
+    final effectiveDay = (dayOfWeek >= 1 && dayOfWeek <= 5)
+        ? dayOfWeek
+        : 1;
+
+    final blocksAsync = ref.watch(
+      StreamProvider.autoDispose<List<AdultDayBlock>>(
+        (ref) => ref
+            .watch(adultTimelineRepositoryProvider)
+            .watchBlocksFor(specialistId),
+      ),
+    );
+    final blocks = (blocksAsync.asData?.value ?? const <AdultDayBlock>[])
+        .where((b) => b.dayOfWeek == effectiveDay)
+        .toList()
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+
+    if (blocks.isEmpty) return const SizedBox.shrink();
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Today's blocks",
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Where they are as the day moves.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          for (final b in blocks)
+            _BlockRow(specialistId: specialistId, block: b),
+        ],
+      ),
+    );
+  }
+}
+
+class _BlockRow extends ConsumerWidget {
+  const _BlockRow({required this.specialistId, required this.block});
+
+  final String specialistId;
+  final AdultDayBlock block;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final role = AdultBlockRole.fromDb(block.role);
+
+    // Resolve destination label + the group's own anchor.
+    //
+    // Lead block: block.groupId is the anchored group — name it.
+    // Specialist block: no groupId on the block itself; look up
+    // scheduled templates for this adult on this weekday that
+    // time-overlap the block, then name the groups those activities
+    // are scoped to.
+    final summariesByGroupId = {
+      for (final g in ref.watch(groupSummariesProvider).asData?.value ??
+          const <GroupSummary>[])
+        g.id: g,
+    };
+
+    String destinationLabel;
+    var anchorHints = <String>[];
+    if (role == AdultBlockRole.lead) {
+      final g = block.groupId == null
+          ? null
+          : summariesByGroupId[block.groupId!];
+      destinationLabel = g?.name ?? 'No group set';
+      // Anchor hint for a lead block is redundant (they ARE the
+      // anchor), so leave anchorHints empty.
+    } else {
+      // Specialist — cross-ref scheduled templates.
+      final templates =
+          ref.watch(templatesBySpecialistProvider(specialistId))
+                  .asData?.value ??
+              const <ScheduleTemplate>[];
+      final dests = _resolveSpecialistDestinations(
+        block: block,
+        templates: templates,
+        summariesByGroupId: summariesByGroupId,
+      );
+      destinationLabel = dests.isEmpty
+          ? 'Rotating · no activity scheduled'
+          : dests
+              .map((d) => d.groupName ?? d.activityTitle)
+              .join(' · ');
+      anchorHints = [
+        for (final d in dests)
+          if (d.anchorName != null && d.groupName != null)
+            '${d.groupName!} anchor: ${d.anchorName!}',
+      ];
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 92,
+            child: Text(
+              '${_display(block.startTime)}–${_display(block.endTime)}',
+              style: theme.textTheme.labelMedium,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _MiniRoleChip(role: role),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        destinationLabel,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
+                for (final h in anchorHints)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      h,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _display(String hhmm) {
+    final parts = hhmm.split(':');
+    final h = int.parse(parts[0]);
+    final m = parts[1];
+    final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+    final period = h < 12 ? 'a' : 'p';
+    return m == '00' ? '$hour12$period' : '$hour12:$m$period';
+  }
+}
+
+/// Destination of a specialist block. Currently carries just the
+/// activity title — resolving to the destination group + the
+/// group's anchor lead requires a per-template group join
+/// (templateGroupsProvider) that isn't threaded through here yet.
+/// Follow-up.
+class _SpecialistDestination {
+  const _SpecialistDestination({required this.activityTitle});
+  final String activityTitle;
+  String? get groupName => null;
+  String? get anchorName => null;
+}
+
+/// Finds scheduled templates that overlap the specialist block's
+/// time window and resolves each to a destination group + anchor
+/// lead. Templates that don't scope to a group (all-groups or
+/// no-groups activities) fall back to just the activity title.
+List<_SpecialistDestination> _resolveSpecialistDestinations({
+  required AdultDayBlock block,
+  required List<ScheduleTemplate> templates,
+  required Map<String, GroupSummary> summariesByGroupId,
+}) {
+  final startMin = _parseHHmm(block.startTime);
+  final endMin = _parseHHmm(block.endTime);
+  final out = <_SpecialistDestination>[];
+  for (final t in templates) {
+    if (t.dayOfWeek != block.dayOfWeek) continue;
+    final tStart = _parseHHmm(t.startTime);
+    final tEnd = _parseHHmm(t.endTime);
+    // Overlap = any minute in the block falls inside the template.
+    final overlaps = tStart < endMin && tEnd > startMin;
+    if (!overlaps) continue;
+    // Resolve the first groupId the template carries into a group
+    // name + anchor. Templates that are all-groups / no-groups
+    // show just the activity title.
+    //
+    // ScheduleTemplate stores groups via a separate template_groups
+    // table; without a provider giving us that join, we fall back
+    // to just the template title for now. Upgrading this to name
+    // destination groups properly is a small follow-up — the
+    // activity title alone is still useful signal.
+    out.add(_SpecialistDestination(activityTitle: t.title));
+  }
+  return out;
+}
+
+int _parseHHmm(String hhmm) {
+  final parts = hhmm.split(':');
+  return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+}
+
+/// Compact role chip used inline next to a block row's time range.
+class _MiniRoleChip extends StatelessWidget {
+  const _MiniRoleChip({required this.role});
+  final AdultBlockRole role;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final (bg, fg, label) = switch (role) {
+      AdultBlockRole.lead => (
+          theme.colorScheme.primaryContainer,
+          theme.colorScheme.onPrimaryContainer,
+          'LEAD',
+        ),
+      AdultBlockRole.specialist => (
+          theme.colorScheme.tertiaryContainer,
+          theme.colorScheme.onTertiaryContainer,
+          'SPEC',
+        ),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: fg,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
   }
 }
