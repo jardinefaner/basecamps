@@ -124,56 +124,49 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final subtitle = _subtitle();
+    // Collapsed row — deliberately single-line dense. The hero row
+    // dominates the fold when one's earned its spot; each collapsed
+    // group card is a scan-in-1s summary, not a mini-card. Expanding
+    // fans out the full NOW + NEXT + leads detail.
     return InkWell(
       onTap: onToggle,
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
-          vertical: AppSpacing.sm,
+          vertical: AppSpacing.xs,
         ),
         child: Row(
           children: [
             _GroupDot(colorHex: group.group.colorHex),
             const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          group.name,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      _RollPill(group: group, attendance: attendance),
-                    ],
-                  ),
-                  if (subtitle.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        subtitle,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                ],
+            Text(
+              group.name,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(width: AppSpacing.sm),
+            _RollPill(group: group, attendance: attendance),
+            if (subtitle.isNotEmpty) ...[
+              const SizedBox(width: AppSpacing.sm),
+              Flexible(
+                child: Text(
+                  '· $subtitle',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+            const Spacer(),
             Icon(
               expanded ? Icons.expand_less : Icons.expand_more,
               color: theme.colorScheme.onSurfaceVariant,
+              size: 20,
             ),
           ],
         ),

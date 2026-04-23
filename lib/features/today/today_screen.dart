@@ -188,21 +188,32 @@ class _Body extends ConsumerWidget {
             const <String, AttendanceRecord>{};
 
     // -- Bucket items by time relative to now --
-    // `current` is a list: groups now run concurrent activities (lead
-    // anchors the home group while a specialist rotates into another),
-    // so more than one thing can be "right now." Primary = earliest-
-    // started → hero. The rest go in the "Also now" strip below.
+    // Groups now own their own schedules — each group card handles
+    // its own current/next. The hero slot is reserved for items that
+    // dominate the whole program (Morning Circle, all-hands); narrow
+    // group-scoped activities below the fold would duplicate what
+    // the group stack already shows. Split current/upcoming/past
+    // between "program-wide" (hero/banner/chronological) and "group-
+    // scoped" (group cards consume them).
     final buckets = bucketTodayItems(items, nowMinutes);
     final current = buckets.current;
     final upcoming = buckets.upcoming;
     final past = buckets.past;
     final allDay = buckets.allDay;
-    final primaryCurrent = current.isEmpty ? null : current.first;
-    final alsoNow = current.length > 1
-        ? current.sublist(1)
+
+    // Program-wide = all-groups OR explicitly no-groups (staff prep).
+    // Anything with a concrete group list is the group stack's job.
+    bool isProgramWide(ScheduleItem i) => i.isAllGroups || i.isNoGroups;
+
+    final programCurrent = current.where(isProgramWide).toList();
+    final programUpcoming = upcoming.where(isProgramWide).toList();
+    final primaryCurrent =
+        programCurrent.isEmpty ? null : programCurrent.first;
+    final alsoNow = programCurrent.length > 1
+        ? programCurrent.sublist(1)
         : const <ScheduleItem>[];
 
-    final nextUp = upcoming.isEmpty ? null : upcoming.first;
+    final nextUp = programUpcoming.isEmpty ? null : programUpcoming.first;
     final nextUpMinutes = nextUp == null
         ? null
         : nextUp.startMinutes - nowMinutes;
@@ -317,26 +328,9 @@ class _Body extends ConsumerWidget {
         _DateLabel(label: dateLabel),
         const SizedBox(height: AppSpacing.sm),
         // Loud-when-needed strip: self-hides when zero kids are flagged.
-        // Sits above the day-summary so a late child pulls the eye before
-        // the neutral counts do.
+        // Sits right below the date so a late child pulls the eye
+        // before anything else on the screen.
         LatenessFlagsStrip(now: now),
-        DaySummaryStrip(
-          activities: items.length,
-          children: childrenInActivityGroups.length,
-          specialists: uniqueSpecialists.length,
-          concerns: concerns.length,
-          pendingObs: pendingObs,
-          onTapConcerns: () =>
-              context.push('/more/forms/parent-concern'),
-          onTapPending: () => context.go('/observations'),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        // Collapsible "who's on shift today" strip — shows leads,
-        // specialists, and ambient staff with their shift window +
-        // current break/lunch status. Self-hides when no one has a
-        // shift row for today.
-        StaffTodayStrip(now: now),
-        const SizedBox(height: AppSpacing.lg),
 
         // All-day activities / notes float above the hero. One or many,
         // they share a single slot — multiple items cycle through a
@@ -418,24 +412,24 @@ class _Body extends ConsumerWidget {
           const SizedBox(height: AppSpacing.lg),
         ],
 
-        // Upcoming. First one gets the "IN N MIN" chip. No attendance
-        // strip — it hasn't started yet, so "0/N present · N pending"
-        // is always-true noise that clutters the view. The hero card
-        // owns the attendance affordance once an activity becomes NOW.
-        for (var i = 0; i < upcoming.length; i++) ...[
+        // Upcoming — program-wide items only. Group-scoped upcoming
+        // activities show up in their group card's "Next" line, so
+        // repeating them here would duplicate. First program-wide
+        // upcoming gets the "IN N MIN" chip.
+        for (var i = 0; i < programUpcoming.length; i++) ...[
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
             child: ScheduleItemCard(
-              item: upcoming[i],
+              item: programUpcoming[i],
               isNow: false,
               isPast: false,
-              conflicts: conflicts[upcoming[i].id] ?? const [],
+              conflicts: conflicts[programUpcoming[i].id] ?? const [],
               minutesUntilStart: i == 0 ? nextUpMinutes : null,
-              concernMatch: concernForItem(upcoming[i]),
-              onTap: () => onOpenDetail(upcoming[i]),
+              concernMatch: concernForItem(programUpcoming[i]),
+              onTap: () => onOpenDetail(programUpcoming[i]),
               onOpenConcern: () => _goConcern(
                 context,
-                concernForItem(upcoming[i])?.id,
+                concernForItem(programUpcoming[i])?.id,
               ),
             ),
           ),
@@ -474,6 +468,21 @@ class _Body extends ConsumerWidget {
             ],
           ),
         ],
+        // Program stats drawer — counts + staff shift overview. Lives
+        // at the bottom collapsed by default because these are review-
+        // mode numbers (pre-open / end-of-day glance), not something
+        // the teacher needs to scan while mid-day.
+        const SizedBox(height: AppSpacing.md),
+        _ProgramStatsDrawer(
+          now: now,
+          activityCount: items.length,
+          childrenCount: childrenInActivityGroups.length,
+          specialistCount: uniqueSpecialists.length,
+          concernCount: concerns.length,
+          pendingObs: pendingObs,
+          onTapConcerns: () => context.push('/more/forms/parent-concern'),
+          onTapPending: () => context.go('/observations'),
+        ),
         ]),
       ),
     );
@@ -794,6 +803,80 @@ class _GroupStack extends ConsumerWidget {
       present: present,
       absent: absent,
       total: total,
+    );
+  }
+}
+
+/// Bottom-of-Today drawer collapsing the day-summary numbers and
+/// staff-today strip behind a single tap. Keeps the fold quiet — the
+/// counts are pre-open / end-of-day review material, not something
+/// the teacher needs while mid-day. Expanding shows both in the
+/// order they used to live at the top.
+class _ProgramStatsDrawer extends StatelessWidget {
+  const _ProgramStatsDrawer({
+    required this.now,
+    required this.activityCount,
+    required this.childrenCount,
+    required this.specialistCount,
+    required this.concernCount,
+    required this.pendingObs,
+    required this.onTapConcerns,
+    required this.onTapPending,
+  });
+
+  final DateTime now;
+  final int activityCount;
+  final int childrenCount;
+  final int specialistCount;
+  final int concernCount;
+  final int pendingObs;
+  final VoidCallback onTapConcerns;
+  final VoidCallback onTapPending;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Theme(
+      // Kill the default ExpansionTile divider; we already sit inside
+      // a padded scroll view and the extra rule reads as noise.
+      data: theme.copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+        ),
+        childrenPadding: const EdgeInsets.only(top: AppSpacing.sm),
+        leading: Icon(
+          Icons.insights_outlined,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        title: Text(
+          'Program stats',
+          style: theme.textTheme.titleSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        subtitle: Text(
+          '$activityCount activities · $childrenCount children · '
+          '$specialistCount adults',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        children: [
+          DaySummaryStrip(
+            activities: activityCount,
+            children: childrenCount,
+            specialists: specialistCount,
+            concerns: concernCount,
+            pendingObs: pendingObs,
+            onTapConcerns: onTapConcerns,
+            onTapPending: onTapPending,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          StaffTodayStrip(now: now),
+        ],
+      ),
     );
   }
 }
