@@ -6,6 +6,7 @@ import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/attendance/widgets/attendance_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_repository.dart';
+import 'package:basecamp/features/groups/group_detail_screen.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/schedule/conflicts.dart';
@@ -716,6 +717,8 @@ class _GroupStack extends ConsumerWidget {
                 ref.read(lastExpandedGroupProvider.notifier).toggle(g.id),
             onOpenDetail: onOpenDetail,
             onOpenAttendance: onOpenAttendance,
+            onOpenGroupDetail: () =>
+                GroupDetailScreen.open(context, g.id),
           ),
           const SizedBox(height: AppSpacing.sm),
         ],

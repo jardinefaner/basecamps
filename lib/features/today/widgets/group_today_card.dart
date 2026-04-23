@@ -32,8 +32,10 @@ class GroupTodayCard extends StatelessWidget {
     required this.onToggle,
     required this.onOpenDetail,
     required this.onOpenAttendance,
+    required this.onOpenGroupDetail,
     super.key,
   });
+
 
   final GroupSummary group;
   final DateTime now;
@@ -60,6 +62,11 @@ class GroupTodayCard extends StatelessWidget {
   final VoidCallback onToggle;
   final ValueChanged<ScheduleItem> onOpenDetail;
   final ValueChanged<ScheduleItem> onOpenAttendance;
+
+  /// Drill into the group's detail screen. Shown as a footer action
+  /// on the expanded card — header tap keeps its expand/collapse
+  /// semantics, so this is the explicit "open" affordance.
+  final VoidCallback onOpenGroupDetail;
 
   @override
   Widget build(BuildContext context) {
@@ -92,6 +99,7 @@ class GroupTodayCard extends StatelessWidget {
               leadsNow: leadsNow,
               onOpenDetail: onOpenDetail,
               onOpenAttendance: onOpenAttendance,
+              onOpenGroupDetail: onOpenGroupDetail,
             ),
           ],
         ],
@@ -291,6 +299,7 @@ class _ExpandedBody extends StatelessWidget {
     required this.leadsNow,
     required this.onOpenDetail,
     required this.onOpenAttendance,
+    required this.onOpenGroupDetail,
   });
 
   final GroupSummary group;
@@ -301,6 +310,7 @@ class _ExpandedBody extends StatelessWidget {
   final List<Specialist> leadsNow;
   final ValueChanged<ScheduleItem> onOpenDetail;
   final ValueChanged<ScheduleItem> onOpenAttendance;
+  final VoidCallback onOpenGroupDetail;
 
   @override
   Widget build(BuildContext context) {
@@ -346,6 +356,18 @@ class _ExpandedBody extends StatelessWidget {
             const SizedBox(height: AppSpacing.xs),
             _LeadsRow(leads: leadsNow),
           ],
+          const SizedBox(height: AppSpacing.sm),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: onOpenGroupDetail,
+              icon: const Icon(Icons.open_in_new, size: 14),
+              label: const Text('Open group'),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
         ],
       ),
     );

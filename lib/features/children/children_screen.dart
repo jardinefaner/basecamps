@@ -2,9 +2,9 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/children/group_colors.dart';
 import 'package:basecamp/features/children/widgets/child_tile.dart';
-import 'package:basecamp/features/children/widgets/edit_group_sheet.dart';
 import 'package:basecamp/features/children/widgets/new_child_wizard.dart';
 import 'package:basecamp/features/children/widgets/new_group_wizard.dart';
+import 'package:basecamp/features/groups/group_detail_screen.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -142,15 +142,10 @@ class _GroupSection extends ConsumerWidget {
   final Group? group;
   final List<Child> children;
 
-  Future<void> _openEdit(BuildContext context) async {
+  Future<void> _openDetail(BuildContext context) async {
     final current = group;
     if (current == null) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => EditGroupSheet(group: current),
-    );
+    await GroupDetailScreen.open(context, current.id);
   }
 
   Future<void> _moveChildHere(WidgetRef ref, Child child) async {
@@ -205,7 +200,7 @@ class _GroupSection extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               InkWell(
-                onTap: group == null ? null : () => _openEdit(context),
+                onTap: group == null ? null : () => _openDetail(context),
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
