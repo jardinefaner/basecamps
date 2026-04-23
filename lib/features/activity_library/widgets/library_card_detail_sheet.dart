@@ -4,7 +4,7 @@ import 'package:basecamp/features/activity_library/activity_library_repository.d
 import 'package:basecamp/features/activity_library/widgets/activity_card_preview.dart';
 import 'package:basecamp/features/activity_library/widgets/edit_library_item_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
-import 'package:basecamp/ui/confirm_dialog.dart';
+import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,17 +35,22 @@ class LibraryCardDetailSheet extends ConsumerWidget {
   }
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showConfirmDialog(
+    final navigator = Navigator.of(context);
+    final confirmed = await confirmDeleteWithUndo(
       context: context,
       title: 'Delete this activity?',
-      message: "It'll be removed from your bucket. This can't be undone.",
+      message: "It'll be removed from your bucket. You'll get a "
+          '5-second window to undo.',
+      onDelete: () => ref
+          .read(activityLibraryRepositoryProvider)
+          .deleteItem(item.id),
+      undoLabel: '"${item.title}" removed',
+      onUndo: () => ref
+          .read(activityLibraryRepositoryProvider)
+          .restoreItem(item),
     );
-    if (!confirmed || !context.mounted) return;
-    await ref
-        .read(activityLibraryRepositoryProvider)
-        .deleteItem(item.id);
-    if (!context.mounted) return;
-    Navigator.of(context).pop();
+    if (!confirmed) return;
+    navigator.pop();
   }
 
   Future<void> _copyLink(BuildContext context) async {

@@ -3,7 +3,7 @@ import 'package:basecamp/features/forms/parent_concern/parent_concern_repository
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/bulk_selection.dart';
-import 'package:basecamp/ui/confirm_dialog.dart';
+import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -23,17 +23,30 @@ class _ParentConcernNotesScreenState
   Future<void> _deleteSelected() async {
     final count = selectedCount;
     if (count == 0) return;
-    final confirmed = await showConfirmDialog(
+    final toDelete = selectedIds.toList();
+    final all =
+        ref.read(parentConcernNotesProvider).asData?.value ??
+            const <ParentConcernNote>[];
+    final snapshot = [
+      for (final row in all)
+        if (toDelete.contains(row.id)) row,
+    ];
+    final confirmed = await confirmDeleteWithUndo(
       context: context,
       title: count == 1 ? 'Delete this note?' : 'Delete $count notes?',
-      message: 'Cannot be undone.',
+      message: "You'll get a 5-second window to undo.",
       confirmLabel: count == 1 ? 'Delete' : 'Delete $count',
+      onDelete: () => ref
+          .read(parentConcernRepositoryProvider)
+          .deleteMany(toDelete),
+      undoLabel: count == 1
+          ? 'Concern note removed'
+          : '$count concern notes removed',
+      onUndo: () => ref
+          .read(parentConcernRepositoryProvider)
+          .restoreMany(snapshot),
     );
-    if (!confirmed) return;
-    await ref
-        .read(parentConcernRepositoryProvider)
-        .deleteMany(selectedIds.toList());
-    if (!mounted) return;
+    if (!confirmed || !mounted) return;
     clearSelection();
   }
 

@@ -8,7 +8,7 @@ import 'package:basecamp/features/activity_library/widgets/new_library_item_wiza
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/bulk_selection.dart';
-import 'package:basecamp/ui/confirm_dialog.dart';
+import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -73,21 +73,35 @@ class _ActivityLibraryScreenState extends ConsumerState<ActivityLibraryScreen>
   Future<void> _deleteSelected() async {
     final count = selectedCount;
     if (count == 0) return;
-    final confirmed = await showConfirmDialog(
+    final toDelete = selectedIds.toList();
+    final all =
+        ref.read(activityLibraryProvider).asData?.value ??
+            const <ActivityLibraryData>[];
+    final snapshot = [
+      for (final row in all)
+        if (toDelete.contains(row.id)) row,
+    ];
+    final confirmed = await confirmDeleteWithUndo(
       context: context,
       title: count == 1
           ? 'Delete this library item?'
           : 'Delete $count library items?',
       message:
           'Schedule rows pulled from these presets keep their current '
-          'values — only the reusable template goes away.',
+          "values — only the reusable template goes away. You'll "
+          'get a 5-second window to undo.',
       confirmLabel: count == 1 ? 'Delete' : 'Delete $count',
+      onDelete: () => ref
+          .read(activityLibraryRepositoryProvider)
+          .deleteItems(toDelete),
+      undoLabel: count == 1
+          ? 'Library item removed'
+          : '$count library items removed',
+      onUndo: () => ref
+          .read(activityLibraryRepositoryProvider)
+          .restoreItems(snapshot),
     );
-    if (!confirmed) return;
-    await ref
-        .read(activityLibraryRepositoryProvider)
-        .deleteItems(selectedIds.toList());
-    if (!mounted) return;
+    if (!confirmed || !mounted) return;
     clearSelection();
   }
 

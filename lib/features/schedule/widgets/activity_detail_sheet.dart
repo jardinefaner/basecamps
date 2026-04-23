@@ -13,6 +13,7 @@ import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/address_field.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/confirm_dialog.dart';
+import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -605,21 +606,27 @@ class _DeleteEntryButton extends ConsumerWidget {
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
     final entryId = item.entryId;
     if (entryId == null) return;
-    if (item.isMultiDay) {
-      final ok = await showConfirmDialog(
-        context: context,
-        title: 'Delete every day?',
-        message:
-            'This removes "${item.title}" from all '
+    final repo = ref.read(scheduleRepositoryProvider);
+    final entry = await repo.getEntry(entryId);
+    if (entry == null || !context.mounted) return;
+    final navigator = Navigator.of(context);
+    final title = item.isMultiDay ? 'Delete every day?' : 'Delete event?';
+    final message = item.isMultiDay
+        ? 'This removes "${item.title}" from all '
             '${item.rangeEnd!.difference(item.rangeStart!).inDays + 1}'
-            ' days it spans. Cannot be undone.',
-        confirmLabel: 'Delete all days',
-      );
-      if (!ok) return;
-    }
-    await ref.read(scheduleRepositoryProvider).deleteEntry(entryId);
-    if (!context.mounted) return;
-    Navigator.of(context).pop();
+            " days it spans. You'll get a 5-second window to undo."
+        : "You'll get a 5-second window to undo.";
+    final confirmed = await confirmDeleteWithUndo(
+      context: context,
+      title: title,
+      message: message,
+      confirmLabel: item.isMultiDay ? 'Delete all days' : 'Delete',
+      onDelete: () => repo.deleteEntry(entryId),
+      undoLabel: '"${item.title}" removed',
+      onUndo: () => repo.restoreEntry(entry),
+    );
+    if (!confirmed) return;
+    navigator.pop();
   }
 
   @override

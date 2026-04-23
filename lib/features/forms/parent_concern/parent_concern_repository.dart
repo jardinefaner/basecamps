@@ -237,6 +237,23 @@ class ParentConcernRepository {
         .go();
   }
 
+  /// Restore helpers for the undo snackbar — re-insert with original
+  /// id. Cascaded parent_concern_children join rows aren't restored
+  /// (same 5-second-window tradeoff as other restores in the app);
+  /// the concern's narrative comes back, the structured child links
+  /// don't.
+  Future<void> restore(ParentConcernNote row) async {
+    await _db.into(_db.parentConcernNotes).insertOnConflictUpdate(row);
+  }
+
+  Future<void> restoreMany(Iterable<ParentConcernNote> rows) async {
+    await _db.transaction(() async {
+      for (final row in rows) {
+        await _db.into(_db.parentConcernNotes).insertOnConflictUpdate(row);
+      }
+    });
+  }
+
   ParentConcernNotesCompanion _companion(
     String id,
     ParentConcernInput input, {

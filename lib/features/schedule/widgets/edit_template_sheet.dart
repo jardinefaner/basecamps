@@ -10,8 +10,8 @@ import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
-import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
+import 'package:basecamp/ui/undo_delete.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -304,24 +304,29 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
 
     final count = await repo.countTemplatesInGroupFor(template.id);
     if (!mounted) return;
-    final confirmed = await showConfirmDialog(
+    // Snapshot the sibling rows BEFORE delete so undo can restore
+    // the whole recurring pattern, not just the tapped row.
+    final siblings = await repo.siblingTemplatesFor(template.id);
+    if (!mounted) return;
+    final navigator = Navigator.of(context);
+    final confirmed = await confirmDeleteWithUndo(
       context: context,
       title: 'Delete every occurrence?',
       message: count > 1
           ? 'This removes "${template.title}" from all $count days '
               'it runs (every week within any date range set). '
-              'Cannot be undone.'
+              "You'll get a 5-second window to undo."
           : 'This removes "${template.title}" from every day it '
               'runs — every week within its date range (or forever '
-              'if no range is set). Cannot be undone.',
+              "if no range is set). You'll get a 5-second window "
+              'to undo.',
       confirmLabel: 'Delete all',
+      onDelete: () => repo.deleteTemplateGroupFor(template.id),
+      undoLabel: '"${template.title}" removed',
+      onUndo: () => repo.restoreTemplates(siblings),
     );
     if (!confirmed) return;
-    await repo.deleteTemplateGroupFor(template.id);
-    if (!mounted) return;
-    Navigator.of(context).pop<EditTemplateResult>(
-      EditTemplateResult.deleted,
-    );
+    navigator.pop<EditTemplateResult>(EditTemplateResult.deleted);
   }
 
   void _applyDurationPreset(Duration duration) {

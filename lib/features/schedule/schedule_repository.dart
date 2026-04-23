@@ -340,6 +340,12 @@ class ScheduleRepository {
   ///     per create pass),
   ///   - otherwise same (title, startTime, endTime) pre-migration.
   /// The tapped row is always included in the result.
+  /// Public wrapper — used by the undo snackbar to snapshot the
+  /// sibling set BEFORE `deleteTemplateGroupFor` drops them, so the
+  /// whole recurring pattern can be restored in one transaction.
+  Future<List<ScheduleTemplate>> siblingTemplatesFor(String id) =>
+      _siblingTemplatesFor(id);
+
   Future<List<ScheduleTemplate>> _siblingTemplatesFor(String id) async {
     final row = await (_db.select(_db.scheduleTemplates)
           ..where((t) => t.id.equals(id)))
@@ -565,6 +571,30 @@ class ScheduleRepository {
   Future<void> deleteEntry(String id) async {
     await (_db.delete(_db.scheduleEntries)..where((e) => e.id.equals(id)))
         .go();
+  }
+
+  /// Restore helper for the undo snackbar — re-insert the entry row
+  /// with its original id. Cascaded entry_groups join rows aren't
+  /// restored (same 5-second-window tradeoff as other restores); the
+  /// entry comes back but without its group multi-select.
+  Future<void> restoreEntry(ScheduleEntry row) async {
+    await _db.into(_db.scheduleEntries).insertOnConflictUpdate(row);
+  }
+
+  /// Restore helpers for template deletes. `restoreTemplates` takes
+  /// a list so the "delete this weekday's whole recurring pattern"
+  /// flow (deleteTemplateGroupFor) can undo the whole sibling set
+  /// in one snackbar.
+  Future<void> restoreTemplate(ScheduleTemplate row) async {
+    await _db.into(_db.scheduleTemplates).insertOnConflictUpdate(row);
+  }
+
+  Future<void> restoreTemplates(Iterable<ScheduleTemplate> rows) async {
+    await _db.transaction(() async {
+      for (final row in rows) {
+        await _db.into(_db.scheduleTemplates).insertOnConflictUpdate(row);
+      }
+    });
   }
 
   Future<ScheduleEntry?> getEntry(String id) {

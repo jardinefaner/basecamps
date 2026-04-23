@@ -15,8 +15,8 @@ import 'package:basecamp/features/forms/widgets/voice_dictation_field.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_text_field.dart';
-import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:basecamp/ui/step_wizard.dart';
+import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -359,15 +359,20 @@ class _ParentConcernFormScreenState
 
   Future<void> _delete() async {
     if (!_isEdit) return;
-    final confirmed = await showConfirmDialog(
+    final repo = ref.read(parentConcernRepositoryProvider);
+    final existing = await repo.getOne(widget.noteId!);
+    if (existing == null || !mounted) return;
+    final navigator = Navigator.of(context);
+    final confirmed = await confirmDeleteWithUndo(
       context: context,
       title: 'Delete this note?',
-      message: 'This cannot be undone.',
+      message: "You'll get a 5-second window to undo.",
+      onDelete: () => repo.delete(widget.noteId!),
+      undoLabel: 'Concern note removed',
+      onUndo: () => repo.restore(existing),
     );
     if (!confirmed) return;
-    await ref.read(parentConcernRepositoryProvider).delete(widget.noteId!);
-    if (!mounted) return;
-    Navigator.of(context).pop();
+    navigator.pop();
   }
 
   @override

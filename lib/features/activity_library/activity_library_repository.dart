@@ -124,6 +124,22 @@ class ActivityLibraryRepository {
     await (_db.delete(_db.activityLibrary)..where((a) => a.id.isIn(list)))
         .go();
   }
+
+  /// Restore helpers for the undo snackbar — re-insert with the
+  /// original id. Cascaded schedule-entry / template source links
+  /// (source_library_item_id) are already null from the delete
+  /// cascade and don't come back.
+  Future<void> restoreItem(ActivityLibraryData row) async {
+    await _db.into(_db.activityLibrary).insertOnConflictUpdate(row);
+  }
+
+  Future<void> restoreItems(Iterable<ActivityLibraryData> rows) async {
+    await _db.transaction(() async {
+      for (final row in rows) {
+        await _db.into(_db.activityLibrary).insertOnConflictUpdate(row);
+      }
+    });
+  }
 }
 
 final activityLibraryRepositoryProvider =
