@@ -14,6 +14,7 @@ class WizardStep {
     this.canProceed = true,
     this.canSkip = false,
     this.nextLabelOverride,
+    this.needsKeyboard = false,
   });
 
   /// Big on-page title — usually a question ("When?", "Who's in it?").
@@ -37,6 +38,15 @@ class WizardStep {
   /// on the last page). Override per-step if that wording doesn't fit —
   /// e.g. "Pick from library" when the step is a picker.
   final String? nextLabelOverride;
+
+  /// True when this page has a text field the teacher will type in, so
+  /// the wizard knows to leave the keyboard alone.
+  ///
+  /// On any transition into a page with `needsKeyboard: false`, the
+  /// wizard scaffold drops focus — which dismisses an open keyboard
+  /// that a previous typing-page had raised. Defaults to false so new
+  /// pages are keyboard-free unless they explicitly opt in.
+  final bool needsKeyboard;
 }
 
 /// Full-screen scaffold that lays out a sequence of [WizardStep]s as
@@ -98,6 +108,15 @@ class _StepWizardScaffoldState extends State<StepWizardScaffold> {
 
   Future<void> _goTo(int target) async {
     if (target < 0 || target >= widget.steps.length) return;
+    // Drop focus before the page swap when the destination page
+    // doesn't want a keyboard — otherwise the IME stays up from the
+    // previous typing page, hiding half the screen on the new one.
+    // Pages that DO want the keyboard (needsKeyboard: true) can
+    // request focus on mount.
+    final destinationNeedsKeyboard = widget.steps[target].needsKeyboard;
+    if (!destinationNeedsKeyboard) {
+      FocusManager.instance.primaryFocus?.unfocus();
+    }
     setState(() => _index = target);
     await _pageController.animateToPage(
       target,

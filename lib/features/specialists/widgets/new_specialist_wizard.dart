@@ -100,12 +100,14 @@ class _NewSpecialistWizardScreenState
           subtitle: 'Name and photo — you can change the photo later too.',
           canProceed: _page1Valid,
           content: _buildNamePage(),
+          needsKeyboard: true,
         ),
         WizardStep(
           headline: 'What do they do?',
           subtitle: 'Art teacher, head cook, director — whatever fits.',
           canSkip: true,
           content: _buildJobTitlePage(),
+          needsKeyboard: true,
         ),
         WizardStep(
           headline: 'Role on the schedule',
@@ -149,6 +151,7 @@ class _NewSpecialistWizardScreenState
             hint: 'Certifications, availability quirks, etc.',
             maxLines: 4,
           ),
+          needsKeyboard: true,
         ),
       ],
     );

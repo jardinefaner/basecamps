@@ -70,18 +70,23 @@ class _AddressFieldState extends State<AddressField>
     _preLaunchClipboard = null;
     if (text == null || text.isEmpty) return;
     if (widget.controller.text.trim() == text) return;
-    if (!_looksLikeAddress(text)) return;
+    if (!_looksPasteable(text)) return;
     if (!mounted) return;
     setState(() => _pasteSuggestion = text);
   }
 
-  /// Soft heuristic for "clipboard contents might be an address":
-  /// long enough to be real, has at least two words, and either a
-  /// comma (street + city pattern) or a digit (street numbers). Skips
-  /// random short copies, URLs, single words, and so on — if it
-  /// guesses wrong the teacher just dismisses the banner.
-  bool _looksLikeAddress(String s) {
-    if (s.length < 10 || s.length > 300) return false;
+  /// Accept either a plausible street address OR a shared link
+  /// (Google Maps, Apple Maps, or any https URL the teacher dropped
+  /// into the clipboard) as a paste suggestion. Links win fast —
+  /// anything starting with https?:// that parses as a real Uri is
+  /// almost certainly what the teacher just shared.
+  bool _looksPasteable(String s) {
+    if (s.length < 6 || s.length > 2000) return false;
+    if (_isUrl(s)) return true;
+    // Plain-text address heuristic: ≥2 words, plus a comma (street +
+    // city pattern) or a digit (street numbers). Skips random short
+    // copies, single words, etc.
+    if (s.length < 10) return false;
     final words = s.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
     if (words < 2) return false;
     final hasComma = s.contains(',');
@@ -149,6 +154,7 @@ class _AddressFieldState extends State<AddressField>
           const SizedBox(height: AppSpacing.sm),
           _PasteSuggestionBanner(
             text: _pasteSuggestion!,
+            isUrl: _isUrl(_pasteSuggestion!),
             onUse: () => _applyText(_pasteSuggestion!),
             onDismiss: () =>
                 setState(() => _pasteSuggestion = null),
@@ -188,11 +194,13 @@ class _AddressFieldState extends State<AddressField>
 class _PasteSuggestionBanner extends StatelessWidget {
   const _PasteSuggestionBanner({
     required this.text,
+    required this.isUrl,
     required this.onUse,
     required this.onDismiss,
   });
 
   final String text;
+  final bool isUrl;
   final VoidCallback onUse;
   final VoidCallback onDismiss;
 
@@ -200,6 +208,8 @@ class _PasteSuggestionBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final preview = text.length > 80 ? '${text.substring(0, 80)}…' : text;
+    final title = isUrl ? 'Paste Google Maps link?' : 'Paste this?';
+    final icon = isUrl ? Icons.place_outlined : Icons.content_paste;
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
@@ -212,7 +222,7 @@ class _PasteSuggestionBanner extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            Icons.content_paste,
+            icon,
             size: 16,
             color: theme.colorScheme.onPrimaryContainer,
           ),
@@ -222,7 +232,7 @@ class _PasteSuggestionBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Paste this?',
+                  title,
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: theme.colorScheme.onPrimaryContainer,
                     fontWeight: FontWeight.w700,
@@ -260,10 +270,30 @@ class _PasteSuggestionBanner extends StatelessWidget {
   }
 }
 
-/// Tappable display row for a saved address. Tap opens Google Maps
-/// externally at the searched address. Use this on detail views where
-/// the teacher is looking at a trip / event — not on creation forms
-/// (those use [AddressField]).
+/// Returns true when [s] is an http(s) URL that parses cleanly.
+/// Used in two places: the paste suggestion (label as link vs
+/// address), and [AddressRow] (render + launch behavior).
+bool _isUrl(String s) {
+  final trimmed = s.trim();
+  if (!trimmed.startsWith(RegExp('https?://'))) return false;
+  final uri = Uri.tryParse(trimmed);
+  if (uri == null) return false;
+  return uri.host.isNotEmpty;
+}
+
+/// Tappable display row for a saved address or shared Google Maps
+/// link. Behavior branches on the content:
+///
+///   - If the stored value parses as an http(s) URL → render as a
+///     compact "📍 Google Maps location" pill, tap launches the URL
+///     directly (drops the teacher at the exact pin the sharer had
+///     open, not a text-search reinterpretation of it).
+///   - Otherwise → render as the plain address string, tap launches
+///     a Google Maps search for the text.
+///
+/// Both paths use externalApplication mode so the OS-chosen maps app
+/// opens (Google Maps on Android, Apple Maps on iOS unless the user
+/// set a default).
 class AddressRow extends StatelessWidget {
   const AddressRow({
     required this.address,
@@ -276,10 +306,16 @@ class AddressRow extends StatelessWidget {
 
   Future<void> _open(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
-    final uri = Uri.parse(
-      'https://www.google.com/maps/search/?api=1&query='
-      '${Uri.encodeQueryComponent(address.trim())}',
-    );
+    final trimmed = address.trim();
+    // URL stored → open it as-is; the teacher shared a specific pin
+    // via Maps' share sheet and we want to respect that pin, not
+    // reinterpret the URL as a search term.
+    final uri = _isUrl(trimmed)
+        ? Uri.parse(trimmed)
+        : Uri.parse(
+            'https://www.google.com/maps/search/?api=1&query='
+            '${Uri.encodeQueryComponent(trimmed)}',
+          );
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok && context.mounted) {
       messenger.showSnackBar(
@@ -291,6 +327,9 @@ class AddressRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final trimmed = address.trim();
+    final displayText =
+        _isUrl(trimmed) ? 'Google Maps location' : trimmed;
     return InkWell(
       onTap: () => _open(context),
       borderRadius: BorderRadius.circular(8),
@@ -309,7 +348,7 @@ class AddressRow extends StatelessWidget {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
-                address,
+                displayText,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.primary,
                   decoration: TextDecoration.underline,
