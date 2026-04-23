@@ -656,6 +656,20 @@ class Attendance extends Table {
   /// Short free-text note — e.g. "picked up early by Dad, out at 2pm".
   TextColumn get notes => text().nullable()();
 
+  /// v30: pickup tracking. Row stays in the 'present' status; a
+  /// non-null [pickupTime] marks the child as collected for the day.
+  /// That's enough to drive the "still here past expected pickup"
+  /// overdue flag on Today — we don't move them out of 'present' so
+  /// the day's roll count ("12/14 present") stays meaningful even
+  /// after everyone goes home.
+  TextColumn get pickupTime => text().nullable()();
+
+  /// Who picked the child up — free-form so it covers dad / grandma /
+  /// named friend / "backup contact" without needing a structured
+  /// caregivers table yet. Shown on the pickup row + in future
+  /// reports.
+  TextColumn get pickedUpBy => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>

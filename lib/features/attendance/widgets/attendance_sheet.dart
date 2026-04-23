@@ -200,6 +200,8 @@ class AttendanceTilesView extends ConsumerWidget {
             onCycle: () =>
                 _cycleStatus(ref, child.id, attendance[child.id]?.status),
             onSelectStatus: (s) => _setStatus(ref, child.id, s),
+            onRecordPickup: () => _recordPickup(context, ref, child),
+            onClearPickup: () => _clearPickup(ref, child.id),
           ),
       ],
     );
@@ -260,11 +262,69 @@ class AttendanceTilesView extends ConsumerWidget {
         );
   }
 
+  /// Opens a small pickup dialog — time (defaults to now) + optional
+  /// "picked up by" text — and writes both fields to the attendance
+  /// row on save. If the child doesn't have an attendance row yet,
+  /// nothing happens at the repo layer (pickup-without-check-in is
+  /// always a data-entry mistake; surfaces that care can prompt the
+  /// teacher to mark present first).
+  Future<void> _recordPickup(
+    BuildContext context,
+    WidgetRef ref,
+    Child child,
+  ) async {
+    final record = attendance[child.id];
+    final result = await showDialog<_PickupInput>(
+      context: context,
+      builder: (_) => _PickupDialog(
+        childName: child.firstName,
+        initialTime: record?.pickupTime,
+        initialPickedUpBy: record?.pickedUpBy,
+      ),
+    );
+    if (result == null) return;
+    final repo = ref.read(attendanceRepositoryProvider);
+    // Ensure a row exists — typical when Today's lateness strip opens
+    // this sheet for an unchecked-in kid and the teacher wants to
+    // combine "arrived late + picked up early" into one pass. Upsert
+    // to 'present' before stamping pickup; if the row already exists,
+    // this just touches updated_at.
+    if (record == null) {
+      await repo.setStatus(
+        childId: child.id,
+        date: date,
+        status: AttendanceStatus.present,
+      );
+    }
+    await repo.markPickup(
+      childId: child.id,
+      date: date,
+      pickupTime: result.time,
+      pickedUpBy: result.pickedUpBy,
+    );
+  }
+
+  Future<void> _clearPickup(WidgetRef ref, String childId) async {
+    await ref.read(attendanceRepositoryProvider).clearPickup(
+          childId: childId,
+          date: date,
+        );
+  }
+
   String _nowHhmm() {
     final n = DateTime.now();
     return '${n.hour.toString().padLeft(2, '0')}:'
         '${n.minute.toString().padLeft(2, '0')}';
   }
+}
+
+/// Result of the pickup dialog — the time (required) and an optional
+/// "picked up by" attribution. Dialog returns null when the teacher
+/// taps cancel, which the caller treats as "no change."
+class _PickupInput {
+  const _PickupInput({required this.time, this.pickedUpBy});
+  final String time;
+  final String? pickedUpBy;
 }
 
 /// Horizontal "N Present · N Absent · N Pending" strip used at the top
@@ -382,12 +442,24 @@ class _ChildTile extends StatelessWidget {
     required this.record,
     required this.onCycle,
     required this.onSelectStatus,
+    required this.onRecordPickup,
+    required this.onClearPickup,
   });
 
   final Child child;
   final AttendanceRecord? record;
   final VoidCallback onCycle;
   final ValueChanged<AttendanceStatus?> onSelectStatus;
+
+  /// Opens the pickup-capture dialog. Shown on the "more" menu when
+  /// the child is present (it's the natural time to record pickup);
+  /// also selectable for pending rows so a teacher catching up at
+  /// end-of-day can retroactively mark arrival + pickup together.
+  final VoidCallback onRecordPickup;
+
+  /// Nulls both pickup fields on the row. Visible in the menu only
+  /// when a pickup has been recorded, to avoid dead actions.
+  final VoidCallback onClearPickup;
 
   @override
   Widget build(BuildContext context) {
@@ -470,35 +542,82 @@ class _ChildTile extends StatelessWidget {
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
+                      if (record?.pickupTime != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            record?.pickedUpBy == null ||
+                                    record!.pickedUpBy!.trim().isEmpty
+                                ? 'Picked up · ${record!.pickupTime!}'
+                                : 'Picked up · ${record!.pickupTime!} · '
+                                    '${record!.pickedUpBy!}',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
-                PopupMenuButton<AttendanceStatus?>(
+                PopupMenuButton<_TileAction>(
                   icon: Icon(
                     Icons.more_vert,
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
-                  tooltip: 'More statuses',
-                  onSelected: onSelectStatus,
+                  tooltip: 'More',
+                  onSelected: (action) {
+                    switch (action) {
+                      case _TileAction.markPresent:
+                        onSelectStatus(AttendanceStatus.present);
+                      case _TileAction.markAbsent:
+                        onSelectStatus(AttendanceStatus.absent);
+                      case _TileAction.markLate:
+                        onSelectStatus(AttendanceStatus.late);
+                      case _TileAction.markLeftEarly:
+                        onSelectStatus(AttendanceStatus.leftEarly);
+                      case _TileAction.clearStatus:
+                        onSelectStatus(null);
+                      case _TileAction.recordPickup:
+                        onRecordPickup();
+                      case _TileAction.clearPickup:
+                        onClearPickup();
+                    }
+                  },
                   itemBuilder: (_) => [
                     const PopupMenuItem(
-                      value: AttendanceStatus.present,
+                      value: _TileAction.markPresent,
                       child: Text('Mark present'),
                     ),
                     const PopupMenuItem(
-                      value: AttendanceStatus.absent,
+                      value: _TileAction.markAbsent,
                       child: Text('Mark absent'),
                     ),
                     const PopupMenuItem(
-                      value: AttendanceStatus.late,
+                      value: _TileAction.markLate,
                       child: Text('Mark late…'),
                     ),
                     const PopupMenuItem(
-                      value: AttendanceStatus.leftEarly,
+                      value: _TileAction.markLeftEarly,
                       child: Text('Left early…'),
                     ),
                     const PopupMenuDivider(),
+                    // Pickup affordances live below the status ones so
+                    // the common-path items stay above the fold. Record
+                    // always visible; Clear only when there's something
+                    // to clear, so a dead action doesn't take a slot.
                     const PopupMenuItem(
+                      value: _TileAction.recordPickup,
+                      child: Text('Record pickup…'),
+                    ),
+                    if (record?.pickupTime != null)
+                      const PopupMenuItem(
+                        value: _TileAction.clearPickup,
+                        child: Text('Clear pickup'),
+                      ),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(
+                      value: _TileAction.clearStatus,
                       child: Text('Clear status'),
                     ),
                   ],
@@ -508,6 +627,126 @@ class _ChildTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Menu actions on an attendance tile. Kept as an enum (rather than a
+/// loose nullable AttendanceStatus like before) so the pickup
+/// actions and the status changes share one dispatch path without
+/// overloading the status type.
+enum _TileAction {
+  markPresent,
+  markAbsent,
+  markLate,
+  markLeftEarly,
+  clearStatus,
+  recordPickup,
+  clearPickup,
+}
+
+/// Small dialog for capturing a pickup: time (tap to pick, default
+/// now) + optional "picked up by" free-text field. Returns a
+/// [_PickupInput] on save, null on cancel.
+class _PickupDialog extends StatefulWidget {
+  const _PickupDialog({
+    required this.childName,
+    this.initialTime,
+    this.initialPickedUpBy,
+  });
+
+  final String childName;
+  final String? initialTime;
+  final String? initialPickedUpBy;
+
+  @override
+  State<_PickupDialog> createState() => _PickupDialogState();
+}
+
+class _PickupDialogState extends State<_PickupDialog> {
+  late TimeOfDay _time = _seedTime();
+  late final _nameController =
+      TextEditingController(text: widget.initialPickedUpBy ?? '');
+
+  TimeOfDay _seedTime() {
+    final raw = widget.initialTime;
+    if (raw == null) {
+      final now = DateTime.now();
+      return TimeOfDay(hour: now.hour, minute: now.minute);
+    }
+    final parts = raw.split(':');
+    return TimeOfDay(
+      hour: int.parse(parts[0]),
+      minute: int.parse(parts[1]),
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: Text('Pickup · ${widget.childName}'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          OutlinedButton.icon(
+            onPressed: () async {
+              final picked = await showTimePicker(
+                context: context,
+                initialTime: _time,
+              );
+              if (picked != null) setState(() => _time = picked);
+            },
+            icon: const Icon(Icons.access_time, size: 18),
+            label: Text('At ${_time.format(context)}'),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(
+              labelText: 'Picked up by (optional)',
+              hintText: 'Dad · Grandma · Auntie Nia',
+              isDense: true,
+            ),
+            textCapitalization: TextCapitalization.words,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Time defaults to now. Leave the name blank if you want to '
+            'record pickup fast and fill in the name later.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final hhmm = '${_time.hour.toString().padLeft(2, '0')}:'
+                '${_time.minute.toString().padLeft(2, '0')}';
+            final name = _nameController.text.trim();
+            Navigator.of(context).pop(
+              _PickupInput(
+                time: hhmm,
+                pickedUpBy: name.isEmpty ? null : name,
+              ),
+            );
+          },
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }

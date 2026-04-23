@@ -18,8 +18,16 @@ Child _child({
       updatedAt: DateTime(2026),
     );
 
-AttendanceRecord _attendance(String childId, AttendanceStatus status) =>
-    AttendanceRecord(childId: childId, status: status);
+AttendanceRecord _attendance(
+  String childId,
+  AttendanceStatus status, {
+  String? pickupTime,
+}) =>
+    AttendanceRecord(
+      childId: childId,
+      status: status,
+      pickupTime: pickupTime,
+    );
 
 ChildScheduleOverride _override(
   String childId, {
@@ -147,6 +155,138 @@ void main() {
         now: _at(8, 56),
         children: kids,
         attendance: {},
+        overrides: {},
+      );
+      expect(flags.map((f) => f.child.id).toList(), ['k1', 'k2']);
+    });
+  });
+
+  group('computeOverduePickupFlags', () {
+    test('flags a present kid past pickup + grace with no pickup logged',
+        () {
+      final kids = [_child(id: 'k1', expectedPickup: '17:00')];
+      // 17:16 — past 17:00 + 15 grace. No pickupTime recorded.
+      final flags = computeOverduePickupFlags(
+        now: _at(17, 17),
+        children: kids,
+        attendance: {
+          'k1': _attendance('k1', AttendanceStatus.present),
+        },
+        overrides: {},
+      );
+      expect(flags, hasLength(1));
+      expect(flags.single.minutesOverdue, 2); // 17 - 15 grace
+      expect(flags.single.expectedPickup, '17:00');
+    });
+
+    test('does not flag within grace', () {
+      final kids = [_child(id: 'k1', expectedPickup: '17:00')];
+      final flags = computeOverduePickupFlags(
+        now: _at(17, 14),
+        children: kids,
+        attendance: {
+          'k1': _attendance('k1', AttendanceStatus.present),
+        },
+        overrides: {},
+      );
+      expect(flags, isEmpty);
+    });
+
+    test('does not flag a kid whose pickup is already recorded', () {
+      final kids = [_child(id: 'k1', expectedPickup: '17:00')];
+      final flags = computeOverduePickupFlags(
+        now: _at(18, 0),
+        children: kids,
+        attendance: {
+          'k1': _attendance(
+            'k1',
+            AttendanceStatus.present,
+            pickupTime: '17:05',
+          ),
+        },
+        overrides: {},
+      );
+      expect(flags, isEmpty);
+    });
+
+    test('does not flag a kid who never showed up (no attendance row)',
+        () {
+      final kids = [_child(id: 'k1', expectedPickup: '17:00')];
+      // Absent-by-default → overdue pickup doesn't apply, they're
+      // not on-site to be waiting.
+      final flags = computeOverduePickupFlags(
+        now: _at(18, 0),
+        children: kids,
+        attendance: {},
+        overrides: {},
+      );
+      expect(flags, isEmpty);
+    });
+
+    test('does not flag an explicitly absent kid', () {
+      final kids = [_child(id: 'k1', expectedPickup: '17:00')];
+      final flags = computeOverduePickupFlags(
+        now: _at(18, 0),
+        children: kids,
+        attendance: {
+          'k1': _attendance('k1', AttendanceStatus.absent),
+        },
+        overrides: {},
+      );
+      expect(flags, isEmpty);
+    });
+
+    test('no expected pickup → never flagged', () {
+      final kids = [_child(id: 'k1')];
+      final flags = computeOverduePickupFlags(
+        now: _at(20, 0),
+        children: kids,
+        attendance: {
+          'k1': _attendance('k1', AttendanceStatus.present),
+        },
+        overrides: {},
+      );
+      expect(flags, isEmpty);
+    });
+
+    test('daily override replaces standing pickup', () {
+      // Standing 5:00 but today override pushed to 6:30 — at 5:30
+      // they're not overdue relative to the override.
+      final kids = [_child(id: 'k1', expectedPickup: '17:00')];
+      final flags = computeOverduePickupFlags(
+        now: _at(17, 30),
+        children: kids,
+        attendance: {
+          'k1': _attendance('k1', AttendanceStatus.present),
+        },
+        overrides: {
+          'k1': ChildScheduleOverride(
+            id: 'o1',
+            childId: 'k1',
+            date: DateTime(2026, 4, 23),
+            expectedPickupOverride: '18:30',
+            createdAt: DateTime(2026, 4, 23),
+            updatedAt: DateTime(2026, 4, 23),
+          ),
+        },
+      );
+      expect(flags, isEmpty);
+    });
+
+    test('sorted most-overdue first', () {
+      final kids = [
+        _child(id: 'k1', expectedPickup: '16:00'),
+        _child(id: 'k2', expectedPickup: '17:00'),
+      ];
+      // k1 overdue by 45 min (16:00 + 15 grace = 16:15, now 17:00 → 45 min)
+      // k2 overdue by 0 min (just crossed 17:00 + 15 grace)
+      final flags = computeOverduePickupFlags(
+        now: _at(17, 15),
+        children: kids,
+        attendance: {
+          'k1': _attendance('k1', AttendanceStatus.present),
+          'k2': _attendance('k2', AttendanceStatus.present),
+        },
         overrides: {},
       );
       expect(flags.map((f) => f.child.id).toList(), ['k1', 'k2']);

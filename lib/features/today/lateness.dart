@@ -99,3 +99,80 @@ int? _parseHHmm(String s) {
   if (h < 0 || h > 23 || m < 0 || m > 59) return null;
   return h * 60 + m;
 }
+
+/// Grace window before a not-yet-picked-up child trips the overdue
+/// flag. Same knob as [latenessGraceMinutes] but independent — "late
+/// pickup" and "late arrival" often have different tolerances in
+/// practice (parents running 5 min late at pickup is routine; kids
+/// at drop-off is more of a beat). Still hardcoded; see the note on
+/// the arrival grace for when/where to make it configurable.
+const int pickupGraceMinutes = 15;
+
+/// A child still on-site past their expected pickup + grace. Mirrors
+/// [LatenessFlag] in shape so the flags strip can render both lists
+/// with the same row component.
+class OverduePickupFlag {
+  const OverduePickupFlag({
+    required this.child,
+    required this.expectedPickup,
+    required this.minutesOverdue,
+    this.note,
+  });
+
+  final Child child;
+  final String expectedPickup;
+  final int minutesOverdue;
+  final String? note;
+}
+
+/// Computes overdue-pickup flags for [now] across [children] given
+/// their [attendance] + [overrides]. Pure like [computeLatenessFlags];
+/// everything is passed in so the overdue path is unit-testable.
+///
+/// A child earns a flag iff ALL of:
+///   1. expected pickup (standing OR overridden) is set,
+///   2. their attendance row is 'present' (they actually came today),
+///   3. their pickup hasn't been recorded yet (`pickupTime == null`),
+///   4. `now` is past `expectedPickup + graceMinutes`.
+///
+/// Kids with no row (never checked in) can't be overdue. Kids
+/// already picked up (pickupTime non-null) fall out by rule 3, so
+/// the strip empties naturally as parents arrive.
+List<OverduePickupFlag> computeOverduePickupFlags({
+  required DateTime now,
+  required List<Child> children,
+  required Map<String, AttendanceRecord> attendance,
+  required Map<String, ChildScheduleOverride> overrides,
+  int graceMinutes = pickupGraceMinutes,
+}) {
+  final nowMinutes = now.hour * 60 + now.minute;
+  final flags = <OverduePickupFlag>[];
+  for (final child in children) {
+    final record = attendance[child.id];
+    if (record == null) continue;
+    if (record.status != AttendanceStatus.present) continue;
+    if (record.pickupTime != null) continue;
+
+    final ov = overrides[child.id];
+    final expected = ov?.expectedPickupOverride ?? child.expectedPickup;
+    if (expected == null) continue;
+
+    final expectedMin = _parseHHmm(expected);
+    if (expectedMin == null) continue;
+    final deadline = expectedMin + graceMinutes;
+    if (nowMinutes < deadline) continue;
+
+    flags.add(
+      OverduePickupFlag(
+        child: child,
+        expectedPickup: expected,
+        minutesOverdue: nowMinutes - deadline,
+        note: ov?.note,
+      ),
+    );
+  }
+  // Most-overdue first — the kid who's been waiting 40 min needs
+  // attention before the one who just crossed the grace line.
+  flags.sort((a, b) => b.minutesOverdue.compareTo(a.minutesOverdue));
+  return flags;
+}

@@ -11861,6 +11861,28 @@ class $AttendanceTable extends Attendance
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _pickupTimeMeta = const VerificationMeta(
+    'pickupTime',
+  );
+  @override
+  late final GeneratedColumn<String> pickupTime = GeneratedColumn<String>(
+    'pickup_time',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _pickedUpByMeta = const VerificationMeta(
+    'pickedUpBy',
+  );
+  @override
+  late final GeneratedColumn<String> pickedUpBy = GeneratedColumn<String>(
+    'picked_up_by',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -11892,6 +11914,8 @@ class $AttendanceTable extends Attendance
     status,
     clockTime,
     notes,
+    pickupTime,
+    pickedUpBy,
     createdAt,
     updatedAt,
   ];
@@ -11943,6 +11967,21 @@ class $AttendanceTable extends Attendance
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('pickup_time')) {
+      context.handle(
+        _pickupTimeMeta,
+        pickupTime.isAcceptableOrUnknown(data['pickup_time']!, _pickupTimeMeta),
+      );
+    }
+    if (data.containsKey('picked_up_by')) {
+      context.handle(
+        _pickedUpByMeta,
+        pickedUpBy.isAcceptableOrUnknown(
+          data['picked_up_by']!,
+          _pickedUpByMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -11984,6 +12023,14 @@ class $AttendanceTable extends Attendance
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      pickupTime: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pickup_time'],
+      ),
+      pickedUpBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}picked_up_by'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -12016,6 +12063,20 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
 
   /// Short free-text note — e.g. "picked up early by Dad, out at 2pm".
   final String? notes;
+
+  /// v30: pickup tracking. Row stays in the 'present' status; a
+  /// non-null [pickupTime] marks the child as collected for the day.
+  /// That's enough to drive the "still here past expected pickup"
+  /// overdue flag on Today — we don't move them out of 'present' so
+  /// the day's roll count ("12/14 present") stays meaningful even
+  /// after everyone goes home.
+  final String? pickupTime;
+
+  /// Who picked the child up — free-form so it covers dad / grandma /
+  /// named friend / "backup contact" without needing a structured
+  /// caregivers table yet. Shown on the pickup row + in future
+  /// reports.
+  final String? pickedUpBy;
   final DateTime createdAt;
   final DateTime updatedAt;
   const AttendanceData({
@@ -12024,6 +12085,8 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
     required this.status,
     this.clockTime,
     this.notes,
+    this.pickupTime,
+    this.pickedUpBy,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -12038,6 +12101,12 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
     }
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
+    }
+    if (!nullToAbsent || pickupTime != null) {
+      map['pickup_time'] = Variable<String>(pickupTime);
+    }
+    if (!nullToAbsent || pickedUpBy != null) {
+      map['picked_up_by'] = Variable<String>(pickedUpBy);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -12055,6 +12124,12 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      pickupTime: pickupTime == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pickupTime),
+      pickedUpBy: pickedUpBy == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pickedUpBy),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -12071,6 +12146,8 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
       status: serializer.fromJson<String>(json['status']),
       clockTime: serializer.fromJson<String?>(json['clockTime']),
       notes: serializer.fromJson<String?>(json['notes']),
+      pickupTime: serializer.fromJson<String?>(json['pickupTime']),
+      pickedUpBy: serializer.fromJson<String?>(json['pickedUpBy']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -12084,6 +12161,8 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
       'status': serializer.toJson<String>(status),
       'clockTime': serializer.toJson<String?>(clockTime),
       'notes': serializer.toJson<String?>(notes),
+      'pickupTime': serializer.toJson<String?>(pickupTime),
+      'pickedUpBy': serializer.toJson<String?>(pickedUpBy),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -12095,6 +12174,8 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
     String? status,
     Value<String?> clockTime = const Value.absent(),
     Value<String?> notes = const Value.absent(),
+    Value<String?> pickupTime = const Value.absent(),
+    Value<String?> pickedUpBy = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => AttendanceData(
@@ -12103,6 +12184,8 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
     status: status ?? this.status,
     clockTime: clockTime.present ? clockTime.value : this.clockTime,
     notes: notes.present ? notes.value : this.notes,
+    pickupTime: pickupTime.present ? pickupTime.value : this.pickupTime,
+    pickedUpBy: pickedUpBy.present ? pickedUpBy.value : this.pickedUpBy,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -12113,6 +12196,12 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
       status: data.status.present ? data.status.value : this.status,
       clockTime: data.clockTime.present ? data.clockTime.value : this.clockTime,
       notes: data.notes.present ? data.notes.value : this.notes,
+      pickupTime: data.pickupTime.present
+          ? data.pickupTime.value
+          : this.pickupTime,
+      pickedUpBy: data.pickedUpBy.present
+          ? data.pickedUpBy.value
+          : this.pickedUpBy,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -12126,6 +12215,8 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
           ..write('status: $status, ')
           ..write('clockTime: $clockTime, ')
           ..write('notes: $notes, ')
+          ..write('pickupTime: $pickupTime, ')
+          ..write('pickedUpBy: $pickedUpBy, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -12139,6 +12230,8 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
     status,
     clockTime,
     notes,
+    pickupTime,
+    pickedUpBy,
     createdAt,
     updatedAt,
   );
@@ -12151,6 +12244,8 @@ class AttendanceData extends DataClass implements Insertable<AttendanceData> {
           other.status == this.status &&
           other.clockTime == this.clockTime &&
           other.notes == this.notes &&
+          other.pickupTime == this.pickupTime &&
+          other.pickedUpBy == this.pickedUpBy &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -12161,6 +12256,8 @@ class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
   final Value<String> status;
   final Value<String?> clockTime;
   final Value<String?> notes;
+  final Value<String?> pickupTime;
+  final Value<String?> pickedUpBy;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -12170,6 +12267,8 @@ class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
     this.status = const Value.absent(),
     this.clockTime = const Value.absent(),
     this.notes = const Value.absent(),
+    this.pickupTime = const Value.absent(),
+    this.pickedUpBy = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -12180,6 +12279,8 @@ class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
     required String status,
     this.clockTime = const Value.absent(),
     this.notes = const Value.absent(),
+    this.pickupTime = const Value.absent(),
+    this.pickedUpBy = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -12192,6 +12293,8 @@ class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
     Expression<String>? status,
     Expression<String>? clockTime,
     Expression<String>? notes,
+    Expression<String>? pickupTime,
+    Expression<String>? pickedUpBy,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -12202,6 +12305,8 @@ class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
       if (status != null) 'status': status,
       if (clockTime != null) 'clock_time': clockTime,
       if (notes != null) 'notes': notes,
+      if (pickupTime != null) 'pickup_time': pickupTime,
+      if (pickedUpBy != null) 'picked_up_by': pickedUpBy,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -12214,6 +12319,8 @@ class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
     Value<String>? status,
     Value<String?>? clockTime,
     Value<String?>? notes,
+    Value<String?>? pickupTime,
+    Value<String?>? pickedUpBy,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -12224,6 +12331,8 @@ class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
       status: status ?? this.status,
       clockTime: clockTime ?? this.clockTime,
       notes: notes ?? this.notes,
+      pickupTime: pickupTime ?? this.pickupTime,
+      pickedUpBy: pickedUpBy ?? this.pickedUpBy,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -12248,6 +12357,12 @@ class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (pickupTime.present) {
+      map['pickup_time'] = Variable<String>(pickupTime.value);
+    }
+    if (pickedUpBy.present) {
+      map['picked_up_by'] = Variable<String>(pickedUpBy.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -12268,6 +12383,8 @@ class AttendanceCompanion extends UpdateCompanion<AttendanceData> {
           ..write('status: $status, ')
           ..write('clockTime: $clockTime, ')
           ..write('notes: $notes, ')
+          ..write('pickupTime: $pickupTime, ')
+          ..write('pickedUpBy: $pickedUpBy, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -13097,7 +13214,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
   final String endTime;
 
   /// 'lead' or 'specialist'. Bad values fall back to 'specialist' at
-  /// read time — matches how [AdultRole.fromDb] handles the similar
+  /// read time — matches how `AdultRole.fromDb` handles the similar
   /// field on Specialists.
   final String role;
 
@@ -26806,6 +26923,8 @@ typedef $$AttendanceTableCreateCompanionBuilder =
       required String status,
       Value<String?> clockTime,
       Value<String?> notes,
+      Value<String?> pickupTime,
+      Value<String?> pickedUpBy,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -26817,6 +26936,8 @@ typedef $$AttendanceTableUpdateCompanionBuilder =
       Value<String> status,
       Value<String?> clockTime,
       Value<String?> notes,
+      Value<String?> pickupTime,
+      Value<String?> pickedUpBy,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -26870,6 +26991,16 @@ class $$AttendanceTableFilterComposer
 
   ColumnFilters<String> get notes => $composableBuilder(
     column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get pickupTime => $composableBuilder(
+    column: $table.pickupTime,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get pickedUpBy => $composableBuilder(
+    column: $table.pickedUpBy,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -26936,6 +27067,16 @@ class $$AttendanceTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get pickupTime => $composableBuilder(
+    column: $table.pickupTime,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get pickedUpBy => $composableBuilder(
+    column: $table.pickedUpBy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -26990,6 +27131,16 @@ class $$AttendanceTableAnnotationComposer
 
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<String> get pickupTime => $composableBuilder(
+    column: $table.pickupTime,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get pickedUpBy => $composableBuilder(
+    column: $table.pickedUpBy,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -27054,6 +27205,8 @@ class $$AttendanceTableTableManager
                 Value<String> status = const Value.absent(),
                 Value<String?> clockTime = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<String?> pickupTime = const Value.absent(),
+                Value<String?> pickedUpBy = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -27063,6 +27216,8 @@ class $$AttendanceTableTableManager
                 status: status,
                 clockTime: clockTime,
                 notes: notes,
+                pickupTime: pickupTime,
+                pickedUpBy: pickedUpBy,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -27074,6 +27229,8 @@ class $$AttendanceTableTableManager
                 required String status,
                 Value<String?> clockTime = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<String?> pickupTime = const Value.absent(),
+                Value<String?> pickedUpBy = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -27083,6 +27240,8 @@ class $$AttendanceTableTableManager
                 status: status,
                 clockTime: clockTime,
                 notes: notes,
+                pickupTime: pickupTime,
+                pickedUpBy: pickedUpBy,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,

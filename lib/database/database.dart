@@ -42,7 +42,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 30;
+  int get schemaVersion => 31;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -379,6 +379,21 @@ class AppDatabase extends _$AppDatabase {
               'CREATE INDEX IF NOT EXISTS '
               '"idx_adult_block_pod_day" '
               'ON "adult_day_blocks" ("pod_id", "day_of_week")',
+            );
+          }
+          if (from < 31) {
+            // v31: pickup tracking on attendance rows. Two nullable
+            // columns — pickup_time (HH:mm) and picked_up_by (free
+            // text). The row stays 'present'; a non-null pickup_time
+            // just marks the child as collected. Keeps the day's
+            // "12/14 present" roll meaningful after pickups start.
+            await _runSilent(
+              'ALTER TABLE "attendance" '
+              'ADD COLUMN "pickup_time" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "attendance" '
+              'ADD COLUMN "picked_up_by" TEXT NULL',
             );
           }
         },

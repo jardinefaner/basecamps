@@ -29,12 +29,26 @@ class AttendanceRecord {
     required this.status,
     this.clockTime,
     this.notes,
+    this.pickupTime,
+    this.pickedUpBy,
   });
 
   final String childId;
   final AttendanceStatus status;
   final String? clockTime;
   final String? notes;
+
+  /// HH:mm the child was collected for the day (v31). Null while the
+  /// child is still on-site / hasn't been checked out yet. Flipping
+  /// this on doesn't change [status] — the row stays 'present' — so
+  /// the roll count keeps meaning "how many showed up today" rather
+  /// than "how many are still here right now."
+  final String? pickupTime;
+
+  /// Free-text pickup attribution (dad / grandma / Auntie Nia). Null
+  /// until pickup is recorded. Matches the `notes` pattern — a
+  /// caregivers table can come later without breaking this.
+  final String? pickedUpBy;
 }
 
 class AttendanceRepository {
@@ -64,6 +78,8 @@ class AttendanceRepository {
           status: status,
           clockTime: r.clockTime,
           notes: r.notes,
+          pickupTime: r.pickupTime,
+          pickedUpBy: r.pickedUpBy,
         );
       }
       return out;
@@ -91,6 +107,53 @@ class AttendanceRepository {
             updatedAt: Value(now),
           ),
         );
+  }
+
+  /// Record a pickup on an existing attendance row. The child must
+  /// already have a row for the day (typically 'present'); the
+  /// repository refuses to insert a fresh row here because a pickup
+  /// without a matching check-in is always a data-entry mistake.
+  ///
+  /// [pickupTime] is required and stamped as HH:mm; [pickedUpBy] is
+  /// optional — teacher can record "they got picked up" without
+  /// remembering the name. Row stays in its existing status.
+  Future<void> markPickup({
+    required String childId,
+    required DateTime date,
+    required String pickupTime,
+    String? pickedUpBy,
+  }) async {
+    final day = _dayOnly(date);
+    final now = DateTime.now();
+    await (_db.update(_db.attendance)
+          ..where((a) => a.childId.equals(childId) & a.date.equals(day)))
+        .write(
+      AttendanceCompanion(
+        pickupTime: Value(pickupTime),
+        pickedUpBy: Value(pickedUpBy),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  /// Undoes a pickup — "wait, she's still here, I marked that by
+  /// mistake." Nulls both pickup columns while keeping the rest of
+  /// the attendance row (status, notes, check-in time) intact.
+  Future<void> clearPickup({
+    required String childId,
+    required DateTime date,
+  }) async {
+    final day = _dayOnly(date);
+    final now = DateTime.now();
+    await (_db.update(_db.attendance)
+          ..where((a) => a.childId.equals(childId) & a.date.equals(day)))
+        .write(
+      AttendanceCompanion(
+        pickupTime: const Value<String?>(null),
+        pickedUpBy: const Value<String?>(null),
+        updatedAt: Value(now),
+      ),
+    );
   }
 
   /// Drops the row entirely — used when the teacher wants to revert
