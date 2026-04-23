@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/specialists/adult_timeline_repository.dart';
 import 'package:basecamp/features/specialists/specialists_repository.dart';
+import 'package:basecamp/features/specialists/widgets/adult_timeline_editor_sheet.dart';
 import 'package:basecamp/features/specialists/widgets/availability_editor.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
@@ -353,6 +355,12 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
               }),
             ),
           const SizedBox(height: AppSpacing.lg),
+          // Day-timeline (v30) launches a dedicated editor sheet.
+          // Stays optional: most adults' days don't need block-level
+          // detail, so we keep a single button here instead of
+          // cluttering this sheet with per-day tables.
+          _DayTimelineLaunchRow(specialist: widget.specialist),
+          const SizedBox(height: AppSpacing.lg),
           AppTextField(
             controller: _notesController,
             label: 'Notes (optional)',
@@ -522,6 +530,82 @@ class _AnchorGroupPicker extends ConsumerWidget {
               ],
             );
           },
+        ),
+      ],
+    );
+  }
+}
+
+/// Compact launcher row for the day-timeline editor. Lives on the
+/// adult edit sheet; tapping opens the timeline editor sheet which
+/// replaces the static role for the rest of the day-cycle. Shows a
+/// block-count hint when there's a timeline so teachers can see at a
+/// glance whether it's been set up.
+class _DayTimelineLaunchRow extends ConsumerWidget {
+  const _DayTimelineLaunchRow({required this.specialist});
+
+  final Specialist? specialist;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final id = specialist?.id;
+    // Pull live so the block count refreshes when the teacher saves
+    // the editor sheet and pops back to this sheet.
+    final blocksAsync = id == null
+        ? const AsyncValue<List<AdultDayBlock>>.data([])
+        : ref.watch(
+            StreamProvider.autoDispose<List<AdultDayBlock>>(
+              (ref) =>
+                  ref.watch(adultTimelineRepositoryProvider).watchBlocksFor(id),
+            ),
+          );
+    final count = blocksAsync.asData?.value.length ?? 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Day timeline (advanced)', style: theme.textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Subdivides the shift into role blocks — "lead Butterflies '
+          '8:30-11, specialist rotator 11-12, back to Butterflies '
+          '12-3." Leave empty and Today uses the structural role above.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        OutlinedButton.icon(
+          // Can't edit a timeline for an unsaved row (no id yet). The
+          // button is inert until the teacher saves the adult at least
+          // once; the copy explains why.
+          onPressed: id == null
+              ? null
+              : () async {
+                  final blocks = blocksAsync.asData?.value ?? const [];
+                  await showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    showDragHandle: true,
+                    useSafeArea: true,
+                    builder: (_) => AdultTimelineEditorSheet(
+                      specialistId: id,
+                      specialistName: specialist?.name ?? 'Adult',
+                      initialBlocks: [
+                        for (final b in blocks) AdultTimelineBlock.fromRow(b),
+                      ],
+                    ),
+                  );
+                },
+          icon: const Icon(Icons.schedule, size: 18),
+          label: Text(
+            id == null
+                ? 'Save first, then edit timeline'
+                : count == 0
+                    ? 'Edit day timeline'
+                    : 'Edit day timeline · $count block${count == 1 ? "" : "s"}',
+          ),
         ),
       ],
     );

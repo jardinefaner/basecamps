@@ -12830,6 +12830,588 @@ class ChildScheduleOverridesCompanion
   }
 }
 
+class $AdultDayBlocksTable extends AdultDayBlocks
+    with TableInfo<$AdultDayBlocksTable, AdultDayBlock> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AdultDayBlocksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _specialistIdMeta = const VerificationMeta(
+    'specialistId',
+  );
+  @override
+  late final GeneratedColumn<String> specialistId = GeneratedColumn<String>(
+    'specialist_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES specialists (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _dayOfWeekMeta = const VerificationMeta(
+    'dayOfWeek',
+  );
+  @override
+  late final GeneratedColumn<int> dayOfWeek = GeneratedColumn<int>(
+    'day_of_week',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startTimeMeta = const VerificationMeta(
+    'startTime',
+  );
+  @override
+  late final GeneratedColumn<String> startTime = GeneratedColumn<String>(
+    'start_time',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endTimeMeta = const VerificationMeta(
+    'endTime',
+  );
+  @override
+  late final GeneratedColumn<String> endTime = GeneratedColumn<String>(
+    'end_time',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _roleMeta = const VerificationMeta('role');
+  @override
+  late final GeneratedColumn<String> role = GeneratedColumn<String>(
+    'role',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _podIdMeta = const VerificationMeta('podId');
+  @override
+  late final GeneratedColumn<String> podId = GeneratedColumn<String>(
+    'pod_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES "groups" (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    specialistId,
+    dayOfWeek,
+    startTime,
+    endTime,
+    role,
+    podId,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'adult_day_blocks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AdultDayBlock> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('specialist_id')) {
+      context.handle(
+        _specialistIdMeta,
+        specialistId.isAcceptableOrUnknown(
+          data['specialist_id']!,
+          _specialistIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_specialistIdMeta);
+    }
+    if (data.containsKey('day_of_week')) {
+      context.handle(
+        _dayOfWeekMeta,
+        dayOfWeek.isAcceptableOrUnknown(data['day_of_week']!, _dayOfWeekMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dayOfWeekMeta);
+    }
+    if (data.containsKey('start_time')) {
+      context.handle(
+        _startTimeMeta,
+        startTime.isAcceptableOrUnknown(data['start_time']!, _startTimeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startTimeMeta);
+    }
+    if (data.containsKey('end_time')) {
+      context.handle(
+        _endTimeMeta,
+        endTime.isAcceptableOrUnknown(data['end_time']!, _endTimeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endTimeMeta);
+    }
+    if (data.containsKey('role')) {
+      context.handle(
+        _roleMeta,
+        role.isAcceptableOrUnknown(data['role']!, _roleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_roleMeta);
+    }
+    if (data.containsKey('pod_id')) {
+      context.handle(
+        _podIdMeta,
+        podId.isAcceptableOrUnknown(data['pod_id']!, _podIdMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AdultDayBlock map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AdultDayBlock(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      specialistId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}specialist_id'],
+      )!,
+      dayOfWeek: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}day_of_week'],
+      )!,
+      startTime: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}start_time'],
+      )!,
+      endTime: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}end_time'],
+      )!,
+      role: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}role'],
+      )!,
+      podId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pod_id'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AdultDayBlocksTable createAlias(String alias) {
+    return $AdultDayBlocksTable(attachedDatabase, alias);
+  }
+}
+
+class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
+  final String id;
+  final String specialistId;
+
+  /// ISO day of week (1 = Mon, 7 = Sun). Program runs M-F so values
+  /// are almost always 1..5, but no CHECK constraint — weekend is
+  /// legal data, just unused for now.
+  final int dayOfWeek;
+
+  /// HH:mm wall-clock strings, same format as schedule templates and
+  /// availability. Half-open: `[startTime, endTime)` is the span of
+  /// the block.
+  final String startTime;
+  final String endTime;
+
+  /// 'lead' or 'specialist'. Bad values fall back to 'specialist' at
+  /// read time — matches how [AdultRole.fromDb] handles the similar
+  /// field on Specialists.
+  final String role;
+
+  /// For lead blocks — which pod (group) the adult is anchoring
+  /// during this span. Null for specialist blocks. FK to groups
+  /// with setNull on delete so deleting a pod silently detaches any
+  /// legacy lead blocks rather than cascading-deleting the whole
+  /// timeline.
+  final String? podId;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const AdultDayBlock({
+    required this.id,
+    required this.specialistId,
+    required this.dayOfWeek,
+    required this.startTime,
+    required this.endTime,
+    required this.role,
+    this.podId,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['specialist_id'] = Variable<String>(specialistId);
+    map['day_of_week'] = Variable<int>(dayOfWeek);
+    map['start_time'] = Variable<String>(startTime);
+    map['end_time'] = Variable<String>(endTime);
+    map['role'] = Variable<String>(role);
+    if (!nullToAbsent || podId != null) {
+      map['pod_id'] = Variable<String>(podId);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  AdultDayBlocksCompanion toCompanion(bool nullToAbsent) {
+    return AdultDayBlocksCompanion(
+      id: Value(id),
+      specialistId: Value(specialistId),
+      dayOfWeek: Value(dayOfWeek),
+      startTime: Value(startTime),
+      endTime: Value(endTime),
+      role: Value(role),
+      podId: podId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(podId),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory AdultDayBlock.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AdultDayBlock(
+      id: serializer.fromJson<String>(json['id']),
+      specialistId: serializer.fromJson<String>(json['specialistId']),
+      dayOfWeek: serializer.fromJson<int>(json['dayOfWeek']),
+      startTime: serializer.fromJson<String>(json['startTime']),
+      endTime: serializer.fromJson<String>(json['endTime']),
+      role: serializer.fromJson<String>(json['role']),
+      podId: serializer.fromJson<String?>(json['podId']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'specialistId': serializer.toJson<String>(specialistId),
+      'dayOfWeek': serializer.toJson<int>(dayOfWeek),
+      'startTime': serializer.toJson<String>(startTime),
+      'endTime': serializer.toJson<String>(endTime),
+      'role': serializer.toJson<String>(role),
+      'podId': serializer.toJson<String?>(podId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  AdultDayBlock copyWith({
+    String? id,
+    String? specialistId,
+    int? dayOfWeek,
+    String? startTime,
+    String? endTime,
+    String? role,
+    Value<String?> podId = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => AdultDayBlock(
+    id: id ?? this.id,
+    specialistId: specialistId ?? this.specialistId,
+    dayOfWeek: dayOfWeek ?? this.dayOfWeek,
+    startTime: startTime ?? this.startTime,
+    endTime: endTime ?? this.endTime,
+    role: role ?? this.role,
+    podId: podId.present ? podId.value : this.podId,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  AdultDayBlock copyWithCompanion(AdultDayBlocksCompanion data) {
+    return AdultDayBlock(
+      id: data.id.present ? data.id.value : this.id,
+      specialistId: data.specialistId.present
+          ? data.specialistId.value
+          : this.specialistId,
+      dayOfWeek: data.dayOfWeek.present ? data.dayOfWeek.value : this.dayOfWeek,
+      startTime: data.startTime.present ? data.startTime.value : this.startTime,
+      endTime: data.endTime.present ? data.endTime.value : this.endTime,
+      role: data.role.present ? data.role.value : this.role,
+      podId: data.podId.present ? data.podId.value : this.podId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AdultDayBlock(')
+          ..write('id: $id, ')
+          ..write('specialistId: $specialistId, ')
+          ..write('dayOfWeek: $dayOfWeek, ')
+          ..write('startTime: $startTime, ')
+          ..write('endTime: $endTime, ')
+          ..write('role: $role, ')
+          ..write('podId: $podId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    specialistId,
+    dayOfWeek,
+    startTime,
+    endTime,
+    role,
+    podId,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AdultDayBlock &&
+          other.id == this.id &&
+          other.specialistId == this.specialistId &&
+          other.dayOfWeek == this.dayOfWeek &&
+          other.startTime == this.startTime &&
+          other.endTime == this.endTime &&
+          other.role == this.role &&
+          other.podId == this.podId &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
+  final Value<String> id;
+  final Value<String> specialistId;
+  final Value<int> dayOfWeek;
+  final Value<String> startTime;
+  final Value<String> endTime;
+  final Value<String> role;
+  final Value<String?> podId;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const AdultDayBlocksCompanion({
+    this.id = const Value.absent(),
+    this.specialistId = const Value.absent(),
+    this.dayOfWeek = const Value.absent(),
+    this.startTime = const Value.absent(),
+    this.endTime = const Value.absent(),
+    this.role = const Value.absent(),
+    this.podId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AdultDayBlocksCompanion.insert({
+    required String id,
+    required String specialistId,
+    required int dayOfWeek,
+    required String startTime,
+    required String endTime,
+    required String role,
+    this.podId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       specialistId = Value(specialistId),
+       dayOfWeek = Value(dayOfWeek),
+       startTime = Value(startTime),
+       endTime = Value(endTime),
+       role = Value(role);
+  static Insertable<AdultDayBlock> custom({
+    Expression<String>? id,
+    Expression<String>? specialistId,
+    Expression<int>? dayOfWeek,
+    Expression<String>? startTime,
+    Expression<String>? endTime,
+    Expression<String>? role,
+    Expression<String>? podId,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (specialistId != null) 'specialist_id': specialistId,
+      if (dayOfWeek != null) 'day_of_week': dayOfWeek,
+      if (startTime != null) 'start_time': startTime,
+      if (endTime != null) 'end_time': endTime,
+      if (role != null) 'role': role,
+      if (podId != null) 'pod_id': podId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AdultDayBlocksCompanion copyWith({
+    Value<String>? id,
+    Value<String>? specialistId,
+    Value<int>? dayOfWeek,
+    Value<String>? startTime,
+    Value<String>? endTime,
+    Value<String>? role,
+    Value<String?>? podId,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return AdultDayBlocksCompanion(
+      id: id ?? this.id,
+      specialistId: specialistId ?? this.specialistId,
+      dayOfWeek: dayOfWeek ?? this.dayOfWeek,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      role: role ?? this.role,
+      podId: podId ?? this.podId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (specialistId.present) {
+      map['specialist_id'] = Variable<String>(specialistId.value);
+    }
+    if (dayOfWeek.present) {
+      map['day_of_week'] = Variable<int>(dayOfWeek.value);
+    }
+    if (startTime.present) {
+      map['start_time'] = Variable<String>(startTime.value);
+    }
+    if (endTime.present) {
+      map['end_time'] = Variable<String>(endTime.value);
+    }
+    if (role.present) {
+      map['role'] = Variable<String>(role.value);
+    }
+    if (podId.present) {
+      map['pod_id'] = Variable<String>(podId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AdultDayBlocksCompanion(')
+          ..write('id: $id, ')
+          ..write('specialistId: $specialistId, ')
+          ..write('dayOfWeek: $dayOfWeek, ')
+          ..write('startTime: $startTime, ')
+          ..write('endTime: $endTime, ')
+          ..write('role: $role, ')
+          ..write('podId: $podId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -12869,6 +13451,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $AttendanceTable attendance = $AttendanceTable(this);
   late final $ChildScheduleOverridesTable childScheduleOverrides =
       $ChildScheduleOverridesTable(this);
+  late final $AdultDayBlocksTable adultDayBlocks = $AdultDayBlocksTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -12896,6 +13479,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     parentConcernChildren,
     attendance,
     childScheduleOverrides,
+    adultDayBlocks,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -13146,6 +13730,20 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         TableUpdate('child_schedule_overrides', kind: UpdateKind.delete),
       ],
     ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'specialists',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('adult_day_blocks', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'groups',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('adult_day_blocks', kind: UpdateKind.update)],
+    ),
   ]);
 }
 
@@ -13341,6 +13939,24 @@ final class $$GroupsTableReferences
     ).filter((f) => f.groupId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_entryGroupsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$AdultDayBlocksTable, List<AdultDayBlock>>
+  _adultDayBlocksRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.adultDayBlocks,
+    aliasName: $_aliasNameGenerator(db.groups.id, db.adultDayBlocks.podId),
+  );
+
+  $$AdultDayBlocksTableProcessedTableManager get adultDayBlocksRefs {
+    final manager = $$AdultDayBlocksTableTableManager(
+      $_db,
+      $_db.adultDayBlocks,
+    ).filter((f) => f.podId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_adultDayBlocksRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -13597,6 +14213,31 @@ class $$GroupsTableFilterComposer
           }) => $$EntryGroupsTableFilterComposer(
             $db: $db,
             $table: $db.entryGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> adultDayBlocksRefs(
+    Expression<bool> Function($$AdultDayBlocksTableFilterComposer f) f,
+  ) {
+    final $$AdultDayBlocksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.adultDayBlocks,
+      getReferencedColumn: (t) => t.podId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AdultDayBlocksTableFilterComposer(
+            $db: $db,
+            $table: $db.adultDayBlocks,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -13891,6 +14532,31 @@ class $$GroupsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> adultDayBlocksRefs<T extends Object>(
+    Expression<T> Function($$AdultDayBlocksTableAnnotationComposer a) f,
+  ) {
+    final $$AdultDayBlocksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.adultDayBlocks,
+      getReferencedColumn: (t) => t.podId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AdultDayBlocksTableAnnotationComposer(
+            $db: $db,
+            $table: $db.adultDayBlocks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$GroupsTableTableManager
@@ -13916,6 +14582,7 @@ class $$GroupsTableTableManager
             bool scheduleEntriesRefs,
             bool templateGroupsRefs,
             bool entryGroupsRefs,
+            bool adultDayBlocksRefs,
           })
         > {
   $$GroupsTableTableManager(_$AppDatabase db, $GroupsTable table)
@@ -13978,6 +14645,7 @@ class $$GroupsTableTableManager
                 scheduleEntriesRefs = false,
                 templateGroupsRefs = false,
                 entryGroupsRefs = false,
+                adultDayBlocksRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -13991,6 +14659,7 @@ class $$GroupsTableTableManager
                     if (scheduleEntriesRefs) db.scheduleEntries,
                     if (templateGroupsRefs) db.templateGroups,
                     if (entryGroupsRefs) db.entryGroups,
+                    if (adultDayBlocksRefs) db.adultDayBlocks,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -14172,6 +14841,27 @@ class $$GroupsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (adultDayBlocksRefs)
+                        await $_getPrefetchedData<
+                          Group,
+                          $GroupsTable,
+                          AdultDayBlock
+                        >(
+                          currentTable: table,
+                          referencedTable: $$GroupsTableReferences
+                              ._adultDayBlocksRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$GroupsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).adultDayBlocksRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.podId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -14202,6 +14892,7 @@ typedef $$GroupsTableProcessedTableManager =
         bool scheduleEntriesRefs,
         bool templateGroupsRefs,
         bool entryGroupsRefs,
+        bool adultDayBlocksRefs,
       })
     >;
 typedef $$ChildrenTableCreateCompanionBuilder =
@@ -19339,6 +20030,27 @@ final class $$SpecialistsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$AdultDayBlocksTable, List<AdultDayBlock>>
+  _adultDayBlocksRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.adultDayBlocks,
+    aliasName: $_aliasNameGenerator(
+      db.specialists.id,
+      db.adultDayBlocks.specialistId,
+    ),
+  );
+
+  $$AdultDayBlocksTableProcessedTableManager get adultDayBlocksRefs {
+    final manager = $$AdultDayBlocksTableTableManager(
+      $_db,
+      $_db.adultDayBlocks,
+    ).filter((f) => f.specialistId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_adultDayBlocksRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$SpecialistsTableFilterComposer
@@ -19505,6 +20217,31 @@ class $$SpecialistsTableFilterComposer
           }) => $$ScheduleEntriesTableFilterComposer(
             $db: $db,
             $table: $db.scheduleEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> adultDayBlocksRefs(
+    Expression<bool> Function($$AdultDayBlocksTableFilterComposer f) f,
+  ) {
+    final $$AdultDayBlocksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.adultDayBlocks,
+      getReferencedColumn: (t) => t.specialistId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AdultDayBlocksTableFilterComposer(
+            $db: $db,
+            $table: $db.adultDayBlocks,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -19747,6 +20484,31 @@ class $$SpecialistsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> adultDayBlocksRefs<T extends Object>(
+    Expression<T> Function($$AdultDayBlocksTableAnnotationComposer a) f,
+  ) {
+    final $$AdultDayBlocksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.adultDayBlocks,
+      getReferencedColumn: (t) => t.specialistId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AdultDayBlocksTableAnnotationComposer(
+            $db: $db,
+            $table: $db.adultDayBlocks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$SpecialistsTableTableManager
@@ -19768,6 +20530,7 @@ class $$SpecialistsTableTableManager
             bool activityLibraryRefs,
             bool scheduleTemplatesRefs,
             bool scheduleEntriesRefs,
+            bool adultDayBlocksRefs,
           })
         > {
   $$SpecialistsTableTableManager(_$AppDatabase db, $SpecialistsTable table)
@@ -19844,6 +20607,7 @@ class $$SpecialistsTableTableManager
                 activityLibraryRefs = false,
                 scheduleTemplatesRefs = false,
                 scheduleEntriesRefs = false,
+                adultDayBlocksRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -19852,6 +20616,7 @@ class $$SpecialistsTableTableManager
                     if (activityLibraryRefs) db.activityLibrary,
                     if (scheduleTemplatesRefs) db.scheduleTemplates,
                     if (scheduleEntriesRefs) db.scheduleEntries,
+                    if (adultDayBlocksRefs) db.adultDayBlocks,
                   ],
                   addJoins:
                       <
@@ -19973,6 +20738,27 @@ class $$SpecialistsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (adultDayBlocksRefs)
+                        await $_getPrefetchedData<
+                          Specialist,
+                          $SpecialistsTable,
+                          AdultDayBlock
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SpecialistsTableReferences
+                              ._adultDayBlocksRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SpecialistsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).adultDayBlocksRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.specialistId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -19999,6 +20785,7 @@ typedef $$SpecialistsTableProcessedTableManager =
         bool activityLibraryRefs,
         bool scheduleTemplatesRefs,
         bool scheduleEntriesRefs,
+        bool adultDayBlocksRefs,
       })
     >;
 typedef $$SpecialistAvailabilityTableCreateCompanionBuilder =
@@ -26769,6 +27556,496 @@ typedef $$ChildScheduleOverridesTableProcessedTableManager =
       ChildScheduleOverride,
       PrefetchHooks Function({bool childId})
     >;
+typedef $$AdultDayBlocksTableCreateCompanionBuilder =
+    AdultDayBlocksCompanion Function({
+      required String id,
+      required String specialistId,
+      required int dayOfWeek,
+      required String startTime,
+      required String endTime,
+      required String role,
+      Value<String?> podId,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$AdultDayBlocksTableUpdateCompanionBuilder =
+    AdultDayBlocksCompanion Function({
+      Value<String> id,
+      Value<String> specialistId,
+      Value<int> dayOfWeek,
+      Value<String> startTime,
+      Value<String> endTime,
+      Value<String> role,
+      Value<String?> podId,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$AdultDayBlocksTableReferences
+    extends BaseReferences<_$AppDatabase, $AdultDayBlocksTable, AdultDayBlock> {
+  $$AdultDayBlocksTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $SpecialistsTable _specialistIdTable(_$AppDatabase db) =>
+      db.specialists.createAlias(
+        $_aliasNameGenerator(db.adultDayBlocks.specialistId, db.specialists.id),
+      );
+
+  $$SpecialistsTableProcessedTableManager get specialistId {
+    final $_column = $_itemColumn<String>('specialist_id')!;
+
+    final manager = $$SpecialistsTableTableManager(
+      $_db,
+      $_db.specialists,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_specialistIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $GroupsTable _podIdTable(_$AppDatabase db) => db.groups.createAlias(
+    $_aliasNameGenerator(db.adultDayBlocks.podId, db.groups.id),
+  );
+
+  $$GroupsTableProcessedTableManager? get podId {
+    final $_column = $_itemColumn<String>('pod_id');
+    if ($_column == null) return null;
+    final manager = $$GroupsTableTableManager(
+      $_db,
+      $_db.groups,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_podIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$AdultDayBlocksTableFilterComposer
+    extends Composer<_$AppDatabase, $AdultDayBlocksTable> {
+  $$AdultDayBlocksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get dayOfWeek => $composableBuilder(
+    column: $table.dayOfWeek,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get startTime => $composableBuilder(
+    column: $table.startTime,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get endTime => $composableBuilder(
+    column: $table.endTime,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$SpecialistsTableFilterComposer get specialistId {
+    final $$SpecialistsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.specialistId,
+      referencedTable: $db.specialists,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SpecialistsTableFilterComposer(
+            $db: $db,
+            $table: $db.specialists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GroupsTableFilterComposer get podId {
+    final $$GroupsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.podId,
+      referencedTable: $db.groups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GroupsTableFilterComposer(
+            $db: $db,
+            $table: $db.groups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AdultDayBlocksTableOrderingComposer
+    extends Composer<_$AppDatabase, $AdultDayBlocksTable> {
+  $$AdultDayBlocksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get dayOfWeek => $composableBuilder(
+    column: $table.dayOfWeek,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get startTime => $composableBuilder(
+    column: $table.startTime,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get endTime => $composableBuilder(
+    column: $table.endTime,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$SpecialistsTableOrderingComposer get specialistId {
+    final $$SpecialistsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.specialistId,
+      referencedTable: $db.specialists,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SpecialistsTableOrderingComposer(
+            $db: $db,
+            $table: $db.specialists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GroupsTableOrderingComposer get podId {
+    final $$GroupsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.podId,
+      referencedTable: $db.groups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GroupsTableOrderingComposer(
+            $db: $db,
+            $table: $db.groups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AdultDayBlocksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AdultDayBlocksTable> {
+  $$AdultDayBlocksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get dayOfWeek =>
+      $composableBuilder(column: $table.dayOfWeek, builder: (column) => column);
+
+  GeneratedColumn<String> get startTime =>
+      $composableBuilder(column: $table.startTime, builder: (column) => column);
+
+  GeneratedColumn<String> get endTime =>
+      $composableBuilder(column: $table.endTime, builder: (column) => column);
+
+  GeneratedColumn<String> get role =>
+      $composableBuilder(column: $table.role, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$SpecialistsTableAnnotationComposer get specialistId {
+    final $$SpecialistsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.specialistId,
+      referencedTable: $db.specialists,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SpecialistsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.specialists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GroupsTableAnnotationComposer get podId {
+    final $$GroupsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.podId,
+      referencedTable: $db.groups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GroupsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.groups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AdultDayBlocksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AdultDayBlocksTable,
+          AdultDayBlock,
+          $$AdultDayBlocksTableFilterComposer,
+          $$AdultDayBlocksTableOrderingComposer,
+          $$AdultDayBlocksTableAnnotationComposer,
+          $$AdultDayBlocksTableCreateCompanionBuilder,
+          $$AdultDayBlocksTableUpdateCompanionBuilder,
+          (AdultDayBlock, $$AdultDayBlocksTableReferences),
+          AdultDayBlock,
+          PrefetchHooks Function({bool specialistId, bool podId})
+        > {
+  $$AdultDayBlocksTableTableManager(
+    _$AppDatabase db,
+    $AdultDayBlocksTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AdultDayBlocksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AdultDayBlocksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AdultDayBlocksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> specialistId = const Value.absent(),
+                Value<int> dayOfWeek = const Value.absent(),
+                Value<String> startTime = const Value.absent(),
+                Value<String> endTime = const Value.absent(),
+                Value<String> role = const Value.absent(),
+                Value<String?> podId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AdultDayBlocksCompanion(
+                id: id,
+                specialistId: specialistId,
+                dayOfWeek: dayOfWeek,
+                startTime: startTime,
+                endTime: endTime,
+                role: role,
+                podId: podId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String specialistId,
+                required int dayOfWeek,
+                required String startTime,
+                required String endTime,
+                required String role,
+                Value<String?> podId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AdultDayBlocksCompanion.insert(
+                id: id,
+                specialistId: specialistId,
+                dayOfWeek: dayOfWeek,
+                startTime: startTime,
+                endTime: endTime,
+                role: role,
+                podId: podId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$AdultDayBlocksTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({specialistId = false, podId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (specialistId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.specialistId,
+                                referencedTable: $$AdultDayBlocksTableReferences
+                                    ._specialistIdTable(db),
+                                referencedColumn:
+                                    $$AdultDayBlocksTableReferences
+                                        ._specialistIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (podId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.podId,
+                                referencedTable: $$AdultDayBlocksTableReferences
+                                    ._podIdTable(db),
+                                referencedColumn:
+                                    $$AdultDayBlocksTableReferences
+                                        ._podIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$AdultDayBlocksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AdultDayBlocksTable,
+      AdultDayBlock,
+      $$AdultDayBlocksTableFilterComposer,
+      $$AdultDayBlocksTableOrderingComposer,
+      $$AdultDayBlocksTableAnnotationComposer,
+      $$AdultDayBlocksTableCreateCompanionBuilder,
+      $$AdultDayBlocksTableUpdateCompanionBuilder,
+      (AdultDayBlock, $$AdultDayBlocksTableReferences),
+      AdultDayBlock,
+      PrefetchHooks Function({bool specialistId, bool podId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -26826,4 +28103,6 @@ class $AppDatabaseManager {
         _db,
         _db.childScheduleOverrides,
       );
+  $$AdultDayBlocksTableTableManager get adultDayBlocks =>
+      $$AdultDayBlocksTableTableManager(_db, _db.adultDayBlocks);
 }

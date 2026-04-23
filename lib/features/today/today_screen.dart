@@ -13,6 +13,9 @@ import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/add_activity_picker.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
+import 'package:basecamp/features/specialists/adult_timeline_repository.dart';
+import 'package:basecamp/features/specialists/specialists_repository.dart';
+import 'package:basecamp/features/today/adult_staffing.dart';
 import 'package:basecamp/features/today/last_expanded_pod.dart';
 import 'package:basecamp/features/today/today_buckets.dart';
 import 'package:basecamp/features/today/widgets/all_day_carousel.dart';
@@ -673,6 +676,16 @@ class _PodStack extends ConsumerWidget {
     final expandedId = ref.watch(lastExpandedPodProvider);
     final nowMinutes = now.hour * 60 + now.minute;
 
+    // Adult day-timeline resolution (v30). Watching these here keeps
+    // the "who's leading this pod right now" computation live —
+    // edits to a block on the adult edit sheet rebuild the pod card
+    // without a screen re-mount.
+    final specialists =
+        ref.watch(specialistsProvider).asData?.value ?? const <Specialist>[];
+    final blockRows = ref.watch(todayAdultBlocksProvider).asData?.value ??
+        const <AdultDayBlock>[];
+    final blocksBySpecialist = groupBlocksBySpecialist(blockRows);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -683,6 +696,12 @@ class _PodStack extends ConsumerWidget {
             current: _currentFor(pod, nowMinutes),
             next: _nextFor(pod, nowMinutes),
             attendance: _attendanceFor(pod),
+            leadsNow: _leadsNowFor(
+              pod: pod,
+              nowMinutes: nowMinutes,
+              specialists: specialists,
+              blocksBySpecialist: blocksBySpecialist,
+            ),
             expanded: expandedId == pod.id,
             onToggle: () =>
                 ref.read(lastExpandedPodProvider.notifier).toggle(pod.id),
@@ -694,6 +713,30 @@ class _PodStack extends ConsumerWidget {
         const SizedBox(height: AppSpacing.sm),
       ],
     );
+  }
+
+  /// Resolves adults currently anchoring [pod] — timeline-lead blocks
+  /// straddling now plus static-anchor leads (for adults with no
+  /// timeline). Returns the `Specialist` rows in lead-name order so
+  /// the avatars render predictably.
+  List<Specialist> _leadsNowFor({
+    required Pod pod,
+    required int nowMinutes,
+    required List<Specialist> specialists,
+    required Map<String, List<AdultTimelineBlock>> blocksBySpecialist,
+  }) {
+    final leadIds = leadsInPodNow(
+      podId: pod.id,
+      nowMinutes: nowMinutes,
+      specialists: specialists,
+      blocksBySpecialist: blocksBySpecialist,
+    );
+    final byId = {for (final s in specialists) s.id: s};
+    final leads = [
+      for (final id in leadIds)
+        if (byId[id] != null) byId[id]!,
+    ]..sort((a, b) => a.name.compareTo(b.name));
+    return leads;
   }
 
   /// The pod's current in-progress activity, if any. A pod-scoped item

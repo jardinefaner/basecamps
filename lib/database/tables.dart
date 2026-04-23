@@ -326,6 +326,65 @@ class SpecialistAvailability extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Per-adult, per-day role timeline — subdivides an adult's shift
+/// into labeled blocks. Models the "pod lead 8:30-11, then specialist
+/// rotator 11-12, then back to pod lead 12-3" pattern that the static
+/// `Specialist.adultRole` alone can't express.
+///
+/// Gaps between blocks on a given day are implied "off". Adults with
+/// NO blocks for a day fall back to `Specialist.adultRole` interpreted
+/// as a single shift-long block (so the existing specialist-as-rotator
+/// behavior keeps working for the simple case).
+///
+/// Break + lunch remain on the specialist_availability row for the
+/// MVP; they layer ON TOP of this timeline — a specialist block
+/// running 11-12 with a lunch 11:30-12:00 just means the specialist
+/// is rotating 11-11:30 and at lunch 11:30-12. Duplicating break /
+/// lunch into this table would be noise for the common case.
+///
+/// `role` values:
+///   - 'lead'       — anchored to a pod (requires `pod_id`)
+///   - 'specialist' — rotating, no pod
+@DataClassName('AdultDayBlock')
+class AdultDayBlocks extends Table {
+  TextColumn get id => text()();
+  TextColumn get specialistId => text()
+      .references(Specialists, #id, onDelete: KeyAction.cascade)();
+
+  /// ISO day of week (1 = Mon, 7 = Sun). Program runs M-F so values
+  /// are almost always 1..5, but no CHECK constraint — weekend is
+  /// legal data, just unused for now.
+  IntColumn get dayOfWeek => integer()();
+
+  /// HH:mm wall-clock strings, same format as schedule templates and
+  /// availability. Half-open: `[startTime, endTime)` is the span of
+  /// the block.
+  TextColumn get startTime => text()();
+  TextColumn get endTime => text()();
+
+  /// 'lead' or 'specialist'. Bad values fall back to 'specialist' at
+  /// read time — matches how `AdultRole.fromDb` handles the similar
+  /// field on Specialists.
+  TextColumn get role => text()();
+
+  /// For lead blocks — which pod (group) the adult is anchoring
+  /// during this span. Null for specialist blocks. FK to groups
+  /// with setNull on delete so deleting a pod silently detaches any
+  /// legacy lead blocks rather than cascading-deleting the whole
+  /// timeline.
+  TextColumn get podId => text()
+      .nullable()
+      .references(Groups, #id, onDelete: KeyAction.setNull)();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 /// Adults in the program — teachers, specialists, directors, kitchen,
 /// nurse, etc. Table name stays "specialists" for backwards compat with
 /// pre-v28 rows and existing foreign keys. The UI surfaces these as

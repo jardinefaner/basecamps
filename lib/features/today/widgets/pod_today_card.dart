@@ -1,3 +1,4 @@
+import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/pods/pods_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/today/widgets/schedule_item_card.dart'
@@ -26,6 +27,7 @@ class PodTodayCard extends StatelessWidget {
     required this.current,
     required this.next,
     required this.attendance,
+    required this.leadsNow,
     required this.expanded,
     required this.onToggle,
     required this.onOpenDetail,
@@ -35,6 +37,12 @@ class PodTodayCard extends StatelessWidget {
 
   final Pod pod;
   final DateTime now;
+
+  /// Adults currently leading this pod. Derived from the v30 day-
+  /// timeline when present, falling back to the static anchor when
+  /// an adult has no timeline set. The parent computes this so the
+  /// card stays a dumb renderer.
+  final List<Specialist> leadsNow;
 
   /// Activity for this pod that's in progress right now, if any.
   /// First entry wins when multiple overlap (earliest-started — same
@@ -81,6 +89,7 @@ class PodTodayCard extends StatelessWidget {
               current: current,
               next: next,
               attendance: attendance,
+              leadsNow: leadsNow,
               onOpenDetail: onOpenDetail,
               onOpenAttendance: onOpenAttendance,
             ),
@@ -286,6 +295,7 @@ class _ExpandedBody extends StatelessWidget {
     required this.current,
     required this.next,
     required this.attendance,
+    required this.leadsNow,
     required this.onOpenDetail,
     required this.onOpenAttendance,
   });
@@ -295,6 +305,7 @@ class _ExpandedBody extends StatelessWidget {
   final ScheduleItem? current;
   final ScheduleItem? next;
   final AttendanceSummary? attendance;
+  final List<Specialist> leadsNow;
   final ValueChanged<ScheduleItem> onOpenDetail;
   final ValueChanged<ScheduleItem> onOpenAttendance;
 
@@ -325,10 +336,10 @@ class _ExpandedBody extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
             _NextUpLine(item: next!, now: now, onTap: () => onOpenDetail(next!)),
           ],
-          if (pod.anchorLeads.isNotEmpty) ...[
+          if (leadsNow.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.md),
             Text(
-              'LEADS',
+              'LEADS NOW',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
                 letterSpacing: 0.8,
@@ -336,7 +347,7 @@ class _ExpandedBody extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.xs),
-            _LeadsRow(pod: pod),
+            _LeadsRow(leads: leadsNow),
           ],
         ],
       ),
@@ -576,9 +587,9 @@ class _NextUpLine extends StatelessWidget {
 /// pod has at least one lead assigned (a just-seeded pod can legally
 /// have zero).
 class _LeadsRow extends StatelessWidget {
-  const _LeadsRow({required this.pod});
+  const _LeadsRow({required this.leads});
 
-  final Pod pod;
+  final List<Specialist> leads;
 
   @override
   Widget build(BuildContext context) {
@@ -587,7 +598,7 @@ class _LeadsRow extends StatelessWidget {
       spacing: AppSpacing.md,
       runSpacing: AppSpacing.sm,
       children: [
-        for (final s in pod.anchorLeads)
+        for (final s in leads)
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [

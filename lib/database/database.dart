@@ -33,6 +33,7 @@ QueryExecutor _openConnection() {
     ParentConcernChildren,
     Attendance,
     ChildScheduleOverrides,
+    AdultDayBlocks,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -41,7 +42,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 29;
+  int get schemaVersion => 30;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -336,6 +337,48 @@ class AppDatabase extends _$AppDatabase {
               'CREATE INDEX IF NOT EXISTS '
               '"idx_child_override_child_date" '
               'ON "child_schedule_overrides" ("child_id", "date")',
+            );
+          }
+          if (from < 30) {
+            // v30: adult day-timeline. Per-adult-per-day role blocks
+            // ('lead' / 'specialist') that subdivide the shift so
+            // "pod lead 8:30-11, specialist rotator 11-12, back to
+            // pod lead 12-3" is representable. Gaps are implied off;
+            // adults with zero blocks fall back to the static
+            // `specialists.adult_role` for compatibility.
+            await _runSilent(
+              'CREATE TABLE IF NOT EXISTS "adult_day_blocks" ( '
+              '"id" TEXT NOT NULL PRIMARY KEY, '
+              '"specialist_id" TEXT NOT NULL '
+              'REFERENCES "specialists"("id") ON DELETE CASCADE, '
+              '"day_of_week" INTEGER NOT NULL, '
+              '"start_time" TEXT NOT NULL, '
+              '"end_time" TEXT NOT NULL, '
+              '"role" TEXT NOT NULL, '
+              '"pod_id" TEXT NULL '
+              'REFERENCES "groups"("id") ON DELETE SET NULL, '
+              '"created_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now')), "
+              '"updated_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now'))"
+              ' )',
+            );
+            // "What is Sarah doing today?" — one lookup per adult
+            // on Today; an index on (specialist_id, day_of_week) keeps
+            // the pod-card staffing pass O(n) in the block count, not
+            // table size.
+            await _runSilent(
+              'CREATE INDEX IF NOT EXISTS '
+              '"idx_adult_block_specialist_day" '
+              'ON "adult_day_blocks" ("specialist_id", "day_of_week")',
+            );
+            // "Which leads are anchoring Butterflies at 10:15?" — per-
+            // pod scan during the pod card build. Index on (pod_id,
+            // day_of_week) keeps that pass bounded too.
+            await _runSilent(
+              'CREATE INDEX IF NOT EXISTS '
+              '"idx_adult_block_pod_day" '
+              'ON "adult_day_blocks" ("pod_id", "day_of_week")',
             );
           }
         },
