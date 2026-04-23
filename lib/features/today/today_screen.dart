@@ -12,6 +12,7 @@ import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/add_activity_picker.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
+import 'package:basecamp/features/today/today_buckets.dart';
 import 'package:basecamp/features/today/widgets/all_day_carousel.dart';
 import 'package:basecamp/features/today/widgets/day_summary_strip.dart';
 import 'package:basecamp/features/today/widgets/earlier_today_group.dart';
@@ -19,6 +20,7 @@ import 'package:basecamp/features/today/widgets/hero_now_card.dart';
 import 'package:basecamp/features/today/widgets/schedule_item_card.dart';
 import 'package:basecamp/features/today/widgets/staff_today_strip.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -179,25 +181,19 @@ class _Body extends ConsumerWidget {
             const <String, AttendanceRecord>{};
 
     // -- Bucket items by time relative to now --
-    ScheduleItem? currentItem;
-    final upcoming = <ScheduleItem>[];
-    final past = <ScheduleItem>[];
-    final allDay = <ScheduleItem>[];
-    for (final item in items) {
-      if (item.isFullDay) {
-        allDay.add(item);
-        continue;
-      }
-      final endParts = item.endTime.split(':');
-      final endMin = int.parse(endParts[0]) * 60 + int.parse(endParts[1]);
-      if (nowMinutes >= item.startMinutes && nowMinutes < endMin) {
-        currentItem = item;
-      } else if (nowMinutes >= endMin) {
-        past.add(item);
-      } else {
-        upcoming.add(item);
-      }
-    }
+    // `current` is a list: pods now run concurrent activities (lead
+    // anchors the home group while a specialist rotates into another),
+    // so more than one thing can be "right now." Primary = earliest-
+    // started → hero. The rest go in the "Also now" strip below.
+    final buckets = bucketTodayItems(items, nowMinutes);
+    final current = buckets.current;
+    final upcoming = buckets.upcoming;
+    final past = buckets.past;
+    final allDay = buckets.allDay;
+    final primaryCurrent = current.isEmpty ? null : current.first;
+    final alsoNow = current.length > 1
+        ? current.sublist(1)
+        : const <ScheduleItem>[];
 
     final nextUp = upcoming.isEmpty ? null : upcoming.first;
     final nextUpMinutes = nextUp == null
@@ -360,17 +356,27 @@ class _Body extends ConsumerWidget {
         ],
 
         // Hero "right now" card — dominates the fold when an activity
-        // is in progress.
-        if (currentItem != null) ...[
+        // is in progress. When several activities overlap the primary
+        // (earliest-started) is the hero; the rest surface compactly
+        // in the Also-now strip right below so nothing gets dropped.
+        if (primaryCurrent != null) ...[
           HeroNowCard(
-            item: currentItem,
+            item: primaryCurrent,
             now: now,
-            observationCount: activityCounts[currentItem.title] ?? 0,
-            attendance: attendanceFor(currentItem),
-            onTap: () => onOpenDetail(currentItem!),
+            observationCount: activityCounts[primaryCurrent.title] ?? 0,
+            attendance: attendanceFor(primaryCurrent),
+            onTap: () => onOpenDetail(primaryCurrent),
             onCapture: () => context.go('/observations'),
-            onOpenAttendance: () => openAttendance(currentItem!),
+            onOpenAttendance: () => openAttendance(primaryCurrent),
           ),
+          if (alsoNow.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _AlsoNowStrip(
+              items: alsoNow,
+              now: now,
+              onOpenDetail: onOpenDetail,
+            ),
+          ],
           const SizedBox(height: AppSpacing.lg),
         ] else if (nextUp != null) ...[
           _BetweenActivitiesBanner(
@@ -607,6 +613,164 @@ class _WrapUpBanner extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Compact "Also now" strip rendered directly under the hero when more
+/// than one activity is currently in progress. One row per overlapping
+/// activity; tapping a row opens its detail sheet (same behavior as
+/// tapping the hero). Kept intentionally thin — the hero is the thing
+/// dominating the fold; this is just "and these other things are also
+/// happening right now, don't forget."
+class _AlsoNowStrip extends StatelessWidget {
+  const _AlsoNowStrip({
+    required this.items,
+    required this.now,
+    required this.onOpenDetail,
+  });
+
+  final List<ScheduleItem> items;
+  final DateTime now;
+  final ValueChanged<ScheduleItem> onOpenDetail;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.sm,
+              AppSpacing.md,
+              AppSpacing.xs,
+            ),
+            child: Text(
+              'ALSO NOW',
+              style: theme.textTheme.labelSmall?.copyWith(
+                letterSpacing: 0.8,
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0)
+              Divider(
+                height: 1,
+                thickness: 0.5,
+                color: theme.colorScheme.outlineVariant,
+              ),
+            _AlsoNowRow(
+              item: items[i],
+              now: now,
+              onTap: () => onOpenDetail(items[i]),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AlsoNowRow extends StatelessWidget {
+  const _AlsoNowRow({
+    required this.item,
+    required this.now,
+    required this.onTap,
+  });
+
+  final ScheduleItem item;
+  final DateTime now;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final nowMinutes = now.hour * 60 + now.minute;
+    final minsLeft = item.endMinutes - nowMinutes;
+    // "ends in 12 min" / "ends at 11:00" — short form because the row
+    // is already crowded with the title + optional location.
+    final endLabel = minsLeft <= 1
+        ? 'ending now'
+        : minsLeft <= 30
+            ? 'ends in $minsLeft min'
+            : 'ends ${_formatTime(item.endTime)}';
+    final meta = <String>[
+      endLabel,
+      if (item.location != null && item.location!.trim().isNotEmpty)
+        item.location!.trim(),
+    ].join(' · ');
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (meta.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        meta,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              size: 18,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Formats an "HH:mm" wire-format time as a human 12-hour display
+  /// ("11:00 AM"). Intentionally tiny — the row only ever shows end
+  /// times for the "Also now" strip, so a dedicated util isn't worth
+  /// the import.
+  String _formatTime(String hhmm) {
+    final parts = hhmm.split(':');
+    final h = int.parse(parts[0]);
+    final m = int.parse(parts[1]);
+    final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+    final period = h >= 12 ? 'PM' : 'AM';
+    return '$hour12:${m.toString().padLeft(2, '0')} $period';
   }
 }
 
