@@ -50,25 +50,41 @@ Future<bool> confirmDeleteWithUndo({
 
   await onDelete();
 
-  // Hide any pending snackbar first so the new undo SnackBar always
-  // wins — otherwise the previous "saved" snackbar from an earlier
-  // action could linger and block this one.
-  messenger
-    ..hideCurrentSnackBar()
-    ..showSnackBar(
-      SnackBar(
-        content: Text(undoLabel),
-        action: SnackBarAction(
-          label: 'Undo',
-          onPressed: () {
-            // Fire-and-forget — the user doesn't care about the
-            // return, and blocking the snackbar's dispatch loop on
-            // a DB write would be silly.
-            unawaited(onUndo());
-          },
-        ),
-        duration: const Duration(seconds: 5),
+  // Clear the whole queue so a previous "saved" snackbar doesn't
+  // run out its own timer before ours starts — hideCurrentSnackBar
+  // only cancels the visible one and leaves queued ones in place.
+  messenger.clearSnackBars();
+  final controller = messenger.showSnackBar(
+    SnackBar(
+      content: Text(undoLabel),
+      action: SnackBarAction(
+        label: 'Undo',
+        onPressed: () {
+          // Fire-and-forget — the user doesn't care about the
+          // return, and blocking the snackbar's dispatch loop on
+          // a DB write would be silly.
+          unawaited(onUndo());
+        },
       ),
-    );
+      // Hard cap via our own timer below — Flutter honors this
+      // duration normally but IGNORES it when
+      // MediaQuery.accessibleNavigation is on (TalkBack, VoiceOver,
+      // and some desktop a11y settings), which leaves the
+      // snackbar visible indefinitely. That's the Flutter
+      // accessibility default but not what teachers want here —
+      // a lingering "undo" blocks the rest of the UI.
+      duration: const Duration(seconds: 5),
+    ),
+  );
+  // Absolute 5-second cap regardless of accessibility mode. Wrapped
+  // in try/catch so it's safe if the snackbar was already dismissed
+  // (action tapped, swipe, or messenger disposed).
+  Timer(const Duration(seconds: 5), () {
+    try {
+      controller.close();
+    } on Object {
+      // Already closed — nothing to do.
+    }
+  });
   return true;
 }

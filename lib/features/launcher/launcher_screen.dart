@@ -6,6 +6,7 @@ import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
 import 'package:basecamp/features/launcher/pinned_actions_repository.dart';
+import 'package:basecamp/features/parents/parents_repository.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
 import 'package:basecamp/features/schedule/widgets/new_full_day_event_wizard.dart';
 import 'package:basecamp/features/trips/widgets/new_trip_wizard.dart';
@@ -54,11 +55,14 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
     final theme = Theme.of(context);
     final kidsAsync = ref.watch(childrenProvider);
     final adultsAsync = ref.watch(adultsProvider);
+    final parentsAsync = ref.watch(parentsProvider);
     final libraryAsync = ref.watch(activityLibraryProvider);
 
     final children = kidsAsync.asData?.value ?? const <Child>[];
     final adults =
         adultsAsync.asData?.value ?? const <Adult>[];
+    final parents =
+        parentsAsync.asData?.value ?? const <Parent>[];
     final library =
         libraryAsync.asData?.value ?? const <ActivityLibraryData>[];
 
@@ -69,6 +73,12 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
     final filteredAdults = [
       for (final s in adults)
         if (_matches(s.name) || _matches(s.role ?? '')) s,
+    ];
+    final filteredParents = [
+      for (final p in parents)
+        if (_matches(_parentDisplayName(p)) ||
+            _matches(p.relationship ?? ''))
+          p,
     ];
     final filteredLibrary = [
       for (final l in library)
@@ -170,6 +180,10 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
         .where((l) =>
             !pinnedIds.contains(pinId(PinnedKinds.library, l.id)))
         .toList();
+    // Parents aren't pinnable yet — dedicated PinnedKind + repository
+    // migration would be the next step. For now the whole filtered
+    // list shows in its section.
+    final unpinnedParents = filteredParents;
     final destinations = _DestinationData.all
         .where((d) =>
             !pinnedIds.contains(pinId(PinnedKinds.destination, d.path)))
@@ -182,6 +196,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
         destinations.isNotEmpty ||
         unpinnedKids.isNotEmpty ||
         unpinnedAdults.isNotEmpty ||
+        unpinnedParents.isNotEmpty ||
         unpinnedLibrary.isNotEmpty;
 
     // No outer Scaffold — LauncherScreen is rendered inside a Drawer
@@ -227,6 +242,17 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                               actions: unpinnedActions,
                             ),
                           ),
+                        // Sections (destinations grid) moves ABOVE the
+                        // people grids so navigation lives at the top
+                        // and the long scrollable people lists don't
+                        // push it off-screen.
+                        if (destinations.isNotEmpty)
+                          _Section(
+                            label: 'Sections',
+                            child: _DestinationsGrid(
+                              destinations: destinations,
+                            ),
+                          ),
                         if (unpinnedKids.isNotEmpty)
                           _Section(
                             label: 'Children',
@@ -245,11 +271,14 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                               unpinnedAdults,
                             ),
                           ),
-                        if (destinations.isNotEmpty)
+                        if (unpinnedParents.isNotEmpty)
                           _Section(
-                            label: 'Sections',
-                            child: _DestinationsGrid(
-                              destinations: destinations,
+                            label: 'Parents',
+                            count: unpinnedParents.length,
+                            total: parents.length,
+                            query: _query,
+                            child: _PeopleWrap.fromParents(
+                              unpinnedParents,
                             ),
                           ),
                         if (unpinnedLibrary.isNotEmpty)
@@ -274,6 +303,12 @@ String _displayName(String first, String? last) {
   if (last == null || last.trim().isEmpty) return first;
   return '$first ${last.trim()[0]}.';
 }
+
+/// Launcher's display name for a parent — firstName + last-initial.
+/// Matches the Child / Adult conventions so the three people grids
+/// read the same at a glance.
+String _parentDisplayName(Parent p) =>
+    _displayName(p.firstName, p.lastName);
 
 /// Route without closing the drawer. The pushed screen covers Today
 /// (and the drawer visually), but the Scaffold preserves the drawer's
@@ -492,14 +527,9 @@ class _QuickActionData {
         );
       },
     ),
-    _QuickActionData(
-      id: 'observe',
-      label: 'Observe',
-      icon: Icons.visibility_outlined,
-      onTap: (ctx, _) async {
-        _navigateTo(ctx, '/observations');
-      },
-    ),
+    // (Dropped the 'observe' quick action — same icon, same label,
+    // same target as the Observe Sections tile. Pinning now goes
+    // through the Sections tile.)
   ];
 
   static _QuickActionData? byId(String id) {
@@ -765,6 +795,24 @@ class _PeopleWrap extends StatelessWidget {
                   : s.name.characters.first.toUpperCase(),
               route: '/more/adults/${s.id}',
             ),
+          ),
+      ],
+    );
+  }
+
+  /// Parents aren't pinnable yet (no PinnedKinds.parent), so the
+  /// tiles are plain cells without the `_PinnableTile` wrap. Adding
+  /// pin support is a small follow-up if teachers ask for it.
+  factory _PeopleWrap.fromParents(List<Parent> parents) {
+    return _PeopleWrap(
+      tiles: [
+        for (final p in parents)
+          _PersonCell(
+            name: _parentDisplayName(p),
+            fallbackInitial: p.firstName.isEmpty
+                ? '?'
+                : p.firstName.characters.first.toUpperCase(),
+            route: '/more/parents/${p.id}',
           ),
       ],
     );
