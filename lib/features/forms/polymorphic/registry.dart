@@ -1,4 +1,5 @@
 import 'package:basecamp/features/forms/polymorphic/definitions/behavior_monitoring.dart';
+import 'package:basecamp/features/forms/polymorphic/definitions/incident.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/vehicle_check.dart';
 import 'package:basecamp/features/forms/polymorphic/form_definition.dart';
 
@@ -10,6 +11,7 @@ import 'package:basecamp/features/forms/polymorphic/form_definition.dart';
 const List<FormDefinition> _formDefinitions = [
   vehicleCheckForm,
   behaviorMonitoringForm,
+  incidentForm,
 ];
 
 Map<String, FormDefinition>? _byType;

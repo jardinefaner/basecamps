@@ -8,6 +8,8 @@ import 'package:basecamp/features/attendance/widgets/attendance_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_repository.dart';
+import 'package:basecamp/features/forms/polymorphic/definitions/incident.dart';
+import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
 import 'package:basecamp/features/groups/group_detail_screen.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
 import 'package:basecamp/features/launcher/launcher_screen.dart';
@@ -58,11 +60,11 @@ class TodayScreen extends ConsumerWidget {
     );
   }
 
-  /// FAB tap → bottom sheet offering the six creation flows the app
-  /// supports. Each row pops the sheet first and then invokes the
-  /// matching wizard or composer — keeps the navigator stack clean so
-  /// a back-swipe out of, say, the trip wizard lands back on Today
-  /// rather than on a dismissed bottom sheet.
+  /// FAB tap → bottom sheet offering the seven creation flows the
+  /// app supports. Each row pops the sheet first and then invokes
+  /// the matching wizard or composer — keeps the navigator stack
+  /// clean so a back-swipe out of, say, the trip wizard lands back
+  /// on Today rather than on a dismissed bottom sheet.
   Future<void> _openCreateMenu(
     BuildContext context,
     DateTime now,
@@ -127,6 +129,26 @@ class TodayScreen extends ConsumerWidget {
                       fullscreenDialog: true,
                       builder: (_) => const ParentConcernFormScreen(
                         presentation: ConcernFormPresentation.wizard,
+                      ),
+                    ),
+                  );
+                }),
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.report_problem_outlined,
+                  color: theme.colorScheme.error,
+                ),
+                title: const Text('Incident'),
+                subtitle: const Text('Injury or behavior on a child'),
+                onTap: () => runAfterPop(() async {
+                  if (!context.mounted) return;
+                  await Navigator.of(context, rootNavigator: true)
+                      .push<void>(
+                    MaterialPageRoute(
+                      fullscreenDialog: true,
+                      builder: (_) => const GenericFormScreen(
+                        definition: incidentForm,
                       ),
                     ),
                   );
