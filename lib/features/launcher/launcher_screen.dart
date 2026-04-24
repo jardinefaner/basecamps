@@ -910,6 +910,11 @@ class _DestinationData {
       path: '/more/library',
     ),
     _DestinationData(
+      label: 'Roles',
+      icon: Icons.work_outline,
+      path: '/more/roles',
+    ),
+    _DestinationData(
       label: 'Rooms',
       icon: Icons.meeting_room_outlined,
       path: '/more/rooms',

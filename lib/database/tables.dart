@@ -451,6 +451,22 @@ class AdultDayBlocks extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Staff job titles / roles (v39). Promotes the free-text
+/// [Adults.role] blurb into a shared picklist so "Art teacher" is
+/// typed once, picked thereafter. Legacy string still lives on the
+/// adult row as a display fallback for pre-v39 entries.
+@DataClassName('Role')
+class Roles extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 /// Adults in the program — teachers, adults, directors, kitchen,
 /// nurse, etc. The UI surfaces these as "Adults."
 ///
@@ -470,6 +486,12 @@ class Adults extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
   TextColumn get role => text().nullable()();
+  /// FK to Roles (v39). The legacy free-text `role` column above stays
+  /// as a display fallback for adults created before the promotion —
+  /// new rows can leave it null once the picker populates `roleId`.
+  TextColumn get roleId => text()
+      .nullable()
+      .references(Roles, #id, onDelete: KeyAction.setNull)();
   TextColumn get notes => text().nullable()();
   // Local file path for the adult's photo. Remote upload comes later.
   TextColumn get avatarPath => text().nullable()();

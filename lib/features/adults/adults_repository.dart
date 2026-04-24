@@ -57,6 +57,7 @@ class AdultsRepository {
   Future<String> addAdult({
     required String name,
     String? role,
+    String? roleId,
     String? notes,
     String? avatarPath,
     AdultRole adultRole = AdultRole.specialist,
@@ -68,6 +69,7 @@ class AdultsRepository {
             id: id,
             name: name,
             role: Value(role),
+            roleId: Value(roleId),
             notes: Value(notes),
             avatarPath: Value(avatarPath),
             adultRole: Value(adultRole.dbValue),
@@ -89,11 +91,17 @@ class AdultsRepository {
     // clobber adultRole / anchoredGroupId back to their defaults.
     Value<String> adultRole = const Value.absent(),
     Value<String?> anchoredGroupId = const Value.absent(),
+    // v39: FK to the Roles entity. Defaults to Value.absent() so
+    // callers that don't touch roleId leave the existing link alone.
+    // Explicit `Value(null)` clears the link (e.g. when teacher
+    // types a one-off legacy string after picking a chip).
+    Value<String?> roleId = const Value.absent(),
   }) async {
     await (_db.update(_db.adults)..where((s) => s.id.equals(id))).write(
       AdultsCompanion(
         name: Value(name),
         role: Value(role),
+        roleId: roleId,
         notes: Value(notes),
         avatarPath: clearAvatarPath
             ? const Value<String?>(null)

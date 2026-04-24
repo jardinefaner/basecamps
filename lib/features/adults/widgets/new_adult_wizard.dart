@@ -2,6 +2,8 @@ import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/adults/widgets/availability_editor.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/children/widgets/new_group_wizard.dart';
+import 'package:basecamp/features/roles/roles_repository.dart';
+import 'package:basecamp/features/roles/widgets/edit_role_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
@@ -51,6 +53,11 @@ class _NewAdultWizardScreenState
   AdultRole _adultRole = AdultRole.specialist;
   String? _anchoredGroupId;
 
+  /// v39: picked role FK. When set, supersedes the [_role] text
+  /// controller at submit time — same "picker wins" rule as the
+  /// edit sheet.
+  String? _roleId;
+
   /// Weekly shift sketch (per-day branch). Seeded with Mon–Fri 9–5
   /// so a "just tap Next" teacher gets a sensible default instead of
   /// an empty week. Used when [_uniformMode] is false.
@@ -73,6 +80,7 @@ class _NewAdultWizardScreenState
   bool get _dirty =>
       _name.text.trim().isNotEmpty ||
       _role.text.trim().isNotEmpty ||
+      _roleId != null ||
       _notes.text.trim().isNotEmpty ||
       _avatarPath != null ||
       _adultRole != AdultRole.specialist ||
@@ -89,7 +97,10 @@ class _NewAdultWizardScreenState
   }
 
   Future<void> _submit() async {
-    final role = _role.text.trim();
+    final typed = _role.text.trim();
+    // Picker wins: if an FK is set, save only that and drop the
+    // free-text to avoid double storage. Mirror of edit sheet.
+    final role = _roleId != null || typed.isEmpty ? null : typed;
     final notes = _notes.text.trim();
     final repo = ref.read(adultsRepositoryProvider);
     // Anchor only applies to leads — don't persist a stale value if
@@ -98,7 +109,8 @@ class _NewAdultWizardScreenState
         _adultRole == AdultRole.lead ? _anchoredGroupId : null;
     final id = await repo.addAdult(
       name: _name.text.trim(),
-      role: role.isEmpty ? null : role,
+      role: role,
+      roleId: _roleId,
       notes: notes.isEmpty ? null : notes,
       avatarPath: _avatarPath,
       adultRole: _adultRole,
@@ -211,11 +223,27 @@ class _NewAdultWizardScreenState
   }
 
   Widget _buildJobTitlePage() {
-    return AppTextField(
-      controller: _role,
-      label: 'Job title (optional)',
-      hint: 'e.g. Art teacher · Director · Head cook',
-      onChanged: (_) => setState(() {}),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _WizardRolePicker(
+          selectedRoleId: _roleId,
+          onPick: (id) => setState(() {
+            _roleId = id;
+            if (id != null) _role.clear();
+          }),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        AppTextField(
+          controller: _role,
+          label: 'Or type a one-off title (optional)',
+          hint: 'e.g. Floater · Visiting artist',
+          onChanged: (v) => setState(() {
+            // Typing clears the picker — legacy path wins.
+            if (v.trim().isNotEmpty && _roleId != null) _roleId = null;
+          }),
+        ),
+      ],
     );
   }
 
@@ -631,6 +659,77 @@ class _NewAdultWizardScreenState
     final total = t.hour * 60 + t.minute + minutes;
     final wrapped = ((total % (24 * 60)) + 24 * 60) % (24 * 60);
     return TimeOfDay(hour: wrapped ~/ 60, minute: wrapped % 60);
+  }
+}
+
+/// Wizard-page twin of the edit sheet's role picker — chip grid for
+/// `Adults.roleId` with an "+ New role" action chip. Kept separate
+/// from the edit sheet's version because the wizard page has its
+/// own surrounding layout + copy.
+class _WizardRolePicker extends ConsumerWidget {
+  const _WizardRolePicker({
+    required this.selectedRoleId,
+    required this.onPick,
+  });
+
+  final String? selectedRoleId;
+  final ValueChanged<String?> onPick;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final rolesAsync = ref.watch(rolesProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Pick from the list', style: theme.textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Or tap "+ New role" to add one. Leave unpicked to type a '
+          'one-off title below.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        rolesAsync.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (err, _) => Text('Error: $err'),
+          data: (roles) {
+            return Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final r in roles)
+                  ChoiceChip(
+                    label: Text(r.name),
+                    selected: selectedRoleId == r.id,
+                    onSelected: (_) => onPick(
+                      selectedRoleId == r.id ? null : r.id,
+                    ),
+                  ),
+                ActionChip(
+                  avatar: const Icon(Icons.add, size: 16),
+                  label: const Text('New role'),
+                  onPressed: () => _openNewRoleSheet(context),
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openNewRoleSheet(BuildContext context) async {
+    final id = await showModalBottomSheet<String?>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useRootNavigator: true,
+      builder: (_) => const EditRoleSheet(),
+    );
+    if (id != null) onPick(id);
   }
 }
 

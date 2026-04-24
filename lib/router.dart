@@ -12,6 +12,7 @@ import 'package:basecamp/features/forms/polymorphic/registry.dart';
 import 'package:basecamp/features/observations/observations_screen.dart';
 import 'package:basecamp/features/parents/parent_detail_screen.dart';
 import 'package:basecamp/features/parents/parents_screen.dart';
+import 'package:basecamp/features/roles/roles_screen.dart';
 import 'package:basecamp/features/rooms/rooms_screen.dart';
 import 'package:basecamp/features/schedule/schedule_editor_screen.dart';
 import 'package:basecamp/features/settings/program_settings_screen.dart';
@@ -118,6 +119,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/more/library',
         builder: (_, _) => const ActivityLibraryScreen(),
+      ),
+      GoRoute(
+        path: '/more/roles',
+        builder: (_, _) => const RolesScreen(),
       ),
       GoRoute(
         path: '/more/rooms',
