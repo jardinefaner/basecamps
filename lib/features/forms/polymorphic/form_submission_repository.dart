@@ -45,6 +45,15 @@ class FormSubmissionRepository {
     return query.watch();
   }
 
+  /// All submissions whose status matches [status], across every form
+  /// type. Feeds Today's close-out strip count of draft submissions.
+  Stream<List<FormSubmission>> watchByStatus(FormStatus status) {
+    final query = _db.select(_db.formSubmissions)
+      ..where((s) => s.status.equals(status.dbValue))
+      ..orderBy([(s) => OrderingTerm.desc(s.updatedAt)]);
+    return query.watch();
+  }
+
   /// All submissions with a review-due deadline <= [cutoff] that
   /// aren't yet completed. Feeds the Today flags strip's cross-form
   /// "needs follow-up" signal.
@@ -195,6 +204,16 @@ final formSubmissionChildrenProvider =
   return ref
       .watch(formSubmissionRepositoryProvider)
       .watchChildrenOf(parentId);
+});
+
+/// All submissions in a particular lifecycle status, across every
+/// form type. Today's close-out strip subscribes to this with
+/// [FormStatus.draft] to surface the count of unfinished forms.
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final formSubmissionsByStatusProvider =
+    StreamProvider.family<List<FormSubmission>, FormStatus>((ref, status) {
+  return ref.watch(formSubmissionRepositoryProvider).watchByStatus(status);
 });
 
 /// Submissions with a review deadline at-or-before today, across all

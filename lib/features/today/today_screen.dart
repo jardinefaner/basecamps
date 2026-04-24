@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adult_timeline_repository.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/attendance/widgets/attendance_sheet.dart';
@@ -9,6 +10,8 @@ import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_repository.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/incident.dart';
+import 'package:basecamp/features/forms/polymorphic/form_definition.dart';
+import 'package:basecamp/features/forms/polymorphic/form_submission_repository.dart';
 import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
 import 'package:basecamp/features/groups/group_detail_screen.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
@@ -27,6 +30,7 @@ import 'package:basecamp/features/today/last_expanded_group.dart';
 import 'package:basecamp/features/today/today_buckets.dart';
 import 'package:basecamp/features/today/today_mode.dart';
 import 'package:basecamp/features/today/widgets/all_day_carousel.dart';
+import 'package:basecamp/features/today/widgets/close_out_strip.dart';
 import 'package:basecamp/features/today/widgets/day_summary_strip.dart';
 import 'package:basecamp/features/today/widgets/earlier_today_group.dart';
 import 'package:basecamp/features/today/widgets/hero_now_card.dart';
@@ -587,6 +591,56 @@ class _Body extends ConsumerWidget {
         .where((i) => (activityCounts[i.title] ?? 0) == 0)
         .length;
 
+    // -- Close-out strip inputs (end-of-day nudge) --
+    // Close-of-program is the max endTime across today's timed items
+    // (all-day items don't give us a useful anchor). Null → strip
+    // hides. Computed from the unfiltered schedule so a teacher
+    // focused on one group still sees the whole-program close.
+    final timedEndMinutes = <int>[
+      for (final i in items)
+        if (!i.isFullDay) i.endMinutes,
+    ];
+    final programCloseMinutes = closeOfProgramMinutes(timedEndMinutes);
+    final showCloseOut = shouldShowCloseOutStrip(
+      nowMinutes: nowMinutes,
+      closeMinutes: programCloseMinutes,
+    );
+    // Pull the pending-obs / draft-form / unsigned-concern counts
+    // only when the window is open — no wasted work in the morning.
+    final draftForms = showCloseOut
+        ? (ref
+                .watch(formSubmissionsByStatusProvider(FormStatus.draft))
+                .asData
+                ?.value ??
+            const <FormSubmission>[])
+        : const <FormSubmission>[];
+    final allConcernNotes = showCloseOut
+        ? (ref.watch(parentConcernNotesProvider).asData?.value ??
+            const <ParentConcernNote>[])
+        : const <ParentConcernNote>[];
+    final unsignedConcerns = allConcernNotes
+        .where((n) =>
+            (n.supervisorSignature == null ||
+                n.supervisorSignature!.trim().isEmpty) &&
+            (n.supervisorSignaturePath == null ||
+                n.supervisorSignaturePath!.trim().isEmpty))
+        .length;
+    // Program-wide "missing obs" count — the close-out strip isn't
+    // scoped to the selected group, it's a whole-day tidy-up.
+    final programPendingObs = past
+        .where((i) => (activityCounts[i.title] ?? 0) == 0)
+        .length;
+    // First past activity missing observations — tap target for
+    // the "N past activities missing observations" row. Null → fall
+    // back to /observations.
+    ScheduleItem? firstPendingObsItem;
+    for (final i in past) {
+      if ((activityCounts[i.title] ?? 0) == 0) {
+        firstPendingObsItem = i;
+        break;
+      }
+    }
+
     AttendanceSummary? attendanceFor(ScheduleItem item) {
       // Attendance strip is only useful for group-scoped activities.
       // All-groups = "everyone" — use the whole-day check-in flow
@@ -717,6 +771,31 @@ class _Body extends ConsumerWidget {
         _TodayModeToggle(mode: ref.watch(todayModeProvider)),
         const SizedBox(height: AppSpacing.md),
 
+        // End-of-day close-out strip. Only appears in the 60-min
+        // window before program close and the 30-min tail after.
+        // Muted in tone — it's a nudge to wrap up, not an alert.
+        if (showCloseOut) ...[
+          CloseOutStrip(
+            counts: CloseOutCounts(
+              pendingObs: programPendingObs,
+              draftForms: draftForms.length,
+              unsignedConcerns: unsignedConcerns,
+            ),
+            onTapPendingObs: () {
+              if (firstPendingObsItem != null) {
+                onOpenDetail(firstPendingObsItem);
+              } else {
+                context.go('/observations');
+              }
+            },
+            onTapDraftForms: () =>
+                unawaited(context.push('/more/forms')),
+            onTapUnsignedConcerns: () =>
+                unawaited(context.push('/more/forms/parent-concern')),
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+
         // Group chip selector — horizontally scrollable row of groups.
         // Same in both modes: in Groups mode it drives the hero/
         // upcoming/earlier filter; in Agenda mode it scopes the
@@ -759,6 +838,13 @@ class _Body extends ConsumerWidget {
             now: now,
             observationCount: activityCounts[primaryCurrent.title] ?? 0,
             attendance: attendanceFor(primaryCurrent),
+            // Hero pulls the same ConflictsFor bundle the schedule
+            // cards use — a red "⚠ Conflicts" pill appears in the
+            // header when any of the three lists is non-empty, and
+            // tapping it opens the same ConflictSheet.
+            conflicts: conflictsFor(primaryCurrent.id).activity,
+            shiftConflicts: conflictsFor(primaryCurrent.id).shift,
+            tripConflicts: conflictsFor(primaryCurrent.id).trip,
             onTap: () => onOpenDetail(primaryCurrent),
             onCapture: () => context.go('/observations'),
             onOpenAttendance: () => openAttendance(primaryCurrent),
@@ -1103,6 +1189,20 @@ class _GroupChipRowState extends ConsumerState<_GroupChipRow> {
       });
     }
 
+    // Pull staffing inputs once here so the per-chip isStaffedToday
+    // check is a pure map lookup instead of a Riverpod watch per
+    // chip. Missing data (first paint before any stream resolves)
+    // falls back to "assume staffed" — no false-positive error tints
+    // while the providers warm up.
+    final allAdults =
+        ref.watch(adultsProvider).asData?.value ?? const <Adult>[];
+    final allAvail = ref.watch(allAvailabilityProvider).asData?.value ??
+        const <AdultAvailabilityData>[];
+    final todayBlocks =
+        ref.watch(todayAdultBlocksProvider).asData?.value ??
+            const <AdultDayBlock>[];
+    final weekday = DateTime.now().weekday;
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1112,6 +1212,13 @@ class _GroupChipRowState extends ConsumerState<_GroupChipRow> {
             _GroupChip(
               summary: g,
               selected: g.id == selectedId,
+              isStaffed: isGroupStaffedToday(
+                groupId: g.id,
+                weekday: weekday,
+                adults: allAdults,
+                todayDayBlocks: todayBlocks,
+                availability: allAvail,
+              ),
               onSelected: () => ref
                   .read(lastExpandedGroupProvider.notifier)
                   .toggle(g.id),
@@ -1135,6 +1242,7 @@ class _GroupChip extends StatelessWidget {
   const _GroupChip({
     required this.summary,
     required this.selected,
+    required this.isStaffed,
     required this.onSelected,
     required this.onLongPress,
     required this.theme,
@@ -1142,6 +1250,14 @@ class _GroupChip extends StatelessWidget {
 
   final GroupSummary summary;
   final bool selected;
+
+  /// Whether a lead is on the clock for this group today. When false
+  /// the chip tints with errorContainer and shows a warning prefix —
+  /// a data-quality nudge for "a group with no lead today probably
+  /// isn't intended that way." Selection ring still wins when both
+  /// are true (teacher actively working on the problem group).
+  final bool isStaffed;
+
   final VoidCallback onSelected;
   final VoidCallback onLongPress;
   final ThemeData theme;
@@ -1150,23 +1266,40 @@ class _GroupChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = _parseHex(summary.group.colorHex) ??
         theme.colorScheme.primary;
+    // Unstaffed chips get the errorContainer tint regardless of
+    // selection. The selection check-ring (FilterChip paints one
+    // automatically when `selected` is true) still reads over the
+    // top — "this one has a problem AND I'm focused on it" is the
+    // most common reason to look at an unstaffed chip at all.
     return GestureDetector(
       onLongPress: onLongPress,
       child: FilterChip(
         selected: selected,
         onSelected: (_) => onSelected(),
         showCheckmark: false,
-        avatar: Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
-        ),
+        backgroundColor:
+            isStaffed ? null : theme.colorScheme.errorContainer,
+        avatar: isStaffed
+            ? Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                ),
+              )
+            : Icon(
+                Icons.warning_amber_rounded,
+                size: 14,
+                color: theme.colorScheme.onErrorContainer,
+              ),
         label: Text(
           '${summary.name} · ${summary.childCount}',
-          style: theme.textTheme.labelMedium,
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: isStaffed
+                ? null
+                : theme.colorScheme.onErrorContainer,
+          ),
         ),
       ),
     );
