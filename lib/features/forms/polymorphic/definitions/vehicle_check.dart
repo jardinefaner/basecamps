@@ -1,15 +1,25 @@
 import 'package:basecamp/features/forms/polymorphic/form_definition.dart';
 import 'package:flutter/material.dart';
 
-/// Pre-trip vehicle safety check — lights / tires / gauges / leaks /
-/// other / interior / exterior. Mirrors the paper form programs
-/// already use; every item is a three-state check-mark field so
-/// scanning down the list is fast.
+/// Pre-trip vehicle safety check — mirrors the FACES paper form
+/// programs already use. Section ordering, labels, and driver
+/// instructions match the clipboard version so a teacher switching
+/// from paper to the app doesn't have to relearn.
+///
+/// Three-state check-mark per item:
+///   * Check = acceptable — vehicle OK to drive
+///   * X     = needs a mechanic look — drive only if safe
+///   * unset = not yet inspected
+/// Safety-risk items (per the paper's bold line) → do not drive
+/// until a mechanic inspects. That's handled by the teacher
+/// flagging in the notes field and NOT starting the trip, not by
+/// the form itself.
 const FormDefinition vehicleCheckForm = FormDefinition(
   typeKey: 'vehicle_check',
-  title: 'Vehicle safety inspection',
+  title: 'Vehicle Safety Inspection Checklist',
   shortTitle: 'Vehicle check',
-  subtitle: 'Pre-trip safety inspection — lights, tires, brakes.',
+  subtitle: 'Complete before each trip. '
+      'Checklist mirrors the paper inspection form.',
   icon: Icons.directions_bus_outlined,
   subjectKind: FormSubjectKind.trip,
   // Linear wizard: the whole point of a pre-trip check is to walk
@@ -19,7 +29,8 @@ const FormDefinition vehicleCheckForm = FormDefinition(
   presentation: FormPresentation.wizard,
   sections: [
     FormSection(
-      title: 'Vehicle',
+      title: 'Vehicle information',
+      subtitle: 'Driver must complete before each trip.',
       fields: [
         // Vehicle id is the new source-of-truth. Legacy data from
         // pre-v37 checks (which carried `vehicle_make_model` +
@@ -57,7 +68,13 @@ const FormDefinition vehicleCheckForm = FormDefinition(
     ),
     FormSection(
       title: 'Lights',
-      subtitle: 'Check = OK · × = needs a mechanic look.',
+      // Paper form's three-part driver instructions, compressed. First
+      // checklist section surfaces them so teachers see the key before
+      // tapping their first check mark.
+      subtitle: 'Check = acceptable (vehicle OK to drive). '
+          'X = needs a mechanic look (drive only if safe). '
+          'Any item posing a safety risk → do not drive; flag in '
+          'Notes and request immediate inspection.',
       fields: [
         FormChecklistStatusField(key: 'headlights', label: 'Headlights'),
         FormChecklistStatusField(key: 'brake_lights', label: 'Brake lights'),
@@ -147,6 +164,7 @@ const FormDefinition vehicleCheckForm = FormDefinition(
     ),
     FormSection(
       title: 'Notes',
+      subtitle: 'Print legibly.',
       fields: [
         FormTextField(
           key: 'notes',

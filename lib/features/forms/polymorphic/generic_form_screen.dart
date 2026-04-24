@@ -381,7 +381,7 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
         }
       },
       steps: [
-        for (final (i, section) in def.sections.indexed)
+        for (final section in def.sections)
           WizardStep(
             headline: section.title,
             subtitle: section.subtitle,
@@ -445,7 +445,6 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
       fd.FormTextKeyboard.text => null,
       fd.FormTextKeyboard.number => const TextInputType.numberWithOptions(
           decimal: true,
-          signed: false,
         ),
       fd.FormTextKeyboard.phone => TextInputType.phone,
       fd.FormTextKeyboard.email => TextInputType.emailAddress,
