@@ -7,6 +7,7 @@ import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/attendance/widgets/attendance_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/export/export_actions.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_repository.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/incident.dart';
@@ -372,6 +373,8 @@ class TodayScreen extends ConsumerWidget {
                         unawaited(context.push('/more/settings'));
                       case 'forms':
                         unawaited(context.push('/more/forms'));
+                      case 'export':
+                        unawaited(exportDay(context, ref, DateTime.now()));
                     }
                   },
                   itemBuilder: (_) => const [
@@ -382,6 +385,16 @@ class TodayScreen extends ConsumerWidget {
                     PopupMenuItem(
                       value: 'forms',
                       child: Text('Forms & surveys'),
+                    ),
+                    PopupMenuItem(
+                      value: 'export',
+                      child: Row(
+                        children: [
+                          Icon(Icons.picture_as_pdf_outlined, size: 18),
+                          SizedBox(width: 8),
+                          Text('Export today'),
+                        ],
+                      ),
                     ),
                   ],
                 ),

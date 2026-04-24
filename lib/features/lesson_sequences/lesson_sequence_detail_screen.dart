@@ -1,4 +1,5 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/export/export_actions.dart';
 import 'package:basecamp/features/lesson_sequences/lesson_sequences_repository.dart';
 import 'package:basecamp/features/lesson_sequences/widgets/edit_lesson_sequence_sheet.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
@@ -184,6 +185,11 @@ class LessonSequenceDetailScreen extends ConsumerWidget {
           data: (s) => Text(s?.name ?? 'Sequence'),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Export',
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            onPressed: () => exportSequence(context, ref, sequenceId),
+          ),
           sequenceAsync.maybeWhen(
             data: (s) => s == null
                 ? const SizedBox.shrink()

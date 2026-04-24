@@ -1,3 +1,4 @@
+import 'package:basecamp/features/export/export_actions.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
@@ -96,6 +97,11 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
             onPressed: _duplicateLastWeek,
             icon: const Icon(Icons.content_copy_outlined, size: 18),
             label: const Text('Duplicate last week'),
+          ),
+          IconButton(
+            tooltip: 'Export week',
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            onPressed: () => exportWeek(context, ref, _monday),
           ),
           const SizedBox(width: AppSpacing.sm),
         ],
