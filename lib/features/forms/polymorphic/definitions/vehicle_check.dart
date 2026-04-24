@@ -44,12 +44,14 @@ const FormDefinition vehicleCheckForm = FormDefinition(
         FormTextField(
           key: 'odometer',
           label: 'Odometer',
-          hint: 'e.g. 62,764',
+          hint: 'e.g. 62764',
+          keyboard: FormTextKeyboard.number,
         ),
         FormTextField(
           key: 'fuel_level',
-          label: 'Fuel level',
-          hint: 'e.g. 3/4 · Full · E',
+          label: 'Fuel level (%)',
+          hint: 'e.g. 75',
+          keyboard: FormTextKeyboard.number,
         ),
       ],
     ),

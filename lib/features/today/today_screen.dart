@@ -793,7 +793,7 @@ class _Body extends ConsumerWidget {
                 if (firstPendingObsItem != null) {
                   onOpenDetail(firstPendingObsItem);
                 } else {
-                  context.go('/observations');
+                  unawaited(context.push('/observations'));
                 }
               },
               onTapDraftForms: () => unawaited(context.push('/more/forms')),
@@ -809,6 +809,7 @@ class _Body extends ConsumerWidget {
           // chronological feed to the selected group + program-wide +
           // that group's leads' breaks.
           const _GroupChipRow(),
+          const _SelectedGroupWarning(),
           const SizedBox(height: AppSpacing.md),
 
           // Day stats sit under the group chip row so the numbers track
@@ -822,7 +823,7 @@ class _Body extends ConsumerWidget {
             concerns: scopedConcerns.length,
             pendingObs: pendingObs,
             onTapConcerns: () => context.push('/more/forms/parent-concern'),
-            onTapPending: () => context.go('/observations'),
+            onTapPending: () => unawaited(context.push('/observations')),
           ),
           const SizedBox(height: AppSpacing.md),
 
@@ -851,7 +852,7 @@ class _Body extends ConsumerWidget {
                 shiftConflicts: conflictsFor(primaryCurrent.id).shift,
                 tripConflicts: conflictsFor(primaryCurrent.id).trip,
                 onTap: () => onOpenDetail(primaryCurrent),
-                onCapture: () => context.go('/observations'),
+                onCapture: () => unawaited(context.push('/observations')),
                 onOpenAttendance: () => openAttendance(primaryCurrent),
               ),
               if (alsoNow.isNotEmpty) ...[
@@ -871,7 +872,7 @@ class _Body extends ConsumerWidget {
               const SizedBox(height: AppSpacing.lg),
             ] else if (past.isNotEmpty && allDay.isEmpty) ...[
               _WrapUpBanner(
-                onReview: () => context.go('/observations'),
+                onReview: () => unawaited(context.push('/observations')),
                 pendingCount: pendingObs,
               ),
               const SizedBox(height: AppSpacing.lg),
@@ -924,7 +925,8 @@ class _Body extends ConsumerWidget {
                         concernMatch: concernForItem(item),
                         attendance: attendanceFor(item),
                         onTap: () => onOpenDetail(item),
-                        onLogObservations: () => context.go('/observations'),
+                        onLogObservations: () =>
+                            unawaited(context.push('/observations')),
                         onOpenConcern: () => _goConcern(
                           context,
                           concernForItem(item)?.id,
@@ -1420,6 +1422,143 @@ class _NormalChipLabel extends StatelessWidget {
             style: baseStyle?.copyWith(color: suffixColor),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Reveal card for the currently-selected group's warning flags —
+/// lives directly below the chip row so tapping a flagged chip doesn't
+/// just filter Today silently, it explains WHY the warning icon is
+/// there and offers a next step.
+///
+/// Two reason flavors (either or both can fire):
+///   * unstaffed → "No lead on shift today" + "Anchor a lead" CTA
+///   * under-ratio → "14 kids · 1 adult — under 8:1" + "Group detail" CTA
+///
+/// Self-hides for healthy groups, empty groups, and the "no group
+/// selected" state.
+class _SelectedGroupWarning extends ConsumerWidget {
+  const _SelectedGroupWarning();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedId = ref.watch(lastExpandedGroupProvider);
+    if (selectedId == null) return const SizedBox.shrink();
+    final summariesAsync = ref.watch(groupSummariesProvider);
+    final summaries = summariesAsync.asData?.value ?? const <GroupSummary>[];
+    GroupSummary? selected;
+    for (final g in summaries) {
+      if (g.id == selectedId) {
+        selected = g;
+        break;
+      }
+    }
+    if (selected == null) return const SizedBox.shrink();
+
+    // Same data sources the chip row uses. Missing streams fall back
+    // to empties — safer than spinning up a full-page error state
+    // for a banner that self-hides anyway.
+    final allAdults =
+        ref.watch(adultsProvider).asData?.value ?? const <Adult>[];
+    final allAvail =
+        ref.watch(allAvailabilityProvider).asData?.value ??
+        const <AdultAvailabilityData>[];
+    final todayBlocks =
+        ref.watch(todayAdultBlocksProvider).asData?.value ??
+        const <AdultDayBlock>[];
+    final allKids =
+        ref.watch(childrenProvider).asData?.value ?? const <Child>[];
+    final nowAsync = ref.watch(nowTickProvider);
+    final now = nowAsync.asData?.value ?? DateTime.now();
+
+    final childrenInGroup = <Child>[
+      for (final k in allKids)
+        if (k.groupId == selected.id) k,
+    ];
+    final ratio = computeGroupRatioNow(
+      groupId: selected.id,
+      childrenInGroup: childrenInGroup,
+      allAdults: allAdults,
+      allAvailability: allAvail,
+      todayBlocks: todayBlocks,
+      now: now,
+    );
+    final isStaffed = isGroupStaffedToday(
+      groupId: selected.id,
+      weekday: now.weekday,
+      adults: allAdults,
+      todayDayBlocks: todayBlocks,
+      availability: allAvail,
+    );
+
+    final showUnstaffed = !isStaffed;
+    // Ratio warning is redundant when already unstaffed (0 adults
+    // always over-ratio) — show just the stronger signal in that
+    // case so the banner stays one-idea-per-row.
+    final showRatio = !showUnstaffed && ratio.isUnderRatio;
+    if (!showUnstaffed && !showRatio) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.sm),
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.errorContainer,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.warning_amber_rounded,
+              color: theme.colorScheme.onErrorContainer,
+              size: 20,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    showUnstaffed
+                        ? 'No lead on shift today'
+                        : 'Under 8:1 ratio',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: theme.colorScheme.onErrorContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    showUnstaffed
+                        ? 'No anchored lead is available for '
+                            '${selected.name} right now. Anchor '
+                            'one, or check their availability.'
+                        : '${selected.name} has '
+                            '${ratio.childrenInGroupNow} kids with '
+                            '${ratio.adultsOnShiftForGroupNow} '
+                            'adult${ratio.adultsOnShiftForGroupNow == 1 ? '' : 's'} '
+                            'on shift — over the 8:1 state ratio.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            TextButton(
+              onPressed: () => GroupDetailScreen.open(context, selected!.id),
+              style: TextButton.styleFrom(
+                foregroundColor: theme.colorScheme.onErrorContainer,
+              ),
+              child: const Text('Open'),
+            ),
+          ],
+        ),
       ),
     );
   }

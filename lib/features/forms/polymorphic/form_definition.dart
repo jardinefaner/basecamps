@@ -65,8 +65,17 @@ sealed class FormField {
   final bool required;
 }
 
+/// Keyboard flavors a FormTextField can request. Numeric fields
+/// (odometer, fuel level, phone number) pop the number pad instead
+/// of the full QWERTY — teachers hit digits faster and can't
+/// accidentally type letters into a count field.
+enum FormTextKeyboard { text, number, phone, email, multiline }
+
 /// Free-form single- or multi-line text. [maxLines] > 1 renders a
-/// grow-to-content box; 1 keeps a single-line field.
+/// grow-to-content box; 1 keeps a single-line field. [keyboard]
+/// picks which on-screen keyboard pops up — defaults to the full
+/// text keyboard; switch to `number` on odometer / count / plate
+/// fields, `phone` on phone-number fields, etc.
 class FormTextField extends FormField {
   const FormTextField({
     required super.key,
@@ -75,9 +84,11 @@ class FormTextField extends FormField {
     super.required,
     this.hint,
     this.maxLines = 1,
+    this.keyboard = FormTextKeyboard.text,
   });
   final String? hint;
   final int maxLines;
+  final FormTextKeyboard keyboard;
 }
 
 /// Date picker. [includeTime] adds a time-of-day component when the

@@ -387,11 +387,9 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
             subtitle: section.subtitle,
             canSkip: true,
             needsKeyboard: sectionNeedsKeyboard(section),
-            // Step 1 reads "Save" so the teacher knows the vehicle
-            // identity is committed before they walk the checklist.
-            // Subsequent steps keep the default "Next" label;
-            // per-step auto-save is silent plumbing either way.
-            nextLabelOverride: i == 0 ? 'Save' : null,
+            // All intermediate steps read "Next" — per-step auto-save
+            // is silent plumbing; the final step's Save button is the
+            // actual commit point.
             content: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -433,8 +431,26 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
       label: field.label,
       hint: field.hint,
       maxLines: field.maxLines,
+      keyboardType: _keyboardTypeFor(field.keyboard),
       onChanged: (v) => _values[field.key] = v,
     );
+  }
+
+  /// Map FormTextField.keyboard → Flutter TextInputType. Multiline
+  /// tracks maxLines indirectly; we still return the explicit
+  /// TextInputType.multiline here so iOS shows the enter-returns-
+  /// newline keyboard instead of "Done."
+  TextInputType? _keyboardTypeFor(fd.FormTextKeyboard k) {
+    return switch (k) {
+      fd.FormTextKeyboard.text => null,
+      fd.FormTextKeyboard.number => const TextInputType.numberWithOptions(
+          decimal: true,
+          signed: false,
+        ),
+      fd.FormTextKeyboard.phone => TextInputType.phone,
+      fd.FormTextKeyboard.email => TextInputType.emailAddress,
+      fd.FormTextKeyboard.multiline => TextInputType.multiline,
+    };
   }
 
   Widget _buildDate(fd.FormDateField field) {
