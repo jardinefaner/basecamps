@@ -165,6 +165,26 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
               route: '/more/adults/${s.id}',
             ),
           );
+        case PinnedKinds.parent:
+          final p = parents.where((x) => x.id == parsed.id).firstOrNull;
+          if (p == null ||
+              !(_matches(_parentDisplayName(p)) ||
+                  _matches(p.relationship ?? ''))) {
+            return null;
+          }
+          return _PinnableTile(
+            pinId: storedId,
+            child: _PersonRow(
+              name: _parentDisplayName(p),
+              fallbackInitial: p.firstName.isEmpty
+                  ? '?'
+                  : p.firstName.characters.first.toUpperCase(),
+              route: '/more/parents/${p.id}',
+              // Parents don't carry an avatar path — secondaryContainer
+              // fallback keeps them visually distinct from kids/adults.
+              useSecondaryFallback: true,
+            ),
+          );
         case PinnedKinds.library:
           final l = library.where((x) => x.id == parsed.id).firstOrNull;
           if (l == null || !_matches(l.title)) return null;
@@ -195,8 +215,9 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
     final unpinnedLibrary = filteredLibrary
         .where((l) => !pinnedIds.contains(pinId(PinnedKinds.library, l.id)))
         .toList();
-    // Parents aren't pinnable yet — no PinnedKinds.parent entry.
-    final unpinnedParents = filteredParents;
+    final unpinnedParents = filteredParents
+        .where((p) => !pinnedIds.contains(pinId(PinnedKinds.parent, p.id)))
+        .toList();
     final destinations = sortedDestinations
         .where((d) =>
             !pinnedIds.contains(pinId(PinnedKinds.destination, d.path)))
@@ -302,21 +323,20 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                             total: parents.length,
                             query: _query,
                           ),
-                        // Parents aren't pinnable yet, so no
-                        // `_PinnableTile` wrapper — they read as plain
-                        // rows. Adding a PinnedKinds.parent entry is a
-                        // small follow-up if teachers ask for it.
                         for (final p in unpinnedParents)
-                          _PersonRow(
-                            name: _parentDisplayName(p),
-                            fallbackInitial: p.firstName.isEmpty
-                                ? '?'
-                                : p.firstName.characters.first.toUpperCase(),
-                            route: '/more/parents/${p.id}',
-                            // Parents don't carry an avatar path yet —
-                            // leaving it null triggers the initial-on-
-                            // secondaryContainer fallback.
-                            useSecondaryFallback: true,
+                          _PinnableTile(
+                            pinId: pinId(PinnedKinds.parent, p.id),
+                            child: _PersonRow(
+                              name: _parentDisplayName(p),
+                              fallbackInitial: p.firstName.isEmpty
+                                  ? '?'
+                                  : p.firstName.characters.first.toUpperCase(),
+                              route: '/more/parents/${p.id}',
+                              // Parents don't carry an avatar path yet —
+                              // leaving it null triggers the initial-on-
+                              // secondaryContainer fallback.
+                              useSecondaryFallback: true,
+                            ),
                           ),
                         if (unpinnedLibrary.isNotEmpty)
                           _SectionHeader(

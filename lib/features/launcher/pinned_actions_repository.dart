@@ -15,6 +15,7 @@ class PinnedKinds {
   static const destination = 'dest';
   static const child = 'child';
   static const adult = 'adult';
+  static const parent = 'parent';
   static const library = 'library';
 }
 
