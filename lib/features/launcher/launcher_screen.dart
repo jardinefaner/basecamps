@@ -380,24 +380,35 @@ class _SearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Outer margin matches the 8dp drawer-to-pill gap Gmail uses.
+    // Inside the pill, the search icon is flush left (4dp + 12dp gap
+    // places it at 16dp from the drawer edge — the same column every
+    // ListTile's leading icon sits in below). That's what "aligned
+    // with the rest of the items" actually means visually; the input
+    // field inherits the alignment since it follows the icon.
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.md,
-        AppSpacing.lg,
         AppSpacing.sm,
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.md,
       ),
       child: Container(
-        height: 56,
+        constraints: const BoxConstraints(minHeight: 56),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(28),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        // Breathable input: ~20dp vertical margin inside the pill
+        // (via SizedBox heights + TextField content padding) so the
+        // text sits centered with air around it instead of hugging
+        // the edges.
+        padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
         child: Row(
           children: [
             Icon(
               Icons.search,
+              size: 22,
               color: theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(width: AppSpacing.md),
@@ -413,7 +424,12 @@ class _SearchField extends StatelessWidget {
                   ),
                   border: InputBorder.none,
                   isDense: true,
-                  contentPadding: EdgeInsets.zero,
+                  // Symmetric vertical padding gives the input
+                  // breathing room without needing to push the pill
+                  // taller than 56dp.
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 14,
+                  ),
                 ),
                 onChanged: onChanged,
               ),
@@ -421,12 +437,14 @@ class _SearchField extends StatelessWidget {
             if (controller.text.isNotEmpty)
               IconButton(
                 tooltip: 'Clear',
-                icon: const Icon(Icons.close),
+                icon: const Icon(Icons.close, size: 20),
                 onPressed: () {
                   controller.clear();
                   onChanged('');
                 },
-              ),
+              )
+            else
+              const SizedBox(width: AppSpacing.md),
           ],
         ),
       ),

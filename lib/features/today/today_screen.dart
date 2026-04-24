@@ -220,12 +220,21 @@ class TodayScreen extends ConsumerWidget {
       isScrollControlled: true,
       showDragHandle: true,
       useSafeArea: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(ctx).viewInsets.bottom,
-        ),
-        child: const ObservationComposer(),
-      ),
+      builder: (ctx) {
+        // Wrap the composer in a local Scaffold so its "Saved —
+        // tap the entry above" snackbar renders INSIDE the sheet
+        // (where the teacher's looking) instead of on Today's
+        // messenger behind the modal backdrop, where it's invisible.
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: const Scaffold(
+            backgroundColor: Colors.transparent,
+            body: ObservationComposer(),
+          ),
+        );
+      },
     );
   }
 

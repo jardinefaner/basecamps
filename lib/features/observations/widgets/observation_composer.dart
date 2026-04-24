@@ -224,7 +224,14 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
     final messenger = ScaffoldMessenger.of(context);
     final session = DeepgramVoiceSession();
     try {
-      _finalSub = session.finals.listen(_appendFinalTranscript);
+      _finalSub = session.finals.listen((text) {
+        // A final replaces whatever was in the preview — clearing
+        // `_livePartial` here is what prevents the safety-net append
+        // on stop from doubling text Deepgram just flushed.
+        _appendFinalTranscript(text);
+        if (!mounted) return;
+        setState(() => _livePartial = '');
+      });
       _partialSub = session.partials.listen((p) {
         if (!mounted) return;
         setState(() => _livePartial = p);

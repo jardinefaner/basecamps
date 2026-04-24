@@ -60,7 +60,16 @@ class _VoiceDictationFieldState extends State<VoiceDictationField> {
     final messenger = ScaffoldMessenger.of(context);
     final session = DeepgramVoiceSession();
     try {
-      _finalSub = session.finals.listen(_appendFinal);
+      _finalSub = session.finals.listen((text) {
+        // A final replaces whatever was in the preview — clearing
+        // `_partial` here is what prevents the safety-net append on
+        // stop from doubling the text Deepgram just flushed. The
+        // preview is "what's pending for the NEXT final", not "what
+        // Deepgram already committed."
+        _appendFinal(text);
+        if (!mounted) return;
+        setState(() => _partial = '');
+      });
       _partialSub = session.partials.listen((p) {
         if (!mounted) return;
         setState(() => _partial = p);
