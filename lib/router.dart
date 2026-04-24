@@ -69,7 +69,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/observations',
-        builder: (_, _) => const ObservationsScreen(),
+        builder: (_, state) => ObservationsScreen(
+          // Tag chips on observation cards push `/observations?tag=ssd3`
+          // to scope the archive to one domain. Null = unfiltered.
+          initialTagFilter: state.uri.queryParameters['tag'],
+        ),
       ),
       GoRoute(
         path: '/children',

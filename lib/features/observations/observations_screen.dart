@@ -12,6 +12,7 @@ import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 /// How the Observe tab's feed is filtered.
 enum _ObserveFilter {
@@ -26,7 +27,13 @@ enum _ObserveFilter {
 }
 
 class ObservationsScreen extends ConsumerStatefulWidget {
-  const ObservationsScreen({super.key});
+  const ObservationsScreen({super.key, this.initialTagFilter});
+
+  /// Raw `?tag=` query param from the route. Resolved to an
+  /// [ObservationDomain] once in [State.initState]; unknown values
+  /// fall back to "no filter" rather than `.other` so a typo'd URL
+  /// doesn't silently scope the archive to Other observations.
+  final String? initialTagFilter;
 
   @override
   ConsumerState<ObservationsScreen> createState() => _ObservationsScreenState();
@@ -34,6 +41,35 @@ class ObservationsScreen extends ConsumerStatefulWidget {
 
 class _ObservationsScreenState extends ConsumerState<ObservationsScreen> {
   _ObserveFilter _filter = _ObserveFilter.all;
+
+  /// Domain the archive is scoped to, if any. Driven initially by the
+  /// `?tag=` query param but editable in-widget via the Filtered pill's
+  /// clear button. `null` = unfiltered feed.
+  ObservationDomain? _activeTagFilter;
+
+  @override
+  void initState() {
+    super.initState();
+    final raw = widget.initialTagFilter;
+    if (raw != null && raw.isNotEmpty) {
+      // Guard against unknown enum names — fromName returns .other as
+      // its fallback, which would silently scope to Other when a URL
+      // typo arrives. Verify the match is exact before applying.
+      final resolved = ObservationDomain.fromName(raw);
+      if (resolved.name == raw) {
+        _activeTagFilter = resolved;
+      }
+    }
+  }
+
+  void _clearTagFilter() {
+    setState(() => _activeTagFilter = null);
+    // Keep the URL honest so a follow-up share / back-stack manoeuvre
+    // doesn't resurface the filter. `go` replaces rather than pushes —
+    // the teacher is on the Observations page already, no need for an
+    // extra history entry.
+    context.go('/observations');
+  }
 
   /// Held so child widgets (the list feed) can reach back out and
   /// animate the outer AppBar controller on send — otherwise the
@@ -150,6 +186,11 @@ class _ObservationsScreenState extends ConsumerState<ObservationsScreen> {
         appBar: _selecting ? _buildSelectionAppBar(theme) : null,
         body: Column(
           children: [
+            if (_activeTagFilter != null)
+              _FilterPill(
+                domain: _activeTagFilter!,
+                onClear: _clearTagFilter,
+              ),
             Expanded(
               child: NestedScrollView(
                 key: _nestedKey,
@@ -251,6 +292,7 @@ class _ObservationsScreenState extends ConsumerState<ObservationsScreen> {
           selectedIds: _selectedObservationIds,
           onToggleSelect: _toggleObservation,
           nestedKey: _nestedKey,
+          tagFilter: _activeTagFilter,
         );
       case _ObserveFilter.notes:
         return _ListFeed(
@@ -259,6 +301,7 @@ class _ObservationsScreenState extends ConsumerState<ObservationsScreen> {
           selectedIds: _selectedObservationIds,
           onToggleSelect: _toggleObservation,
           nestedKey: _nestedKey,
+          tagFilter: _activeTagFilter,
         );
       case _ObserveFilter.media:
         return _MediaGallery(
@@ -266,6 +309,75 @@ class _ObservationsScreenState extends ConsumerState<ObservationsScreen> {
           onToggleSelect: _toggleAttachment,
         );
     }
+  }
+}
+
+/// Pill shown above the feed when the archive is scoped to a single
+/// domain. Displays the domain's code + short label; the trailing X
+/// drops the filter and restores the unfiltered feed.
+class _FilterPill extends StatelessWidget {
+  const _FilterPill({required this.domain, required this.onClear});
+
+  final ObservationDomain domain;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // "SSD3 · Empathy" for codes, "Other" for the uncoded bucket.
+    final label = domain == ObservationDomain.other
+        ? 'Other'
+        : '${domain.code} · ${domain.label}';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.lg,
+        0,
+      ),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Material(
+          color: theme.colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(999),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(999),
+            onTap: onClear,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.xs,
+                AppSpacing.sm,
+                AppSpacing.xs,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.filter_alt_outlined,
+                    size: 16,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    'Filtered: $label',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Icon(
+                    Icons.close,
+                    size: 18,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -282,6 +394,7 @@ class _ListFeed extends ConsumerStatefulWidget {
     required this.selectedIds,
     required this.onToggleSelect,
     required this.nestedKey,
+    this.tagFilter,
   });
 
   final Future<void> Function(Observation) onTapObservation;
@@ -294,6 +407,11 @@ class _ListFeed extends ConsumerStatefulWidget {
   /// animates to 0 while the AppBar stays hidden, and snaps back in
   /// on top of the just-sent card.
   final GlobalKey<NestedScrollViewState> nestedKey;
+
+  /// When non-null the feed pulls from the domain-scoped stream
+  /// instead of the full archive — only observations tagged with this
+  /// domain show up, and the empty state names the tag.
+  final ObservationDomain? tagFilter;
 
   @override
   ConsumerState<_ListFeed> createState() => _ListFeedState();
@@ -357,28 +475,45 @@ class _ListFeedState extends ConsumerState<_ListFeed> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<AsyncValue<List<Observation>>>(
-      observationsProvider,
-      (prev, next) {
-        final list = next.asData?.value ?? const <Observation>[];
-        final count = list.length;
-        if (count > _lastCount && _lastCount != 0) {
-          // An observation was added (not the initial hydration). Snap
-          // the feed back to the newest so the teacher sees what just
-          // landed, and flash the drag-target highlight so the new
-          // row is impossible to miss.
-          WidgetsBinding.instance.addPostFrameCallback(
-            (_) => _scrollToNewest(context),
-          );
-          if (list.isNotEmpty) {
-            _flashHighlight(list.first.id);
-          }
+    // Pick the feed source — scoped to a domain when the archive was
+    // entered via a tag chip, otherwise the full stream. `ref.listen`
+    // / `ref.watch` are called twice with the same branching so the
+    // inferred provider type stays sharp (the exported Listenable
+    // type isn't stable enough to hoist into a shared local).
+    final tag = widget.tagFilter;
+    void onFeed(
+      AsyncValue<List<Observation>>? prev,
+      AsyncValue<List<Observation>> next,
+    ) {
+      final list = next.asData?.value ?? const <Observation>[];
+      final count = list.length;
+      if (count > _lastCount && _lastCount != 0) {
+        // An observation was added (not the initial hydration). Snap
+        // the feed back to the newest so the teacher sees what just
+        // landed, and flash the drag-target highlight so the new
+        // row is impossible to miss.
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _scrollToNewest(context),
+        );
+        if (list.isNotEmpty) {
+          _flashHighlight(list.first.id);
         }
-        _lastCount = count;
-      },
-    );
+      }
+      _lastCount = count;
+    }
 
-    final observationsAsync = ref.watch(observationsProvider);
+    if (tag == null) {
+      ref.listen<AsyncValue<List<Observation>>>(observationsProvider, onFeed);
+    } else {
+      ref.listen<AsyncValue<List<Observation>>>(
+        observationsWithDomainProvider(tag),
+        onFeed,
+      );
+    }
+
+    final observationsAsync = tag == null
+        ? ref.watch(observationsProvider)
+        : ref.watch(observationsWithDomainProvider(tag));
     final selecting = widget.selectedIds.isNotEmpty;
 
     return observationsAsync.when(
@@ -386,7 +521,7 @@ class _ListFeedState extends ConsumerState<_ListFeed> {
       error: (err, _) => Center(child: Text('Error: $err')),
       data: (items) {
         if (items.isEmpty) {
-          return const _EmptyState();
+          return _EmptyState(filteredDomain: tag);
         }
         return ListView.separated(
           // No custom controller — the PrimaryScrollController injected
@@ -611,11 +746,24 @@ class _GalleryTile extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  const _EmptyState({this.filteredDomain});
+
+  /// When non-null the feed is scoped to this domain and the
+  /// empty-state copy names the tag so the teacher knows why
+  /// the list looks bare.
+  final ObservationDomain? filteredDomain;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final filtered = filteredDomain;
+    final title = filtered == null ? 'Start capturing' : 'Nothing tagged yet';
+    final body = filtered == null
+        ? 'Type, dictate, or attach a photo below — your observations '
+            'show up here.'
+        : filtered == ObservationDomain.other
+            ? 'No observations tagged Other yet.'
+            : 'No observations tagged ${filtered.code} · ${filtered.label} yet.';
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.xl),
@@ -628,14 +776,10 @@ class _EmptyState extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: AppSpacing.lg),
-            Text(
-              'Start capturing',
-              style: theme.textTheme.titleLarge,
-            ),
+            Text(title, style: theme.textTheme.titleLarge),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Type, dictate, or attach a photo below — your observations '
-              'show up here.',
+              body,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
