@@ -2,6 +2,8 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/children/widgets/edit_child_sheet.dart';
+import 'package:basecamp/features/parents/parents_repository.dart';
+import 'package:basecamp/features/parents/widgets/edit_parent_sheet.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -9,6 +11,7 @@ import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 class ChildDetailScreen extends ConsumerWidget {
   const ChildDetailScreen({required this.childId, super.key});
@@ -105,6 +108,8 @@ class ChildDetailScreen extends ConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.xl),
               _TodayTimeline(child: child),
+              const SizedBox(height: AppSpacing.md),
+              _ParentsSection(child: child),
               const SizedBox(height: AppSpacing.md),
               AppCard(
                 child: Column(
@@ -357,5 +362,351 @@ class _TimelineRow extends ConsumerWidget {
     final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
     final period = h < 12 ? 'a' : 'p';
     return m == '00' ? '$hour12$period' : '$hour12:$m$period';
+  }
+}
+
+/// Parents / guardians linked to this child. When empty, shows a
+/// prompt to add the first one; otherwise a compact list with the
+/// relationship chip and a star for the primary pickup contact.
+/// "Add parent" pops a picker that offers existing parents plus an
+/// "Add new parent" tile that chains into the create sheet and
+/// auto-links on create.
+class _ParentsSection extends ConsumerWidget {
+  const _ParentsSection({required this.child});
+
+  final Child child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final linksAsync = ref.watch(parentsForChildProvider(child.id));
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Parents & guardians',
+                  style: theme.textTheme.titleMedium,
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => _openAddPicker(context, ref),
+                icon: const Icon(Icons.person_add_alt_outlined, size: 18),
+                label: const Text('Add'),
+              ),
+            ],
+          ),
+          linksAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+              child: LinearProgressIndicator(),
+            ),
+            error: (err, _) => Text('Error: $err'),
+            data: (links) {
+              if (links.isEmpty) {
+                // Back-compat: if the legacy parentName field is set,
+                // show it as faded context — that way programs that
+                // haven't promoted to linked Parent rows still see the
+                // info they put in. The "Add" button promotes to the
+                // new entity.
+                final legacy = child.parentName;
+                if (legacy != null && legacy.trim().isNotEmpty) {
+                  return Padding(
+                    padding:
+                        const EdgeInsets.only(top: AppSpacing.xs),
+                    child: Text(
+                      '$legacy (from old text field — tap Add to '
+                      'promote to a linked parent row)',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  );
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.xs),
+                  child: Text(
+                    'No parents linked yet.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final link in links)
+                    _LinkRow(child: child, link: link),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openAddPicker(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final all = await ref.read(parentsRepositoryProvider).getAll();
+    final existingLinks =
+        await ref.read(parentsForChildProvider(child.id).future);
+    final linkedIds = {for (final l in existingLinks) l.parent.id};
+    if (!context.mounted) return;
+    final result = await showModalBottomSheet<_ParentPickResult>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _ParentPickerSheet(
+        all: all,
+        linkedIds: linkedIds,
+      ),
+    );
+    if (result == null) return;
+    final repo = ref.read(parentsRepositoryProvider);
+    if (result.addNew) {
+      if (!context.mounted) return;
+      final newId = await showModalBottomSheet<String?>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (_) => const EditParentSheet(),
+      );
+      if (newId == null) return;
+      await repo.linkParentToChild(
+        parentId: newId,
+        childId: child.id,
+        isPrimary: existingLinks.isEmpty,
+      );
+    } else if (result.parentId != null) {
+      await repo.linkParentToChild(
+        parentId: result.parentId!,
+        childId: child.id,
+        isPrimary: existingLinks.isEmpty,
+      );
+    }
+  }
+}
+
+/// One linked parent row on the child detail screen. Tap-through to
+/// parent detail; long-press to unlink; star toggle for primary
+/// pickup contact. Relationship and phone chip subtitle so the row
+/// reads informative at a glance.
+class _LinkRow extends ConsumerWidget {
+  const _LinkRow({required this.child, required this.link});
+
+  final Child child;
+  final ParentLink link;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final p = link.parent;
+    final name = _formatName(p);
+    final sub = <String>[];
+    if (p.relationship != null && p.relationship!.isNotEmpty) {
+      sub.add(p.relationship!);
+    }
+    if (p.phone != null && p.phone!.isNotEmpty) sub.add(p.phone!);
+    return InkWell(
+      onTap: () => context.push('/more/parents/${p.id}'),
+      onLongPress: () => _confirmUnlink(context, ref, p),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+        child: Row(
+          children: [
+            IconButton(
+              tooltip: link.isPrimary
+                  ? 'Primary pickup contact'
+                  : 'Make primary pickup contact',
+              icon: Icon(
+                link.isPrimary ? Icons.star : Icons.star_border,
+                color: link.isPrimary
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+              onPressed: link.isPrimary
+                  ? null
+                  : () => ref.read(parentsRepositoryProvider).setPrimary(
+                        parentId: p.id,
+                        childId: child.id,
+                      ),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: theme.textTheme.titleSmall),
+                  if (sub.isNotEmpty)
+                    Text(
+                      sub.join(' · '),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmUnlink(
+    BuildContext context,
+    WidgetRef ref,
+    Parent p,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Unlink ${_formatName(p)}?'),
+        content: Text(
+          "They'll stay in Parents & guardians, just unlinked from "
+          '${child.firstName}. You can re-link anytime.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Unlink'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await ref.read(parentsRepositoryProvider).unlinkParentFromChild(
+          parentId: p.id,
+          childId: child.id,
+        );
+  }
+
+  String _formatName(Parent p) {
+    final last = p.lastName;
+    return last == null || last.isEmpty
+        ? p.firstName
+        : '${p.firstName} $last';
+  }
+}
+
+/// Outcome of the "Add parent" picker. Either an existing parent
+/// picked by id, or a request to jump into the add-new-parent sheet.
+class _ParentPickResult {
+  const _ParentPickResult({this.parentId, this.addNew = false});
+  final String? parentId;
+  final bool addNew;
+}
+
+/// Modal list of every program parent, with an "Add new parent"
+/// tile. Parents already linked to this child are disabled so the
+/// teacher can see who's already on the list without the option to
+/// double-link.
+class _ParentPickerSheet extends StatelessWidget {
+  const _ParentPickerSheet({
+    required this.all,
+    required this.linkedIds,
+  });
+
+  final List<Parent> all;
+  final Set<String> linkedIds;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.md,
+                top: AppSpacing.xs,
+                bottom: AppSpacing.md,
+              ),
+              child: Text(
+                'Link a parent',
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
+            if (all.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Text(
+                  'No parents in the program yet. Add one below.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            for (final p in all)
+              ListTile(
+                leading: CircleAvatar(
+                  radius: 18,
+                  backgroundColor:
+                      theme.colorScheme.secondaryContainer,
+                  foregroundColor:
+                      theme.colorScheme.onSecondaryContainer,
+                  child: Text(
+                    p.firstName.isEmpty
+                        ? '?'
+                        : p.firstName[0].toUpperCase(),
+                  ),
+                ),
+                title: Text(
+                  p.lastName == null || p.lastName!.isEmpty
+                      ? p.firstName
+                      : '${p.firstName} ${p.lastName}',
+                ),
+                subtitle: p.relationship == null ||
+                        p.relationship!.isEmpty
+                    ? null
+                    : Text(p.relationship!),
+                enabled: !linkedIds.contains(p.id),
+                trailing: linkedIds.contains(p.id)
+                    ? Text(
+                        'Linked',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      )
+                    : null,
+                onTap: () => Navigator.of(context).pop(
+                  _ParentPickResult(parentId: p.id),
+                ),
+              ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.add),
+              title: const Text('Add new parent…'),
+              onTap: () => Navigator.of(context).pop(
+                const _ParentPickResult(addNew: true),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
   }
 }

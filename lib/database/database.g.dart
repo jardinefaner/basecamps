@@ -15100,6 +15100,898 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
   }
 }
 
+class $ParentsTable extends Parents with TableInfo<$ParentsTable, Parent> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ParentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _firstNameMeta = const VerificationMeta(
+    'firstName',
+  );
+  @override
+  late final GeneratedColumn<String> firstName = GeneratedColumn<String>(
+    'first_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastNameMeta = const VerificationMeta(
+    'lastName',
+  );
+  @override
+  late final GeneratedColumn<String> lastName = GeneratedColumn<String>(
+    'last_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _relationshipMeta = const VerificationMeta(
+    'relationship',
+  );
+  @override
+  late final GeneratedColumn<String> relationship = GeneratedColumn<String>(
+    'relationship',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _phoneMeta = const VerificationMeta('phone');
+  @override
+  late final GeneratedColumn<String> phone = GeneratedColumn<String>(
+    'phone',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _emailMeta = const VerificationMeta('email');
+  @override
+  late final GeneratedColumn<String> email = GeneratedColumn<String>(
+    'email',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+    'notes',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    firstName,
+    lastName,
+    relationship,
+    phone,
+    email,
+    notes,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'parents';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Parent> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('first_name')) {
+      context.handle(
+        _firstNameMeta,
+        firstName.isAcceptableOrUnknown(data['first_name']!, _firstNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_firstNameMeta);
+    }
+    if (data.containsKey('last_name')) {
+      context.handle(
+        _lastNameMeta,
+        lastName.isAcceptableOrUnknown(data['last_name']!, _lastNameMeta),
+      );
+    }
+    if (data.containsKey('relationship')) {
+      context.handle(
+        _relationshipMeta,
+        relationship.isAcceptableOrUnknown(
+          data['relationship']!,
+          _relationshipMeta,
+        ),
+      );
+    }
+    if (data.containsKey('phone')) {
+      context.handle(
+        _phoneMeta,
+        phone.isAcceptableOrUnknown(data['phone']!, _phoneMeta),
+      );
+    }
+    if (data.containsKey('email')) {
+      context.handle(
+        _emailMeta,
+        email.isAcceptableOrUnknown(data['email']!, _emailMeta),
+      );
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+        _notesMeta,
+        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Parent map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Parent(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      firstName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}first_name'],
+      )!,
+      lastName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_name'],
+      ),
+      relationship: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}relationship'],
+      ),
+      phone: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}phone'],
+      ),
+      email: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}email'],
+      ),
+      notes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ParentsTable createAlias(String alias) {
+    return $ParentsTable(attachedDatabase, alias);
+  }
+}
+
+class Parent extends DataClass implements Insertable<Parent> {
+  final String id;
+  final String firstName;
+  final String? lastName;
+
+  /// Free-text relationship label. "Mom", "Dad", "Grandmother",
+  /// "Guardian", "Auntie" — programs decide. Shown next to the name
+  /// on child-detail cards.
+  final String? relationship;
+  final String? phone;
+  final String? email;
+  final String? notes;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const Parent({
+    required this.id,
+    required this.firstName,
+    this.lastName,
+    this.relationship,
+    this.phone,
+    this.email,
+    this.notes,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['first_name'] = Variable<String>(firstName);
+    if (!nullToAbsent || lastName != null) {
+      map['last_name'] = Variable<String>(lastName);
+    }
+    if (!nullToAbsent || relationship != null) {
+      map['relationship'] = Variable<String>(relationship);
+    }
+    if (!nullToAbsent || phone != null) {
+      map['phone'] = Variable<String>(phone);
+    }
+    if (!nullToAbsent || email != null) {
+      map['email'] = Variable<String>(email);
+    }
+    if (!nullToAbsent || notes != null) {
+      map['notes'] = Variable<String>(notes);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  ParentsCompanion toCompanion(bool nullToAbsent) {
+    return ParentsCompanion(
+      id: Value(id),
+      firstName: Value(firstName),
+      lastName: lastName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastName),
+      relationship: relationship == null && nullToAbsent
+          ? const Value.absent()
+          : Value(relationship),
+      phone: phone == null && nullToAbsent
+          ? const Value.absent()
+          : Value(phone),
+      email: email == null && nullToAbsent
+          ? const Value.absent()
+          : Value(email),
+      notes: notes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notes),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory Parent.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Parent(
+      id: serializer.fromJson<String>(json['id']),
+      firstName: serializer.fromJson<String>(json['firstName']),
+      lastName: serializer.fromJson<String?>(json['lastName']),
+      relationship: serializer.fromJson<String?>(json['relationship']),
+      phone: serializer.fromJson<String?>(json['phone']),
+      email: serializer.fromJson<String?>(json['email']),
+      notes: serializer.fromJson<String?>(json['notes']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'firstName': serializer.toJson<String>(firstName),
+      'lastName': serializer.toJson<String?>(lastName),
+      'relationship': serializer.toJson<String?>(relationship),
+      'phone': serializer.toJson<String?>(phone),
+      'email': serializer.toJson<String?>(email),
+      'notes': serializer.toJson<String?>(notes),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  Parent copyWith({
+    String? id,
+    String? firstName,
+    Value<String?> lastName = const Value.absent(),
+    Value<String?> relationship = const Value.absent(),
+    Value<String?> phone = const Value.absent(),
+    Value<String?> email = const Value.absent(),
+    Value<String?> notes = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => Parent(
+    id: id ?? this.id,
+    firstName: firstName ?? this.firstName,
+    lastName: lastName.present ? lastName.value : this.lastName,
+    relationship: relationship.present ? relationship.value : this.relationship,
+    phone: phone.present ? phone.value : this.phone,
+    email: email.present ? email.value : this.email,
+    notes: notes.present ? notes.value : this.notes,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  Parent copyWithCompanion(ParentsCompanion data) {
+    return Parent(
+      id: data.id.present ? data.id.value : this.id,
+      firstName: data.firstName.present ? data.firstName.value : this.firstName,
+      lastName: data.lastName.present ? data.lastName.value : this.lastName,
+      relationship: data.relationship.present
+          ? data.relationship.value
+          : this.relationship,
+      phone: data.phone.present ? data.phone.value : this.phone,
+      email: data.email.present ? data.email.value : this.email,
+      notes: data.notes.present ? data.notes.value : this.notes,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Parent(')
+          ..write('id: $id, ')
+          ..write('firstName: $firstName, ')
+          ..write('lastName: $lastName, ')
+          ..write('relationship: $relationship, ')
+          ..write('phone: $phone, ')
+          ..write('email: $email, ')
+          ..write('notes: $notes, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    firstName,
+    lastName,
+    relationship,
+    phone,
+    email,
+    notes,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Parent &&
+          other.id == this.id &&
+          other.firstName == this.firstName &&
+          other.lastName == this.lastName &&
+          other.relationship == this.relationship &&
+          other.phone == this.phone &&
+          other.email == this.email &&
+          other.notes == this.notes &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ParentsCompanion extends UpdateCompanion<Parent> {
+  final Value<String> id;
+  final Value<String> firstName;
+  final Value<String?> lastName;
+  final Value<String?> relationship;
+  final Value<String?> phone;
+  final Value<String?> email;
+  final Value<String?> notes;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const ParentsCompanion({
+    this.id = const Value.absent(),
+    this.firstName = const Value.absent(),
+    this.lastName = const Value.absent(),
+    this.relationship = const Value.absent(),
+    this.phone = const Value.absent(),
+    this.email = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ParentsCompanion.insert({
+    required String id,
+    required String firstName,
+    this.lastName = const Value.absent(),
+    this.relationship = const Value.absent(),
+    this.phone = const Value.absent(),
+    this.email = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       firstName = Value(firstName);
+  static Insertable<Parent> custom({
+    Expression<String>? id,
+    Expression<String>? firstName,
+    Expression<String>? lastName,
+    Expression<String>? relationship,
+    Expression<String>? phone,
+    Expression<String>? email,
+    Expression<String>? notes,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (firstName != null) 'first_name': firstName,
+      if (lastName != null) 'last_name': lastName,
+      if (relationship != null) 'relationship': relationship,
+      if (phone != null) 'phone': phone,
+      if (email != null) 'email': email,
+      if (notes != null) 'notes': notes,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ParentsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? firstName,
+    Value<String?>? lastName,
+    Value<String?>? relationship,
+    Value<String?>? phone,
+    Value<String?>? email,
+    Value<String?>? notes,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return ParentsCompanion(
+      id: id ?? this.id,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      relationship: relationship ?? this.relationship,
+      phone: phone ?? this.phone,
+      email: email ?? this.email,
+      notes: notes ?? this.notes,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (firstName.present) {
+      map['first_name'] = Variable<String>(firstName.value);
+    }
+    if (lastName.present) {
+      map['last_name'] = Variable<String>(lastName.value);
+    }
+    if (relationship.present) {
+      map['relationship'] = Variable<String>(relationship.value);
+    }
+    if (phone.present) {
+      map['phone'] = Variable<String>(phone.value);
+    }
+    if (email.present) {
+      map['email'] = Variable<String>(email.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ParentsCompanion(')
+          ..write('id: $id, ')
+          ..write('firstName: $firstName, ')
+          ..write('lastName: $lastName, ')
+          ..write('relationship: $relationship, ')
+          ..write('phone: $phone, ')
+          ..write('email: $email, ')
+          ..write('notes: $notes, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ParentChildrenTable extends ParentChildren
+    with TableInfo<$ParentChildrenTable, ParentChildrenData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ParentChildrenTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _parentIdMeta = const VerificationMeta(
+    'parentId',
+  );
+  @override
+  late final GeneratedColumn<String> parentId = GeneratedColumn<String>(
+    'parent_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES parents (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _childIdMeta = const VerificationMeta(
+    'childId',
+  );
+  @override
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+    'child_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES children (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _isPrimaryMeta = const VerificationMeta(
+    'isPrimary',
+  );
+  @override
+  late final GeneratedColumn<bool> isPrimary = GeneratedColumn<bool>(
+    'is_primary',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_primary" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    parentId,
+    childId,
+    isPrimary,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'parent_children';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ParentChildrenData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('parent_id')) {
+      context.handle(
+        _parentIdMeta,
+        parentId.isAcceptableOrUnknown(data['parent_id']!, _parentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_parentIdMeta);
+    }
+    if (data.containsKey('child_id')) {
+      context.handle(
+        _childIdMeta,
+        childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_childIdMeta);
+    }
+    if (data.containsKey('is_primary')) {
+      context.handle(
+        _isPrimaryMeta,
+        isPrimary.isAcceptableOrUnknown(data['is_primary']!, _isPrimaryMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {parentId, childId};
+  @override
+  ParentChildrenData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ParentChildrenData(
+      parentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}parent_id'],
+      )!,
+      childId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}child_id'],
+      )!,
+      isPrimary: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_primary'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ParentChildrenTable createAlias(String alias) {
+    return $ParentChildrenTable(attachedDatabase, alias);
+  }
+}
+
+class ParentChildrenData extends DataClass
+    implements Insertable<ParentChildrenData> {
+  final String parentId;
+  final String childId;
+
+  /// Primary pickup contact for this child. At most one primary
+  /// per child (repository-enforced, not FK-enforced).
+  final bool isPrimary;
+  final DateTime createdAt;
+  const ParentChildrenData({
+    required this.parentId,
+    required this.childId,
+    required this.isPrimary,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['parent_id'] = Variable<String>(parentId);
+    map['child_id'] = Variable<String>(childId);
+    map['is_primary'] = Variable<bool>(isPrimary);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  ParentChildrenCompanion toCompanion(bool nullToAbsent) {
+    return ParentChildrenCompanion(
+      parentId: Value(parentId),
+      childId: Value(childId),
+      isPrimary: Value(isPrimary),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory ParentChildrenData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ParentChildrenData(
+      parentId: serializer.fromJson<String>(json['parentId']),
+      childId: serializer.fromJson<String>(json['childId']),
+      isPrimary: serializer.fromJson<bool>(json['isPrimary']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'parentId': serializer.toJson<String>(parentId),
+      'childId': serializer.toJson<String>(childId),
+      'isPrimary': serializer.toJson<bool>(isPrimary),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  ParentChildrenData copyWith({
+    String? parentId,
+    String? childId,
+    bool? isPrimary,
+    DateTime? createdAt,
+  }) => ParentChildrenData(
+    parentId: parentId ?? this.parentId,
+    childId: childId ?? this.childId,
+    isPrimary: isPrimary ?? this.isPrimary,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  ParentChildrenData copyWithCompanion(ParentChildrenCompanion data) {
+    return ParentChildrenData(
+      parentId: data.parentId.present ? data.parentId.value : this.parentId,
+      childId: data.childId.present ? data.childId.value : this.childId,
+      isPrimary: data.isPrimary.present ? data.isPrimary.value : this.isPrimary,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ParentChildrenData(')
+          ..write('parentId: $parentId, ')
+          ..write('childId: $childId, ')
+          ..write('isPrimary: $isPrimary, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(parentId, childId, isPrimary, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ParentChildrenData &&
+          other.parentId == this.parentId &&
+          other.childId == this.childId &&
+          other.isPrimary == this.isPrimary &&
+          other.createdAt == this.createdAt);
+}
+
+class ParentChildrenCompanion extends UpdateCompanion<ParentChildrenData> {
+  final Value<String> parentId;
+  final Value<String> childId;
+  final Value<bool> isPrimary;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const ParentChildrenCompanion({
+    this.parentId = const Value.absent(),
+    this.childId = const Value.absent(),
+    this.isPrimary = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ParentChildrenCompanion.insert({
+    required String parentId,
+    required String childId,
+    this.isPrimary = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : parentId = Value(parentId),
+       childId = Value(childId);
+  static Insertable<ParentChildrenData> custom({
+    Expression<String>? parentId,
+    Expression<String>? childId,
+    Expression<bool>? isPrimary,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (parentId != null) 'parent_id': parentId,
+      if (childId != null) 'child_id': childId,
+      if (isPrimary != null) 'is_primary': isPrimary,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ParentChildrenCompanion copyWith({
+    Value<String>? parentId,
+    Value<String>? childId,
+    Value<bool>? isPrimary,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return ParentChildrenCompanion(
+      parentId: parentId ?? this.parentId,
+      childId: childId ?? this.childId,
+      isPrimary: isPrimary ?? this.isPrimary,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (parentId.present) {
+      map['parent_id'] = Variable<String>(parentId.value);
+    }
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
+    }
+    if (isPrimary.present) {
+      map['is_primary'] = Variable<bool>(isPrimary.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ParentChildrenCompanion(')
+          ..write('parentId: $parentId, ')
+          ..write('childId: $childId, ')
+          ..write('isPrimary: $isPrimary, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -15144,6 +16036,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $VehiclesTable vehicles = $VehiclesTable(this);
+  late final $ParentsTable parents = $ParentsTable(this);
+  late final $ParentChildrenTable parentChildren = $ParentChildrenTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -15174,6 +16068,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     adultDayBlocks,
     formSubmissions,
     vehicles,
+    parents,
+    parentChildren,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -15472,6 +16368,20 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('form_submissions', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'parents',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('parent_children', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'children',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('parent_children', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -16923,6 +17833,24 @@ final class $$ChildrenTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$ParentChildrenTable, List<ParentChildrenData>>
+  _parentChildrenRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.parentChildren,
+    aliasName: $_aliasNameGenerator(db.children.id, db.parentChildren.childId),
+  );
+
+  $$ParentChildrenTableProcessedTableManager get parentChildrenRefs {
+    final manager = $$ParentChildrenTableTableManager(
+      $_db,
+      $_db.parentChildren,
+    ).filter((f) => f.childId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_parentChildrenRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$ChildrenTableFilterComposer
@@ -17185,6 +18113,31 @@ class $$ChildrenTableFilterComposer
           }) => $$FormSubmissionsTableFilterComposer(
             $db: $db,
             $table: $db.formSubmissions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> parentChildrenRefs(
+    Expression<bool> Function($$ParentChildrenTableFilterComposer f) f,
+  ) {
+    final $$ParentChildrenTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.parentChildren,
+      getReferencedColumn: (t) => t.childId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ParentChildrenTableFilterComposer(
+            $db: $db,
+            $table: $db.parentChildren,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -17541,6 +18494,31 @@ class $$ChildrenTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> parentChildrenRefs<T extends Object>(
+    Expression<T> Function($$ParentChildrenTableAnnotationComposer a) f,
+  ) {
+    final $$ParentChildrenTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.parentChildren,
+      getReferencedColumn: (t) => t.childId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ParentChildrenTableAnnotationComposer(
+            $db: $db,
+            $table: $db.parentChildren,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ChildrenTableTableManager
@@ -17565,6 +18543,7 @@ class $$ChildrenTableTableManager
             bool attendanceRefs,
             bool childScheduleOverridesRefs,
             bool formSubmissionsRefs,
+            bool parentChildrenRefs,
           })
         > {
   $$ChildrenTableTableManager(_$AppDatabase db, $ChildrenTable table)
@@ -17660,6 +18639,7 @@ class $$ChildrenTableTableManager
                 attendanceRefs = false,
                 childScheduleOverridesRefs = false,
                 formSubmissionsRefs = false,
+                parentChildrenRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -17671,6 +18651,7 @@ class $$ChildrenTableTableManager
                     if (attendanceRefs) db.attendance,
                     if (childScheduleOverridesRefs) db.childScheduleOverrides,
                     if (formSubmissionsRefs) db.formSubmissions,
+                    if (parentChildrenRefs) db.parentChildren,
                   ],
                   addJoins:
                       <
@@ -17853,6 +18834,27 @@ class $$ChildrenTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (parentChildrenRefs)
+                        await $_getPrefetchedData<
+                          Child,
+                          $ChildrenTable,
+                          ParentChildrenData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ChildrenTableReferences
+                              ._parentChildrenRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ChildrenTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).parentChildrenRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.childId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -17882,6 +18884,7 @@ typedef $$ChildrenTableProcessedTableManager =
         bool attendanceRefs,
         bool childScheduleOverridesRefs,
         bool formSubmissionsRefs,
+        bool parentChildrenRefs,
       })
     >;
 typedef $$TripsTableCreateCompanionBuilder =
@@ -31363,6 +32366,787 @@ typedef $$VehiclesTableProcessedTableManager =
       Vehicle,
       PrefetchHooks Function()
     >;
+typedef $$ParentsTableCreateCompanionBuilder =
+    ParentsCompanion Function({
+      required String id,
+      required String firstName,
+      Value<String?> lastName,
+      Value<String?> relationship,
+      Value<String?> phone,
+      Value<String?> email,
+      Value<String?> notes,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$ParentsTableUpdateCompanionBuilder =
+    ParentsCompanion Function({
+      Value<String> id,
+      Value<String> firstName,
+      Value<String?> lastName,
+      Value<String?> relationship,
+      Value<String?> phone,
+      Value<String?> email,
+      Value<String?> notes,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$ParentsTableReferences
+    extends BaseReferences<_$AppDatabase, $ParentsTable, Parent> {
+  $$ParentsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$ParentChildrenTable, List<ParentChildrenData>>
+  _parentChildrenRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.parentChildren,
+    aliasName: $_aliasNameGenerator(db.parents.id, db.parentChildren.parentId),
+  );
+
+  $$ParentChildrenTableProcessedTableManager get parentChildrenRefs {
+    final manager = $$ParentChildrenTableTableManager(
+      $_db,
+      $_db.parentChildren,
+    ).filter((f) => f.parentId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_parentChildrenRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$ParentsTableFilterComposer
+    extends Composer<_$AppDatabase, $ParentsTable> {
+  $$ParentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get firstName => $composableBuilder(
+    column: $table.firstName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastName => $composableBuilder(
+    column: $table.lastName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get relationship => $composableBuilder(
+    column: $table.relationship,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get phone => $composableBuilder(
+    column: $table.phone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get email => $composableBuilder(
+    column: $table.email,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> parentChildrenRefs(
+    Expression<bool> Function($$ParentChildrenTableFilterComposer f) f,
+  ) {
+    final $$ParentChildrenTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.parentChildren,
+      getReferencedColumn: (t) => t.parentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ParentChildrenTableFilterComposer(
+            $db: $db,
+            $table: $db.parentChildren,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$ParentsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ParentsTable> {
+  $$ParentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get firstName => $composableBuilder(
+    column: $table.firstName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastName => $composableBuilder(
+    column: $table.lastName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get relationship => $composableBuilder(
+    column: $table.relationship,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get phone => $composableBuilder(
+    column: $table.phone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get email => $composableBuilder(
+    column: $table.email,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ParentsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ParentsTable> {
+  $$ParentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get firstName =>
+      $composableBuilder(column: $table.firstName, builder: (column) => column);
+
+  GeneratedColumn<String> get lastName =>
+      $composableBuilder(column: $table.lastName, builder: (column) => column);
+
+  GeneratedColumn<String> get relationship => $composableBuilder(
+    column: $table.relationship,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get phone =>
+      $composableBuilder(column: $table.phone, builder: (column) => column);
+
+  GeneratedColumn<String> get email =>
+      $composableBuilder(column: $table.email, builder: (column) => column);
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  Expression<T> parentChildrenRefs<T extends Object>(
+    Expression<T> Function($$ParentChildrenTableAnnotationComposer a) f,
+  ) {
+    final $$ParentChildrenTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.parentChildren,
+      getReferencedColumn: (t) => t.parentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ParentChildrenTableAnnotationComposer(
+            $db: $db,
+            $table: $db.parentChildren,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$ParentsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ParentsTable,
+          Parent,
+          $$ParentsTableFilterComposer,
+          $$ParentsTableOrderingComposer,
+          $$ParentsTableAnnotationComposer,
+          $$ParentsTableCreateCompanionBuilder,
+          $$ParentsTableUpdateCompanionBuilder,
+          (Parent, $$ParentsTableReferences),
+          Parent,
+          PrefetchHooks Function({bool parentChildrenRefs})
+        > {
+  $$ParentsTableTableManager(_$AppDatabase db, $ParentsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ParentsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ParentsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ParentsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> firstName = const Value.absent(),
+                Value<String?> lastName = const Value.absent(),
+                Value<String?> relationship = const Value.absent(),
+                Value<String?> phone = const Value.absent(),
+                Value<String?> email = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ParentsCompanion(
+                id: id,
+                firstName: firstName,
+                lastName: lastName,
+                relationship: relationship,
+                phone: phone,
+                email: email,
+                notes: notes,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String firstName,
+                Value<String?> lastName = const Value.absent(),
+                Value<String?> relationship = const Value.absent(),
+                Value<String?> phone = const Value.absent(),
+                Value<String?> email = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ParentsCompanion.insert(
+                id: id,
+                firstName: firstName,
+                lastName: lastName,
+                relationship: relationship,
+                phone: phone,
+                email: email,
+                notes: notes,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ParentsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({parentChildrenRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (parentChildrenRefs) db.parentChildren,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (parentChildrenRefs)
+                    await $_getPrefetchedData<
+                      Parent,
+                      $ParentsTable,
+                      ParentChildrenData
+                    >(
+                      currentTable: table,
+                      referencedTable: $$ParentsTableReferences
+                          ._parentChildrenRefsTable(db),
+                      managerFromTypedResult: (p0) => $$ParentsTableReferences(
+                        db,
+                        table,
+                        p0,
+                      ).parentChildrenRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.parentId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ParentsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ParentsTable,
+      Parent,
+      $$ParentsTableFilterComposer,
+      $$ParentsTableOrderingComposer,
+      $$ParentsTableAnnotationComposer,
+      $$ParentsTableCreateCompanionBuilder,
+      $$ParentsTableUpdateCompanionBuilder,
+      (Parent, $$ParentsTableReferences),
+      Parent,
+      PrefetchHooks Function({bool parentChildrenRefs})
+    >;
+typedef $$ParentChildrenTableCreateCompanionBuilder =
+    ParentChildrenCompanion Function({
+      required String parentId,
+      required String childId,
+      Value<bool> isPrimary,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+typedef $$ParentChildrenTableUpdateCompanionBuilder =
+    ParentChildrenCompanion Function({
+      Value<String> parentId,
+      Value<String> childId,
+      Value<bool> isPrimary,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+final class $$ParentChildrenTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $ParentChildrenTable,
+          ParentChildrenData
+        > {
+  $$ParentChildrenTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ParentsTable _parentIdTable(_$AppDatabase db) =>
+      db.parents.createAlias(
+        $_aliasNameGenerator(db.parentChildren.parentId, db.parents.id),
+      );
+
+  $$ParentsTableProcessedTableManager get parentId {
+    final $_column = $_itemColumn<String>('parent_id')!;
+
+    final manager = $$ParentsTableTableManager(
+      $_db,
+      $_db.parents,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_parentIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $ChildrenTable _childIdTable(_$AppDatabase db) =>
+      db.children.createAlias(
+        $_aliasNameGenerator(db.parentChildren.childId, db.children.id),
+      );
+
+  $$ChildrenTableProcessedTableManager get childId {
+    final $_column = $_itemColumn<String>('child_id')!;
+
+    final manager = $$ChildrenTableTableManager(
+      $_db,
+      $_db.children,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_childIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ParentChildrenTableFilterComposer
+    extends Composer<_$AppDatabase, $ParentChildrenTable> {
+  $$ParentChildrenTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<bool> get isPrimary => $composableBuilder(
+    column: $table.isPrimary,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ParentsTableFilterComposer get parentId {
+    final $$ParentsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.parentId,
+      referencedTable: $db.parents,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ParentsTableFilterComposer(
+            $db: $db,
+            $table: $db.parents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ChildrenTableFilterComposer get childId {
+    final $$ChildrenTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChildrenTableFilterComposer(
+            $db: $db,
+            $table: $db.children,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ParentChildrenTableOrderingComposer
+    extends Composer<_$AppDatabase, $ParentChildrenTable> {
+  $$ParentChildrenTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<bool> get isPrimary => $composableBuilder(
+    column: $table.isPrimary,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ParentsTableOrderingComposer get parentId {
+    final $$ParentsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.parentId,
+      referencedTable: $db.parents,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ParentsTableOrderingComposer(
+            $db: $db,
+            $table: $db.parents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ChildrenTableOrderingComposer get childId {
+    final $$ChildrenTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChildrenTableOrderingComposer(
+            $db: $db,
+            $table: $db.children,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ParentChildrenTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ParentChildrenTable> {
+  $$ParentChildrenTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<bool> get isPrimary =>
+      $composableBuilder(column: $table.isPrimary, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$ParentsTableAnnotationComposer get parentId {
+    final $$ParentsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.parentId,
+      referencedTable: $db.parents,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ParentsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.parents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ChildrenTableAnnotationComposer get childId {
+    final $$ChildrenTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.childId,
+      referencedTable: $db.children,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChildrenTableAnnotationComposer(
+            $db: $db,
+            $table: $db.children,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ParentChildrenTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ParentChildrenTable,
+          ParentChildrenData,
+          $$ParentChildrenTableFilterComposer,
+          $$ParentChildrenTableOrderingComposer,
+          $$ParentChildrenTableAnnotationComposer,
+          $$ParentChildrenTableCreateCompanionBuilder,
+          $$ParentChildrenTableUpdateCompanionBuilder,
+          (ParentChildrenData, $$ParentChildrenTableReferences),
+          ParentChildrenData,
+          PrefetchHooks Function({bool parentId, bool childId})
+        > {
+  $$ParentChildrenTableTableManager(
+    _$AppDatabase db,
+    $ParentChildrenTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ParentChildrenTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ParentChildrenTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ParentChildrenTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> parentId = const Value.absent(),
+                Value<String> childId = const Value.absent(),
+                Value<bool> isPrimary = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ParentChildrenCompanion(
+                parentId: parentId,
+                childId: childId,
+                isPrimary: isPrimary,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String parentId,
+                required String childId,
+                Value<bool> isPrimary = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ParentChildrenCompanion.insert(
+                parentId: parentId,
+                childId: childId,
+                isPrimary: isPrimary,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ParentChildrenTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({parentId = false, childId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (parentId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.parentId,
+                                referencedTable: $$ParentChildrenTableReferences
+                                    ._parentIdTable(db),
+                                referencedColumn:
+                                    $$ParentChildrenTableReferences
+                                        ._parentIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (childId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.childId,
+                                referencedTable: $$ParentChildrenTableReferences
+                                    ._childIdTable(db),
+                                referencedColumn:
+                                    $$ParentChildrenTableReferences
+                                        ._childIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ParentChildrenTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ParentChildrenTable,
+      ParentChildrenData,
+      $$ParentChildrenTableFilterComposer,
+      $$ParentChildrenTableOrderingComposer,
+      $$ParentChildrenTableAnnotationComposer,
+      $$ParentChildrenTableCreateCompanionBuilder,
+      $$ParentChildrenTableUpdateCompanionBuilder,
+      (ParentChildrenData, $$ParentChildrenTableReferences),
+      ParentChildrenData,
+      PrefetchHooks Function({bool parentId, bool childId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -31423,4 +33207,8 @@ class $AppDatabaseManager {
       $$FormSubmissionsTableTableManager(_db, _db.formSubmissions);
   $$VehiclesTableTableManager get vehicles =>
       $$VehiclesTableTableManager(_db, _db.vehicles);
+  $$ParentsTableTableManager get parents =>
+      $$ParentsTableTableManager(_db, _db.parents);
+  $$ParentChildrenTableTableManager get parentChildren =>
+      $$ParentChildrenTableTableManager(_db, _db.parentChildren);
 }

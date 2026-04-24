@@ -903,3 +903,68 @@ class ScheduleEntries extends Table {
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
+
+/// Parents / guardians (v38). Promotes the free-text `parentName`
+/// on Children into a real entity so siblings share a single row
+/// and contact info lives in one place. Nothing else in the schema
+/// FKs into this table yet; the parent-concern form still keeps
+/// its own free-text `parent_name` for back-compat, but a follow-up
+/// can swap it over to a picker the same way vehicle_check swapped
+/// make/model for a vehicle id.
+///
+/// Relationship is free-form text ("mom", "dad", "grandmother",
+/// "guardian", "auntie") — programs use whatever label they
+/// actually use, no enum. Phone/email are both nullable so "name
+/// only" rows are fine for programs that don't want to capture
+/// contact methods yet.
+@DataClassName('Parent')
+class Parents extends Table {
+  TextColumn get id => text()();
+  TextColumn get firstName => text()();
+  TextColumn get lastName => text().nullable()();
+
+  /// Free-text relationship label. "Mom", "Dad", "Grandmother",
+  /// "Guardian", "Auntie" — programs decide. Shown next to the name
+  /// on child-detail cards.
+  TextColumn get relationship => text().nullable()();
+
+  TextColumn get phone => text().nullable()();
+  TextColumn get email => text().nullable()();
+  TextColumn get notes => text().nullable()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Many-to-many join between [Parents] and [Children]. Siblings
+/// sharing a parent = one parent row with multiple join rows. A
+/// child can have multiple parent rows too (two moms, mom + step-
+/// dad, etc).
+///
+/// `isPrimary` marks the default pickup contact for a child. At
+/// most one primary per child is the UX convention, enforced at
+/// the repository layer (setting one clears any other) — SQLite
+/// has no partial-unique constraint that would enforce it
+/// server-side without dialect tricks.
+class ParentChildren extends Table {
+  TextColumn get parentId =>
+      text().references(Parents, #id, onDelete: KeyAction.cascade)();
+  TextColumn get childId =>
+      text().references(Children, #id, onDelete: KeyAction.cascade)();
+
+  /// Primary pickup contact for this child. At most one primary
+  /// per child (repository-enforced, not FK-enforced).
+  BoolColumn get isPrimary =>
+      boolean().withDefault(const Constant(false))();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {parentId, childId};
+}

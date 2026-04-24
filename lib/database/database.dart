@@ -36,6 +36,8 @@ QueryExecutor _openConnection() {
     AdultDayBlocks,
     FormSubmissions,
     Vehicles,
+    Parents,
+    ParentChildren,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -44,7 +46,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 37;
+  int get schemaVersion => 38;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -399,6 +401,53 @@ class AppDatabase extends _$AppDatabase {
             );
           }
           // --- version gates below ---
+          if (from < 38) {
+            // v38: parents / guardians as a first-class entity. Two
+            // new tables — parents (the row) and parent_children
+            // (many-to-many so siblings share a single parent row,
+            // and a child with two parents gets two join rows).
+            //
+            // Existing Children.parentName stays — it's free text,
+            // not a FK, and still works for programs that haven't
+            // promoted to the new Parents entity yet. A future
+            // migration can auto-create Parent rows from non-empty
+            // parentName values; deferring that until the UI fully
+            // shifts to the picker.
+            await _runSilent(
+              'CREATE TABLE IF NOT EXISTS "parents" ( '
+              '"id" TEXT NOT NULL PRIMARY KEY, '
+              '"first_name" TEXT NOT NULL, '
+              '"last_name" TEXT NULL, '
+              '"relationship" TEXT NULL, '
+              '"phone" TEXT NULL, '
+              '"email" TEXT NULL, '
+              '"notes" TEXT NULL, '
+              '"created_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now')), "
+              '"updated_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now'))"
+              ' )',
+            );
+            await _runSilent(
+              'CREATE TABLE IF NOT EXISTS "parent_children" ( '
+              '"parent_id" TEXT NOT NULL '
+              'REFERENCES "parents"("id") ON DELETE CASCADE, '
+              '"child_id" TEXT NOT NULL '
+              'REFERENCES "children"("id") ON DELETE CASCADE, '
+              '"is_primary" INTEGER NOT NULL DEFAULT 0, '
+              '"created_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now')), "
+              'PRIMARY KEY ("parent_id", "child_id")'
+              ' )',
+            );
+            // Hot query: "who are Noah's parents?" on every child-
+            // detail render. Index on child_id keeps that bounded.
+            await _runSilent(
+              'CREATE INDEX IF NOT EXISTS '
+              '"idx_parent_children_child" '
+              'ON "parent_children" ("child_id")',
+            );
+          }
           if (from < 37) {
             // v37: vehicles as a first-class entity. Programs own a
             // list of named vehicles instead of re-typing make/model +

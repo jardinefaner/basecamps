@@ -12,6 +12,8 @@ import 'package:basecamp/features/forms/polymorphic/registry.dart';
 import 'package:basecamp/features/launcher/launcher_screen.dart';
 import 'package:basecamp/features/more/more_screen.dart';
 import 'package:basecamp/features/observations/observations_screen.dart';
+import 'package:basecamp/features/parents/parent_detail_screen.dart';
+import 'package:basecamp/features/parents/parents_screen.dart';
 import 'package:basecamp/features/rooms/rooms_screen.dart';
 import 'package:basecamp/features/schedule/schedule_editor_screen.dart';
 import 'package:basecamp/features/settings/program_settings_screen.dart';
@@ -162,6 +164,18 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'vehicles',
                     builder: (_, _) => const VehiclesScreen(),
+                  ),
+                  GoRoute(
+                    path: 'parents',
+                    builder: (_, _) => const ParentsScreen(),
+                    routes: [
+                      GoRoute(
+                        path: ':id',
+                        builder: (_, state) => ParentDetailScreen(
+                          parentId: state.pathParameters['id']!,
+                        ),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'settings',
