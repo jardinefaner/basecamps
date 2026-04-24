@@ -1,6 +1,7 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adult_timeline_repository.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
+import 'package:basecamp/features/adults/widgets/adult_timeline_editor_sheet.dart';
 import 'package:basecamp/features/adults/widgets/edit_adult_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
@@ -72,6 +73,7 @@ class AdultDetailScreen extends ConsumerWidget {
             children: [
               _Header(adult: s, onEdit: () => _openEdit(context, s)),
               const SizedBox(height: AppSpacing.xl),
+              _DataIssuesCard(adult: s),
               _TodayBlocksSection(adultId: adultId),
               const SizedBox(height: AppSpacing.lg),
               _AvailabilitySection(adultId: adultId),
@@ -890,6 +892,211 @@ class _MiniRoleChip extends StatelessWidget {
           color: fg,
           fontWeight: FontWeight.w800,
           letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+}
+
+/// Pure check: does [adult]'s static role point somewhere? A lead with
+/// no anchor group is a data-entry bug — flagged as lead but the
+/// schedule has nowhere to put them.
+bool leadWithoutAnchor(Adult adult) {
+  return AdultRole.fromDb(adult.adultRole) == AdultRole.lead &&
+      adult.anchoredGroupId == null;
+}
+
+/// Pure check: returns the weekdays (ISO 1..7) for which this adult
+/// has a `lead` day-block with no groupId set. Sorted ascending and
+/// de-duplicated so the UI can render "Monday's and Wednesday's" even
+/// when the adult has two bad blocks on the same day.
+List<int> leadBlocksMissingGroup(List<AdultDayBlock> blocks) {
+  final days = <int>{
+    for (final b in blocks)
+      if (b.role == AdultBlockRole.lead.dbValue && b.groupId == null)
+        b.dayOfWeek,
+  };
+  final list = days.toList()..sort();
+  return list;
+}
+
+/// "Data issues" card — surfaces quiet validity warnings about the
+/// adult's configuration. Self-hides entirely when neither check
+/// fires, so a healthy profile renders unchanged.
+class _DataIssuesCard extends ConsumerWidget {
+  const _DataIssuesCard({required this.adult});
+
+  final Adult adult;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final missingAnchor = leadWithoutAnchor(adult);
+
+    // Re-use the already-registered stream (same one _TodayBlocksSection
+    // watches) so we don't spin up a second subscription for this
+    // adult's blocks just to count bad ones.
+    final blocksAsync = ref.watch(
+      StreamProvider.autoDispose<List<AdultDayBlock>>(
+        (ref) => ref
+            .watch(adultTimelineRepositoryProvider)
+            .watchBlocksFor(adult.id),
+      ),
+    );
+    final blocks = blocksAsync.asData?.value ?? const <AdultDayBlock>[];
+    final badDays = leadBlocksMissingGroup(blocks);
+
+    if (!missingAnchor && badDays.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+      child: Card(
+        color: theme.colorScheme.errorContainer,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: AppSpacing.cardPadding,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.report_problem_outlined,
+                    color: theme.colorScheme.onErrorContainer,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'Data issues',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.onErrorContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              if (missingAnchor) ...[
+                const SizedBox(height: AppSpacing.sm),
+                const _IssueRow(
+                  title: 'Lead without anchor group',
+                  body:
+                      "This adult is flagged as a Lead but isn't anchored "
+                      'to any group. Pick one on the role page — the '
+                      "schedule won't know where to put them.",
+                ),
+              ],
+              if (badDays.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.sm),
+                _IssueRow(
+                  title: 'Lead block missing group',
+                  body: _blockMissingGroupBody(badDays),
+                  // Tappable row: re-open the timeline editor so the
+                  // teacher can fix it where the bad data lives.
+                  onTap: () => _openTimelineEditor(context, ref),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openTimelineEditor(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final repo = ref.read(adultTimelineRepositoryProvider);
+    final blocks = await repo.watchBlocksFor(adult.id).first;
+    if (!context.mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (_) => AdultTimelineEditorSheet(
+        adultId: adult.id,
+        adultName: adult.name,
+        initialBlocks: [
+          for (final b in blocks) AdultTimelineBlock.fromRow(b),
+        ],
+      ),
+    );
+  }
+}
+
+/// Builds the user-facing sentence for "lead block missing group"
+/// given the list of offending weekdays. Singular vs. plural phrasing
+/// keeps the copy readable — "Monday's 'lead' block doesn't…" for one
+/// day, "Monday's and Wednesday's 'lead' blocks don't…" for many.
+String _blockMissingGroupBody(List<int> days) {
+  final names = [for (final d in days) scheduleDayLabels[d - 1]];
+  final String joined;
+  if (names.length == 1) {
+    joined = names.single;
+  } else if (names.length == 2) {
+    joined = '${names.first} and ${names.last}';
+  } else {
+    final head = names.sublist(0, names.length - 1).join(', ');
+    joined = '$head, and ${names.last}';
+  }
+  final possessive = "$joined'${joined.endsWith('s') ? '' : 's'}";
+  if (days.length == 1) {
+    return "$possessive 'lead' block doesn't say which group to lead. "
+        'Fix it in the timeline editor so the schedule can route '
+        'activities correctly.';
+  }
+  return "$possessive 'lead' blocks don't say which group to lead. "
+      'Fix it in the timeline editor so the schedule can route '
+      'activities correctly.';
+}
+
+class _IssueRow extends StatelessWidget {
+  const _IssueRow({required this.title, required this.body, this.onTap});
+
+  final String title;
+  final String body;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.titleSmall?.copyWith(
+            color: theme.colorScheme.onErrorContainer,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          body,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onErrorContainer,
+          ),
+        ),
+      ],
+    );
+    if (onTap == null) return content;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: content),
+            Icon(
+              Icons.chevron_right,
+              color: theme.colorScheme.onErrorContainer,
+            ),
+          ],
         ),
       ),
     );

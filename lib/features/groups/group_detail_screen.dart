@@ -1,4 +1,5 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adult_timeline_repository.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/children/widgets/edit_child_sheet.dart';
@@ -6,6 +7,7 @@ import 'package:basecamp/features/children/widgets/edit_group_sheet.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
 import 'package:basecamp/features/rooms/rooms_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
@@ -138,6 +140,7 @@ class _Body extends ConsumerWidget {
       children: [
         _HeroHeader(summary: summary),
         const SizedBox(height: AppSpacing.lg),
+        _UnstaffedWarning(summary: summary),
         _RoomSection(summary: summary),
         const SizedBox(height: AppSpacing.lg),
         _LeadsSection(summary: summary),
@@ -989,4 +992,107 @@ class _VisitorInfo {
   const _VisitorInfo({required this.adult, required this.template});
   final Adult adult;
   final ScheduleTemplate template;
+}
+
+/// Data-quality warning: group has kids but nobody is on the clock as
+/// lead today. Self-hides on empty groups (nobody to lead yet) and on
+/// staffed groups (nothing to warn about). Renders inline above the
+/// content sections so a teacher opening the detail sees the problem
+/// before scanning the kid list.
+class _UnstaffedWarning extends ConsumerWidget {
+  const _UnstaffedWarning({required this.summary});
+
+  final GroupSummary summary;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // An empty group has nothing to be understaffed relative to —
+    // bail before we pull the other streams.
+    if (summary.childCount == 0) return const SizedBox.shrink();
+
+    final weekday = clampToScheduleDay(DateTime.now().weekday);
+    final adults = ref.watch(adultsProvider).asData?.value;
+    final blocks = ref.watch(todayAdultBlocksProvider).asData?.value;
+    final availability = ref.watch(allAvailabilityProvider).asData?.value;
+
+    // Wait for every upstream before deciding — flashing the warning
+    // while data is still streaming in would be worse than silence.
+    if (adults == null || blocks == null || availability == null) {
+      return const SizedBox.shrink();
+    }
+
+    final staffed = isGroupStaffedToday(
+      groupId: summary.id,
+      weekday: weekday,
+      adults: adults,
+      todayDayBlocks: blocks,
+      availability: availability,
+    );
+    if (staffed) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final dayName = scheduleDayLabels[weekday - 1];
+    final n = summary.childCount;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+      child: Card(
+        color: theme.colorScheme.errorContainer,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: AppSpacing.cardPadding,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: theme.colorScheme.onErrorContainer,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      'No lead on shift today',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.onErrorContainer,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'This group has $n ${n == 1 ? "child" : "children"} '
+                'but no adult is scheduled to lead them on $dayName. '
+                'Either anchor a lead from the Adults screen, or check '
+                'that their availability is set up.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onErrorContainer,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton(
+                  onPressed: () => context.push('/more/adults'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: theme.colorScheme.onErrorContainer,
+                    side: BorderSide(
+                      color: theme.colorScheme.onErrorContainer
+                          .withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: const Text('Assign a lead'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

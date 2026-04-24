@@ -1,4 +1,5 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adult_timeline_repository.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/rooms/rooms_repository.dart';
@@ -140,6 +141,54 @@ final groupSummariesProvider =
   ];
   return AsyncData(summaries);
 });
+
+/// Pure check: is [groupId] actually staffed by a lead on [weekday]?
+///
+/// "Staffed" means at least one adult for whom ALL are true:
+///   - they count as a lead for this group today — either statically
+///     anchored (role `lead` + anchoredGroupId == groupId) OR have a
+///     per-day block ([AdultDayBlock] with role `lead` + groupId
+///     matching) for [weekday]
+///   - they have at least one [AdultAvailabilityData] row for [weekday]
+///     (an anchored lead with zero availability on that day is absent)
+///
+/// Pure function: no providers, no Drift — easy to unit test and drop
+/// straight into a widget that already watches these lists.
+bool isGroupStaffedToday({
+  required String groupId,
+  required int weekday,
+  required List<Adult> adults,
+  required List<AdultDayBlock> todayDayBlocks,
+  required List<AdultAvailabilityData> availability,
+}) {
+  // Who has availability today? Any single row for this weekday
+  // counts — we're answering "is the adult on the clock at all today?"
+  // not "are they on the clock right now." The latter is a Today-
+  // surface concern.
+  final adultsWithAvailabilityToday = <String>{
+    for (final a in availability)
+      if (a.dayOfWeek == weekday) a.adultId,
+  };
+  if (adultsWithAvailabilityToday.isEmpty) return false;
+
+  // Adults leading this group today via a per-day block.
+  final leadsByBlockToday = <String>{
+    for (final b in todayDayBlocks)
+      if (b.dayOfWeek == weekday &&
+          b.role == AdultBlockRole.lead.dbValue &&
+          b.groupId == groupId)
+        b.adultId,
+  };
+
+  for (final a in adults) {
+    final anchorsHere = AdultRole.fromDb(a.adultRole) == AdultRole.lead &&
+        a.anchoredGroupId == groupId;
+    final leadsHereToday = anchorsHere || leadsByBlockToday.contains(a.id);
+    if (!leadsHereToday) continue;
+    if (adultsWithAvailabilityToday.contains(a.id)) return true;
+  }
+  return false;
+}
 
 /// A single group summary by group id. Thin wrapper over
 /// [groupSummariesProvider]; falls back to `null` when the id doesn't
