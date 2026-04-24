@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:basecamp/features/export/export_actions.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
@@ -10,6 +12,9 @@ import 'package:intl/intl.dart';
 
 /// `/week-plan` — Monday-to-Friday column layout showing every
 /// scheduled item on each day. Tap a card → [ActivityDetailSheet].
+/// Long-press-drag a card onto another column to move it: template-
+/// backed cards shift the recurring weekday (all future weeks),
+/// entry-backed cards shift just that one occurrence's date.
 /// Trailing "Duplicate last week" action copies one-off entries from
 /// the prior week forward onto their mirror day (templates already
 /// recur, so they're skipped).
@@ -84,6 +89,85 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
     );
   }
 
+  /// Handle a drop: figure out whether the payload is a template-move
+  /// or entry-move, confirm with the teacher, then write and snack.
+  Future<void> _onDrop({
+    required ScheduleItem item,
+    required DateTime sourceDate,
+    required DateTime targetDate,
+  }) async {
+    // No-op when dropped back on its own day.
+    if (_sameDay(sourceDate, targetDate)) return;
+
+    // Cancellation/override entries are attached to a specific
+    // template on a specific date — they can't be "moved" in any
+    // meaningful sense. Surface the toast and stop.
+    final isTemplate = item.isFromTemplate && item.templateId != null;
+    final isEntry = !item.isFromTemplate && item.entryId != null;
+    if (!isTemplate && !isEntry) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'This is a one-day override — edit the original instead.',
+            ),
+          ),
+        );
+      return;
+    }
+
+    final targetWeekdayLabel = DateFormat.EEEE().format(targetDate);
+    final targetWeekdayPlural = '${targetWeekdayLabel}s';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Move "${item.title}"?'),
+        content: Text(
+          isTemplate
+              ? 'Move "${item.title}" to $targetWeekdayPlural? '
+                  'Every future week’s occurrence will shift too.'
+              : 'Move "${item.title}" to '
+                  '${DateFormat.MMMMd().format(targetDate)}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Move'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final repo = ref.read(scheduleRepositoryProvider);
+    if (isTemplate) {
+      await repo.moveTemplateToDay(
+        templateId: item.templateId!,
+        newDayOfWeek: targetDate.weekday,
+      );
+    } else {
+      await repo.moveEntryToDate(
+        entryId: item.entryId!,
+        newDate: targetDate,
+      );
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(content: Text('Moved to $targetWeekdayLabel.')),
+      );
+  }
+
+  static bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -151,6 +235,7 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
                                     date: _monday.add(Duration(days: i)),
                                     items: byDay[i + 1] ?? const [],
                                     onTapItem: _openDetail,
+                                    onAcceptDrop: _onDrop,
                                   ),
                                 ),
                               ),
@@ -223,16 +308,31 @@ class _WeekNavRow extends StatelessWidget {
   }
 }
 
+/// Payload for a card drag between columns. Holds just the schedule
+/// item plus its source date — the target column contributes its own
+/// date when the drop resolves.
+class _MoveDragPayload {
+  const _MoveDragPayload({required this.item, required this.sourceDate});
+  final ScheduleItem item;
+  final DateTime sourceDate;
+}
+
 class _DayColumn extends StatelessWidget {
   const _DayColumn({
     required this.date,
     required this.items,
     required this.onTapItem,
+    required this.onAcceptDrop,
   });
 
   final DateTime date;
   final List<ScheduleItem> items;
   final ValueChanged<ScheduleItem> onTapItem;
+  final Future<void> Function({
+    required ScheduleItem item,
+    required DateTime sourceDate,
+    required DateTime targetDate,
+  }) onAcceptDrop;
 
   @override
   Widget build(BuildContext context) {
@@ -240,52 +340,80 @@ class _DayColumn extends StatelessWidget {
     final isToday = _isSameDay(date, DateTime.now());
     // Items already come sorted by isFullDay then startMinutes from
     // the repository. Keep that order as-is.
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(
-            bottom: AppSpacing.sm,
+    return DragTarget<_MoveDragPayload>(
+      onWillAcceptWithDetails: (details) {
+        // Reject self-drops outright so the column doesn't highlight
+        // when you hover your own source column.
+        return !_isSameDay(details.data.sourceDate, date);
+      },
+      onAcceptWithDetails: (details) {
+        // Fire-and-forget: the callback drives dialogs + snackbars
+        // on its own; the drop itself doesn't await the write.
+        unawaited(onAcceptDrop(
+          item: details.data.item,
+          sourceDate: details.data.sourceDate,
+          targetDate: date,
+        ));
+      },
+      builder: (context, candidateData, _) {
+        final isHovered = candidateData.isNotEmpty;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: isHovered
+                ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
+                : Colors.transparent,
           ),
+          padding: const EdgeInsets.all(AppSpacing.xs),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                DateFormat.EEEE().format(date).toUpperCase(),
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: isToday
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurfaceVariant,
-                  letterSpacing: 0.8,
-                  fontWeight: FontWeight.w700,
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      DateFormat.EEEE().format(date).toUpperCase(),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: isToday
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.onSurfaceVariant,
+                        letterSpacing: 0.8,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      DateFormat.MMMd().format(date),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: isToday ? theme.colorScheme.primary : null,
+                        fontWeight: isToday ? FontWeight.w700 : null,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                DateFormat.MMMd().format(date),
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: isToday ? theme.colorScheme.primary : null,
-                  fontWeight: isToday ? FontWeight.w700 : null,
-                ),
+              Expanded(
+                child: items.isEmpty
+                    ? _EmptyDayPlaceholder()
+                    : ListView.separated(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.xl),
+                        itemCount: items.length,
+                        separatorBuilder: (_, _) =>
+                            const SizedBox(height: AppSpacing.sm),
+                        itemBuilder: (_, i) => _DraggablePlanCard(
+                          item: items[i],
+                          columnDate: date,
+                          onTap: () => onTapItem(items[i]),
+                        ),
+                      ),
               ),
             ],
           ),
-        ),
-        Expanded(
-          child: items.isEmpty
-              ? _EmptyDayPlaceholder()
-              : ListView.separated(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.xl),
-                  itemCount: items.length,
-                  separatorBuilder: (_, _) =>
-                      const SizedBox(height: AppSpacing.sm),
-                  itemBuilder: (_, i) => _PlanCard(
-                    item: items[i],
-                    onTap: () => onTapItem(items[i]),
-                  ),
-                ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -311,6 +439,86 @@ class _EmptyDayPlaceholder extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Wraps [_PlanCard] in a [LongPressDraggable] so long-press starts a
+/// move drag and taps still route to the detail sheet. Template and
+/// addition-entry cards are draggable; cancellation/override entries
+/// (which have `item.entryId` but `isFromTemplate == true`) aren't
+/// meaningfully movable, but we let the drop handler surface the
+/// explanatory toast rather than silently ignoring the gesture.
+class _DraggablePlanCard extends StatelessWidget {
+  const _DraggablePlanCard({
+    required this.item,
+    required this.columnDate,
+    required this.onTap,
+  });
+
+  final ScheduleItem item;
+  final DateTime columnDate;
+  final VoidCallback onTap;
+
+  bool get _isDraggable {
+    // Pure templates → draggable (move weekday).
+    // One-off additions → draggable (move date).
+    // Cancellation/override rows surface as isFromTemplate == true
+    // with a non-null entryId; skip those.
+    if (item.isFromTemplate && item.entryId != null) return false;
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final card = _PlanCard(item: item, onTap: onTap);
+    if (!_isDraggable) {
+      // Still tappable; long-press just shows a toast-style hint.
+      return GestureDetector(
+        onLongPress: () {
+          ScaffoldMessenger.of(context)
+            ..clearSnackBars()
+            ..showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'This is a one-day override — edit the original instead.',
+                ),
+              ),
+            );
+        },
+        child: card,
+      );
+    }
+    return LongPressDraggable<_MoveDragPayload>(
+      data: _MoveDragPayload(item: item, sourceDate: columnDate),
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      feedback: Material(
+        color: Colors.transparent,
+        child: Transform.scale(
+          scale: 1.04,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 220),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.18),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: _PlanCard(item: item, onTap: () {}),
+            ),
+          ),
+        ),
+      ),
+      childWhenDragging: Opacity(
+        opacity: 0.35,
+        child: _PlanCard(item: item, onTap: () {}),
+      ),
+      child: card,
     );
   }
 }

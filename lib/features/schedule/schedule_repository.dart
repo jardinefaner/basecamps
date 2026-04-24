@@ -581,6 +581,52 @@ class ScheduleRepository {
     });
   }
 
+  /// Move a weekly template to a different day-of-week. Affects all
+  /// future occurrences of that recurring activity. For one-off
+  /// date-scoped changes the teacher should use `addEntry` with an
+  /// override / cancellation instead.
+  Future<void> moveTemplateToDay({
+    required String templateId,
+    required int newDayOfWeek,
+  }) async {
+    await (_db.update(_db.scheduleTemplates)
+          ..where((t) => t.id.equals(templateId)))
+        .write(
+      ScheduleTemplatesCompanion(
+        dayOfWeek: Value(newDayOfWeek),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Move a one-off entry's date. Updates `date` + `endDate` when the
+  /// entry is multi-day (the endDate shifts by the same delta so the
+  /// range length is preserved).
+  Future<void> moveEntryToDate({
+    required String entryId,
+    required DateTime newDate,
+  }) async {
+    final row = await (_db.select(_db.scheduleEntries)
+          ..where((e) => e.id.equals(entryId)))
+        .getSingle();
+    final oldStart = _dayOnly(row.date);
+    final newStart = _dayOnly(newDate);
+    final deltaDays = newStart.difference(oldStart).inDays;
+    final oldEnd = row.endDate;
+    final newEnd = oldEnd == null
+        ? null
+        : _dayOnly(oldEnd).add(Duration(days: deltaDays));
+    await (_db.update(_db.scheduleEntries)
+          ..where((e) => e.id.equals(entryId)))
+        .write(
+      ScheduleEntriesCompanion(
+        date: Value(newStart),
+        endDate: Value(newEnd),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
   /// Updates the start/end times of a single one-off entry. Used by
   /// "Shift today" on activities that aren't template-sourced.
   Future<void> shiftEntryTimes({

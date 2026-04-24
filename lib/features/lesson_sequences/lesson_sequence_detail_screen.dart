@@ -1,6 +1,7 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/export/export_actions.dart';
 import 'package:basecamp/features/lesson_sequences/lesson_sequences_repository.dart';
+import 'package:basecamp/features/lesson_sequences/sequence_conflict_check.dart';
 import 'package:basecamp/features/lesson_sequences/widgets/edit_lesson_sequence_sheet.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/library_picker_screen.dart';
@@ -115,22 +116,47 @@ class LessonSequenceDetailScreen extends ConsumerWidget {
 
     final scheduleRepo = ref.read(scheduleRepositoryProvider);
     final weekdays = _consecutiveWeekdays(picked, rows.length);
+
+    // Build proposed entries once, use them both for conflict
+    // pre-check and for the eventual writes. Keeps the two paths in
+    // lock-step so the warning dialog can't lie.
+    final proposals = <ProposedSequenceEntry>[
+      for (var i = 0; i < rows.length; i++)
+        _proposalFor(rows[i].library, weekdays[i], i + 1),
+    ];
+
+    // Fetch the current schedule for every target date in parallel.
+    final existingByDate = <DateTime, List<ScheduleItem>>{};
+    for (final p in proposals) {
+      final items =
+          await scheduleRepo.watchScheduleForDate(p.date).first;
+      existingByDate[p.date] = items;
+    }
+
+    final conflicts = detectSequenceConflicts(
+      proposals: proposals,
+      existingByDate: existingByDate,
+    );
+
+    if (conflicts.isNotEmpty) {
+      if (!context.mounted) return;
+      final proceed = await _showConflictDialog(context, conflicts);
+      if (proceed != true) return;
+      if (!context.mounted) return;
+    }
+
     var scheduled = 0;
-    for (var i = 0; i < rows.length; i++) {
-      final lib = rows[i].library;
-      final durationMin = lib.defaultDurationMin ?? 45;
-      const startMinutes = 10 * 60; // 10:00am
-      final endMinutes = startMinutes + durationMin;
+    for (final p in proposals) {
       await scheduleRepo.addOneOffEntry(
-        date: weekdays[i],
-        startTime: _hhmm(startMinutes),
-        endTime: _hhmm(endMinutes),
-        title: lib.title,
-        adultId: lib.adultId,
-        location: lib.location,
-        notes: lib.notes,
-        sourceLibraryItemId: lib.id,
-        sourceUrl: lib.sourceUrl,
+        date: p.date,
+        startTime: p.startTime,
+        endTime: p.endTime,
+        title: p.title,
+        adultId: p.adultId,
+        location: p.location,
+        notes: p.notes,
+        sourceLibraryItemId: p.sourceLibraryItemId,
+        sourceUrl: p.sourceUrl,
       );
       scheduled += 1;
     }
@@ -142,6 +168,88 @@ class LessonSequenceDetailScreen extends ConsumerWidget {
           '${scheduled == 1 ? 'activity' : 'activities'} starting '
           '${DateFormat.MMMd().format(weekdays.first)}.',
         ),
+      ),
+    );
+  }
+
+  static ProposedSequenceEntry _proposalFor(
+    ActivityLibraryData lib,
+    DateTime date,
+    int position,
+  ) {
+    final durationMin = lib.defaultDurationMin ?? 45;
+    const startMinutes = 10 * 60; // 10:00am — same default as the writer.
+    final endMinutes = startMinutes + durationMin;
+    return ProposedSequenceEntry(
+      position: position,
+      date: date,
+      startTime: _hhmm(startMinutes),
+      endTime: _hhmm(endMinutes),
+      title: lib.title,
+      adultId: lib.adultId,
+      location: lib.location,
+      notes: lib.notes,
+      sourceLibraryItemId: lib.id,
+      sourceUrl: lib.sourceUrl,
+    );
+  }
+
+  /// Shows the pre-check dialog listing proposed entries that clash
+  /// with existing schedule. Returns true if the teacher chooses to
+  /// schedule anyway; false / null when they cancel.
+  Future<bool?> _showConflictDialog(
+    BuildContext context,
+    List<SequenceConflict> conflicts,
+  ) {
+    // Flatten to bullets. Cap at 5, with an "... and N more" suffix
+    // when the list overflows.
+    const maxBullets = 5;
+    final bullets = <String>[];
+    for (final c in conflicts) {
+      final dayLabel = 'Day ${c.position}';
+      for (final reason in c.reasons) {
+        bullets.add("$dayLabel: '${c.title}' $reason");
+      }
+    }
+    final shown = bullets.take(maxBullets).toList();
+    final overflow = bullets.length - shown.length;
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Scheduling this sequence will create conflicts:'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final line in shown)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                  child: Text('• $line'),
+                ),
+              if (overflow > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.xs),
+                  child: Text(
+                    '… and $overflow more',
+                    style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Schedule anyway'),
+          ),
+        ],
       ),
     );
   }
