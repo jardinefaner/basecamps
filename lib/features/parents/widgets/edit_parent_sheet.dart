@@ -17,19 +17,34 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// it to immediately link to a child without re-opening the picker
 /// ("Add new parent…" flow in the child-detail screen).
 class EditParentSheet extends ConsumerStatefulWidget {
-  const EditParentSheet({super.key, this.parent});
+  const EditParentSheet({
+    super.key,
+    this.parent,
+    this.prefillFirstName,
+    this.prefillLastName,
+  });
 
   final Parent? parent;
+
+  /// Seed values for a fresh create. Used to promote legacy free-text
+  /// `Children.parentName` into a real Parent row without the teacher
+  /// retyping — the child detail screen reads the parse, passes the
+  /// first / last here, and the create flow opens already filled.
+  /// Ignored on edit (widget.parent != null).
+  final String? prefillFirstName;
+  final String? prefillLastName;
 
   @override
   ConsumerState<EditParentSheet> createState() => _EditParentSheetState();
 }
 
 class _EditParentSheetState extends ConsumerState<EditParentSheet> {
-  late final _firstController =
-      TextEditingController(text: widget.parent?.firstName ?? '');
-  late final _lastController =
-      TextEditingController(text: widget.parent?.lastName ?? '');
+  late final _firstController = TextEditingController(
+    text: widget.parent?.firstName ?? widget.prefillFirstName ?? '',
+  );
+  late final _lastController = TextEditingController(
+    text: widget.parent?.lastName ?? widget.prefillLastName ?? '',
+  );
   late final _relationshipController =
       TextEditingController(text: widget.parent?.relationship ?? '');
   late final _phoneController =

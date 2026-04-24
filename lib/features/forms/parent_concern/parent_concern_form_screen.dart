@@ -13,6 +13,7 @@ import 'package:basecamp/features/forms/widgets/child_chip_picker.dart';
 import 'package:basecamp/features/forms/widgets/form_section_card.dart';
 import 'package:basecamp/features/forms/widgets/inline_signature_pad.dart';
 import 'package:basecamp/features/forms/widgets/voice_dictation_field.dart';
+import 'package:basecamp/features/parents/parents_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/step_wizard.dart';
@@ -550,9 +551,24 @@ class _ParentConcernFormScreenState
             hint: 'Add other names (comma-separated)',
           ),
           const SizedBox(height: AppSpacing.lg),
+          Text('Parent or guardian', style: theme.textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.sm),
+          // Suggestion chips: union of linked Parent rows across the
+          // selected children. Tapping a chip writes the parent's
+          // display name into the text field — teacher can still
+          // edit or type free-form when the right person isn't
+          // linked yet. Legacy Children.parentName auto-fill stays
+          // as the fallback via _autoFillParent.
+          _LinkedParentSuggestions(
+            childIds: _selectedChildIds,
+            onPicked: (display) {
+              _parentName.text = display;
+              _lastAutoParentText = display;
+            },
+          ),
+          const SizedBox(height: AppSpacing.sm),
           AppTextField(
             controller: _parentName,
-            label: 'Parent or guardian',
             hint: _selectedChildIds.isEmpty
                 ? 'Their name'
                 : 'Auto-filled from child record — edit if needed',
@@ -1145,5 +1161,83 @@ class _MonitoringTile extends StatelessWidget {
     if (diff == 0) return 'due today';
     if (diff == 1) return 'due tomorrow';
     return 'due in $diff days';
+  }
+}
+
+/// Row of suggestion chips under the parent-or-guardian label on the
+/// concern form. Watches each selected child's linked Parent rows,
+/// unions them by parent id, and renders one chip per unique parent.
+/// Tap → writes "First Last · Relationship" into the parent text
+/// field via [onPicked].
+///
+/// Empty when no children are selected or when no selected children
+/// have linked parents. The form's legacy auto-fill from
+/// `Children.parentName` still runs as a fallback in that case.
+class _LinkedParentSuggestions extends ConsumerWidget {
+  const _LinkedParentSuggestions({
+    required this.childIds,
+    required this.onPicked,
+  });
+
+  final List<String> childIds;
+  final ValueChanged<String> onPicked;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (childIds.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    // Union links across selected children by parent id. Simple
+    // in-widget merge — the family stream is cheap, and the number
+    // of selected children on a concern note is always small.
+    final byParentId = <String, ParentLink>{};
+    for (final id in childIds) {
+      final async = ref.watch(parentsForChildProvider(id));
+      final links = async.asData?.value ?? const <ParentLink>[];
+      for (final l in links) {
+        byParentId.putIfAbsent(l.parent.id, () => l);
+      }
+    }
+    if (byParentId.isEmpty) return const SizedBox.shrink();
+    final sorted = byParentId.values.toList()
+      ..sort((a, b) {
+        // Primary contacts float to the top; then alphabetical.
+        if (a.isPrimary != b.isPrimary) return a.isPrimary ? -1 : 1;
+        return a.parent.firstName.compareTo(b.parent.firstName);
+      });
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        for (final l in sorted)
+          ActionChip(
+            avatar: l.isPrimary
+                ? Icon(Icons.star, size: 16, color: theme.colorScheme.primary)
+                : null,
+            label: Text(_chipLabel(l)),
+            onPressed: () => onPicked(_displayText(l)),
+          ),
+      ],
+    );
+  }
+
+  String _chipLabel(ParentLink l) {
+    final p = l.parent;
+    final relationship = p.relationship;
+    if (relationship == null || relationship.isEmpty) {
+      return _formatName(p);
+    }
+    return '${_formatName(p)} · $relationship';
+  }
+
+  /// Full name the form writes into the text field when the chip
+  /// is tapped. Uses the relationship label when set so the concern
+  /// note reads "Sarah Reed · mom" instead of just "Sarah Reed."
+  String _displayText(ParentLink l) => _chipLabel(l);
+
+  String _formatName(Parent p) {
+    final last = p.lastName;
+    return last == null || last.isEmpty
+        ? p.firstName
+        : '${p.firstName} $last';
   }
 }

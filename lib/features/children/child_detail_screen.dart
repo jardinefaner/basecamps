@@ -450,6 +450,23 @@ class _ParentsSection extends ConsumerWidget {
     );
   }
 
+  /// Split a legacy free-text `parentName` like "Sarah Reed" into
+  /// (first, last). No last name → last is null. Multi-word last
+  /// names collapse into one (the split-on-first-space is a
+  /// reasonable MVP; the teacher can correct before saving if the
+  /// guess was off).
+  (String?, String?) _splitLegacyName(String? raw) {
+    if (raw == null) return (null, null);
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return (null, null);
+    final idx = trimmed.indexOf(' ');
+    if (idx < 0) return (trimmed, null);
+    return (
+      trimmed.substring(0, idx),
+      trimmed.substring(idx + 1).trim(),
+    );
+  }
+
   Future<void> _openAddPicker(
     BuildContext context,
     WidgetRef ref,
@@ -472,11 +489,21 @@ class _ParentsSection extends ConsumerWidget {
     final repo = ref.read(parentsRepositoryProvider);
     if (result.addNew) {
       if (!context.mounted) return;
+      // Promote legacy parent_name into the first/last fields when
+      // this is the child's first linked parent and the old free-
+      // text is set. Teacher doesn't have to retype the name; they
+      // just add relationship / phone / email and save.
+      final (pf, pl) = existingLinks.isEmpty
+          ? _splitLegacyName(child.parentName)
+          : (null, null);
       final newId = await showModalBottomSheet<String?>(
         context: context,
         isScrollControlled: true,
         showDragHandle: true,
-        builder: (_) => const EditParentSheet(),
+        builder: (_) => EditParentSheet(
+          prefillFirstName: pf,
+          prefillLastName: pl,
+        ),
       );
       if (newId == null) return;
       await repo.linkParentToChild(
