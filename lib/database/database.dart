@@ -397,6 +397,7 @@ class AppDatabase extends _$AppDatabase {
               'ADD COLUMN "picked_up_by" TEXT NULL',
             );
           }
+          // --- version gates below ---
           if (from < 35) {
             // v35: second break window on adult availability. v28 added
             // one break + one lunch; some programs run a morning AND
@@ -543,6 +544,33 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
+  /// Wipes every row from every table, leaving the schema (+ indexes,
+  /// FK constraints) intact. Used by the "Clear all data" danger-zone
+  /// action in program settings — starts the app from a pristine state
+  /// without having to reinstall.
+  ///
+  /// Runs with foreign keys OFF inside a transaction so the order of
+  /// deletes doesn't matter — every child table would normally cascade-
+  /// clean when its parent got deleted, but we want to be safe against
+  /// any join shape that might protest.
+  ///
+  /// Callers typically pair this with `SharedPreferences.clear()` to
+  /// wipe on-device UI state (mode toggles, last-expanded selections,
+  /// grace windows). Attachment files on disk are left alone — they
+  /// become orphans on the next DB read; the media-sweep helper can
+  /// reap them separately.
+  Future<void> clearAllData() async {
+    await customStatement('PRAGMA foreign_keys = OFF');
+    try {
+      await transaction(() async {
+        for (final table in allTables) {
+          await customStatement('DELETE FROM "${table.actualTableName}"');
+        }
+      });
+    } finally {
+      await customStatement('PRAGMA foreign_keys = ON');
+    }
+  }
 }
 
 final databaseProvider = Provider<AppDatabase>((ref) {

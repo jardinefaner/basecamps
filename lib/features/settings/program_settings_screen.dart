@@ -1,12 +1,16 @@
+import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/settings/program_settings.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
+import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Program-wide settings screen. Currently: late-arrival grace +
-/// overdue-pickup grace. Small on purpose — more knobs earn a spot
-/// when they have a concrete teacher complaint driving them.
+/// overdue-pickup grace, plus a danger-zone "Clear all data" action.
+/// Small on purpose — more knobs earn a spot when they have a
+/// concrete teacher complaint driving them.
 class ProgramSettingsScreen extends ConsumerWidget {
   const ProgramSettingsScreen({super.key});
 
@@ -38,6 +42,8 @@ class ProgramSettingsScreen extends ConsumerWidget {
             value: settings.pickupGraceMinutes,
             onChanged: notifier.setPickupGrace,
           ),
+          const SizedBox(height: AppSpacing.xxl),
+          const _DangerZone(),
         ],
       ),
     );
@@ -100,6 +106,202 @@ class _GraceCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// "Clear all data" section — wipes every Drift row AND on-device
+/// UI state (SharedPreferences) behind a two-step confirmation.
+/// No undo — this one's intentional. Deliberately sits below
+/// everything else with error-tinted styling so a teacher doesn't
+/// brush it by accident.
+class _DangerZone extends ConsumerStatefulWidget {
+  const _DangerZone();
+
+  @override
+  ConsumerState<_DangerZone> createState() => _DangerZoneState();
+}
+
+class _DangerZoneState extends ConsumerState<_DangerZone> {
+  bool _working = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: theme.colorScheme.error.withValues(alpha: 0.35),
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: theme.colorScheme.error,
+                  size: 18,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  'DANGER ZONE',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.error,
+                    letterSpacing: 0.8,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Clear all data',
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Wipes every child, adult, group, room, activity, '
+              'observation, attendance record, concern note, form '
+              'submission, and vehicle check from this device. Also '
+              'resets program settings and on-device preferences '
+              '(last-expanded group, mode toggles, grace windows). '
+              'Cannot be undone.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: _working ? null : _confirmAndClear,
+                icon: _working
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.delete_sweep_outlined, size: 18),
+                label: Text(_working ? 'Clearing…' : 'Clear all data'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: theme.colorScheme.error,
+                  side: BorderSide(
+                    color: theme.colorScheme.error.withValues(alpha: 0.6),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Two-step confirmation: first the usual "Are you sure?" with a
+  /// scary-enough message, then a second dialog that only gates on
+  /// the user explicitly typing "CLEAR" — enough friction that a
+  /// brushed tap never survives to the actual wipe.
+  Future<void> _confirmAndClear() async {
+    final firstOk = await showConfirmDialog(
+      context: context,
+      title: 'Clear all program data?',
+      message: 'Every row on every screen goes. This cannot be undone. '
+          "You'll be asked to confirm again on the next step.",
+      confirmLabel: 'Continue',
+    );
+    if (!firstOk || !mounted) return;
+    final typed = await _confirmByTyping(context);
+    if (typed != true || !mounted) return;
+
+    setState(() => _working = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final db = ref.read(databaseProvider);
+      await db.clearAllData();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+      if (!mounted) return;
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'All data cleared. Close and reopen the app for a '
+              'fully-reset state.',
+            ),
+            duration: Duration(seconds: 6),
+          ),
+        );
+    } on Object catch (e) {
+      if (!mounted) return;
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text('Clear failed: $e')));
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  /// Second-step confirmation: teacher types CLEAR to enable the
+  /// destructive button. Short enough to not feel like theater,
+  /// long enough that autocomplete-accidental acceptance doesn't
+  /// get you through.
+  Future<bool?> _confirmByTyping(BuildContext context) {
+    final controller = TextEditingController();
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            final ready = controller.text.trim().toUpperCase() == 'CLEAR';
+            return AlertDialog(
+              title: const Text('Really clear everything?'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Type CLEAR (all caps) to confirm. There is no '
+                    'undo after this.',
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      labelText: 'Type CLEAR',
+                    ),
+                    onChanged: (_) => setModalState(() {}),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: ready
+                      ? () => Navigator.of(ctx).pop(true)
+                      : null,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(ctx).colorScheme.error,
+                    foregroundColor: Theme.of(ctx).colorScheme.onError,
+                  ),
+                  child: const Text('Wipe'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }
