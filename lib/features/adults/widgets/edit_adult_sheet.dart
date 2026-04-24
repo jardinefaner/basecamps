@@ -6,6 +6,7 @@ import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/adults/widgets/adult_timeline_editor_sheet.dart';
 import 'package:basecamp/features/adults/widgets/availability_editor.dart';
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/children/widgets/new_group_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
@@ -543,11 +544,28 @@ class _AnchorGroupPicker extends ConsumerWidget {
           error: (err, _) => Text('Error: $err'),
           data: (groups) {
             if (groups.isEmpty) {
-              return Text(
-                'No groups yet — add some in the Children tab first.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'No groups yet. Add one below to anchor this lead.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _openNewGroupWizard(context),
+                      icon: const Icon(
+                        Icons.group_add_outlined,
+                        size: 18,
+                      ),
+                      label: const Text('New group'),
+                    ),
+                  ),
+                ],
               );
             }
             return Wrap(
@@ -560,11 +578,34 @@ class _AnchorGroupPicker extends ConsumerWidget {
                     selected: selectedGroupId == g.id,
                     onSelected: (_) => onChanged(g.id),
                   ),
+                // Action chip sits alongside the group chips so the
+                // teacher can bootstrap a new group without leaving
+                // this sheet. The wizard mounts above via
+                // rootNavigator; groupsProvider auto-refreshes on
+                // return, so the new chip shows up immediately.
+                ActionChip(
+                  avatar: const Icon(Icons.add, size: 16),
+                  label: const Text('New group'),
+                  onPressed: () => _openNewGroupWizard(context),
+                ),
               ],
             );
           },
         ),
       ],
+    );
+  }
+
+  /// Spawns the New-Group wizard above this sheet. Uses
+  /// rootNavigator so the new wizard sits above the sheet backdrop;
+  /// on return the sheet stays up and the group chip row
+  /// auto-refreshes via groupsProvider.
+  Future<void> _openNewGroupWizard(BuildContext context) async {
+    await Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const NewGroupWizardScreen(),
+      ),
     );
   }
 }

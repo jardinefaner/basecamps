@@ -32,6 +32,7 @@ import 'package:basecamp/features/today/widgets/today_agenda.dart';
 import 'package:basecamp/features/trips/widgets/new_trip_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
+import 'package:basecamp/ui/bootstrap_setup_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -379,6 +380,10 @@ class _Body extends ConsumerWidget {
           delegate: SliverChildListDelegate([
             _DateLabel(label: dateLabel),
             const SizedBox(height: AppSpacing.md),
+            // Self-hides unless BOTH adults and groups are empty.
+            // Keeps a populated-but-unscheduled day from seeing a
+            // setup nudge it doesn't need.
+            const BootstrapSetupCard(),
             _EmptyState(onEdit: () => context.push('/today/schedule')),
           ]),
         ),
@@ -578,6 +583,13 @@ class _Body extends ConsumerWidget {
       ),
       sliver: SliverList(
         delegate: SliverChildListDelegate([
+        // Fresh-program nudge. Self-hides unless BOTH adults and
+        // groups are empty, so populated programs see no extra
+        // chrome here — but a brand-new install still gets the
+        // bootstrap card on the Today screen even if someone
+        // happened to schedule an activity first.
+        const BootstrapSetupCard(),
+
         // Loud-when-needed strip: self-hides when zero kids are flagged
         // and no reviews are due. Sits at the top so a late child or
         // overdue review pulls the eye before anything else.

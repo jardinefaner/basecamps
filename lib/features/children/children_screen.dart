@@ -6,6 +6,7 @@ import 'package:basecamp/features/children/widgets/new_child_wizard.dart';
 import 'package:basecamp/features/children/widgets/new_group_wizard.dart';
 import 'package:basecamp/features/groups/group_detail_screen.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:basecamp/ui/bootstrap_setup_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -105,7 +106,6 @@ class _ChildrenBody extends StatelessWidget {
   Widget build(BuildContext context) {
     if (groups.isEmpty) {
       return const SliverFillRemaining(
-        hasScrollBody: false,
         child: _EmptyState(),
       );
     }
@@ -336,43 +336,53 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.groups_2_outlined,
-              size: 56,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text(
-              'No groups yet',
-              style: theme.textTheme.titleLarge,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Create your first group to start adding children.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            FilledButton.icon(
-              onPressed: () => Navigator.of(context).push<void>(
-                MaterialPageRoute(
-                  fullscreenDialog: true,
-                  builder: (_) => const NewGroupWizardScreen(),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Shows only on a fresh install (both adults and groups
+          // empty). Once adults exist, the bootstrap card is done
+          // and the familiar "Create group" CTA below takes over.
+          const BootstrapSetupCard(),
+          const SizedBox(height: AppSpacing.xl),
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.groups_2_outlined,
+                  size: 56,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
-              ),
-              icon: const Icon(Icons.group_add_outlined),
-              label: const Text('Create group'),
+                const SizedBox(height: AppSpacing.lg),
+                Text(
+                  'No groups yet',
+                  style: theme.textTheme.titleLarge,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Create your first group to start adding children.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                FilledButton.icon(
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      fullscreenDialog: true,
+                      builder: (_) => const NewGroupWizardScreen(),
+                    ),
+                  ),
+                  icon: const Icon(Icons.group_add_outlined),
+                  label: const Text('Create group'),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
+import 'package:basecamp/features/adults/widgets/new_adult_wizard.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/children/group_colors.dart';
 import 'package:basecamp/features/rooms/rooms_repository.dart';
@@ -232,13 +233,23 @@ class _NewGroupWizardScreenState extends ConsumerState<NewGroupWizardScreen> {
       error: (err, _) => Text('Error: $err'),
       data: (adults) {
         if (adults.isEmpty) {
-          return Text(
-            "No adults yet. Tap Skip — once you've added adults on "
-            'the Adults screen you can anchor them here from the '
-            "group's detail page.",
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'No adults in the program yet. Add one below to '
+                'anchor as a lead for this group.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              OutlinedButton.icon(
+                onPressed: () => _openNewAdultWizard(context),
+                icon: const Icon(Icons.person_add_alt, size: 18),
+                label: const Text('New adult'),
+              ),
+            ],
           );
         }
         return Column(
@@ -265,9 +276,32 @@ class _NewGroupWizardScreenState extends ConsumerState<NewGroupWizardScreen> {
                   }
                 }),
               ),
+            const SizedBox(height: AppSpacing.sm),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => _openNewAdultWizard(context),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add another adult…'),
+              ),
+            ),
           ],
         );
       },
+    );
+  }
+
+  /// Spawns the New-Adult wizard above this one so a teacher who
+  /// lands here with no adults yet can bootstrap one without
+  /// backing all the way out. Uses rootNavigator so the new wizard
+  /// mounts above everything; stream providers auto-refresh on
+  /// return, so the leads list repopulates on its own.
+  Future<void> _openNewAdultWizard(BuildContext context) async {
+    await Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const NewAdultWizardScreen(),
+      ),
     );
   }
 

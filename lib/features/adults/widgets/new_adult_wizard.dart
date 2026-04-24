@@ -1,6 +1,7 @@
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/adults/widgets/availability_editor.dart';
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/children/widgets/new_group_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
@@ -257,28 +258,70 @@ class _NewAdultWizardScreenState
       error: (err, _) => Text('Error: $err'),
       data: (groups) {
         if (groups.isEmpty) {
-          return Text(
-            'No groups yet — add some in the Children tab first, '
-            'then come back to pick the anchor.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'No groups in the program yet. Add one below to '
+                'anchor this lead.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: () => _openNewGroupWizard(context),
+                  icon: const Icon(Icons.group_add_outlined, size: 18),
+                  label: const Text('New group'),
+                ),
+              ),
+            ],
           );
         }
-        return Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final g in groups)
-              ChoiceChip(
-                label: Text(g.name),
-                selected: _anchoredGroupId == g.id,
-                onSelected: (_) =>
-                    setState(() => _anchoredGroupId = g.id),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final g in groups)
+                  ChoiceChip(
+                    label: Text(g.name),
+                    selected: _anchoredGroupId == g.id,
+                    onSelected: (_) =>
+                        setState(() => _anchoredGroupId = g.id),
+                  ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => _openNewGroupWizard(context),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add another group…'),
               ),
+            ),
           ],
         );
       },
+    );
+  }
+
+  /// Spawns the New-Group wizard above this one so a teacher who
+  /// marked this adult as a lead but has no groups yet can create
+  /// one inline instead of dead-ending. Uses rootNavigator so the
+  /// new wizard sits above everything; groupsProvider auto-refreshes
+  /// on return.
+  Future<void> _openNewGroupWizard(BuildContext context) async {
+    await Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const NewGroupWizardScreen(),
+      ),
     );
   }
 

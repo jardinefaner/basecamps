@@ -4,6 +4,7 @@ import 'package:basecamp/features/adults/widgets/new_adult_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
+import 'package:basecamp/ui/bootstrap_setup_card.dart';
 import 'package:basecamp/ui/bulk_selection.dart';
 import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
@@ -260,36 +261,46 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.badge_outlined,
-              size: 56,
-              color: theme.colorScheme.onSurfaceVariant,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Shows only when BOTH adults and groups are empty. Once
+          // groups exist, this collapses and the familiar "Add adult"
+          // CTA below is what the teacher sees.
+          const BootstrapSetupCard(),
+          const SizedBox(height: AppSpacing.xl),
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.badge_outlined,
+                  size: 56,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                Text('No adults yet', style: theme.textTheme.titleLarge),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Add everyone who works the program — leads, adults, '
+                  'director, kitchen, nurse.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                FilledButton.icon(
+                  onPressed: onAdd,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add adult'),
+                ),
+              ],
             ),
-            const SizedBox(height: AppSpacing.lg),
-            Text('No adults yet', style: theme.textTheme.titleLarge),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Add everyone who works the program — leads, adults, '
-              'director, kitchen, nurse.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            FilledButton.icon(
-              onPressed: onAdd,
-              icon: const Icon(Icons.add),
-              label: const Text('Add adult'),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
