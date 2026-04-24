@@ -502,7 +502,7 @@ class _RolePicker extends StatelessWidget {
       case AdultRole.lead:
         return 'Lead';
       case AdultRole.specialist:
-        return 'Adult';
+        return 'Specialist';
       case AdultRole.ambient:
         return 'Ambient staff';
     }

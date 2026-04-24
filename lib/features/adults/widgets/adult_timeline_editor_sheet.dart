@@ -602,7 +602,7 @@ class _BlockRow extends StatelessWidget {
       case AdultBlockRole.lead:
         return 'Lead';
       case AdultBlockRole.specialist:
-        return 'Adult';
+        return 'Specialist';
     }
   }
 }

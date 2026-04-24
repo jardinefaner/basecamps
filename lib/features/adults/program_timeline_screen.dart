@@ -424,7 +424,7 @@ class _AdultRow extends StatelessWidget {
     } else {
       bg = theme.colorScheme.tertiary;
       fg = theme.colorScheme.onTertiary;
-      label = 'Adult';
+      label = 'Specialist';
     }
     return _Band(
       startMin: start,

@@ -231,7 +231,7 @@ class _RoleChip extends StatelessWidget {
       AdultRole.specialist => (
           theme.colorScheme.tertiaryContainer,
           theme.colorScheme.onTertiaryContainer,
-          'Adult',
+          'Specialist',
         ),
       AdultRole.ambient => (
           theme.colorScheme.surfaceContainerHighest,

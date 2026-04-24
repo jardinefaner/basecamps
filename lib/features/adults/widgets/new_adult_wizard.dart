@@ -229,7 +229,7 @@ class _NewAdultWizardScreenState
               ? "Leads anchor a single group — you'll pick which on "
                   'the next step.'
               : _adultRole == AdultRole.specialist
-                  ? 'Adults rotate between activities on the '
+                  ? 'Specialists rotate between activities on the '
                       'schedule.'
                   : "Ambient staff have a shift but aren't on the "
                       'activity grid — director, nurse, kitchen, etc.',
@@ -586,7 +586,7 @@ class _RoleOption extends StatelessWidget {
               'typical classroom setup.',
         ),
       AdultRole.specialist => (
-          'Adult',
+          'Specialist',
           'Rotates between activities (art, music, swim, etc.). '
               'Comes into a group for one block, moves to the next.',
         ),
