@@ -5,11 +5,16 @@ import 'package:basecamp/features/activity_library/activity_library_repository.d
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
+import 'package:basecamp/features/forms/polymorphic/registry.dart';
 import 'package:basecamp/features/launcher/pinned_actions_repository.dart';
 import 'package:basecamp/features/parents/parents_repository.dart';
+import 'package:basecamp/features/rooms/rooms_repository.dart';
+import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
 import 'package:basecamp/features/schedule/widgets/new_full_day_event_wizard.dart';
+import 'package:basecamp/features/trips/trips_repository.dart';
 import 'package:basecamp/features/trips/widgets/new_trip_wizard.dart';
+import 'package:basecamp/features/vehicles/vehicles_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
@@ -224,6 +229,45 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
         .where((d) => _matches(d.label))
         .toList();
 
+    // Global-search sections — only come alive once the teacher has
+    // committed to a search (≥2 chars). Below that we'd either show
+    // the entire registry (noise) or a mountain of partial matches
+    // on every keystroke. All filtering runs over already-watched
+    // streams so there's no new DB query per keystroke.
+    final globalSearchOn = _query.length >= 2;
+
+    final formResults = globalSearchOn
+        ? _buildFormResults(_query)
+        : const <_FormSearchResult>[];
+    final templatesAsync = ref.watch(templatesProvider);
+    final activityResults = globalSearchOn
+        ? _buildActivityResults(
+            templatesAsync.asData?.value ?? const <ScheduleTemplate>[],
+            _query,
+          )
+        : const <_ActivitySearchResult>[];
+    final roomsAsync = ref.watch(roomsProvider);
+    final roomResults = globalSearchOn
+        ? _buildRoomResults(
+            roomsAsync.asData?.value ?? const <Room>[],
+            _query,
+          )
+        : const <Room>[];
+    final vehiclesAsync = ref.watch(vehiclesProvider);
+    final vehicleResults = globalSearchOn
+        ? _buildVehicleResults(
+            vehiclesAsync.asData?.value ?? const <Vehicle>[],
+            _query,
+          )
+        : const <Vehicle>[];
+    final tripsAsync = ref.watch(tripsProvider);
+    final tripResults = globalSearchOn
+        ? _buildTripResults(
+            tripsAsync.asData?.value ?? const <Trip>[],
+            _query,
+          )
+        : const <Trip>[];
+
     final hasAnyResults = _query.isEmpty ||
         pinnedRows.isNotEmpty ||
         unpinnedActions.isNotEmpty ||
@@ -231,7 +275,12 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
         unpinnedKids.isNotEmpty ||
         unpinnedAdults.isNotEmpty ||
         unpinnedParents.isNotEmpty ||
-        unpinnedLibrary.isNotEmpty;
+        unpinnedLibrary.isNotEmpty ||
+        formResults.isNotEmpty ||
+        activityResults.isNotEmpty ||
+        roomResults.isNotEmpty ||
+        vehicleResults.isNotEmpty ||
+        tripResults.isNotEmpty;
 
     // Show the Pinned section whenever pinning is useful — either
     // there are pins already, or there's no search filter masking
@@ -350,6 +399,25 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                             pinId: pinId(PinnedKinds.library, l.id),
                             child: _LibraryRow(item: l),
                           ),
+                        if (formResults.isNotEmpty)
+                          const _SectionHeader(label: 'Forms'),
+                        for (final r in formResults)
+                          _FormResultRow(result: r),
+                        if (activityResults.isNotEmpty)
+                          const _SectionHeader(
+                              label: 'Scheduled activities'),
+                        for (final r in activityResults)
+                          _ActivityResultRow(result: r),
+                        if (roomResults.isNotEmpty ||
+                            vehicleResults.isNotEmpty ||
+                            tripResults.isNotEmpty)
+                          const _SectionHeader(label: 'Setup'),
+                        for (final r in roomResults)
+                          _RoomResultRow(room: r),
+                        for (final v in vehicleResults)
+                          _VehicleResultRow(vehicle: v),
+                        for (final t in tripResults)
+                          _TripResultRow(trip: t),
                       ],
                     ),
             ),
@@ -935,6 +1003,258 @@ class _DestinationData {
       path: '/more/settings',
     ),
   ];
+}
+
+// ================================================================
+// Global search — result models + row widgets
+// ================================================================
+
+/// A matchable form type result. Covers both polymorphic registry
+/// entries and the bespoke Parent Concern form, so the launcher
+/// treats them uniformly in the Forms section.
+class _FormSearchResult {
+  const _FormSearchResult({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.route,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final String route;
+}
+
+/// Activity search row — one per distinct template title. Tapping
+/// routes to /today/schedule since there's no per-template detail
+/// URL; the teacher will see the row in context there.
+class _ActivitySearchResult {
+  const _ActivitySearchResult({required this.title});
+  final String title;
+}
+
+List<_FormSearchResult> _buildFormResults(String query) {
+  final q = query.toLowerCase();
+  bool hit(String s) => s.toLowerCase().contains(q);
+
+  // Parent Concern is bespoke (not in the polymorphic registry) and
+  // owns its own list screen + route. Hard-coded so teachers can
+  // still surface it from search exactly like any other form.
+  const parentConcern = _FormSearchResult(
+    title: 'Parent Concern Note',
+    subtitle: 'Document a parent-raised concern.',
+    icon: Icons.chat_outlined,
+    route: '/more/forms/parent-concern',
+  );
+
+  final results = <_FormSearchResult>[];
+  if (hit(parentConcern.title) || hit(parentConcern.subtitle)) {
+    results.add(parentConcern);
+  }
+  for (final def in allFormDefinitions) {
+    if (hit(def.title) ||
+        hit(def.shortTitle) ||
+        hit(def.subtitle)) {
+      results.add(
+        _FormSearchResult(
+          title: def.shortTitle,
+          subtitle: def.subtitle,
+          icon: def.icon,
+          route: '/more/forms/type/${def.typeKey}',
+        ),
+      );
+    }
+  }
+  results.sort(
+    (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+  );
+  return results;
+}
+
+List<_ActivitySearchResult> _buildActivityResults(
+  List<ScheduleTemplate> templates,
+  String query,
+) {
+  final q = query.toLowerCase();
+  // Dedupe by title — Monday Art and Tuesday Art collapse to a
+  // single hit. Teachers following it to /today/schedule will find
+  // each occurrence in context.
+  final seen = <String>{};
+  final results = <_ActivitySearchResult>[];
+  for (final t in templates) {
+    final title = t.title;
+    if (title.isEmpty) continue;
+    if (!title.toLowerCase().contains(q)) continue;
+    final key = title.toLowerCase();
+    if (!seen.add(key)) continue;
+    results.add(_ActivitySearchResult(title: title));
+  }
+  results.sort(
+    (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+  );
+  return results;
+}
+
+List<Room> _buildRoomResults(List<Room> rooms, String query) {
+  final q = query.toLowerCase();
+  return [
+    for (final r in rooms)
+      if (r.name.toLowerCase().contains(q)) r,
+  ]..sort(
+      (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+    );
+}
+
+List<Vehicle> _buildVehicleResults(
+  List<Vehicle> vehicles,
+  String query,
+) {
+  final q = query.toLowerCase();
+  return [
+    for (final v in vehicles)
+      if (v.name.toLowerCase().contains(q) ||
+          v.makeModel.toLowerCase().contains(q))
+        v,
+  ]..sort(
+      (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+    );
+}
+
+List<Trip> _buildTripResults(List<Trip> trips, String query) {
+  final q = query.toLowerCase();
+  // Skip ancient trips — past trips older than 30 days just add
+  // noise to search results teachers are almost never looking for.
+  // Upcoming trips stay searchable regardless of how far out.
+  final cutoff = DateTime.now().subtract(const Duration(days: 30));
+  final results = <Trip>[];
+  for (final t in trips) {
+    if (!t.name.toLowerCase().contains(q)) continue;
+    final endsAt = t.endDate ?? t.date;
+    if (endsAt.isBefore(cutoff)) continue;
+    results.add(t);
+  }
+  results.sort(
+    (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+  );
+  return results;
+}
+
+class _FormResultRow extends StatelessWidget {
+  const _FormResultRow({required this.result});
+  final _FormSearchResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+      ),
+      leading: Icon(
+        result.icon,
+        size: 24,
+        color: theme.colorScheme.primary,
+      ),
+      title: Text(result.title),
+      subtitle: Text(
+        result.subtitle,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      onTap: () => _navigateTo(context, result.route),
+    );
+  }
+}
+
+class _ActivityResultRow extends StatelessWidget {
+  const _ActivityResultRow({required this.result});
+  final _ActivitySearchResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+      ),
+      leading: Icon(
+        Icons.calendar_month_outlined,
+        size: 24,
+        color: theme.colorScheme.primary,
+      ),
+      title: Text(result.title),
+      onTap: () => _navigateTo(context, '/today/schedule'),
+    );
+  }
+}
+
+class _RoomResultRow extends StatelessWidget {
+  const _RoomResultRow({required this.room});
+  final Room room;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+      ),
+      leading: Icon(
+        Icons.meeting_room_outlined,
+        size: 24,
+        color: theme.colorScheme.primary,
+      ),
+      title: Text(room.name),
+      onTap: () => _navigateTo(context, '/more/rooms'),
+    );
+  }
+}
+
+class _VehicleResultRow extends StatelessWidget {
+  const _VehicleResultRow({required this.vehicle});
+  final Vehicle vehicle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sub = vehicle.makeModel.isEmpty ? null : vehicle.makeModel;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+      ),
+      leading: Icon(
+        Icons.directions_bus_outlined,
+        size: 24,
+        color: theme.colorScheme.primary,
+      ),
+      title: Text(vehicle.name),
+      subtitle: sub == null ? null : Text(sub),
+      onTap: () => _navigateTo(context, '/more/vehicles'),
+    );
+  }
+}
+
+class _TripResultRow extends StatelessWidget {
+  const _TripResultRow({required this.trip});
+  final Trip trip;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+      ),
+      leading: Icon(
+        Icons.map_outlined,
+        size: 24,
+        color: theme.colorScheme.primary,
+      ),
+      title: Text(trip.name),
+      onTap: () => _navigateTo(context, '/trips/${trip.id}'),
+    );
+  }
 }
 
 // ================================================================
