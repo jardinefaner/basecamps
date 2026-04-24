@@ -9,6 +9,7 @@ import 'package:basecamp/features/forms/parent_concern/parent_concern_form_scree
 import 'package:basecamp/features/forms/parent_concern/parent_concern_repository.dart';
 import 'package:basecamp/features/groups/group_detail_screen.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
+import 'package:basecamp/features/launcher/launcher_screen.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/observations/widgets/observation_composer.dart';
 import 'package:basecamp/features/schedule/conflicts.dart';
@@ -236,7 +237,27 @@ class TodayScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final dateLabel = DateFormat('EEEE · MMMM d').format(now);
 
-    return Scaffold(
+    // PopScope(canPop: false) sits at the app root (Today is the root
+    // now, post nav-shell-removal). Absorbs the Android back button /
+    // edge swipe so teachers don't accidentally exit mid-capture;
+    // in-flight observations were being lost to errant back gestures.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        // No-op on purpose. PopScope blocks the pop; we just don't
+        // offer any escape hatch here. The moment we start routing the
+        // back gesture somewhere (e.g. double-tap to exit) teachers
+        // hit it accidentally.
+      },
+      child: Scaffold(
+      // Wide drawer — the launcher hosts search + people grids +
+      // destinations + library pills, all of which feel cramped in the
+      // Drawer default 304dp. 88% of the screen width gives the
+      // content room to breathe without fully hiding Today.
+      drawer: Drawer(
+        width: MediaQuery.of(context).size.width * 0.88,
+        child: const LauncherScreen(),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openCreateMenu(context, now, ref),
         icon: const Icon(Icons.add),
@@ -245,10 +266,17 @@ class TodayScreen extends ConsumerWidget {
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            leading: IconButton(
-              icon: const Icon(Icons.menu),
-              tooltip: 'Launcher',
-              onPressed: () => context.go('/launcher'),
+            // Wrapped in a Builder so the IconButton's onPressed has a
+            // context sitting *below* this Scaffold — Scaffold.of(...)
+            // walks up from the passed context and would otherwise
+            // find no Scaffold ancestor (this build method's `context`
+            // is above the Scaffold we just returned).
+            leading: Builder(
+              builder: (ctx) => IconButton(
+                icon: const Icon(Icons.menu),
+                tooltip: 'Menu',
+                onPressed: () => Scaffold.of(ctx).openDrawer(),
+              ),
             ),
             // Title carries today's date inline so a quick glance
             // confirms the day without scrolling. Weekday + short
@@ -321,6 +349,7 @@ class TodayScreen extends ConsumerWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

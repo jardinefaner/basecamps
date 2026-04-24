@@ -15,10 +15,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-/// Hidden "spotlight" surface reached by swiping right from Today.
-/// Search at the top, then: quick actions, children, adults, the
-/// named sections of the app, and library shortcuts — all filterable
-/// live from the search field.
+/// Drawer content for Today. Search at the top, then: quick actions,
+/// children, adults, the named sections of the app, and library
+/// shortcuts — all filterable live from the search field.
+///
+/// Renders as a Drawer body (no outer Scaffold). Every navigation tap
+/// closes the drawer first via [Navigator.pop] on this context, then
+/// pushes the pushed route onto the root navigator — so tapping a
+/// destination lands the teacher on the new screen with Today in the
+/// back-stack.
+///
+/// A helper [_navigateTo] funnels every tap path through the same
+/// close-then-route sequence; use it anywhere inside this file.
 class LauncherScreen extends ConsumerStatefulWidget {
   const LauncherScreen({super.key});
 
@@ -176,9 +184,13 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
         unpinnedAdults.isNotEmpty ||
         unpinnedLibrary.isNotEmpty;
 
-    return Scaffold(
-      backgroundColor: theme.colorScheme.surfaceContainerLowest,
-      body: SafeArea(
+    // No outer Scaffold — LauncherScreen is rendered inside a Drawer
+    // which supplies its own Material surface. A ColoredBox matches the
+    // pre-drawer look (surfaceContainerLowest background) and costs
+    // nothing when the Drawer already draws over it.
+    return ColoredBox(
+      color: theme.colorScheme.surfaceContainerLowest,
+      child: SafeArea(
         child: Column(
           children: [
             _SearchField(
@@ -261,6 +273,20 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
 String _displayName(String first, String? last) {
   if (last == null || last.trim().isEmpty) return first;
   return '$first ${last.trim()[0]}.';
+}
+
+/// Close the enclosing Drawer, then route. Every launcher tap funnels
+/// through here so the user lands on the new screen with Today in the
+/// back-stack. Default is `push` (stacks onto Today); pass `go: true`
+/// for horizontal moves that should clear any lower stack (rarely
+/// needed now that /today is the only root).
+void _navigateTo(BuildContext context, String path, {bool go = false}) {
+  Navigator.of(context).pop();
+  if (go) {
+    context.go(path);
+  } else {
+    unawaited(context.push(path));
+  }
 }
 
 // ================================================================
@@ -411,7 +437,11 @@ class _QuickActionData {
       label: 'New activity',
       icon: Icons.add,
       onTap: (ctx, _) async {
-        await Navigator.of(ctx).push<void>(
+        // Grab the root navigator *before* popping the drawer —
+        // Navigator.of(ctx) after pop is undefined.
+        final rootNav = Navigator.of(ctx, rootNavigator: true);
+        Navigator.of(ctx).pop();
+        await rootNav.push<void>(
           MaterialPageRoute(
             fullscreenDialog: true,
             builder: (_) => const NewActivityWizardScreen(),
@@ -424,7 +454,9 @@ class _QuickActionData {
       label: 'New event',
       icon: Icons.event_outlined,
       onTap: (ctx, _) async {
-        await Navigator.of(ctx).push<void>(
+        final rootNav = Navigator.of(ctx, rootNavigator: true);
+        Navigator.of(ctx).pop();
+        await rootNav.push<void>(
           MaterialPageRoute(
             fullscreenDialog: true,
             builder: (_) => const NewFullDayEventWizardScreen(),
@@ -437,7 +469,9 @@ class _QuickActionData {
       label: 'New trip',
       icon: Icons.map_outlined,
       onTap: (ctx, _) async {
-        await Navigator.of(ctx).push<void>(
+        final rootNav = Navigator.of(ctx, rootNavigator: true);
+        Navigator.of(ctx).pop();
+        await rootNav.push<void>(
           MaterialPageRoute(
             fullscreenDialog: true,
             builder: (_) => const NewTripWizardScreen(),
@@ -450,7 +484,9 @@ class _QuickActionData {
       label: 'New note',
       icon: Icons.chat_outlined,
       onTap: (ctx, _) async {
-        await Navigator.of(ctx).push<void>(
+        final rootNav = Navigator.of(ctx, rootNavigator: true);
+        Navigator.of(ctx).pop();
+        await rootNav.push<void>(
           MaterialPageRoute(
             fullscreenDialog: true,
             builder: (_) => const ParentConcernFormScreen(
@@ -465,7 +501,7 @@ class _QuickActionData {
       label: 'Observe',
       icon: Icons.visibility_outlined,
       onTap: (ctx, _) async {
-        ctx.go('/observations');
+        _navigateTo(ctx, '/observations');
       },
     ),
   ];
@@ -770,7 +806,7 @@ class _PersonCell extends StatelessWidget {
       width: 68,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => context.push(route),
+        onTap: () => _navigateTo(context, route),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
           child: Column(
@@ -807,44 +843,27 @@ class _DestinationData {
     required this.label,
     required this.icon,
     required this.path,
-    this.isMainTab = false,
   });
 
   final String label;
   final IconData icon;
   final String path;
-  final bool isMainTab;
 
   static const List<_DestinationData> all = [
-    _DestinationData(
-      label: 'Today',
-      icon: Icons.today_outlined,
-      path: '/today',
-      isMainTab: true,
-    ),
     _DestinationData(
       label: 'Observe',
       icon: Icons.visibility_outlined,
       path: '/observations',
-      isMainTab: true,
     ),
     _DestinationData(
-      label: 'Children',
+      label: 'Children & groups',
       icon: Icons.people_outline,
       path: '/children',
-      isMainTab: true,
     ),
     _DestinationData(
       label: 'Trips',
       icon: Icons.map_outlined,
       path: '/trips',
-      isMainTab: true,
-    ),
-    _DestinationData(
-      label: 'More',
-      icon: Icons.more_horiz,
-      path: '/more',
-      isMainTab: true,
     ),
     _DestinationData(
       label: 'Schedule',
@@ -862,9 +881,29 @@ class _DestinationData {
       path: '/more/adults',
     ),
     _DestinationData(
-      label: 'Library',
+      label: 'Activity library',
       icon: Icons.bookmarks_outlined,
       path: '/more/library',
+    ),
+    _DestinationData(
+      label: 'Rooms',
+      icon: Icons.meeting_room_outlined,
+      path: '/more/rooms',
+    ),
+    _DestinationData(
+      label: 'Vehicles',
+      icon: Icons.directions_bus_outlined,
+      path: '/more/vehicles',
+    ),
+    _DestinationData(
+      label: 'Parents',
+      icon: Icons.family_restroom_outlined,
+      path: '/more/parents',
+    ),
+    _DestinationData(
+      label: 'Program settings',
+      icon: Icons.settings_outlined,
+      path: '/more/settings',
     ),
   ];
 }
@@ -913,15 +952,9 @@ class _DestinationTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: () {
-          // Main tabs jump via `go` so the shell swaps branches; deep
-          // sub-routes push on top of the current branch.
-          if (destination.isMainTab) {
-            context.go(destination.path);
-          } else {
-            unawaited(context.push(destination.path));
-          }
-        },
+        // Every destination pushes on top of Today (the drawer host),
+        // so the back gesture returns here rather than exiting the app.
+        onTap: () => _navigateTo(context, destination.path),
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.sm),
           child: Column(
@@ -983,7 +1016,7 @@ class _LibraryPill extends StatelessWidget {
     final theme = Theme.of(context);
     return InkWell(
       borderRadius: BorderRadius.circular(20),
-      onTap: () => context.push('/more/library'),
+      onTap: () => _navigateTo(context, '/more/library'),
       child: Container(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
