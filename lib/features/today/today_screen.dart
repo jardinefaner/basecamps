@@ -27,6 +27,7 @@ import 'package:basecamp/features/schedule/widgets/add_activity_picker.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
 import 'package:basecamp/features/schedule/widgets/new_full_day_event_wizard.dart';
 import 'package:basecamp/features/today/last_expanded_group.dart';
+import 'package:basecamp/features/today/ratio_check.dart';
 import 'package:basecamp/features/today/today_buckets.dart';
 import 'package:basecamp/features/today/today_mode.dart';
 import 'package:basecamp/features/today/widgets/all_day_carousel.dart';
@@ -1189,11 +1190,11 @@ class _GroupChipRowState extends ConsumerState<_GroupChipRow> {
       });
     }
 
-    // Pull staffing inputs once here so the per-chip isStaffedToday
-    // check is a pure map lookup instead of a Riverpod watch per
-    // chip. Missing data (first paint before any stream resolves)
-    // falls back to "assume staffed" — no false-positive error tints
-    // while the providers warm up.
+    // Pull staffing + ratio inputs once here so each chip's checks are
+    // pure functions against the shared snapshot instead of a Riverpod
+    // watch per chip. Missing data (first paint before any stream
+    // resolves) falls back to "assume staffed / empty ratio" — no
+    // false-positive error tints while the providers warm up.
     final allAdults =
         ref.watch(adultsProvider).asData?.value ?? const <Adult>[];
     final allAvail =
@@ -1202,7 +1203,14 @@ class _GroupChipRowState extends ConsumerState<_GroupChipRow> {
     final todayBlocks =
         ref.watch(todayAdultBlocksProvider).asData?.value ??
         const <AdultDayBlock>[];
-    final weekday = DateTime.now().weekday;
+    final allKids =
+        ref.watch(childrenProvider).asData?.value ?? const <Child>[];
+    // Same clock source as the rest of Today — the chip ratios tick
+    // with the hero / upcoming / earlier sections on the wall-clock
+    // minute rather than drifting on their own.
+    final nowAsync = ref.watch(nowTickProvider);
+    final now = nowAsync.asData?.value ?? DateTime.now();
+    final weekday = now.weekday;
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -1210,20 +1218,39 @@ class _GroupChipRowState extends ConsumerState<_GroupChipRow> {
       child: Row(
         children: [
           for (final g in summaries) ...[
-            _GroupChip(
-              summary: g,
-              selected: g.id == selectedId,
-              isStaffed: isGroupStaffedToday(
-                groupId: g.id,
-                weekday: weekday,
-                adults: allAdults,
-                todayDayBlocks: todayBlocks,
-                availability: allAvail,
-              ),
-              onSelected: () =>
-                  ref.read(lastExpandedGroupProvider.notifier).toggle(g.id),
-              onLongPress: () => GroupDetailScreen.open(context, g.id),
-              theme: theme,
+            Builder(
+              builder: (_) {
+                final childrenInGroup = <Child>[
+                  for (final k in allKids)
+                    if (k.groupId == g.id) k,
+                ];
+                final ratio = computeGroupRatioNow(
+                  groupId: g.id,
+                  childrenInGroup: childrenInGroup,
+                  allAdults: allAdults,
+                  allAvailability: allAvail,
+                  todayBlocks: todayBlocks,
+                  now: now,
+                );
+                final isStaffed = isGroupStaffedToday(
+                  groupId: g.id,
+                  weekday: weekday,
+                  adults: allAdults,
+                  todayDayBlocks: todayBlocks,
+                  availability: allAvail,
+                );
+                return _GroupChip(
+                  summary: g,
+                  selected: g.id == selectedId,
+                  isStaffed: isStaffed,
+                  ratio: ratio,
+                  onSelected: () => ref
+                      .read(lastExpandedGroupProvider.notifier)
+                      .toggle(g.id),
+                  onLongPress: () => GroupDetailScreen.open(context, g.id),
+                  theme: theme,
+                );
+              },
             ),
             const SizedBox(width: AppSpacing.xs),
           ],
@@ -1242,6 +1269,7 @@ class _GroupChip extends StatelessWidget {
     required this.summary,
     required this.selected,
     required this.isStaffed,
+    required this.ratio,
     required this.onSelected,
     required this.onLongPress,
     required this.theme,
@@ -1257,6 +1285,13 @@ class _GroupChip extends StatelessWidget {
   /// are true (teacher actively working on the problem group).
   final bool isStaffed;
 
+  /// Live ratio snapshot for this group. Drives the "kids:adults"
+  /// suffix on the label and, when `isUnderRatio` is true, promotes
+  /// the chip to the errorContainer warning state. Unstaffed takes
+  /// priority over under-ratio in the label because it's the
+  /// stronger, more specific signal ("no lead" vs "bad count").
+  final GroupRatioNow ratio;
+
   final VoidCallback onSelected;
   final VoidCallback onLongPress;
   final ThemeData theme;
@@ -1265,6 +1300,38 @@ class _GroupChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final color =
         _parseHex(summary.group.colorHex) ?? theme.colorScheme.primary;
+    // Two warning paths collapse into one visual state: an unstaffed
+    // group (no lead on shift) or a ratio violation (too many kids per
+    // adult). Unstaffed wins the label copy because "no lead" is the
+    // more actionable, specific message than "14:0".
+    final kids = ratio.childrenInGroupNow;
+    final adults = ratio.adultsOnShiftForGroupNow;
+    final hasKids = kids > 0;
+    final showWarning = !isStaffed || ratio.isUnderRatio;
+
+    // Label rules:
+    //  * Empty group → just the name. Ratio is meaningless with no
+    //    kids assigned, so we don't shout "0:2" at the teacher.
+    //  * Unstaffed → "Name · no lead" (strongest signal).
+    //  * Otherwise → "Name · k:a" (plain suffix, muted when OK).
+    final String label;
+    if (!hasKids) {
+      label = summary.name;
+    } else if (!isStaffed) {
+      label = '${summary.name} · no lead';
+    } else {
+      label = '${summary.name} · $kids:$adults';
+    }
+
+    final onWarnColor = theme.colorScheme.onErrorContainer;
+    // Muted sub-text color for the " · k:a" suffix so it doesn't
+    // shout at a glance on normal chips. In warning state the whole
+    // label adopts `onErrorContainer` and the muted sub-text step
+    // is redundant — the warning palette already speaks for itself.
+    final baseStyle = theme.textTheme.labelMedium;
+    final normalNameColor = theme.textTheme.labelMedium?.color;
+    final normalSuffixColor = theme.colorScheme.onSurfaceVariant;
+
     // Unstaffed chips get the errorContainer tint regardless of
     // selection. The selection check-ring (FilterChip paints one
     // automatically when `selected` is true) still reads over the
@@ -1276,27 +1343,34 @@ class _GroupChip extends StatelessWidget {
         selected: selected,
         onSelected: (_) => onSelected(),
         showCheckmark: false,
-        backgroundColor: isStaffed ? null : theme.colorScheme.errorContainer,
-        avatar: isStaffed
-            ? Container(
+        backgroundColor:
+            showWarning ? theme.colorScheme.errorContainer : null,
+        avatar: showWarning
+            ? Icon(
+                Icons.warning_amber_rounded,
+                size: 14,
+                color: onWarnColor,
+              )
+            : Container(
                 width: 10,
                 height: 10,
                 decoration: BoxDecoration(
                   color: color,
                   shape: BoxShape.circle,
                 ),
-              )
-            : Icon(
-                Icons.warning_amber_rounded,
-                size: 14,
-                color: theme.colorScheme.onErrorContainer,
               ),
-        label: Text(
-          '${summary.name} · ${summary.childCount}',
-          style: theme.textTheme.labelMedium?.copyWith(
-            color: isStaffed ? null : theme.colorScheme.onErrorContainer,
-          ),
-        ),
+        label: showWarning
+            ? Text(
+                label,
+                style: baseStyle?.copyWith(color: onWarnColor),
+              )
+            : _NormalChipLabel(
+                name: summary.name,
+                suffix: hasKids ? ' · $kids:$adults' : null,
+                baseStyle: baseStyle,
+                nameColor: normalNameColor,
+                suffixColor: normalSuffixColor,
+              ),
       ),
     );
   }
@@ -1308,6 +1382,46 @@ class _GroupChip extends StatelessWidget {
     final intVal = int.tryParse(h, radix: 16);
     if (intVal == null) return null;
     return Color(h.length == 6 ? 0xFF000000 | intVal : intVal);
+  }
+}
+
+/// Two-span chip label for the "OK" case: group name in the default
+/// chip-text color, ratio suffix (" · 14:2") in a muted sub-text
+/// color so the numeric detail is legible without shouting at every
+/// glance. `suffix` null collapses to a single name span (empty
+/// group — no ratio worth showing).
+class _NormalChipLabel extends StatelessWidget {
+  const _NormalChipLabel({
+    required this.name,
+    required this.suffix,
+    required this.baseStyle,
+    required this.nameColor,
+    required this.suffixColor,
+  });
+
+  final String name;
+  final String? suffix;
+  final TextStyle? baseStyle;
+  final Color? nameColor;
+  final Color? suffixColor;
+
+  @override
+  Widget build(BuildContext context) {
+    if (suffix == null) {
+      return Text(name, style: baseStyle?.copyWith(color: nameColor));
+    }
+    return Text.rich(
+      TextSpan(
+        style: baseStyle?.copyWith(color: nameColor),
+        children: [
+          TextSpan(text: name),
+          TextSpan(
+            text: suffix,
+            style: baseStyle?.copyWith(color: suffixColor),
+          ),
+        ],
+      ),
+    );
   }
 }
 
