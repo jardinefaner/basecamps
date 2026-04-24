@@ -7,6 +7,8 @@ import 'package:basecamp/features/adults/widgets/adult_timeline_editor_sheet.dar
 import 'package:basecamp/features/adults/widgets/availability_editor.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/children/widgets/new_group_wizard.dart';
+import 'package:basecamp/features/roles/roles_repository.dart';
+import 'package:basecamp/features/roles/widgets/edit_role_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
@@ -36,6 +38,13 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
       TextEditingController(text: widget.adult?.notes ?? '');
 
   late String? _avatarPath = widget.adult?.avatarPath;
+
+  /// v39: FK to a Roles row. When non-null the role picker
+  /// supersedes the free-text [_roleController] — we save
+  /// `roleId = _roleId, role = null`. When the teacher edits the
+  /// text field, we clear this back to null so the legacy path
+  /// wins. Either one, never both.
+  late String? _roleId = widget.adult?.roleId;
 
   /// Structural role (v28) — what kind of adult this person is on
   /// the schedule. Defaults to adult (rover) for new rows and
@@ -70,6 +79,7 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
     final currentRole =
         _roleController.text.trim().isEmpty ? null : _roleController.text.trim();
     if (currentRole != adult.role) return true;
+    if (_roleId != adult.roleId) return true;
     final currentNotes =
         _notesController.text.trim().isEmpty ? null : _notesController.text.trim();
     if (currentNotes != adult.notes) return true;
@@ -145,8 +155,13 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
     setState(() => _submitting = true);
     final repo = ref.read(adultsRepositoryProvider);
     final name = _nameController.text.trim();
-    final role =
+    // Picker wins: when a roleId is set, save only the FK and clear
+    // the legacy string so we don't double-store. When no roleId,
+    // fall back to the free-text path.
+    final typed =
         _roleController.text.trim().isEmpty ? null : _roleController.text.trim();
+    final role = _roleId != null ? null : typed;
+    final roleId = _roleId;
     final notes = _notesController.text.trim().isEmpty
         ? null
         : _notesController.text.trim();
@@ -163,6 +178,7 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
         id: existing.id,
         name: name,
         role: role,
+        roleId: Value(roleId),
         notes: notes,
         avatarPath: _avatarPath,
         clearAvatarPath:
@@ -175,6 +191,7 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
       id = await repo.addAdult(
         name: name,
         role: role,
+        roleId: roleId,
         notes: notes,
         avatarPath: _avatarPath,
         adultRole: _adultRole,
@@ -258,11 +275,25 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: AppSpacing.lg),
+          _RoleFieldPicker(
+            selectedRoleId: _roleId,
+            onPick: (id) => setState(() {
+              _roleId = id;
+              // Picker wins: clear the free-text so the two inputs
+              // don't fight. Teacher can still type over it below.
+              if (id != null) _roleController.clear();
+            }),
+          ),
+          const SizedBox(height: AppSpacing.sm),
           AppTextField(
             controller: _roleController,
-            label: 'Job title (optional)',
-            hint: 'e.g. Art teacher · Director · Head cook',
-            onChanged: (_) => setState(() {}),
+            label: 'Or type a one-off title (optional)',
+            hint: 'e.g. Floater · Visiting artist',
+            onChanged: (v) => setState(() {
+              // Typing clears the picker selection so we don't save
+              // both an FK and a string — the legacy path wins.
+              if (v.trim().isNotEmpty && _roleId != null) _roleId = null;
+            }),
           ),
           const SizedBox(height: AppSpacing.xl),
           _RolePicker(
@@ -451,6 +482,79 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
     final total = t.hour * 60 + t.minute + minutes;
     final wrapped = ((total % (24 * 60)) + 24 * 60) % (24 * 60);
     return TimeOfDay(hour: wrapped ~/ 60, minute: wrapped % 60);
+  }
+}
+
+/// Chip picker for the `Adults.roleId` FK (v39). Horizontal wrap of
+/// ChoiceChips — one per Role row — plus an "+ New role" ActionChip
+/// that spawns [EditRoleSheet] via rootNavigator and selects the
+/// result when it pops with an id. Tapping the currently-selected
+/// chip clears the selection (lets the teacher fall back to the
+/// free-text field below).
+class _RoleFieldPicker extends ConsumerWidget {
+  const _RoleFieldPicker({
+    required this.selectedRoleId,
+    required this.onPick,
+  });
+
+  final String? selectedRoleId;
+  final ValueChanged<String?> onPick;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final rolesAsync = ref.watch(rolesProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Role', style: theme.textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Pick from the shared list, or tap "+ New role" to add one. '
+          'Leave unpicked to type a one-off title below.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        rolesAsync.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (err, _) => Text('Error: $err'),
+          data: (roles) {
+            return Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final r in roles)
+                  ChoiceChip(
+                    label: Text(r.name),
+                    selected: selectedRoleId == r.id,
+                    onSelected: (_) => onPick(
+                      selectedRoleId == r.id ? null : r.id,
+                    ),
+                  ),
+                ActionChip(
+                  avatar: const Icon(Icons.add, size: 16),
+                  label: const Text('New role'),
+                  onPressed: () => _openNewRoleSheet(context),
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openNewRoleSheet(BuildContext context) async {
+    final id = await showModalBottomSheet<String?>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useRootNavigator: true,
+      builder: (_) => const EditRoleSheet(),
+    );
+    if (id != null) onPick(id);
   }
 }
 

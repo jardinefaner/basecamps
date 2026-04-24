@@ -1,3 +1,4 @@
+import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/tables.dart';
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
@@ -38,6 +39,7 @@ QueryExecutor _openConnection() {
     Vehicles,
     Parents,
     ParentChildren,
+    Roles,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -46,7 +48,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 38;
+  int get schemaVersion => 39;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -76,6 +78,50 @@ class AppDatabase extends _$AppDatabase {
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
             );
+          }
+          if (from < 39) {
+            // v39: staff roles promoted from a free-text
+            // `adults.role` column into a first-class Roles entity.
+            // Existing adults keep their free-text blurb as a
+            // display fallback; new rows go through `adults.role_id`
+            // populated by the picker. Distinct non-empty legacy
+            // role strings are materialized as Role rows here and
+            // each adult is relinked by roleId.
+            await _runSilent(
+              'CREATE TABLE IF NOT EXISTS "roles" ( '
+              '"id" TEXT NOT NULL PRIMARY KEY, '
+              '"name" TEXT NOT NULL, '
+              '"created_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now')), "
+              '"updated_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now'))"
+              ' )',
+            );
+            await _runSilent(
+              'ALTER TABLE "adults" '
+              'ADD COLUMN "role_id" TEXT NULL '
+              'REFERENCES "roles"("id") ON DELETE SET NULL',
+            );
+            // Backfill: grab distinct non-empty role strings from
+            // adults, materialize one Role row per string, then
+            // UPDATE every matching adult row to point at it.
+            final distinct = await customSelect(
+              'SELECT DISTINCT TRIM("role") AS label FROM "adults" '
+              'WHERE "role" IS NOT NULL AND TRIM("role") != \'\'',
+            ).get();
+            for (final row in distinct) {
+              final label = row.read<String>('label');
+              final id = newId();
+              await customStatement(
+                'INSERT INTO "roles" ("id", "name") VALUES (?, ?)',
+                [id, label],
+              );
+              await customStatement(
+                'UPDATE "adults" SET "role_id" = ? '
+                'WHERE TRIM("role") = ?',
+                [id, label],
+              );
+            }
           }
           if (from < 25) {
             // One-shot rename: every "kid" → "child" and every "pod"

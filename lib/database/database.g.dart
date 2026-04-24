@@ -5128,6 +5128,309 @@ class ObservationDomainTagsCompanion
   }
 }
 
+class $RolesTable extends Roles with TableInfo<$RolesTable, Role> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RolesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, createdAt, updatedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'roles';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Role> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Role map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Role(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $RolesTable createAlias(String alias) {
+    return $RolesTable(attachedDatabase, alias);
+  }
+}
+
+class Role extends DataClass implements Insertable<Role> {
+  final String id;
+  final String name;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const Role({
+    required this.id,
+    required this.name,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  RolesCompanion toCompanion(bool nullToAbsent) {
+    return RolesCompanion(
+      id: Value(id),
+      name: Value(name),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory Role.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Role(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  Role copyWith({
+    String? id,
+    String? name,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => Role(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  Role copyWithCompanion(RolesCompanion data) {
+    return Role(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Role(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Role &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class RolesCompanion extends UpdateCompanion<Role> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const RolesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  RolesCompanion.insert({
+    required String id,
+    required String name,
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name);
+  static Insertable<Role> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  RolesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return RolesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RolesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -5159,6 +5462,18 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
+  );
+  static const VerificationMeta _roleIdMeta = const VerificationMeta('roleId');
+  @override
+  late final GeneratedColumn<String> roleId = GeneratedColumn<String>(
+    'role_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES roles (id) ON DELETE SET NULL',
+    ),
   );
   static const VerificationMeta _notesMeta = const VerificationMeta('notes');
   @override
@@ -5235,6 +5550,7 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
     id,
     name,
     role,
+    roleId,
     notes,
     avatarPath,
     adultRole,
@@ -5271,6 +5587,12 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
       context.handle(
         _roleMeta,
         role.isAcceptableOrUnknown(data['role']!, _roleMeta),
+      );
+    }
+    if (data.containsKey('role_id')) {
+      context.handle(
+        _roleIdMeta,
+        roleId.isAcceptableOrUnknown(data['role_id']!, _roleIdMeta),
       );
     }
     if (data.containsKey('notes')) {
@@ -5333,6 +5655,10 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
         DriftSqlType.string,
         data['${effectivePrefix}role'],
       ),
+      roleId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}role_id'],
+      ),
       notes: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
@@ -5370,6 +5696,11 @@ class Adult extends DataClass implements Insertable<Adult> {
   final String id;
   final String name;
   final String? role;
+
+  /// FK to Roles (v39). The legacy free-text `role` column above stays
+  /// as a display fallback for adults created before the promotion —
+  /// new rows can leave it null once the picker populates `roleId`.
+  final String? roleId;
   final String? notes;
   final String? avatarPath;
 
@@ -5388,6 +5719,7 @@ class Adult extends DataClass implements Insertable<Adult> {
     required this.id,
     required this.name,
     this.role,
+    this.roleId,
     this.notes,
     this.avatarPath,
     required this.adultRole,
@@ -5402,6 +5734,9 @@ class Adult extends DataClass implements Insertable<Adult> {
     map['name'] = Variable<String>(name);
     if (!nullToAbsent || role != null) {
       map['role'] = Variable<String>(role);
+    }
+    if (!nullToAbsent || roleId != null) {
+      map['role_id'] = Variable<String>(roleId);
     }
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
@@ -5423,6 +5758,9 @@ class Adult extends DataClass implements Insertable<Adult> {
       id: Value(id),
       name: Value(name),
       role: role == null && nullToAbsent ? const Value.absent() : Value(role),
+      roleId: roleId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(roleId),
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
@@ -5447,6 +5785,7 @@ class Adult extends DataClass implements Insertable<Adult> {
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       role: serializer.fromJson<String?>(json['role']),
+      roleId: serializer.fromJson<String?>(json['roleId']),
       notes: serializer.fromJson<String?>(json['notes']),
       avatarPath: serializer.fromJson<String?>(json['avatarPath']),
       adultRole: serializer.fromJson<String>(json['adultRole']),
@@ -5462,6 +5801,7 @@ class Adult extends DataClass implements Insertable<Adult> {
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'role': serializer.toJson<String?>(role),
+      'roleId': serializer.toJson<String?>(roleId),
       'notes': serializer.toJson<String?>(notes),
       'avatarPath': serializer.toJson<String?>(avatarPath),
       'adultRole': serializer.toJson<String>(adultRole),
@@ -5475,6 +5815,7 @@ class Adult extends DataClass implements Insertable<Adult> {
     String? id,
     String? name,
     Value<String?> role = const Value.absent(),
+    Value<String?> roleId = const Value.absent(),
     Value<String?> notes = const Value.absent(),
     Value<String?> avatarPath = const Value.absent(),
     String? adultRole,
@@ -5485,6 +5826,7 @@ class Adult extends DataClass implements Insertable<Adult> {
     id: id ?? this.id,
     name: name ?? this.name,
     role: role.present ? role.value : this.role,
+    roleId: roleId.present ? roleId.value : this.roleId,
     notes: notes.present ? notes.value : this.notes,
     avatarPath: avatarPath.present ? avatarPath.value : this.avatarPath,
     adultRole: adultRole ?? this.adultRole,
@@ -5499,6 +5841,7 @@ class Adult extends DataClass implements Insertable<Adult> {
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
       role: data.role.present ? data.role.value : this.role,
+      roleId: data.roleId.present ? data.roleId.value : this.roleId,
       notes: data.notes.present ? data.notes.value : this.notes,
       avatarPath: data.avatarPath.present
           ? data.avatarPath.value
@@ -5518,6 +5861,7 @@ class Adult extends DataClass implements Insertable<Adult> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('role: $role, ')
+          ..write('roleId: $roleId, ')
           ..write('notes: $notes, ')
           ..write('avatarPath: $avatarPath, ')
           ..write('adultRole: $adultRole, ')
@@ -5533,6 +5877,7 @@ class Adult extends DataClass implements Insertable<Adult> {
     id,
     name,
     role,
+    roleId,
     notes,
     avatarPath,
     adultRole,
@@ -5547,6 +5892,7 @@ class Adult extends DataClass implements Insertable<Adult> {
           other.id == this.id &&
           other.name == this.name &&
           other.role == this.role &&
+          other.roleId == this.roleId &&
           other.notes == this.notes &&
           other.avatarPath == this.avatarPath &&
           other.adultRole == this.adultRole &&
@@ -5559,6 +5905,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
   final Value<String> id;
   final Value<String> name;
   final Value<String?> role;
+  final Value<String?> roleId;
   final Value<String?> notes;
   final Value<String?> avatarPath;
   final Value<String> adultRole;
@@ -5570,6 +5917,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.role = const Value.absent(),
+    this.roleId = const Value.absent(),
     this.notes = const Value.absent(),
     this.avatarPath = const Value.absent(),
     this.adultRole = const Value.absent(),
@@ -5582,6 +5930,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     required String id,
     required String name,
     this.role = const Value.absent(),
+    this.roleId = const Value.absent(),
     this.notes = const Value.absent(),
     this.avatarPath = const Value.absent(),
     this.adultRole = const Value.absent(),
@@ -5595,6 +5944,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     Expression<String>? id,
     Expression<String>? name,
     Expression<String>? role,
+    Expression<String>? roleId,
     Expression<String>? notes,
     Expression<String>? avatarPath,
     Expression<String>? adultRole,
@@ -5607,6 +5957,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (role != null) 'role': role,
+      if (roleId != null) 'role_id': roleId,
       if (notes != null) 'notes': notes,
       if (avatarPath != null) 'avatar_path': avatarPath,
       if (adultRole != null) 'adult_role': adultRole,
@@ -5621,6 +5972,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     Value<String>? id,
     Value<String>? name,
     Value<String?>? role,
+    Value<String?>? roleId,
     Value<String?>? notes,
     Value<String?>? avatarPath,
     Value<String>? adultRole,
@@ -5633,6 +5985,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
       id: id ?? this.id,
       name: name ?? this.name,
       role: role ?? this.role,
+      roleId: roleId ?? this.roleId,
       notes: notes ?? this.notes,
       avatarPath: avatarPath ?? this.avatarPath,
       adultRole: adultRole ?? this.adultRole,
@@ -5654,6 +6007,9 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     }
     if (role.present) {
       map['role'] = Variable<String>(role.value);
+    }
+    if (roleId.present) {
+      map['role_id'] = Variable<String>(roleId.value);
     }
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
@@ -5685,6 +6041,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('role: $role, ')
+          ..write('roleId: $roleId, ')
           ..write('notes: $notes, ')
           ..write('avatarPath: $avatarPath, ')
           ..write('adultRole: $adultRole, ')
@@ -16011,6 +16368,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ObservationAttachmentsTable(this);
   late final $ObservationDomainTagsTable observationDomainTags =
       $ObservationDomainTagsTable(this);
+  late final $RolesTable roles = $RolesTable(this);
   late final $AdultsTable adults = $AdultsTable(this);
   late final $AdultAvailabilityTable adultAvailability =
       $AdultAvailabilityTable(this);
@@ -16054,6 +16412,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     observationChildren,
     observationAttachments,
     observationDomainTags,
+    roles,
     adults,
     adultAvailability,
     activityLibrary,
@@ -16177,6 +16536,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('observation_domain_tags', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'roles',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('adults', kind: UpdateKind.update)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -23714,11 +24080,285 @@ typedef $$ObservationDomainTagsTableProcessedTableManager =
       ObservationDomainTag,
       PrefetchHooks Function({bool observationId})
     >;
+typedef $$RolesTableCreateCompanionBuilder =
+    RolesCompanion Function({
+      required String id,
+      required String name,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$RolesTableUpdateCompanionBuilder =
+    RolesCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$RolesTableReferences
+    extends BaseReferences<_$AppDatabase, $RolesTable, Role> {
+  $$RolesTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$AdultsTable, List<Adult>> _adultsRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.adults,
+    aliasName: $_aliasNameGenerator(db.roles.id, db.adults.roleId),
+  );
+
+  $$AdultsTableProcessedTableManager get adultsRefs {
+    final manager = $$AdultsTableTableManager(
+      $_db,
+      $_db.adults,
+    ).filter((f) => f.roleId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_adultsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$RolesTableFilterComposer extends Composer<_$AppDatabase, $RolesTable> {
+  $$RolesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> adultsRefs(
+    Expression<bool> Function($$AdultsTableFilterComposer f) f,
+  ) {
+    final $$AdultsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.adults,
+      getReferencedColumn: (t) => t.roleId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AdultsTableFilterComposer(
+            $db: $db,
+            $table: $db.adults,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$RolesTableOrderingComposer
+    extends Composer<_$AppDatabase, $RolesTable> {
+  $$RolesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$RolesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $RolesTable> {
+  $$RolesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  Expression<T> adultsRefs<T extends Object>(
+    Expression<T> Function($$AdultsTableAnnotationComposer a) f,
+  ) {
+    final $$AdultsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.adults,
+      getReferencedColumn: (t) => t.roleId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AdultsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.adults,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$RolesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $RolesTable,
+          Role,
+          $$RolesTableFilterComposer,
+          $$RolesTableOrderingComposer,
+          $$RolesTableAnnotationComposer,
+          $$RolesTableCreateCompanionBuilder,
+          $$RolesTableUpdateCompanionBuilder,
+          (Role, $$RolesTableReferences),
+          Role,
+          PrefetchHooks Function({bool adultsRefs})
+        > {
+  $$RolesTableTableManager(_$AppDatabase db, $RolesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RolesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$RolesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$RolesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RolesCompanion(
+                id: id,
+                name: name,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RolesCompanion.insert(
+                id: id,
+                name: name,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) =>
+                    (e.readTable(table), $$RolesTableReferences(db, table, e)),
+              )
+              .toList(),
+          prefetchHooksCallback: ({adultsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [if (adultsRefs) db.adults],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (adultsRefs)
+                    await $_getPrefetchedData<Role, $RolesTable, Adult>(
+                      currentTable: table,
+                      referencedTable: $$RolesTableReferences._adultsRefsTable(
+                        db,
+                      ),
+                      managerFromTypedResult: (p0) =>
+                          $$RolesTableReferences(db, table, p0).adultsRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.roleId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$RolesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $RolesTable,
+      Role,
+      $$RolesTableFilterComposer,
+      $$RolesTableOrderingComposer,
+      $$RolesTableAnnotationComposer,
+      $$RolesTableCreateCompanionBuilder,
+      $$RolesTableUpdateCompanionBuilder,
+      (Role, $$RolesTableReferences),
+      Role,
+      PrefetchHooks Function({bool adultsRefs})
+    >;
 typedef $$AdultsTableCreateCompanionBuilder =
     AdultsCompanion Function({
       required String id,
       required String name,
       Value<String?> role,
+      Value<String?> roleId,
       Value<String?> notes,
       Value<String?> avatarPath,
       Value<String> adultRole,
@@ -23732,6 +24372,7 @@ typedef $$AdultsTableUpdateCompanionBuilder =
       Value<String> id,
       Value<String> name,
       Value<String?> role,
+      Value<String?> roleId,
       Value<String?> notes,
       Value<String?> avatarPath,
       Value<String> adultRole,
@@ -23744,6 +24385,23 @@ typedef $$AdultsTableUpdateCompanionBuilder =
 final class $$AdultsTableReferences
     extends BaseReferences<_$AppDatabase, $AdultsTable, Adult> {
   $$AdultsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $RolesTable _roleIdTable(_$AppDatabase db) =>
+      db.roles.createAlias($_aliasNameGenerator(db.adults.roleId, db.roles.id));
+
+  $$RolesTableProcessedTableManager? get roleId {
+    final $_column = $_itemColumn<String>('role_id');
+    if ($_column == null) return null;
+    final manager = $$RolesTableTableManager(
+      $_db,
+      $_db.roles,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_roleIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
 
   static $GroupsTable _anchoredGroupIdTable(_$AppDatabase db) =>
       db.groups.createAlias(
@@ -23922,6 +24580,29 @@ class $$AdultsTableFilterComposer
     column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
   );
+
+  $$RolesTableFilterComposer get roleId {
+    final $$RolesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.roleId,
+      referencedTable: $db.roles,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RolesTableFilterComposer(
+            $db: $db,
+            $table: $db.roles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 
   $$GroupsTableFilterComposer get anchoredGroupId {
     final $$GroupsTableFilterComposer composer = $composerBuilder(
@@ -24121,6 +24802,29 @@ class $$AdultsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  $$RolesTableOrderingComposer get roleId {
+    final $$RolesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.roleId,
+      referencedTable: $db.roles,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RolesTableOrderingComposer(
+            $db: $db,
+            $table: $db.roles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
   $$GroupsTableOrderingComposer get anchoredGroupId {
     final $$GroupsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -24179,6 +24883,29 @@ class $$AdultsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$RolesTableAnnotationComposer get roleId {
+    final $$RolesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.roleId,
+      referencedTable: $db.roles,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RolesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.roles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 
   $$GroupsTableAnnotationComposer get anchoredGroupId {
     final $$GroupsTableAnnotationComposer composer = $composerBuilder(
@@ -24345,6 +25072,7 @@ class $$AdultsTableTableManager
           (Adult, $$AdultsTableReferences),
           Adult,
           PrefetchHooks Function({
+            bool roleId,
             bool anchoredGroupId,
             bool adultAvailabilityRefs,
             bool activityLibraryRefs,
@@ -24369,6 +25097,7 @@ class $$AdultsTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
                 Value<String?> role = const Value.absent(),
+                Value<String?> roleId = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<String?> avatarPath = const Value.absent(),
                 Value<String> adultRole = const Value.absent(),
@@ -24380,6 +25109,7 @@ class $$AdultsTableTableManager
                 id: id,
                 name: name,
                 role: role,
+                roleId: roleId,
                 notes: notes,
                 avatarPath: avatarPath,
                 adultRole: adultRole,
@@ -24393,6 +25123,7 @@ class $$AdultsTableTableManager
                 required String id,
                 required String name,
                 Value<String?> role = const Value.absent(),
+                Value<String?> roleId = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<String?> avatarPath = const Value.absent(),
                 Value<String> adultRole = const Value.absent(),
@@ -24404,6 +25135,7 @@ class $$AdultsTableTableManager
                 id: id,
                 name: name,
                 role: role,
+                roleId: roleId,
                 notes: notes,
                 avatarPath: avatarPath,
                 adultRole: adultRole,
@@ -24420,6 +25152,7 @@ class $$AdultsTableTableManager
               .toList(),
           prefetchHooksCallback:
               ({
+                roleId = false,
                 anchoredGroupId = false,
                 adultAvailabilityRefs = false,
                 activityLibraryRefs = false,
@@ -24452,6 +25185,19 @@ class $$AdultsTableTableManager
                           dynamic
                         >
                       >(state) {
+                        if (roleId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.roleId,
+                                    referencedTable: $$AdultsTableReferences
+                                        ._roleIdTable(db),
+                                    referencedColumn: $$AdultsTableReferences
+                                        ._roleIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
                         if (anchoredGroupId) {
                           state =
                               state.withJoin(
@@ -24596,6 +25342,7 @@ typedef $$AdultsTableProcessedTableManager =
       (Adult, $$AdultsTableReferences),
       Adult,
       PrefetchHooks Function({
+        bool roleId,
         bool anchoredGroupId,
         bool adultAvailabilityRefs,
         bool activityLibraryRefs,
@@ -33176,6 +33923,8 @@ class $AppDatabaseManager {
       );
   $$ObservationDomainTagsTableTableManager get observationDomainTags =>
       $$ObservationDomainTagsTableTableManager(_db, _db.observationDomainTags);
+  $$RolesTableTableManager get roles =>
+      $$RolesTableTableManager(_db, _db.roles);
   $$AdultsTableTableManager get adults =>
       $$AdultsTableTableManager(_db, _db.adults);
   $$AdultAvailabilityTableTableManager get adultAvailability =>

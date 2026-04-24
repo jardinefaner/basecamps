@@ -5,6 +5,7 @@ import 'package:basecamp/features/adults/widgets/adult_timeline_editor_sheet.dar
 import 'package:basecamp/features/adults/widgets/edit_adult_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
+import 'package:basecamp/features/roles/roles_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:basecamp/features/schedule/widgets/edit_template_sheet.dart';
@@ -184,13 +185,28 @@ class _Header extends ConsumerWidget {
                     adult.name,
                     style: theme.textTheme.headlineMedium,
                   ),
-                  if ((adult.role ?? '').trim().isNotEmpty)
-                    Text(
-                      adult.role!,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
+                  // v39: resolve the role label by priority —
+                  //   1. roleId → Roles entity name
+                  //   2. legacy free-text `role` string
+                  //   3. nothing
+                  Builder(
+                    builder: (_) {
+                      final roleId = adult.roleId;
+                      final resolvedName = roleId == null
+                          ? null
+                          : ref.watch(roleProvider(roleId)).asData?.value?.name;
+                      final legacy = (adult.role ?? '').trim();
+                      final label = resolvedName ??
+                          (legacy.isEmpty ? null : legacy);
+                      if (label == null) return const SizedBox.shrink();
+                      return Text(
+                        label,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      );
+                    },
+                  ),
                   const SizedBox(height: 6),
                   Wrap(
                     spacing: AppSpacing.xs,
