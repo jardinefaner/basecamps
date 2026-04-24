@@ -5,15 +5,18 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/attendance/widgets/attendance_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_repository.dart';
 import 'package:basecamp/features/groups/group_detail_screen.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
+import 'package:basecamp/features/observations/widgets/observation_composer.dart';
 import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/add_activity_picker.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
+import 'package:basecamp/features/schedule/widgets/new_full_day_event_wizard.dart';
 import 'package:basecamp/features/today/last_expanded_group.dart';
 import 'package:basecamp/features/today/today_buckets.dart';
 import 'package:basecamp/features/today/today_mode.dart';
@@ -25,6 +28,7 @@ import 'package:basecamp/features/today/widgets/lateness_flags_strip.dart';
 import 'package:basecamp/features/today/widgets/schedule_item_card.dart';
 import 'package:basecamp/features/today/widgets/staff_today_strip.dart';
 import 'package:basecamp/features/today/widgets/today_agenda.dart';
+import 'package:basecamp/features/trips/widgets/new_trip_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
@@ -45,6 +49,143 @@ class TodayScreen extends ConsumerWidget {
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => ActivityDetailSheet(item: item),
+    );
+  }
+
+  /// FAB tap → bottom sheet offering the six creation flows the app
+  /// supports. Each row pops the sheet first and then invokes the
+  /// matching wizard or composer — keeps the navigator stack clean so
+  /// a back-swipe out of, say, the trip wizard lands back on Today
+  /// rather than on a dismissed bottom sheet.
+  Future<void> _openCreateMenu(
+    BuildContext context,
+    DateTime now,
+    WidgetRef ref,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        Future<void> runAfterPop(Future<void> Function() action) async {
+          Navigator.of(ctx).pop();
+          // Defer to the next frame so the sheet is fully dismissed
+          // before we push/show the follow-up surface. Prevents the
+          // "Navigator popped while a route was being added" race.
+          await Future<void>.delayed(Duration.zero);
+          await action();
+        }
+
+        return SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.xs,
+                  AppSpacing.lg,
+                  AppSpacing.sm,
+                ),
+                child: Text(
+                  'Add…',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.auto_awesome_mosaic_outlined),
+                title: const Text('Activity'),
+                onTap: () => runAfterPop(
+                  () => _openAddPicker(context, now),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.visibility_outlined),
+                title: const Text('Observation'),
+                onTap: () => runAfterPop(
+                  () => _openObservationComposer(context),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.chat_outlined),
+                title: const Text('Concern note'),
+                onTap: () => runAfterPop(() async {
+                  if (!context.mounted) return;
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      fullscreenDialog: true,
+                      builder: (_) => const ParentConcernFormScreen(
+                        presentation: ConcernFormPresentation.wizard,
+                      ),
+                    ),
+                  );
+                }),
+              ),
+              ListTile(
+                leading: const Icon(Icons.map_outlined),
+                title: const Text('Trip'),
+                onTap: () => runAfterPop(() async {
+                  if (!context.mounted) return;
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      fullscreenDialog: true,
+                      builder: (_) => const NewTripWizardScreen(),
+                    ),
+                  );
+                }),
+              ),
+              ListTile(
+                leading: const Icon(Icons.event_outlined),
+                title: const Text('Event (full-day)'),
+                onTap: () => runAfterPop(() async {
+                  if (!context.mounted) return;
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      fullscreenDialog: true,
+                      builder: (_) => const NewFullDayEventWizardScreen(),
+                    ),
+                  );
+                }),
+              ),
+              ListTile(
+                leading: const Icon(Icons.assignment_outlined),
+                title: const Text('Start a form…'),
+                onTap: () => runAfterPop(() async {
+                  if (!context.mounted) return;
+                  unawaited(context.push('/more/forms'));
+                }),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Opens the observation composer as a modal bottom sheet. The
+  /// composer already pulls current-activity context from
+  /// [todayScheduleProvider] + [lastExpandedGroupProvider], so there's
+  /// nothing to pass in — just render it. `viewInsets.bottom` keeps
+  /// the keyboard from covering the input when the teacher starts
+  /// typing.
+  Future<void> _openObservationComposer(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+        ),
+        child: const ObservationComposer(),
+      ),
     );
   }
 
@@ -97,13 +238,18 @@ class TodayScreen extends ConsumerWidget {
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openAddPicker(context, now),
+        onPressed: () => _openCreateMenu(context, now, ref),
         icon: const Icon(Icons.add),
         label: const Text('Add'),
       ),
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.menu),
+              tooltip: 'Launcher',
+              onPressed: () => context.go('/launcher'),
+            ),
             // Title carries today's date inline so a quick glance
             // confirms the day without scrolling. Weekday + short
             // date — the full year is visible enough elsewhere.
@@ -128,10 +274,31 @@ class TodayScreen extends ConsumerWidget {
                 tooltip: 'Schedule',
                 onPressed: () => context.push('/today/schedule'),
               ),
-              IconButton(
+              // Gear icon opens a PopupMenuButton with settings / forms.
+              // Forms was previously only reachable via /more — needs
+              // its own entry here so teachers don't lose access now
+              // that the /more top-level branch is retired.
+              PopupMenuButton<String>(
                 icon: const Icon(Icons.settings_outlined),
-                tooltip: 'Program settings',
-                onPressed: () => context.push('/more/settings'),
+                tooltip: 'More',
+                onSelected: (v) {
+                  switch (v) {
+                    case 'settings':
+                      unawaited(context.push('/more/settings'));
+                    case 'forms':
+                      unawaited(context.push('/more/forms'));
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'settings',
+                    child: Text('Program settings'),
+                  ),
+                  PopupMenuItem(
+                    value: 'forms',
+                    child: Text('Forms & surveys'),
+                  ),
+                ],
               ),
               const SizedBox(width: AppSpacing.xs),
             ],
