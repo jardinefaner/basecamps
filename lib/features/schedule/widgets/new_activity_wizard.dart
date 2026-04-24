@@ -1,11 +1,11 @@
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
-import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/widgets/adult_chip_picker.dart';
 import 'package:basecamp/features/rooms/widgets/room_picker.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
+import 'package:basecamp/features/schedule/widgets/library_picker_screen.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/app_text_field.dart';
@@ -48,6 +48,14 @@ class _NewActivityWizardScreenState
     extends ConsumerState<NewActivityWizardScreen> {
   final _title = TextEditingController();
   final _location = TextEditingController();
+  // "Describe (optional)" — teachers want to jot a short description
+  // of the activity right at creation time, not only via the rich
+  // library-card flow. Writes straight through to the existing
+  // ScheduleTemplates.notes column (no schema change needed).
+  //
+  // TODO: Link field pending — needs ScheduleTemplates.sourceUrl
+  // migration after the roles slice lands.
+  final _notes = TextEditingController();
 
   late final Set<int> _selectedDays = widget.initialDays?.toSet() ??
       <int>{clampToScheduleDay(DateTime.now().weekday)};
@@ -84,12 +92,14 @@ class _NewActivityWizardScreenState
   void dispose() {
     _title.dispose();
     _location.dispose();
+    _notes.dispose();
     super.dispose();
   }
 
   bool get _dirty =>
       _title.text.trim().isNotEmpty ||
       _location.text.trim().isNotEmpty ||
+      _notes.text.trim().isNotEmpty ||
       _groupIds.isNotEmpty ||
       _adultId != null ||
       _startDate != null ||
@@ -116,6 +126,16 @@ class _NewActivityWizardScreenState
         _end = TimeOfDay(hour: endDt.hour, minute: endDt.minute);
       }
     });
+  }
+
+  Future<void> _openLibraryPicker() async {
+    final picked = await Navigator.of(context).push<ActivityLibraryData>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const LibraryPickerScreen(),
+      ),
+    );
+    if (picked != null && mounted) _pickFromLibrary(picked);
   }
 
   Future<void> _pickStart() async {
@@ -171,6 +191,7 @@ class _NewActivityWizardScreenState
     final location = _location.text.trim().isEmpty
         ? null
         : _location.text.trim();
+    final notes = _notes.text.trim().isEmpty ? null : _notes.text.trim();
     // If the teacher didn't touch page 5, default to "this week only"
     // instead of weekly-forever. That matches what most one-off
     // activities actually are, and keeps the schedule from filling up
@@ -190,6 +211,7 @@ class _NewActivityWizardScreenState
         allGroups: _allGroups,
         adultId: _adultId,
         location: location,
+        notes: notes,
         startDate: bounds.start,
         endDate: bounds.end,
         seriesId: seriesId,
@@ -318,8 +340,20 @@ class _NewActivityWizardScreenState
             }),
           )
         else ...[
-          _LibraryGrid(onPick: _pickFromLibrary),
-          const SizedBox(height: AppSpacing.xl),
+          // Library picker is now a separate fullscreen screen — the
+          // inline grid would overflow when the library has more than a
+          // handful of cards. Tapping pushes a LibraryPickerScreen that
+          // shares the search + age-band filter with the Activity
+          // library screen.
+          OutlinedButton.icon(
+            onPressed: _openLibraryPicker,
+            icon: const Icon(Icons.bookmarks_outlined),
+            label: const Text('Pick from library'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
           Row(
             children: [
               Expanded(
@@ -350,6 +384,19 @@ class _NewActivityWizardScreenState
               ? 'Or type an activity name'
               : 'Activity name',
           hint: 'e.g. Morning circle, Swim, Field trip',
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        // "Describe" writes into the existing ScheduleTemplates.notes
+        // column — no schema change. The separate sourceUrl / link
+        // field needs a migration owned by the roles-slice agent; see
+        // the TODO comment next to `_notes` above.
+        AppTextField(
+          controller: _notes,
+          label: 'Describe (optional)',
+          hint: 'What is this activity? What will kids do?',
+          keyboardType: TextInputType.multiline,
+          maxLines: 4,
           onChanged: (_) => setState(() {}),
         ),
       ],
@@ -620,86 +667,6 @@ class _NewActivityWizardScreenState
 }
 
 // ---------- page 1 helpers ----------
-
-class _LibraryGrid extends ConsumerWidget {
-  const _LibraryGrid({required this.onPick});
-
-  final ValueChanged<ActivityLibraryData> onPick;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final itemsAsync = ref.watch(activityLibraryProvider);
-
-    return itemsAsync.when(
-      loading: () => const SizedBox(
-        height: 120,
-        child: Center(child: CircularProgressIndicator()),
-      ),
-      error: (err, _) => Text('Error: $err'),
-      data: (items) {
-        if (items.isEmpty) {
-          return _LibraryEmpty();
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'FROM LIBRARY',
-              style: theme.textTheme.labelSmall?.copyWith(
-                letterSpacing: 0.8,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                for (final item in items)
-                  ActionChip(
-                    avatar: const Icon(Icons.bookmark_outlined, size: 16),
-                    label: Text(item.title),
-                    onPressed: () => onPick(item),
-                  ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _LibraryEmpty extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.bookmarks_outlined,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Text(
-              'Your activity library is empty. Type a name below, or add '
-              'reusable activities in More → Activity library.',
-              style: theme.textTheme.bodySmall,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _LibraryBanner extends StatelessWidget {
   const _LibraryBanner({required this.item, required this.onClear});
