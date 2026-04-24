@@ -54,8 +54,7 @@ class TodayAgendaView extends ConsumerWidget {
     final adultIdsForBreaks = (selected == null ||
             selected.anchorLeads.isEmpty)
         ? const <String>[]
-        : [for (final s in selected.anchorLeads) s.id]
-      ..sort();
+        : ([for (final s in selected.anchorLeads) s.id]..sort());
     final adultIdsKey = adultIdsForBreaks.join(',');
 
     final eventsAsync =

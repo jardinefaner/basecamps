@@ -245,17 +245,28 @@ class _Body extends ConsumerWidget {
         : nextUp.startMinutes - nowMinutes;
 
     // -- Day-summary numbers --
+    // Scoped to the selected group when one is picked (a group only
+    // cares about its own stats); program-wide otherwise. The chip
+    // row sits directly above the stats strip so the relationship
+    // reads visually — pick a group, the numbers follow.
+    final scopedItems =
+        selectedGroupId == null ? items : items.where(inSelectedView).toList();
     final uniqueSpecialists = <String>{
-      for (final i in items)
+      for (final i in scopedItems)
         if (i.specialistId != null) i.specialistId!,
     };
     final childrenInActivityGroups = <String>{};
-    for (final i in items) {
+    for (final i in scopedItems) {
       // An "all groups" activity pulls in every child; a group-scoped one
       // pulls in just that group's children; an intentionally group-less
-      // activity (staff prep etc.) pulls in nobody.
+      // activity (staff prep etc.) pulls in nobody. When a group is
+      // selected, we further clip to children in that group so the count
+      // reads as "kids in this group touched by scheduled activities."
       if (i.isNoGroups) continue;
       for (final child in allKids) {
+        if (selectedGroupId != null && child.groupId != selectedGroupId) {
+          continue;
+        }
         if (i.isAllGroups) {
           childrenInActivityGroups.add(child.id);
         } else if (child.groupId != null && i.groupIds.contains(child.groupId)) {
@@ -263,8 +274,28 @@ class _Body extends ConsumerWidget {
         }
       }
     }
-    // Past activities with zero observations logged today.
-    final pendingObs = past
+    // Concerns scoped to the selected group's children when a group
+    // is picked. Uses the concern→child link map from the repository;
+    // no link map entry means a concern that doesn't tie to a child,
+    // which falls out of the per-group count (by design).
+    final scopedConcerns = selectedGroupId == null
+        ? concerns
+        : concerns.where((c) {
+            final linkedChildIds = concernChildLinks[c.id] ?? const <String>{};
+            if (linkedChildIds.isEmpty) return false;
+            for (final cid in linkedChildIds) {
+              for (final k in allKids) {
+                if (k.id == cid && k.groupId == selectedGroupId) {
+                  return true;
+                }
+              }
+            }
+            return false;
+          }).toList();
+    // Past activities with zero observations logged today, scoped to
+    // the selected view so the "pending" count matches what's actually
+    // on screen below.
+    final pendingObs = (selectedGroupId == null ? past : filteredPast)
         .where((i) => (activityCounts[i.title] ?? 0) == 0)
         .length;
 
@@ -356,22 +387,6 @@ class _Body extends ConsumerWidget {
         // overdue review pulls the eye before anything else.
         LatenessFlagsStrip(now: now),
 
-        // Program stats — one compact strip at the top of the scroll.
-        // Numbers read at a glance (activities · children · adults +
-        // concerns + pending obs) so teachers don't have to scroll
-        // through content to get a program-wide health check.
-        DaySummaryStrip(
-          activities: items.length,
-          children: childrenInActivityGroups.length,
-          specialists: uniqueSpecialists.length,
-          concerns: concerns.length,
-          pendingObs: pendingObs,
-          onTapConcerns: () =>
-              context.push('/more/forms/parent-concern'),
-          onTapPending: () => context.go('/observations'),
-        ),
-        const SizedBox(height: AppSpacing.md),
-
         // All-day activities / notes float above the per-group view.
         // Program-wide context (field trip banners, whole-day notes)
         // isn't tied to a specific group's chip selection.
@@ -411,6 +426,22 @@ class _Body extends ConsumerWidget {
         // chronological feed to the selected group + program-wide +
         // that group's leads' breaks.
         const _GroupChipRow(),
+        const SizedBox(height: AppSpacing.md),
+
+        // Day stats sit under the group chip row so the numbers track
+        // the selected group: pick "Butterflies" and the counts rescope
+        // to that group only. With no group selected, the counts read
+        // program-wide. Compact — one strip, five numbers, tappable.
+        DaySummaryStrip(
+          activities: scopedItems.length,
+          children: childrenInActivityGroups.length,
+          specialists: uniqueSpecialists.length,
+          concerns: scopedConcerns.length,
+          pendingObs: pendingObs,
+          onTapConcerns: () =>
+              context.push('/more/forms/parent-concern'),
+          onTapPending: () => context.go('/observations'),
+        ),
         const SizedBox(height: AppSpacing.md),
 
         // Body branches on mode. Agenda mode renders the calendar
