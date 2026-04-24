@@ -1,4 +1,5 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
 
@@ -28,10 +29,18 @@ const Map<LibraryAgeBand, String> libraryAgeBandLabels = {
 /// Pure predicate used by both screens and the unit tests. Kept free
 /// of Flutter imports (the data type is fine — Drift generates it as
 /// plain Dart) so the test stays snappy.
+///
+/// [itemDomains] is an optional map of `itemId -> set(domain.name)` —
+/// the library screen supplies it so the predicate can match cards
+/// tagged with [domain]. When null (or [domain] is null), the domain
+/// filter is skipped.
 bool matchesLibraryFilter(
   ActivityLibraryData item, {
   required String query,
   required LibraryAgeBand band,
+  ObservationDomain? domain,
+  Map<String, Set<String>>? itemDomains,
+  bool requireMaterials = false,
 }) {
   final q = query.trim().toLowerCase();
   if (q.isNotEmpty) {
@@ -40,11 +49,20 @@ bool matchesLibraryFilter(
       item.summary,
       item.hook,
       item.keyPoints,
+      item.materials,
     ];
     final hit = haystack.any(
       (s) => s != null && s.toLowerCase().contains(q),
     );
     if (!hit) return false;
+  }
+  if (requireMaterials &&
+      (item.materials == null || item.materials!.trim().isEmpty)) {
+    return false;
+  }
+  if (domain != null && itemDomains != null) {
+    final tags = itemDomains[item.id];
+    if (tags == null || !tags.contains(domain.name)) return false;
   }
   return _matchesBand(item, band);
 }
@@ -90,12 +108,22 @@ bool _overlaps(int? aMin, int? aMax, int bMin, int bMax) {
 /// Search pill + age-band chip row. Pin this above a list of library
 /// cards. Both pieces of UI are shared between the library screen and
 /// the new-activity wizard's library picker.
+///
+/// A second chip row appears when [domain]/[onDomainChanged] are
+/// supplied — a single-select "developmental domain" filter backed by
+/// the shared [ObservationDomain] taxonomy. Multi-select is a future
+/// polish; today this is the quickest way to cut the library down to
+/// cards tagged for, say, empathy or conflict negotiation.
 class LibraryFilterHeader extends StatelessWidget {
   const LibraryFilterHeader({
     required this.searchController,
     required this.onSearchChanged,
     required this.band,
     required this.onBandChanged,
+    this.domain,
+    this.onDomainChanged,
+    this.requireMaterials = false,
+    this.onRequireMaterialsChanged,
     super.key,
   });
 
@@ -103,6 +131,20 @@ class LibraryFilterHeader extends StatelessWidget {
   final ValueChanged<String> onSearchChanged;
   final LibraryAgeBand band;
   final ValueChanged<LibraryAgeBand> onBandChanged;
+
+  /// Currently-selected developmental domain, or null for "any".
+  final ObservationDomain? domain;
+  final ValueChanged<ObservationDomain?>? onDomainChanged;
+
+  /// Optional "Has materials list" toggle — filters to cards whose
+  /// [ActivityLibraryData.materials] is non-empty. A future-polish
+  /// version could parse the list, but teachers asking for specific
+  /// materials is uncommon enough that this slice skips parsing.
+  final bool requireMaterials;
+  final ValueChanged<bool>? onRequireMaterialsChanged;
+
+  bool get _showDomainRow => onDomainChanged != null;
+  bool get _showMaterialsChip => onRequireMaterialsChanged != null;
 
   @override
   Widget build(BuildContext context) {
@@ -131,6 +173,52 @@ class LibraryFilterHeader extends StatelessWidget {
             ],
           ),
         ),
+        if (_showDomainRow || _showMaterialsChip)
+          SizedBox(
+            height: 48,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              children: [
+                if (_showMaterialsChip)
+                  Padding(
+                    padding: const EdgeInsets.only(right: AppSpacing.sm),
+                    child: FilterChip(
+                      avatar: const Icon(
+                        Icons.inventory_2_outlined,
+                        size: 16,
+                      ),
+                      label: const Text('Has materials'),
+                      selected: requireMaterials,
+                      onSelected: (v) => onRequireMaterialsChanged!(v),
+                    ),
+                  ),
+                if (_showDomainRow) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(right: AppSpacing.sm),
+                    child: FilterChip(
+                      label: const Text('Any domain'),
+                      selected: domain == null,
+                      onSelected: (_) => onDomainChanged!(null),
+                    ),
+                  ),
+                  for (final d in ObservationDomain.values)
+                    Padding(
+                      padding: const EdgeInsets.only(right: AppSpacing.sm),
+                      child: FilterChip(
+                        label: Text(
+                          d == ObservationDomain.other
+                              ? 'Other'
+                              : d.code,
+                        ),
+                        selected: domain == d,
+                        onSelected: (_) => onDomainChanged!(d),
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
       ],
     );
   }

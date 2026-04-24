@@ -1,5 +1,6 @@
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/activity_library/library_usages_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/widgets/adult_chip_picker.dart';
 import 'package:basecamp/features/rooms/widgets/room_picker.dart';
@@ -29,6 +30,7 @@ class NewActivityWizardScreen extends ConsumerStatefulWidget {
   const NewActivityWizardScreen({
     this.initialDays,
     this.initialAdultId,
+    this.initialLibraryItem,
     super.key,
   });
 
@@ -38,6 +40,13 @@ class NewActivityWizardScreen extends ConsumerStatefulWidget {
   /// from the adult detail screen so "+ Add activity" already
   /// knows who the activity is for.
   final String? initialAdultId;
+
+  /// Pre-fills the wizard from a library card — used by the
+  /// activity-library screen's "Schedule" action so teachers skip
+  /// the extra step of opening the library picker from inside the
+  /// wizard. Same behaviour as tapping "Pick from library" and
+  /// choosing this item.
+  final ActivityLibraryData? initialLibraryItem;
 
   @override
   ConsumerState<NewActivityWizardScreen> createState() =>
@@ -88,6 +97,27 @@ class _NewActivityWizardScreenState
 
   /// When non-null, the wizard is populated from a library item.
   ActivityLibraryData? _fromLibrary;
+
+  @override
+  void initState() {
+    super.initState();
+    // Constructor-param seed: when Schedule-from-library opens the
+    // wizard with a card in hand, mirror the "tap Pick from library"
+    // flow so the user lands on page 1 already populated.
+    final seed = widget.initialLibraryItem;
+    if (seed != null) {
+      _fromLibrary = seed;
+      _title.text = seed.title;
+      if (seed.location != null) _location.text = seed.location!;
+      if (seed.adultId != null) _adultId = seed.adultId;
+      final dur = seed.defaultDurationMin;
+      if (dur != null) {
+        final startDt = DateTime(2000, 1, 1, _start.hour, _start.minute);
+        final endDt = startDt.add(Duration(minutes: dur));
+        _end = TimeOfDay(hour: endDt.hour, minute: endDt.minute);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -207,8 +237,9 @@ class _NewActivityWizardScreenState
     // occurrence" on any tapped day can later nuke every weekday row
     // this submit is about to create.
     final seriesId = _selectedDays.length > 1 ? newId() : null;
+    final createdTemplateIds = <String>[];
     for (final day in _selectedDays) {
-      await repo.addTemplate(
+      final templateId = await repo.addTemplate(
         dayOfWeek: day,
         startTime: _formatTime(_start),
         endTime: _formatTime(_end),
@@ -233,6 +264,24 @@ class _NewActivityWizardScreenState
         // sourceUrl copied above.
         sourceUrl: sourceUrl,
       );
+      createdTemplateIds.add(templateId);
+    }
+    // When the wizard was seeded from a library card, log a usage
+    // row per created template so the library screen's
+    // "recently used" sort and per-card last-used badges update
+    // immediately. One row per day keeps the count honest — a
+    // Mon/Wed/Fri create = three usages of that card today.
+    final fromLibrary = _fromLibrary;
+    if (fromLibrary != null && createdTemplateIds.isNotEmpty) {
+      final usages = ref.read(libraryUsagesRepositoryProvider);
+      final usedOn = bounds.start ?? DateTime.now();
+      for (final tId in createdTemplateIds) {
+        await usages.logUsage(
+          libraryItemId: fromLibrary.id,
+          templateId: tId,
+          usedOn: usedOn,
+        );
+      }
     }
     if (!mounted) return;
     // Hand the start date back to the caller so the schedule editor

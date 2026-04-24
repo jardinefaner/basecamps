@@ -1,6 +1,7 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
+import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
@@ -27,6 +28,8 @@ class _EditLibraryItemSheetState
       TextEditingController(text: widget.item?.location ?? '');
   late final _notesController =
       TextEditingController(text: widget.item?.notes ?? '');
+  late final _materialsController =
+      TextEditingController(text: widget.item?.materials ?? '');
   late int? _durationMin = widget.item?.defaultDurationMin;
   late String? _adultId = widget.item?.adultId;
   bool _submitting = false;
@@ -44,6 +47,7 @@ class _EditLibraryItemSheetState
     if (_adultId != item.adultId) return true;
     if (trimOrNull(_locationController.text) != item.location) return true;
     if (trimOrNull(_notesController.text) != item.notes) return true;
+    if (trimOrNull(_materialsController.text) != item.materials) return true;
     return false;
   }
 
@@ -52,6 +56,7 @@ class _EditLibraryItemSheetState
     _titleController.dispose();
     _locationController.dispose();
     _notesController.dispose();
+    _materialsController.dispose();
     super.dispose();
   }
 
@@ -66,6 +71,9 @@ class _EditLibraryItemSheetState
     final notes = _notesController.text.trim().isEmpty
         ? null
         : _notesController.text.trim();
+    final materials = _materialsController.text.trim().isEmpty
+        ? null
+        : _materialsController.text.trim();
 
     if (_isEdit) {
       // Only send the preset fields this sheet actually exposes; the
@@ -79,6 +87,7 @@ class _EditLibraryItemSheetState
         adultId: Value(_adultId),
         location: Value(location),
         notes: Value(notes),
+        materials: Value(materials),
       );
     } else {
       await repo.addItem(
@@ -87,6 +96,7 @@ class _EditLibraryItemSheetState
         adultId: _adultId,
         location: location,
         notes: notes,
+        materials: materials,
       );
     }
     if (!mounted) return;
@@ -228,8 +238,83 @@ class _EditLibraryItemSheetState
             maxLines: 3,
             onChanged: (_) => setState(() {}),
           ),
+          const SizedBox(height: AppSpacing.lg),
+          AppTextField(
+            controller: _materialsController,
+            label: 'Materials (optional)',
+            hint: "What you'll need — comma- or newline-separated.",
+            keyboardType: TextInputType.multiline,
+            maxLines: 3,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text(
+            'Developmental domains',
+            style: theme.textTheme.titleSmall,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          if (_isEdit)
+            _DomainTagPicker(libraryItemId: widget.item!.id)
+          else
+            Text(
+              'Save once to enable tagging.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
         ],
       ),
+    );
+  }
+}
+
+/// Multi-select FilterChip grid over the shared [ObservationDomain]
+/// enum — same taxonomy the observations screen uses so a library
+/// card tagged "SSD3" lines up with observations in that domain. Each
+/// tap writes through immediately; no local buffering because edits
+/// here commit even if the teacher cancels the parent sheet (that
+/// matches how deletes work from this surface).
+class _DomainTagPicker extends ConsumerWidget {
+  const _DomainTagPicker({required this.libraryItemId});
+
+  final String libraryItemId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final tagsAsync =
+        ref.watch(libraryDomainsForItemProvider(libraryItemId));
+    return tagsAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        child: LinearProgressIndicator(),
+      ),
+      error: (err, _) => Text('Error: $err'),
+      data: (tags) {
+        final selected = tags.toSet();
+        return Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            for (final d in ObservationDomain.values)
+              FilterChip(
+                label: Text(
+                  d == ObservationDomain.other ? d.label : '${d.code} · ${d.label}',
+                  style: theme.textTheme.labelSmall,
+                ),
+                selected: selected.contains(d.name),
+                onSelected: (v) async {
+                  final repo = ref.read(activityLibraryRepositoryProvider);
+                  if (v) {
+                    await repo.addDomainTag(libraryItemId, d.name);
+                  } else {
+                    await repo.removeDomainTag(libraryItemId, d.name);
+                  }
+                },
+              ),
+          ],
+        );
+      },
     );
   }
 }

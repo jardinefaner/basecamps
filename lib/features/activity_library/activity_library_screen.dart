@@ -1,11 +1,14 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_card_ai.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
+import 'package:basecamp/features/activity_library/library_usages_repository.dart';
 import 'package:basecamp/features/activity_library/widgets/activity_card_preview.dart';
 import 'package:basecamp/features/activity_library/widgets/edit_library_item_sheet.dart';
 import 'package:basecamp/features/activity_library/widgets/library_card_detail_sheet.dart';
 import 'package:basecamp/features/activity_library/widgets/library_filter_header.dart';
 import 'package:basecamp/features/activity_library/widgets/new_library_item_wizard.dart';
+import 'package:basecamp/features/observations/observations_repository.dart';
+import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/bulk_selection.dart';
@@ -26,6 +29,8 @@ class _ActivityLibraryScreenState extends ConsumerState<ActivityLibraryScreen>
   final _searchCtrl = TextEditingController();
   String _query = '';
   LibraryAgeBand _band = LibraryAgeBand.all;
+  ObservationDomain? _domain;
+  bool _requireMaterials = false;
 
   @override
   void dispose() {
@@ -78,6 +83,15 @@ class _ActivityLibraryScreenState extends ConsumerState<ActivityLibraryScreen>
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => EditLibraryItemSheet(item: item),
+    );
+  }
+
+  Future<void> _scheduleFromLibrary(ActivityLibraryData item) async {
+    await Navigator.of(context).push<CreatedActivity>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => NewActivityWizardScreen(initialLibraryItem: item),
+      ),
     );
   }
 
@@ -149,12 +163,45 @@ class _ActivityLibraryScreenState extends ConsumerState<ActivityLibraryScreen>
             if (items.isEmpty) {
               return _EmptyState(onAdd: _openSheet);
             }
+            final domainsMap =
+                ref.watch(allLibraryDomainTagsProvider).asData?.value ??
+                    const <String, Set<String>>{};
+            // "Recently used" is the default sort — teacher's last
+            // week of picks are the ones most likely to be wanted
+            // again. Never-used cards slide to the bottom but keep
+            // their newest-first ordering so freshly-generated cards
+            // still surface. No user-visible toggle for now: list
+            // screen's job is to surface the right cards, not offer
+            // preferences.
+            final recentUsages =
+                ref.watch(recentLibraryUsagesProvider(500)).asData?.value ??
+                    const [];
+            final lastUsed = <String, DateTime>{};
+            for (final u in recentUsages) {
+              final existing = lastUsed[u.libraryItemId];
+              if (existing == null || u.createdAt.isAfter(existing)) {
+                lastUsed[u.libraryItemId] = u.createdAt;
+              }
+            }
+            final sortedItems = [...items]..sort((a, b) {
+                final au = lastUsed[a.id];
+                final bu = lastUsed[b.id];
+                if (au == null && bu == null) {
+                  return b.createdAt.compareTo(a.createdAt);
+                }
+                if (au == null) return 1;
+                if (bu == null) return -1;
+                return bu.compareTo(au);
+              });
             final filtered = [
-              for (final item in items)
+              for (final item in sortedItems)
                 if (matchesLibraryFilter(
                   item,
                   query: _query,
                   band: _band,
+                  domain: _domain,
+                  itemDomains: domainsMap,
+                  requireMaterials: _requireMaterials,
                 ))
                   item,
             ];
@@ -165,6 +212,11 @@ class _ActivityLibraryScreenState extends ConsumerState<ActivityLibraryScreen>
                   onSearchChanged: (v) => setState(() => _query = v),
                   band: _band,
                   onBandChanged: (b) => setState(() => _band = b),
+                  domain: _domain,
+                  onDomainChanged: (d) => setState(() => _domain = d),
+                  requireMaterials: _requireMaterials,
+                  onRequireMaterialsChanged: (v) =>
+                      setState(() => _requireMaterials = v),
                 ),
                 Expanded(
                   child: filtered.isEmpty
@@ -188,6 +240,9 @@ class _ActivityLibraryScreenState extends ConsumerState<ActivityLibraryScreen>
                                   ? () => toggleSelection(item.id)
                                   : () => _openSheet(item: item),
                               onLongPress: () => toggleSelection(item.id),
+                              onSchedule: isSelecting
+                                  ? null
+                                  : () => _scheduleFromLibrary(item),
                             );
                           },
                         ),
@@ -201,17 +256,19 @@ class _ActivityLibraryScreenState extends ConsumerState<ActivityLibraryScreen>
   }
 }
 
-class _LibraryTile extends StatelessWidget {
+class _LibraryTile extends ConsumerWidget {
   const _LibraryTile({
     required this.item,
     required this.onTap,
     required this.onLongPress,
+    this.onSchedule,
     this.selected = false,
   });
 
   final ActivityLibraryData item;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+  final VoidCallback? onSchedule;
   final bool selected;
 
   /// True for rows populated by the new AI-card flow — they have at
@@ -223,7 +280,9 @@ class _LibraryTile extends StatelessWidget {
       item.hook != null;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lastUsedAsync = ref.watch(lastUsedAtProvider(item.id));
+    final lastUsed = lastUsedAsync.asData?.value;
     if (_isRichCard) {
       return InkWell(
         onTap: onTap,
@@ -231,20 +290,29 @@ class _LibraryTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: Stack(
           children: [
-            ActivityCardPreview(
-              title: item.title,
-              audienceLabel: item.audienceMinAge != null &&
-                      item.audienceMaxAge != null
-                  ? audienceLabelFor(
-                      item.audienceMinAge!,
-                      item.audienceMaxAge!,
-                    )
-                  : null,
-              hook: item.hook,
-              summary: item.summary,
-              engagementTimeMin: item.engagementTimeMin,
-              sourceAttribution: item.sourceAttribution,
-              compact: true,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ActivityCardPreview(
+                  title: item.title,
+                  audienceLabel: item.audienceMinAge != null &&
+                          item.audienceMaxAge != null
+                      ? audienceLabelFor(
+                          item.audienceMinAge!,
+                          item.audienceMaxAge!,
+                        )
+                      : null,
+                  hook: item.hook,
+                  summary: item.summary,
+                  engagementTimeMin: item.engagementTimeMin,
+                  sourceAttribution: item.sourceAttribution,
+                  compact: true,
+                ),
+                _TileFooter(
+                  lastUsed: lastUsed,
+                  onSchedule: onSchedule,
+                ),
+              ],
             ),
             if (selected)
               Positioned(
@@ -260,9 +328,82 @@ class _LibraryTile extends StatelessWidget {
       item: item,
       onTap: onTap,
       onLongPress: onLongPress,
+      onSchedule: onSchedule,
       selected: selected,
+      lastUsed: lastUsed,
     );
   }
+}
+
+/// Small strip under each card showing "used 3d ago" plus a compact
+/// Schedule action. Kept as a plain row rather than a trailing icon
+/// on the card so the schedule tap doesn't compete with the main
+/// card tap.
+class _TileFooter extends StatelessWidget {
+  const _TileFooter({required this.lastUsed, required this.onSchedule});
+
+  final DateTime? lastUsed;
+  final VoidCallback? onSchedule;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(
+        left: AppSpacing.md,
+        right: AppSpacing.xs,
+        bottom: AppSpacing.xs,
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.history,
+            size: 14,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              lastUsed == null
+                  ? 'Never used'
+                  : 'Used ${relativePast(lastUsed!)}',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          if (onSchedule != null)
+            TextButton.icon(
+              onPressed: onSchedule,
+              icon: const Icon(Icons.event_available_outlined, size: 16),
+              label: const Text('Schedule'),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tiny relative-time formatter. Public so the card detail sheet can
+/// reuse it without pulling in a full i18n layer. Handles the
+/// "yesterday / N days / N weeks / N months" ladder we actually care
+/// about for library cards; anything older collapses to "months ago".
+String relativePast(DateTime then) {
+  final now = DateTime.now();
+  final diff = now.difference(then);
+  if (diff.inMinutes < 1) return 'just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+  if (diff.inHours < 24) return '${diff.inHours}h ago';
+  if (diff.inDays < 2) return 'yesterday';
+  if (diff.inDays < 14) return '${diff.inDays}d ago';
+  if (diff.inDays < 60) return '${(diff.inDays / 7).floor()}w ago';
+  return '${(diff.inDays / 30).floor()}mo ago';
 }
 
 class _SelectBadge extends StatelessWidget {
@@ -290,12 +431,16 @@ class _LegacyTile extends StatelessWidget {
     required this.onTap,
     required this.onLongPress,
     required this.selected,
+    required this.lastUsed,
+    this.onSchedule,
   });
 
   final ActivityLibraryData item;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
   final bool selected;
+  final DateTime? lastUsed;
+  final VoidCallback? onSchedule;
 
   @override
   Widget build(BuildContext context) {
@@ -307,6 +452,7 @@ class _LegacyTile extends StatelessWidget {
     if (item.location != null && item.location!.isNotEmpty) {
       sub.add(item.location!);
     }
+    sub.add(lastUsed == null ? 'Never used' : 'Used ${relativePast(lastUsed!)}');
     return AppCard(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -332,21 +478,27 @@ class _LegacyTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(item.title, style: theme.textTheme.titleMedium),
-                if (sub.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      sub.join(' · '),
-                      style: theme.textTheme.bodySmall,
-                    ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    sub.join(' · '),
+                    style: theme.textTheme.bodySmall,
                   ),
+                ),
               ],
             ),
           ),
-          Icon(
-            Icons.chevron_right,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+          if (onSchedule != null)
+            IconButton(
+              tooltip: 'Schedule',
+              icon: const Icon(Icons.event_available_outlined),
+              onPressed: onSchedule,
+            )
+          else
+            Icon(
+              Icons.chevron_right,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
         ],
       ),
     );

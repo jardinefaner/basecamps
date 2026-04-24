@@ -39,6 +39,7 @@ class ActivityLibraryRepository {
     int? engagementTimeMin,
     String? sourceUrl,
     String? sourceAttribution,
+    String? materials,
   }) async {
     final id = newId();
     await _db.into(_db.activityLibrary).insert(
@@ -58,6 +59,7 @@ class ActivityLibraryRepository {
             engagementTimeMin: Value(engagementTimeMin),
             sourceUrl: Value(sourceUrl),
             sourceAttribution: Value(sourceAttribution),
+            materials: Value(materials),
           ),
         );
     return id;
@@ -90,6 +92,7 @@ class ActivityLibraryRepository {
     Value<int?> engagementTimeMin = const Value.absent(),
     Value<String?> sourceUrl = const Value.absent(),
     Value<String?> sourceAttribution = const Value.absent(),
+    Value<String?> materials = const Value.absent(),
   }) async {
     await (_db.update(_db.activityLibrary)..where((a) => a.id.equals(id)))
         .write(
@@ -108,6 +111,7 @@ class ActivityLibraryRepository {
         engagementTimeMin: engagementTimeMin,
         sourceUrl: sourceUrl,
         sourceAttribution: sourceAttribution,
+        materials: materials,
         updatedAt: Value(DateTime.now()),
       ),
     );
@@ -173,6 +177,188 @@ class ActivityLibraryRepository {
       ..orderBy([(t) => OrderingTerm.asc(t.domain)]);
     return query.watch().map((rows) => [for (final r in rows) r.domain]);
   }
+
+  /// One-shot read of the domain tags for [libraryItemId] — the
+  /// duplicate flow needs the current snapshot without subscribing.
+  Future<List<String>> domainsFor(String libraryItemId) async {
+    final rows = await (_db.select(_db.activityLibraryDomainTags)
+          ..where((t) => t.libraryItemId.equals(libraryItemId)))
+        .get();
+    return [for (final r in rows) r.domain];
+  }
+
+  /// Stream of `itemId -> set(domain)` for every library row. Used by
+  /// the library screen's domain-tag filter chip so the predicate can
+  /// consult each card's current tag set without running N per-card
+  /// subscriptions. Alphabetical order on the inner set is irrelevant
+  /// (it's a membership check).
+  Stream<Map<String, Set<String>>> watchAllDomainTags() {
+    final query = _db.select(_db.activityLibraryDomainTags);
+    return query.watch().map((rows) {
+      final map = <String, Set<String>>{};
+      for (final r in rows) {
+        map.putIfAbsent(r.libraryItemId, () => <String>{}).add(r.domain);
+      }
+      return map;
+    });
+  }
+
+  /// Clones [sourceId] into a fresh row with a suffixed title. Rich-
+  /// card fields, audience, materials, etc. are copied verbatim so the
+  /// teacher can tweak one detail without rebuilding the whole card.
+  /// Domain tags are copied too — a duplicate of a "SSD3 / Empathy"
+  /// card should still be taxonomically findable. Returns the new id
+  /// so callers can immediately open the copy in the edit sheet.
+  Future<String> duplicate(String sourceId) async {
+    final source = await getItem(sourceId);
+    if (source == null) {
+      throw StateError('No library item with id $sourceId');
+    }
+    final newIdValue = newId();
+    final now = DateTime.now();
+    await _db.transaction(() async {
+      await _db.into(_db.activityLibrary).insert(
+            ActivityLibraryCompanion.insert(
+              id: newIdValue,
+              title: '${source.title} (copy)',
+              defaultDurationMin: Value(source.defaultDurationMin),
+              adultId: Value(source.adultId),
+              location: Value(source.location),
+              notes: Value(source.notes),
+              audienceMinAge: Value(source.audienceMinAge),
+              audienceMaxAge: Value(source.audienceMaxAge),
+              hook: Value(source.hook),
+              summary: Value(source.summary),
+              keyPoints: Value(source.keyPoints),
+              learningGoals: Value(source.learningGoals),
+              engagementTimeMin: Value(source.engagementTimeMin),
+              sourceUrl: Value(source.sourceUrl),
+              sourceAttribution: Value(source.sourceAttribution),
+              materials: Value(source.materials),
+              createdAt: Value(now),
+              updatedAt: Value(now),
+            ),
+          );
+      final sourceDomains = await (_db.select(_db.activityLibraryDomainTags)
+            ..where((t) => t.libraryItemId.equals(sourceId)))
+          .get();
+      for (final tag in sourceDomains) {
+        await _db.into(_db.activityLibraryDomainTags).insertOnConflictUpdate(
+              ActivityLibraryDomainTagsCompanion.insert(
+                libraryItemId: newIdValue,
+                domain: tag.domain,
+              ),
+            );
+      }
+    });
+    return newIdValue;
+  }
+
+  /// A small "nudge" recommender for the card detail sheet's Similar
+  /// Activities section. Not a precise ranker — ordered by: shared
+  /// domain count desc, then age-range overlap, then whether a
+  /// meaningful title token matches. Source item is excluded; results
+  /// capped at [limit].
+  Future<List<ActivityLibraryData>> similarItems(
+    String sourceId, {
+    int limit = 5,
+  }) async {
+    final source = await getItem(sourceId);
+    if (source == null) return const [];
+    final sourceDomains = (await domainsFor(sourceId)).toSet();
+    // Preload domain tags for every row in one shot — keeps this a
+    // simple in-memory rank rather than per-item round-trips.
+    final allTagRows = await _db.select(_db.activityLibraryDomainTags).get();
+    final tagsByItem = <String, Set<String>>{};
+    for (final r in allTagRows) {
+      tagsByItem.putIfAbsent(r.libraryItemId, () => <String>{}).add(r.domain);
+    }
+    final sourceTitleTokens = _titleTokens(source.title);
+    final candidates = await (_db.select(_db.activityLibrary)
+          ..where((a) => a.id.equals(sourceId).not()))
+        .get();
+    final scored = <_SimilarScored>[];
+    for (final cand in candidates) {
+      final candDomains = tagsByItem[cand.id] ?? const <String>{};
+      final sharedDomains = candDomains.intersection(sourceDomains).length;
+      final ageOverlap = _agesOverlap(
+        source.audienceMinAge,
+        source.audienceMaxAge,
+        cand.audienceMinAge,
+        cand.audienceMaxAge,
+      );
+      final candTokens = _titleTokens(cand.title);
+      final tokenOverlap =
+          sourceTitleTokens.intersection(candTokens).isNotEmpty;
+      // Skip cards that share nothing — otherwise "similar" would just
+      // be "everything else".
+      if (sharedDomains == 0 && !ageOverlap && !tokenOverlap) continue;
+      scored.add(_SimilarScored(
+        item: cand,
+        sharedDomains: sharedDomains,
+        ageOverlap: ageOverlap,
+        tokenOverlap: tokenOverlap,
+      ));
+    }
+    scored.sort((a, b) {
+      final byDomain = b.sharedDomains.compareTo(a.sharedDomains);
+      if (byDomain != 0) return byDomain;
+      final byAge = (b.ageOverlap ? 1 : 0) - (a.ageOverlap ? 1 : 0);
+      if (byAge != 0) return byAge;
+      final byTitle = (b.tokenOverlap ? 1 : 0) - (a.tokenOverlap ? 1 : 0);
+      return byTitle;
+    });
+    return [for (final s in scored.take(limit)) s.item];
+  }
+
+  static Set<String> _titleTokens(String title) {
+    // Strip common words so "Morning circle" vs "Circle time" still
+    // matches on "circle" without being polluted by stopwords.
+    const stop = {
+      'a', 'an', 'and', 'the', 'of', 'for', 'to', 'in', 'on', 'with',
+      'time', 'activity', 'circle', // ironic, but too generic across cards
+    };
+    final tokens = title
+        .toLowerCase()
+        .split(RegExp('[^a-z0-9]+'))
+        .where((t) => t.length > 2 && !stop.contains(t))
+        .toSet();
+    // Keep "circle" in if it's the only token left — "Morning circle"
+    // would otherwise match nothing.
+    if (tokens.isEmpty) {
+      return title
+          .toLowerCase()
+          .split(RegExp('[^a-z0-9]+'))
+          .where((t) => t.isNotEmpty)
+          .toSet();
+    }
+    return tokens;
+  }
+
+  static bool _agesOverlap(int? aMin, int? aMax, int? bMin, int? bMax) {
+    if ((aMin == null && aMax == null) || (bMin == null && bMax == null)) {
+      return false;
+    }
+    final aLo = aMin ?? 0;
+    final aHi = aMax ?? 999;
+    final bLo = bMin ?? 0;
+    final bHi = bMax ?? 999;
+    return aLo <= bHi && aHi >= bLo;
+  }
+}
+
+class _SimilarScored {
+  const _SimilarScored({
+    required this.item,
+    required this.sharedDomains,
+    required this.ageOverlap,
+    required this.tokenOverlap,
+  });
+
+  final ActivityLibraryData item;
+  final int sharedDomains;
+  final bool ageOverlap;
+  final bool tokenOverlap;
 }
 
 final activityLibraryRepositoryProvider =
@@ -196,3 +382,29 @@ final libraryDomainsForItemProvider =
       .watch(activityLibraryRepositoryProvider)
       .watchDomainsFor(libraryItemId);
 });
+
+/// Screen-wide lookup of `itemId -> set(domain)` for every library
+/// row. The library filter chip row consults this so the predicate
+/// can check a domain match without spinning up a per-card stream.
+final allLibraryDomainTagsProvider =
+    StreamProvider<Map<String, Set<String>>>((ref) {
+  return ref.watch(activityLibraryRepositoryProvider).watchAllDomainTags();
+});
+
+/// Cached "similar activities" for a given library item. Recomputed
+/// whenever the library table changes (via ref.watch on the list
+/// provider) so newly added cards join / leave the results live.
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final similarLibraryItemsProvider =
+    FutureProvider.family<List<ActivityLibraryData>, String>(
+  (ref, sourceId) async {
+    // Re-run when the library list changes so fresh cards appear.
+    ref
+      ..watch(activityLibraryProvider)
+      ..watch(allLibraryDomainTagsProvider);
+    return ref
+        .watch(activityLibraryRepositoryProvider)
+        .similarItems(sourceId);
+  },
+);
