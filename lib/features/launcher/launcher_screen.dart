@@ -16,18 +16,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-/// Drawer content for Today. Search at the top, then: quick actions,
-/// children, adults, the named sections of the app, and library
-/// shortcuts — all filterable live from the search field.
+/// Drawer content for Today. Gmail-style vertical list: a rounded
+/// search pill pinned at the top, then sections of labeled rows — each
+/// a 24dp icon + text label — grouped under small-caps headers.
+///
+/// Sections (top → bottom): Pinned → Quick actions → Sections
+/// (destinations) → Children → Adults → Parents → Activity library.
+/// Every section live-filters off the search pill and hides itself
+/// (header included) when it has zero matches.
 ///
 /// Renders as a Drawer body (no outer Scaffold). Every navigation tap
-/// closes the drawer first via [Navigator.pop] on this context, then
-/// pushes the pushed route onto the root navigator — so tapping a
-/// destination lands the teacher on the new screen with Today in the
-/// back-stack.
-///
-/// A helper [_navigateTo] funnels every tap path through the same
-/// close-then-route sequence; use it anywhere inside this file.
+/// funnels through [_navigateTo] which pushes on the root navigator —
+/// the drawer stays in its Scaffold state so back pops the new screen
+/// and Today's drawer is still open.
 class LauncherScreen extends ConsumerStatefulWidget {
   const LauncherScreen({super.key});
 
@@ -59,38 +60,58 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
     final libraryAsync = ref.watch(activityLibraryProvider);
 
     final children = kidsAsync.asData?.value ?? const <Child>[];
-    final adults =
-        adultsAsync.asData?.value ?? const <Adult>[];
-    final parents =
-        parentsAsync.asData?.value ?? const <Parent>[];
+    final adults = adultsAsync.asData?.value ?? const <Adult>[];
+    final parents = parentsAsync.asData?.value ?? const <Parent>[];
     final library =
         libraryAsync.asData?.value ?? const <ActivityLibraryData>[];
 
+    // Alphabetize every list that has a natural sort axis. Pinned
+    // keeps storage order (teacher-curated) and Quick actions keep
+    // declared order (function-priority).
+    final sortedKids = [...children]..sort((a, b) {
+        final f = a.firstName.toLowerCase().compareTo(b.firstName.toLowerCase());
+        if (f != 0) return f;
+        return (a.lastName ?? '')
+            .toLowerCase()
+            .compareTo((b.lastName ?? '').toLowerCase());
+      });
+    final sortedAdults = [...adults]
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    final sortedParents = [...parents]..sort((a, b) {
+        final f = a.firstName.toLowerCase().compareTo(b.firstName.toLowerCase());
+        if (f != 0) return f;
+        return (a.lastName ?? '')
+            .toLowerCase()
+            .compareTo((b.lastName ?? '').toLowerCase());
+      });
+    final sortedLibrary = [...library]
+      ..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    final sortedDestinations = [..._DestinationData.all]
+      ..sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
+
     final filteredKids = [
-      for (final k in children)
+      for (final k in sortedKids)
         if (_matches(_displayName(k.firstName, k.lastName))) k,
     ];
     final filteredAdults = [
-      for (final s in adults)
+      for (final s in sortedAdults)
         if (_matches(s.name) || _matches(s.role ?? '')) s,
     ];
     final filteredParents = [
-      for (final p in parents)
+      for (final p in sortedParents)
         if (_matches(_parentDisplayName(p)) ||
             _matches(p.relationship ?? ''))
           p,
     ];
     final filteredLibrary = [
-      for (final l in library)
+      for (final l in sortedLibrary)
         if (_matches(l.title)) l,
     ];
 
     final pinnedIds = ref.watch(pinnedItemsProvider);
-    // Resolve each pinned id to a live tile. Async entries (child,
-    // adult, library) look up their current display name from
-    // the providers already watched above; an id that no longer
+    // Resolve each pinned id to a live row. An id that no longer
     // resolves (e.g. child was deleted) is skipped silently.
-    Widget? resolvePinnedTile(String storedId) {
+    Widget? resolvePinnedRow(String storedId) {
       final parsed = parsePinId(storedId);
       if (parsed == null) return null;
       switch (parsed.kind) {
@@ -99,7 +120,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
           if (a == null || !_matches(a.label)) return null;
           return _PinnableTile(
             pinId: storedId,
-            child: _QuickActionTile(action: a, ref: ref),
+            child: _ActionRow(action: a, ref: ref),
           );
         case PinnedKinds.destination:
           final d = _DestinationData.all
@@ -108,7 +129,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
           if (d == null || !_matches(d.label)) return null;
           return _PinnableTile(
             pinId: storedId,
-            child: _DestinationTile(destination: d),
+            child: _DestinationRow(destination: d),
           );
         case PinnedKinds.child:
           final k = children.where((x) => x.id == parsed.id).firstOrNull;
@@ -118,7 +139,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
           }
           return _PinnableTile(
             pinId: storedId,
-            child: _PersonCell(
+            child: _PersonRow(
               name: _displayName(k.firstName, k.lastName),
               avatarPath: k.avatarPath,
               fallbackInitial: k.firstName.isEmpty
@@ -128,15 +149,14 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
             ),
           );
         case PinnedKinds.adult:
-          final s =
-              adults.where((x) => x.id == parsed.id).firstOrNull;
+          final s = adults.where((x) => x.id == parsed.id).firstOrNull;
           if (s == null ||
               !(_matches(s.name) || _matches(s.role ?? ''))) {
             return null;
           }
           return _PinnableTile(
             pinId: storedId,
-            child: _PersonCell(
+            child: _PersonRow(
               name: s.name,
               avatarPath: s.avatarPath,
               fallbackInitial: s.name.isEmpty
@@ -150,48 +170,41 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
           if (l == null || !_matches(l.title)) return null;
           return _PinnableTile(
             pinId: storedId,
-            child: _LibraryPill(item: l),
+            child: _LibraryRow(item: l),
           );
       }
       return null;
     }
 
-    final pinnedTiles = <Widget>[
-      for (final id in pinnedIds) ?resolvePinnedTile(id),
+    final pinnedRows = <Widget>[
+      for (final id in pinnedIds) ?resolvePinnedRow(id),
     ];
 
     // Each source section only shows items not already pinned — so
-    // items appear in exactly one place at a time (same semantics as
-    // the children tab's group reassignment).
+    // items appear in exactly one place at a time.
     final unpinnedActions = _QuickActionData.all
-        .where((a) =>
-            !pinnedIds.contains(pinId(PinnedKinds.action, a.id)))
+        .where((a) => !pinnedIds.contains(pinId(PinnedKinds.action, a.id)))
         .where((a) => _matches(a.label))
         .toList();
     final unpinnedKids = filteredKids
-        .where((k) =>
-            !pinnedIds.contains(pinId(PinnedKinds.child, k.id)))
+        .where((k) => !pinnedIds.contains(pinId(PinnedKinds.child, k.id)))
         .toList();
     final unpinnedAdults = filteredAdults
-        .where((s) =>
-            !pinnedIds.contains(pinId(PinnedKinds.adult, s.id)))
+        .where((s) => !pinnedIds.contains(pinId(PinnedKinds.adult, s.id)))
         .toList();
     final unpinnedLibrary = filteredLibrary
-        .where((l) =>
-            !pinnedIds.contains(pinId(PinnedKinds.library, l.id)))
+        .where((l) => !pinnedIds.contains(pinId(PinnedKinds.library, l.id)))
         .toList();
-    // Parents aren't pinnable yet — dedicated PinnedKind + repository
-    // migration would be the next step. For now the whole filtered
-    // list shows in its section.
+    // Parents aren't pinnable yet — no PinnedKinds.parent entry.
     final unpinnedParents = filteredParents;
-    final destinations = _DestinationData.all
+    final destinations = sortedDestinations
         .where((d) =>
             !pinnedIds.contains(pinId(PinnedKinds.destination, d.path)))
         .where((d) => _matches(d.label))
         .toList();
 
     final hasAnyResults = _query.isEmpty ||
-        pinnedTiles.isNotEmpty ||
+        pinnedRows.isNotEmpty ||
         unpinnedActions.isNotEmpty ||
         destinations.isNotEmpty ||
         unpinnedKids.isNotEmpty ||
@@ -199,10 +212,14 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
         unpinnedParents.isNotEmpty ||
         unpinnedLibrary.isNotEmpty;
 
+    // Show the Pinned section whenever pinning is useful — either
+    // there are pins already, or there's no search filter masking
+    // everything. This keeps the drop target discoverable.
+    final showPinnedSection =
+        pinnedRows.isNotEmpty || _query.isEmpty;
+
     // No outer Scaffold — LauncherScreen is rendered inside a Drawer
-    // which supplies its own Material surface. A ColoredBox matches the
-    // pre-drawer look (surfaceContainerLowest background) and costs
-    // nothing when the Drawer already draws over it.
+    // which supplies its own Material surface.
     return ColoredBox(
       color: theme.colorScheme.surfaceContainerLowest,
       child: SafeArea(
@@ -217,77 +234,101 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                   ? _NoResults(query: _query)
                   : ListView(
                       padding: const EdgeInsets.only(
-                        left: AppSpacing.lg,
-                        right: AppSpacing.lg,
-                        top: AppSpacing.sm,
+                        top: AppSpacing.xs,
                         bottom: AppSpacing.xxxl,
                       ),
                       children: [
-                        // Smart Shelf — always visible. Accepts drops
-                        // of any pinnable tile (action, destination,
-                        // child, adult, library item). Tiles
-                        // already pinned appear here and disappear
-                        // from their source section.
-                        _Section(
-                          label: 'Pinned',
-                          child: _SmartShelf(
-                            tiles: pinnedTiles,
+                        if (showPinnedSection)
+                          _PinnedSection(
+                            rows: pinnedRows,
                             isFiltered: _query.isNotEmpty,
                           ),
-                        ),
                         if (unpinnedActions.isNotEmpty)
-                          _Section(
-                            label: 'Quick actions',
-                            child: _QuickActionsRow(
-                              actions: unpinnedActions,
-                            ),
+                          const _SectionHeader(label: 'Quick actions'),
+                        for (final a in unpinnedActions)
+                          _PinnableTile(
+                            pinId: pinId(PinnedKinds.action, a.id),
+                            child: _ActionRow(action: a, ref: ref),
                           ),
-                        // Sections (destinations grid) moves ABOVE the
-                        // people grids so navigation lives at the top
-                        // and the long scrollable people lists don't
-                        // push it off-screen.
                         if (destinations.isNotEmpty)
-                          _Section(
-                            label: 'Sections',
-                            child: _DestinationsGrid(
-                              destinations: destinations,
-                            ),
+                          const _SectionHeader(label: 'Sections'),
+                        for (final d in destinations)
+                          _PinnableTile(
+                            pinId: pinId(PinnedKinds.destination, d.path),
+                            child: _DestinationRow(destination: d),
                           ),
                         if (unpinnedKids.isNotEmpty)
-                          _Section(
+                          _SectionHeader(
                             label: 'Children',
                             count: unpinnedKids.length,
                             total: children.length,
                             query: _query,
-                            child: _PeopleWrap.fromKids(unpinnedKids),
+                          ),
+                        for (final k in unpinnedKids)
+                          _PinnableTile(
+                            pinId: pinId(PinnedKinds.child, k.id),
+                            child: _PersonRow(
+                              name: _displayName(k.firstName, k.lastName),
+                              avatarPath: k.avatarPath,
+                              fallbackInitial: k.firstName.isEmpty
+                                  ? '?'
+                                  : k.firstName.characters.first.toUpperCase(),
+                              route: '/children/${k.id}',
+                            ),
                           ),
                         if (unpinnedAdults.isNotEmpty)
-                          _Section(
+                          _SectionHeader(
                             label: 'Adults',
                             count: unpinnedAdults.length,
                             total: adults.length,
                             query: _query,
-                            child: _PeopleWrap.fromAdults(
-                              unpinnedAdults,
+                          ),
+                        for (final s in unpinnedAdults)
+                          _PinnableTile(
+                            pinId: pinId(PinnedKinds.adult, s.id),
+                            child: _PersonRow(
+                              name: s.name,
+                              avatarPath: s.avatarPath,
+                              fallbackInitial: s.name.isEmpty
+                                  ? '?'
+                                  : s.name.characters.first.toUpperCase(),
+                              route: '/more/adults/${s.id}',
                             ),
                           ),
                         if (unpinnedParents.isNotEmpty)
-                          _Section(
+                          _SectionHeader(
                             label: 'Parents',
                             count: unpinnedParents.length,
                             total: parents.length,
                             query: _query,
-                            child: _PeopleWrap.fromParents(
-                              unpinnedParents,
-                            ),
+                          ),
+                        // Parents aren't pinnable yet, so no
+                        // `_PinnableTile` wrapper — they read as plain
+                        // rows. Adding a PinnedKinds.parent entry is a
+                        // small follow-up if teachers ask for it.
+                        for (final p in unpinnedParents)
+                          _PersonRow(
+                            name: _parentDisplayName(p),
+                            fallbackInitial: p.firstName.isEmpty
+                                ? '?'
+                                : p.firstName.characters.first.toUpperCase(),
+                            route: '/more/parents/${p.id}',
+                            // Parents don't carry an avatar path yet —
+                            // leaving it null triggers the initial-on-
+                            // secondaryContainer fallback.
+                            useSecondaryFallback: true,
                           ),
                         if (unpinnedLibrary.isNotEmpty)
-                          _Section(
+                          _SectionHeader(
                             label: 'Activity library',
                             count: unpinnedLibrary.length,
                             total: library.length,
                             query: _query,
-                            child: _LibraryWrap(items: unpinnedLibrary),
+                          ),
+                        for (final l in unpinnedLibrary)
+                          _PinnableTile(
+                            pinId: pinId(PinnedKinds.library, l.id),
+                            child: _LibraryRow(item: l),
                           ),
                       ],
                     ),
@@ -305,7 +346,7 @@ String _displayName(String first, String? last) {
 }
 
 /// Launcher's display name for a parent — firstName + last-initial.
-/// Matches the Child / Adult conventions so the three people grids
+/// Matches the Child / Adult conventions so the three people lists
 /// read the same at a glance.
 String _parentDisplayName(Parent p) =>
     _displayName(p.firstName, p.lastName);
@@ -313,8 +354,7 @@ String _parentDisplayName(Parent p) =>
 /// Route without closing the drawer. The pushed screen covers Today
 /// (and the drawer visually), but the Scaffold preserves the drawer's
 /// open state — pressing back pops the pushed screen and the drawer
-/// is still there. Teachers jumping between setup screens don't have
-/// to re-open the drawer after every trip.
+/// is still there.
 ///
 /// Default is `push` (stacks onto Today); pass `go: true` for
 /// horizontal moves that should clear any lower stack (rarely needed
@@ -328,7 +368,7 @@ void _navigateTo(BuildContext context, String path, {bool go = false}) {
 }
 
 // ================================================================
-// Search field
+// Search pill
 // ================================================================
 
 class _SearchField extends StatelessWidget {
@@ -348,18 +388,19 @@ class _SearchField extends StatelessWidget {
         AppSpacing.sm,
       ),
       child: Container(
+        height: 56,
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(24),
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(28),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
         child: Row(
           children: [
             Icon(
               Icons.search,
               color: theme.colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(width: AppSpacing.sm),
+            const SizedBox(width: AppSpacing.md),
             Expanded(
               child: TextField(
                 controller: controller,
@@ -372,8 +413,7 @@ class _SearchField extends StatelessWidget {
                   ),
                   border: InputBorder.none,
                   isDense: true,
-                  contentPadding:
-                      const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                  contentPadding: EdgeInsets.zero,
                 ),
                 onChanged: onChanged,
               ),
@@ -395,20 +435,18 @@ class _SearchField extends StatelessWidget {
 }
 
 // ================================================================
-// Section wrapper
+// Section header
 // ================================================================
 
-class _Section extends StatelessWidget {
-  const _Section({
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
     required this.label,
-    required this.child,
     this.count,
     this.total,
     this.query = '',
   });
 
   final String label;
-  final Widget child;
   final int? count;
   final int? total;
   final String query;
@@ -416,28 +454,20 @@ class _Section extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final suffix = _headerSuffix();
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.xl),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(
-              left: AppSpacing.xs,
-              bottom: AppSpacing.sm,
-            ),
-            child: Text(
-              '${label.toUpperCase()}$suffix',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                letterSpacing: 0.8,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          child,
-        ],
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.sm,
+      ),
+      child: Text(
+        '${label.toUpperCase()}${_headerSuffix()}',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+          letterSpacing: 0.8,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -446,6 +476,141 @@ class _Section extends StatelessWidget {
     if (count == null || total == null) return '';
     if (query.isEmpty || count == total) return ' · $count';
     return ' · $count of $total';
+  }
+}
+
+// ================================================================
+// Pinned section
+// ================================================================
+
+/// Pinned section combines the Gmail-style header with the drop-target
+/// semantics of the old Smart Shelf. Rows render as plain rows; the
+/// whole section area is the drop target — so teachers can drag onto
+/// the header, any row, or the empty-state hint and it all lands as
+/// "pin here".
+class _PinnedSection extends ConsumerWidget {
+  const _PinnedSection({required this.rows, required this.isFiltered});
+
+  final List<Widget> rows;
+
+  /// True when a search query is active — changes the empty-state copy
+  /// so "no pinned matches" doesn't get confused with "no pins yet".
+  final bool isFiltered;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    return DragTarget<String>(
+      onWillAcceptWithDetails: (_) => true,
+      onAcceptWithDetails: (d) {
+        final pinned = ref.read(pinnedItemsProvider);
+        if (!pinned.contains(d.data)) {
+          unawaited(
+            ref.read(pinnedItemsProvider.notifier).pin(d.data),
+          );
+        }
+        // Already pinned → dropping back is a "cancel, leave it alone".
+      },
+      builder: (context, candidates, _) {
+        final hovering = candidates.isNotEmpty;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOut,
+          color: hovering
+              ? theme.colorScheme.primaryContainer.withValues(alpha: 0.35)
+              : Colors.transparent,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _SectionHeader(label: 'Pinned'),
+              if (rows.isEmpty)
+                _PinnedEmpty(hovering: hovering, isFiltered: isFiltered)
+              else
+                ...rows,
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PinnedEmpty extends StatelessWidget {
+  const _PinnedEmpty({required this.hovering, required this.isFiltered});
+
+  final bool hovering;
+  final bool isFiltered;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.lg,
+        AppSpacing.md,
+      ),
+      child: Text(
+        hovering
+            ? 'Drop here to pin'
+            : isFiltered
+                ? 'No pinned items match this search.'
+                : 'Long-press any row below and drag here to pin.',
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: hovering
+              ? theme.colorScheme.primary
+              : theme.colorScheme.onSurfaceVariant,
+          fontWeight: hovering ? FontWeight.w700 : null,
+        ),
+      ),
+    );
+  }
+}
+
+/// Wraps any launcher row in a long-press-draggable. [pinId] is the
+/// stored-format identifier with kind prefix (e.g. `action:new-activity`,
+/// `child:abc123`). Drop on the Pinned section to pin; drop anywhere
+/// else (into the list body, off the edge, on empty space) to unpin.
+/// Dropping a pinned row back on the Pinned section is a no-op — the
+/// section treats that as "cancel".
+class _PinnableTile extends ConsumerWidget {
+  const _PinnableTile({required this.pinId, required this.child});
+
+  final String pinId;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return LongPressDraggable<String>(
+      data: pinId,
+      // Constrain the feedback width so the row doesn't stretch to
+      // its natural "fill the drawer" width while being dragged.
+      feedback: Material(
+        color: Colors.transparent,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Opacity(
+            opacity: 0.94,
+            child: Transform.scale(scale: 1.02, child: child),
+          ),
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.35, child: child),
+      onDragEnd: (details) {
+        // Accepted drops always land on the Pinned section (only
+        // DragTarget in play). When not accepted, the teacher
+        // released over the list body, so interpret that as "unpin" —
+        // but only if the row is actually pinned right now.
+        if (details.wasAccepted) return;
+        if (ref.read(pinnedItemsProvider).contains(pinId)) {
+          unawaited(
+            ref.read(pinnedItemsProvider.notifier).unpin(pinId),
+          );
+        }
+      },
+      child: child,
+    );
   }
 }
 
@@ -527,9 +692,6 @@ class _QuickActionData {
         );
       },
     ),
-    // (Dropped the 'observe' quick action — same icon, same label,
-    // same target as the Observe Sections tile. Pinning now goes
-    // through the Sections tile.)
   ];
 
   static _QuickActionData? byId(String id) {
@@ -540,173 +702,12 @@ class _QuickActionData {
   }
 }
 
-/// Smart Shelf — DragTarget that accepts every pinnable tile id and
-/// pins anything not already pinned. Dropping an already-pinned tile
-/// back on the shelf is a no-op (treated as "cancel"), which leaves
-/// `Draggable.onDragEnd` with wasAccepted=true so the unpin-on-cancel
-/// path in [_PinnableTile] doesn't misfire. Always visible;
-/// placeholder copy when empty so the drop zone is discoverable.
-class _SmartShelf extends ConsumerWidget {
-  const _SmartShelf({
-    required this.tiles,
-    required this.isFiltered,
-  });
+// ================================================================
+// Row widgets — Gmail-style ListTile rows (24dp icon + label)
+// ================================================================
 
-  final List<Widget> tiles;
-
-  /// True when a search query is active — changes the empty-state copy
-  /// so "no pinned matches" doesn't get confused with "no pins yet".
-  final bool isFiltered;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    return DragTarget<String>(
-      onWillAcceptWithDetails: (_) => true,
-      onAcceptWithDetails: (d) {
-        final pinned = ref.read(pinnedItemsProvider);
-        if (!pinned.contains(d.data)) {
-          unawaited(
-            ref.read(pinnedItemsProvider.notifier).pin(d.data),
-          );
-        }
-        // Already pinned → dropping back is a "cancel, leave it alone".
-      },
-      builder: (context, candidates, _) {
-        final hovering = candidates.isNotEmpty;
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOut,
-          padding: const EdgeInsets.all(AppSpacing.sm),
-          decoration: BoxDecoration(
-            color: hovering
-                ? theme.colorScheme.primaryContainer.withValues(alpha: 0.35)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: hovering
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-              width: hovering ? 1.5 : 1,
-            ),
-          ),
-          child: tiles.isEmpty
-              ? _ShelfEmpty(hovering: hovering, isFiltered: isFiltered)
-              : Wrap(
-                  spacing: AppSpacing.md,
-                  runSpacing: AppSpacing.md,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: tiles,
-                ),
-        );
-      },
-    );
-  }
-}
-
-class _ShelfEmpty extends StatelessWidget {
-  const _ShelfEmpty({required this.hovering, required this.isFiltered});
-
-  final bool hovering;
-  final bool isFiltered;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SizedBox(
-      width: double.infinity,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-        child: Text(
-          hovering
-              ? 'Drop here to pin'
-              : isFiltered
-                  ? 'No pinned items match this search.'
-                  : 'Long-press any tile below and drag here to pin.',
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: hovering
-                ? theme.colorScheme.primary
-                : theme.colorScheme.onSurfaceVariant,
-            fontWeight: hovering ? FontWeight.w700 : null,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Wraps any launcher tile in a long-press-draggable. [pinId] is the
-/// stored-format identifier with kind prefix (e.g. `action:new-activity`,
-/// `child:abc123`). Drop on the Smart Shelf to pin; drop anywhere
-/// else (into the list body, off the edge, on empty space) to unpin.
-/// Dropping a pinned tile back on the shelf is a no-op — the shelf
-/// treats that as "cancel".
-///
-/// Simpler rule than per-section unpin targets: "on shelf = pin, off
-/// shelf = unpin" removes silent failures when a teacher released
-/// over the wrong section.
-class _PinnableTile extends ConsumerWidget {
-  const _PinnableTile({required this.pinId, required this.child});
-
-  final String pinId;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return LongPressDraggable<String>(
-      data: pinId,
-      feedback: Material(
-        color: Colors.transparent,
-        child: Transform.scale(
-          scale: 1.06,
-          child: Opacity(opacity: 0.94, child: child),
-        ),
-      ),
-      childWhenDragging: Opacity(opacity: 0.35, child: child),
-      onDragEnd: (details) {
-        // Accepted drops always land on the shelf (only DragTarget in
-        // play). When not accepted, the teacher released over the
-        // list body, so interpret that as "unpin" — but only if the
-        // tile is actually pinned right now. Dragging an unpinned
-        // tile off into empty space is a no-op.
-        if (details.wasAccepted) return;
-        if (ref.read(pinnedItemsProvider).contains(pinId)) {
-          unawaited(
-            ref.read(pinnedItemsProvider.notifier).unpin(pinId),
-          );
-        }
-      },
-      child: child,
-    );
-  }
-}
-
-/// Renders the unpinned quick actions. Each tile is individually
-/// draggable so teachers can pin them onto the Smart Shelf.
-class _QuickActionsRow extends ConsumerWidget {
-  const _QuickActionsRow({required this.actions});
-
-  final List<_QuickActionData> actions;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
-      children: [
-        for (final a in actions)
-          _PinnableTile(
-            pinId: pinId(PinnedKinds.action, a.id),
-            child: _QuickActionTile(action: a, ref: ref),
-          ),
-      ],
-    );
-  }
-}
-
-class _QuickActionTile extends StatelessWidget {
-  const _QuickActionTile({required this.action, required this.ref});
+class _ActionRow extends StatelessWidget {
+  const _ActionRow({required this.action, required this.ref});
 
   final _QuickActionData action;
   final WidgetRef ref;
@@ -714,128 +715,51 @@ class _QuickActionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return SizedBox(
-      width: 88,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () => action.onTap(context, ref),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-          child: Column(
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                alignment: Alignment.center,
-                child: Icon(
-                  action.icon,
-                  size: 24,
-                  color: theme.colorScheme.onPrimaryContainer,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                action.label,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
-            ],
-          ),
-        ),
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
       ),
+      leading: Icon(
+        action.icon,
+        size: 24,
+        color: theme.colorScheme.primary,
+      ),
+      title: Text(action.label),
+      onTap: () => action.onTap(context, ref),
     );
   }
 }
 
-// ================================================================
-// People (children + adults)
-// ================================================================
+class _DestinationRow extends StatelessWidget {
+  const _DestinationRow({required this.destination});
 
-class _PeopleWrap extends StatelessWidget {
-  const _PeopleWrap({required this.tiles});
-
-  factory _PeopleWrap.fromKids(List<Child> children) {
-    return _PeopleWrap(
-      tiles: [
-        for (final k in children)
-          _PinnableTile(
-            pinId: pinId(PinnedKinds.child, k.id),
-            child: _PersonCell(
-              name: _displayName(k.firstName, k.lastName),
-              avatarPath: k.avatarPath,
-              fallbackInitial: k.firstName.isEmpty
-                  ? '?'
-                  : k.firstName.characters.first.toUpperCase(),
-              route: '/children/${k.id}',
-            ),
-          ),
-      ],
-    );
-  }
-
-  factory _PeopleWrap.fromAdults(List<Adult> adults) {
-    return _PeopleWrap(
-      tiles: [
-        for (final s in adults)
-          _PinnableTile(
-            pinId: pinId(PinnedKinds.adult, s.id),
-            child: _PersonCell(
-              name: s.name,
-              avatarPath: s.avatarPath,
-              fallbackInitial: s.name.isEmpty
-                  ? '?'
-                  : s.name.characters.first.toUpperCase(),
-              route: '/more/adults/${s.id}',
-            ),
-          ),
-      ],
-    );
-  }
-
-  /// Parents aren't pinnable yet (no PinnedKinds.parent), so the
-  /// tiles are plain cells without the `_PinnableTile` wrap. Adding
-  /// pin support is a small follow-up if teachers ask for it.
-  factory _PeopleWrap.fromParents(List<Parent> parents) {
-    return _PeopleWrap(
-      tiles: [
-        for (final p in parents)
-          _PersonCell(
-            name: _parentDisplayName(p),
-            fallbackInitial: p.firstName.isEmpty
-                ? '?'
-                : p.firstName.characters.first.toUpperCase(),
-            route: '/more/parents/${p.id}',
-          ),
-      ],
-    );
-  }
-
-  final List<Widget> tiles;
+  final _DestinationData destination;
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: AppSpacing.md,
-      runSpacing: AppSpacing.md,
-      children: tiles,
+    final theme = Theme.of(context);
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+      ),
+      leading: Icon(
+        destination.icon,
+        size: 24,
+        color: theme.colorScheme.primary,
+      ),
+      title: Text(destination.label),
+      onTap: () => _navigateTo(context, destination.path),
     );
   }
 }
 
-class _PersonCell extends StatelessWidget {
-  const _PersonCell({
+class _PersonRow extends StatelessWidget {
+  const _PersonRow({
     required this.name,
     required this.fallbackInitial,
     required this.route,
     this.avatarPath,
+    this.useSecondaryFallback = false,
   });
 
   final String name;
@@ -843,37 +767,55 @@ class _PersonCell extends StatelessWidget {
   final String fallbackInitial;
   final String route;
 
+  /// Parents don't carry avatar images yet; when true, the fallback
+  /// initial renders on `secondaryContainer` to match the older
+  /// launcher's parent styling.
+  final bool useSecondaryFallback;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return SizedBox(
-      width: 68,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => _navigateTo(context, route),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-          child: Column(
-            children: [
-              SmallAvatar(
-                path: avatarPath,
-                fallbackInitial: fallbackInitial,
-                radius: 26,
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                name,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
-            ],
-          ),
-        ),
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
       ),
+      leading: SmallAvatar(
+        path: avatarPath,
+        fallbackInitial: fallbackInitial,
+        // 24dp icon → 12dp radius circle fits a ListTile leading slot.
+        radius: 12,
+        backgroundColor: useSecondaryFallback
+            ? theme.colorScheme.secondaryContainer
+            : null,
+        foregroundColor: useSecondaryFallback
+            ? theme.colorScheme.onSecondaryContainer
+            : null,
+      ),
+      title: Text(name),
+      onTap: () => _navigateTo(context, route),
+    );
+  }
+}
+
+class _LibraryRow extends StatelessWidget {
+  const _LibraryRow({required this.item});
+
+  final ActivityLibraryData item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+      ),
+      leading: Icon(
+        Icons.bookmark_outlined,
+        size: 24,
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+      title: Text(item.title),
+      onTap: () => _navigateTo(context, '/more/library'),
     );
   }
 }
@@ -950,144 +892,6 @@ class _DestinationData {
       path: '/more/settings',
     ),
   ];
-}
-
-class _DestinationsGrid extends StatelessWidget {
-  const _DestinationsGrid({required this.destinations});
-
-  final List<_DestinationData> destinations;
-
-  @override
-  Widget build(BuildContext context) {
-    // Fixed 3-col grid — reflows across phones without any
-    // max-width gymnastics. Every tile lays out at the same height so
-    // the grid reads as a clean strip.
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: AppSpacing.sm,
-        mainAxisSpacing: AppSpacing.sm,
-        childAspectRatio: 1.15,
-      ),
-      itemCount: destinations.length,
-      itemBuilder: (_, i) {
-        final d = destinations[i];
-        return _PinnableTile(
-          pinId: pinId(PinnedKinds.destination, d.path),
-          child: _DestinationTile(destination: d),
-        );
-      },
-    );
-  }
-}
-
-class _DestinationTile extends StatelessWidget {
-  const _DestinationTile({required this.destination});
-
-  final _DestinationData destination;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: theme.colorScheme.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        // Every destination pushes on top of Today (the drawer host),
-        // so the back gesture returns here rather than exiting the app.
-        onTap: () => _navigateTo(context, destination.path),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.sm),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                destination.icon,
-                size: 28,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                destination.label,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ================================================================
-// Library pills
-// ================================================================
-
-class _LibraryWrap extends StatelessWidget {
-  const _LibraryWrap({required this.items});
-
-  final List<ActivityLibraryData> items;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
-      children: [
-        for (final item in items)
-          _PinnableTile(
-            pinId: pinId(PinnedKinds.library, item.id),
-            child: _LibraryPill(item: item),
-          ),
-      ],
-    );
-  }
-}
-
-class _LibraryPill extends StatelessWidget {
-  const _LibraryPill({required this.item});
-
-  final ActivityLibraryData item;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return InkWell(
-      borderRadius: BorderRadius.circular(20),
-      onTap: () => _navigateTo(context, '/more/library'),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.sm,
-        ),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.bookmark_outlined,
-              size: 14,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: AppSpacing.xs),
-            Text(
-              item.title,
-              style: theme.textTheme.labelMedium,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 // ================================================================
