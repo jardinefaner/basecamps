@@ -943,6 +943,21 @@ class _DestinationData {
 
   static const List<_DestinationData> all = [
     _DestinationData(
+      label: 'Week plan',
+      icon: Icons.view_week_outlined,
+      path: '/week-plan',
+    ),
+    _DestinationData(
+      label: 'Lesson sequences',
+      icon: Icons.format_list_numbered_outlined,
+      path: '/more/sequences',
+    ),
+    _DestinationData(
+      label: 'Themes',
+      icon: Icons.palette_outlined,
+      path: '/more/themes',
+    ),
+    _DestinationData(
       label: 'Observe',
       icon: Icons.visibility_outlined,
       path: '/observations',

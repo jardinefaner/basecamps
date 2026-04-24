@@ -101,6 +101,73 @@ class LessonSequencesRepository {
     await (_db.delete(_db.lessonSequenceItems)..where((i) => i.id.equals(id)))
         .go();
   }
+
+  /// Fetch a single item by id — used by the undo path on remove.
+  Future<LessonSequenceItem?> getItem(String id) {
+    return (_db.select(_db.lessonSequenceItems)..where((i) => i.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  /// Re-insert a previously-deleted item. Used by confirmDeleteWithUndo
+  /// so removals have a 5-second take-back window.
+  Future<void> restoreItem(LessonSequenceItem row) async {
+    await _db.into(_db.lessonSequenceItems).insertOnConflictUpdate(row);
+  }
+
+  /// Rewrite `position` for every item in [sequenceId] so the order
+  /// matches [itemIdsInNewOrder]. Done in one transaction — positions
+  /// land 0..N-1 matching the passed list. Unlisted ids are ignored
+  /// (caller is responsible for passing every item).
+  Future<void> reorderItems(
+    String sequenceId,
+    List<String> itemIdsInNewOrder,
+  ) async {
+    await _db.transaction(() async {
+      for (var i = 0; i < itemIdsInNewOrder.length; i++) {
+        final itemId = itemIdsInNewOrder[i];
+        await (_db.update(_db.lessonSequenceItems)
+              ..where((row) =>
+                  row.id.equals(itemId) &
+                  row.sequenceId.equals(sequenceId)))
+            .write(LessonSequenceItemsCompanion(position: Value(i)));
+      }
+    });
+  }
+
+  /// Stream every (item, libraryItem) pair for a sequence, ordered by
+  /// position. The detail screen needs the joined library row so it
+  /// can render real titles / durations without a second per-row
+  /// FutureProvider lookup.
+  Stream<List<SequenceItemWithLibrary>> watchItemsJoined(String sequenceId) {
+    final query = _db.select(_db.lessonSequenceItems).join([
+      innerJoin(
+        _db.activityLibrary,
+        _db.activityLibrary.id.equalsExp(_db.lessonSequenceItems.libraryItemId),
+      ),
+    ])
+      ..where(_db.lessonSequenceItems.sequenceId.equals(sequenceId))
+      ..orderBy([OrderingTerm.asc(_db.lessonSequenceItems.position)]);
+
+    return query.watch().map((rows) {
+      return [
+        for (final row in rows)
+          SequenceItemWithLibrary(
+            item: row.readTable(_db.lessonSequenceItems),
+            library: row.readTable(_db.activityLibrary),
+          ),
+      ];
+    });
+  }
+}
+
+/// Joined sequence-item + library-row pair used by the detail screen
+/// so it can render each row with its real title / duration without
+/// a separate lookup per row.
+class SequenceItemWithLibrary {
+  const SequenceItemWithLibrary({required this.item, required this.library});
+
+  final LessonSequenceItem item;
+  final ActivityLibraryData library;
 }
 
 final lessonSequencesRepositoryProvider =
@@ -121,5 +188,25 @@ final lessonSequenceItemsProvider =
     return ref
         .watch(lessonSequencesRepositoryProvider)
         .watchItemsFor(sequenceId);
+  },
+);
+
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final lessonSequenceItemsJoinedProvider =
+    StreamProvider.family<List<SequenceItemWithLibrary>, String>(
+  (ref, sequenceId) {
+    return ref
+        .watch(lessonSequencesRepositoryProvider)
+        .watchItemsJoined(sequenceId);
+  },
+);
+
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final lessonSequenceProvider =
+    FutureProvider.family<LessonSequence?, String>(
+  (ref, id) {
+    return ref.watch(lessonSequencesRepositoryProvider).getSequence(id);
   },
 );

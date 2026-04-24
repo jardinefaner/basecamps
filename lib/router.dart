@@ -9,13 +9,17 @@ import 'package:basecamp/features/forms/parent_concern/parent_concern_form_scree
 import 'package:basecamp/features/forms/parent_concern/parent_concern_notes_screen.dart';
 import 'package:basecamp/features/forms/polymorphic/generic_form_list_screen.dart';
 import 'package:basecamp/features/forms/polymorphic/registry.dart';
+import 'package:basecamp/features/lesson_sequences/lesson_sequence_detail_screen.dart';
+import 'package:basecamp/features/lesson_sequences/lesson_sequences_screen.dart';
 import 'package:basecamp/features/observations/observations_screen.dart';
 import 'package:basecamp/features/parents/parent_detail_screen.dart';
 import 'package:basecamp/features/parents/parents_screen.dart';
+import 'package:basecamp/features/planning/week_plan_screen.dart';
 import 'package:basecamp/features/roles/roles_screen.dart';
 import 'package:basecamp/features/rooms/rooms_screen.dart';
 import 'package:basecamp/features/schedule/schedule_editor_screen.dart';
 import 'package:basecamp/features/settings/program_settings_screen.dart';
+import 'package:basecamp/features/themes/themes_screen.dart';
 import 'package:basecamp/features/today/today_screen.dart';
 import 'package:basecamp/features/trips/trip_detail_screen.dart';
 import 'package:basecamp/features/trips/trips_screen.dart';
@@ -151,6 +155,26 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/more/settings',
         builder: (_, _) => const ProgramSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/week-plan',
+        builder: (_, _) => const WeekPlanScreen(),
+      ),
+      GoRoute(
+        path: '/more/sequences',
+        builder: (_, _) => const LessonSequencesScreen(),
+        routes: [
+          GoRoute(
+            path: ':id',
+            builder: (_, state) => LessonSequenceDetailScreen(
+              sequenceId: state.pathParameters['id']!,
+            ),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/more/themes',
+        builder: (_, _) => const ThemesScreen(),
       ),
       GoRoute(
         path: '/more/forms',

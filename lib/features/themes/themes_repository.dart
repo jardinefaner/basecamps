@@ -84,6 +84,13 @@ class ThemesRepository {
     await (_db.delete(_db.themes)..where((t) => t.id.equals(id))).go();
   }
 
+  /// Re-insert a deleted theme row. Paired with [deleteTheme] by the
+  /// undo snackbar — same 5-second window pattern as every other
+  /// destructive flow.
+  Future<void> restoreTheme(ProgramTheme row) async {
+    await _db.into(_db.themes).insertOnConflictUpdate(row);
+  }
+
   DateTime _dayOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 }
 
