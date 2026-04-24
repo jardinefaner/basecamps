@@ -120,24 +120,23 @@ class ActivityDetailSheet extends ConsumerWidget {
             ),
             if (_canOverride)
               _JustForTodaySection(item: item),
-            // One-off entries (full-day events, multi-day notes) get a
-            // dedicated delete action — these rows live in
-            // schedule_entries, not templates, so the template-level
-            // "delete every occurrence" flow doesn't apply. Multi-day
-            // entries confirm first so the teacher knows they're
-            // nuking every day in the range.
-            if (item.entryId != null) ...[
-              const SizedBox(height: AppSpacing.lg),
-              _DeleteEntryButton(item: item),
-            ],
-            // Template-sourced recurring activities get their own
-            // delete button that offers both "just this day" (via
-            // cancelTemplateForDate) and "every occurrence, weekly"
-            // (via deleteTemplateGroupFor). Without this, killing a
-            // recurring pattern required opening Edit first.
+            // Exactly one delete button — the two paths are mutually
+            // exclusive by intent, even though a template-sourced
+            // item CAN carry both templateId AND entryId (the entry
+            // being a per-date override). Template-sourced wins in
+            // that case: the user is looking at a weekly pattern,
+            // and the two-option sheet covers both "just this day"
+            // and "every occurrence."
             if (item.isFromTemplate && item.templateId != null) ...[
               const SizedBox(height: AppSpacing.lg),
               _DeleteTemplateButton(item: item),
+            ] else if (item.entryId != null) ...[
+              // Pure one-off entry (full-day event, multi-day note,
+              // trip-mirrored row). schedule_entries lives outside
+              // the template/series world, so it gets its own
+              // single-confirm delete.
+              const SizedBox(height: AppSpacing.lg),
+              _DeleteEntryButton(item: item),
             ],
           ],
         ),
