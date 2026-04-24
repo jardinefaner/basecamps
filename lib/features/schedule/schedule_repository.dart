@@ -1176,6 +1176,19 @@ final todayScheduleProvider = StreamProvider<List<ScheduleItem>>((ref) {
       .watchScheduleForDate(DateTime.now());
 });
 
+/// Schedule rows (templates + one-offs) resolved against an arbitrary
+/// date. Backs the Today screen's prev/next day cycling — the same
+/// stream that [todayScheduleProvider] wraps, but parameterized by
+/// date so a teacher can browse yesterday / tomorrow without leaving
+/// the Today surface. Other callers that only ever need today's rows
+/// (child_detail, observation composer) stay on [todayScheduleProvider].
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final scheduleForDateProvider =
+    StreamProvider.family<List<ScheduleItem>, DateTime>((ref, date) {
+  return ref.watch(scheduleRepositoryProvider).watchScheduleForDate(date);
+});
+
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types
 final templatesByAdultProvider =

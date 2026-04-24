@@ -1,6 +1,8 @@
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/activity_library/library_usages_repository.dart';
+import 'package:basecamp/features/activity_library/widgets/edit_library_item_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/widgets/adult_chip_picker.dart';
 import 'package:basecamp/features/rooms/widgets/room_picker.dart';
@@ -169,6 +171,26 @@ class _NewActivityWizardScreenState
       ),
     );
     if (picked != null && mounted) _pickFromLibrary(picked);
+  }
+
+  /// Opens the rich library-item editor as a bottom sheet. On save the
+  /// sheet pops with the new item's id; we resolve it to a full row and
+  /// delegate to [_pickFromLibrary] so the wizard behaves identically
+  /// to the "Pick from library" flow — title / location / adult /
+  /// duration / sourceLibraryItemId all pre-filled from the same path.
+  Future<void> _openNewLibraryCard() async {
+    final newId = await showModalBottomSheet<String?>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (_) => const EditLibraryItemSheet(),
+    );
+    if (newId == null || !mounted) return;
+    final repo = ref.read(activityLibraryRepositoryProvider);
+    final card = await repo.getItem(newId);
+    if (card == null || !mounted) return;
+    _pickFromLibrary(card);
   }
 
   Future<void> _pickStart() async {
@@ -403,14 +425,35 @@ class _NewActivityWizardScreenState
           // inline grid would overflow when the library has more than a
           // handful of cards. Tapping pushes a LibraryPickerScreen that
           // shares the search + age-band filter with the Activity
-          // library screen.
-          OutlinedButton.icon(
-            onPressed: _openLibraryPicker,
-            icon: const Icon(Icons.bookmarks_outlined),
-            label: const Text('Pick from library'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-            ),
+          // library screen. "New library card" sits next to it so
+          // teachers who haven't built up a library yet can author a
+          // rich card (with AI assist, summary, hook, key points, etc.)
+          // inline — save pops back with the new id, and the wizard
+          // treats it exactly like a picked card.
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _openLibraryPicker,
+                  icon: const Icon(Icons.bookmarks_outlined),
+                  label: const Text('Pick from library'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _openNewLibraryCard,
+                  icon: const Icon(Icons.add),
+                  label: const Text('New library card'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: AppSpacing.lg),
           Row(

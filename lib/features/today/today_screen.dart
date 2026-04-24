@@ -50,10 +50,59 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+/// Notifier for [viewedDateProvider]. Two mutators — `set` (hop to an
+/// arbitrary date) and `shift` (prev/next chevron) — plus `reset`
+/// for the "Today" pill. All three normalize to midnight so equality
+/// checks against `now` don't get tripped by the clock's minute
+/// ticks.
+class ViewedDateNotifier extends Notifier<DateTime> {
+  @override
+  DateTime build() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  void set(DateTime date) {
+    state = DateTime(date.year, date.month, date.day);
+  }
+
+  void shift(int days) {
+    final next = state.add(Duration(days: days));
+    state = DateTime(next.year, next.month, next.day);
+  }
+
+  void reset() {
+    final now = DateTime.now();
+    state = DateTime(now.year, now.month, now.day);
+  }
+}
+
+/// Date the Today screen is currently displaying. Defaults to today;
+/// teachers can cycle prev/next via the AppBar chevrons. Live-clock
+/// features (hero NOW, close-out strip, lateness flags, etc.) only
+/// fire when this matches today's date — for any other day we render
+/// a simple chronological list instead.
+///
+/// Stored as a midnight DateTime so equality checks against "today"
+/// don't get tripped by the clock's minute ticks.
+final viewedDateProvider =
+    NotifierProvider<ViewedDateNotifier, DateTime>(ViewedDateNotifier.new);
+
+/// Calendar-day equality — year/month/day only, ignoring wall-clock
+/// drift. Used to decide whether Today's live-clock widgets fire.
+bool isSameCalendarDate(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month && a.day == b.day;
+
 /// Today dashboard. Orchestrates the live clock, day-summary strip, a
 /// hero "right now" card for the current activity, an upcoming list
 /// with next-up/countdown cues and "log observations" prompts, and a
 /// collapsible "earlier today" section for what already happened.
+///
+/// Supports day-cycling: the AppBar's prev/next chevrons shift the
+/// [viewedDateProvider] so a teacher can browse past or future days'
+/// schedules. When viewing a non-today date, live-clock affordances
+/// (hero NOW, close-out strip, lateness flags, "also now" strip) are
+/// suppressed in favor of a plain chronological list.
 class TodayScreen extends ConsumerWidget {
   const TodayScreen({super.key});
 
@@ -287,13 +336,25 @@ class TodayScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Watching this rebuilds the screen on every wall-clock minute so
     // countdowns and "NOW" status stay truthful without timers in the
-    // widget tree.
+    // widget tree. Even when the teacher is browsing a non-today date
+    // we keep the tick alive — the AppBar's "Today" pill needs to
+    // notice when midnight rolls over and (more importantly) switching
+    // back to today needs up-to-date `now` for the live widgets.
     final nowAsync = ref.watch(nowTickProvider);
     final now = nowAsync.asData?.value ?? DateTime.now();
 
-    final scheduleAsync = ref.watch(todayScheduleProvider);
+    final viewedDate = ref.watch(viewedDateProvider);
+    final isToday = isSameCalendarDate(viewedDate, now);
+    // When viewing today, the schedule stream should resolve against
+    // the actual current calendar date (so a midnight rollover flips
+    // day semantics even if the StateProvider hasn't been re-seeded).
+    // For any other date we ask for that specific day's rows.
+    final scheduleDate = isToday
+        ? DateTime(now.year, now.month, now.day)
+        : viewedDate;
+    final scheduleAsync = ref.watch(scheduleForDateProvider(scheduleDate));
     final theme = Theme.of(context);
-    final dateLabel = DateFormat('EEEE · MMMM d').format(now);
+    final dateLabel = DateFormat('EEEE · MMMM d').format(viewedDate);
 
     // PopScope(canPop: false) sits at the app root (Today is the root
     // now, post nav-shell-removal). Absorbs the Android back button /
@@ -336,25 +397,54 @@ class TodayScreen extends ConsumerWidget {
                   onPressed: () => Scaffold.of(ctx).openDrawer(),
                 ),
               ),
-              // Title carries today's date inline so a quick glance
-              // confirms the day without scrolling. Weekday + short
-              // date — the full year is visible enough elsewhere.
+              // Title cycles: "Today" + date sub-label when viewing
+              // today, friendly date only when viewing another day.
+              // Prev/next chevrons live next to the schedule / gear
+              // icons in `actions:`, with a "Today" pill that surfaces
+              // only when we've drifted off the current day.
               title: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Today'),
-                  Text(
-                    dateLabel,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w500,
+                  Text(isToday ? 'Today' : dateLabel),
+                  if (isToday)
+                    Text(
+                      dateLabel,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
                 ],
               ),
               floating: true,
               snap: true,
               actions: [
+                IconButton(
+                  icon: const Icon(Icons.chevron_left),
+                  tooltip: 'Previous day',
+                  onPressed: () =>
+                      ref.read(viewedDateProvider.notifier).shift(-1),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.chevron_right),
+                  tooltip: 'Next day',
+                  onPressed: () =>
+                      ref.read(viewedDateProvider.notifier).shift(1),
+                ),
+                // "Today" pill resets the cycle. Only shows when the
+                // teacher has navigated off today — dead weight in the
+                // AppBar otherwise.
+                if (!isToday)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.xs,
+                    ),
+                    child: TextButton(
+                      onPressed: () =>
+                          ref.read(viewedDateProvider.notifier).reset(),
+                      child: const Text('Today'),
+                    ),
+                  ),
                 IconButton(
                   icon: const Icon(Icons.tune_outlined),
                   tooltip: 'Schedule',
@@ -374,7 +464,11 @@ class TodayScreen extends ConsumerWidget {
                       case 'forms':
                         unawaited(context.push('/more/forms'));
                       case 'export':
-                        unawaited(exportDay(context, ref, DateTime.now()));
+                        // Export the day the teacher's looking at —
+                        // most natural: reviewing last Friday, hitting
+                        // export should give a PDF of that day, not
+                        // today's (often empty-so-far) view.
+                        unawaited(exportDay(context, ref, viewedDate));
                     }
                   },
                   itemBuilder: (_) => const [
@@ -413,7 +507,8 @@ class TodayScreen extends ConsumerWidget {
               data: (items) => _Body(
                 items: items,
                 now: now,
-                dateLabel: dateLabel,
+                viewedDate: scheduleDate,
+                isToday: isToday,
                 theme: theme,
                 onOpenDetail: (item) => _openDetail(context, item),
                 onCaptureFor: (item) => _openObservationComposer(
@@ -433,15 +528,33 @@ class _Body extends ConsumerWidget {
   const _Body({
     required this.items,
     required this.now,
-    required this.dateLabel,
+    required this.viewedDate,
+    required this.isToday,
     required this.theme,
     required this.onOpenDetail,
     required this.onCaptureFor,
   });
 
   final List<ScheduleItem> items;
+
+  /// Wall-clock "now" — always the real current time, even when the
+  /// teacher is browsing a non-today date. Live-clock widgets consume
+  /// this via [isToday] gating.
   final DateTime now;
-  final String dateLabel;
+
+  /// Midnight of the calendar day currently on screen. Equals
+  /// midnight-of-`now` when [isToday]; otherwise the cycled day.
+  /// Fed to per-day helpers (attendance sheet, trip membership,
+  /// weekday-gated availability) so non-today views still resolve
+  /// their contextual data against the right calendar day.
+  final DateTime viewedDate;
+
+  /// True when [viewedDate] is today's calendar date. Gates every
+  /// live-clock widget (hero NOW, "Also now" strip, close-out strip,
+  /// lateness flags, "between activities" banner, etc.) — non-today
+  /// views collapse to a plain chronological list.
+  final bool isToday;
+
   final ThemeData theme;
   final ValueChanged<ScheduleItem> onOpenDetail;
 
@@ -455,17 +568,21 @@ class _Body extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (items.isEmpty) {
+      // AppBar already carries the date, so no redundant label here.
+      // BootstrapSetupCard self-hides on populated installs; empty
+      // state copy adapts for today vs. other days just below.
       return SliverPadding(
         padding: const EdgeInsets.all(AppSpacing.lg),
         sliver: SliverList(
           delegate: SliverChildListDelegate([
-            _DateLabel(label: dateLabel),
-            const SizedBox(height: AppSpacing.md),
             // Self-hides unless BOTH adults and groups are empty.
             // Keeps a populated-but-unscheduled day from seeing a
             // setup nudge it doesn't need.
             const BootstrapSetupCard(),
-            _EmptyState(onEdit: () => context.push('/today/schedule')),
+            _EmptyState(
+              isToday: isToday,
+              onEdit: () => context.push('/today/schedule'),
+            ),
           ]),
         ),
       );
@@ -730,7 +847,10 @@ class _Body extends ConsumerWidget {
         useSafeArea: true,
         builder: (_) => AttendanceSheet(
           groupIds: item.groupIds,
-          date: now,
+          // Attendance is per-day — on a non-today view, resolve
+          // against the cycled date so a teacher reviewing last
+          // Friday doesn't accidentally edit today's attendance row.
+          date: isToday ? now : viewedDate,
           activityTitle: item.title,
         ),
       );
@@ -766,6 +886,15 @@ class _Body extends ConsumerWidget {
       return null;
     }
 
+    // Timed items (non-all-day) sorted chronologically — used by the
+    // non-today branch as a plain list, and handy to have pre-sorted
+    // everywhere else too. Selection filter applies in both branches
+    // for consistency with the chip-row selection.
+    final timedSorted = [
+      for (final i in items)
+        if (!i.isFullDay && inSelectedView(i)) i,
+    ]..sort((a, b) => a.startMinutes.compareTo(b.startMinutes));
+
     return SliverPadding(
       padding: const EdgeInsets.only(
         left: AppSpacing.lg,
@@ -782,10 +911,11 @@ class _Body extends ConsumerWidget {
           // happened to schedule an activity first.
           const BootstrapSetupCard(),
 
-          // Loud-when-needed strip: self-hides when zero kids are flagged
-          // and no reviews are due. Sits at the top so a late child or
-          // overdue review pulls the eye before anything else.
-          LatenessFlagsStrip(now: now),
+          // Loud-when-needed strip: self-hides when zero kids are
+          // flagged and no reviews are due. Live-clock only — lateness
+          // is a "right now" signal, not useful when browsing another
+          // day's schedule.
+          if (isToday) LatenessFlagsStrip(now: now),
 
           // All-day activities / notes float above the per-group view.
           // Program-wide context (field trip banners, whole-day notes)
@@ -802,7 +932,12 @@ class _Body extends ConsumerWidget {
                     shiftConflicts: conflictsFor(item.id).shift,
                     tripConflicts: conflictsFor(item.id).trip,
                     concernMatch: concernForItem(item),
-                    attendance: attendanceFor(item),
+                    // Attendance provider only streams today's rows —
+                    // feeding its numbers into a card that's really
+                    // showing last Friday would be misleading. Hide
+                    // the strip on non-today views; tapping still
+                    // opens the sheet scoped to the viewed date.
+                    attendance: isToday ? attendanceFor(item) : null,
                     onTap: () => onOpenDetail(item),
                     onOpenConcern: () => _goConcern(
                       context,
@@ -815,17 +950,20 @@ class _Body extends ConsumerWidget {
             const SizedBox(height: AppSpacing.md),
           ],
 
-          // Mode toggle — Groups view vs Agenda view. Coexist by
-          // design; teachers pick based on the question they want
-          // answered right now. Persists across launches via
-          // todayModeProvider.
-          _TodayModeToggle(mode: ref.watch(todayModeProvider)),
-          const SizedBox(height: AppSpacing.md),
+          // Mode toggle — only meaningful on today. Non-today views
+          // always render as a plain chronological list; the Groups /
+          // Agenda split is a live-day affordance.
+          if (isToday) ...[
+            _TodayModeToggle(mode: ref.watch(todayModeProvider)),
+            const SizedBox(height: AppSpacing.md),
+          ],
 
           // End-of-day close-out strip. Only appears in the 60-min
           // window before program close and the 30-min tail after.
           // Muted in tone — it's a nudge to wrap up, not an alert.
-          if (showCloseOut) ...[
+          // Live-clock gated — makes no sense while browsing another
+          // day.
+          if (isToday && showCloseOut) ...[
             CloseOutStrip(
               counts: CloseOutCounts(
                 pendingObs: programPendingObs,
@@ -859,21 +997,45 @@ class _Body extends ConsumerWidget {
           // the selected group: pick "Butterflies" and the counts rescope
           // to that group only. With no group selected, the counts read
           // program-wide. Compact — one strip, five numbers, tappable.
+          // On non-today views the pendingObs count leans on "past"
+          // bucket semantics that don't apply, so it's zeroed out;
+          // the other counts are plain day-scoped totals.
           DaySummaryStrip(
             activities: scopedItems.length,
             children: childrenInActivityGroups.length,
             adults: uniqueAdults.length,
             concerns: scopedConcerns.length,
-            pendingObs: pendingObs,
+            pendingObs: isToday ? pendingObs : 0,
             onTapConcerns: () => context.push('/more/forms/parent-concern'),
             onTapPending: () => unawaited(context.push('/observations')),
           ),
           const SizedBox(height: AppSpacing.md),
 
-          // Body branches on mode. Agenda mode renders the calendar
-          // synthesizer's chronological feed; Groups mode keeps the
-          // hero / upcoming / earlier layout below.
-          if (ref.watch(todayModeProvider) == TodayMode.agenda) ...[
+          // Body branches on viewed date + mode. Non-today dates
+          // always render a plain chronological list of timed items;
+          // today keeps the mode toggle (Agenda feed vs. Groups
+          // hero / upcoming / earlier).
+          if (!isToday) ...[
+            for (final item in timedSorted) ...[
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                child: ScheduleItemCard(
+                  item: item,
+                  isNow: false,
+                  isPast: false,
+                  conflicts: conflictsFor(item.id).activity,
+                  shiftConflicts: conflictsFor(item.id).shift,
+                  tripConflicts: conflictsFor(item.id).trip,
+                  concernMatch: concernForItem(item),
+                  onTap: () => onOpenDetail(item),
+                  onOpenConcern: () => _goConcern(
+                    context,
+                    concernForItem(item)?.id,
+                  ),
+                ),
+              ),
+            ],
+          ] else if (ref.watch(todayModeProvider) == TodayMode.agenda) ...[
             TodayAgendaView(now: now),
             const SizedBox(height: AppSpacing.xl),
           ] else ...[
@@ -980,10 +1142,12 @@ class _Body extends ConsumerWidget {
               ),
             ],
           ], // end Groups-mode body
-          // Staff-today strip at the bottom in both modes — still
-          // collapsible, still handy for end-of-day roll review.
-          const SizedBox(height: AppSpacing.md),
-          StaffTodayStrip(now: now),
+          // Staff-today strip is live shift state ("who's on the
+          // clock right now"). Useful today, noise on other days.
+          if (isToday) ...[
+            const SizedBox(height: AppSpacing.md),
+            StaffTodayStrip(now: now),
+          ],
         ]),
       ),
     );
@@ -1009,24 +1173,6 @@ class _Body extends ConsumerWidget {
     if (desc.isNotEmpty) return desc;
     if (names.isNotEmpty) return 'Concern noted for $names';
     return 'Active concern today';
-  }
-}
-
-class _DateLabel extends StatelessWidget {
-  const _DateLabel({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(left: AppSpacing.xs),
-      child: Text(
-        label.toUpperCase(),
-        style: theme.textTheme.labelMedium,
-      ),
-    );
   }
 }
 
@@ -1765,9 +1911,13 @@ class _AlsoNowRow extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.onEdit});
+  const _EmptyState({required this.onEdit, required this.isToday});
 
   final VoidCallback onEdit;
+
+  /// Copy is slightly different on other days — "Nothing scheduled
+  /// today" is tone-deaf when the teacher is looking at next Thursday.
+  final bool isToday;
 
   @override
   Widget build(BuildContext context) {
@@ -1785,7 +1935,9 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.lg),
             Text(
-              'Nothing scheduled today',
+              isToday
+                  ? 'Nothing scheduled today'
+                  : 'Nothing scheduled',
               style: theme.textTheme.titleLarge,
             ),
             const SizedBox(height: AppSpacing.sm),

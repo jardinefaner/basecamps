@@ -241,6 +241,7 @@ class _EditLibraryItemSheetState
         ? null
         : _materialsController.text.trim();
 
+    String? newItemId;
     if (_isEdit) {
       // Pass through every field the sheet now carries — the rich
       // columns are Value-wrapped so we can distinguish "set to null"
@@ -266,7 +267,7 @@ class _EditLibraryItemSheetState
         sourceAttribution: Value(_sourceAttribution),
       );
     } else {
-      await repo.addItem(
+      newItemId = await repo.addItem(
         title: title,
         defaultDurationMin: _durationMin,
         adultId: _adultId,
@@ -285,7 +286,11 @@ class _EditLibraryItemSheetState
       );
     }
     if (!mounted) return;
-    Navigator.of(context).pop();
+    // On create, pop with the new library-item id so callers (e.g.
+    // the activity wizard's "+ New library card" flow) can resolve
+    // the newly-added row and pre-fill their own fields from it.
+    // Edits still pop with null — nothing to hand back.
+    Navigator.of(context).pop(newItemId);
   }
 
   Future<void> _delete() async {
