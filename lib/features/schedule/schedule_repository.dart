@@ -714,6 +714,80 @@ class ScheduleRepository {
     });
   }
 
+  /// Copy every one-off `addition` entry from the Mon..Fri span starting
+  /// at [sourceMonday] into the matching weekday in the week starting at
+  /// [destMonday]. Templates aren't touched — they already recur, so
+  /// duplicating them would double-book next week.
+  ///
+  /// MVP scope: entries-only. Cancellations and overrides are skipped —
+  /// they only make sense relative to a specific template on a specific
+  /// date, and copying them forward would silently neuter next week's
+  /// templates in surprising ways.
+  ///
+  /// Returns the number of entries copied. Single-day entries get mirrored
+  /// onto the same weekday; multi-day entries (with endDate) land on the
+  /// destination week with their range preserved — endDate shifts by the
+  /// same week delta so the entry's length is unchanged.
+  Future<int> duplicateWeekTemplates({
+    required DateTime sourceMonday,
+    required DateTime destMonday,
+  }) async {
+    final sourceStart = _dayOnly(sourceMonday);
+    final sourceEnd = sourceStart.add(const Duration(days: 5));
+    final destStart = _dayOnly(destMonday);
+    // Delta in days — lets multi-day entry endDates shift by the same
+    // offset as their start, preserving the range length.
+    final deltaDays = destStart.difference(sourceStart).inDays;
+
+    final sources = await (_db.select(_db.scheduleEntries)
+          ..where((e) =>
+              e.kind.equals('addition') &
+              e.date.isBiggerOrEqualValue(sourceStart) &
+              e.date.isSmallerThanValue(sourceEnd)))
+        .get();
+
+    if (sources.isEmpty) return 0;
+
+    var copied = 0;
+    await _db.transaction(() async {
+      for (final src in sources) {
+        final newEntryId = newId();
+        final newDate = src.date.add(Duration(days: deltaDays));
+        final newEndDate = src.endDate?.add(Duration(days: deltaDays));
+        await _db.into(_db.scheduleEntries).insert(
+              ScheduleEntriesCompanion.insert(
+                id: newEntryId,
+                date: _dayOnly(newDate),
+                endDate: Value(newEndDate == null ? null : _dayOnly(newEndDate)),
+                startTime: src.startTime,
+                endTime: src.endTime,
+                isFullDay: Value(src.isFullDay),
+                title: src.title,
+                allGroups: Value(src.allGroups),
+                adultId: Value(src.adultId),
+                location: Value(src.location),
+                notes: Value(src.notes),
+                sourceLibraryItemId: Value(src.sourceLibraryItemId),
+                roomId: Value(src.roomId),
+                sourceUrl: Value(src.sourceUrl),
+                kind: 'addition',
+              ),
+            );
+        final groupIds = await groupsForEntry(src.id);
+        for (final groupId in groupIds) {
+          await _db.into(_db.entryGroups).insert(
+                EntryGroupsCompanion.insert(
+                  entryId: newEntryId,
+                  groupId: groupId,
+                ),
+              );
+        }
+        copied += 1;
+      }
+    });
+    return copied;
+  }
+
   /// Merged schedule stream for every day in the week starting at the given
   /// Monday. Returns a map keyed by ISO day-of-week (1..7).
   Stream<Map<int, List<ScheduleItem>>> watchScheduleForWeek(
