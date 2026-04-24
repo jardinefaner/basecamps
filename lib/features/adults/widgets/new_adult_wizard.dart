@@ -47,6 +47,11 @@ class _NewAdultWizardScreenState
     extends ConsumerState<NewAdultWizardScreen> {
   final _name = TextEditingController();
   final _role = TextEditingController();
+  // v40: direct contact on the adult. Lives on page 1 with the name so
+  // first-timers capture it in one pass — adding a dedicated page for
+  // two optional fields would bloat the wizard.
+  final _phone = TextEditingController();
+  final _email = TextEditingController();
   final _notes = TextEditingController();
   String? _avatarPath;
 
@@ -81,6 +86,8 @@ class _NewAdultWizardScreenState
       _name.text.trim().isNotEmpty ||
       _role.text.trim().isNotEmpty ||
       _roleId != null ||
+      _phone.text.trim().isNotEmpty ||
+      _email.text.trim().isNotEmpty ||
       _notes.text.trim().isNotEmpty ||
       _avatarPath != null ||
       _adultRole != AdultRole.specialist ||
@@ -92,6 +99,8 @@ class _NewAdultWizardScreenState
   void dispose() {
     _name.dispose();
     _role.dispose();
+    _phone.dispose();
+    _email.dispose();
     _notes.dispose();
     super.dispose();
   }
@@ -107,6 +116,8 @@ class _NewAdultWizardScreenState
     // the teacher picked Lead, set a group, then switched roles.
     final effectiveAnchor =
         _adultRole == AdultRole.lead ? _anchoredGroupId : null;
+    final phone = _phone.text.trim();
+    final email = _email.text.trim();
     final id = await repo.addAdult(
       name: _name.text.trim(),
       role: role,
@@ -115,6 +126,8 @@ class _NewAdultWizardScreenState
       avatarPath: _avatarPath,
       adultRole: _adultRole,
       anchoredGroupId: effectiveAnchor,
+      phone: phone.isEmpty ? null : phone,
+      email: email.isEmpty ? null : email,
     );
     // Uniform mode: expand the single block across selected days on
     // save. Per-day mode: just serialize the map as-is.
@@ -217,6 +230,21 @@ class _NewAdultWizardScreenState
           label: 'Name',
           hint: 'e.g. Sarah',
           onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        // v40: phone + email sit right under the name so first-timers
+        // capture them in one pass. Both optional — validation matches
+        // parents (lenient, no strict format check).
+        AppTextField(
+          controller: _phone,
+          label: 'Phone (optional)',
+          keyboardType: TextInputType.phone,
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        AppTextField(
+          controller: _email,
+          label: 'Email (optional)',
+          keyboardType: TextInputType.emailAddress,
         ),
       ],
     );

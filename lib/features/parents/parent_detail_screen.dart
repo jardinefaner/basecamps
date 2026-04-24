@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_repository.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/incident.dart';
 import 'package:basecamp/features/forms/polymorphic/form_submission_repository.dart';
@@ -137,6 +138,10 @@ class _Body extends ConsumerWidget {
                 const SizedBox(height: 2),
                 Text(parent.notes!, style: theme.textTheme.bodyMedium),
               ],
+              // v40: reverse of the staff↔parent bridge. Shows when
+              // an adult row points here. Tap jumps to that adult's
+              // detail screen.
+              _AlsoOnStaffBadge(parentId: parent.id),
             ],
           ),
         ),
@@ -474,6 +479,67 @@ class _RecentActivitySection extends ConsumerWidget {
     if (diff.inDays < 30) return '${(diff.inDays / 7).floor()}w ago';
     if (diff.inDays < 365) return '${(diff.inDays / 30).floor()}mo ago';
     return '${(diff.inDays / 365).floor()}y ago';
+  }
+}
+
+/// v40: "Also on staff" pill rendered on the parent card when a staff
+/// row points at this parent via `adults.parent_id`. Tap jumps to
+/// `/more/adults/<id>` so the teacher can swap between the two
+/// surfaces without digging through tabs.
+class _AlsoOnStaffBadge extends ConsumerWidget {
+  const _AlsoOnStaffBadge({required this.parentId});
+
+  final String parentId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final adult = ref.watch(adultLinkedToParentProvider(parentId)).asData?.value;
+    if (adult == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.md),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: InkWell(
+          onTap: () => context.push('/more/adults/${adult.id}'),
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.xs,
+            ),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.badge_outlined,
+                  size: 14,
+                  color: theme.colorScheme.onSecondaryContainer,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  'Also on staff — ${adult.name}',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSecondaryContainer,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Icon(
+                  Icons.chevron_right,
+                  size: 14,
+                  color: theme.colorScheme.onSecondaryContainer,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

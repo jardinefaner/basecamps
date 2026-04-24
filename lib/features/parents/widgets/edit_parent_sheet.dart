@@ -1,4 +1,5 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/parents/parents_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
@@ -197,8 +198,86 @@ class _EditParentSheetState extends ConsumerState<EditParentSheet> {
             hint: 'Emergency contact notes, custody arrangements, etc.',
             maxLines: 3,
           ),
+          if (_isEdit) ...[
+            const SizedBox(height: AppSpacing.xl),
+            _StaffLinkSection(parentId: widget.parent!.id),
+          ],
         ],
       ),
     );
+  }
+}
+
+/// "Link to staff record" section — mirror of the staff↔parent bridge
+/// rendered on the adult edit sheet. Since the FK is one-directional
+/// (`adults.parent_id → parents.id`) this side is just a reverse
+/// lookup: which adult (if any) claims this parent? On X-tap we clear
+/// that adult's `parent_id` so the link drops.
+///
+/// Only rendered when editing an existing parent — a fresh create
+/// has no id yet and can't be the target of a link.
+class _StaffLinkSection extends ConsumerWidget {
+  const _StaffLinkSection({required this.parentId});
+
+  final String parentId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final linked = ref.watch(adultLinkedToParentProvider(parentId)).asData?.value;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Link to staff record', style: theme.textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Shown when this parent is also on staff. Manage the link '
+          "from the staff member's row — changes there appear here "
+          'automatically.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        if (linked == null)
+          Text(
+            'Not linked. Open this person on the Adults tab and tap '
+            '"Link parent record" to pair them.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          )
+        else
+          Align(
+            alignment: Alignment.centerLeft,
+            child: InputChip(
+              avatar: const Icon(Icons.badge_outlined, size: 16),
+              label: Text(linked.name),
+              onDeleted: () => _unlink(context, ref, linked),
+              deleteIcon: const Icon(Icons.close, size: 16),
+              deleteButtonTooltipMessage: 'Unlink staff',
+              backgroundColor: theme.colorScheme.secondaryContainer,
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Clears the adult's `parent_id` via updateAdult. The chip drops
+  /// immediately because `adultLinkedToParentProvider` re-queries on
+  /// the write.
+  Future<void> _unlink(
+    BuildContext context,
+    WidgetRef ref,
+    Adult adult,
+  ) async {
+    await ref.read(adultsRepositoryProvider).updateAdult(
+          id: adult.id,
+          name: adult.name,
+          role: adult.role,
+          notes: adult.notes,
+          avatarPath: adult.avatarPath,
+          parentId: const Value(null),
+        );
   }
 }

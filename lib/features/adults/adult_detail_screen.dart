@@ -5,6 +5,7 @@ import 'package:basecamp/features/adults/widgets/adult_timeline_editor_sheet.dar
 import 'package:basecamp/features/adults/widgets/edit_adult_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
+import 'package:basecamp/features/parents/parents_repository.dart';
 import 'package:basecamp/features/roles/roles_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
@@ -15,6 +16,8 @@ import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Profile + schedule surface for a single adult. Header shows
 /// their avatar and contact info; below it sits a weekly list of the
@@ -73,6 +76,11 @@ class AdultDetailScreen extends ConsumerWidget {
             ),
             children: [
               _Header(adult: s, onEdit: () => _openEdit(context, s)),
+              // v40: tap-to-call / tap-to-email + "also a parent"
+              // badge. Each row is its own widget so the whole block
+              // collapses cleanly when a field is unset.
+              _ContactSection(adult: s),
+              _AlsoParentBadge(adult: s),
               const SizedBox(height: AppSpacing.xl),
               _DataIssuesCard(adult: s),
               _TodayBlocksSection(adultId: adultId),
@@ -1067,6 +1075,164 @@ String _blockMissingGroupBody(List<int> days) {
   return "$possessive 'lead' blocks don't say which group to lead. "
       'Fix it in the timeline editor so the schedule can route '
       'activities correctly.';
+}
+
+/// Phone / email rows that mirror the pattern on parent_detail_screen.
+/// Tap launches `tel:` / `mailto:` via url_launcher; when the OS has
+/// no handler we surface a brief snackbar. Self-hides when neither
+/// field is set, so adults without contact info render unchanged.
+class _ContactSection extends StatelessWidget {
+  const _ContactSection({required this.adult});
+
+  final Adult adult;
+
+  @override
+  Widget build(BuildContext context) {
+    final phone = adult.phone;
+    final email = adult.email;
+    if ((phone == null || phone.isEmpty) &&
+        (email == null || email.isEmpty)) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (phone != null && phone.isNotEmpty)
+            _AdultContactRow(
+              icon: Icons.call_outlined,
+              label: phone,
+              uri: Uri(scheme: 'tel', path: phone),
+              failMessage: "Couldn't start a call.",
+            ),
+          if (email != null && email.isNotEmpty)
+            _AdultContactRow(
+              icon: Icons.mail_outlined,
+              label: email,
+              uri: Uri(scheme: 'mailto', path: email),
+              failMessage: "Couldn't open your email app.",
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdultContactRow extends StatelessWidget {
+  const _AdultContactRow({
+    required this.icon,
+    required this.label,
+    required this.uri,
+    required this.failMessage,
+  });
+
+  final IconData icon;
+  final String label;
+  final Uri uri;
+  final String failMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: () => _launch(context),
+      borderRadius: BorderRadius.circular(AppSpacing.xs),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          vertical: AppSpacing.xs,
+          horizontal: 2,
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(label, style: theme.textTheme.bodyMedium),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _launch(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await launchUrl(uri);
+    if (!ok) {
+      messenger.showSnackBar(SnackBar(content: Text(failMessage)));
+    }
+  }
+}
+
+/// "Also a parent in this program" pill. Shown only when the adult's
+/// `parentId` is set — taps through to `/more/parents/<id>` so the
+/// teacher can jump to the paired row.
+class _AlsoParentBadge extends ConsumerWidget {
+  const _AlsoParentBadge({required this.adult});
+
+  final Adult adult;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final parentId = adult.parentId;
+    if (parentId == null) return const SizedBox.shrink();
+    final parent = ref.watch(parentProvider(parentId)).asData?.value;
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.sm),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: InkWell(
+          onTap: () => context.push('/more/parents/$parentId'),
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.xs,
+            ),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.family_restroom_outlined,
+                  size: 14,
+                  color: theme.colorScheme.onSecondaryContainer,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  parent == null
+                      ? 'Also a parent in this program'
+                      : 'Also a parent — ${_displayName(parent)}',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSecondaryContainer,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Icon(
+                  Icons.chevron_right,
+                  size: 14,
+                  color: theme.colorScheme.onSecondaryContainer,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _displayName(Parent p) {
+    final last = p.lastName;
+    return last == null || last.isEmpty
+        ? p.firstName
+        : '${p.firstName} $last';
+  }
 }
 
 class _IssueRow extends StatelessWidget {

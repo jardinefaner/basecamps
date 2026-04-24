@@ -140,6 +140,39 @@ class ActivityLibraryRepository {
       }
     });
   }
+
+  // ---- v40: free-text domain tags per library item ----
+
+  /// Adds [domain] to [libraryItemId]. Idempotent — the composite
+  /// PK on (library_item_id, domain) collapses duplicate adds.
+  Future<void> addDomainTag(String libraryItemId, String domain) async {
+    await _db.into(_db.activityLibraryDomainTags).insertOnConflictUpdate(
+          ActivityLibraryDomainTagsCompanion.insert(
+            libraryItemId: libraryItemId,
+            domain: domain,
+          ),
+        );
+  }
+
+  Future<void> removeDomainTag(
+    String libraryItemId,
+    String domain,
+  ) async {
+    await (_db.delete(_db.activityLibraryDomainTags)
+          ..where((t) =>
+              t.libraryItemId.equals(libraryItemId) &
+              t.domain.equals(domain)))
+        .go();
+  }
+
+  /// All domains attached to [libraryItemId], alphabetically. Streamed
+  /// so the future picker UI updates live on add/remove.
+  Stream<List<String>> watchDomainsFor(String libraryItemId) {
+    final query = _db.select(_db.activityLibraryDomainTags)
+      ..where((t) => t.libraryItemId.equals(libraryItemId))
+      ..orderBy([(t) => OrderingTerm.asc(t.domain)]);
+    return query.watch().map((rows) => [for (final r in rows) r.domain]);
+  }
 }
 
 final activityLibraryRepositoryProvider =
@@ -150,4 +183,16 @@ final activityLibraryRepositoryProvider =
 final activityLibraryProvider =
     StreamProvider<List<ActivityLibraryData>>((ref) {
   return ref.watch(activityLibraryRepositoryProvider).watchAll();
+});
+
+/// Domains attached to a specific library item. Streamed so domain
+/// pickers in a later round update live as the teacher adds / removes
+/// tags.
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final libraryDomainsForItemProvider =
+    StreamProvider.family<List<String>, String>((ref, libraryItemId) {
+  return ref
+      .watch(activityLibraryRepositoryProvider)
+      .watchDomainsFor(libraryItemId);
 });

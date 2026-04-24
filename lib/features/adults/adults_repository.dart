@@ -62,6 +62,12 @@ class AdultsRepository {
     String? avatarPath,
     AdultRole adultRole = AdultRole.specialist,
     String? anchoredGroupId,
+    // v40: direct contact columns + staff↔parent bridge. All
+    // nullable — programs that don't capture staff phone/email (or
+    // haven't linked a staff row to a parent row) leave them blank.
+    String? phone,
+    String? email,
+    String? parentId,
   }) async {
     final id = newId();
     await _db.into(_db.adults).insert(
@@ -74,6 +80,9 @@ class AdultsRepository {
             avatarPath: Value(avatarPath),
             adultRole: Value(adultRole.dbValue),
             anchoredGroupId: Value(anchoredGroupId),
+            phone: Value(phone),
+            email: Value(email),
+            parentId: Value(parentId),
           ),
         );
     return id;
@@ -96,6 +105,13 @@ class AdultsRepository {
     // Explicit `Value(null)` clears the link (e.g. when teacher
     // types a one-off legacy string after picking a chip).
     Value<String?> roleId = const Value.absent(),
+    // v40: contact info + staff↔parent bridge. Value.absent() means
+    // "leave untouched"; Value(null) clears. Callers (the edit sheet)
+    // always pass Value(phone) / Value(email) so the field reflects
+    // exactly what the teacher saved.
+    Value<String?> phone = const Value.absent(),
+    Value<String?> email = const Value.absent(),
+    Value<String?> parentId = const Value.absent(),
   }) async {
     await (_db.update(_db.adults)..where((s) => s.id.equals(id))).write(
       AdultsCompanion(
@@ -110,9 +126,24 @@ class AdultsRepository {
                 : Value(avatarPath)),
         adultRole: adultRole,
         anchoredGroupId: anchoredGroupId,
+        phone: phone,
+        email: email,
+        parentId: parentId,
         updatedAt: Value(DateTime.now()),
       ),
     );
+  }
+
+  /// v40: returns the (at-most-one) Adult linked to [parentId] via
+  /// the `adults.parent_id` FK. Used by the parent detail / edit
+  /// surfaces to surface the reverse of the staff↔parent bridge
+  /// without a dedicated column on Parents. Returns null when no
+  /// staff row claims this parent.
+  Stream<Adult?> watchAdultLinkedToParent(String parentId) {
+    return (_db.select(_db.adults)
+          ..where((a) => a.parentId.equals(parentId))
+          ..limit(1))
+        .watchSingleOrNull();
   }
 
   Future<void> deleteAdult(String id) async {
@@ -317,4 +348,16 @@ final adultAvailabilityProvider = StreamProvider.family<
 final allAvailabilityProvider =
     StreamProvider<List<AdultAvailabilityData>>((ref) {
   return ref.watch(adultsRepositoryProvider).watchAllAvailability();
+});
+
+/// v40: "which adult (if any) is linked to this parent?" Reverse of
+/// `Adults.parentId` — at most one row in practice. Used by the
+/// parent detail / edit surfaces to render the "also on staff" chip.
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final adultLinkedToParentProvider =
+    StreamProvider.family<Adult?, String>((ref, parentId) {
+  return ref
+      .watch(adultsRepositoryProvider)
+      .watchAdultLinkedToParent(parentId);
 });

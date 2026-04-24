@@ -40,6 +40,11 @@ QueryExecutor _openConnection() {
     Parents,
     ParentChildren,
     Roles,
+    ActivityLibraryDomainTags,
+    ActivityLibraryUsages,
+    LessonSequences,
+    LessonSequenceItems,
+    Themes,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -48,7 +53,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 39;
+  int get schemaVersion => 40;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -77,6 +82,113 @@ class AppDatabase extends _$AppDatabase {
               'fresh at schema 25. This only affects devs who have '
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
+            );
+          }
+          if (from < 40) {
+            // v40: omnibus additive migration covering the next few
+            // rounds of work — adult contact info + staff↔parent
+            // bridge, per-activity source URLs, and scaffolding for
+            // library domain tags, usage tracking, lesson sequences,
+            // and themes. All additive; no data back-fills needed.
+            await _runSilent(
+              'ALTER TABLE "adults" '
+              'ADD COLUMN "phone" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "adults" '
+              'ADD COLUMN "email" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "adults" '
+              'ADD COLUMN "parent_id" TEXT NULL '
+              'REFERENCES "parents"("id") ON DELETE SET NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "schedule_templates" '
+              'ADD COLUMN "source_url" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "schedule_entries" '
+              'ADD COLUMN "source_url" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "activity_library" '
+              'ADD COLUMN "materials" TEXT NULL',
+            );
+            // Join: free-text domain tags per library item. No UI
+            // this round; Round 2 consumes.
+            await _runSilent(
+              'CREATE TABLE IF NOT EXISTS '
+              '"activity_library_domain_tags" ( '
+              '"library_item_id" TEXT NOT NULL '
+              'REFERENCES "activity_library"("id") ON DELETE CASCADE, '
+              '"domain" TEXT NOT NULL, '
+              'PRIMARY KEY ("library_item_id", "domain")'
+              ' )',
+            );
+            // Usage log — one row per instantiation of a library card.
+            await _runSilent(
+              'CREATE TABLE IF NOT EXISTS '
+              '"activity_library_usages" ( '
+              '"id" TEXT NOT NULL PRIMARY KEY, '
+              '"library_item_id" TEXT NOT NULL '
+              'REFERENCES "activity_library"("id") ON DELETE CASCADE, '
+              '"template_id" TEXT NULL '
+              'REFERENCES "schedule_templates"("id") ON DELETE SET NULL, '
+              '"entry_id" TEXT NULL '
+              'REFERENCES "schedule_entries"("id") ON DELETE SET NULL, '
+              '"used_on" INTEGER NOT NULL, '
+              '"created_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now'))"
+              ' )',
+            );
+            // Hot query: "recently used" sort on the library card
+            // tile — one lookup per card during the library screen
+            // render. Index on (library_item_id) keeps that bounded.
+            await _runSilent(
+              'CREATE INDEX IF NOT EXISTS '
+              '"idx_library_usages_item" '
+              'ON "activity_library_usages" ("library_item_id")',
+            );
+            // Lesson sequences + their ordered items. No UI this
+            // round; Round 4 builds the planner on top.
+            await _runSilent(
+              'CREATE TABLE IF NOT EXISTS "lesson_sequences" ( '
+              '"id" TEXT NOT NULL PRIMARY KEY, '
+              '"name" TEXT NOT NULL, '
+              '"description" TEXT NULL, '
+              '"created_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now')), "
+              '"updated_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now'))"
+              ' )',
+            );
+            await _runSilent(
+              'CREATE TABLE IF NOT EXISTS "lesson_sequence_items" ( '
+              '"id" TEXT NOT NULL PRIMARY KEY, '
+              '"sequence_id" TEXT NOT NULL '
+              'REFERENCES "lesson_sequences"("id") ON DELETE CASCADE, '
+              '"library_item_id" TEXT NOT NULL '
+              'REFERENCES "activity_library"("id") ON DELETE CASCADE, '
+              '"position" INTEGER NOT NULL, '
+              '"created_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now'))"
+              ' )',
+            );
+            // Themes. Standalone table; later rounds can join.
+            await _runSilent(
+              'CREATE TABLE IF NOT EXISTS "themes" ( '
+              '"id" TEXT NOT NULL PRIMARY KEY, '
+              '"name" TEXT NOT NULL, '
+              '"color_hex" TEXT NULL, '
+              '"start_date" INTEGER NOT NULL, '
+              '"end_date" INTEGER NOT NULL, '
+              '"notes" TEXT NULL, '
+              '"created_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now')), "
+              '"updated_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now'))"
+              ' )',
             );
           }
           if (from < 39) {
