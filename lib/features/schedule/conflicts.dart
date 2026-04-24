@@ -1,4 +1,32 @@
+import 'package:basecamp/features/schedule/adult_shift_conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/schedule/trip_conflicts.dart';
+
+/// Bundle of every conflict flavor we currently detect for a single
+/// schedule item. Used as the value type of the map Today hands down
+/// to each card so widgets can decide "is this clashing with anything
+/// at all?" via [anyPresent] and render per-section reasons in the
+/// conflict sheet.
+///
+/// All three lists are `const []` by default so callers that only
+/// care about the old activity-vs-activity rules keep working
+/// unchanged.
+class ConflictsFor {
+  const ConflictsFor({
+    this.activity = const [],
+    this.shift = const [],
+    this.trip = const [],
+  });
+
+  final List<ConflictInfo> activity;
+  final List<ShiftConflict> shift;
+  final List<TripConflict> trip;
+
+  bool get anyPresent =>
+      activity.isNotEmpty || shift.isNotEmpty || trip.isNotEmpty;
+
+  static const empty = ConflictsFor();
+}
 
 /// Returns the ids of schedule items that conflict with at least one other
 /// item in [items]. See [_detect] for the rules.

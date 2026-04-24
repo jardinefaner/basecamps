@@ -1,7 +1,9 @@
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/schedule/adult_shift_conflicts.dart';
 import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/schedule/trip_conflicts.dart';
 import 'package:basecamp/features/schedule/widgets/conflict_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -24,6 +26,8 @@ class ScheduleItemCard extends ConsumerWidget {
     required this.isNow,
     required this.isPast,
     this.conflicts = const [],
+    this.shiftConflicts = const [],
+    this.tripConflicts = const [],
     this.minutesUntilStart,
     this.showLogObservationsPrompt = false,
     this.concernMatch,
@@ -39,6 +43,15 @@ class ScheduleItemCard extends ConsumerWidget {
   final bool isNow;
   final bool isPast;
   final List<ConflictInfo> conflicts;
+
+  /// Shift-window clashes (break / lunch / off-shift / no-availability)
+  /// for the assigned adult on this item. Additive to [conflicts] —
+  /// an item with any of these lights up the red dot too.
+  final List<ShiftConflict> shiftConflicts;
+
+  /// Trip clashes — a trip runs over this activity, or two trips the
+  /// same day share a group. Additive to [conflicts].
+  final List<TripConflict> tripConflicts;
 
   /// Non-null only for the single "next up" activity. When ≤ 60 the card
   /// shows an "IN N MIN" chip to cue the teacher to wrap up and prep.
@@ -64,7 +77,10 @@ class ScheduleItemCard extends ConsumerWidget {
   final VoidCallback? onOpenConcern;
   final VoidCallback? onOpenAttendance;
 
-  bool get _hasConflict => conflicts.isNotEmpty;
+  bool get _hasConflict =>
+      conflicts.isNotEmpty ||
+      shiftConflicts.isNotEmpty ||
+      tripConflicts.isNotEmpty;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -205,7 +221,12 @@ class ScheduleItemCard extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => ConflictSheet(item: item, conflicts: conflicts),
+      builder: (_) => ConflictSheet(
+        item: item,
+        conflicts: conflicts,
+        shiftConflicts: shiftConflicts,
+        tripConflicts: tripConflicts,
+      ),
     );
   }
 
