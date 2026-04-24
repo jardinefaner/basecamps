@@ -13,12 +13,31 @@ import 'package:flutter/material.dart';
 /// programs before when it gets skipped; forcing a page per section
 /// makes "did we call the parent?" un-skippable.
 ///
-/// Child is picked as free text for now — a proper FormChildPickerField
-/// can land in a follow-up slice (same shape as the existing
-/// FormVehiclePickerField, just pointing at children). The typed
-/// child_id FK on form_submissions already handles the linkage once
-/// a picker exists, so swapping in a picker later is purely a
-/// renderer change.
+/// Child selection goes through the typed [FormChildPickerField] so
+/// the submission writes the typed `child_id` FK on form_submissions
+/// — that's what lets the child detail screen's recap query pick
+/// this incident up via `s.childId == child.id`.
+/// Submit gate for the incident form: either the parent has been
+/// notified, or the teacher has documented why notification hasn't
+/// happened yet. Returns null on pass, an error message otherwise.
+///
+/// Pulled out as a top-level function so [incidentForm] stays `const`
+/// (the registry declares the list const, and an inline closure
+/// isn't a constant expression — a top-level function tear-off is).
+String? incidentSubmitPredicate(Map<String, dynamic> data) {
+  final notified = data['parent_notified'] as bool? ?? false;
+  if (notified) return null;
+  // Accept a "why not yet" explanation as a valid alternative —
+  // first-aid-only incidents a teacher hasn't yet called home about
+  // should be documentable, not blocked.
+  final explain =
+      (data['notification_not_yet_reason'] as String?)?.trim() ?? '';
+  if (explain.isNotEmpty) return null;
+  return 'Parent notification is required before submitting. '
+      'Toggle Parent notified, or add a note in '
+      "'If not notified yet — why' explaining.";
+}
+
 const FormDefinition incidentForm = FormDefinition(
   typeKey: 'incident',
   title: 'Incident report',
@@ -27,17 +46,20 @@ const FormDefinition incidentForm = FormDefinition(
   icon: Icons.report_problem_outlined,
   subjectKind: FormSubjectKind.child,
   presentation: FormPresentation.wizard,
+  // Parent notification is the one section that's historically gotten
+  // skipped with the wizard at its defaults; enforce a cross-field
+  // gate at submit time via the top-level tear-off above. Either the
+  // switch is flipped on, or the "why not yet" note is filled in —
+  // otherwise, no submit.
+  submitPredicate: incidentSubmitPredicate,
   sections: [
     FormSection(
       title: 'About the incident',
       fields: [
-        // Until a proper child picker lands, this is a free-text
-        // field. The child_id FK on form_submissions stays unset for
-        // now — the data blob holds the typed name.
-        FormTextField(
-          key: 'child_name',
-          label: 'Child',
-          hint: "Child's name",
+        FormChildPickerField(
+          key: 'child_id',
+          label: 'Who was affected',
+          required: true,
         ),
         FormDateField(
           key: 'incident_datetime',
@@ -126,12 +148,22 @@ const FormDefinition incidentForm = FormDefinition(
       fields: [
         // Bool fields can't be marked required (a false is a
         // meaningful "no, haven't yet" answer — the renderer has no
-        // tri-state for "unset"). We flag this as the
-        // notification-section anchor via the wizard's forced walk
-        // instead: the teacher can't submit without seeing this page.
+        // tri-state for "unset"). Cross-field enforcement lives in
+        // `incidentSubmitPredicate` above: submit requires either
+        // this switch ON, or the "why not yet" note below filled in.
         FormBoolField(
           key: 'parent_notified',
           label: 'Parent notified',
+        ),
+        // Escape hatch for the submit predicate. A first-aid-only
+        // scrape that happened ten minutes before pickup still needs
+        // documenting — teacher can explain here instead of flipping
+        // the switch, and the form submits.
+        FormTextField(
+          key: 'notification_not_yet_reason',
+          label: 'If not notified yet — why',
+          helpText: 'Required when Parent notified is left off.',
+          maxLines: 2,
         ),
         // Not conditionally rendered — the renderer doesn't branch on
         // field values, and hiding-then-showing this would make the

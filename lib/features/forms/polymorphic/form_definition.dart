@@ -167,6 +167,22 @@ class FormVehiclePickerField extends FormField {
   });
 }
 
+/// Pick-from-list for a Child row. Stores the child's id in the
+/// form's JSON data blob. When the field's `key` is `child_id`
+/// (the conventional FK key), the renderer ALSO writes through to
+/// the typed `child_id` column on FormSubmission at save time, so
+/// the submission genuinely joins to the child (vs. just carrying
+/// the id in JSON). Keeps incidents and other child-scoped forms
+/// queryable from the child detail screen.
+class FormChildPickerField extends FormField {
+  const FormChildPickerField({
+    required super.key,
+    required super.label,
+    super.helpText,
+    super.required,
+  });
+}
+
 /// Grouping of related fields on the form. Rendered as a titled
 /// section — keeps long checklists scannable.
 class FormSection {
@@ -204,6 +220,7 @@ class FormDefinition {
     this.parentTypeKey,
     this.reviewDueAfterDays,
     this.presentation = FormPresentation.scroll,
+    this.submitPredicate,
   });
 
   /// On-disk encoding — stays stable forever. 'vehicle_check', etc.
@@ -236,4 +253,11 @@ class FormDefinition {
   /// Defaults to scroll; form types that benefit from forced linear
   /// progression (checklists, end-of-day reports) flip to wizard.
   final FormPresentation presentation;
+
+  /// Optional gate run at submit time (not on draft saves). Returns
+  /// a non-null error message when the form's cross-field invariant
+  /// fails — "parent_notified must be true, or notification_reason
+  /// must be filled in". Null return means pass. Rendered as a
+  /// snackbar; the form stays in draft.
+  final String? Function(Map<String, dynamic> data)? submitPredicate;
 }

@@ -1,4 +1,6 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/children/widgets/new_child_wizard.dart';
 import 'package:basecamp/features/forms/polymorphic/form_definition.dart'
     as fd;
 import 'package:basecamp/features/forms/polymorphic/form_submission_repository.dart';
@@ -108,6 +110,16 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
               !_values.containsKey(field.key)) {
             _values[field.key] = now.toIso8601String();
           }
+          // Seed the child picker from the prefillChildId parameter.
+          // Opening the incident form from a child-detail screen with
+          // prefillChildId set lands on step 1 already pointing at
+          // that child — teacher doesn't re-pick the subject they
+          // came from.
+          if (field is fd.FormChildPickerField &&
+              widget.prefillChildId != null &&
+              !_values.containsKey(field.key)) {
+            _values[field.key] = widget.prefillChildId;
+          }
         }
       }
     }
@@ -140,16 +152,35 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
     super.dispose();
   }
 
+  /// Resolve the child id to stamp onto the typed `child_id` column.
+  /// Priority: any `FormChildPickerField` whose runtime value is set
+  /// wins over the screen's prefill. That way a teacher who lands
+  /// with a prefill, then changes their mind and picks a different
+  /// child from the picker, gets the submission linked to the picked
+  /// child — not the original prefill.
+  String? _effectiveChildId() {
+    for (final section in widget.definition.sections) {
+      for (final field in section.fields) {
+        if (field is fd.FormChildPickerField) {
+          final v = _values[field.key];
+          if (v is String && v.isNotEmpty) return v;
+        }
+      }
+    }
+    return widget.prefillChildId;
+  }
+
   Future<void> _saveDraft() async {
     await _flushTextControllers();
     setState(() => _submitting = true);
     final repo = ref.read(formSubmissionRepositoryProvider);
     try {
+      final childId = _effectiveChildId();
       if (_resolvedSubmissionId == null) {
         _resolvedSubmissionId = await repo.createDraft(
           formType: widget.definition.typeKey,
           data: Map<String, dynamic>.from(_values),
-          childId: widget.prefillChildId,
+          childId: childId,
           groupId: widget.prefillGroupId,
           tripId: widget.prefillTripId,
           parentSubmissionId: widget.parentSubmissionId,
@@ -159,6 +190,7 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
         await repo.updateSubmission(
           id: _resolvedSubmissionId!,
           data: Map<String, dynamic>.from(_values),
+          childId: childId,
         );
       }
       if (mounted) {
@@ -173,6 +205,21 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
 
   Future<void> _submit() async {
     await _flushTextControllers();
+    // Cross-field invariants (e.g. incident's parent-notified-or-
+    // documented gate) run here and block the status transition if
+    // they fail. Draft saves skip this — partial data is always OK
+    // while drafting.
+    final predicate = widget.definition.submitPredicate;
+    if (predicate != null) {
+      final err = predicate(Map<String, dynamic>.from(_values));
+      if (err != null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(err)),
+        );
+        return;
+      }
+    }
     setState(() => _submitting = true);
     final repo = ref.read(formSubmissionRepositoryProvider);
     // Follow-up forms (those with a parent) land in 'active' on first
@@ -182,10 +229,11 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
         ? fd.FormStatus.active
         : fd.FormStatus.completed;
     try {
+      final childId = _effectiveChildId();
       _resolvedSubmissionId ??= await repo.createDraft(
         formType: widget.definition.typeKey,
         data: Map<String, dynamic>.from(_values),
-        childId: widget.prefillChildId,
+        childId: childId,
         groupId: widget.prefillGroupId,
         tripId: widget.prefillTripId,
         parentSubmissionId: widget.parentSubmissionId,
@@ -196,6 +244,7 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
         data: Map<String, dynamic>.from(_values),
         status: nextStatus,
         submittedAt: DateTime.now(),
+        childId: childId,
       );
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -312,11 +361,12 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
       onStepAdvance: () async {
         await _flushTextControllers();
         final repo = ref.read(formSubmissionRepositoryProvider);
+        final childId = _effectiveChildId();
         if (_resolvedSubmissionId == null) {
           _resolvedSubmissionId = await repo.createDraft(
             formType: widget.definition.typeKey,
             data: Map<String, dynamic>.from(_values),
-            childId: widget.prefillChildId,
+            childId: childId,
             groupId: widget.prefillGroupId,
             tripId: widget.prefillTripId,
             parentSubmissionId: widget.parentSubmissionId,
@@ -326,6 +376,7 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
           await repo.updateSubmission(
             id: _resolvedSubmissionId!,
             data: Map<String, dynamic>.from(_values),
+            childId: childId,
           );
         }
       },
@@ -365,6 +416,7 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
         fd.FormMultiChoiceField() => _buildMultiChoice(field),
         fd.FormBoolField() => _buildBool(field),
         fd.FormVehiclePickerField() => _buildVehiclePicker(field),
+        fd.FormChildPickerField() => _buildChildPicker(field),
       },
     );
   }
@@ -618,6 +670,89 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
     });
   }
 
+  /// Child picker. Mirrors the vehicle picker: the current selection
+  /// shows as a chip-like button, tap opens a scrollable modal list
+  /// of every child in the program (alphabetical by first name, with
+  /// the group label as the subtitle). An "Add new child…" tile at
+  /// the bottom routes through the existing [NewChildWizardScreen]
+  /// so a teacher mid-form can enroll a child without losing their
+  /// draft. Stored id goes into the JSON blob; when the field key is
+  /// `child_id`, it also stamps the typed FK column at save time
+  /// (see `_effectiveChildId`).
+  Widget _buildChildPicker(fd.FormChildPickerField field) {
+    final selectedId = _values[field.key] as String?;
+    final childrenAsync = ref.watch(childrenProvider);
+    final groupsAsync = ref.watch(groupsProvider);
+    final children = childrenAsync.asData?.value ?? const <Child>[];
+    final groups = groupsAsync.asData?.value ?? const <Group>[];
+    Child? selected;
+    for (final c in children) {
+      if (c.id == selectedId) {
+        selected = c;
+        break;
+      }
+    }
+    final label = selected != null
+        ? _childDisplayName(selected)
+        : selectedId == null
+            ? 'Pick a child'
+            : '(deleted child)';
+    return _LabeledField(
+      label: field.label,
+      help: field.helpText,
+      child: OutlinedButton.icon(
+        onPressed: () => _openChildPicker(field, children, groups),
+        icon: const Icon(Icons.child_care_outlined),
+        label: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(label),
+        ),
+      ),
+    );
+  }
+
+  String _childDisplayName(Child c) {
+    final last = c.lastName;
+    if (last == null || last.trim().isEmpty) return c.firstName;
+    return '${c.firstName} ${last.trim()[0]}.';
+  }
+
+  Future<void> _openChildPicker(
+    fd.FormChildPickerField field,
+    List<Child> children,
+    List<Group> groups,
+  ) async {
+    final selectedId = _values[field.key] as String?;
+    final groupsById = {for (final g in groups) g.id: g};
+    final picked = await showModalBottomSheet<_ChildPickResult>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _ChildPickerSheet(
+        children: children,
+        groupsById: groupsById,
+        selectedId: selectedId,
+      ),
+    );
+    if (picked == null || !mounted) return;
+    if (picked.addNew) {
+      // Same inline-create pattern as the vehicle picker — we don't
+      // auto-select the newly enrolled child. Stream rebuild brings
+      // the new row into the list; teacher re-opens the picker and
+      // taps it, which keeps the selection intent explicit.
+      await Navigator.of(context, rootNavigator: true).push<void>(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => NewChildWizardScreen(groups: groups),
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _values[field.key] = picked.childId;
+    });
+  }
+
   Widget _buildBool(fd.FormBoolField field) {
     final current = _values[field.key] as bool? ?? false;
     return SwitchListTile(
@@ -767,6 +902,116 @@ class _VehiclePickerSheet extends StatelessWidget {
     if (v.makeModel.isNotEmpty) parts.add(v.makeModel);
     if (v.licensePlate.isNotEmpty) parts.add(v.licensePlate);
     return parts.isEmpty ? null : parts.join(' · ');
+  }
+}
+
+/// Bottom-sheet result from the child picker. Either a pick
+/// (`childId` set) or an "add new child" request (`addNew: true`).
+/// Mirrors `_VehiclePickResult`.
+class _ChildPickResult {
+  const _ChildPickResult({this.childId, this.addNew = false});
+  final String? childId;
+  final bool addNew;
+}
+
+/// Modal list of children + an "Add new child…" tile at the bottom.
+/// Sorted alphabetically by first name (same order the children
+/// screen uses). Subtitle is the group label when present so
+/// teachers in programs with same-first-name kids can disambiguate.
+class _ChildPickerSheet extends StatelessWidget {
+  const _ChildPickerSheet({
+    required this.children,
+    required this.groupsById,
+    required this.selectedId,
+  });
+
+  final List<Child> children;
+  final Map<String, Group> groupsById;
+  final String? selectedId;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // watchChildren already orders by firstName; mirror that order
+    // here in case the caller passed a differently-sorted list.
+    final sorted = [...children]
+      ..sort(
+        (a, b) => a.firstName.toLowerCase().compareTo(b.firstName.toLowerCase()),
+      );
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.md,
+                top: AppSpacing.xs,
+                bottom: AppSpacing.md,
+              ),
+              child: Text(
+                'Pick a child',
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
+            if (sorted.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Text(
+                  'No children yet. Add one below to continue.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            for (final c in sorted)
+              ListTile(
+                leading: Icon(
+                  c.id == selectedId
+                      ? Icons.check_circle
+                      : Icons.child_care_outlined,
+                  color: c.id == selectedId
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+                title: Text(_fullName(c)),
+                subtitle: _groupLabel(c) == null
+                    ? null
+                    : Text(_groupLabel(c)!),
+                onTap: () => Navigator.of(context).pop(
+                  _ChildPickResult(childId: c.id),
+                ),
+              ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.add),
+              title: const Text('Add new child…'),
+              onTap: () => Navigator.of(context).pop(
+                const _ChildPickResult(addNew: true),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _fullName(Child c) {
+    final last = c.lastName;
+    if (last == null || last.trim().isEmpty) return c.firstName;
+    return '${c.firstName} ${last.trim()[0]}.';
+  }
+
+  String? _groupLabel(Child c) {
+    final gid = c.groupId;
+    if (gid == null) return null;
+    return groupsById[gid]?.name;
   }
 }
 
