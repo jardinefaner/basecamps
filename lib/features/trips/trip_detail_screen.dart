@@ -1,4 +1,6 @@
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/forms/polymorphic/definitions/vehicle_check.dart';
+import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
 import 'package:basecamp/features/trips/trips_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/address_field.dart';
@@ -110,6 +112,25 @@ class TripDetailScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              // Shortcut into the vehicle-check form, prefilled with this
+              // trip id so the submission writes back to `tripId` on the
+              // typed column. Staff doing pre-trip checks never have to
+              // re-pick the trip they're already looking at.
+              OutlinedButton.icon(
+                onPressed: () =>
+                    Navigator.of(context, rootNavigator: true).push<void>(
+                  MaterialPageRoute(
+                    fullscreenDialog: true,
+                    builder: (_) => GenericFormScreen(
+                      definition: vehicleCheckForm,
+                      prefillTripId: trip.id,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.directions_bus_outlined),
+                label: const Text('Run vehicle check'),
               ),
             ],
           );
