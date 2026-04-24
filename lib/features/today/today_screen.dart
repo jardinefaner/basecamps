@@ -397,54 +397,27 @@ class TodayScreen extends ConsumerWidget {
                   onPressed: () => Scaffold.of(ctx).openDrawer(),
                 ),
               ),
-              // Title cycles: "Today" + date sub-label when viewing
-              // today, friendly date only when viewing another day.
-              // Prev/next chevrons live next to the schedule / gear
-              // icons in `actions:`, with a "Today" pill that surfaces
-              // only when we've drifted off the current day.
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(isToday ? 'Today' : dateLabel),
-                  if (isToday)
-                    Text(
-                      dateLabel,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                ],
-              ),
+              // Plain "Today" title — date + cycle controls live in
+              // the AppBar's `bottom` slot below so the title row
+              // doesn't fight for space with the prev/next/gear/etc
+              // actions.
+              title: const Text('Today'),
               floating: true,
               snap: true,
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_left),
-                  tooltip: 'Previous day',
-                  onPressed: () =>
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(48),
+                child: _DateCycleBar(
+                  dateLabel: dateLabel,
+                  isToday: isToday,
+                  onPrev: () =>
                       ref.read(viewedDateProvider.notifier).shift(-1),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.chevron_right),
-                  tooltip: 'Next day',
-                  onPressed: () =>
+                  onNext: () =>
                       ref.read(viewedDateProvider.notifier).shift(1),
+                  onResetToToday: () =>
+                      ref.read(viewedDateProvider.notifier).reset(),
                 ),
-                // "Today" pill resets the cycle. Only shows when the
-                // teacher has navigated off today — dead weight in the
-                // AppBar otherwise.
-                if (!isToday)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.xs,
-                    ),
-                    child: TextButton(
-                      onPressed: () =>
-                          ref.read(viewedDateProvider.notifier).reset(),
-                      child: const Text('Today'),
-                    ),
-                  ),
+              ),
+              actions: [
                 IconButton(
                   icon: const Icon(Icons.tune_outlined),
                   tooltip: 'Schedule',
@@ -517,6 +490,81 @@ class TodayScreen extends ConsumerWidget {
                 ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// AppBar bottom band: prev / center date / next / "Today" reset
+/// button when not on today. Sits underneath the title row so the
+/// date label has full width to breathe — squeezing it next to a
+/// hamburger + two icons + a popup menu (the previous layout)
+/// caused the weekday and date to wrap and clip on smaller phones.
+class _DateCycleBar extends StatelessWidget {
+  const _DateCycleBar({
+    required this.dateLabel,
+    required this.isToday,
+    required this.onPrev,
+    required this.onNext,
+    required this.onResetToToday,
+  });
+
+  final String dateLabel;
+  final bool isToday;
+  final VoidCallback onPrev;
+  final VoidCallback onNext;
+  final VoidCallback onResetToToday;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      height: 48,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.chevron_left),
+              tooltip: 'Previous day',
+              onPressed: onPrev,
+              visualDensity: VisualDensity.compact,
+            ),
+            Expanded(
+              child: Center(
+                child: Text(
+                  dateLabel,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.chevron_right),
+              tooltip: 'Next day',
+              onPressed: onNext,
+              visualDensity: VisualDensity.compact,
+            ),
+            // "Today" reset button only when off-today. Positioned
+            // after the next-day chevron so the cycle controls stay
+            // a coherent left-center-right unit and the reset is a
+            // distinct affordance.
+            if (!isToday)
+              Padding(
+                padding: const EdgeInsets.only(left: AppSpacing.xs),
+                child: TextButton(
+                  onPressed: onResetToToday,
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  child: const Text('Today'),
+                ),
+              ),
           ],
         ),
       ),
