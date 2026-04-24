@@ -67,6 +67,7 @@ class StepWizardScaffold extends StatefulWidget {
     this.onExit,
     this.dirty = false,
     this.onStepAdvance,
+    this.appBarActions,
     super.key,
   });
 
@@ -94,6 +95,11 @@ class StepWizardScaffold extends StatefulWidget {
   /// away) pass a draft-save closure here. Awaited — the wizard
   /// doesn't animate to the next step until it resolves.
   final Future<void> Function()? onStepAdvance;
+
+  /// Optional trailing actions for the wizard's AppBar. Used by
+  /// edit-existing flows that want a Share button / overflow menu
+  /// at the top-right; fresh-create wizards leave this null.
+  final List<Widget>? appBarActions;
 
   @override
   State<StepWizardScaffold> createState() => _StepWizardScaffoldState();
@@ -225,6 +231,7 @@ class _StepWizardScaffoldState extends State<StepWizardScaffold> {
             ),
           ),
           centerTitle: false,
+          actions: widget.appBarActions,
         ),
         body: Column(
           children: [
