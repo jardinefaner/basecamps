@@ -123,10 +123,13 @@ class TodayAgendaView extends ConsumerWidget {
         if (event.groupIds.isEmpty) return true; // staff prep
         return event.groupIds.contains(groupId);
       case CalendarEventKind.trip:
-        // Trip-group scoping isn't carried on CalendarEvent yet;
-        // show all trips for now. A follow-up can thread trip_groups
-        // through so group-specific trips filter in / out.
-        return true;
+        // Trips carry their group_ids from trip_groups now. Empty +
+        // allGroups is program-wide (legacy rows with no scoping
+        // info) — those still show in every group's view. Otherwise
+        // strict id match.
+        if (event.allGroups) return true;
+        if (event.groupIds.isEmpty) return true;
+        return event.groupIds.contains(groupId);
       case CalendarEventKind.adultBreak:
       case CalendarEventKind.adultLunch:
         // Synthesizer already scoped these by adult id, so they're

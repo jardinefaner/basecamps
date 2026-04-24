@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/observations/observation_media_store.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/observations/widgets/attachment_viewer.dart';
 import 'package:basecamp/features/observations/widgets/multi_capture_camera.dart';
@@ -173,10 +174,24 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
     for (final id in _removedAttachmentIds) {
       await repo.deleteAttachment(id);
     }
+    // Copy new attachments into the app-owned media dir first so
+    // the orphan sweeper recognizes them as ours when their row is
+    // eventually deleted. Web skips the copy (no filesystem to
+    // own) and keeps the source path.
+    final mediaDir = await ref.read(observationMediaDirProvider.future);
     for (final a in _newAttachments) {
+      final storedPath = mediaDir == null
+          ? a.path
+          : await copyAttachmentToMediaDir(
+              source: File(a.path),
+              mediaDir: mediaDir,
+            );
       await repo.addAttachment(
         observationId: widget.observation.id,
-        input: ObservationAttachmentInput(kind: a.kind, localPath: a.path),
+        input: ObservationAttachmentInput(
+          kind: a.kind,
+          localPath: storedPath,
+        ),
       );
     }
     if (!mounted) return;

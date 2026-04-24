@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:basecamp/features/observations/ai_classifier.dart';
 import 'package:basecamp/features/observations/classifier.dart';
+import 'package:basecamp/features/observations/observation_media_store.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/observations/voice_service.dart';
 import 'package:basecamp/features/observations/widgets/multi_capture_camera.dart';
@@ -93,18 +94,31 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
     // background once the classification call returns.
     final localSuggestion = suggestTags(note);
     final repo = ref.read(observationsRepositoryProvider);
+
+    // Copy each attachment into the app-owned observation-media dir
+    // before saving. That way the orphan-sweeper can recognize them
+    // as ours and reap them when the attachment row is deleted. Web
+    // short-circuits (no filesystem to own); `mediaDir` is null and
+    // the original path is used as-is.
+    final mediaDir = await ref.read(observationMediaDirProvider.future);
+    final attachmentInputs = <ObservationAttachmentInput>[];
+    for (final a in _attachments) {
+      final storedPath = mediaDir == null
+          ? a.path
+          : await copyAttachmentToMediaDir(
+              source: File(a.path),
+              mediaDir: mediaDir,
+            );
+      attachmentInputs.add(
+        ObservationAttachmentInput(kind: a.kind, localPath: storedPath),
+      );
+    }
+
     final observationId = await repo.addObservation(
       note: note,
       domains: localSuggestion.domains,
       sentiment: localSuggestion.sentiment,
-      attachments: _attachments
-          .map(
-            (a) => ObservationAttachmentInput(
-              kind: a.kind,
-              localPath: a.path,
-            ),
-          )
-          .toList(),
+      attachments: attachmentInputs,
       activityLabel: currentActivity?.title,
       // Group resolution: for group-scoped activities (one concrete
       // groupId) the link is unambiguous. For program-wide activities

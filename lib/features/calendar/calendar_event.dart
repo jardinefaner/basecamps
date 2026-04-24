@@ -157,7 +157,15 @@ CalendarEvent calendarEventFromScheduleItem(ScheduleItem item) {
 /// Multi-day trips clamp to a single event covering the full range
 /// (teachers can drill into the trip detail to see per-day
 /// specifics).
-CalendarEvent calendarEventFromTrip(Trip trip) {
+///
+/// [groupIds] are the groups the trip is scoped to (from trip_groups).
+/// Empty list means "no scoping info" — the agenda treats those as
+/// program-wide for filtering. The synthesizer supplies this by
+/// looking up the trip's join rows.
+CalendarEvent calendarEventFromTrip(
+  Trip trip, {
+  List<String> groupIds = const [],
+}) {
   final startDay = DateTime(
     trip.date.year,
     trip.date.month,
@@ -199,6 +207,11 @@ CalendarEvent calendarEventFromTrip(Trip trip) {
     startAt: startAt,
     endAt: endAt,
     allDay: !hasTimes,
+    groupIds: groupIds,
+    // Empty trip_groups is legacy data (pre-group-scoping); treat as
+    // program-wide so the agenda keeps surfacing them in every
+    // group's view.
+    allGroups: groupIds.isEmpty,
     location: trip.location,
     subtitle: trip.location,
     sourceKind: 'trip',

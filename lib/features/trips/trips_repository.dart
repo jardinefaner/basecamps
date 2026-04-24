@@ -26,6 +26,20 @@ class TripsRepository {
     return rows.map((r) => r.groupId).toList();
   }
 
+  /// Watch every trip-group link as a `{tripId: [groupId, …]}` map.
+  /// Used by the calendar synthesizer to scope trip events by group
+  /// in the Today agenda. Cheap — trip_groups is tiny (one row per
+  /// trip-group pair) and the whole set fits in memory comfortably.
+  Stream<Map<String, List<String>>> watchAllGroupsByTrip() {
+    return _db.select(_db.tripGroups).watch().map((rows) {
+      final out = <String, List<String>>{};
+      for (final r in rows) {
+        (out[r.tripId] ??= <String>[]).add(r.groupId);
+      }
+      return out;
+    });
+  }
+
   /// Adds a trip and auto-creates a matching ScheduleEntry on the trip's
   /// date so the calendar is in sync. If [departureTime] / [returnTime]
   /// are supplied, the entry is timed; otherwise it's full-day. The trip's

@@ -36,29 +36,37 @@ final calendarEventsForDayProvider =
   final day = DateTime(date.year, date.month, date.day);
 
   // Upstream streams. Schedule is already date-scoped; trips come
-  // as a flat list and we filter in Dart since the set of trips is
-  // small in practice.
+  // as a flat list (and trip_groups as a flat id→ids map) — both
+  // filter in Dart since the set of trips is small in practice.
   final scheduleRepo = ref.watch(scheduleRepositoryProvider);
   final tripsRepo = ref.watch(tripsRepositoryProvider);
 
   final scheduleStream = scheduleRepo.watchScheduleForDate(day);
   final tripsStream = tripsRepo.watchAll();
+  final tripGroupsStream = tripsRepo.watchAllGroupsByTrip();
 
-  // combine-latest-2: emit a fresh synthesized list whenever either
-  // upstream stream updates. Both sides default to empty until their
-  // first emission; the first `emit` fires as soon as BOTH have
+  // combine-latest-3: emit a fresh synthesized list whenever any
+  // upstream stream updates. Each side defaults to empty until its
+  // first emission; the first `emit` fires as soon as ALL three have
   // emitted at least once.
   final controller = StreamController<List<CalendarEvent>>();
   var schedule = const <ScheduleItem>[];
   var trips = const <Trip>[];
+  var groupsByTrip = const <String, List<String>>{};
   var gotSchedule = false;
   var gotTrips = false;
+  var gotTripGroups = false;
 
   void emit() {
-    if (!gotSchedule || !gotTrips) return;
+    if (!gotSchedule || !gotTrips || !gotTripGroups) return;
     if (controller.isClosed) return;
     controller.add(
-      _combineDay(date: day, schedule: schedule, trips: trips),
+      _combineDay(
+        date: day,
+        schedule: schedule,
+        trips: trips,
+        groupsByTrip: groupsByTrip,
+      ),
     );
   }
 
@@ -78,13 +86,23 @@ final calendarEventsForDayProvider =
     },
     onError: controller.addError,
   );
+  final sub3 = tripGroupsStream.listen(
+    (m) {
+      groupsByTrip = m;
+      gotTripGroups = true;
+      emit();
+    },
+    onError: controller.addError,
+  );
   controller.onCancel = () async {
     await sub1.cancel();
     await sub2.cancel();
+    await sub3.cancel();
   };
   ref.onDispose(() {
     unawaited(sub1.cancel());
     unawaited(sub2.cancel());
+    unawaited(sub3.cancel());
     unawaited(controller.close());
   });
   return controller.stream;
@@ -97,6 +115,7 @@ List<CalendarEvent> _combineDay({
   required DateTime date,
   required List<ScheduleItem> schedule,
   required List<Trip> trips,
+  required Map<String, List<String>> groupsByTrip,
 }) {
   final out = <CalendarEvent>[];
   for (final item in schedule) {
@@ -104,7 +123,12 @@ List<CalendarEvent> _combineDay({
   }
   for (final trip in trips) {
     if (!_tripIntersects(trip, date)) continue;
-    out.add(calendarEventFromTrip(trip));
+    out.add(
+      calendarEventFromTrip(
+        trip,
+        groupIds: groupsByTrip[trip.id] ?? const [],
+      ),
+    );
   }
   // Stable chronological sort: all-day first (they float above the
   // timed items in the agenda), then by start time, with a
