@@ -1,5 +1,6 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
+import 'package:basecamp/features/children/child_recap_share.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/children/widgets/edit_child_sheet.dart';
 import 'package:basecamp/features/parents/parents_repository.dart';
@@ -42,6 +43,17 @@ class ChildDetailScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         actions: [
+          kidAsync.maybeWhen(
+            data: (child) => child == null
+                ? const SizedBox.shrink()
+                : IconButton(
+                    tooltip: "Share today's recap",
+                    icon: const Icon(Icons.ios_share),
+                    onPressed: () =>
+                        showChildRecapShareSheet(context, child),
+                  ),
+            orElse: () => const SizedBox.shrink(),
+          ),
           kidAsync.maybeWhen(
             data: (child) => child == null
                 ? const SizedBox.shrink()
