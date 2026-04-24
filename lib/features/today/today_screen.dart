@@ -217,6 +217,8 @@ class TodayScreen extends ConsumerWidget {
   Future<void> _openObservationComposer(
     BuildContext context, {
     ScheduleItem? forActivity,
+    List<String> prefillChildIds = const [],
+    String? prefillGroupId,
   }) async {
     await showModalBottomSheet<void>(
       context: context,
@@ -234,7 +236,11 @@ class TodayScreen extends ConsumerWidget {
           ),
           child: Scaffold(
             backgroundColor: Colors.transparent,
-            body: ObservationComposer(forActivity: forActivity),
+            body: ObservationComposer(
+              forActivity: forActivity,
+              prefillChildIds: prefillChildIds,
+              prefillGroupId: prefillGroupId,
+            ),
           ),
         );
       },

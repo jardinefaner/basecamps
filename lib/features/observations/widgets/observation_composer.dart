@@ -31,10 +31,31 @@ import 'package:image_picker/image_picker.dart';
 /// even though it's no longer "now." Fresh FAB opens leave this null
 /// and the composer falls back to current-time + selected-group
 /// resolution.
+///
+/// [prefillChildIds] auto-links the saved observation to one or more
+/// children via the `observation_children` join. Used when the
+/// composer is opened from a child detail screen's "Log observation"
+/// shortcut — the resulting row is already tagged to that child so
+/// the teacher doesn't have to re-pick in the edit sheet. Defaults
+/// to empty for fresh opens (no pre-tag).
+///
+/// [prefillGroupId] overrides the current-time + selected-group
+/// resolution entirely and pins the observation's groupId to the
+/// given value. Used when the composer is opened from a group
+/// detail screen — the teacher is explicitly logging "about this
+/// group" regardless of what activity is running or which chip is
+/// expanded on Today. Null defers to the normal resolution.
 class ObservationComposer extends ConsumerStatefulWidget {
-  const ObservationComposer({this.forActivity, super.key});
+  const ObservationComposer({
+    this.forActivity,
+    this.prefillChildIds = const [],
+    this.prefillGroupId,
+    super.key,
+  });
 
   final ScheduleItem? forActivity;
+  final List<String> prefillChildIds;
+  final String? prefillGroupId;
 
   @override
   ConsumerState<ObservationComposer> createState() =>
@@ -131,15 +152,20 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
       domains: localSuggestion.domains,
       sentiment: localSuggestion.sentiment,
       attachments: attachmentInputs,
+      childIds: widget.prefillChildIds,
       activityLabel: currentActivity?.title,
-      // Group resolution: for group-scoped activities (one concrete
-      // groupId) the link is unambiguous. For program-wide activities
-      // (all-groups / no-groups) fall back to the group the teacher
-      // most recently looked at on Today — that's "their" group, and
-      // the observation they're typing is almost always about that
-      // group's instance of the activity. Absence of both leaves
-      // groupId null and the observation reads as program-wide.
-      groupId: _resolveGroupId(currentActivity),
+      // Group resolution: prefillGroupId (from a group detail
+      // capture) wins outright — the teacher said "this group" and
+      // we honor that regardless of what's running. Otherwise, for
+      // group-scoped activities (one concrete groupId) the link is
+      // unambiguous. For program-wide activities (all-groups /
+      // no-groups) fall back to the group the teacher most recently
+      // looked at on Today — that's "their" group, and the
+      // observation they're typing is almost always about that
+      // group's instance of the activity. Absence of all three
+      // leaves groupId null and the observation reads as
+      // program-wide.
+      groupId: widget.prefillGroupId ?? _resolveGroupId(currentActivity),
       // v33 structural activity context — pins the observation to
       // this specific occurrence so reports can ask "what happened
       // in Butterflies during Morning Circle on April 23?" by row id
