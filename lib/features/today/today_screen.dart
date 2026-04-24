@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/attendance/widgets/attendance_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
@@ -12,8 +13,10 @@ import 'package:basecamp/features/groups/group_summary_repository.dart';
 import 'package:basecamp/features/launcher/launcher_screen.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/observations/widgets/observation_composer.dart';
+import 'package:basecamp/features/schedule/adult_shift_conflicts.dart';
 import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/schedule/trip_conflicts.dart';
 import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/add_activity_picker.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
@@ -29,6 +32,7 @@ import 'package:basecamp/features/today/widgets/lateness_flags_strip.dart';
 import 'package:basecamp/features/today/widgets/schedule_item_card.dart';
 import 'package:basecamp/features/today/widgets/staff_today_strip.dart';
 import 'package:basecamp/features/today/widgets/today_agenda.dart';
+import 'package:basecamp/features/trips/trips_repository.dart';
 import 'package:basecamp/features/trips/widgets/new_trip_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -392,6 +396,67 @@ class _Body extends ConsumerWidget {
 
     final nowMinutes = now.hour * 60 + now.minute;
     final conflicts = conflictsByItemId(items);
+
+    // Shift-window conflicts (slice A): group availability rows by
+    // adult once and run the detector against today's schedule.
+    final allAvail =
+        ref.watch(allAvailabilityProvider).asData?.value ??
+            const <AdultAvailabilityData>[];
+    final adultsList =
+        ref.watch(adultsProvider).asData?.value ?? const <Adult>[];
+    final availabilityByAdult = <String, List<AdultAvailabilityData>>{};
+    for (final row in allAvail) {
+      (availabilityByAdult[row.adultId] ??=
+              <AdultAvailabilityData>[])
+          .add(row);
+    }
+    final adultsById = <String, Adult>{
+      for (final a in adultsList) a.id: a,
+    };
+    final shiftConflicts = detectAdultShiftConflicts(
+      items: items,
+      availabilityByAdult: availabilityByAdult,
+      adultsById: adultsById,
+      isoWeekday: now.weekday,
+    );
+
+    // Trip conflicts (slice B): today's trips + their group
+    // memberships, intersected with the day's activities.
+    final allTrips =
+        ref.watch(tripsProvider).asData?.value ?? const <Trip>[];
+    final tripGroupsMap =
+        ref.watch(_allTripGroupsByTripProvider).asData?.value ??
+            const <String, List<String>>{};
+    final allGroups =
+        ref.watch(groupsProvider).asData?.value ?? const <Group>[];
+    final groupsById = <String, Group>{
+      for (final g in allGroups) g.id: g,
+    };
+    final todayTrips = allTrips.where((t) {
+      final start = DateTime(t.date.year, t.date.month, t.date.day);
+      final end = t.endDate == null
+          ? start
+          : DateTime(
+              t.endDate!.year,
+              t.endDate!.month,
+              t.endDate!.day,
+            );
+      final day = DateTime(now.year, now.month, now.day);
+      return !day.isBefore(start) && !day.isAfter(end);
+    }).toList();
+    final tripConflictResult = detectTripConflicts(
+      scheduleItems: items,
+      todayTrips: todayTrips,
+      groupsByTrip: tripGroupsMap,
+      groupsById: groupsById,
+    );
+
+    ConflictsFor conflictsFor(String id) => ConflictsFor(
+          activity: conflicts[id] ?? const <ConflictInfo>[],
+          shift: shiftConflicts[id] ?? const <ShiftConflict>[],
+          trip: tripConflictResult.byActivityId[id] ??
+              const <TripConflict>[],
+        );
     final activityCounts =
         ref.watch(todayActivityCountsProvider).asData?.value ??
             const <String, int>{};
@@ -606,7 +671,9 @@ class _Body extends ConsumerWidget {
                   item: item,
                   isNow: false,
                   isPast: false,
-                  conflicts: conflicts[item.id] ?? const [],
+                  conflicts: conflictsFor(item.id).activity,
+                  shiftConflicts: conflictsFor(item.id).shift,
+                  tripConflicts: conflictsFor(item.id).trip,
                   concernMatch: concernForItem(item),
                   attendance: attendanceFor(item),
                   onTap: () => onOpenDetail(item),
@@ -706,7 +773,12 @@ class _Body extends ConsumerWidget {
               item: filteredUpcoming[i],
               isNow: false,
               isPast: false,
-              conflicts: conflicts[filteredUpcoming[i].id] ?? const [],
+              conflicts:
+                  conflictsFor(filteredUpcoming[i].id).activity,
+              shiftConflicts:
+                  conflictsFor(filteredUpcoming[i].id).shift,
+              tripConflicts:
+                  conflictsFor(filteredUpcoming[i].id).trip,
               minutesUntilStart: i == 0 ? nextUpMinutes : null,
               concernMatch: concernForItem(filteredUpcoming[i]),
               onTap: () => onOpenDetail(filteredUpcoming[i]),
@@ -734,7 +806,9 @@ class _Body extends ConsumerWidget {
                     item: item,
                     isNow: false,
                     isPast: true,
-                    conflicts: conflicts[item.id] ?? const [],
+                    conflicts: conflictsFor(item.id).activity,
+                    shiftConflicts: conflictsFor(item.id).shift,
+                    tripConflicts: conflictsFor(item.id).trip,
                     showLogObservationsPrompt:
                         (activityCounts[item.title] ?? 0) == 0,
                     concernMatch: concernForItem(item),
@@ -1288,3 +1362,12 @@ class _EmptyState extends StatelessWidget {
     );
   }
 }
+
+/// Stream of `{tripId: [groupId, …]}`. Thin wrapper around
+/// `TripsRepository.watchAllGroupsByTrip()` so the Today screen can
+/// run the trip-conflict detector without threading the repo call
+/// through a FutureBuilder.
+final _allTripGroupsByTripProvider =
+    StreamProvider<Map<String, List<String>>>((ref) {
+  return ref.watch(tripsRepositoryProvider).watchAllGroupsByTrip();
+});

@@ -1,8 +1,10 @@
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/rooms/rooms_repository.dart';
+import 'package:basecamp/features/schedule/adult_shift_conflicts.dart';
 import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/schedule/trip_conflicts.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
@@ -15,16 +17,39 @@ class ConflictSheet extends ConsumerWidget {
   const ConflictSheet({
     required this.item,
     required this.conflicts,
+    this.shiftConflicts = const [],
+    this.tripConflicts = const [],
     super.key,
   });
 
   final ScheduleItem item;
   final List<ConflictInfo> conflicts;
 
+  /// Shift-window clashes (break / lunch / off-shift / no-availability)
+  /// for the assigned adult — rendered in a dedicated section below
+  /// the activity clashes.
+  final List<ShiftConflict> shiftConflicts;
+
+  /// Trip clashes — rendered in their own section.
+  final List<TripConflict> tripConflicts;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final insets = MediaQuery.of(context).viewInsets.bottom;
+
+    // Short leading sentence tailored to whichever sections are
+    // populated — "overlaps with these activities" reads as a lie
+    // when the only flag is "outside Sarah's shift".
+    final hasActivities = conflicts.isNotEmpty;
+    final hasShift = shiftConflicts.isNotEmpty;
+    final hasTrip = tripConflicts.isNotEmpty;
+    final intro = _buildIntro(
+      hasActivities: hasActivities,
+      hasShift: hasShift,
+      hasTrip: hasTrip,
+      activityCount: conflicts.length,
+    );
 
     return Padding(
       padding: EdgeInsets.only(
@@ -55,21 +80,65 @@ class ConflictSheet extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              '"${item.title}" overlaps with ${conflicts.length == 1 ? "this activity" : "these activities"}:',
+              intro,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
-            for (final info in conflicts)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                child: _ConflictCard(info: info),
-              ),
+            if (hasActivities) ...[
+              for (final info in conflicts)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: _ConflictCard(info: info),
+                ),
+            ],
+            if (hasShift) ...[
+              if (hasActivities) const SizedBox(height: AppSpacing.sm),
+              const _SectionHeader(label: 'Shift clashes'),
+              const SizedBox(height: AppSpacing.xs),
+              for (final s in shiftConflicts)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: _ShiftConflictCard(conflict: s),
+                ),
+            ],
+            if (hasTrip) ...[
+              if (hasActivities || hasShift)
+                const SizedBox(height: AppSpacing.sm),
+              const _SectionHeader(label: 'Trip clashes'),
+              const SizedBox(height: AppSpacing.xs),
+              for (final t in tripConflicts)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: _TripConflictCard(conflict: t),
+                ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  String _buildIntro({
+    required bool hasActivities,
+    required bool hasShift,
+    required bool hasTrip,
+    required int activityCount,
+  }) {
+    if (hasActivities) {
+      return '"${item.title}" overlaps with ${activityCount == 1 ? "this activity" : "these activities"}:';
+    }
+    if (hasShift && hasTrip) {
+      return '"${item.title}" runs into a shift window and a trip today.';
+    }
+    if (hasShift) {
+      return '"${item.title}" runs into the assigned adult\'s shift.';
+    }
+    if (hasTrip) {
+      return '"${item.title}" overlaps with a trip today.';
+    }
+    return '"${item.title}" has a conflict.';
   }
 }
 
@@ -188,6 +257,95 @@ class _ReasonChip extends StatelessWidget {
             style: theme.textTheme.labelSmall?.copyWith(
               color: theme.colorScheme.onErrorContainer,
               fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Text(
+      label.toUpperCase(),
+      style: theme.textTheme.labelSmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+        letterSpacing: 0.8,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+}
+
+class _ShiftConflictCard extends StatelessWidget {
+  const _ShiftConflictCard({required this.conflict});
+
+  final ShiftConflict conflict;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Kind-specific icon — coffee for a break, restaurant for lunch,
+    // schedule_off for "outside the shift", event_busy when the adult
+    // isn't here today at all.
+    final icon = switch (conflict.kind) {
+      ShiftConflictKind.breakWindow => Icons.coffee_outlined,
+      ShiftConflictKind.break2Window => Icons.coffee_outlined,
+      ShiftConflictKind.lunchWindow => Icons.restaurant_outlined,
+      ShiftConflictKind.offShift => Icons.schedule_outlined,
+      ShiftConflictKind.noAvailabilityToday => Icons.event_busy_outlined,
+    };
+    return AppCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            size: 18,
+            color: theme.colorScheme.error,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              conflict.reason,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TripConflictCard extends StatelessWidget {
+  const _TripConflictCard({required this.conflict});
+
+  final TripConflict conflict;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.map_outlined,
+            size: 18,
+            color: theme.colorScheme.error,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              conflict.reason,
+              style: theme.textTheme.bodyMedium,
             ),
           ),
         ],
