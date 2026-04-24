@@ -1,6 +1,9 @@
+import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/forms/polymorphic/form_definition.dart'
     as fd;
 import 'package:basecamp/features/forms/polymorphic/form_submission_repository.dart';
+import 'package:basecamp/features/vehicles/vehicles_repository.dart';
+import 'package:basecamp/features/vehicles/widgets/edit_vehicle_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/app_text_field.dart';
@@ -361,6 +364,7 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
         fd.FormChoiceField() => _buildChoice(field),
         fd.FormMultiChoiceField() => _buildMultiChoice(field),
         fd.FormBoolField() => _buildBool(field),
+        fd.FormVehiclePickerField() => _buildVehiclePicker(field),
       },
     );
   }
@@ -533,6 +537,87 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
     );
   }
 
+  /// Vehicle picker. Shows the currently-selected vehicle as a chip-
+  /// like button; tap opens a modal list of all vehicles in the
+  /// program, with an "Add vehicle…" tile at the bottom so a teacher
+  /// mid-form can add a missing vehicle without bailing out. Stores
+  /// the vehicle's id on the field's JSON key.
+  Widget _buildVehiclePicker(fd.FormVehiclePickerField field) {
+    final selectedId = _values[field.key] as String?;
+    final vehiclesAsync = ref.watch(vehiclesProvider);
+    final vehicles = vehiclesAsync.asData?.value ?? const <Vehicle>[];
+    Vehicle? selected;
+    for (final v in vehicles) {
+      if (v.id == selectedId) {
+        selected = v;
+        break;
+      }
+    }
+    // When the stored id no longer resolves (vehicle deleted after
+    // the form was filled), we still show the label with a
+    // "(deleted)" note so the picker button reads informatively.
+    final label = selected != null
+        ? _vehicleSummary(selected)
+        : selectedId == null
+            ? 'Pick a vehicle'
+            : '(deleted vehicle)';
+    return _LabeledField(
+      label: field.label,
+      help: field.helpText,
+      child: OutlinedButton.icon(
+        onPressed: () => _openVehiclePicker(field, vehicles),
+        icon: const Icon(Icons.directions_bus_outlined),
+        label: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(label),
+        ),
+      ),
+    );
+  }
+
+  String _vehicleSummary(Vehicle v) {
+    // Name leads; make/model + plate fall in as a secondary chip
+    // when set. Reads cleanly on the button even with just the name.
+    final extras = <String>[];
+    if (v.makeModel.isNotEmpty) extras.add(v.makeModel);
+    if (v.licensePlate.isNotEmpty) extras.add(v.licensePlate);
+    return extras.isEmpty ? v.name : '${v.name} · ${extras.join(" · ")}';
+  }
+
+  Future<void> _openVehiclePicker(
+    fd.FormVehiclePickerField field,
+    List<Vehicle> vehicles,
+  ) async {
+    final selectedId = _values[field.key] as String?;
+    final picked = await showModalBottomSheet<_VehiclePickResult>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _VehiclePickerSheet(
+        vehicles: vehicles,
+        selectedId: selectedId,
+      ),
+    );
+    if (picked == null || !mounted) return;
+    if (picked.addNew) {
+      // Open the add sheet; when it pops, the vehicles stream will
+      // rebuild us automatically and the new row appears in the list.
+      // We don't auto-select the just-created row here — the teacher
+      // can re-open the picker and tap it, which is clearer than
+      // silently snapping it in.
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (_) => const EditVehicleSheet(),
+      );
+      return;
+    }
+    setState(() {
+      _values[field.key] = picked.vehicleId;
+    });
+  }
+
   Widget _buildBool(fd.FormBoolField field) {
     final current = _values[field.key] as bool? ?? false;
     return SwitchListTile(
@@ -585,6 +670,103 @@ class _LabeledField extends StatelessWidget {
         child,
       ],
     );
+  }
+}
+
+/// Bottom-sheet result from the vehicle picker. Either a pick
+/// (`vehicleId` set) or an "add new vehicle" request (`addNew: true`).
+/// Keeps the caller's state machine simple — two outcomes, one type.
+class _VehiclePickResult {
+  const _VehiclePickResult({this.vehicleId, this.addNew = false});
+  final String? vehicleId;
+  final bool addNew;
+}
+
+/// Modal list of vehicles + an "Add vehicle…" tile at the bottom.
+/// Compact — name + optional subtitle, check-mark on the current
+/// pick. Tapping any row pops with that row's id; tapping "Add"
+/// pops with `addNew: true` so the caller can open the edit sheet.
+class _VehiclePickerSheet extends StatelessWidget {
+  const _VehiclePickerSheet({
+    required this.vehicles,
+    required this.selectedId,
+  });
+
+  final List<Vehicle> vehicles;
+  final String? selectedId;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.md,
+                top: AppSpacing.xs,
+                bottom: AppSpacing.md,
+              ),
+              child: Text(
+                'Pick a vehicle',
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
+            if (vehicles.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Text(
+                  'No vehicles yet. Add one below to continue.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            for (final v in vehicles)
+              ListTile(
+                leading: Icon(
+                  v.id == selectedId
+                      ? Icons.check_circle
+                      : Icons.directions_bus_outlined,
+                  color: v.id == selectedId
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+                title: Text(v.name),
+                subtitle: _vehicleSubtitle(v) == null
+                    ? null
+                    : Text(_vehicleSubtitle(v)!),
+                onTap: () => Navigator.of(context).pop(
+                  _VehiclePickResult(vehicleId: v.id),
+                ),
+              ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.add),
+              title: const Text('Add vehicle…'),
+              onTap: () => Navigator.of(context).pop(
+                const _VehiclePickResult(addNew: true),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String? _vehicleSubtitle(Vehicle v) {
+    final parts = <String>[];
+    if (v.makeModel.isNotEmpty) parts.add(v.makeModel);
+    if (v.licensePlate.isNotEmpty) parts.add(v.licensePlate);
+    return parts.isEmpty ? null : parts.join(' · ');
   }
 }
 

@@ -21,15 +21,15 @@ const FormDefinition vehicleCheckForm = FormDefinition(
     FormSection(
       title: 'Vehicle',
       fields: [
-        FormTextField(
-          key: 'vehicle_make_model',
-          label: 'Make & model',
-          hint: 'e.g. Ford Transit 350',
-        ),
-        FormTextField(
-          key: 'license_plate',
-          label: 'License plate',
-          hint: 'e.g. 03234E4',
+        // Vehicle id is the new source-of-truth. Legacy data from
+        // pre-v37 checks (which carried `vehicle_make_model` +
+        // `license_plate` as free text) still round-trips — those
+        // keys are ignored by the picker and surface as read-only
+        // context in the form-list summary for old rows.
+        FormVehiclePickerField(
+          key: 'vehicle_id',
+          label: 'Vehicle',
+          required: true,
         ),
         FormTextField(
           key: 'driver_name',

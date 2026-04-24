@@ -18,6 +18,7 @@ import 'package:basecamp/features/settings/program_settings_screen.dart';
 import 'package:basecamp/features/today/today_screen.dart';
 import 'package:basecamp/features/trips/trip_detail_screen.dart';
 import 'package:basecamp/features/trips/trips_screen.dart';
+import 'package:basecamp/features/vehicles/vehicles_screen.dart';
 import 'package:basecamp/ui/app_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -157,6 +158,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'rooms',
                     builder: (_, _) => const RoomsScreen(),
+                  ),
+                  GoRoute(
+                    path: 'vehicles',
+                    builder: (_, _) => const VehiclesScreen(),
                   ),
                   GoRoute(
                     path: 'settings',

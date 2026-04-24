@@ -2,6 +2,7 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/forms/polymorphic/form_definition.dart';
 import 'package:basecamp/features/forms/polymorphic/form_submission_repository.dart';
 import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
+import 'package:basecamp/features/vehicles/vehicles_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
@@ -84,18 +85,23 @@ class GenericFormListScreen extends ConsumerWidget {
   }
 }
 
-class _SubmissionTile extends StatelessWidget {
+class _SubmissionTile extends ConsumerWidget {
   const _SubmissionTile({required this.submission, required this.onTap});
 
   final FormSubmission submission;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final data = decodeFormData(submission);
     final status = FormStatus.fromDb(submission.status);
     final stamp = submission.submittedAt ?? submission.createdAt;
+    // Resolve vehicle id → name/plate for the row title. Cheap —
+    // the vehicles stream is one small table and already watched by
+    // the composer on the same tab.
+    final vehiclesAsync = ref.watch(vehiclesProvider);
+    final vehicles = vehiclesAsync.asData?.value ?? const <Vehicle>[];
     return AppCard(
       onTap: onTap,
       child: Column(
@@ -115,7 +121,7 @@ class _SubmissionTile extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            _previewTitle(data),
+            _previewTitle(data, vehicles),
             style: theme.textTheme.titleMedium,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -140,7 +146,22 @@ class _SubmissionTile extends StatelessWidget {
   /// Best-effort row title — takes whichever of a few conventional
   /// keys is present. Form definitions can evolve this later (a
   /// `titleKey` on FormDefinition) if the defaults stop fitting.
-  String _previewTitle(Map<String, dynamic> data) {
+  ///
+  /// Vehicle checks: resolve `vehicle_id` → name. Legacy rows
+  /// without `vehicle_id` fall back to the old `vehicle_make_model`
+  /// free-text key so pre-v37 submissions still render meaningfully.
+  String _previewTitle(Map<String, dynamic> data, List<Vehicle> vehicles) {
+    final vehicleId = data['vehicle_id'];
+    if (vehicleId is String && vehicleId.isNotEmpty) {
+      for (final v in vehicles) {
+        if (v.id == vehicleId) {
+          return v.licensePlate.isEmpty
+              ? v.name
+              : '${v.name} · ${v.licensePlate}';
+        }
+      }
+      return '(deleted vehicle)';
+    }
     for (final k in const [
       'vehicle_make_model',
       'child_names',

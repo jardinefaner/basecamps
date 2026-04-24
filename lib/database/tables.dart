@@ -94,6 +94,42 @@ class ChildScheduleOverrides extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Program-owned vehicles (v37). A named vehicle carries the two
+/// fields teachers retype on every trip — make/model + plate — so
+/// the vehicle-check form picks from a list instead of making
+/// drivers spell out "Ford Transit 350" every morning. One row per
+/// vehicle the program operates.
+@DataClassName('Vehicle')
+class Vehicles extends Table {
+  TextColumn get id => text()();
+
+  /// Short display name — "Big Bus", "Blue Van", or just a copy of
+  /// the make/model when there's only one. Shows up on list tiles
+  /// and the picker chip.
+  TextColumn get name => text()();
+
+  /// "Ford Transit 350" — free text so teachers can match whatever
+  /// they see on the registration.
+  TextColumn get makeModel => text().withDefault(const Constant(''))();
+
+  /// License plate — free text for the same reason. Stored exactly
+  /// as entered so the vehicle check form reads it back verbatim.
+  TextColumn get licensePlate =>
+      text().withDefault(const Constant(''))();
+
+  /// Optional free-form notes — VIN, parking spot, owner, insurance
+  /// contact, whatever the program wants tied to the vehicle.
+  TextColumn get notes => text().nullable()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 class Trips extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();

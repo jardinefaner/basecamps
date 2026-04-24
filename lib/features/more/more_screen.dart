@@ -42,6 +42,13 @@ class MoreScreen extends StatelessWidget {
                   onTap: () => context.push('/more/rooms'),
                 ),
                 _MoreTile(
+                  icon: Icons.directions_bus_outlined,
+                  label: 'Vehicles',
+                  subtitle: 'Vans, buses, cars — picked on the '
+                      'vehicle-check form',
+                  onTap: () => context.push('/more/vehicles'),
+                ),
+                _MoreTile(
                   icon: Icons.assignment_outlined,
                   label: 'Forms & surveys',
                   subtitle: 'Attendance, incidents, parent concerns',

@@ -35,6 +35,7 @@ QueryExecutor _openConnection() {
     ChildScheduleOverrides,
     AdultDayBlocks,
     FormSubmissions,
+    Vehicles,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -43,7 +44,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 36;
+  int get schemaVersion => 37;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -398,12 +399,33 @@ class AppDatabase extends _$AppDatabase {
             );
           }
           // --- version gates below ---
+          if (from < 37) {
+            // v37: vehicles as a first-class entity. Programs own a
+            // list of named vehicles instead of re-typing make/model +
+            // plate on every vehicle-check form. Standalone table with
+            // no FKs into it yet — the vehicle-check form references
+            // it by id in its JSON data blob, not by FK, because the
+            // polymorphic-forms schema doesn't thread per-form FKs.
+            await _runSilent(
+              'CREATE TABLE IF NOT EXISTS "vehicles" ( '
+              '"id" TEXT NOT NULL PRIMARY KEY, '
+              '"name" TEXT NOT NULL, '
+              "\"make_model\" TEXT NOT NULL DEFAULT '', "
+              "\"license_plate\" TEXT NOT NULL DEFAULT '', "
+              '"notes" TEXT NULL, '
+              '"created_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now')), "
+              '"updated_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now'))"
+              ' )',
+            );
+          }
           if (from < 36) {
             // v36: entity rename "specialist" → "adult". Table names,
             // the specialist_id FK column on every related table, and
             // the idx_adult_block_specialist_day index all move to
             // "adult" naming to match the UI vocabulary. The
-            // 'adult' STRING VALUE in adult_role / role columns
+            // 'specialist' STRING VALUE in adult_role / role columns
             // is unchanged — that's the rotating-rover role label.
             await _runSilent(
               'ALTER TABLE "specialists" RENAME TO "adults"',

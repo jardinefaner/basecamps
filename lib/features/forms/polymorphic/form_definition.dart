@@ -151,6 +151,22 @@ class FormBoolField extends FormField {
   });
 }
 
+/// Pick-from-list for a Vehicle row. Stores the vehicle's id in the
+/// form's JSON data blob; the renderer resolves the id back into a
+/// name + make/model + plate line when displaying. Historical forms
+/// keep their recorded id even if the vehicle is deleted later — the
+/// UI renders "(deleted vehicle)" in that case. Tap-through to
+/// `/more/vehicles` is offered from the picker sheet so teachers
+/// can add a missing vehicle inline without losing their draft.
+class FormVehiclePickerField extends FormField {
+  const FormVehiclePickerField({
+    required super.key,
+    required super.label,
+    super.helpText,
+    super.required,
+  });
+}
+
 /// Grouping of related fields on the form. Rendered as a titled
 /// section — keeps long checklists scannable.
 class FormSection {
