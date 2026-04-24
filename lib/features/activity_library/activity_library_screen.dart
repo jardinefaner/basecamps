@@ -4,6 +4,7 @@ import 'package:basecamp/features/activity_library/activity_library_repository.d
 import 'package:basecamp/features/activity_library/widgets/activity_card_preview.dart';
 import 'package:basecamp/features/activity_library/widgets/edit_library_item_sheet.dart';
 import 'package:basecamp/features/activity_library/widgets/library_card_detail_sheet.dart';
+import 'package:basecamp/features/activity_library/widgets/library_filter_header.dart';
 import 'package:basecamp/features/activity_library/widgets/new_library_item_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -22,6 +23,16 @@ class ActivityLibraryScreen extends ConsumerStatefulWidget {
 
 class _ActivityLibraryScreenState extends ConsumerState<ActivityLibraryScreen>
     with BulkSelectionMixin {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+  LibraryAgeBand _band = LibraryAgeBand.all;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _openSheet({ActivityLibraryData? item}) async {
     // Create flow uses the wizard; existing rows open a surface that
     // matches their shape.
@@ -138,27 +149,50 @@ class _ActivityLibraryScreenState extends ConsumerState<ActivityLibraryScreen>
             if (items.isEmpty) {
               return _EmptyState(onAdd: _openSheet);
             }
-            return ListView.separated(
-              padding: const EdgeInsets.only(
-                left: AppSpacing.lg,
-                right: AppSpacing.lg,
-                top: AppSpacing.md,
-                bottom: AppSpacing.xxxl * 2,
-              ),
-              itemCount: items.length,
-              separatorBuilder: (_, _) =>
-                  const SizedBox(height: AppSpacing.md),
-              itemBuilder: (_, i) {
-                final item = items[i];
-                return _LibraryTile(
-                  item: item,
-                  selected: isSelected(item.id),
-                  onTap: isSelecting
-                      ? () => toggleSelection(item.id)
-                      : () => _openSheet(item: item),
-                  onLongPress: () => toggleSelection(item.id),
-                );
-              },
+            final filtered = [
+              for (final item in items)
+                if (matchesLibraryFilter(
+                  item,
+                  query: _query,
+                  band: _band,
+                ))
+                  item,
+            ];
+            return Column(
+              children: [
+                LibraryFilterHeader(
+                  searchController: _searchCtrl,
+                  onSearchChanged: (v) => setState(() => _query = v),
+                  band: _band,
+                  onBandChanged: (b) => setState(() => _band = b),
+                ),
+                Expanded(
+                  child: filtered.isEmpty
+                      ? _NoMatchesState(query: _query, band: _band)
+                      : ListView.separated(
+                          padding: const EdgeInsets.only(
+                            left: AppSpacing.lg,
+                            right: AppSpacing.lg,
+                            top: AppSpacing.md,
+                            bottom: AppSpacing.xxxl * 2,
+                          ),
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: AppSpacing.md),
+                          itemBuilder: (_, i) {
+                            final item = filtered[i];
+                            return _LibraryTile(
+                              item: item,
+                              selected: isSelected(item.id),
+                              onTap: isSelecting
+                                  ? () => toggleSelection(item.id)
+                                  : () => _openSheet(item: item),
+                              onLongPress: () => toggleSelection(item.id),
+                            );
+                          },
+                        ),
+                ),
+              ],
             );
           },
         ),
@@ -314,6 +348,50 @@ class _LegacyTile extends StatelessWidget {
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _NoMatchesState extends StatelessWidget {
+  const _NoMatchesState({required this.query, required this.band});
+
+  final String query;
+  final LibraryAgeBand band;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final trimmed = query.trim();
+    final String message;
+    if (trimmed.isNotEmpty) {
+      message = "No activities match '$trimmed'.";
+    } else if (band != LibraryAgeBand.all) {
+      message = 'No activities in ${libraryAgeBandLabels[band]!.toLowerCase()}.';
+    } else {
+      message = 'No activities match.';
+    }
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.search_off_outlined,
+              size: 44,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              message,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
