@@ -161,6 +161,69 @@ class FormSubmissionRepository {
   Future<void> deleteSubmission(String id) async {
     await (_db.delete(_db.formSubmissions)..where((s) => s.id.equals(id))).go();
   }
+
+  /// One-time back-fill for pre-picker incident submissions. The old
+  /// incident form stored the child as a free-text `child_name` in
+  /// the JSON blob and left the typed `child_id` FK column null.
+  /// After the FormChildPickerField slice, new submissions stamp
+  /// child_id directly — but the historical rows' JSON is orphaned.
+  ///
+  /// This walks every `form_submissions` row where:
+  ///   * form_type == 'incident'
+  ///   * child_id IS NULL
+  ///   * data contains a non-empty 'child_name' string
+  ///
+  /// For each, it attempts an unambiguous match against the
+  /// `children` table by first+last name (case-insensitive). Exactly
+  /// one matching child → update child_id. Zero or multiple matches
+  /// → leave untouched (teacher can re-link by hand later).
+  ///
+  /// Returns the number of rows successfully linked. Intended to run
+  /// once on app startup behind a SharedPreferences flag; safe to
+  /// re-run (idempotent — already-linked rows are skipped by the
+  /// null filter).
+  Future<int> backfillIncidentChildIds() async {
+    final rows = await (_db.select(_db.formSubmissions)
+          ..where((s) =>
+              s.formType.equals('incident') & s.childId.isNull()))
+        .get();
+    if (rows.isEmpty) return 0;
+
+    final kids = await _db.select(_db.children).get();
+    // Precompute a lowercase "first last" → child lookup. Collisions
+    // (two kids with the same name) produce a list; we skip those
+    // ambiguous names at match time.
+    final byName = <String, List<String>>{};
+    for (final k in kids) {
+      final last = k.lastName ?? '';
+      final key = '${k.firstName} $last'.trim().toLowerCase();
+      (byName[key] ??= <String>[]).add(k.id);
+    }
+
+    var linked = 0;
+    for (final row in rows) {
+      final data = decodeFormData(row);
+      final raw = (data['child_name'] as String?)?.trim();
+      if (raw == null || raw.isEmpty) continue;
+      final key = raw.toLowerCase();
+      // Also try the raw name against first-only (a teacher who
+      // wrote just "Noah" without a last name). Skip ambiguous.
+      var candidates = byName[key];
+      if (candidates == null) {
+        final firstOnly = key.split(' ').first;
+        candidates = byName.entries
+            .where((e) => e.key.startsWith('$firstOnly '))
+            .expand((e) => e.value)
+            .toList();
+      }
+      if (candidates.length != 1) continue;
+      await (_db.update(_db.formSubmissions)
+            ..where((s) => s.id.equals(row.id)))
+          .write(FormSubmissionsCompanion(childId: Value(candidates.first)));
+      linked++;
+    }
+    return linked;
+  }
 }
 
 /// Decodes the stored [FormSubmission.data] JSON into a typed map.
