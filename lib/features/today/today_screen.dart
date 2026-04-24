@@ -214,7 +214,10 @@ class TodayScreen extends ConsumerWidget {
   /// nothing to pass in — just render it. `viewInsets.bottom` keeps
   /// the keyboard from covering the input when the teacher starts
   /// typing.
-  Future<void> _openObservationComposer(BuildContext context) async {
+  Future<void> _openObservationComposer(
+    BuildContext context, {
+    ScheduleItem? forActivity,
+  }) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -229,9 +232,9 @@ class TodayScreen extends ConsumerWidget {
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(ctx).viewInsets.bottom,
           ),
-          child: const Scaffold(
+          child: Scaffold(
             backgroundColor: Colors.transparent,
-            body: ObservationComposer(),
+            body: ObservationComposer(forActivity: forActivity),
           ),
         );
       },
@@ -394,6 +397,10 @@ class TodayScreen extends ConsumerWidget {
                 dateLabel: dateLabel,
                 theme: theme,
                 onOpenDetail: (item) => _openDetail(context, item),
+                onCaptureFor: (item) => _openObservationComposer(
+                  context,
+                  forActivity: item,
+                ),
               ),
             ),
           ],
@@ -410,6 +417,7 @@ class _Body extends ConsumerWidget {
     required this.dateLabel,
     required this.theme,
     required this.onOpenDetail,
+    required this.onCaptureFor,
   });
 
   final List<ScheduleItem> items;
@@ -417,6 +425,13 @@ class _Body extends ConsumerWidget {
   final String dateLabel;
   final ThemeData theme;
   final ValueChanged<ScheduleItem> onOpenDetail;
+
+  /// Open the observation composer scoped to a specific schedule
+  /// item. Nullable `item` passes through to "composer figures it
+  /// out" (current-time + selected-group fallback); non-null locks
+  /// the composer to that activity so observations tagged from a
+  /// past-activity card carry the right schedule-source-id.
+  final ValueChanged<ScheduleItem?> onCaptureFor;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -861,7 +876,7 @@ class _Body extends ConsumerWidget {
                 shiftConflicts: conflictsFor(primaryCurrent.id).shift,
                 tripConflicts: conflictsFor(primaryCurrent.id).trip,
                 onTap: () => onOpenDetail(primaryCurrent),
-                onCapture: () => unawaited(context.push('/observations')),
+                onCapture: () => onCaptureFor(primaryCurrent),
                 onOpenAttendance: () => openAttendance(primaryCurrent),
               ),
               if (alsoNow.isNotEmpty) ...[
@@ -934,8 +949,7 @@ class _Body extends ConsumerWidget {
                         concernMatch: concernForItem(item),
                         attendance: attendanceFor(item),
                         onTap: () => onOpenDetail(item),
-                        onLogObservations: () =>
-                            unawaited(context.push('/observations')),
+                        onLogObservations: () => onCaptureFor(item),
                         onOpenConcern: () => _goConcern(
                           context,
                           concernForItem(item)?.id,

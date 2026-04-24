@@ -21,8 +21,20 @@ import 'package:image_picker/image_picker.dart';
 /// domain, sentiment) happens later by tapping the saved entry in the
 /// list above. The classifier still runs at submit time so the saved row
 /// has sensible auto-tags the teacher can accept or override later.
+///
+/// [forActivity] locks the composer to a specific schedule item instead
+/// of picking whichever activity happens to be running by the wall
+/// clock. Opened from a hero card's Capture button → scoped to the
+/// hero's activity; opened from a past-activity card's "log
+/// observations" strip → scoped to THAT past occurrence, so the
+/// resulting row has the right schedule-source-id + activity-date
+/// even though it's no longer "now." Fresh FAB opens leave this null
+/// and the composer falls back to current-time + selected-group
+/// resolution.
 class ObservationComposer extends ConsumerStatefulWidget {
-  const ObservationComposer({super.key});
+  const ObservationComposer({this.forActivity, super.key});
+
+  final ScheduleItem? forActivity;
 
   @override
   ConsumerState<ObservationComposer> createState() =>
@@ -178,16 +190,38 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
     }
   }
 
+  /// Resolves which activity the observation belongs to. Priority:
+  ///   1. An explicit `widget.forActivity` passed by the caller (hero
+  ///      Capture, past-card "log observations"). Locks the composer
+  ///      to that occurrence regardless of wall-clock drift.
+  ///   2. An activity currently running AND scoped to the selected
+  ///      group chip (when multiple concurrent activities exist, the
+  ///      one in the teacher's selected group wins).
+  ///   3. Any activity currently running (first match) — legacy
+  ///      fallback for fresh FAB opens with no group chip active.
+  ///   4. null — composer saves as program-wide, no schedule link.
   ScheduleItem? _currentActivity() {
+    if (widget.forActivity != null) return widget.forActivity;
     final schedule = ref.read(todayScheduleProvider).asData?.value;
     if (schedule == null) return null;
     final now = DateTime.now();
     final mins = now.hour * 60 + now.minute;
+    final selectedGroup = ref.read(lastExpandedGroupProvider);
+    ScheduleItem? firstMatch;
     for (final item in schedule) {
       if (item.isFullDay) continue;
-      if (mins >= item.startMinutes && mins < item.endMinutes) return item;
+      if (mins < item.startMinutes || mins >= item.endMinutes) continue;
+      firstMatch ??= item;
+      // Prefer the activity that actually belongs to the selected
+      // group — two concurrent running activities (e.g. Butterflies'
+      // Art and Sprouts' Music) should not silently cross-tag.
+      if (selectedGroup != null &&
+          !item.isAllGroups &&
+          item.groupIds.contains(selectedGroup)) {
+        return item;
+      }
     }
-    return null;
+    return firstMatch;
   }
 
   /// Resolves which group the observation belongs to, in priority
