@@ -1,7 +1,11 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/schedule/adult_shift_conflicts.dart';
+import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/schedule/trip_conflicts.dart';
+import 'package:basecamp/features/schedule/widgets/conflict_sheet.dart';
 import 'package:basecamp/features/today/widgets/schedule_item_card.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
@@ -24,6 +28,9 @@ class HeroNowCard extends ConsumerWidget {
     required this.onCapture,
     this.attendance,
     this.onOpenAttendance,
+    this.conflicts = const <ConflictInfo>[],
+    this.shiftConflicts = const <ShiftConflict>[],
+    this.tripConflicts = const <TripConflict>[],
     super.key,
   });
 
@@ -37,6 +44,24 @@ class HeroNowCard extends ConsumerWidget {
   /// "check-in" strip above Capture, tapping opens the inline sheet.
   final AttendanceSummary? attendance;
   final VoidCallback? onOpenAttendance;
+
+  /// Activity-against-activity conflicts (group overlap, adult double-
+  /// booked). Same type list [ScheduleItemCard] takes so the hero can
+  /// pop the same [ConflictSheet] when the teacher taps the pill.
+  final List<ConflictInfo> conflicts;
+
+  /// Shift-window clashes (break / lunch / off-shift) for the adult
+  /// assigned to this item.
+  final List<ShiftConflict> shiftConflicts;
+
+  /// Trip overlaps — a trip runs over this activity or two trips
+  /// share a group.
+  final List<TripConflict> tripConflicts;
+
+  int get _conflictCount =>
+      conflicts.length + shiftConflicts.length + tripConflicts.length;
+
+  bool get _hasConflict => _conflictCount > 0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -106,6 +131,13 @@ class HeroNowCard extends ConsumerWidget {
                     letterSpacing: 0.8,
                   ),
                 ),
+                if (_hasConflict) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  _ConflictPill(
+                    count: _conflictCount,
+                    onTap: () => _openConflictSheet(context),
+                  ),
+                ],
                 const Spacer(),
                 Text(
                   item.isFullDay
@@ -251,6 +283,69 @@ class HeroNowCard extends ConsumerWidget {
     final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
     final period = h < 12 ? 'a' : 'p';
     return m == '00' ? '$hour12$period' : '$hour12:$m$period';
+  }
+
+  Future<void> _openConflictSheet(BuildContext context) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => ConflictSheet(
+        item: item,
+        conflicts: conflicts,
+        shiftConflicts: shiftConflicts,
+        tripConflicts: tripConflicts,
+      ),
+    );
+  }
+}
+
+/// Red pill shown next to the "HAPPENING NOW" label when the current
+/// activity has any conflict (group overlap, adult off-shift, trip
+/// collision). Tap opens the same [ConflictSheet] the smaller list
+/// cards use — one shared surface explains the whole picture.
+class _ConflictPill extends StatelessWidget {
+  const _ConflictPill({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: 2,
+        ),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.errorContainer,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.warning_amber_rounded,
+              size: 12,
+              color: theme.colorScheme.onErrorContainer,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              count == 1 ? 'Conflict' : 'Conflicts $count',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

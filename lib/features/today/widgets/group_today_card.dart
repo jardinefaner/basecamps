@@ -1,12 +1,22 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/today/ratio_check.dart';
 import 'package:basecamp/features/today/widgets/schedule_item_card.dart'
     show AttendanceSummary;
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
+
+/// Threshold at which the ratio chip flips from "muted / OK" to
+/// "red / UNDER RATIO". Hardcoded for now — programs tune their
+/// own ratio rules, so this is the single knob we'd expect to
+/// promote next. Exported so the Today screen and any future caller
+/// can pass the same value into [computeGroupRatioNow].
+// TODO: source this from `ProgramSettings` once the settings feature
+// grows per-program ratio rules.
+const int kGroupRatioFloor = 8;
 
 /// Today view of a single [GroupSummary] — collapsed it's a one-line
 /// "at-a-glance" scannable row; expanded it unfolds into a NOW tile,
@@ -33,9 +43,15 @@ class GroupTodayCard extends StatelessWidget {
     required this.onOpenDetail,
     required this.onOpenAttendance,
     required this.onOpenGroupDetail,
+    this.ratio,
     super.key,
   });
 
+  /// Pre-computed ratio for this group at `now`. Null hides the chip
+  /// (either the caller doesn't have the data yet or intentionally
+  /// opted out). Never pulls providers internally — the caller owns
+  /// ratio-check inputs so this stays a dumb renderer.
+  final GroupRatioNow? ratio;
 
   final GroupSummary group;
   final DateTime now;
@@ -81,6 +97,7 @@ class GroupTodayCard extends StatelessWidget {
             current: current,
             now: now,
             attendance: attendance,
+            ratio: ratio,
             expanded: expanded,
             onToggle: onToggle,
           ),
@@ -117,6 +134,7 @@ class _Header extends StatelessWidget {
     required this.current,
     required this.now,
     required this.attendance,
+    required this.ratio,
     required this.expanded,
     required this.onToggle,
   });
@@ -125,6 +143,7 @@ class _Header extends StatelessWidget {
   final ScheduleItem? current;
   final DateTime now;
   final AttendanceSummary? attendance;
+  final GroupRatioNow? ratio;
   final bool expanded;
   final VoidCallback onToggle;
 
@@ -157,6 +176,10 @@ class _Header extends StatelessWidget {
             ),
             const SizedBox(width: AppSpacing.sm),
             _RollPill(group: group, attendance: attendance),
+            if (ratio != null) ...[
+              const SizedBox(width: AppSpacing.xs),
+              _RatioChip(ratio: ratio!),
+            ],
             if (subtitle.isNotEmpty) ...[
               const SizedBox(width: AppSpacing.sm),
               Flexible(
@@ -282,6 +305,58 @@ class _RollPill extends StatelessWidget {
           color: fg,
           fontWeight: FontWeight.w700,
         ),
+      ),
+    );
+  }
+}
+
+/// Compact chip showing the current kids:adults ratio for this
+/// group. Quiet `secondaryContainer` tint when we're inside the
+/// threshold; flips to `errorContainer` with a warning icon and
+/// "UNDER RATIO" suffix when we're over. Computation lives in
+/// `ratio_check.dart` — this widget just paints the result.
+class _RatioChip extends StatelessWidget {
+  const _RatioChip({required this.ratio});
+
+  final GroupRatioNow ratio;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final underRatio = ratio.isUnderRatio;
+    final bg = underRatio
+        ? theme.colorScheme.errorContainer
+        : theme.colorScheme.secondaryContainer;
+    final fg = underRatio
+        ? theme.colorScheme.onErrorContainer
+        : theme.colorScheme.onSecondaryContainer;
+    final label =
+        underRatio ? '${ratio.display} · UNDER RATIO' : ratio.display;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (underRatio) ...[
+            Icon(
+              Icons.warning_amber_rounded,
+              size: 12,
+              color: fg,
+            ),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: fg,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
