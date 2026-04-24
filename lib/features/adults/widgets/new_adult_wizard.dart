@@ -23,7 +23,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 ///   6. Break & lunch          — per-day break + lunch windows
 ///   7. Notes                  — freeform (optional)
 class NewAdultWizardScreen extends ConsumerStatefulWidget {
-  const NewAdultWizardScreen({super.key});
+  const NewAdultWizardScreen({
+    super.key,
+    this.allowCreateGroupInline = true,
+  });
+
+  /// When `false`, the anchor-group page hides its "+ New group"
+  /// action. Set by callers that opened this wizard from inside
+  /// `NewGroupWizardScreen` — otherwise the teacher can nest
+  /// wizards forever (Group → Adult → Group → Adult → …) through
+  /// the mutual inline-create path. Top-level opens keep the
+  /// default `true` so the empty state still offers inline-create.
+  final bool allowCreateGroupInline;
 
   @override
   ConsumerState<NewAdultWizardScreen> createState() =>
@@ -257,26 +268,39 @@ class _NewAdultWizardScreenState
       loading: () => const LinearProgressIndicator(),
       error: (err, _) => Text('Error: $err'),
       data: (groups) {
+        // When this wizard was opened from inside NewGroupWizard,
+        // cross-inline-create is disabled to cut the recursion.
+        // Teacher uses Skip to finish the nested adult and returns.
+        final allowInline = widget.allowCreateGroupInline;
         if (groups.isEmpty) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'No groups in the program yet. Add one below to '
-                'anchor this lead.',
+                allowInline
+                    ? 'No groups in the program yet. Add one below '
+                        'to anchor this lead.'
+                    : 'No groups yet. Tap Skip — once the outer '
+                        'group is saved, re-open the adult and '
+                        'anchor them there.',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: AppSpacing.md),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: OutlinedButton.icon(
-                  onPressed: () => _openNewGroupWizard(context),
-                  icon: const Icon(Icons.group_add_outlined, size: 18),
-                  label: const Text('New group'),
+              if (allowInline) ...[
+                const SizedBox(height: AppSpacing.md),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _openNewGroupWizard(context),
+                    icon: const Icon(
+                      Icons.group_add_outlined,
+                      size: 18,
+                    ),
+                    label: const Text('New group'),
+                  ),
                 ),
-              ),
+              ],
             ],
           );
         }
@@ -296,15 +320,17 @@ class _NewAdultWizardScreenState
                   ),
               ],
             ),
-            const SizedBox(height: AppSpacing.sm),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () => _openNewGroupWizard(context),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Add another group…'),
+            if (allowInline) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => _openNewGroupWizard(context),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Add another group…'),
+                ),
               ),
-            ),
+            ],
           ],
         );
       },
@@ -320,7 +346,11 @@ class _NewAdultWizardScreenState
     await Navigator.of(context, rootNavigator: true).push<void>(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => const NewGroupWizardScreen(),
+        // Nested spawn: disable the nested wizard's "+ New adult"
+        // cross-create so the teacher can't recurse forever.
+        builder: (_) => const NewGroupWizardScreen(
+          allowCreateAdultInline: false,
+        ),
       ),
     );
   }

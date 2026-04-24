@@ -275,13 +275,16 @@ String _displayName(String first, String? last) {
   return '$first ${last.trim()[0]}.';
 }
 
-/// Close the enclosing Drawer, then route. Every launcher tap funnels
-/// through here so the user lands on the new screen with Today in the
-/// back-stack. Default is `push` (stacks onto Today); pass `go: true`
-/// for horizontal moves that should clear any lower stack (rarely
-/// needed now that /today is the only root).
+/// Route without closing the drawer. The pushed screen covers Today
+/// (and the drawer visually), but the Scaffold preserves the drawer's
+/// open state — pressing back pops the pushed screen and the drawer
+/// is still there. Teachers jumping between setup screens don't have
+/// to re-open the drawer after every trip.
+///
+/// Default is `push` (stacks onto Today); pass `go: true` for
+/// horizontal moves that should clear any lower stack (rarely needed
+/// now that /today is the only root).
 void _navigateTo(BuildContext context, String path, {bool go = false}) {
-  Navigator.of(context).pop();
   if (go) {
     context.go(path);
   } else {
@@ -437,11 +440,10 @@ class _QuickActionData {
       label: 'New activity',
       icon: Icons.add,
       onTap: (ctx, _) async {
-        // Grab the root navigator *before* popping the drawer —
-        // Navigator.of(ctx) after pop is undefined.
-        final rootNav = Navigator.of(ctx, rootNavigator: true);
-        Navigator.of(ctx).pop();
-        await rootNav.push<void>(
+        // Push on the root navigator so the wizard sits above the
+        // drawer. Drawer stays open in Scaffold state; when the
+        // wizard pops, the drawer is still there.
+        await Navigator.of(ctx, rootNavigator: true).push<void>(
           MaterialPageRoute(
             fullscreenDialog: true,
             builder: (_) => const NewActivityWizardScreen(),
@@ -454,9 +456,7 @@ class _QuickActionData {
       label: 'New event',
       icon: Icons.event_outlined,
       onTap: (ctx, _) async {
-        final rootNav = Navigator.of(ctx, rootNavigator: true);
-        Navigator.of(ctx).pop();
-        await rootNav.push<void>(
+        await Navigator.of(ctx, rootNavigator: true).push<void>(
           MaterialPageRoute(
             fullscreenDialog: true,
             builder: (_) => const NewFullDayEventWizardScreen(),
@@ -469,9 +469,7 @@ class _QuickActionData {
       label: 'New trip',
       icon: Icons.map_outlined,
       onTap: (ctx, _) async {
-        final rootNav = Navigator.of(ctx, rootNavigator: true);
-        Navigator.of(ctx).pop();
-        await rootNav.push<void>(
+        await Navigator.of(ctx, rootNavigator: true).push<void>(
           MaterialPageRoute(
             fullscreenDialog: true,
             builder: (_) => const NewTripWizardScreen(),
@@ -484,9 +482,7 @@ class _QuickActionData {
       label: 'New note',
       icon: Icons.chat_outlined,
       onTap: (ctx, _) async {
-        final rootNav = Navigator.of(ctx, rootNavigator: true);
-        Navigator.of(ctx).pop();
-        await rootNav.push<void>(
+        await Navigator.of(ctx, rootNavigator: true).push<void>(
           MaterialPageRoute(
             fullscreenDialog: true,
             builder: (_) => const ParentConcernFormScreen(

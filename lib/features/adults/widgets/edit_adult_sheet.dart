@@ -604,7 +604,12 @@ class _AnchorGroupPicker extends ConsumerWidget {
     await Navigator.of(context, rootNavigator: true).push<void>(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => const NewGroupWizardScreen(),
+        // Nested spawn from an adult-edit sheet: disable the group
+        // wizard's "+ New adult" cross-create so a nested adult
+        // wizard can't recurse back into creating more groups.
+        builder: (_) => const NewGroupWizardScreen(
+          allowCreateAdultInline: false,
+        ),
       ),
     );
   }
