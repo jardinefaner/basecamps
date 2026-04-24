@@ -159,6 +159,31 @@ class ObservationsRepository {
     });
   }
 
+  /// Observations tagged with [domain], newest first. Drives the
+  /// Observe archive's domain-filter pill — tap a chip on any
+  /// observation card and land here scoped to that domain.
+  ///
+  /// Uses the join table (`observation_domain_tags`) so observations
+  /// tagged across multiple domains still surface when any one of
+  /// them matches. The legacy single `domain` column isn't consulted
+  /// directly — post-migration every observation has at least one
+  /// join row mirroring it.
+  Stream<List<Observation>> watchObservationsWithDomain(
+    ObservationDomain domain,
+  ) {
+    final query = _db.select(_db.observations).join([
+      innerJoin(
+        _db.observationDomainTags,
+        _db.observationDomainTags.observationId.equalsExp(_db.observations.id),
+      ),
+    ])
+      ..where(_db.observationDomainTags.domain.equals(domain.name))
+      ..orderBy([OrderingTerm.desc(_db.observations.createdAt)]);
+    return query.watch().map(
+          (rows) => rows.map((r) => r.readTable(_db.observations)).toList(),
+        );
+  }
+
   Stream<List<Observation>> watchForKid(String childId) {
     // Pulls observations via the join table (multi-kid) PLUS any legacy
     // single-kid rows where childId matches.
@@ -707,6 +732,15 @@ final todayActivityCountsProvider =
   return ref
       .watch(observationsRepositoryProvider)
       .watchActivityCountsForDay(DateTime.now());
+});
+
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final observationsWithDomainProvider =
+    StreamProvider.family<List<Observation>, ObservationDomain>((ref, domain) {
+  return ref
+      .watch(observationsRepositoryProvider)
+      .watchObservationsWithDomain(domain);
 });
 
 // Riverpod family return type is complex; inference is intentional.

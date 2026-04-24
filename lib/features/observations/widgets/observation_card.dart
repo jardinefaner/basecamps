@@ -10,6 +10,7 @@ import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 class ObservationCard extends ConsumerWidget {
@@ -363,6 +364,12 @@ class _AttachmentThumb extends StatelessWidget {
 /// the header to a single inline pill so the child-name column keeps as
 /// much space as possible — tapping the card opens the editor where
 /// every tagged domain is visible.
+///
+/// The primary chip itself is tappable: it pushes the Observations
+/// archive scoped to that domain (`/observations?tag=<domain.name>`),
+/// so a teacher reading a card can pivot to "everything tagged SSD3"
+/// with a single tap. The "+N" aggregate stays decorative — no single
+/// domain to jump to.
 class _DomainChipList extends StatelessWidget {
   const _DomainChipList({required this.domains});
 
@@ -374,24 +381,51 @@ class _DomainChipList extends StatelessWidget {
     final primary = domains.first;
     final extra = domains.length - 1;
 
-    Widget chip(String text) => Container(
-          margin: const EdgeInsets.only(left: AppSpacing.xs),
+    final chipShape = BorderRadius.circular(8);
+
+    Widget decoratedChip(String text) => Container(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.sm,
             vertical: AppSpacing.xs,
           ),
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerHigh,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: chipShape,
           ),
           child: Text(text, style: theme.textTheme.labelMedium),
         );
 
+    final primaryText =
+        primary == ObservationDomain.other ? primary.label : primary.code;
+
+    // Material wrapper so the InkWell splash clips inside the chip
+    // shape — dropping one in directly over the Container gives a
+    // rectangular ripple that bleeds past the rounded corners.
+    final primaryChip = Padding(
+      padding: const EdgeInsets.only(left: AppSpacing.xs),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: chipShape,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          borderRadius: chipShape,
+          onTap: () => context.push(
+            '/observations?tag=${primary.name}',
+          ),
+          child: decoratedChip(primaryText),
+        ),
+      ),
+    );
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        chip(primary == ObservationDomain.other ? primary.label : primary.code),
-        if (extra > 0) chip('+$extra'),
+        primaryChip,
+        if (extra > 0)
+          Padding(
+            padding: const EdgeInsets.only(left: AppSpacing.xs),
+            child: decoratedChip('+$extra'),
+          ),
       ],
     );
   }
