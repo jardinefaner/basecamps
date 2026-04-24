@@ -135,6 +135,14 @@ class TodayAgendaView extends ConsumerWidget {
         // Synthesizer already scoped these by adult id, so they're
         // trusted to belong to the selected group's leads.
         return true;
+      case CalendarEventKind.adultLeadBlock:
+        // Lead blocks carry their anchored group's id. Show only in
+        // that group's view; hide in other groups' views.
+        if (event.groupIds.isEmpty) return true;
+        return event.groupIds.contains(groupId);
+      case CalendarEventKind.adultSpecialistBlock:
+        // Specialist doesn't target a group — always show.
+        return true;
     }
   }
 
@@ -182,6 +190,8 @@ class TodayAgendaView extends ConsumerWidget {
         }
       case CalendarEventKind.adultBreak:
       case CalendarEventKind.adultLunch:
+      case CalendarEventKind.adultLeadBlock:
+      case CalendarEventKind.adultSpecialistBlock:
         if (event.adultId == null) return;
         if (context.mounted) {
           await context.push('/more/adults/${event.adultId}');
@@ -342,6 +352,16 @@ class _AgendaRow extends StatelessWidget {
         return _KindStyle(
           icon: Icons.restaurant_outlined,
           tint: theme.colorScheme.secondary,
+        );
+      case CalendarEventKind.adultLeadBlock:
+        return _KindStyle(
+          icon: Icons.place_outlined,
+          tint: theme.colorScheme.primary,
+        );
+      case CalendarEventKind.adultSpecialistBlock:
+        return _KindStyle(
+          icon: Icons.swap_horiz_outlined,
+          tint: theme.colorScheme.tertiary,
         );
     }
   }

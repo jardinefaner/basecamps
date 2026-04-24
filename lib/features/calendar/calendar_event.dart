@@ -1,4 +1,5 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adult_timeline_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 
 /// What kind of thing a calendar event represents. Drives rendering
@@ -22,6 +23,18 @@ enum CalendarEventKind {
 
   /// Adult availability lunch. Same opt-in semantics as break.
   adultLunch,
+
+  /// Adult's "lead" day-block starting or ending — a co-lead
+  /// anchoring INTO a group for a stretch. Emitted as one event per
+  /// block so the agenda shows when someone arrives on Butterflies
+  /// at 11 and departs at 12. Carries the anchored group's id in
+  /// [CalendarEvent.groupIds] so group-filtering Just Works.
+  adultLeadBlock,
+
+  /// Adult's "specialist" day-block — the period when a lead
+  /// becomes a rotator (or any non-anchored block). Never scoped
+  /// to a single group; shows in every group's agenda view.
+  adultSpecialistBlock,
 }
 
 /// One row in the chronological Today / calendar feed. Built by the
@@ -278,6 +291,80 @@ Iterable<CalendarEvent> calendarEventsFromAvailability({
       adultId: adult.id,
       sourceKind: 'lunch',
       sourceId: availability.id,
+    );
+  }
+}
+
+/// Adapter: AdultDayBlock rows → CalendarEvent stream for one adult
+/// on [date]. Emits one event per block, kind matching the block's
+/// role. Title weaves the adult's name + role + optional anchored
+/// group so the agenda row reads ("Sarah → lead of Butterflies",
+/// "Sarah → specialist").
+///
+/// The caller passes in a `groupNameLookup` so we can resolve the
+/// group id to a human-readable label without this module depending
+/// on the groups repository. Unknown ids (group deleted out from
+/// under a block — the lead data-issue other agents flag) fall back
+/// to the neutral "lead" phrasing: the event still emits so the
+/// teacher at least sees the time range.
+///
+/// The block's `groupId` flows through into [CalendarEvent.groupIds]
+/// for lead blocks so the agenda's group-scope filter (see
+/// today_agenda.dart `_matchesSelectedGroup`) keeps lead blocks
+/// scoped to the right group. Specialist blocks emit with empty
+/// groupIds — they belong to every group's view.
+Iterable<CalendarEvent> calendarEventsFromAdultBlocks({
+  required List<AdultDayBlock> blocks,
+  required Adult adult,
+  required String Function(String groupId) groupNameLookup,
+  required DateTime date,
+}) sync* {
+  final day = DateTime(date.year, date.month, date.day);
+  DateTime parse(String hhmm) {
+    final parts = hhmm.split(':');
+    return DateTime(
+      day.year,
+      day.month,
+      day.day,
+      int.parse(parts[0]),
+      int.parse(parts[1]),
+    );
+  }
+
+  for (final block in blocks) {
+    final role = AdultBlockRole.fromDb(block.role);
+    final isLead = role == AdultBlockRole.lead;
+    // Resolve group label best-effort. A lead block with no groupId
+    // is the data-quality case (editor lets it slip when a lead row
+    // is saved before a group is picked) — we still emit but with
+    // empty groupIds and a neutral title.
+    String? groupLabel;
+    final groupIds = <String>[];
+    if (isLead && block.groupId != null) {
+      groupIds.add(block.groupId!);
+      final name = groupNameLookup(block.groupId!).trim();
+      if (name.isNotEmpty) {
+        groupLabel = name;
+      }
+    }
+    final title = isLead
+        ? (groupLabel == null
+            ? '${adult.name} → lead'
+            : '${adult.name} → lead of $groupLabel')
+        : '${adult.name} → specialist';
+    yield CalendarEvent(
+      id: 'block:${block.id}',
+      kind: isLead
+          ? CalendarEventKind.adultLeadBlock
+          : CalendarEventKind.adultSpecialistBlock,
+      title: title,
+      startAt: parse(block.startTime),
+      endAt: parse(block.endTime),
+      allDay: false,
+      groupIds: groupIds,
+      adultId: adult.id,
+      sourceKind: 'adult_day_block',
+      sourceId: block.id,
     );
   }
 }

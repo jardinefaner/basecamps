@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adult_timeline_repository.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/calendar/calendar_event.dart';
+import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/trips/trips_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -155,15 +157,22 @@ bool _tripIntersects(Trip trip, DateTime date) {
   return !day.isBefore(start) && !day.isAfter(end);
 }
 
-/// Today's events including break/lunch windows for a specific set
-/// of adults. The caller opts in by passing adult ids — typically
-/// "the selected group's anchor leads" so the agenda surfaces the
-/// teacher's own pod's breaks without flooding the feed with every
-/// adult's status.
+/// Today's events including break/lunch windows AND role-block
+/// transitions for a specific set of adults. The caller opts in by
+/// passing adult ids — typically "the selected group's anchor leads"
+/// so the agenda surfaces the teacher's own pod's breaks + "Sarah →
+/// specialist 11–12" role changes without flooding the feed with
+/// every adult's status.
+///
+/// Role blocks (lead / specialist) ride the same opt-in as breaks:
+/// one axis of "adults I care about" drives both. Lead blocks carry
+/// their anchored group's id through so today_agenda's group-scope
+/// filter keeps them pinned to the right group; specialist blocks
+/// come through un-scoped and show for every group.
 ///
 /// Parameter passed as a sorted-joined string key so the family
-/// equality works the usual way. Empty = no break events (just
-/// activities + trips).
+/// equality works the usual way. Empty = no break events and no
+/// role-block events (just activities + trips).
 // ignore: specify_nonobvious_property_types
 final calendarEventsWithBreaksTodayProvider =
     Provider.family<AsyncValue<List<CalendarEvent>>, String>(
@@ -176,28 +185,45 @@ final calendarEventsWithBreaksTodayProvider =
     final adultIds = adultIdsKey.split(',');
     final adultsAsync = ref.watch(adultsProvider);
     final availabilityAsync = ref.watch(allAvailabilityProvider);
+    // Role-block side-channel. We watch the flat today-blocks stream
+    // (same one the staffing + group cards use) and filter in
+    // memory — the set is small (one block per adult per segment of
+    // day) so a pass is cheap and avoids introducing a new family
+    // parametrized on adultIds.
+    final blocksAsync = ref.watch(todayAdultBlocksProvider);
+    // Groups for name lookup when titling lead-block events. Missing
+    // groups → the adapter falls back to "Sarah → lead" without the
+    // group label.
+    final groupsAsync = ref.watch(groupsProvider);
 
     return baseAsync.whenData((baseEvents) {
       final adults =
           adultsAsync.asData?.value ?? const <Adult>[];
       final availability = availabilityAsync.asData?.value ??
           const <AdultAvailabilityData>[];
-      if (adults.isEmpty || availability.isEmpty) {
-        return baseEvents;
-      }
+      final blocks =
+          blocksAsync.asData?.value ?? const <AdultDayBlock>[];
+      final groups = groupsAsync.asData?.value ?? const <Group>[];
+      if (adults.isEmpty) return baseEvents;
+
       final adultsById = {
         for (final s in adults)
           if (adultIds.contains(s.id)) s.id: s,
       };
       if (adultsById.isEmpty) return baseEvents;
 
+      final groupNameById = {for (final g in groups) g.id: g.name};
+      String lookupGroupName(String id) => groupNameById[id] ?? '';
+
       final isoDay = today.weekday;
-      final breakEvents = <CalendarEvent>[];
+      final extras = <CalendarEvent>[];
+
+      // Break / lunch events.
       for (final a in availability) {
         if (a.dayOfWeek != isoDay) continue;
         final adult = adultsById[a.adultId];
         if (adult == null) continue;
-        breakEvents.addAll(
+        extras.addAll(
           calendarEventsFromAvailability(
             availability: a,
             adult: adult,
@@ -205,8 +231,31 @@ final calendarEventsWithBreaksTodayProvider =
           ),
         );
       }
-      if (breakEvents.isEmpty) return baseEvents;
-      return <CalendarEvent>[...baseEvents, ...breakEvents]
+
+      // Role-block events — one per AdultDayBlock for each opted-in
+      // adult. Bucket by adult so we can pass per-adult block lists
+      // into the adapter (which takes a List + an Adult).
+      if (blocks.isNotEmpty) {
+        final byAdult = <String, List<AdultDayBlock>>{};
+        for (final b in blocks) {
+          if (!adultsById.containsKey(b.adultId)) continue;
+          byAdult.putIfAbsent(b.adultId, () => []).add(b);
+        }
+        for (final entry in byAdult.entries) {
+          final adult = adultsById[entry.key]!;
+          extras.addAll(
+            calendarEventsFromAdultBlocks(
+              blocks: entry.value,
+              adult: adult,
+              groupNameLookup: lookupGroupName,
+              date: today,
+            ),
+          );
+        }
+      }
+
+      if (extras.isEmpty) return baseEvents;
+      return <CalendarEvent>[...baseEvents, ...extras]
         ..sort((a, b) {
           if (a.allDay != b.allDay) return a.allDay ? -1 : 1;
           final byStart = a.startAt.compareTo(b.startAt);
