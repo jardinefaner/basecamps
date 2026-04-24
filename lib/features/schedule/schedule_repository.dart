@@ -288,6 +288,10 @@ class ScheduleRepository {
     // Value.absent() so the existing edit sheet (which doesn't know
     // about rooms yet) doesn't accidentally clear roomId on save.
     Value<String?> roomId = const Value.absent(),
+    // Same absent-unless-set pattern — the library-promotion flow
+    // rewrites this to wire a one-off template up to a freshly
+    // created library card, but every other edit leaves it alone.
+    Value<String?> sourceLibraryItemId = const Value.absent(),
   }) async {
     await _db.transaction(() async {
       await (_db.update(_db.scheduleTemplates)
@@ -306,6 +310,7 @@ class ScheduleRepository {
           startDate: Value(startDate == null ? null : _dayOnly(startDate)),
           endDate: Value(endDate == null ? null : _dayOnly(endDate)),
           roomId: roomId,
+          sourceLibraryItemId: sourceLibraryItemId,
           updatedAt: Value(DateTime.now()),
         ),
       );
@@ -318,6 +323,40 @@ class ScheduleRepository {
             );
       }
     });
+  }
+
+  /// Wire an existing template row to a library card without touching
+  /// any of its other fields. Used by the "Save to library" promotion
+  /// flow on activity detail: we create a fresh card from the
+  /// template's data, then rewire the back-link so the title tap on
+  /// the detail sheet routes to the new card.
+  Future<void> setTemplateSourceLibraryItem({
+    required String templateId,
+    required String? libraryItemId,
+  }) async {
+    await (_db.update(_db.scheduleTemplates)
+          ..where((t) => t.id.equals(templateId)))
+        .write(
+      ScheduleTemplatesCompanion(
+        sourceLibraryItemId: Value(libraryItemId),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Mirror of [setTemplateSourceLibraryItem] for one-off entries.
+  Future<void> setEntrySourceLibraryItem({
+    required String entryId,
+    required String? libraryItemId,
+  }) async {
+    await (_db.update(_db.scheduleEntries)
+          ..where((e) => e.id.equals(entryId)))
+        .write(
+      ScheduleEntriesCompanion(
+        sourceLibraryItemId: Value(libraryItemId),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
   }
 
   Future<void> deleteTemplate(String id) async {
@@ -635,6 +674,7 @@ class ScheduleRepository {
     String? notes,
     // Same absent-unless-set pattern as updateTemplate.
     Value<String?> roomId = const Value.absent(),
+    Value<String?> sourceLibraryItemId = const Value.absent(),
   }) async {
     final start = _dayOnly(date);
     final normalizedEnd = endDate == null ? null : _dayOnly(endDate);
@@ -656,6 +696,7 @@ class ScheduleRepository {
           location: Value(location),
           notes: Value(notes),
           roomId: roomId,
+          sourceLibraryItemId: sourceLibraryItemId,
           updatedAt: Value(DateTime.now()),
         ),
       );

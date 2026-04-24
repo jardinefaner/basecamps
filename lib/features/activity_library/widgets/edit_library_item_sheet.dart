@@ -1,5 +1,6 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
+import 'package:basecamp/features/activity_library/ai_authoring.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -32,6 +33,28 @@ class _EditLibraryItemSheetState
       TextEditingController(text: widget.item?.materials ?? '');
   late int? _durationMin = widget.item?.defaultDurationMin;
   late String? _adultId = widget.item?.adultId;
+
+  // Rich-card fields the sheet doesn't render editors for today but
+  // still carries through on save — the AI-fill path needs to be able
+  // to populate summary / hook / key points / learning goals /
+  // audience / engagement time / source, and a subsequent "Save"
+  // must persist them. On an edit sheet over an existing row these
+  // seed from the row so we don't null them out on save.
+  late String? _summary = widget.item?.summary;
+  late String? _hook = widget.item?.hook;
+  late String? _keyPoints = widget.item?.keyPoints;
+  late String? _learningGoals = widget.item?.learningGoals;
+  late int? _audienceMinAge = widget.item?.audienceMinAge;
+  late int? _audienceMaxAge = widget.item?.audienceMaxAge;
+  late int? _engagementTimeMin = widget.item?.engagementTimeMin;
+  late String? _sourceUrl = widget.item?.sourceUrl;
+  late String? _sourceAttribution = widget.item?.sourceAttribution;
+
+  /// Newly-filled rich-field names from the most recent AI run.
+  /// Shown as a small "AI added: …" readout so the teacher knows
+  /// which invisible fields were populated behind the scenes.
+  final _lastFilledLabels = <String>[];
+
   bool _submitting = false;
 
   bool get _isEdit => widget.item != null;
@@ -48,6 +71,15 @@ class _EditLibraryItemSheetState
     if (trimOrNull(_locationController.text) != item.location) return true;
     if (trimOrNull(_notesController.text) != item.notes) return true;
     if (trimOrNull(_materialsController.text) != item.materials) return true;
+    if (_summary != item.summary) return true;
+    if (_hook != item.hook) return true;
+    if (_keyPoints != item.keyPoints) return true;
+    if (_learningGoals != item.learningGoals) return true;
+    if (_audienceMinAge != item.audienceMinAge) return true;
+    if (_audienceMaxAge != item.audienceMaxAge) return true;
+    if (_engagementTimeMin != item.engagementTimeMin) return true;
+    if (_sourceUrl != item.sourceUrl) return true;
+    if (_sourceAttribution != item.sourceAttribution) return true;
     return false;
   }
 
@@ -58,6 +90,140 @@ class _EditLibraryItemSheetState
     _notesController.dispose();
     _materialsController.dispose();
     super.dispose();
+  }
+
+  /// Splat any non-null field from the draft into our state, but only
+  /// where the current slot is empty — never clobber something the
+  /// teacher already typed. Tracks which fields were filled so the
+  /// post-fill readout can hint at what changed (especially useful
+  /// for the invisible rich fields).
+  void _applyDraft(LibraryCardDraft draft) {
+    final filled = <String>[];
+    void fillText(TextEditingController c, String? v, String label) {
+      if (v == null || v.isEmpty) return;
+      if (c.text.trim().isNotEmpty) return;
+      c.text = v;
+      filled.add(label);
+    }
+
+    void fillNullable<T>(
+      T? Function() getter,
+      void Function(T) setter,
+      T? v,
+      String label,
+    ) {
+      if (v == null) return;
+      if (getter() != null) return;
+      setter(v);
+      filled.add(label);
+    }
+
+    // Title is special — the draft's title is required but we only
+    // fill it when the field is blank, same rule as everything else.
+    fillText(_titleController, draft.title, 'title');
+    fillText(_notesController, draft.summary, 'summary');
+    fillText(_materialsController, draft.materials, 'materials');
+    fillNullable(() => _summary, (v) => _summary = v, draft.summary, 'summary');
+    fillNullable(() => _hook, (v) => _hook = v, draft.hook, 'hook');
+    fillNullable(
+      () => _keyPoints,
+      (v) => _keyPoints = v,
+      draft.keyPoints,
+      'key points',
+    );
+    fillNullable(
+      () => _learningGoals,
+      (v) => _learningGoals = v,
+      draft.learningGoals,
+      'learning goals',
+    );
+    fillNullable(
+      () => _audienceMinAge,
+      (v) => _audienceMinAge = v,
+      draft.audienceMinAge,
+      'min age',
+    );
+    fillNullable(
+      () => _audienceMaxAge,
+      (v) => _audienceMaxAge = v,
+      draft.audienceMaxAge,
+      'max age',
+    );
+    fillNullable(
+      () => _engagementTimeMin,
+      (v) => _engagementTimeMin = v,
+      draft.engagementTimeMin,
+      'engagement time',
+    );
+    fillNullable(
+      () => _durationMin,
+      (v) => _durationMin = v,
+      draft.engagementTimeMin,
+      'default duration',
+    );
+    fillNullable(
+      () => _sourceUrl,
+      (v) => _sourceUrl = v,
+      draft.sourceUrl,
+      'source link',
+    );
+    fillNullable(
+      () => _sourceAttribution,
+      (v) => _sourceAttribution = v,
+      draft.sourceAttribution,
+      'source attribution',
+    );
+
+    setState(() {
+      _lastFilledLabels
+        ..clear()
+        ..addAll(filled.toSet());
+    });
+  }
+
+  Future<void> _fillFromUrl() async {
+    final draft = await showDialog<LibraryCardDraft>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _AiImportDialog(
+        title: 'Fill from link',
+        hint: 'https://…',
+        generate: generateFromUrl,
+      ),
+    );
+    if (draft == null || !mounted) return;
+    _applyDraft(draft);
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Draft filled from link — review before saving.'),
+        ),
+      );
+  }
+
+  Future<void> _fillFromDescription() async {
+    final draft = await showDialog<LibraryCardDraft>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _AiImportDialog(
+        title: 'Fill from description',
+        hint: 'Describe the activity in a sentence or two…',
+        maxLines: 5,
+        generate: generateFromDescription,
+      ),
+    );
+    if (draft == null || !mounted) return;
+    _applyDraft(draft);
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Draft filled from description — review before saving.',
+          ),
+        ),
+      );
   }
 
   Future<void> _submit() async {
@@ -76,10 +242,11 @@ class _EditLibraryItemSheetState
         : _materialsController.text.trim();
 
     if (_isEdit) {
-      // Only send the preset fields this sheet actually exposes; the
-      // rich-card columns (audience/summary/hook/etc.) are left to
-      // Value.absent() so a teacher editing a generated card's
-      // title doesn't nuke its AI content.
+      // Pass through every field the sheet now carries — the rich
+      // columns are Value-wrapped so we can distinguish "set to null"
+      // (user cleared) from "leave alone" (field never touched). Here
+      // we always explicitly set them, which is correct because the
+      // sheet's state was seeded from the existing row.
       await repo.updateItem(
         id: widget.item!.id,
         title: title,
@@ -88,6 +255,15 @@ class _EditLibraryItemSheetState
         location: Value(location),
         notes: Value(notes),
         materials: Value(materials),
+        summary: Value(_summary),
+        hook: Value(_hook),
+        keyPoints: Value(_keyPoints),
+        learningGoals: Value(_learningGoals),
+        audienceMinAge: Value(_audienceMinAge),
+        audienceMaxAge: Value(_audienceMaxAge),
+        engagementTimeMin: Value(_engagementTimeMin),
+        sourceUrl: Value(_sourceUrl),
+        sourceAttribution: Value(_sourceAttribution),
       );
     } else {
       await repo.addItem(
@@ -97,6 +273,15 @@ class _EditLibraryItemSheetState
         location: location,
         notes: notes,
         materials: materials,
+        summary: _summary,
+        hook: _hook,
+        keyPoints: _keyPoints,
+        learningGoals: _learningGoals,
+        audienceMinAge: _audienceMinAge,
+        audienceMaxAge: _audienceMaxAge,
+        engagementTimeMin: _engagementTimeMin,
+        sourceUrl: _sourceUrl,
+        sourceAttribution: _sourceAttribution,
       );
     }
     if (!mounted) return;
@@ -138,6 +323,15 @@ class _EditLibraryItemSheetState
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // AI-assist row sits above the title field because the whole
+          // point is to fill the fields below. The _lastFilledLabels
+          // hint renders under the buttons after a successful run.
+          _AiAssistRow(
+            onFillFromUrl: _fillFromUrl,
+            onFillFromDescription: _fillFromDescription,
+            lastFilled: _lastFilledLabels,
+          ),
+          const SizedBox(height: AppSpacing.lg),
           AppTextField(
             controller: _titleController,
             label: 'Title',
@@ -262,6 +456,183 @@ class _EditLibraryItemSheetState
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Two-button AI assist row: fill from a webpage URL, or fill from
+/// a free-text description. Below the buttons, a small muted readout
+/// confirms what the last run populated (handy for the invisible rich
+/// fields — summary, hook, key points, etc. — so the teacher isn't
+/// surprised at save time).
+class _AiAssistRow extends StatelessWidget {
+  const _AiAssistRow({
+    required this.onFillFromUrl,
+    required this.onFillFromDescription,
+    required this.lastFilled,
+  });
+
+  final VoidCallback onFillFromUrl;
+  final VoidCallback onFillFromDescription;
+  final List<String> lastFilled;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'AI assist',
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            letterSpacing: 0.6,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            OutlinedButton.icon(
+              onPressed: onFillFromUrl,
+              icon: const Icon(Icons.link, size: 18),
+              label: const Text('Fill from link'),
+            ),
+            OutlinedButton.icon(
+              onPressed: onFillFromDescription,
+              icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+              label: const Text('Fill from description'),
+            ),
+          ],
+        ),
+        if (lastFilled.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Filled: ${lastFilled.join(", ")}',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Reusable "enter text → generate → return draft" dialog. Both the
+/// URL and description paths share the same shape: a blocking modal,
+/// a single input field, Cancel + Generate. The modal can't be
+/// dismissed while a generation is in flight — the teacher sees a
+/// spinner in the primary button until the draft resolves or the
+/// call throws.
+class _AiImportDialog extends StatefulWidget {
+  const _AiImportDialog({
+    required this.title,
+    required this.hint,
+    required this.generate,
+    this.maxLines = 1,
+  });
+
+  final String title;
+  final String hint;
+  final int maxLines;
+  final Future<LibraryCardDraft> Function(String) generate;
+
+  @override
+  State<_AiImportDialog> createState() => _AiImportDialogState();
+}
+
+class _AiImportDialogState extends State<_AiImportDialog> {
+  final _controller = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _go() async {
+    final raw = _controller.text.trim();
+    if (raw.isEmpty || _busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final draft = await widget.generate(raw);
+      if (!mounted) return;
+      Navigator.of(context).pop(draft);
+    } on LibraryDraftFailure catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = e.message;
+      });
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = "Couldn't generate: $e";
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // PopScope blocks back-gesture / Esc dismissal while a call's
+    // in flight so the caller never races a half-finished draft.
+    return PopScope(
+      canPop: !_busy,
+      child: AlertDialog(
+        title: Text(widget.title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _controller,
+              maxLines: widget.maxLines,
+              autofocus: true,
+              enabled: !_busy,
+              decoration: InputDecoration(hintText: widget.hint),
+              keyboardType: widget.maxLines > 1
+                  ? TextInputType.multiline
+                  : TextInputType.text,
+              onSubmitted: widget.maxLines == 1 ? (_) => _go() : null,
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                _error!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: _busy ? null : () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: _busy ? null : _go,
+            child: _busy
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Generate'),
+          ),
         ],
       ),
     );

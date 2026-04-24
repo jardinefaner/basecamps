@@ -1,5 +1,6 @@
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -201,6 +202,32 @@ class ActivityLibraryRepository {
       }
       return map;
     });
+  }
+
+  /// Promote a schedule item's fields into a fresh library card,
+  /// returning the new library item id. Copies title, notes →
+  /// `summary` (library cards don't have a free-form notes field;
+  /// notes is the closest semantic match), `sourceUrl`,
+  /// duration (endMinutes - startMinutes → `defaultDurationMin`),
+  /// location, adultId. Fields the schedule item doesn't carry stay
+  /// null — the teacher can fill them in after.
+  ///
+  /// Does NOT mutate the source schedule row; the caller is expected
+  /// to follow up with updateTemplate/updateEntry to wire the new
+  /// sourceLibraryItemId link.
+  Future<String> createFromScheduleItem(ScheduleItem item) async {
+    final duration = item.endMinutes - item.startMinutes;
+    return addItem(
+      title: item.title,
+      // Full-day items have a bogus 0-minute span; don't persist a
+      // useless default. Negative is defensive against a malformed row.
+      defaultDurationMin:
+          (item.isFullDay || duration <= 0) ? null : duration,
+      adultId: item.adultId,
+      location: item.location,
+      summary: item.notes,
+      sourceUrl: item.sourceUrl,
+    );
   }
 
   /// Clones [sourceId] into a fresh row with a suffixed title. Rich-

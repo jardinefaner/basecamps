@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
+import 'package:basecamp/features/activity_library/widgets/edit_library_item_sheet.dart';
 import 'package:basecamp/features/activity_library/widgets/library_card_detail_sheet.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
@@ -136,6 +137,15 @@ class ActivityDetailSheet extends ConsumerWidget {
             // isolated.
             const SizedBox(height: AppSpacing.lg),
             _CaptureActionRow(item: item),
+            // "Save to library" — only for items that aren't already
+            // backed by a library card. Creates a fresh card from the
+            // item's fields and rewires the template/entry to point at
+            // it, so next time the teacher opens the detail sheet the
+            // title tap routes to the rich card.
+            if (item.sourceLibraryItemId == null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              _PromoteToLibraryButton(item: item),
+            ],
             // Exactly one delete button — the two paths are mutually
             // exclusive by intent, even though a template-sourced
             // item CAN carry both templateId AND entryId (the entry
@@ -946,6 +956,114 @@ class _RosterTile extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// "Save to library" — promote a one-off scheduled activity into a
+/// reusable library card. Fires when the item has no back-link
+/// (`sourceLibraryItemId == null`); creates a card from the item's
+/// fields, rewires the template/entry to point at the new card, then
+/// offers an "Open" action on the confirmation snackbar so the
+/// teacher can immediately enrich the card with materials, domains,
+/// audience, etc.
+class _PromoteToLibraryButton extends ConsumerStatefulWidget {
+  const _PromoteToLibraryButton({required this.item});
+
+  final ScheduleItem item;
+
+  @override
+  ConsumerState<_PromoteToLibraryButton> createState() =>
+      _PromoteToLibraryButtonState();
+}
+
+class _PromoteToLibraryButtonState
+    extends ConsumerState<_PromoteToLibraryButton> {
+  bool _saving = false;
+
+  Future<void> _promote() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    final libraryRepo = ref.read(activityLibraryRepositoryProvider);
+    final scheduleRepo = ref.read(scheduleRepositoryProvider);
+    try {
+      final newId =
+          await libraryRepo.createFromScheduleItem(widget.item);
+      final templateId = widget.item.templateId;
+      final entryId = widget.item.entryId;
+      // Template-sourced wins when both are set (same precedence as
+      // the delete button below): the teacher's looking at a
+      // recurring row, so the weekly pattern becomes the thing
+      // linked to the new card.
+      if (widget.item.isFromTemplate && templateId != null) {
+        await scheduleRepo.setTemplateSourceLibraryItem(
+          templateId: templateId,
+          libraryItemId: newId,
+        );
+      } else if (entryId != null) {
+        await scheduleRepo.setEntrySourceLibraryItem(
+          entryId: entryId,
+          libraryItemId: newId,
+        );
+      }
+      if (!mounted) return;
+      final newCard = await libraryRepo.getItem(newId);
+      if (!mounted) return;
+      messenger
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Saved to library. Edit the card to add materials, '
+              'domains, etc.',
+            ),
+            duration: const Duration(seconds: 6),
+            action: newCard == null
+                ? null
+                : SnackBarAction(
+                    label: 'Open',
+                    onPressed: () {
+                      if (!rootNav.mounted) return;
+                      unawaited(
+                        showModalBottomSheet<void>(
+                          context: rootNav.context,
+                          isScrollControlled: true,
+                          showDragHandle: true,
+                          useSafeArea: true,
+                          builder: (_) =>
+                              EditLibraryItemSheet(item: newCard),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        );
+    } on Object catch (e) {
+      if (!mounted) return;
+      messenger
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(content: Text("Couldn't save to library: $e")),
+        );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: _saving ? null : _promote,
+      icon: _saving
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.bookmark_add_outlined, size: 18),
+      label: const Text('Save to library'),
     );
   }
 }
