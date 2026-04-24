@@ -4,6 +4,7 @@ import 'package:basecamp/features/children/widgets/new_child_wizard.dart';
 import 'package:basecamp/features/forms/polymorphic/form_definition.dart'
     as fd;
 import 'package:basecamp/features/forms/polymorphic/form_submission_repository.dart';
+import 'package:basecamp/features/forms/polymorphic/form_submission_share.dart';
 import 'package:basecamp/features/vehicles/vehicles_repository.dart';
 import 'package:basecamp/features/vehicles/widgets/edit_vehicle_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -270,6 +271,27 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
     }
   }
 
+  /// Opens the share bundle preview for the currently-edited
+  /// submission. Only wired on the AppBar once [_resolvedSubmissionId]
+  /// is non-null (i.e. a row actually exists to share). Unsaved text
+  /// edits get flushed first so the share preview reflects what the
+  /// teacher sees on screen.
+  Future<void> _share() async {
+    final id = _resolvedSubmissionId;
+    if (id == null) return;
+    await _flushTextControllers();
+    final row =
+        await ref.read(formSubmissionRepositoryProvider).getSubmission(id);
+    if (!mounted) return;
+    if (row == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't load this submission.")),
+      );
+      return;
+    }
+    await showFormSubmissionShareSheet(context, ref, row, widget.definition);
+  }
+
   @override
   Widget build(BuildContext context) {
     final def = widget.definition;
@@ -292,6 +314,14 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
       appBar: AppBar(
         title: Text(def.title),
         actions: [
+          // Share is only meaningful once there's a saved row to
+          // share — fresh drafts have nothing useful to hand off yet.
+          if (_resolvedSubmissionId != null)
+            IconButton(
+              icon: const Icon(Icons.ios_share),
+              tooltip: 'Share',
+              onPressed: _share,
+            ),
           TextButton(
             onPressed: _submitting ? null : _saveDraft,
             child: const Text('Save draft'),
@@ -354,6 +384,17 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
           ? 'Save'
           : 'Start monitoring',
       onFinalAction: _submit,
+      // Only show the Share button once the wizard is editing an
+      // existing row — fresh drafts have nothing useful to share.
+      appBarActions: _resolvedSubmissionId == null
+          ? null
+          : [
+              IconButton(
+                icon: const Icon(Icons.ios_share),
+                tooltip: 'Share',
+                onPressed: _share,
+              ),
+            ],
       // Persist the draft on every step advance so the teacher's
       // partial work (vehicle identity on step 1, checklist items
       // as they walk through) survives swiping away, restarts, or
