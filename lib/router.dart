@@ -1,4 +1,7 @@
 import 'package:basecamp/features/activity_library/activity_library_screen.dart';
+import 'package:basecamp/features/adults/adult_detail_screen.dart';
+import 'package:basecamp/features/adults/adults_screen.dart';
+import 'package:basecamp/features/adults/program_timeline_screen.dart';
 import 'package:basecamp/features/children/child_detail_screen.dart';
 import 'package:basecamp/features/children/children_screen.dart';
 import 'package:basecamp/features/forms/forms_hub_screen.dart';
@@ -12,9 +15,6 @@ import 'package:basecamp/features/observations/observations_screen.dart';
 import 'package:basecamp/features/rooms/rooms_screen.dart';
 import 'package:basecamp/features/schedule/schedule_editor_screen.dart';
 import 'package:basecamp/features/settings/program_settings_screen.dart';
-import 'package:basecamp/features/specialists/program_timeline_screen.dart';
-import 'package:basecamp/features/specialists/specialist_detail_screen.dart';
-import 'package:basecamp/features/specialists/specialists_screen.dart';
 import 'package:basecamp/features/today/today_screen.dart';
 import 'package:basecamp/features/trips/trip_detail_screen.dart';
 import 'package:basecamp/features/trips/trips_screen.dart';
@@ -129,13 +129,13 @@ final routerProvider = Provider<GoRouter>((ref) {
                 builder: (_, _) => const MoreScreen(),
                 routes: [
                   GoRoute(
-                    // Route renamed from 'specialists' to 'adults' in
+                    // Route renamed from 'adults' to 'adults' in
                     // the v28 refactor — the feature now covers leads,
-                    // specialists, AND ambient staff. Table names and
+                    // adults, AND ambient staff. Table names and
                     // Dart class names stay as-is (backwards compat +
                     // not user-visible); the URL is.
                     path: 'adults',
-                    builder: (_, _) => const SpecialistsScreen(),
+                    builder: (_, _) => const AdultsScreen(),
                     routes: [
                       GoRoute(
                         path: 'timeline',
@@ -144,8 +144,8 @@ final routerProvider = Provider<GoRouter>((ref) {
                       ),
                       GoRoute(
                         path: ':id',
-                        builder: (_, state) => SpecialistDetailScreen(
-                          specialistId: state.pathParameters['id']!,
+                        builder: (_, state) => AdultDetailScreen(
+                          adultId: state.pathParameters['id']!,
                         ),
                       ),
                     ],

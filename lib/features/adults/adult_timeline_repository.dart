@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Role an adult has during one block of their day-timeline. Currently
 /// just lead (with a group anchor) or specialist (rotator, no group).
-/// Break + lunch live on specialist_availability and overlay on top;
+/// Break + lunch live on adult_availability and overlay on top;
 /// 'off' is implied by absent blocks.
 enum AdultBlockRole {
   lead('lead'),
@@ -67,11 +67,11 @@ class AdultTimelineRepository {
 
   final AppDatabase _db;
 
-  /// All timeline blocks for [specialistId], across every day of the
+  /// All timeline blocks for [adultId], across every day of the
   /// week. Ordered by (day, start time) for stable editor rendering.
-  Stream<List<AdultDayBlock>> watchBlocksFor(String specialistId) {
+  Stream<List<AdultDayBlock>> watchBlocksFor(String adultId) {
     final query = _db.select(_db.adultDayBlocks)
-      ..where((b) => b.specialistId.equals(specialistId))
+      ..where((b) => b.adultId.equals(adultId))
       ..orderBy([
         (b) => OrderingTerm.asc(b.dayOfWeek),
         (b) => OrderingTerm.asc(b.startTime),
@@ -86,29 +86,29 @@ class AdultTimelineRepository {
     final query = _db.select(_db.adultDayBlocks)
       ..where((b) => b.dayOfWeek.equals(dayOfWeek))
       ..orderBy([
-        (b) => OrderingTerm.asc(b.specialistId),
+        (b) => OrderingTerm.asc(b.adultId),
         (b) => OrderingTerm.asc(b.startTime),
       ]);
     return query.watch();
   }
 
   /// Atomic "replace this adult's entire timeline" — deletes all
-  /// existing blocks for [specialistId] and inserts [blocks] in one
+  /// existing blocks for [adultId] and inserts [blocks] in one
   /// transaction. The editor UI builds a full in-memory list and
   /// saves the lot, which is cleaner than diffing row by row.
   Future<void> replaceBlocks({
-    required String specialistId,
+    required String adultId,
     required List<AdultTimelineBlock> blocks,
   }) async {
     await _db.transaction(() async {
       await (_db.delete(_db.adultDayBlocks)
-            ..where((b) => b.specialistId.equals(specialistId)))
+            ..where((b) => b.adultId.equals(adultId)))
           .go();
       for (final b in blocks) {
         await _db.into(_db.adultDayBlocks).insert(
               AdultDayBlocksCompanion.insert(
                 id: newId(),
-                specialistId: specialistId,
+                adultId: adultId,
                 dayOfWeek: b.dayOfWeek,
                 startTime: b.startTime,
                 endTime: b.endTime,

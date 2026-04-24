@@ -3,12 +3,12 @@ import 'dart:async';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/activity_library/widgets/library_card_detail_sheet.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/rooms/rooms_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/edit_template_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/new_full_day_event_wizard.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/address_field.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -65,7 +65,7 @@ class ActivityDetailSheet extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
-            _SpecialistRow(specialistId: item.specialistId),
+            _AdultRow(adultId: item.adultId),
             _LocationRow(roomId: item.roomId, fallback: item.location),
             _GroupsRow(
               groupIds: item.groupIds,
@@ -217,7 +217,7 @@ class ActivityDetailSheet extends ConsumerWidget {
     );
   }
 
-  /// Only show override actions on a concrete date — the specialist-
+  /// Only show override actions on a concrete date — the adult-
   /// detail preview uses a 1970 sentinel date, and multi-day entries
   /// can't be partially shifted without more UX.
   bool get _canOverride {
@@ -428,19 +428,19 @@ class _MetaRow extends StatelessWidget {
   }
 }
 
-class _SpecialistRow extends ConsumerWidget {
-  const _SpecialistRow({required this.specialistId});
+class _AdultRow extends ConsumerWidget {
+  const _AdultRow({required this.adultId});
 
-  final String? specialistId;
+  final String? adultId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (specialistId == null) return const SizedBox.shrink();
-    final specialist = ref.watch(specialistProvider(specialistId!)).asData?.value;
-    if (specialist == null) return const SizedBox.shrink();
-    final label = specialist.role == null || specialist.role!.isEmpty
-        ? specialist.name
-        : '${specialist.name} · ${specialist.role}';
+    if (adultId == null) return const SizedBox.shrink();
+    final adult = ref.watch(adultProvider(adultId!)).asData?.value;
+    if (adult == null) return const SizedBox.shrink();
+    final label = adult.role == null || adult.role!.isEmpty
+        ? adult.name
+        : '${adult.name} · ${adult.role}';
     return _MetaRow(icon: Icons.badge_outlined, text: label);
   }
 }

@@ -1,7 +1,7 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
-import 'package:basecamp/features/forms/widgets/specialist_chip_picker.dart';
+import 'package:basecamp/features/forms/widgets/adult_chip_picker.dart';
 import 'package:basecamp/features/rooms/widgets/room_picker.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart'
@@ -52,7 +52,7 @@ class _NewFullDayEventWizardScreenState
   late DateTime? _endDate = widget.existing?.endDate;
   final Set<String> _groupIds = <String>{};
   late bool _allGroups = widget.existing?.allGroups ?? true;
-  late String? _specialistId = widget.existing?.specialistId;
+  late String? _adultId = widget.existing?.adultId;
 
   bool get _isEdit => widget.existing != null;
 
@@ -69,7 +69,7 @@ class _NewFullDayEventWizardScreenState
       _location.text.trim().isNotEmpty ||
       _notes.text.trim().isNotEmpty ||
       _groupIds.isNotEmpty ||
-      _specialistId != null ||
+      _adultId != null ||
       _endDate != null ||
       _fromLibrary != null;
 
@@ -157,7 +157,7 @@ class _NewFullDayEventWizardScreenState
         allGroups: _allGroups,
         title: _title.text.trim(),
         groupIds: _allGroups ? const [] : _groupIds.toList(),
-        specialistId: _specialistId,
+        adultId: _adultId,
         location: location.isEmpty ? null : location,
         notes: notes.isEmpty ? null : notes,
         // Explicit Value(_roomId) so switching from a room to custom
@@ -175,7 +175,7 @@ class _NewFullDayEventWizardScreenState
         allGroups: _allGroups,
         title: _title.text.trim(),
         groupIds: _allGroups ? const [] : _groupIds.toList(),
-        specialistId: _specialistId,
+        adultId: _adultId,
         location: location.isEmpty ? null : location,
         notes: notes.isEmpty ? null : notes,
         // Link back to the library row so the detail sheet can show
@@ -247,7 +247,7 @@ class _NewFullDayEventWizardScreenState
             _title.text = item.title;
             if (item.location != null) _location.text = item.location!;
             if (item.notes != null) _notes.text = item.notes!;
-            if (item.specialistId != null) _specialistId = item.specialistId;
+            if (item.adultId != null) _adultId = item.adultId;
           }),
         ),
         if (_fromLibrary != null)
@@ -432,9 +432,9 @@ class _NewFullDayEventWizardScreenState
       children: [
         Text("Who's leading?", style: theme.textTheme.titleSmall),
         const SizedBox(height: AppSpacing.sm),
-        SpecialistChipPicker(
-          selectedId: _specialistId,
-          onChanged: (id) => setState(() => _specialistId = id),
+        AdultChipPicker(
+          selectedId: _adultId,
+          onChanged: (id) => setState(() => _adultId = id),
         ),
         const SizedBox(height: AppSpacing.xl),
         Text('Location', style: theme.textTheme.titleSmall),

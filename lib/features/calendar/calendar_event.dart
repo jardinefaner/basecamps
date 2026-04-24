@@ -26,7 +26,7 @@ enum CalendarEventKind {
 
 /// One row in the chronological Today / calendar feed. Built by the
 /// synthesizer from whatever source row fits — ScheduleItem, Trip,
-/// SpecialistAvailabilityData's break/lunch windows. Consumers
+/// AdultAvailabilityData's break/lunch windows. Consumers
 /// render by kind, dispatch taps back to the right editor via
 /// [sourceKind] + [sourceId].
 class CalendarEvent {
@@ -41,7 +41,7 @@ class CalendarEvent {
     required this.sourceId,
     this.groupIds = const [],
     this.allGroups = false,
-    this.specialistId,
+    this.adultId,
     this.roomId,
     this.location,
     this.colorHex,
@@ -68,7 +68,7 @@ class CalendarEvent {
   final List<String> groupIds;
   final bool allGroups;
 
-  final String? specialistId;
+  final String? adultId;
   final String? roomId;
   final String? location;
 
@@ -118,7 +118,7 @@ CalendarEvent calendarEventFromScheduleItem(ScheduleItem item) {
       ? day.add(const Duration(days: 1))
       : parse(item.endTime);
 
-  // Subtitle weaves specialist + location just enough that the
+  // Subtitle weaves adult + location just enough that the
   // agenda row reads useful without the consumer having to fetch
   // anything else.
   final parts = <String>[];
@@ -143,7 +143,7 @@ CalendarEvent calendarEventFromScheduleItem(ScheduleItem item) {
     allDay: item.isFullDay,
     groupIds: item.groupIds,
     allGroups: item.allGroups,
-    specialistId: item.specialistId,
+    adultId: item.adultId,
     roomId: item.roomId,
     location: item.location,
     subtitle: subtitle,
@@ -206,14 +206,14 @@ CalendarEvent calendarEventFromTrip(Trip trip) {
   );
 }
 
-/// Adapter: break or lunch window on SpecialistAvailability →
+/// Adapter: break or lunch window on AdultAvailability →
 /// CalendarEvent(s). Returns 0–2 events: the main break window, an
 /// optional second break (schema v35), and the lunch window.
 /// [date] + [adult] come from the caller so IDs and source back-
 /// pointers are unambiguous.
 Iterable<CalendarEvent> calendarEventsFromAvailability({
-  required SpecialistAvailabilityData availability,
-  required Specialist adult,
+  required AdultAvailabilityData availability,
+  required Adult adult,
   required DateTime date,
 }) sync* {
   final day = DateTime(date.year, date.month, date.day);
@@ -236,7 +236,7 @@ Iterable<CalendarEvent> calendarEventsFromAvailability({
       startAt: parse(availability.breakStart!),
       endAt: parse(availability.breakEnd!),
       allDay: false,
-      specialistId: adult.id,
+      adultId: adult.id,
       sourceKind: 'break',
       sourceId: availability.id,
     );
@@ -249,7 +249,7 @@ Iterable<CalendarEvent> calendarEventsFromAvailability({
       startAt: parse(availability.break2Start!),
       endAt: parse(availability.break2End!),
       allDay: false,
-      specialistId: adult.id,
+      adultId: adult.id,
       sourceKind: 'break',
       sourceId: availability.id,
     );
@@ -262,7 +262,7 @@ Iterable<CalendarEvent> calendarEventsFromAvailability({
       startAt: parse(availability.lunchStart!),
       endAt: parse(availability.lunchEnd!),
       allDay: false,
-      specialistId: adult.id,
+      adultId: adult.id,
       sourceKind: 'lunch',
       sourceId: availability.id,
     );

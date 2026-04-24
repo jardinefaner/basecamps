@@ -1,8 +1,8 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adult_timeline_repository.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
-import 'package:basecamp/features/specialists/adult_timeline_repository.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
@@ -16,7 +16,7 @@ import 'package:go_router/go_router.dart';
 /// tapping through six adult detail pages.
 ///
 /// Selectable weekday at the top defaults to today. Break + lunch
-/// overlay on top of role blocks, not inside them, so a "specialist
+/// overlay on top of role blocks, not inside them, so a "adult
 /// 11-12 with lunch 11:30-12" block reads as "rotating 11-11:30, at
 /// lunch 11:30-12" without duplicating the data.
 class ProgramTimelineScreen extends ConsumerStatefulWidget {
@@ -54,7 +54,7 @@ class _ProgramTimelineScreenState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final specialistsAsync = ref.watch(specialistsProvider);
+    final adultsAsync = ref.watch(adultsProvider);
     final blocksAsync = ref.watch(
       _blocksForDayProvider(_day),
     );
@@ -77,7 +77,7 @@ class _ProgramTimelineScreenState
           Expanded(
             child: _buildBody(
               theme,
-              specialistsAsync,
+              adultsAsync,
               blocksAsync,
               availabilityAsync,
               groups,
@@ -90,19 +90,19 @@ class _ProgramTimelineScreenState
 
   Widget _buildBody(
     ThemeData theme,
-    AsyncValue<List<Specialist>> specialistsAsync,
+    AsyncValue<List<Adult>> adultsAsync,
     AsyncValue<List<AdultDayBlock>> blocksAsync,
-    AsyncValue<List<SpecialistAvailabilityData>> availabilityAsync,
+    AsyncValue<List<AdultAvailabilityData>> availabilityAsync,
     List<Group> groups,
   ) {
-    if (specialistsAsync.hasError) {
-      return Center(child: Text('Error: ${specialistsAsync.error}'));
+    if (adultsAsync.hasError) {
+      return Center(child: Text('Error: ${adultsAsync.error}'));
     }
-    final specialists = specialistsAsync.asData?.value;
-    if (specialists == null) {
+    final adults = adultsAsync.asData?.value;
+    if (adults == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (specialists.isEmpty) {
+    if (adults.isEmpty) {
       return Padding(
         padding: const EdgeInsets.all(AppSpacing.xl),
         child: Center(
@@ -118,17 +118,17 @@ class _ProgramTimelineScreenState
     }
     final blocks = blocksAsync.asData?.value ?? const <AdultDayBlock>[];
     final availability =
-        availabilityAsync.asData?.value ?? const <SpecialistAvailabilityData>[];
+        availabilityAsync.asData?.value ?? const <AdultAvailabilityData>[];
 
-    // Index by specialist for O(n) row build.
+    // Index by adult for O(n) row build.
     final blocksByAdult = <String, List<AdultDayBlock>>{};
     for (final b in blocks) {
-      (blocksByAdult[b.specialistId] ??= []).add(b);
+      (blocksByAdult[b.adultId] ??= []).add(b);
     }
-    final availByAdult = <String, SpecialistAvailabilityData?>{};
+    final availByAdult = <String, AdultAvailabilityData?>{};
     for (final a in availability) {
       if (a.dayOfWeek != _day) continue;
-      availByAdult[a.specialistId] = a;
+      availByAdult[a.adultId] = a;
     }
     final groupsById = {for (final g in groups) g.id: g};
 
@@ -146,9 +146,9 @@ class _ProgramTimelineScreenState
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _HourAxis(trackWidth: trackWidth),
-              for (final s in specialists)
+              for (final s in adults)
                 _AdultRow(
-                  specialist: s,
+                  adult: s,
                   blocks: blocksByAdult[s.id] ?? const [],
                   availability: availByAdult[s.id],
                   groupsById: groupsById,
@@ -279,7 +279,7 @@ class _HourAxis extends StatelessWidget {
 /// and break/lunch windows as hatched overlays.
 class _AdultRow extends StatelessWidget {
   const _AdultRow({
-    required this.specialist,
+    required this.adult,
     required this.blocks,
     required this.availability,
     required this.groupsById,
@@ -288,9 +288,9 @@ class _AdultRow extends StatelessWidget {
     required this.onTap,
   });
 
-  final Specialist specialist;
+  final Adult adult;
   final List<AdultDayBlock> blocks;
-  final SpecialistAvailabilityData? availability;
+  final AdultAvailabilityData? availability;
   final Map<String, Group> groupsById;
   final double trackWidth;
   final int? nowMin;
@@ -321,16 +321,16 @@ class _AdultRow extends StatelessWidget {
                 child: Row(
                   children: [
                     SmallAvatar(
-                      path: specialist.avatarPath,
-                      fallbackInitial: specialist.name.isNotEmpty
-                          ? specialist.name.characters.first.toUpperCase()
+                      path: adult.avatarPath,
+                      fallbackInitial: adult.name.isNotEmpty
+                          ? adult.name.characters.first.toUpperCase()
                           : '?',
                       radius: 12,
                     ),
                     const SizedBox(width: AppSpacing.xs),
                     Expanded(
                       child: Text(
-                        specialist.name,
+                        adult.name,
                         style: theme.textTheme.labelMedium,
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
@@ -424,7 +424,7 @@ class _AdultRow extends StatelessWidget {
     } else {
       bg = theme.colorScheme.tertiary;
       fg = theme.colorScheme.onTertiary;
-      label = 'Specialist';
+      label = 'Adult';
     }
     return _Band(
       startMin: start,

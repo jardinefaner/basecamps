@@ -251,9 +251,9 @@ class _Body extends ConsumerWidget {
     // reads visually — pick a group, the numbers follow.
     final scopedItems =
         selectedGroupId == null ? items : items.where(inSelectedView).toList();
-    final uniqueSpecialists = <String>{
+    final uniqueAdults = <String>{
       for (final i in scopedItems)
-        if (i.specialistId != null) i.specialistId!,
+        if (i.adultId != null) i.adultId!,
     };
     final childrenInActivityGroups = <String>{};
     for (final i in scopedItems) {
@@ -435,7 +435,7 @@ class _Body extends ConsumerWidget {
         DaySummaryStrip(
           activities: scopedItems.length,
           children: childrenInActivityGroups.length,
-          specialists: uniqueSpecialists.length,
+          adults: uniqueAdults.length,
           concerns: scopedConcerns.length,
           pendingObs: pendingObs,
           onTapConcerns: () =>

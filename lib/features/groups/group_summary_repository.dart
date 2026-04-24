@@ -1,7 +1,7 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/rooms/rooms_repository.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// A "group summary" bundles the three things that together describe
@@ -10,7 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 ///   - the [Group] of kids that live in it (Butterflies, Ladybugs…)
 ///   - the lead adults anchored to that group (0, 1, or 2 leads —
 ///     groups start with two leads at open, and usually one rotates
-///     off into the specialist pool mid-morning)
+///     off into the adult pool mid-morning)
 ///   - the default room that group calls home (nullable — a newly
 ///     seeded group doesn't have one yet)
 ///
@@ -32,11 +32,11 @@ class GroupSummary {
   /// The group record — source of name, color, id.
   final Group group;
 
-  /// Specialists whose `anchoredGroupId` points at this group AND whose
+  /// Adults whose `anchoredGroupId` points at this group AND whose
   /// `adultRole` is `AdultRole.lead`. Sorted by name for stable UI.
   /// Usually 1 or 2; can be 0 (a just-created group waiting for a lead
   /// assignment) or rarely 3+ (multi-lead groups during transitions).
-  final List<Specialist> anchorLeads;
+  final List<Adult> anchorLeads;
 
   /// The room the group calls home, if any. Derived from
   /// `rooms.defaultForGroupId`; returning it here saves every group
@@ -58,7 +58,7 @@ class GroupSummary {
 /// reshuffle the world).
 ///
 /// This is a **derived** provider: it watches the existing
-/// group/specialist/room/children streams and joins them into a
+/// group/adult/room/children streams and joins them into a
 /// `List<GroupSummary>`. It doesn't need its own schema or table;
 /// every link is already represented elsewhere.
 ///
@@ -68,7 +68,7 @@ class GroupSummary {
 final groupSummariesProvider =
     Provider<AsyncValue<List<GroupSummary>>>((ref) {
   final groupsAsync = ref.watch(groupsProvider);
-  final specialistsAsync = ref.watch(specialistsProvider);
+  final adultsAsync = ref.watch(adultsProvider);
   final roomsAsync = ref.watch(roomsProvider);
   final childrenAsync = ref.watch(childrenProvider);
 
@@ -77,7 +77,7 @@ final groupSummariesProvider =
   // (generic inference balks); a direct scan is clearer anyway.
   for (final a in <AsyncValue<Object>>[
     groupsAsync,
-    specialistsAsync,
+    adultsAsync,
     roomsAsync,
     childrenAsync,
   ]) {
@@ -87,11 +87,11 @@ final groupSummariesProvider =
   }
 
   final groups = groupsAsync.asData?.value;
-  final specialists = specialistsAsync.asData?.value;
+  final adults = adultsAsync.asData?.value;
   final rooms = roomsAsync.asData?.value;
   final children = childrenAsync.asData?.value;
   if (groups == null ||
-      specialists == null ||
+      adults == null ||
       rooms == null ||
       children == null) {
     return const AsyncLoading();
@@ -99,8 +99,8 @@ final groupSummariesProvider =
 
   // Index up front so the join is O(n+m) instead of O(n·m) per
   // group. Matters once there are 6+ groups and 40+ kids.
-  final leadsByGroup = <String, List<Specialist>>{};
-  for (final s in specialists) {
+  final leadsByGroup = <String, List<Adult>>{};
+  for (final s in adults) {
     if (AdultRole.fromDb(s.adultRole) != AdultRole.lead) continue;
     final anchor = s.anchoredGroupId;
     if (anchor == null) continue;

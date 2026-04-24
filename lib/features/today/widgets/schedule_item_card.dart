@@ -1,14 +1,14 @@
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/conflict_sheet.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// List card for an activity on Today. Shows time, title, group/specialist/
+/// List card for an activity on Today. Shows time, title, group/adult/
 /// location subtitle, status badges, and (when relevant) three dynamic
 /// affordances:
 ///
@@ -219,11 +219,11 @@ class ScheduleItemCard extends ConsumerWidget {
       }
       if (names.isNotEmpty) parts.add(names.join(' + '));
     }
-    final specialistId = item.specialistId;
-    if (specialistId != null) {
-      final specialist =
-          ref.watch(specialistProvider(specialistId)).asData?.value;
-      if (specialist != null) parts.add(specialist.name);
+    final adultId = item.adultId;
+    if (adultId != null) {
+      final adult =
+          ref.watch(adultProvider(adultId)).asData?.value;
+      if (adult != null) parts.add(adult.name);
     }
     if (item.location != null && item.location!.isNotEmpty) {
       parts.add(item.location!);

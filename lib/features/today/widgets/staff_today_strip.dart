@@ -1,6 +1,6 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
@@ -11,7 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// day-summary and the all-day carousel. Collapsible; shows a count
 /// when collapsed, the per-adult list when expanded.
 ///
-/// Uses the SpecialistAvailability shift + break/lunch for today's
+/// Uses the AdultAvailability shift + break/lunch for today's
 /// weekday. Adults with no availability row for today are skipped
 /// entirely (they don't have a shift, so they're not "on"). An adult
 /// currently inside a break/lunch window gets a tinted status.
@@ -31,9 +31,9 @@ class _StaffTodayStripState extends ConsumerState<StaffTodayStrip> {
 
   @override
   Widget build(BuildContext context) {
-    final specialistsAsync = ref.watch(specialistsProvider);
+    final adultsAsync = ref.watch(adultsProvider);
 
-    return specialistsAsync.when(
+    return adultsAsync.when(
       loading: () => const SizedBox.shrink(),
       error: (err, _) => const SizedBox.shrink(),
       data: (adults) {
@@ -42,7 +42,7 @@ class _StaffTodayStripState extends ConsumerState<StaffTodayStrip> {
         final isoDay = widget.now.weekday;
         final onShift = <_OnShiftAdult>[];
         for (final a in adults) {
-          final avAsync = ref.watch(specialistAvailabilityProvider(a.id));
+          final avAsync = ref.watch(adultAvailabilityProvider(a.id));
           final rows = avAsync.asData?.value;
           if (rows == null) continue;
           final row = _availabilityForDay(rows, isoDay);
@@ -51,7 +51,7 @@ class _StaffTodayStripState extends ConsumerState<StaffTodayStrip> {
         }
         if (onShift.isEmpty) return const SizedBox.shrink();
 
-        // Bucket by role so leads / specialists / ambient group visually.
+        // Bucket by role so leads / adults / ambient group visually.
         onShift.sort((a, b) {
           final ra = AdultRole.fromDb(a.adult.adultRole).index;
           final rb = AdultRole.fromDb(b.adult.adultRole).index;
@@ -73,12 +73,12 @@ class _StaffTodayStripState extends ConsumerState<StaffTodayStrip> {
 
 class _OnShiftAdult {
   const _OnShiftAdult({required this.adult, required this.availability});
-  final Specialist adult;
-  final SpecialistAvailabilityData availability;
+  final Adult adult;
+  final AdultAvailabilityData availability;
 }
 
-SpecialistAvailabilityData? _availabilityForDay(
-  List<SpecialistAvailabilityData> rows,
+AdultAvailabilityData? _availabilityForDay(
+  List<AdultAvailabilityData> rows,
   int isoDay,
 ) {
   for (final r in rows) {
@@ -233,7 +233,7 @@ class _StaffRow extends ConsumerWidget {
     );
   }
 
-  String _shiftLine(SpecialistAvailabilityData a) {
+  String _shiftLine(AdultAvailabilityData a) {
     final parts = <String>[_timeRange(a.startTime, a.endTime)];
     if (a.lunchStart != null && a.lunchEnd != null) {
       parts.add('lunch ${_timeRange(a.lunchStart!, a.lunchEnd!)}');

@@ -24,7 +24,7 @@ class MoreScreen extends StatelessWidget {
                   icon: Icons.badge_outlined,
                   label: 'Adults',
                   subtitle:
-                      'Leads, specialists, director, kitchen — '
+                      'Leads, adults, director, kitchen — '
                       'everyone on shift',
                   onTap: () => context.push('/more/adults'),
                 ),

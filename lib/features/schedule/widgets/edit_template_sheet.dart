@@ -2,11 +2,11 @@ import 'dart:async';
 
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/widgets/library_picker_sheet.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/rooms/widgets/room_picker.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
@@ -61,7 +61,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
       TextEditingController(text: widget.template?.title ?? '');
   late final _locationController =
       TextEditingController(text: widget.template?.location ?? '');
-  late String? _specialistId = widget.template?.specialistId;
+  late String? _adultId = widget.template?.adultId;
   late String? _roomId = widget.template?.roomId;
 
   late final Set<int> _selectedDays = widget.template != null
@@ -188,7 +188,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     }
     if (_formatTime(_start) != template.startTime) return true;
     if (_formatTime(_end) != template.endTime) return true;
-    if (_specialistId != template.specialistId) return true;
+    if (_adultId != template.adultId) return true;
     if (_roomId != template.roomId) return true;
     if (trimOrNull(_locationController.text) != template.location) return true;
     if (_rangeStart != template.startDate) return true;
@@ -231,7 +231,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
         title: title,
         groupIds: groupIds,
         allGroups: _allGroups,
-        specialistId: _specialistId,
+        adultId: _adultId,
         location: location,
         startDate: _rangeStart,
         endDate: _rangeEnd,
@@ -249,7 +249,7 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
           title: title,
           groupIds: groupIds,
           allGroups: _allGroups,
-          specialistId: _specialistId,
+          adultId: _adultId,
           location: location,
           startDate: _rangeStart,
           endDate: _rangeEnd,
@@ -372,8 +372,8 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
       if (picked.location != null) {
         _locationController.text = picked.location!;
       }
-      if (picked.specialistId != null) {
-        _specialistId = picked.specialistId;
+      if (picked.adultId != null) {
+        _adultId = picked.adultId;
       }
       final dur = picked.defaultDurationMin;
       if (dur != null) {
@@ -534,9 +534,9 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
             },
           ),
           const SizedBox(height: AppSpacing.lg),
-          _SpecialistPicker(
-            selectedId: _specialistId,
-            onChanged: (id) => setState(() => _specialistId = id),
+          _AdultPicker(
+            selectedId: _adultId,
+            onChanged: (id) => setState(() => _adultId = id),
           ),
           const SizedBox(height: AppSpacing.lg),
           Text('Location', style: theme.textTheme.titleSmall),
@@ -740,8 +740,8 @@ class _TimeField extends StatelessWidget {
   }
 }
 
-class _SpecialistPicker extends ConsumerWidget {
-  const _SpecialistPicker({
+class _AdultPicker extends ConsumerWidget {
+  const _AdultPicker({
     required this.selectedId,
     required this.onChanged,
   });
@@ -752,7 +752,7 @@ class _SpecialistPicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final specialistsAsync = ref.watch(specialistsProvider);
+    final adultsAsync = ref.watch(adultsProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -776,29 +776,29 @@ class _SpecialistPicker extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: AppSpacing.sm),
-        specialistsAsync.when(
+        adultsAsync.when(
           loading: () => const LinearProgressIndicator(),
           error: (err, _) => Text('Error: $err'),
-          data: (specialists) {
-            if (specialists.isEmpty) {
+          data: (adults) {
+            if (adults.isEmpty) {
               return Text(
                 'No adults yet — add one in More → Adults.',
                 style: theme.textTheme.bodySmall,
               );
             }
             // Clamp selectedId to the current list so an orphan
-            // reference (template pointed at a deleted specialist
+            // reference (template pointed at a deleted adult
             // from before FK cascade was enabled) falls back to
             // "None" instead of exploding the dropdown assertion.
             final resolvedId = selectedId != null &&
-                    specialists.any((s) => s.id == selectedId)
+                    adults.any((s) => s.id == selectedId)
                 ? selectedId
                 : null;
             return DropdownButtonFormField<String?>(
               initialValue: resolvedId,
               items: [
                 const DropdownMenuItem<String?>(child: Text('None')),
-                for (final s in specialists)
+                for (final s in adults)
                   DropdownMenuItem(
                     value: s.id,
                     child: Text(

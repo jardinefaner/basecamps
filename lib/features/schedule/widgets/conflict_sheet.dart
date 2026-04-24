@@ -1,8 +1,8 @@
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/rooms/rooms_repository.dart';
 import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
@@ -10,7 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Bottom sheet explaining why a given item is flagged as a conflict —
 /// which activities it clashes with, and whether the clash is group-based,
-/// specialist-based, or both.
+/// adult-based, or both.
 class ConflictSheet extends ConsumerWidget {
   const ConflictSheet({
     required this.item,
@@ -100,15 +100,15 @@ class _ConflictCard extends ConsumerWidget {
         label: label,
       ));
     }
-    if (info.specialistClash) {
+    if (info.adultClash) {
       // Default when the adult row was deleted / can't be resolved —
-      // don't leak the "specialist" label to teachers.
+      // don't leak the "adult" label to teachers.
       var label = 'Adult double-booked';
-      final sid = other.specialistId;
+      final sid = other.adultId;
       if (sid != null) {
-        final specialist = ref.watch(specialistProvider(sid)).asData?.value;
-        if (specialist != null) {
-          label = '${specialist.name} double-booked';
+        final adult = ref.watch(adultProvider(sid)).asData?.value;
+        if (adult != null) {
+          label = '${adult.name} double-booked';
         }
       }
       reasonChips.add(_ReasonChip(

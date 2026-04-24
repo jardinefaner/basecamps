@@ -1,10 +1,10 @@
 import 'package:basecamp/database/database.dart';
-import 'package:basecamp/features/specialists/adult_timeline_repository.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
+import 'package:basecamp/features/adults/adult_timeline_repository.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 
 /// What an adult is doing right at a given moment — derived from
 /// their timeline blocks for today, falling back to the static
-/// `Specialist.adultRole` + anchor when no blocks exist.
+/// `Adult.adultRole` + anchor when no blocks exist.
 ///
 /// Value is null in two cases:
 ///   - No blocks and no static role / shift info could be resolved.
@@ -12,18 +12,18 @@ import 'package:basecamp/features/specialists/specialists_repository.dart';
 /// UI surfaces can show those adults as idle / off-shift.
 class AdultCurrentState {
   const AdultCurrentState({
-    required this.specialistId,
+    required this.adultId,
     required this.role,
     this.groupId,
     this.blockStartMinutes,
     this.blockEndMinutes,
   });
 
-  final String specialistId;
+  final String adultId;
   final AdultBlockRole role;
 
   /// For lead state — which group (group) they're anchoring right now.
-  /// Null for specialist / rotator blocks.
+  /// Null for adult / rotator blocks.
   final String? groupId;
 
   /// Useful for surfaces that want to show "until 11:00" alongside
@@ -33,15 +33,15 @@ class AdultCurrentState {
   final int? blockEndMinutes;
 }
 
-/// Splits `rows` into a per-adult list keyed by specialist id.
+/// Splits `rows` into a per-adult list keyed by adult id.
 /// Used by the derivation pass below to answer per-adult questions
 /// without re-scanning the full list each time.
-Map<String, List<AdultTimelineBlock>> groupBlocksBySpecialist(
+Map<String, List<AdultTimelineBlock>> groupBlocksByAdult(
   List<AdultDayBlock> rows,
 ) {
   final out = <String, List<AdultTimelineBlock>>{};
   for (final r in rows) {
-    (out[r.specialistId] ??= []).add(AdultTimelineBlock.fromRow(r));
+    (out[r.adultId] ??= []).add(AdultTimelineBlock.fromRow(r));
   }
   // Sort each list by start time so the "first block that straddles
   // now" scan is deterministic (matters for overlapping edits).
@@ -51,7 +51,7 @@ Map<String, List<AdultTimelineBlock>> groupBlocksBySpecialist(
   return out;
 }
 
-/// Resolves [specialist]'s current state at [nowMinutes] on a day
+/// Resolves [adult]'s current state at [nowMinutes] on a day
 /// that has [blocksForAdult] (possibly empty).
 ///
 /// Rules (in order):
@@ -59,13 +59,13 @@ Map<String, List<AdultTimelineBlock>> groupBlocksBySpecialist(
 ///   2. If blocks exist for today but none straddles now, the adult
 ///      is between blocks (implied off) → return null.
 ///   3. If no blocks exist, fall back to the static
-///      `Specialist.adultRole`:
+///      `Adult.adultRole`:
 ///        - lead + anchoredGroupId → lead block covering the whole
 ///          day (so Today can still show them as anchoring their group)
-///        - specialist → rotating specialist state
+///        - adult → rotating adult state
 ///        - ambient → null (ambient adults aren't on the group grid)
 AdultCurrentState? resolveCurrentState({
-  required Specialist specialist,
+  required Adult adult,
   required List<AdultTimelineBlock> blocksForAdult,
   required int nowMinutes,
 }) {
@@ -73,7 +73,7 @@ AdultCurrentState? resolveCurrentState({
     for (final b in blocksForAdult) {
       if (nowMinutes >= b.startMinutes && nowMinutes < b.endMinutes) {
         return AdultCurrentState(
-          specialistId: specialist.id,
+          adultId: adult.id,
           role: b.role,
           groupId: b.groupId,
           blockStartMinutes: b.startMinutes,
@@ -86,18 +86,18 @@ AdultCurrentState? resolveCurrentState({
   }
 
   // Legacy fallback: no timeline set, interpret the static role.
-  final staticRole = AdultRole.fromDb(specialist.adultRole);
+  final staticRole = AdultRole.fromDb(adult.adultRole);
   switch (staticRole) {
     case AdultRole.lead:
-      if (specialist.anchoredGroupId == null) return null;
+      if (adult.anchoredGroupId == null) return null;
       return AdultCurrentState(
-        specialistId: specialist.id,
+        adultId: adult.id,
         role: AdultBlockRole.lead,
-        groupId: specialist.anchoredGroupId,
+        groupId: adult.anchoredGroupId,
       );
     case AdultRole.specialist:
       return AdultCurrentState(
-        specialistId: specialist.id,
+        adultId: adult.id,
         role: AdultBlockRole.specialist,
       );
     case AdultRole.ambient:
@@ -110,19 +110,19 @@ AdultCurrentState? resolveCurrentState({
 /// "scheduled via timeline" and "just a static anchor" leads both
 /// show up in the same list.
 ///
-/// Returns specialist ids; caller joins with the full specialists
+/// Returns adult ids; caller joins with the full adults
 /// list for display.
 Set<String> leadsInGroupNow({
   required String groupId,
   required int nowMinutes,
-  required List<Specialist> specialists,
-  required Map<String, List<AdultTimelineBlock>> blocksBySpecialist,
+  required List<Adult> adults,
+  required Map<String, List<AdultTimelineBlock>> blocksByAdult,
 }) {
   final ids = <String>{};
-  for (final s in specialists) {
-    final blocks = blocksBySpecialist[s.id] ?? const <AdultTimelineBlock>[];
+  for (final s in adults) {
+    final blocks = blocksByAdult[s.id] ?? const <AdultTimelineBlock>[];
     final state = resolveCurrentState(
-      specialist: s,
+      adult: s,
       blocksForAdult: blocks,
       nowMinutes: nowMinutes,
     );

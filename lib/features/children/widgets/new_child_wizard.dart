@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Create-only wizard for enrolling a new child. Follows the same
-/// page-by-page pattern as the activity and specialist wizards so
+/// page-by-page pattern as the activity and adult wizards so
 /// first-timers aren't stuck staring at every field at once. Editing
 /// an existing child still uses the dense edit sheet.
 class NewChildWizardScreen extends ConsumerStatefulWidget {

@@ -11,7 +11,7 @@ ScheduleItem _item({
   bool fullDay = false,
   List<String> groupIds = const [],
   bool allGroups = false,
-  String? specialistId,
+  String? adultId,
   String? templateId,
   String? entryId,
   DateTime? date,
@@ -25,7 +25,7 @@ ScheduleItem _item({
       isFromTemplate: templateId != null,
       groupIds: groupIds,
       allGroups: allGroups,
-      specialistId: specialistId,
+      adultId: adultId,
       templateId: templateId,
       entryId: entryId,
       date: date ?? DateTime(2026, 4, 23),
@@ -63,7 +63,7 @@ void main() {
         end: '10:00',
         templateId: 'tpl-1',
         groupIds: ['g-b'],
-        specialistId: 's-sarah',
+        adultId: 's-sarah',
       );
       final ev = calendarEventFromScheduleItem(item);
       expect(ev.kind, CalendarEventKind.activity);
@@ -72,7 +72,7 @@ void main() {
       expect(ev.endAt, DateTime(2026, 4, 23, 10));
       expect(ev.allDay, false);
       expect(ev.groupIds, ['g-b']);
-      expect(ev.specialistId, 's-sarah');
+      expect(ev.adultId, 's-sarah');
       expect(ev.sourceKind, 'template');
       expect(ev.sourceId, 'tpl-1');
       expect(ev.durationMinutes, 60);

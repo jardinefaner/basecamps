@@ -1,6 +1,6 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
 
@@ -95,9 +95,9 @@ TimeOfDay? _parseNullable(String? hhmm) {
 }
 
 /// Builds [AvailabilityBlock]s from saved rows (or defaults to
-/// weekday 9–5 when seeding a new specialist).
+/// weekday 9–5 when seeding a new adult).
 List<AvailabilityBlock> availabilityFromRows(
-  List<SpecialistAvailabilityData> rows,
+  List<AdultAvailabilityData> rows,
 ) =>
     [
       for (final r in rows)
@@ -461,7 +461,7 @@ class _Row extends StatelessWidget {
           ),
           // Break + lunch sub-row (shown only when shift is on and
           // the callbacks were passed in). Keeps them out of sight for
-          // the wizard's "new specialist" flow where they'd be noise.
+          // the wizard's "new adult" flow where they'd be noise.
           if (enabled && (onPickBreak != null || onPickLunch != null))
             Padding(
               padding: const EdgeInsets.only(

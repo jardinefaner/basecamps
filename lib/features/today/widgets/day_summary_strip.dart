@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 /// Compact "at a glance" strip directly under the date label. Four
 /// stats: activities scheduled today, children in groups with activities,
-/// specialists on today, and pending items — either "N concerns
+/// adults on today, and pending items — either "N concerns
 /// logged" or "N obs to log" depending on which is more actionable in
 /// this moment. Taps on the concerns / pending-obs stats deep-link to
 /// the relevant screen; the first two are display-only.
@@ -11,7 +11,7 @@ class DaySummaryStrip extends StatelessWidget {
   const DaySummaryStrip({
     required this.activities,
     required this.children,
-    required this.specialists,
+    required this.adults,
     required this.concerns,
     required this.pendingObs,
     this.onTapConcerns,
@@ -21,7 +21,7 @@ class DaySummaryStrip extends StatelessWidget {
 
   final int activities;
   final int children;
-  final int specialists;
+  final int adults;
   final int concerns;
   final int pendingObs;
   final VoidCallback? onTapConcerns;
@@ -61,11 +61,11 @@ class DaySummaryStrip extends StatelessWidget {
           Expanded(
             child: _Stat(
               icon: Icons.person_outline,
-              value: '$specialists',
+              value: '$adults',
               // Count of unique adults leading activities today — all
-              // roles (lead/specialist/ambient) count once if their id
+              // roles (lead/adult/ambient) count once if their id
               // is on an activity.
-              label: specialists == 1 ? 'adult leading' : 'adults leading',
+              label: adults == 1 ? 'adult leading' : 'adults leading',
             ),
           ),
           _Divider(),

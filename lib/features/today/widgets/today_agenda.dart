@@ -154,7 +154,7 @@ class TodayAgendaView extends ConsumerWidget {
           title: event.title,
           groupIds: event.groupIds,
           allGroups: event.allGroups,
-          specialistId: event.specialistId,
+          adultId: event.adultId,
           location: event.location,
           roomId: event.roomId,
           isFromTemplate: event.sourceKind == 'template',
@@ -179,9 +179,9 @@ class TodayAgendaView extends ConsumerWidget {
         }
       case CalendarEventKind.adultBreak:
       case CalendarEventKind.adultLunch:
-        if (event.specialistId == null) return;
+        if (event.adultId == null) return;
         if (context.mounted) {
-          await context.push('/more/adults/${event.specialistId}');
+          await context.push('/more/adults/${event.adultId}');
         }
     }
   }

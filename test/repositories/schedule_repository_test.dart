@@ -184,26 +184,26 @@ void main() {
     });
   });
 
-  group('FK: deleting a specialist nulls the reference (setNull)', () {
-    test('deleting referenced specialist leaves template with null '
-        'specialistId', () async {
-      await db.into(db.specialists).insert(
-            SpecialistsCompanion.insert(id: 'sp-1', name: 'Ms. Park'),
+  group('FK: deleting a adult nulls the reference (setNull)', () {
+    test('deleting referenced adult leaves template with null '
+        'adultId', () async {
+      await db.into(db.adults).insert(
+            AdultsCompanion.insert(id: 'sp-1', name: 'Ms. Park'),
           );
       final id = await sch.addTemplate(
         dayOfWeek: 1,
         startTime: '09:00',
         endTime: '10:00',
         title: 'Art',
-        specialistId: 'sp-1',
+        adultId: 'sp-1',
       );
-      await (db.delete(db.specialists)..where((s) => s.id.equals('sp-1')))
+      await (db.delete(db.adults)..where((s) => s.id.equals('sp-1')))
           .go();
 
       final t = await sch.getTemplate(id);
-      expect(t!.specialistId, isNull,
+      expect(t!.adultId, isNull,
           reason: 'ON DELETE SET NULL must fire — without it the '
-              'template would still point at a deleted specialist, '
+              'template would still point at a deleted adult, '
               'which was the source of the dropdown crash.');
     });
   });

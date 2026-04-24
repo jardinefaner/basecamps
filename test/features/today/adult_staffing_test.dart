@@ -1,14 +1,14 @@
 import 'package:basecamp/database/database.dart';
-import 'package:basecamp/features/specialists/adult_timeline_repository.dart';
+import 'package:basecamp/features/adults/adult_timeline_repository.dart';
 import 'package:basecamp/features/today/adult_staffing.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Specialist _sp({
+Adult _sp({
   required String id,
-  String role = 'specialist',
+  String role = 'adult',
   String? anchoredGroupId,
 }) =>
-    Specialist(
+    Adult(
       id: id,
       name: id,
       adultRole: role,
@@ -39,7 +39,7 @@ void main() {
   group('resolveCurrentState', () {
     test('block straddling now wins — lead + pod', () {
       final state = resolveCurrentState(
-        specialist: _sp(id: 'sarah'),
+        adult: _sp(id: 'sarah'),
         blocksForAdult: [
           _block(
             start: '08:30',
@@ -59,7 +59,7 @@ void main() {
 
     test('adult between blocks → null (implied off)', () {
       final state = resolveCurrentState(
-        specialist: _sp(id: 'sarah', role: 'lead', anchoredGroupId: 'g-b'),
+        adult: _sp(id: 'sarah', role: 'lead', anchoredGroupId: 'g-b'),
         blocksForAdult: [
           _block(
             start: '08:30',
@@ -83,7 +83,7 @@ void main() {
 
     test('no blocks, static lead + anchor → synthetic lead state', () {
       final state = resolveCurrentState(
-        specialist: _sp(id: 'sarah', role: 'lead', anchoredGroupId: 'g-b'),
+        adult: _sp(id: 'sarah', role: 'lead', anchoredGroupId: 'g-b'),
         blocksForAdult: const [],
         nowMinutes: _at(10, 0),
       );
@@ -93,9 +93,9 @@ void main() {
       expect(state.blockStartMinutes, isNull);
     });
 
-    test('no blocks, static specialist → rotating specialist', () {
+    test('no blocks, static adult → rotating adult', () {
       final state = resolveCurrentState(
-        specialist: _sp(id: 'alex'),
+        adult: _sp(id: 'alex'),
         blocksForAdult: const [],
         nowMinutes: _at(10, 0),
       );
@@ -105,7 +105,7 @@ void main() {
 
     test('no blocks, static ambient → null (not on group grid)', () {
       final state = resolveCurrentState(
-        specialist: _sp(id: 'dir', role: 'ambient'),
+        adult: _sp(id: 'dir', role: 'ambient'),
         blocksForAdult: const [],
         nowMinutes: _at(10, 0),
       );
@@ -114,7 +114,7 @@ void main() {
 
     test('boundary: exactly at block start is covered', () {
       final state = resolveCurrentState(
-        specialist: _sp(id: 'sarah'),
+        adult: _sp(id: 'sarah'),
         blocksForAdult: [
           _block(
             start: '08:30',
@@ -130,7 +130,7 @@ void main() {
 
     test('boundary: exactly at block end is NOT covered', () {
       final state = resolveCurrentState(
-        specialist: _sp(id: 'sarah'),
+        adult: _sp(id: 'sarah'),
         blocksForAdult: [
           _block(
             start: '08:30',
@@ -149,9 +149,9 @@ void main() {
     test('includes timeline-leads and static-anchor-leads together', () {
       // Sarah: timeline-lead for g-b 8:30-11
       // Mike: static anchored lead for g-b (no timeline)
-      // Alex: specialist rotating — should NOT count
+      // Alex: adult rotating — should NOT count
       // Jen: lead anchored to g-l — wrong pod, NOT in g-b
-      final specialists = [
+      final adults = [
         _sp(id: 'sarah'),
         _sp(id: 'mike', role: 'lead', anchoredGroupId: 'g-b'),
         _sp(id: 'alex'),
@@ -170,17 +170,17 @@ void main() {
       final leads = leadsInGroupNow(
         groupId: 'g-b',
         nowMinutes: _at(10, 0),
-        specialists: specialists,
-        blocksBySpecialist: blocksBy,
+        adults: adults,
+        blocksByAdult: blocksBy,
       );
       expect(leads, {'sarah', 'mike'});
     });
 
-    test('rotating specialist in a group via a lead block at that pod', () {
-      // Sarah is normally a rotating specialist (static role), but
+    test('rotating adult in a group via a lead block at that pod', () {
+      // Sarah is normally a rotating adult (static role), but
       // her timeline overrides this morning to anchor g-b as lead.
       // leadsInGroupNow should include her.
-      final specialists = [_sp(id: 'sarah')];
+      final adults = [_sp(id: 'sarah')];
       final blocksBy = {
         'sarah': [
           _block(
@@ -194,19 +194,19 @@ void main() {
       final leads = leadsInGroupNow(
         groupId: 'g-b',
         nowMinutes: _at(9, 30),
-        specialists: specialists,
-        blocksBySpecialist: blocksBy,
+        adults: adults,
+        blocksByAdult: blocksBy,
       );
       expect(leads, {'sarah'});
     });
   });
 
-  group('groupBlocksBySpecialist', () {
+  group('groupBlocksByAdult', () {
     test('sorts per-adult lists by start time', () {
       final rows = [
         AdultDayBlock(
           id: 'b2',
-          specialistId: 'sarah',
+          adultId: 'sarah',
           dayOfWeek: 1,
           startTime: '12:00',
           endTime: '15:00',
@@ -217,7 +217,7 @@ void main() {
         ),
         AdultDayBlock(
           id: 'b1',
-          specialistId: 'sarah',
+          adultId: 'sarah',
           dayOfWeek: 1,
           startTime: '08:30',
           endTime: '11:00',
@@ -227,7 +227,7 @@ void main() {
           updatedAt: DateTime(2026),
         ),
       ];
-      final grouped = groupBlocksBySpecialist(rows);
+      final grouped = groupBlocksByAdult(rows);
       expect(grouped['sarah']!.map((b) => b.startTime).toList(),
           ['08:30', '12:00']);
     });

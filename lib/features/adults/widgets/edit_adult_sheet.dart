@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adult_timeline_repository.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
+import 'package:basecamp/features/adults/widgets/adult_timeline_editor_sheet.dart';
+import 'package:basecamp/features/adults/widgets/availability_editor.dart';
 import 'package:basecamp/features/children/children_repository.dart';
-import 'package:basecamp/features/specialists/adult_timeline_repository.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
-import 'package:basecamp/features/specialists/widgets/adult_timeline_editor_sheet.dart';
-import 'package:basecamp/features/specialists/widgets/availability_editor.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
@@ -16,37 +16,37 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class EditSpecialistSheet extends ConsumerStatefulWidget {
-  const EditSpecialistSheet({super.key, this.specialist});
+class EditAdultSheet extends ConsumerStatefulWidget {
+  const EditAdultSheet({super.key, this.adult});
 
-  final Specialist? specialist;
+  final Adult? adult;
 
   @override
-  ConsumerState<EditSpecialistSheet> createState() =>
-      _EditSpecialistSheetState();
+  ConsumerState<EditAdultSheet> createState() =>
+      _EditAdultSheetState();
 }
 
-class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
+class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
   late final _nameController =
-      TextEditingController(text: widget.specialist?.name ?? '');
+      TextEditingController(text: widget.adult?.name ?? '');
   late final _roleController =
-      TextEditingController(text: widget.specialist?.role ?? '');
+      TextEditingController(text: widget.adult?.role ?? '');
   late final _notesController =
-      TextEditingController(text: widget.specialist?.notes ?? '');
+      TextEditingController(text: widget.adult?.notes ?? '');
 
-  late String? _avatarPath = widget.specialist?.avatarPath;
+  late String? _avatarPath = widget.adult?.avatarPath;
 
   /// Structural role (v28) — what kind of adult this person is on
-  /// the schedule. Defaults to specialist (rover) for new rows and
+  /// the schedule. Defaults to adult (rover) for new rows and
   /// reads through for existing ones via AdultRole.fromDb.
-  late AdultRole _adultRole = widget.specialist == null
+  late AdultRole _adultRole = widget.adult == null
       ? AdultRole.specialist
-      : AdultRole.fromDb(widget.specialist!.adultRole);
+      : AdultRole.fromDb(widget.adult!.adultRole);
 
   /// Which group this adult anchors (leads only). Ignored when
   /// [_adultRole] isn't [AdultRole.lead]; the UI clears it on role
   /// change to avoid stale state surviving a save.
-  late String? _anchoredGroupId = widget.specialist?.anchoredGroupId;
+  late String? _anchoredGroupId = widget.adult?.anchoredGroupId;
 
   final Map<int, AvailabilityBlock> _availability = {};
   bool _availabilityLoaded = false;
@@ -59,22 +59,22 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
 
   bool _submitting = false;
 
-  bool get _isEdit => widget.specialist != null;
+  bool get _isEdit => widget.adult != null;
   bool get _isValid => _nameController.text.trim().isNotEmpty;
 
   bool get _hasChanges {
-    final specialist = widget.specialist;
-    if (specialist == null) return true;
-    if (_nameController.text.trim() != specialist.name) return true;
+    final adult = widget.adult;
+    if (adult == null) return true;
+    if (_nameController.text.trim() != adult.name) return true;
     final currentRole =
         _roleController.text.trim().isEmpty ? null : _roleController.text.trim();
-    if (currentRole != specialist.role) return true;
+    if (currentRole != adult.role) return true;
     final currentNotes =
         _notesController.text.trim().isEmpty ? null : _notesController.text.trim();
-    if (currentNotes != specialist.notes) return true;
-    if (_avatarPath != specialist.avatarPath) return true;
-    if (_adultRole.dbValue != specialist.adultRole) return true;
-    if (_anchoredGroupId != specialist.anchoredGroupId) return true;
+    if (currentNotes != adult.notes) return true;
+    if (_avatarPath != adult.avatarPath) return true;
+    if (_adultRole.dbValue != adult.adultRole) return true;
+    if (_anchoredGroupId != adult.anchoredGroupId) return true;
     if (!_availabilityLoaded) return false;
     final current = _currentAvailabilitySig();
     if (current.length != _availabilityBaseline.length) return true;
@@ -118,8 +118,8 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
       return;
     }
     final rows = await ref
-        .read(specialistsRepositoryProvider)
-        .availabilityFor(widget.specialist!.id);
+        .read(adultsRepositoryProvider)
+        .availabilityFor(widget.adult!.id);
     if (!mounted) return;
     setState(() {
       _availability.clear();
@@ -142,7 +142,7 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
   Future<void> _submit() async {
     if (!_isValid) return;
     setState(() => _submitting = true);
-    final repo = ref.read(specialistsRepositoryProvider);
+    final repo = ref.read(adultsRepositoryProvider);
     final name = _nameController.text.trim();
     final role =
         _roleController.text.trim().isEmpty ? null : _roleController.text.trim();
@@ -150,15 +150,15 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
         ? null
         : _notesController.text.trim();
 
-    // Anchor only applies to leads; clear it for specialists/ambient
+    // Anchor only applies to leads; clear it for adults/ambient
     // so role toggles don't leave stale group pointers.
     final effectiveAnchor =
         _adultRole == AdultRole.lead ? _anchoredGroupId : null;
 
     String id;
     if (_isEdit) {
-      final existing = widget.specialist!;
-      await repo.updateSpecialist(
+      final existing = widget.adult!;
+      await repo.updateAdult(
         id: existing.id,
         name: name,
         role: role,
@@ -171,7 +171,7 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
       );
       id = existing.id;
     } else {
-      id = await repo.addSpecialist(
+      id = await repo.addAdult(
         name: name,
         role: role,
         notes: notes,
@@ -182,7 +182,7 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
     }
     if (_availabilityLoaded) {
       await repo.replaceAvailability(
-        specialistId: id,
+        adultId: id,
         blocks: _availability.values.map((b) => b.toInput()).toList(),
       );
     }
@@ -192,19 +192,19 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
 
   Future<void> _delete() async {
     if (!_isEdit) return;
-    final existing = widget.specialist!;
+    final existing = widget.adult!;
     final navigator = Navigator.of(context);
     final confirmed = await confirmDeleteWithUndo(
       context: context,
       title: 'Remove ${existing.name}?',
       message: "You'll get a 5-second window to undo.",
       onDelete: () => ref
-          .read(specialistsRepositoryProvider)
-          .deleteSpecialist(existing.id),
+          .read(adultsRepositoryProvider)
+          .deleteAdult(existing.id),
       undoLabel: '${existing.name} removed',
       onUndo: () => ref
-          .read(specialistsRepositoryProvider)
-          .restoreSpecialist(existing),
+          .read(adultsRepositoryProvider)
+          .restoreAdult(existing),
     );
     if (!confirmed || !mounted) return;
     // Pop the sheet AND the detail screen beneath it so the teacher
@@ -392,7 +392,7 @@ class _EditSpecialistSheetState extends ConsumerState<EditSpecialistSheet> {
           // Stays optional: most adults' days don't need block-level
           // detail, so we keep a single button here instead of
           // cluttering this sheet with per-day tables.
-          _DayTimelineLaunchRow(specialist: widget.specialist),
+          _DayTimelineLaunchRow(adult: widget.adult),
           const SizedBox(height: AppSpacing.lg),
           AppTextField(
             controller: _notesController,
@@ -473,7 +473,7 @@ class _RolePicker extends StatelessWidget {
         const SizedBox(height: AppSpacing.xs),
         Text(
           'How this person shows up on Today. Leads anchor a group all '
-          'day. Specialists rotate between activities. Ambient staff '
+          'day. Adults rotate between activities. Ambient staff '
           "(director, nurse, kitchen) have a shift but aren't on the "
           'activity grid.',
           style: theme.textTheme.bodySmall?.copyWith(
@@ -502,7 +502,7 @@ class _RolePicker extends StatelessWidget {
       case AdultRole.lead:
         return 'Lead';
       case AdultRole.specialist:
-        return 'Specialist';
+        return 'Adult';
       case AdultRole.ambient:
         return 'Ambient staff';
     }
@@ -575,14 +575,14 @@ class _AnchorGroupPicker extends ConsumerWidget {
 /// block-count hint when there's a timeline so teachers can see at a
 /// glance whether it's been set up.
 class _DayTimelineLaunchRow extends ConsumerWidget {
-  const _DayTimelineLaunchRow({required this.specialist});
+  const _DayTimelineLaunchRow({required this.adult});
 
-  final Specialist? specialist;
+  final Adult? adult;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final id = specialist?.id;
+    final id = adult?.id;
     // Pull live so the block count refreshes when the teacher saves
     // the editor sheet and pops back to this sheet.
     final blocksAsync = id == null
@@ -602,7 +602,7 @@ class _DayTimelineLaunchRow extends ConsumerWidget {
         const SizedBox(height: AppSpacing.xs),
         Text(
           'Subdivides the shift into role blocks — "lead Butterflies '
-          '8:30-11, specialist rotator 11-12, back to Butterflies '
+          '8:30-11, adult rotator 11-12, back to Butterflies '
           '12-3." Leave empty and Today uses the structural role above.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
@@ -623,8 +623,8 @@ class _DayTimelineLaunchRow extends ConsumerWidget {
                     showDragHandle: true,
                     useSafeArea: true,
                     builder: (_) => AdultTimelineEditorSheet(
-                      specialistId: id,
-                      specialistName: specialist?.name ?? 'Adult',
+                      adultId: id,
+                      adultName: adult?.name ?? 'Adult',
                       initialBlocks: [
                         for (final b in blocks) AdultTimelineBlock.fromRow(b),
                       ],

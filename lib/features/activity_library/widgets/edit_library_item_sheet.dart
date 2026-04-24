@@ -1,6 +1,6 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
@@ -28,7 +28,7 @@ class _EditLibraryItemSheetState
   late final _notesController =
       TextEditingController(text: widget.item?.notes ?? '');
   late int? _durationMin = widget.item?.defaultDurationMin;
-  late String? _specialistId = widget.item?.specialistId;
+  late String? _adultId = widget.item?.adultId;
   bool _submitting = false;
 
   bool get _isEdit => widget.item != null;
@@ -41,7 +41,7 @@ class _EditLibraryItemSheetState
         s.trim().isEmpty ? null : s.trim();
     if (_titleController.text.trim() != item.title) return true;
     if (_durationMin != item.defaultDurationMin) return true;
-    if (_specialistId != item.specialistId) return true;
+    if (_adultId != item.adultId) return true;
     if (trimOrNull(_locationController.text) != item.location) return true;
     if (trimOrNull(_notesController.text) != item.notes) return true;
     return false;
@@ -76,7 +76,7 @@ class _EditLibraryItemSheetState
         id: widget.item!.id,
         title: title,
         defaultDurationMin: Value(_durationMin),
-        specialistId: Value(_specialistId),
+        adultId: Value(_adultId),
         location: Value(location),
         notes: Value(notes),
       );
@@ -84,7 +84,7 @@ class _EditLibraryItemSheetState
       await repo.addItem(
         title: title,
         defaultDurationMin: _durationMin,
-        specialistId: _specialistId,
+        adultId: _adultId,
         location: location,
         notes: notes,
       );
@@ -105,7 +105,7 @@ class _EditLibraryItemSheetState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final specialistsAsync = ref.watch(specialistsProvider);
+    final adultsAsync = ref.watch(adultsProvider);
 
     return StickyActionSheet(
       title: _isEdit ? 'Edit library item' : 'New library item',
@@ -178,30 +178,30 @@ class _EditLibraryItemSheetState
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
-          Text('Default specialist', style: theme.textTheme.titleSmall),
+          Text('Default adult', style: theme.textTheme.titleSmall),
           const SizedBox(height: AppSpacing.sm),
-          specialistsAsync.when(
+          adultsAsync.when(
             loading: () => const LinearProgressIndicator(),
             error: (err, _) => Text('Error: $err'),
-            data: (specialists) {
-              if (specialists.isEmpty) {
+            data: (adults) {
+              if (adults.isEmpty) {
                 return Text(
-                  'No specialists yet.',
+                  'No adults yet.',
                   style: theme.textTheme.bodySmall,
                 );
               }
-              // Clamp to current list so an orphan specialist
+              // Clamp to current list so an orphan adult
               // reference falls back to "None" instead of firing
               // DropdownButton's "exactly one item" assertion.
-              final resolvedId = _specialistId != null &&
-                      specialists.any((s) => s.id == _specialistId)
-                  ? _specialistId
+              final resolvedId = _adultId != null &&
+                      adults.any((s) => s.id == _adultId)
+                  ? _adultId
                   : null;
               return DropdownButtonFormField<String?>(
                 initialValue: resolvedId,
                 items: [
                   const DropdownMenuItem<String?>(child: Text('None')),
-                  for (final s in specialists)
+                  for (final s in adults)
                     DropdownMenuItem(
                       value: s.id,
                       child: Text(
@@ -211,7 +211,7 @@ class _EditLibraryItemSheetState
                       ),
                     ),
                 ],
-                onChanged: (v) => setState(() => _specialistId = v),
+                onChanged: (v) => setState(() => _adultId = v),
               );
             },
           ),

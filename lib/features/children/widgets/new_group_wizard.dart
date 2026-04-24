@@ -1,8 +1,8 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/children/group_colors.dart';
 import 'package:basecamp/features/rooms/rooms_repository.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/step_wizard.dart';
@@ -40,8 +40,8 @@ class _NewGroupWizardScreenState extends ConsumerState<NewGroupWizardScreen> {
   /// "skip" — no default room set yet.
   String? _defaultRoomId;
 
-  /// Specialist ids to anchor to this group as leads. Flips an
-  /// existing specialist into adultRole = lead AND retargets their
+  /// Adult ids to anchor to this group as leads. Flips an
+  /// existing adult into adultRole = lead AND retargets their
   /// anchoredGroupId on save.
   final Set<String> _leadIds = {};
 
@@ -69,7 +69,7 @@ class _NewGroupWizardScreenState extends ConsumerState<NewGroupWizardScreen> {
     final name = _name.text.trim();
     final childrenRepo = ref.read(childrenRepositoryProvider);
     final roomsRepo = ref.read(roomsRepositoryProvider);
-    final specialistsRepo = ref.read(specialistsRepositoryProvider);
+    final adultsRepo = ref.read(adultsRepositoryProvider);
 
     final groupId = await childrenRepo.addGroup(
       name: name,
@@ -91,9 +91,9 @@ class _NewGroupWizardScreenState extends ConsumerState<NewGroupWizardScreen> {
     // hold one or two leads so this is the typical "seeding a new
     // group" move, not a cross-group re-assignment.
     for (final sid in _leadIds) {
-      final s = await specialistsRepo.getSpecialist(sid);
+      final s = await adultsRepo.getAdult(sid);
       if (s == null) continue;
-      await specialistsRepo.updateSpecialist(
+      await adultsRepo.updateAdult(
         id: sid,
         name: s.name,
         role: s.role,
@@ -226,12 +226,12 @@ class _NewGroupWizardScreenState extends ConsumerState<NewGroupWizardScreen> {
 
   Widget _buildLeadsPage() {
     final theme = Theme.of(context);
-    final specialistsAsync = ref.watch(specialistsProvider);
-    return specialistsAsync.when(
+    final adultsAsync = ref.watch(adultsProvider);
+    return adultsAsync.when(
       loading: () => const LinearProgressIndicator(),
       error: (err, _) => Text('Error: $err'),
-      data: (specialists) {
-        if (specialists.isEmpty) {
+      data: (adults) {
+        if (adults.isEmpty) {
           return Text(
             "No adults yet. Tap Skip — once you've added adults on "
             'the Adults screen you can anchor them here from the '
@@ -253,9 +253,9 @@ class _NewGroupWizardScreenState extends ConsumerState<NewGroupWizardScreen> {
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
-            for (final s in specialists)
-              _SpecialistRow(
-                specialist: s,
+            for (final s in adults)
+              _AdultRow(
+                adult: s,
                 selected: _leadIds.contains(s.id),
                 onToggle: () => setState(() {
                   if (_leadIds.contains(s.id)) {
@@ -333,23 +333,23 @@ class _NewGroupWizardScreenState extends ConsumerState<NewGroupWizardScreen> {
 /// Tappable row on the "Anchor leads" page. Shows the adult's name,
 /// photo initial, and current role context so the teacher sees
 /// whether picking them would re-anchor them.
-class _SpecialistRow extends StatelessWidget {
-  const _SpecialistRow({
-    required this.specialist,
+class _AdultRow extends StatelessWidget {
+  const _AdultRow({
+    required this.adult,
     required this.selected,
     required this.onToggle,
   });
 
-  final Specialist specialist;
+  final Adult adult;
   final bool selected;
   final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final current = AdultRole.fromDb(specialist.adultRole);
+    final current = AdultRole.fromDb(adult.adultRole);
     final currentLabel = switch (current) {
-      AdultRole.lead => specialist.anchoredGroupId == null
+      AdultRole.lead => adult.anchoredGroupId == null
           ? 'Currently: Lead (no group)'
           : 'Currently: Lead',
       AdultRole.specialist => 'Currently: Specialist',
@@ -405,7 +405,7 @@ class _SpecialistRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      specialist.name,
+                      adult.name,
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: selected

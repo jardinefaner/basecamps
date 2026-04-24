@@ -1,7 +1,7 @@
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
@@ -200,7 +200,7 @@ class _WeekGridViewState extends State<WeekGridView> {
     if (a.startTime != b.startTime) return false;
     if (a.endTime != b.endTime) return false;
     if (a.isFullDay != b.isFullDay) return false;
-    if (a.specialistId != b.specialistId) return false;
+    if (a.adultId != b.adultId) return false;
     if (a.location != b.location) return false;
     final aGroups = a.groupIds.toSet();
     final bGroups = b.groupIds.toSet();
@@ -556,7 +556,7 @@ class _FullDayCard extends StatelessWidget {
   }
 }
 
-/// Same visual language as the list-view card — title + groups/specialist/
+/// Same visual language as the list-view card — title + groups/adult/
 /// location stacked, no truncation. Time is intentionally absent because
 /// the frozen left column already shows it.
 class _GridBlockCard extends ConsumerWidget {
@@ -579,10 +579,10 @@ class _GridBlockCard extends ConsumerWidget {
       }
       if (names.isNotEmpty) subtitleParts.add(names.join(' + '));
     }
-    if (first.specialistId != null) {
-      final specialist =
-          ref.watch(specialistProvider(first.specialistId!)).asData?.value;
-      if (specialist != null) subtitleParts.add(specialist.name);
+    if (first.adultId != null) {
+      final adult =
+          ref.watch(adultProvider(first.adultId!)).asData?.value;
+      if (adult != null) subtitleParts.add(adult.name);
     }
     if (first.location != null && first.location!.isNotEmpty) {
       subtitleParts.add(first.location!);

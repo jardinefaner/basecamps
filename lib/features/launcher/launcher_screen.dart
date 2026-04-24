@@ -2,12 +2,12 @@ import 'dart:async';
 
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
 import 'package:basecamp/features/launcher/pinned_actions_repository.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
 import 'package:basecamp/features/schedule/widgets/new_full_day_event_wizard.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/features/trips/widgets/new_trip_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
@@ -16,7 +16,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 /// Hidden "spotlight" surface reached by swiping right from Today.
-/// Search at the top, then: quick actions, children, specialists, the
+/// Search at the top, then: quick actions, children, adults, the
 /// named sections of the app, and library shortcuts — all filterable
 /// live from the search field.
 class LauncherScreen extends ConsumerStatefulWidget {
@@ -45,12 +45,12 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final kidsAsync = ref.watch(childrenProvider);
-    final specialistsAsync = ref.watch(specialistsProvider);
+    final adultsAsync = ref.watch(adultsProvider);
     final libraryAsync = ref.watch(activityLibraryProvider);
 
     final children = kidsAsync.asData?.value ?? const <Child>[];
-    final specialists =
-        specialistsAsync.asData?.value ?? const <Specialist>[];
+    final adults =
+        adultsAsync.asData?.value ?? const <Adult>[];
     final library =
         libraryAsync.asData?.value ?? const <ActivityLibraryData>[];
 
@@ -58,8 +58,8 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
       for (final k in children)
         if (_matches(_displayName(k.firstName, k.lastName))) k,
     ];
-    final filteredSpecialists = [
-      for (final s in specialists)
+    final filteredAdults = [
+      for (final s in adults)
         if (_matches(s.name) || _matches(s.role ?? '')) s,
     ];
     final filteredLibrary = [
@@ -69,7 +69,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
 
     final pinnedIds = ref.watch(pinnedItemsProvider);
     // Resolve each pinned id to a live tile. Async entries (child,
-    // specialist, library) look up their current display name from
+    // adult, library) look up their current display name from
     // the providers already watched above; an id that no longer
     // resolves (e.g. child was deleted) is skipped silently.
     Widget? resolvePinnedTile(String storedId) {
@@ -109,9 +109,9 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
               route: '/children/${k.id}',
             ),
           );
-        case PinnedKinds.specialist:
+        case PinnedKinds.adult:
           final s =
-              specialists.where((x) => x.id == parsed.id).firstOrNull;
+              adults.where((x) => x.id == parsed.id).firstOrNull;
           if (s == null ||
               !(_matches(s.name) || _matches(s.role ?? ''))) {
             return null;
@@ -154,9 +154,9 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
         .where((k) =>
             !pinnedIds.contains(pinId(PinnedKinds.child, k.id)))
         .toList();
-    final unpinnedSpecialists = filteredSpecialists
+    final unpinnedAdults = filteredAdults
         .where((s) =>
-            !pinnedIds.contains(pinId(PinnedKinds.specialist, s.id)))
+            !pinnedIds.contains(pinId(PinnedKinds.adult, s.id)))
         .toList();
     final unpinnedLibrary = filteredLibrary
         .where((l) =>
@@ -173,7 +173,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
         unpinnedActions.isNotEmpty ||
         destinations.isNotEmpty ||
         unpinnedKids.isNotEmpty ||
-        unpinnedSpecialists.isNotEmpty ||
+        unpinnedAdults.isNotEmpty ||
         unpinnedLibrary.isNotEmpty;
 
     return Scaffold(
@@ -198,7 +198,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                       children: [
                         // Smart Shelf — always visible. Accepts drops
                         // of any pinnable tile (action, destination,
-                        // child, specialist, library item). Tiles
+                        // child, adult, library item). Tiles
                         // already pinned appear here and disappear
                         // from their source section.
                         _Section(
@@ -223,14 +223,14 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                             query: _query,
                             child: _PeopleWrap.fromKids(unpinnedKids),
                           ),
-                        if (unpinnedSpecialists.isNotEmpty)
+                        if (unpinnedAdults.isNotEmpty)
                           _Section(
                             label: 'Adults',
-                            count: unpinnedSpecialists.length,
-                            total: specialists.length,
+                            count: unpinnedAdults.length,
+                            total: adults.length,
                             query: _query,
-                            child: _PeopleWrap.fromSpecialists(
-                              unpinnedSpecialists,
+                            child: _PeopleWrap.fromAdults(
+                              unpinnedAdults,
                             ),
                           ),
                         if (destinations.isNotEmpty)
@@ -694,7 +694,7 @@ class _QuickActionTile extends StatelessWidget {
 }
 
 // ================================================================
-// People (children + specialists)
+// People (children + adults)
 // ================================================================
 
 class _PeopleWrap extends StatelessWidget {
@@ -719,12 +719,12 @@ class _PeopleWrap extends StatelessWidget {
     );
   }
 
-  factory _PeopleWrap.fromSpecialists(List<Specialist> specialists) {
+  factory _PeopleWrap.fromAdults(List<Adult> adults) {
     return _PeopleWrap(
       tiles: [
-        for (final s in specialists)
+        for (final s in adults)
           _PinnableTile(
-            pinId: pinId(PinnedKinds.specialist, s.id),
+            pinId: pinId(PinnedKinds.adult, s.id),
             child: _PersonCell(
               name: s.name,
               avatarPath: s.avatarPath,

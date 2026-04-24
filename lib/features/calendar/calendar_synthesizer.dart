@@ -1,9 +1,9 @@
 import 'dart:async';
 
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/calendar/calendar_event.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/features/trips/trips_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -150,19 +150,19 @@ final calendarEventsWithBreaksTodayProvider =
     if (adultIdsKey.isEmpty) return baseAsync;
 
     final adultIds = adultIdsKey.split(',');
-    final specialistsAsync = ref.watch(specialistsProvider);
+    final adultsAsync = ref.watch(adultsProvider);
     final availabilityAsync = ref.watch(allAvailabilityProvider);
 
     return baseAsync.whenData((baseEvents) {
-      final specialists =
-          specialistsAsync.asData?.value ?? const <Specialist>[];
+      final adults =
+          adultsAsync.asData?.value ?? const <Adult>[];
       final availability = availabilityAsync.asData?.value ??
-          const <SpecialistAvailabilityData>[];
-      if (specialists.isEmpty || availability.isEmpty) {
+          const <AdultAvailabilityData>[];
+      if (adults.isEmpty || availability.isEmpty) {
         return baseEvents;
       }
       final adultsById = {
-        for (final s in specialists)
+        for (final s in adults)
           if (adultIds.contains(s.id)) s.id: s,
       };
       if (adultsById.isEmpty) return baseEvents;
@@ -171,7 +171,7 @@ final calendarEventsWithBreaksTodayProvider =
       final breakEvents = <CalendarEvent>[];
       for (final a in availability) {
         if (a.dayOfWeek != isoDay) continue;
-        final adult = adultsById[a.specialistId];
+        final adult = adultsById[a.adultId];
         if (adult == null) continue;
         breakEvents.addAll(
           calendarEventsFromAvailability(

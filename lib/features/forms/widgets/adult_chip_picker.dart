@@ -1,16 +1,16 @@
 import 'package:basecamp/database/database.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Horizontal, single-select avatar strip of every staff member /
-/// specialist on record. Same visual language as the child chip picker
+/// adult on record. Same visual language as the child chip picker
 /// so the form feels consistent. Tapping the currently-selected chip
 /// deselects it.
-class SpecialistChipPicker extends ConsumerWidget {
-  const SpecialistChipPicker({
+class AdultChipPicker extends ConsumerWidget {
+  const AdultChipPicker({
     required this.selectedId,
     required this.onChanged,
     super.key,
@@ -22,8 +22,8 @@ class SpecialistChipPicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final specialistsAsync = ref.watch(specialistsProvider);
-    return specialistsAsync.when(
+    final adultsAsync = ref.watch(adultsProvider);
+    return adultsAsync.when(
       loading: () => const Padding(
         padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
         child: LinearProgressIndicator(),
@@ -32,8 +32,8 @@ class SpecialistChipPicker extends ConsumerWidget {
         'Error loading staff: $err',
         style: theme.textTheme.bodySmall,
       ),
-      data: (specialists) {
-        if (specialists.isEmpty) {
+      data: (adults) {
+        if (adults.isEmpty) {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
             child: Text(
@@ -49,13 +49,13 @@ class SpecialistChipPicker extends ConsumerWidget {
           height: 92,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: specialists.length,
+            itemCount: adults.length,
             separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.md),
             itemBuilder: (context, i) {
-              final s = specialists[i];
+              final s = adults[i];
               final selected = s.id == selectedId;
-              return _SpecialistChip(
-                specialist: s,
+              return _AdultChip(
+                adult: s,
                 selected: selected,
                 onTap: () => onChanged(selected ? null : s.id),
               );
@@ -67,22 +67,22 @@ class SpecialistChipPicker extends ConsumerWidget {
   }
 }
 
-class _SpecialistChip extends StatelessWidget {
-  const _SpecialistChip({
-    required this.specialist,
+class _AdultChip extends StatelessWidget {
+  const _AdultChip({
+    required this.adult,
     required this.selected,
     required this.onTap,
   });
 
-  final Specialist specialist;
+  final Adult adult;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final initial = specialist.name.isNotEmpty
-        ? specialist.name.characters.first.toUpperCase()
+    final initial = adult.name.isNotEmpty
+        ? adult.name.characters.first.toUpperCase()
         : '?';
     return SizedBox(
       width: 68,
@@ -104,7 +104,7 @@ class _SpecialistChip extends StatelessWidget {
                 ),
               ),
               child: SmallAvatar(
-                path: specialist.avatarPath,
+                path: adult.avatarPath,
                 fallbackInitial: initial,
                 radius: 24,
                 backgroundColor: theme.colorScheme.secondaryContainer,
@@ -113,7 +113,7 @@ class _SpecialistChip extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              specialist.name,
+              adult.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,

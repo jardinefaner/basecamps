@@ -1,11 +1,11 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/children/widgets/edit_child_sheet.dart';
 import 'package:basecamp/features/children/widgets/edit_group_sheet.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
 import 'package:basecamp/features/rooms/rooms_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
@@ -403,7 +403,7 @@ class _LeadsSection extends ConsumerWidget {
               children: [
                 for (final s in summary.anchorLeads)
                   _LeadTile(
-                    specialist: s,
+                    adult: s,
                     onTap: () =>
                         context.push('/more/adults/${s.id}'),
                     onRemove: () =>
@@ -415,13 +415,13 @@ class _LeadsSection extends ConsumerWidget {
   }
 
   Future<void> _addLead(BuildContext context, WidgetRef ref) async {
-    final specialists =
-        ref.read(specialistsProvider).asData?.value ??
-            const <Specialist>[];
+    final adults =
+        ref.read(adultsProvider).asData?.value ??
+            const <Adult>[];
     // Offer every adult; the row's current-role hint tells the teacher
     // whether picking them would re-anchor them. Skip adults already
     // anchored HERE (no-op pick).
-    final candidates = specialists
+    final candidates = adults
         .where((s) => !(AdultRole.fromDb(s.adultRole) == AdultRole.lead &&
             s.anchoredGroupId == summary.id))
         .toList();
@@ -442,8 +442,8 @@ class _LeadsSection extends ConsumerWidget {
       builder: (_) => _LeadPickerSheet(candidates: candidates),
     );
     if (pickedId == null) return;
-    final s = specialists.firstWhere((x) => x.id == pickedId);
-    await ref.read(specialistsRepositoryProvider).updateSpecialist(
+    final s = adults.firstWhere((x) => x.id == pickedId);
+    await ref.read(adultsRepositoryProvider).updateAdult(
           id: s.id,
           name: s.name,
           role: s.role,
@@ -457,12 +457,12 @@ class _LeadsSection extends ConsumerWidget {
   Future<void> _removeLead(
     BuildContext context,
     WidgetRef ref,
-    Specialist s,
+    Adult s,
   ) async {
     // Remove = clear the anchor. Don't demote role; the teacher may
     // want them to stay a Lead and re-anchor to another group next.
     // Unanchored lead shows as "Lead (no group)" in adult detail.
-    await ref.read(specialistsRepositoryProvider).updateSpecialist(
+    await ref.read(adultsRepositoryProvider).updateAdult(
           id: s.id,
           name: s.name,
           role: s.role,
@@ -475,12 +475,12 @@ class _LeadsSection extends ConsumerWidget {
 
 class _LeadTile extends StatelessWidget {
   const _LeadTile({
-    required this.specialist,
+    required this.adult,
     required this.onTap,
     required this.onRemove,
   });
 
-  final Specialist specialist;
+  final Adult adult;
   final VoidCallback onTap;
   final VoidCallback onRemove;
 
@@ -494,9 +494,9 @@ class _LeadTile extends StatelessWidget {
         child: Row(
           children: [
             SmallAvatar(
-              path: specialist.avatarPath,
-              fallbackInitial: specialist.name.isNotEmpty
-                  ? specialist.name.characters.first.toUpperCase()
+              path: adult.avatarPath,
+              fallbackInitial: adult.name.isNotEmpty
+                  ? adult.name.characters.first.toUpperCase()
                   : '?',
               radius: 18,
               backgroundColor: theme.colorScheme.secondaryContainer,
@@ -508,13 +508,13 @@ class _LeadTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    specialist.name,
+                    adult.name,
                     style: theme.textTheme.titleSmall,
                   ),
-                  if (specialist.role != null &&
-                      specialist.role!.isNotEmpty)
+                  if (adult.role != null &&
+                      adult.role!.isNotEmpty)
                     Text(
-                      specialist.role!,
+                      adult.role!,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -537,7 +537,7 @@ class _LeadTile extends StatelessWidget {
 class _LeadPickerSheet extends StatelessWidget {
   const _LeadPickerSheet({required this.candidates});
 
-  final List<Specialist> candidates;
+  final List<Adult> candidates;
 
   @override
   Widget build(BuildContext context) {
@@ -591,7 +591,7 @@ class _LeadPickerSheet extends StatelessWidget {
     );
   }
 
-  String _currentRoleLabel(Specialist s) {
+  String _currentRoleLabel(Adult s) {
     switch (AdultRole.fromDb(s.adultRole)) {
       case AdultRole.lead:
         return s.anchoredGroupId == null
@@ -813,18 +813,18 @@ class _SectionCard extends StatelessWidget {
 }
 
 /// "Visitors today" section — lists adults who are rotating into
-/// this group today as specialists. Two data sources merge here:
+/// this group today as adults. Two data sources merge here:
 ///
 ///   1. Scheduled activities (weekly templates) where this group is
 ///      in the activity's group list AND the activity has a
-///      specialistId set. These are the "Sarah is running Art for
+///      adultId set. These are the "Sarah is running Art for
 ///      Butterflies at 11" scheduled rotations.
-///   2. Adult day-timeline blocks marking someone as specialist —
+///   2. Adult day-timeline blocks marking someone as adult —
 ///      filtered to blocks whose scheduled activity overlaps this
 ///      group. Redundant with (1) when the schedule already pins
-///      the specialist, but covers the "day-timeline says Sarah is
+///      the adult, but covers the "day-timeline says Sarah is
 ///      the floating rotator 11-12, scheduled activity slot has no
-///      specialistId yet" case.
+///      adultId yet" case.
 ///
 /// Self-hides when no visitors today. Mostly a list viewer —
 /// edits happen on the adult's timeline sheet or in the schedule
@@ -843,7 +843,7 @@ class _VisitorsTodaySection extends ConsumerWidget {
     final effectiveDay =
         (dayOfWeek >= 1 && dayOfWeek <= 5) ? dayOfWeek : 1;
 
-    // Specialists by scheduled activity this group is in.
+    // Adults by scheduled activity this group is in.
     final visitors = _resolveVisitors(ref, effectiveDay);
     if (visitors.isEmpty) return const SizedBox.shrink();
 
@@ -860,22 +860,22 @@ class _VisitorsTodaySection extends ConsumerWidget {
   }
 
   /// Resolves the visitor list by scanning scheduled templates that
-  /// both (a) target this group and (b) declare a specialist. Sorted
+  /// both (a) target this group and (b) declare a adult. Sorted
   /// by activity start time so the list reads chronologically.
   List<_VisitorInfo> _resolveVisitors(WidgetRef ref, int dayOfWeek) {
-    final specialists =
-        ref.watch(specialistsProvider).asData?.value ??
-            const <Specialist>[];
-    if (specialists.isEmpty) return const [];
-    final byId = {for (final s in specialists) s.id: s};
+    final adults =
+        ref.watch(adultsProvider).asData?.value ??
+            const <Adult>[];
+    if (adults.isEmpty) return const [];
+    final byId = {for (final s in adults) s.id: s};
 
     // templatesForGroupProvider isn't a thing yet; scan each
-    // specialist's templates and filter to this group + this day.
+    // adult's templates and filter to this group + this day.
     // N is small (program has ~10 adults); even linear is fine.
     final out = <_VisitorInfo>[];
-    for (final s in specialists) {
+    for (final s in adults) {
       final tplAsync =
-          ref.watch(templatesBySpecialistProvider(s.id));
+          ref.watch(templatesByAdultProvider(s.id));
       final templates = tplAsync.asData?.value ??
           const <ScheduleTemplate>[];
       for (final t in templates) {
@@ -892,7 +892,7 @@ class _VisitorsTodaySection extends ConsumerWidget {
         if (!targetsThisGroup) continue;
         out.add(
           _VisitorInfo(
-            specialist: byId[s.id]!,
+            adult: byId[s.id]!,
             template: t,
           ),
         );
@@ -913,12 +913,12 @@ class _VisitorRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final s = visitor.specialist;
+    final s = visitor.adult;
     final t = visitor.template;
     // Distinguish lead rotators (someone whose day-timeline says
-    // they're specialist here) from static specialists. Useful
+    // they're adult here) from static adults. Useful
     // context: "your lead-now-visiting-us" reads differently than
-    // "the house specialist."
+    // "the house adult."
     final staticRole = AdultRole.fromDb(s.adultRole);
     final tag = switch (staticRole) {
       AdultRole.lead => 'Lead · visiting',
@@ -986,7 +986,7 @@ class _VisitorRow extends ConsumerWidget {
 
 /// Bundle of "which adult + which activity" for the visitors list.
 class _VisitorInfo {
-  const _VisitorInfo({required this.specialist, required this.template});
-  final Specialist specialist;
+  const _VisitorInfo({required this.adult, required this.template});
+  final Adult adult;
   final ScheduleTemplate template;
 }

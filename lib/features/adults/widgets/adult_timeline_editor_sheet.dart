@@ -1,7 +1,7 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adult_timeline_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
-import 'package:basecamp/features/specialists/adult_timeline_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
@@ -9,9 +9,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Per-adult day-timeline editor. Opens from the adult edit sheet
-/// for adults whose day is more complicated than "specialist all
+/// for adults whose day is more complicated than "adult all
 /// day" or "lead anchored to group X" — lets them mark out "lead
-/// Butterflies 8:30-11, specialist rotator 11-12, back to
+/// Butterflies 8:30-11, adult rotator 11-12, back to
 /// Butterflies 12-3."
 ///
 /// Gaps between blocks are implied off. Break + lunch stay on the
@@ -23,14 +23,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// how the availability editor saves.
 class AdultTimelineEditorSheet extends ConsumerStatefulWidget {
   const AdultTimelineEditorSheet({
-    required this.specialistId,
-    required this.specialistName,
+    required this.adultId,
+    required this.adultName,
     this.initialBlocks = const [],
     super.key,
   });
 
-  final String specialistId;
-  final String specialistName;
+  final String adultId;
+  final String adultName;
 
   /// Existing blocks when the sheet opens (so edits start from what's
   /// already saved). Empty = new timeline.
@@ -104,14 +104,14 @@ class _AdultTimelineEditorSheetState
             startTime: b.startTime!.hhmm(),
             endTime: b.endTime!.hhmm(),
             role: b.role,
-            // Non-lead blocks drop any leftover groupId — a specialist
+            // Non-lead blocks drop any leftover groupId — a adult
             // block never anchors a group regardless of what picker
             // state the editor might have cached.
             groupId: b.role == AdultBlockRole.lead ? b.groupId : null,
           ),
       ];
       await ref.read(adultTimelineRepositoryProvider).replaceBlocks(
-            specialistId: widget.specialistId,
+            adultId: widget.adultId,
             blocks: domain,
           );
       if (!mounted) return;
@@ -198,7 +198,7 @@ class _AdultTimelineEditorSheetState
     return StickyActionSheet(
       title: 'Day timeline',
       subtitle: Text(
-        '${widget.specialistName} · add a block for each span of their '
+        '${widget.adultName} · add a block for each span of their '
         'day. Gaps count as off. Break & lunch stay on the shift row.',
         style: theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
@@ -567,7 +567,7 @@ class _BlockRow extends StatelessWidget {
           ),
           if (block.role == AdultBlockRole.lead) ...[
             const SizedBox(height: AppSpacing.sm),
-            // Group picker only appears for lead blocks — specialist
+            // Group picker only appears for lead blocks — adult
             // blocks don't anchor a group, and showing a grayed-out
             // dropdown for them would be clutter.
             DropdownButtonFormField<String?>(
@@ -602,7 +602,7 @@ class _BlockRow extends StatelessWidget {
       case AdultBlockRole.lead:
         return 'Lead';
       case AdultBlockRole.specialist:
-        return 'Specialist';
+        return 'Adult';
     }
   }
 }

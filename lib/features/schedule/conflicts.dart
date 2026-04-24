@@ -32,7 +32,7 @@ Map<String, List<ConflictInfo>> conflictsByItemId(List<ScheduleItem> items) {
             ConflictInfo(
               other: b,
               groupClash: res.groupClash,
-              specialistClash: res.specialistClash,
+              adultClash: res.adultClash,
               roomClash: res.roomClash,
               sharedGroupIds: _sharedGroupIds(a, b),
             ),
@@ -46,14 +46,14 @@ class ConflictInfo {
   const ConflictInfo({
     required this.other,
     required this.groupClash,
-    required this.specialistClash,
+    required this.adultClash,
     required this.roomClash,
     required this.sharedGroupIds,
   });
 
   final ScheduleItem other;
   final bool groupClash;
-  final bool specialistClash;
+  final bool adultClash;
 
   /// Two activities tracked to the same [ScheduleItem.roomId] at
   /// overlapping times. Only set when both sides have a roomId — free-
@@ -67,7 +67,7 @@ class ConflictInfo {
 
 /// Conflict rules, per pair of items on the same day:
 ///
-/// - **Specialists**: if both items target the same specialist, they conflict
+/// - **Adults**: if both items target the same adult, they conflict
 ///   whenever their time ranges could actually overlap (a full-day item is
 ///   treated as covering every time slot for this rule).
 /// - **Rooms**: if both items reference the same `roomId` and their time
@@ -81,10 +81,10 @@ class ConflictInfo {
 ///   the same date is a conflict (can't have two camp-wide events overlap).
 /// - **Groups (full-day ↔ timed)**: NOT a conflict on its own. A full-day
 ///   label (e.g. "Tax Day", "Teacher appreciation") doesn't block timed
-///   activities unless it also needs the same specialist or room.
+///   activities unless it also needs the same adult or room.
 _DetectionResult _detect(ScheduleItem a, ScheduleItem b) {
-  final specialistClash =
-      a.specialistId != null && a.specialistId == b.specialistId;
+  final adultClash =
+      a.adultId != null && a.adultId == b.adultId;
   final roomClash = _roomClash(a, b);
   final sharedGroups = _shareGroup(a, b);
 
@@ -97,36 +97,36 @@ _DetectionResult _detect(ScheduleItem a, ScheduleItem b) {
     return _DetectionResult(
       isConflict: true,
       groupClash: sharedGroups && (!a.isFullDay && !b.isFullDay),
-      specialistClash: specialistClash,
+      adultClash: adultClash,
       roomClash: true,
     );
   }
 
-  if (specialistClash) {
+  if (adultClash) {
     final timeOverlap = _timeOverlaps(a, b);
     if (timeOverlap) {
       return _DetectionResult(
         isConflict: true,
         groupClash: sharedGroups && (!a.isFullDay && !b.isFullDay),
-        specialistClash: true,
+        adultClash: true,
         roomClash: false,
       );
     }
     return const _DetectionResult(
       isConflict: false,
       groupClash: false,
-      specialistClash: false,
+      adultClash: false,
       roomClash: false,
     );
   }
 
-  // No specialist / room overlap. Any group-based clash then requires
+  // No adult / room overlap. Any group-based clash then requires
   // time overlap.
   if (a.isFullDay && b.isFullDay) {
     return _DetectionResult(
       isConflict: sharedGroups,
       groupClash: sharedGroups,
-      specialistClash: false,
+      adultClash: false,
       roomClash: false,
     );
   }
@@ -134,26 +134,26 @@ _DetectionResult _detect(ScheduleItem a, ScheduleItem b) {
     return const _DetectionResult(
       isConflict: false,
       groupClash: false,
-      specialistClash: false,
+      adultClash: false,
       roomClash: false,
     );
   }
 
-  // Both timed, no specialist or room clash.
+  // Both timed, no adult or room clash.
   final timeOverlap =
       a.startMinutes < b.endMinutes && b.startMinutes < a.endMinutes;
   if (timeOverlap && sharedGroups) {
     return const _DetectionResult(
       isConflict: true,
       groupClash: true,
-      specialistClash: false,
+      adultClash: false,
       roomClash: false,
     );
   }
   return const _DetectionResult(
     isConflict: false,
     groupClash: false,
-    specialistClash: false,
+    adultClash: false,
     roomClash: false,
   );
 }
@@ -162,13 +162,13 @@ class _DetectionResult {
   const _DetectionResult({
     required this.isConflict,
     required this.groupClash,
-    required this.specialistClash,
+    required this.adultClash,
     required this.roomClash,
   });
 
   final bool isConflict;
   final bool groupClash;
-  final bool specialistClash;
+  final bool adultClash;
   final bool roomClash;
 }
 

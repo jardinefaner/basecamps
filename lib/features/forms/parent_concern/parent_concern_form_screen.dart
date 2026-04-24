@@ -1,4 +1,5 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_repository.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_share.dart';
@@ -7,12 +8,11 @@ import 'package:basecamp/features/forms/polymorphic/form_definition.dart'
     as fd;
 import 'package:basecamp/features/forms/polymorphic/form_submission_repository.dart';
 import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
+import 'package:basecamp/features/forms/widgets/adult_chip_picker.dart';
 import 'package:basecamp/features/forms/widgets/child_chip_picker.dart';
 import 'package:basecamp/features/forms/widgets/form_section_card.dart';
 import 'package:basecamp/features/forms/widgets/inline_signature_pad.dart';
-import 'package:basecamp/features/forms/widgets/specialist_chip_picker.dart';
 import 'package:basecamp/features/forms/widgets/voice_dictation_field.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/step_wizard.dart';
@@ -75,7 +75,7 @@ class _ParentConcernFormScreenState
   /// appended comma-separated.
   final List<String> _selectedChildIds = [];
 
-  /// Specialist picker values — null when staff typed a name by hand
+  /// Adult picker values — null when staff typed a name by hand
   /// instead of picking from the list.
   String? _selectedStaffId;
   String? _selectedSupervisorId;
@@ -96,7 +96,7 @@ class _ParentConcernFormScreenState
   /// to diff explicitly — we track it imperatively with listeners
   /// on the controllers (added in [initState] after load) and flip
   /// it on every non-text `setState` that mutates [_input] or the
-  /// child / specialist picker state.
+  /// child / adult picker state.
   bool _dirty = false;
 
   List<TextEditingController> get _allControllers => [
@@ -235,11 +235,11 @@ class _ParentConcernFormScreenState
   }
 
   String _composeStaff() {
-    final specialists =
-        ref.read(specialistsProvider).asData?.value ?? const [];
+    final adults =
+        ref.read(adultsProvider).asData?.value ?? const [];
     final picked = _selectedStaffId == null
         ? null
-        : specialists
+        : adults
             .where((s) => s.id == _selectedStaffId)
             .map((s) => s.name)
             .firstOrNull;
@@ -249,11 +249,11 @@ class _ParentConcernFormScreenState
   }
 
   String? _composeSupervisor() {
-    final specialists =
-        ref.read(specialistsProvider).asData?.value ?? const [];
+    final adults =
+        ref.read(adultsProvider).asData?.value ?? const [];
     final picked = _selectedSupervisorId == null
         ? null
-        : specialists
+        : adults
             .where((s) => s.id == _selectedSupervisorId)
             .map((s) => s.name)
             .firstOrNull;
@@ -570,7 +570,7 @@ class _ParentConcernFormScreenState
             style: theme.textTheme.titleSmall,
           ),
           const SizedBox(height: AppSpacing.sm),
-          SpecialistChipPicker(
+          AdultChipPicker(
             selectedId: _selectedStaffId,
             onChanged: (id) => _mutate(() => _selectedStaffId = id),
           ),
@@ -585,7 +585,7 @@ class _ParentConcernFormScreenState
             style: theme.textTheme.titleSmall,
           ),
           const SizedBox(height: AppSpacing.sm),
-          SpecialistChipPicker(
+          AdultChipPicker(
             selectedId: _selectedSupervisorId,
             onChanged: (id) => _mutate(() => _selectedSupervisorId = id),
           ),

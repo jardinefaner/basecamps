@@ -25,7 +25,7 @@ class ActivityLibraryRepository {
   Future<String> addItem({
     required String title,
     int? defaultDurationMin,
-    String? specialistId,
+    String? adultId,
     String? location,
     String? notes,
     // Rich card fields — all optional so legacy "just a preset" rows
@@ -46,7 +46,7 @@ class ActivityLibraryRepository {
             id: id,
             title: title,
             defaultDurationMin: Value(defaultDurationMin),
-            specialistId: Value(specialistId),
+            adultId: Value(adultId),
             location: Value(location),
             notes: Value(notes),
             audienceMinAge: Value(audienceMinAge),
@@ -78,7 +78,7 @@ class ActivityLibraryRepository {
     // Each field uses a `Value<T>` wrapper so callers can distinguish
     // "leave this alone" (absent) from "set it to null" (Value(null)).
     Value<int?> defaultDurationMin = const Value.absent(),
-    Value<String?> specialistId = const Value.absent(),
+    Value<String?> adultId = const Value.absent(),
     Value<String?> location = const Value.absent(),
     Value<String?> notes = const Value.absent(),
     Value<int?> audienceMinAge = const Value.absent(),
@@ -96,7 +96,7 @@ class ActivityLibraryRepository {
       ActivityLibraryCompanion(
         title: title == null ? const Value.absent() : Value(title),
         defaultDurationMin: defaultDurationMin,
-        specialistId: specialistId,
+        adultId: adultId,
         location: location,
         notes: notes,
         audienceMinAge: audienceMinAge,

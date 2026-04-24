@@ -22,7 +22,7 @@ class ScheduleItem {
     required this.date,
     this.rangeStart,
     this.rangeEnd,
-    this.specialistId,
+    this.adultId,
     this.location,
     this.notes,
     this.templateId,
@@ -43,7 +43,7 @@ class ScheduleItem {
   /// prep, etc). Only meaningful when [groupIds] is empty — non-empty
   /// always narrows to those groups regardless.
   final bool allGroups;
-  final String? specialistId;
+  final String? adultId;
   final String? location;
   final String? notes;
   final bool isFromTemplate;
@@ -117,13 +117,13 @@ class ScheduleRepository {
     return query.watch();
   }
 
-  /// Templates assigned to one specialist, weekly-ordered. Feeds the
-  /// "What they run" section on the specialist detail screen.
-  Stream<List<ScheduleTemplate>> watchTemplatesForSpecialist(
-    String specialistId,
+  /// Templates assigned to one adult, weekly-ordered. Feeds the
+  /// "What they run" section on the adult detail screen.
+  Stream<List<ScheduleTemplate>> watchTemplatesForAdult(
+    String adultId,
   ) {
     final query = _db.select(_db.scheduleTemplates)
-      ..where((t) => t.specialistId.equals(specialistId))
+      ..where((t) => t.adultId.equals(adultId))
       ..orderBy([
         (t) => OrderingTerm.asc(t.dayOfWeek),
         (t) => OrderingTerm.asc(t.startTime),
@@ -163,7 +163,7 @@ class ScheduleRepository {
           title: t.title,
           groupIds: groups,
           allGroups: t.allGroups,
-          specialistId: t.specialistId,
+          adultId: t.adultId,
           location: t.location,
           notes: t.notes,
           isFromTemplate: true,
@@ -213,7 +213,7 @@ class ScheduleRepository {
     List<String> groupIds = const [],
     bool allGroups = true,
     bool isFullDay = false,
-    String? specialistId,
+    String? adultId,
     String? location,
     String? notes,
     DateTime? startDate,
@@ -240,7 +240,7 @@ class ScheduleRepository {
               isFullDay: Value(isFullDay),
               title: title,
               allGroups: Value(allGroups),
-              specialistId: Value(specialistId),
+              adultId: Value(adultId),
               location: Value(location),
               notes: Value(notes),
               startDate: Value(startDate == null ? null : _dayOnly(startDate)),
@@ -268,7 +268,7 @@ class ScheduleRepository {
     List<String> groupIds = const [],
     bool allGroups = true,
     bool isFullDay = false,
-    String? specialistId,
+    String? adultId,
     String? location,
     String? notes,
     DateTime? startDate,
@@ -288,7 +288,7 @@ class ScheduleRepository {
           isFullDay: Value(isFullDay),
           title: Value(title),
           allGroups: Value(allGroups),
-          specialistId: Value(specialistId),
+          adultId: Value(adultId),
           location: Value(location),
           notes: Value(notes),
           startDate: Value(startDate == null ? null : _dayOnly(startDate)),
@@ -394,7 +394,7 @@ class ScheduleRepository {
                   isFullDay: Value(src.isFullDay),
                   title: src.title,
                   allGroups: Value(src.allGroups),
-                  specialistId: Value(src.specialistId),
+                  adultId: Value(src.adultId),
                   location: Value(src.location),
                   notes: Value(src.notes),
                   startDate: Value(src.startDate),
@@ -425,7 +425,7 @@ class ScheduleRepository {
     bool allGroups = true,
     bool isFullDay = false,
     DateTime? endDate,
-    String? specialistId,
+    String? adultId,
     String? location,
     String? notes,
     String? sourceLibraryItemId,
@@ -450,7 +450,7 @@ class ScheduleRepository {
               isFullDay: Value(isFullDay),
               title: title,
               allGroups: Value(allGroups),
-              specialistId: Value(specialistId),
+              adultId: Value(adultId),
               location: Value(location),
               notes: Value(notes),
               sourceLibraryItemId: Value(sourceLibraryItemId),
@@ -469,7 +469,7 @@ class ScheduleRepository {
 
   /// Shifts a template's start/end times just for [date] by inserting
   /// an `override` schedule entry. The override carries every other
-  /// field forward unchanged (groups, specialist, location, notes,
+  /// field forward unchanged (groups, adult, location, notes,
   /// isFullDay), so readers that see the merged schedule get a single
   /// row with the new times and the same audience.
   ///
@@ -510,7 +510,7 @@ class ScheduleRepository {
               isFullDay: Value(template.isFullDay),
               title: template.title,
               allGroups: Value(template.allGroups),
-              specialistId: Value(template.specialistId),
+              adultId: Value(template.adultId),
               location: Value(template.location),
               notes: Value(template.notes),
               kind: 'override',
@@ -616,7 +616,7 @@ class ScheduleRepository {
     bool allGroups = true,
     bool isFullDay = false,
     DateTime? endDate,
-    String? specialistId,
+    String? adultId,
     String? location,
     String? notes,
     // Same absent-unless-set pattern as updateTemplate.
@@ -638,7 +638,7 @@ class ScheduleRepository {
           isFullDay: Value(isFullDay),
           title: Value(title),
           allGroups: Value(allGroups),
-          specialistId: Value(specialistId),
+          adultId: Value(adultId),
           location: Value(location),
           notes: Value(notes),
           roomId: roomId,
@@ -881,7 +881,7 @@ class ScheduleRepository {
             title: override.title,
             groupIds: entryGroups[override.id] ?? const [],
             allGroups: override.allGroups,
-            specialistId: override.specialistId,
+            adultId: override.adultId,
             location: override.location,
             notes: override.notes,
             isFromTemplate: true,
@@ -907,7 +907,7 @@ class ScheduleRepository {
             title: t.title,
             groupIds: templateGroups[t.id] ?? const [],
             allGroups: t.allGroups,
-            specialistId: t.specialistId,
+            adultId: t.adultId,
             location: t.location,
             notes: t.notes,
             isFromTemplate: true,
@@ -934,7 +934,7 @@ class ScheduleRepository {
             title: e.title,
             groupIds: entryGroups[e.id] ?? const [],
             allGroups: e.allGroups,
-            specialistId: e.specialistId,
+            adultId: e.adultId,
             location: e.location,
             notes: e.notes,
             isFromTemplate: false,
@@ -998,12 +998,12 @@ final todayScheduleProvider = StreamProvider<List<ScheduleItem>>((ref) {
 
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types
-final templatesBySpecialistProvider =
+final templatesByAdultProvider =
     StreamProvider.family<List<ScheduleTemplate>, String>(
-  (ref, specialistId) {
+  (ref, adultId) {
     return ref
         .watch(scheduleRepositoryProvider)
-        .watchTemplatesForSpecialist(specialistId);
+        .watchTemplatesForAdult(adultId);
   },
 );
 

@@ -44,7 +44,7 @@ class GroupTodayCard extends StatelessWidget {
   /// timeline when present, falling back to the static anchor when
   /// an adult has no timeline set. The parent computes this so the
   /// card stays a dumb renderer.
-  final List<Specialist> leadsNow;
+  final List<Adult> leadsNow;
 
   /// Activity for this group that's in progress right now, if any.
   /// First entry wins when multiple overlap (earliest-started — same
@@ -307,7 +307,7 @@ class _ExpandedBody extends StatelessWidget {
   final ScheduleItem? current;
   final ScheduleItem? next;
   final AttendanceSummary? attendance;
-  final List<Specialist> leadsNow;
+  final List<Adult> leadsNow;
   final ValueChanged<ScheduleItem> onOpenDetail;
   final ValueChanged<ScheduleItem> onOpenAttendance;
   final VoidCallback onOpenGroupDetail;
@@ -609,7 +609,7 @@ class _NextUpLine extends StatelessWidget {
 class _LeadsRow extends StatelessWidget {
   const _LeadsRow({required this.leads});
 
-  final List<Specialist> leads;
+  final List<Adult> leads;
 
   @override
   Widget build(BuildContext context) {

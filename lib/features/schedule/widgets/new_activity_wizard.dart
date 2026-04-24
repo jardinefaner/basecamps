@@ -2,7 +2,7 @@ import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
-import 'package:basecamp/features/forms/widgets/specialist_chip_picker.dart';
+import 'package:basecamp/features/forms/widgets/adult_chip_picker.dart';
 import 'package:basecamp/features/rooms/widgets/room_picker.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
@@ -23,21 +23,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 ///   1. Activity — library pick OR typed name
 ///   2. When — day chips + start/end times
 ///   3. Groups  — who it's for (optional)
-///   4. Who + where — specialist + location (optional)
+///   4. Who + where — adult + location (optional)
 ///   5. Range — optional date bounds
 class NewActivityWizardScreen extends ConsumerStatefulWidget {
   const NewActivityWizardScreen({
     this.initialDays,
-    this.initialSpecialistId,
+    this.initialAdultId,
     super.key,
   });
 
   final Set<int>? initialDays;
 
-  /// Pre-selects a specialist on page 4. Used when opening the wizard
-  /// from the specialist detail screen so "+ Add activity" already
+  /// Pre-selects a adult on page 4. Used when opening the wizard
+  /// from the adult detail screen so "+ Add activity" already
   /// knows who the activity is for.
-  final String? initialSpecialistId;
+  final String? initialAdultId;
 
   @override
   ConsumerState<NewActivityWizardScreen> createState() =>
@@ -60,7 +60,7 @@ class _NewActivityWizardScreenState
   final Set<String> _groupIds = <String>{};
   bool _allGroups = true;
 
-  late String? _specialistId = widget.initialSpecialistId;
+  late String? _adultId = widget.initialAdultId;
 
   /// Tracked room for this activity. When null, the teacher is in
   /// "custom location" mode (free-form text in [_location]) and no
@@ -90,7 +90,7 @@ class _NewActivityWizardScreenState
       _title.text.trim().isNotEmpty ||
       _location.text.trim().isNotEmpty ||
       _groupIds.isNotEmpty ||
-      _specialistId != null ||
+      _adultId != null ||
       _startDate != null ||
       _endDate != null ||
       _fromLibrary != null;
@@ -107,7 +107,7 @@ class _NewActivityWizardScreenState
       _fromLibrary = item;
       _title.text = item.title;
       if (item.location != null) _location.text = item.location!;
-      if (item.specialistId != null) _specialistId = item.specialistId;
+      if (item.adultId != null) _adultId = item.adultId;
       final dur = item.defaultDurationMin;
       if (dur != null) {
         final startDt = DateTime(2000, 1, 1, _start.hour, _start.minute);
@@ -187,7 +187,7 @@ class _NewActivityWizardScreenState
         title: _title.text.trim(),
         groupIds: groupIds,
         allGroups: _allGroups,
-        specialistId: _specialistId,
+        adultId: _adultId,
         location: location,
         startDate: bounds.start,
         endDate: bounds.end,
@@ -286,7 +286,7 @@ class _NewActivityWizardScreenState
         WizardStep(
           headline: "Who's running it, and where?",
           subtitle: 'Assign an adult and a location if it matters.',
-          content: _buildSpecialistPage(),
+          content: _buildAdultPage(),
           canSkip: true,
         ),
         WizardStep(
@@ -535,18 +535,18 @@ class _NewActivityWizardScreenState
     );
   }
 
-  // ---- page 4: specialist + location ----
+  // ---- page 4: adult + location ----
 
-  Widget _buildSpecialistPage() {
+  Widget _buildAdultPage() {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text("Who's leading?", style: theme.textTheme.titleSmall),
         const SizedBox(height: AppSpacing.sm),
-        SpecialistChipPicker(
-          selectedId: _specialistId,
-          onChanged: (id) => setState(() => _specialistId = id),
+        AdultChipPicker(
+          selectedId: _adultId,
+          onChanged: (id) => setState(() => _adultId = id),
         ),
         const SizedBox(height: AppSpacing.xl),
         Text('Location', style: theme.textTheme.titleSmall),

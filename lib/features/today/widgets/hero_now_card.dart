@@ -1,7 +1,7 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/features/today/widgets/schedule_item_card.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
@@ -9,7 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// The "right now" hero that dominates the Today screen. Shows the
 /// current activity title, a thin progress bar of time elapsed, a
-/// countdown to the end, specialist + location, group-scoped children as
+/// countdown to the end, adult + location, group-scoped children as
 /// avatars, and a primary Capture button that jumps into Observe
 /// (which auto-tags to whatever's current).
 ///
@@ -50,10 +50,10 @@ class HeroNowCard extends ConsumerWidget {
     final remaining = (end - nowMinutes).clamp(0, total);
     final progress = elapsed / total;
 
-    final specialistId = item.specialistId;
-    final specialist = specialistId == null
+    final adultId = item.adultId;
+    final adult = adultId == null
         ? null
-        : ref.watch(specialistProvider(specialistId)).asData?.value;
+        : ref.watch(adultProvider(adultId)).asData?.value;
     final allKids = ref.watch(childrenProvider).asData?.value ?? const <Child>[];
     // Respect the new three-state audience: "all groups" (everyone),
     // specific groups (filter by those), or no groups (teacher explicitly
@@ -166,16 +166,16 @@ class HeroNowCard extends ConsumerWidget {
                 ],
               ),
             ],
-            if (specialist != null || item.location != null) ...[
+            if (adult != null || item.location != null) ...[
               const SizedBox(height: AppSpacing.md),
               Wrap(
                 spacing: AppSpacing.md,
                 runSpacing: AppSpacing.xs,
                 children: [
-                  if (specialist != null)
+                  if (adult != null)
                     _HeroChip(
                       icon: Icons.person_outline,
-                      label: specialist.name,
+                      label: adult.name,
                     ),
                   if (item.location != null && item.location!.isNotEmpty)
                     _HeroChip(

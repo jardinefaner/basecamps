@@ -5128,12 +5128,11 @@ class ObservationDomainTagsCompanion
   }
 }
 
-class $SpecialistsTable extends Specialists
-    with TableInfo<$SpecialistsTable, Specialist> {
+class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $SpecialistsTable(this.attachedDatabase, [this._alias]);
+  $AdultsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
@@ -5247,10 +5246,10 @@ class $SpecialistsTable extends Specialists
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'specialists';
+  static const String $name = 'adults';
   @override
   VerificationContext validateIntegrity(
-    Insertable<Specialist> instance, {
+    Insertable<Adult> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -5319,9 +5318,9 @@ class $SpecialistsTable extends Specialists
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  Specialist map(Map<String, dynamic> data, {String? tablePrefix}) {
+  Adult map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return Specialist(
+    return Adult(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}id'],
@@ -5362,12 +5361,12 @@ class $SpecialistsTable extends Specialists
   }
 
   @override
-  $SpecialistsTable createAlias(String alias) {
-    return $SpecialistsTable(attachedDatabase, alias);
+  $AdultsTable createAlias(String alias) {
+    return $AdultsTable(attachedDatabase, alias);
   }
 }
 
-class Specialist extends DataClass implements Insertable<Specialist> {
+class Adult extends DataClass implements Insertable<Adult> {
   final String id;
   final String name;
   final String? role;
@@ -5385,7 +5384,7 @@ class Specialist extends DataClass implements Insertable<Specialist> {
   final String? anchoredGroupId;
   final DateTime createdAt;
   final DateTime updatedAt;
-  const Specialist({
+  const Adult({
     required this.id,
     required this.name,
     this.role,
@@ -5419,8 +5418,8 @@ class Specialist extends DataClass implements Insertable<Specialist> {
     return map;
   }
 
-  SpecialistsCompanion toCompanion(bool nullToAbsent) {
-    return SpecialistsCompanion(
+  AdultsCompanion toCompanion(bool nullToAbsent) {
+    return AdultsCompanion(
       id: Value(id),
       name: Value(name),
       role: role == null && nullToAbsent ? const Value.absent() : Value(role),
@@ -5439,12 +5438,12 @@ class Specialist extends DataClass implements Insertable<Specialist> {
     );
   }
 
-  factory Specialist.fromJson(
+  factory Adult.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return Specialist(
+    return Adult(
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       role: serializer.fromJson<String?>(json['role']),
@@ -5472,7 +5471,7 @@ class Specialist extends DataClass implements Insertable<Specialist> {
     };
   }
 
-  Specialist copyWith({
+  Adult copyWith({
     String? id,
     String? name,
     Value<String?> role = const Value.absent(),
@@ -5482,7 +5481,7 @@ class Specialist extends DataClass implements Insertable<Specialist> {
     Value<String?> anchoredGroupId = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
-  }) => Specialist(
+  }) => Adult(
     id: id ?? this.id,
     name: name ?? this.name,
     role: role.present ? role.value : this.role,
@@ -5495,8 +5494,8 @@ class Specialist extends DataClass implements Insertable<Specialist> {
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
-  Specialist copyWithCompanion(SpecialistsCompanion data) {
-    return Specialist(
+  Adult copyWithCompanion(AdultsCompanion data) {
+    return Adult(
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
       role: data.role.present ? data.role.value : this.role,
@@ -5515,7 +5514,7 @@ class Specialist extends DataClass implements Insertable<Specialist> {
 
   @override
   String toString() {
-    return (StringBuffer('Specialist(')
+    return (StringBuffer('Adult(')
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('role: $role, ')
@@ -5544,7 +5543,7 @@ class Specialist extends DataClass implements Insertable<Specialist> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is Specialist &&
+      (other is Adult &&
           other.id == this.id &&
           other.name == this.name &&
           other.role == this.role &&
@@ -5556,7 +5555,7 @@ class Specialist extends DataClass implements Insertable<Specialist> {
           other.updatedAt == this.updatedAt);
 }
 
-class SpecialistsCompanion extends UpdateCompanion<Specialist> {
+class AdultsCompanion extends UpdateCompanion<Adult> {
   final Value<String> id;
   final Value<String> name;
   final Value<String?> role;
@@ -5567,7 +5566,7 @@ class SpecialistsCompanion extends UpdateCompanion<Specialist> {
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
-  const SpecialistsCompanion({
+  const AdultsCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.role = const Value.absent(),
@@ -5579,7 +5578,7 @@ class SpecialistsCompanion extends UpdateCompanion<Specialist> {
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
-  SpecialistsCompanion.insert({
+  AdultsCompanion.insert({
     required String id,
     required String name,
     this.role = const Value.absent(),
@@ -5592,7 +5591,7 @@ class SpecialistsCompanion extends UpdateCompanion<Specialist> {
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name);
-  static Insertable<Specialist> custom({
+  static Insertable<Adult> custom({
     Expression<String>? id,
     Expression<String>? name,
     Expression<String>? role,
@@ -5618,7 +5617,7 @@ class SpecialistsCompanion extends UpdateCompanion<Specialist> {
     });
   }
 
-  SpecialistsCompanion copyWith({
+  AdultsCompanion copyWith({
     Value<String>? id,
     Value<String>? name,
     Value<String?>? role,
@@ -5630,7 +5629,7 @@ class SpecialistsCompanion extends UpdateCompanion<Specialist> {
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
   }) {
-    return SpecialistsCompanion(
+    return AdultsCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       role: role ?? this.role,
@@ -5682,7 +5681,7 @@ class SpecialistsCompanion extends UpdateCompanion<Specialist> {
 
   @override
   String toString() {
-    return (StringBuffer('SpecialistsCompanion(')
+    return (StringBuffer('AdultsCompanion(')
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('role: $role, ')
@@ -5698,12 +5697,12 @@ class SpecialistsCompanion extends UpdateCompanion<Specialist> {
   }
 }
 
-class $SpecialistAvailabilityTable extends SpecialistAvailability
-    with TableInfo<$SpecialistAvailabilityTable, SpecialistAvailabilityData> {
+class $AdultAvailabilityTable extends AdultAvailability
+    with TableInfo<$AdultAvailabilityTable, AdultAvailabilityData> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $SpecialistAvailabilityTable(this.attachedDatabase, [this._alias]);
+  $AdultAvailabilityTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
@@ -5713,18 +5712,18 @@ class $SpecialistAvailabilityTable extends SpecialistAvailability
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _specialistIdMeta = const VerificationMeta(
-    'specialistId',
+  static const VerificationMeta _adultIdMeta = const VerificationMeta(
+    'adultId',
   );
   @override
-  late final GeneratedColumn<String> specialistId = GeneratedColumn<String>(
-    'specialist_id',
+  late final GeneratedColumn<String> adultId = GeneratedColumn<String>(
+    'adult_id',
     aliasedName,
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES specialists (id) ON DELETE CASCADE',
+      'REFERENCES adults (id) ON DELETE CASCADE',
     ),
   );
   static const VerificationMeta _dayOfWeekMeta = const VerificationMeta(
@@ -5875,7 +5874,7 @@ class $SpecialistAvailabilityTable extends SpecialistAvailability
   @override
   List<GeneratedColumn> get $columns => [
     id,
-    specialistId,
+    adultId,
     dayOfWeek,
     startTime,
     endTime,
@@ -5894,10 +5893,10 @@ class $SpecialistAvailabilityTable extends SpecialistAvailability
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'specialist_availability';
+  static const String $name = 'adult_availability';
   @override
   VerificationContext validateIntegrity(
-    Insertable<SpecialistAvailabilityData> instance, {
+    Insertable<AdultAvailabilityData> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -5907,16 +5906,13 @@ class $SpecialistAvailabilityTable extends SpecialistAvailability
     } else if (isInserting) {
       context.missing(_idMeta);
     }
-    if (data.containsKey('specialist_id')) {
+    if (data.containsKey('adult_id')) {
       context.handle(
-        _specialistIdMeta,
-        specialistId.isAcceptableOrUnknown(
-          data['specialist_id']!,
-          _specialistIdMeta,
-        ),
+        _adultIdMeta,
+        adultId.isAcceptableOrUnknown(data['adult_id']!, _adultIdMeta),
       );
     } else if (isInserting) {
-      context.missing(_specialistIdMeta);
+      context.missing(_adultIdMeta);
     }
     if (data.containsKey('day_of_week')) {
       context.handle(
@@ -6011,19 +6007,16 @@ class $SpecialistAvailabilityTable extends SpecialistAvailability
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  SpecialistAvailabilityData map(
-    Map<String, dynamic> data, {
-    String? tablePrefix,
-  }) {
+  AdultAvailabilityData map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return SpecialistAvailabilityData(
+    return AdultAvailabilityData(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}id'],
       )!,
-      specialistId: attachedDatabase.typeMapping.read(
+      adultId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}specialist_id'],
+        data['${effectivePrefix}adult_id'],
       )!,
       dayOfWeek: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
@@ -6081,15 +6074,15 @@ class $SpecialistAvailabilityTable extends SpecialistAvailability
   }
 
   @override
-  $SpecialistAvailabilityTable createAlias(String alias) {
-    return $SpecialistAvailabilityTable(attachedDatabase, alias);
+  $AdultAvailabilityTable createAlias(String alias) {
+    return $AdultAvailabilityTable(attachedDatabase, alias);
   }
 }
 
-class SpecialistAvailabilityData extends DataClass
-    implements Insertable<SpecialistAvailabilityData> {
+class AdultAvailabilityData extends DataClass
+    implements Insertable<AdultAvailabilityData> {
   final String id;
-  final String specialistId;
+  final String adultId;
   final int dayOfWeek;
   final String startTime;
   final String endTime;
@@ -6103,9 +6096,9 @@ class SpecialistAvailabilityData extends DataClass
   final String? lunchEnd;
   final DateTime createdAt;
   final DateTime updatedAt;
-  const SpecialistAvailabilityData({
+  const AdultAvailabilityData({
     required this.id,
-    required this.specialistId,
+    required this.adultId,
     required this.dayOfWeek,
     required this.startTime,
     required this.endTime,
@@ -6124,7 +6117,7 @@ class SpecialistAvailabilityData extends DataClass
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
-    map['specialist_id'] = Variable<String>(specialistId);
+    map['adult_id'] = Variable<String>(adultId);
     map['day_of_week'] = Variable<int>(dayOfWeek);
     map['start_time'] = Variable<String>(startTime);
     map['end_time'] = Variable<String>(endTime);
@@ -6157,10 +6150,10 @@ class SpecialistAvailabilityData extends DataClass
     return map;
   }
 
-  SpecialistAvailabilityCompanion toCompanion(bool nullToAbsent) {
-    return SpecialistAvailabilityCompanion(
+  AdultAvailabilityCompanion toCompanion(bool nullToAbsent) {
+    return AdultAvailabilityCompanion(
       id: Value(id),
-      specialistId: Value(specialistId),
+      adultId: Value(adultId),
       dayOfWeek: Value(dayOfWeek),
       startTime: Value(startTime),
       endTime: Value(endTime),
@@ -6193,14 +6186,14 @@ class SpecialistAvailabilityData extends DataClass
     );
   }
 
-  factory SpecialistAvailabilityData.fromJson(
+  factory AdultAvailabilityData.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return SpecialistAvailabilityData(
+    return AdultAvailabilityData(
       id: serializer.fromJson<String>(json['id']),
-      specialistId: serializer.fromJson<String>(json['specialistId']),
+      adultId: serializer.fromJson<String>(json['adultId']),
       dayOfWeek: serializer.fromJson<int>(json['dayOfWeek']),
       startTime: serializer.fromJson<String>(json['startTime']),
       endTime: serializer.fromJson<String>(json['endTime']),
@@ -6221,7 +6214,7 @@ class SpecialistAvailabilityData extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
-      'specialistId': serializer.toJson<String>(specialistId),
+      'adultId': serializer.toJson<String>(adultId),
       'dayOfWeek': serializer.toJson<int>(dayOfWeek),
       'startTime': serializer.toJson<String>(startTime),
       'endTime': serializer.toJson<String>(endTime),
@@ -6238,9 +6231,9 @@ class SpecialistAvailabilityData extends DataClass
     };
   }
 
-  SpecialistAvailabilityData copyWith({
+  AdultAvailabilityData copyWith({
     String? id,
-    String? specialistId,
+    String? adultId,
     int? dayOfWeek,
     String? startTime,
     String? endTime,
@@ -6254,9 +6247,9 @@ class SpecialistAvailabilityData extends DataClass
     Value<String?> lunchEnd = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
-  }) => SpecialistAvailabilityData(
+  }) => AdultAvailabilityData(
     id: id ?? this.id,
-    specialistId: specialistId ?? this.specialistId,
+    adultId: adultId ?? this.adultId,
     dayOfWeek: dayOfWeek ?? this.dayOfWeek,
     startTime: startTime ?? this.startTime,
     endTime: endTime ?? this.endTime,
@@ -6271,14 +6264,10 @@ class SpecialistAvailabilityData extends DataClass
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
-  SpecialistAvailabilityData copyWithCompanion(
-    SpecialistAvailabilityCompanion data,
-  ) {
-    return SpecialistAvailabilityData(
+  AdultAvailabilityData copyWithCompanion(AdultAvailabilityCompanion data) {
+    return AdultAvailabilityData(
       id: data.id.present ? data.id.value : this.id,
-      specialistId: data.specialistId.present
-          ? data.specialistId.value
-          : this.specialistId,
+      adultId: data.adultId.present ? data.adultId.value : this.adultId,
       dayOfWeek: data.dayOfWeek.present ? data.dayOfWeek.value : this.dayOfWeek,
       startTime: data.startTime.present ? data.startTime.value : this.startTime,
       endTime: data.endTime.present ? data.endTime.value : this.endTime,
@@ -6303,9 +6292,9 @@ class SpecialistAvailabilityData extends DataClass
 
   @override
   String toString() {
-    return (StringBuffer('SpecialistAvailabilityData(')
+    return (StringBuffer('AdultAvailabilityData(')
           ..write('id: $id, ')
-          ..write('specialistId: $specialistId, ')
+          ..write('adultId: $adultId, ')
           ..write('dayOfWeek: $dayOfWeek, ')
           ..write('startTime: $startTime, ')
           ..write('endTime: $endTime, ')
@@ -6326,7 +6315,7 @@ class SpecialistAvailabilityData extends DataClass
   @override
   int get hashCode => Object.hash(
     id,
-    specialistId,
+    adultId,
     dayOfWeek,
     startTime,
     endTime,
@@ -6344,9 +6333,9 @@ class SpecialistAvailabilityData extends DataClass
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is SpecialistAvailabilityData &&
+      (other is AdultAvailabilityData &&
           other.id == this.id &&
-          other.specialistId == this.specialistId &&
+          other.adultId == this.adultId &&
           other.dayOfWeek == this.dayOfWeek &&
           other.startTime == this.startTime &&
           other.endTime == this.endTime &&
@@ -6362,10 +6351,10 @@ class SpecialistAvailabilityData extends DataClass
           other.updatedAt == this.updatedAt);
 }
 
-class SpecialistAvailabilityCompanion
-    extends UpdateCompanion<SpecialistAvailabilityData> {
+class AdultAvailabilityCompanion
+    extends UpdateCompanion<AdultAvailabilityData> {
   final Value<String> id;
-  final Value<String> specialistId;
+  final Value<String> adultId;
   final Value<int> dayOfWeek;
   final Value<String> startTime;
   final Value<String> endTime;
@@ -6380,9 +6369,9 @@ class SpecialistAvailabilityCompanion
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
-  const SpecialistAvailabilityCompanion({
+  const AdultAvailabilityCompanion({
     this.id = const Value.absent(),
-    this.specialistId = const Value.absent(),
+    this.adultId = const Value.absent(),
     this.dayOfWeek = const Value.absent(),
     this.startTime = const Value.absent(),
     this.endTime = const Value.absent(),
@@ -6398,9 +6387,9 @@ class SpecialistAvailabilityCompanion
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
-  SpecialistAvailabilityCompanion.insert({
+  AdultAvailabilityCompanion.insert({
     required String id,
-    required String specialistId,
+    required String adultId,
     required int dayOfWeek,
     required String startTime,
     required String endTime,
@@ -6416,13 +6405,13 @@ class SpecialistAvailabilityCompanion
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
-       specialistId = Value(specialistId),
+       adultId = Value(adultId),
        dayOfWeek = Value(dayOfWeek),
        startTime = Value(startTime),
        endTime = Value(endTime);
-  static Insertable<SpecialistAvailabilityData> custom({
+  static Insertable<AdultAvailabilityData> custom({
     Expression<String>? id,
-    Expression<String>? specialistId,
+    Expression<String>? adultId,
     Expression<int>? dayOfWeek,
     Expression<String>? startTime,
     Expression<String>? endTime,
@@ -6440,7 +6429,7 @@ class SpecialistAvailabilityCompanion
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
-      if (specialistId != null) 'specialist_id': specialistId,
+      if (adultId != null) 'adult_id': adultId,
       if (dayOfWeek != null) 'day_of_week': dayOfWeek,
       if (startTime != null) 'start_time': startTime,
       if (endTime != null) 'end_time': endTime,
@@ -6458,9 +6447,9 @@ class SpecialistAvailabilityCompanion
     });
   }
 
-  SpecialistAvailabilityCompanion copyWith({
+  AdultAvailabilityCompanion copyWith({
     Value<String>? id,
-    Value<String>? specialistId,
+    Value<String>? adultId,
     Value<int>? dayOfWeek,
     Value<String>? startTime,
     Value<String>? endTime,
@@ -6476,9 +6465,9 @@ class SpecialistAvailabilityCompanion
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
   }) {
-    return SpecialistAvailabilityCompanion(
+    return AdultAvailabilityCompanion(
       id: id ?? this.id,
-      specialistId: specialistId ?? this.specialistId,
+      adultId: adultId ?? this.adultId,
       dayOfWeek: dayOfWeek ?? this.dayOfWeek,
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,
@@ -6502,8 +6491,8 @@ class SpecialistAvailabilityCompanion
     if (id.present) {
       map['id'] = Variable<String>(id.value);
     }
-    if (specialistId.present) {
-      map['specialist_id'] = Variable<String>(specialistId.value);
+    if (adultId.present) {
+      map['adult_id'] = Variable<String>(adultId.value);
     }
     if (dayOfWeek.present) {
       map['day_of_week'] = Variable<int>(dayOfWeek.value);
@@ -6552,9 +6541,9 @@ class SpecialistAvailabilityCompanion
 
   @override
   String toString() {
-    return (StringBuffer('SpecialistAvailabilityCompanion(')
+    return (StringBuffer('AdultAvailabilityCompanion(')
           ..write('id: $id, ')
-          ..write('specialistId: $specialistId, ')
+          ..write('adultId: $adultId, ')
           ..write('dayOfWeek: $dayOfWeek, ')
           ..write('startTime: $startTime, ')
           ..write('endTime: $endTime, ')
@@ -6608,18 +6597,18 @@ class $ActivityLibraryTable extends ActivityLibrary
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _specialistIdMeta = const VerificationMeta(
-    'specialistId',
+  static const VerificationMeta _adultIdMeta = const VerificationMeta(
+    'adultId',
   );
   @override
-  late final GeneratedColumn<String> specialistId = GeneratedColumn<String>(
-    'specialist_id',
+  late final GeneratedColumn<String> adultId = GeneratedColumn<String>(
+    'adult_id',
     aliasedName,
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES specialists (id) ON DELETE SET NULL',
+      'REFERENCES adults (id) ON DELETE SET NULL',
     ),
   );
   static const VerificationMeta _locationMeta = const VerificationMeta(
@@ -6769,7 +6758,7 @@ class $ActivityLibraryTable extends ActivityLibrary
     id,
     title,
     defaultDurationMin,
-    specialistId,
+    adultId,
     location,
     notes,
     audienceMinAge,
@@ -6818,13 +6807,10 @@ class $ActivityLibraryTable extends ActivityLibrary
         ),
       );
     }
-    if (data.containsKey('specialist_id')) {
+    if (data.containsKey('adult_id')) {
       context.handle(
-        _specialistIdMeta,
-        specialistId.isAcceptableOrUnknown(
-          data['specialist_id']!,
-          _specialistIdMeta,
-        ),
+        _adultIdMeta,
+        adultId.isAcceptableOrUnknown(data['adult_id']!, _adultIdMeta),
       );
     }
     if (data.containsKey('location')) {
@@ -6941,9 +6927,9 @@ class $ActivityLibraryTable extends ActivityLibrary
         DriftSqlType.int,
         data['${effectivePrefix}default_duration_min'],
       ),
-      specialistId: attachedDatabase.typeMapping.read(
+      adultId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}specialist_id'],
+        data['${effectivePrefix}adult_id'],
       ),
       location: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -7011,7 +6997,7 @@ class ActivityLibraryData extends DataClass
   final String id;
   final String title;
   final int? defaultDurationMin;
-  final String? specialistId;
+  final String? adultId;
   final String? location;
   final String? notes;
 
@@ -7054,7 +7040,7 @@ class ActivityLibraryData extends DataClass
     required this.id,
     required this.title,
     this.defaultDurationMin,
-    this.specialistId,
+    this.adultId,
     this.location,
     this.notes,
     this.audienceMinAge,
@@ -7077,8 +7063,8 @@ class ActivityLibraryData extends DataClass
     if (!nullToAbsent || defaultDurationMin != null) {
       map['default_duration_min'] = Variable<int>(defaultDurationMin);
     }
-    if (!nullToAbsent || specialistId != null) {
-      map['specialist_id'] = Variable<String>(specialistId);
+    if (!nullToAbsent || adultId != null) {
+      map['adult_id'] = Variable<String>(adultId);
     }
     if (!nullToAbsent || location != null) {
       map['location'] = Variable<String>(location);
@@ -7125,9 +7111,9 @@ class ActivityLibraryData extends DataClass
       defaultDurationMin: defaultDurationMin == null && nullToAbsent
           ? const Value.absent()
           : Value(defaultDurationMin),
-      specialistId: specialistId == null && nullToAbsent
+      adultId: adultId == null && nullToAbsent
           ? const Value.absent()
-          : Value(specialistId),
+          : Value(adultId),
       location: location == null && nullToAbsent
           ? const Value.absent()
           : Value(location),
@@ -7173,7 +7159,7 @@ class ActivityLibraryData extends DataClass
       id: serializer.fromJson<String>(json['id']),
       title: serializer.fromJson<String>(json['title']),
       defaultDurationMin: serializer.fromJson<int?>(json['defaultDurationMin']),
-      specialistId: serializer.fromJson<String?>(json['specialistId']),
+      adultId: serializer.fromJson<String?>(json['adultId']),
       location: serializer.fromJson<String?>(json['location']),
       notes: serializer.fromJson<String?>(json['notes']),
       audienceMinAge: serializer.fromJson<int?>(json['audienceMinAge']),
@@ -7198,7 +7184,7 @@ class ActivityLibraryData extends DataClass
       'id': serializer.toJson<String>(id),
       'title': serializer.toJson<String>(title),
       'defaultDurationMin': serializer.toJson<int?>(defaultDurationMin),
-      'specialistId': serializer.toJson<String?>(specialistId),
+      'adultId': serializer.toJson<String?>(adultId),
       'location': serializer.toJson<String?>(location),
       'notes': serializer.toJson<String?>(notes),
       'audienceMinAge': serializer.toJson<int?>(audienceMinAge),
@@ -7219,7 +7205,7 @@ class ActivityLibraryData extends DataClass
     String? id,
     String? title,
     Value<int?> defaultDurationMin = const Value.absent(),
-    Value<String?> specialistId = const Value.absent(),
+    Value<String?> adultId = const Value.absent(),
     Value<String?> location = const Value.absent(),
     Value<String?> notes = const Value.absent(),
     Value<int?> audienceMinAge = const Value.absent(),
@@ -7239,7 +7225,7 @@ class ActivityLibraryData extends DataClass
     defaultDurationMin: defaultDurationMin.present
         ? defaultDurationMin.value
         : this.defaultDurationMin,
-    specialistId: specialistId.present ? specialistId.value : this.specialistId,
+    adultId: adultId.present ? adultId.value : this.adultId,
     location: location.present ? location.value : this.location,
     notes: notes.present ? notes.value : this.notes,
     audienceMinAge: audienceMinAge.present
@@ -7271,9 +7257,7 @@ class ActivityLibraryData extends DataClass
       defaultDurationMin: data.defaultDurationMin.present
           ? data.defaultDurationMin.value
           : this.defaultDurationMin,
-      specialistId: data.specialistId.present
-          ? data.specialistId.value
-          : this.specialistId,
+      adultId: data.adultId.present ? data.adultId.value : this.adultId,
       location: data.location.present ? data.location.value : this.location,
       notes: data.notes.present ? data.notes.value : this.notes,
       audienceMinAge: data.audienceMinAge.present
@@ -7306,7 +7290,7 @@ class ActivityLibraryData extends DataClass
           ..write('id: $id, ')
           ..write('title: $title, ')
           ..write('defaultDurationMin: $defaultDurationMin, ')
-          ..write('specialistId: $specialistId, ')
+          ..write('adultId: $adultId, ')
           ..write('location: $location, ')
           ..write('notes: $notes, ')
           ..write('audienceMinAge: $audienceMinAge, ')
@@ -7329,7 +7313,7 @@ class ActivityLibraryData extends DataClass
     id,
     title,
     defaultDurationMin,
-    specialistId,
+    adultId,
     location,
     notes,
     audienceMinAge,
@@ -7351,7 +7335,7 @@ class ActivityLibraryData extends DataClass
           other.id == this.id &&
           other.title == this.title &&
           other.defaultDurationMin == this.defaultDurationMin &&
-          other.specialistId == this.specialistId &&
+          other.adultId == this.adultId &&
           other.location == this.location &&
           other.notes == this.notes &&
           other.audienceMinAge == this.audienceMinAge &&
@@ -7371,7 +7355,7 @@ class ActivityLibraryCompanion extends UpdateCompanion<ActivityLibraryData> {
   final Value<String> id;
   final Value<String> title;
   final Value<int?> defaultDurationMin;
-  final Value<String?> specialistId;
+  final Value<String?> adultId;
   final Value<String?> location;
   final Value<String?> notes;
   final Value<int?> audienceMinAge;
@@ -7390,7 +7374,7 @@ class ActivityLibraryCompanion extends UpdateCompanion<ActivityLibraryData> {
     this.id = const Value.absent(),
     this.title = const Value.absent(),
     this.defaultDurationMin = const Value.absent(),
-    this.specialistId = const Value.absent(),
+    this.adultId = const Value.absent(),
     this.location = const Value.absent(),
     this.notes = const Value.absent(),
     this.audienceMinAge = const Value.absent(),
@@ -7410,7 +7394,7 @@ class ActivityLibraryCompanion extends UpdateCompanion<ActivityLibraryData> {
     required String id,
     required String title,
     this.defaultDurationMin = const Value.absent(),
-    this.specialistId = const Value.absent(),
+    this.adultId = const Value.absent(),
     this.location = const Value.absent(),
     this.notes = const Value.absent(),
     this.audienceMinAge = const Value.absent(),
@@ -7431,7 +7415,7 @@ class ActivityLibraryCompanion extends UpdateCompanion<ActivityLibraryData> {
     Expression<String>? id,
     Expression<String>? title,
     Expression<int>? defaultDurationMin,
-    Expression<String>? specialistId,
+    Expression<String>? adultId,
     Expression<String>? location,
     Expression<String>? notes,
     Expression<int>? audienceMinAge,
@@ -7452,7 +7436,7 @@ class ActivityLibraryCompanion extends UpdateCompanion<ActivityLibraryData> {
       if (title != null) 'title': title,
       if (defaultDurationMin != null)
         'default_duration_min': defaultDurationMin,
-      if (specialistId != null) 'specialist_id': specialistId,
+      if (adultId != null) 'adult_id': adultId,
       if (location != null) 'location': location,
       if (notes != null) 'notes': notes,
       if (audienceMinAge != null) 'audience_min_age': audienceMinAge,
@@ -7474,7 +7458,7 @@ class ActivityLibraryCompanion extends UpdateCompanion<ActivityLibraryData> {
     Value<String>? id,
     Value<String>? title,
     Value<int?>? defaultDurationMin,
-    Value<String?>? specialistId,
+    Value<String?>? adultId,
     Value<String?>? location,
     Value<String?>? notes,
     Value<int?>? audienceMinAge,
@@ -7494,7 +7478,7 @@ class ActivityLibraryCompanion extends UpdateCompanion<ActivityLibraryData> {
       id: id ?? this.id,
       title: title ?? this.title,
       defaultDurationMin: defaultDurationMin ?? this.defaultDurationMin,
-      specialistId: specialistId ?? this.specialistId,
+      adultId: adultId ?? this.adultId,
       location: location ?? this.location,
       notes: notes ?? this.notes,
       audienceMinAge: audienceMinAge ?? this.audienceMinAge,
@@ -7524,8 +7508,8 @@ class ActivityLibraryCompanion extends UpdateCompanion<ActivityLibraryData> {
     if (defaultDurationMin.present) {
       map['default_duration_min'] = Variable<int>(defaultDurationMin.value);
     }
-    if (specialistId.present) {
-      map['specialist_id'] = Variable<String>(specialistId.value);
+    if (adultId.present) {
+      map['adult_id'] = Variable<String>(adultId.value);
     }
     if (location.present) {
       map['location'] = Variable<String>(location.value);
@@ -7578,7 +7562,7 @@ class ActivityLibraryCompanion extends UpdateCompanion<ActivityLibraryData> {
           ..write('id: $id, ')
           ..write('title: $title, ')
           ..write('defaultDurationMin: $defaultDurationMin, ')
-          ..write('specialistId: $specialistId, ')
+          ..write('adultId: $adultId, ')
           ..write('location: $location, ')
           ..write('notes: $notes, ')
           ..write('audienceMinAge: $audienceMinAge, ')
@@ -7710,29 +7694,29 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
     ),
     defaultValue: const Constant(true),
   );
-  static const VerificationMeta _specialistNameMeta = const VerificationMeta(
-    'specialistName',
+  static const VerificationMeta _adultNameMeta = const VerificationMeta(
+    'adultName',
   );
   @override
-  late final GeneratedColumn<String> specialistName = GeneratedColumn<String>(
-    'specialist_name',
+  late final GeneratedColumn<String> adultName = GeneratedColumn<String>(
+    'adult_name',
     aliasedName,
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _specialistIdMeta = const VerificationMeta(
-    'specialistId',
+  static const VerificationMeta _adultIdMeta = const VerificationMeta(
+    'adultId',
   );
   @override
-  late final GeneratedColumn<String> specialistId = GeneratedColumn<String>(
-    'specialist_id',
+  late final GeneratedColumn<String> adultId = GeneratedColumn<String>(
+    'adult_id',
     aliasedName,
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES specialists (id) ON DELETE SET NULL',
+      'REFERENCES adults (id) ON DELETE SET NULL',
     ),
   );
   static const VerificationMeta _locationMeta = const VerificationMeta(
@@ -7838,8 +7822,8 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
     seriesId,
     groupId,
     allGroups,
-    specialistName,
-    specialistId,
+    adultName,
+    adultId,
     location,
     notes,
     startDate,
@@ -7922,22 +7906,16 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
         allGroups.isAcceptableOrUnknown(data['all_groups']!, _allGroupsMeta),
       );
     }
-    if (data.containsKey('specialist_name')) {
+    if (data.containsKey('adult_name')) {
       context.handle(
-        _specialistNameMeta,
-        specialistName.isAcceptableOrUnknown(
-          data['specialist_name']!,
-          _specialistNameMeta,
-        ),
+        _adultNameMeta,
+        adultName.isAcceptableOrUnknown(data['adult_name']!, _adultNameMeta),
       );
     }
-    if (data.containsKey('specialist_id')) {
+    if (data.containsKey('adult_id')) {
       context.handle(
-        _specialistIdMeta,
-        specialistId.isAcceptableOrUnknown(
-          data['specialist_id']!,
-          _specialistIdMeta,
-        ),
+        _adultIdMeta,
+        adultId.isAcceptableOrUnknown(data['adult_id']!, _adultIdMeta),
       );
     }
     if (data.containsKey('location')) {
@@ -8036,13 +8014,13 @@ class $ScheduleTemplatesTable extends ScheduleTemplates
         DriftSqlType.bool,
         data['${effectivePrefix}all_groups'],
       )!,
-      specialistName: attachedDatabase.typeMapping.read(
+      adultName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}specialist_name'],
+        data['${effectivePrefix}adult_name'],
       ),
-      specialistId: attachedDatabase.typeMapping.read(
+      adultId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}specialist_id'],
+        data['${effectivePrefix}adult_id'],
       ),
       location: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -8096,8 +8074,8 @@ class ScheduleTemplate extends DataClass
   final String? seriesId;
   final String? groupId;
   final bool allGroups;
-  final String? specialistName;
-  final String? specialistId;
+  final String? adultName;
+  final String? adultId;
   final String? location;
   final String? notes;
   final DateTime? startDate;
@@ -8121,8 +8099,8 @@ class ScheduleTemplate extends DataClass
     this.seriesId,
     this.groupId,
     required this.allGroups,
-    this.specialistName,
-    this.specialistId,
+    this.adultName,
+    this.adultId,
     this.location,
     this.notes,
     this.startDate,
@@ -8148,11 +8126,11 @@ class ScheduleTemplate extends DataClass
       map['group_id'] = Variable<String>(groupId);
     }
     map['all_groups'] = Variable<bool>(allGroups);
-    if (!nullToAbsent || specialistName != null) {
-      map['specialist_name'] = Variable<String>(specialistName);
+    if (!nullToAbsent || adultName != null) {
+      map['adult_name'] = Variable<String>(adultName);
     }
-    if (!nullToAbsent || specialistId != null) {
-      map['specialist_id'] = Variable<String>(specialistId);
+    if (!nullToAbsent || adultId != null) {
+      map['adult_id'] = Variable<String>(adultId);
     }
     if (!nullToAbsent || location != null) {
       map['location'] = Variable<String>(location);
@@ -8192,12 +8170,12 @@ class ScheduleTemplate extends DataClass
           ? const Value.absent()
           : Value(groupId),
       allGroups: Value(allGroups),
-      specialistName: specialistName == null && nullToAbsent
+      adultName: adultName == null && nullToAbsent
           ? const Value.absent()
-          : Value(specialistName),
-      specialistId: specialistId == null && nullToAbsent
+          : Value(adultName),
+      adultId: adultId == null && nullToAbsent
           ? const Value.absent()
-          : Value(specialistId),
+          : Value(adultId),
       location: location == null && nullToAbsent
           ? const Value.absent()
           : Value(location),
@@ -8236,8 +8214,8 @@ class ScheduleTemplate extends DataClass
       seriesId: serializer.fromJson<String?>(json['seriesId']),
       groupId: serializer.fromJson<String?>(json['groupId']),
       allGroups: serializer.fromJson<bool>(json['allGroups']),
-      specialistName: serializer.fromJson<String?>(json['specialistName']),
-      specialistId: serializer.fromJson<String?>(json['specialistId']),
+      adultName: serializer.fromJson<String?>(json['adultName']),
+      adultId: serializer.fromJson<String?>(json['adultId']),
       location: serializer.fromJson<String?>(json['location']),
       notes: serializer.fromJson<String?>(json['notes']),
       startDate: serializer.fromJson<DateTime?>(json['startDate']),
@@ -8263,8 +8241,8 @@ class ScheduleTemplate extends DataClass
       'seriesId': serializer.toJson<String?>(seriesId),
       'groupId': serializer.toJson<String?>(groupId),
       'allGroups': serializer.toJson<bool>(allGroups),
-      'specialistName': serializer.toJson<String?>(specialistName),
-      'specialistId': serializer.toJson<String?>(specialistId),
+      'adultName': serializer.toJson<String?>(adultName),
+      'adultId': serializer.toJson<String?>(adultId),
       'location': serializer.toJson<String?>(location),
       'notes': serializer.toJson<String?>(notes),
       'startDate': serializer.toJson<DateTime?>(startDate),
@@ -8286,8 +8264,8 @@ class ScheduleTemplate extends DataClass
     Value<String?> seriesId = const Value.absent(),
     Value<String?> groupId = const Value.absent(),
     bool? allGroups,
-    Value<String?> specialistName = const Value.absent(),
-    Value<String?> specialistId = const Value.absent(),
+    Value<String?> adultName = const Value.absent(),
+    Value<String?> adultId = const Value.absent(),
     Value<String?> location = const Value.absent(),
     Value<String?> notes = const Value.absent(),
     Value<DateTime?> startDate = const Value.absent(),
@@ -8306,10 +8284,8 @@ class ScheduleTemplate extends DataClass
     seriesId: seriesId.present ? seriesId.value : this.seriesId,
     groupId: groupId.present ? groupId.value : this.groupId,
     allGroups: allGroups ?? this.allGroups,
-    specialistName: specialistName.present
-        ? specialistName.value
-        : this.specialistName,
-    specialistId: specialistId.present ? specialistId.value : this.specialistId,
+    adultName: adultName.present ? adultName.value : this.adultName,
+    adultId: adultId.present ? adultId.value : this.adultId,
     location: location.present ? location.value : this.location,
     notes: notes.present ? notes.value : this.notes,
     startDate: startDate.present ? startDate.value : this.startDate,
@@ -8332,12 +8308,8 @@ class ScheduleTemplate extends DataClass
       seriesId: data.seriesId.present ? data.seriesId.value : this.seriesId,
       groupId: data.groupId.present ? data.groupId.value : this.groupId,
       allGroups: data.allGroups.present ? data.allGroups.value : this.allGroups,
-      specialistName: data.specialistName.present
-          ? data.specialistName.value
-          : this.specialistName,
-      specialistId: data.specialistId.present
-          ? data.specialistId.value
-          : this.specialistId,
+      adultName: data.adultName.present ? data.adultName.value : this.adultName,
+      adultId: data.adultId.present ? data.adultId.value : this.adultId,
       location: data.location.present ? data.location.value : this.location,
       notes: data.notes.present ? data.notes.value : this.notes,
       startDate: data.startDate.present ? data.startDate.value : this.startDate,
@@ -8363,8 +8335,8 @@ class ScheduleTemplate extends DataClass
           ..write('seriesId: $seriesId, ')
           ..write('groupId: $groupId, ')
           ..write('allGroups: $allGroups, ')
-          ..write('specialistName: $specialistName, ')
-          ..write('specialistId: $specialistId, ')
+          ..write('adultName: $adultName, ')
+          ..write('adultId: $adultId, ')
           ..write('location: $location, ')
           ..write('notes: $notes, ')
           ..write('startDate: $startDate, ')
@@ -8388,8 +8360,8 @@ class ScheduleTemplate extends DataClass
     seriesId,
     groupId,
     allGroups,
-    specialistName,
-    specialistId,
+    adultName,
+    adultId,
     location,
     notes,
     startDate,
@@ -8412,8 +8384,8 @@ class ScheduleTemplate extends DataClass
           other.seriesId == this.seriesId &&
           other.groupId == this.groupId &&
           other.allGroups == this.allGroups &&
-          other.specialistName == this.specialistName &&
-          other.specialistId == this.specialistId &&
+          other.adultName == this.adultName &&
+          other.adultId == this.adultId &&
           other.location == this.location &&
           other.notes == this.notes &&
           other.startDate == this.startDate &&
@@ -8434,8 +8406,8 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
   final Value<String?> seriesId;
   final Value<String?> groupId;
   final Value<bool> allGroups;
-  final Value<String?> specialistName;
-  final Value<String?> specialistId;
+  final Value<String?> adultName;
+  final Value<String?> adultId;
   final Value<String?> location;
   final Value<String?> notes;
   final Value<DateTime?> startDate;
@@ -8455,8 +8427,8 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     this.seriesId = const Value.absent(),
     this.groupId = const Value.absent(),
     this.allGroups = const Value.absent(),
-    this.specialistName = const Value.absent(),
-    this.specialistId = const Value.absent(),
+    this.adultName = const Value.absent(),
+    this.adultId = const Value.absent(),
     this.location = const Value.absent(),
     this.notes = const Value.absent(),
     this.startDate = const Value.absent(),
@@ -8477,8 +8449,8 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     this.seriesId = const Value.absent(),
     this.groupId = const Value.absent(),
     this.allGroups = const Value.absent(),
-    this.specialistName = const Value.absent(),
-    this.specialistId = const Value.absent(),
+    this.adultName = const Value.absent(),
+    this.adultId = const Value.absent(),
     this.location = const Value.absent(),
     this.notes = const Value.absent(),
     this.startDate = const Value.absent(),
@@ -8503,8 +8475,8 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     Expression<String>? seriesId,
     Expression<String>? groupId,
     Expression<bool>? allGroups,
-    Expression<String>? specialistName,
-    Expression<String>? specialistId,
+    Expression<String>? adultName,
+    Expression<String>? adultId,
     Expression<String>? location,
     Expression<String>? notes,
     Expression<DateTime>? startDate,
@@ -8525,8 +8497,8 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
       if (seriesId != null) 'series_id': seriesId,
       if (groupId != null) 'group_id': groupId,
       if (allGroups != null) 'all_groups': allGroups,
-      if (specialistName != null) 'specialist_name': specialistName,
-      if (specialistId != null) 'specialist_id': specialistId,
+      if (adultName != null) 'adult_name': adultName,
+      if (adultId != null) 'adult_id': adultId,
       if (location != null) 'location': location,
       if (notes != null) 'notes': notes,
       if (startDate != null) 'start_date': startDate,
@@ -8550,8 +8522,8 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     Value<String?>? seriesId,
     Value<String?>? groupId,
     Value<bool>? allGroups,
-    Value<String?>? specialistName,
-    Value<String?>? specialistId,
+    Value<String?>? adultName,
+    Value<String?>? adultId,
     Value<String?>? location,
     Value<String?>? notes,
     Value<DateTime?>? startDate,
@@ -8572,8 +8544,8 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
       seriesId: seriesId ?? this.seriesId,
       groupId: groupId ?? this.groupId,
       allGroups: allGroups ?? this.allGroups,
-      specialistName: specialistName ?? this.specialistName,
-      specialistId: specialistId ?? this.specialistId,
+      adultName: adultName ?? this.adultName,
+      adultId: adultId ?? this.adultId,
       location: location ?? this.location,
       notes: notes ?? this.notes,
       startDate: startDate ?? this.startDate,
@@ -8616,11 +8588,11 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
     if (allGroups.present) {
       map['all_groups'] = Variable<bool>(allGroups.value);
     }
-    if (specialistName.present) {
-      map['specialist_name'] = Variable<String>(specialistName.value);
+    if (adultName.present) {
+      map['adult_name'] = Variable<String>(adultName.value);
     }
-    if (specialistId.present) {
-      map['specialist_id'] = Variable<String>(specialistId.value);
+    if (adultId.present) {
+      map['adult_id'] = Variable<String>(adultId.value);
     }
     if (location.present) {
       map['location'] = Variable<String>(location.value);
@@ -8666,8 +8638,8 @@ class ScheduleTemplatesCompanion extends UpdateCompanion<ScheduleTemplate> {
           ..write('seriesId: $seriesId, ')
           ..write('groupId: $groupId, ')
           ..write('allGroups: $allGroups, ')
-          ..write('specialistName: $specialistName, ')
-          ..write('specialistId: $specialistId, ')
+          ..write('adultName: $adultName, ')
+          ..write('adultId: $adultId, ')
           ..write('location: $location, ')
           ..write('notes: $notes, ')
           ..write('startDate: $startDate, ')
@@ -8792,29 +8764,29 @@ class $ScheduleEntriesTable extends ScheduleEntries
     ),
     defaultValue: const Constant(true),
   );
-  static const VerificationMeta _specialistNameMeta = const VerificationMeta(
-    'specialistName',
+  static const VerificationMeta _adultNameMeta = const VerificationMeta(
+    'adultName',
   );
   @override
-  late final GeneratedColumn<String> specialistName = GeneratedColumn<String>(
-    'specialist_name',
+  late final GeneratedColumn<String> adultName = GeneratedColumn<String>(
+    'adult_name',
     aliasedName,
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _specialistIdMeta = const VerificationMeta(
-    'specialistId',
+  static const VerificationMeta _adultIdMeta = const VerificationMeta(
+    'adultId',
   );
   @override
-  late final GeneratedColumn<String> specialistId = GeneratedColumn<String>(
-    'specialist_id',
+  late final GeneratedColumn<String> adultId = GeneratedColumn<String>(
+    'adult_id',
     aliasedName,
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES specialists (id) ON DELETE SET NULL',
+      'REFERENCES adults (id) ON DELETE SET NULL',
     ),
   );
   static const VerificationMeta _locationMeta = const VerificationMeta(
@@ -8935,8 +8907,8 @@ class $ScheduleEntriesTable extends ScheduleEntries
     title,
     groupId,
     allGroups,
-    specialistName,
-    specialistId,
+    adultName,
+    adultId,
     location,
     notes,
     kind,
@@ -9020,22 +8992,16 @@ class $ScheduleEntriesTable extends ScheduleEntries
         allGroups.isAcceptableOrUnknown(data['all_groups']!, _allGroupsMeta),
       );
     }
-    if (data.containsKey('specialist_name')) {
+    if (data.containsKey('adult_name')) {
       context.handle(
-        _specialistNameMeta,
-        specialistName.isAcceptableOrUnknown(
-          data['specialist_name']!,
-          _specialistNameMeta,
-        ),
+        _adultNameMeta,
+        adultName.isAcceptableOrUnknown(data['adult_name']!, _adultNameMeta),
       );
     }
-    if (data.containsKey('specialist_id')) {
+    if (data.containsKey('adult_id')) {
       context.handle(
-        _specialistIdMeta,
-        specialistId.isAcceptableOrUnknown(
-          data['specialist_id']!,
-          _specialistIdMeta,
-        ),
+        _adultIdMeta,
+        adultId.isAcceptableOrUnknown(data['adult_id']!, _adultIdMeta),
       );
     }
     if (data.containsKey('location')) {
@@ -9148,13 +9114,13 @@ class $ScheduleEntriesTable extends ScheduleEntries
         DriftSqlType.bool,
         data['${effectivePrefix}all_groups'],
       )!,
-      specialistName: attachedDatabase.typeMapping.read(
+      adultName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}specialist_name'],
+        data['${effectivePrefix}adult_name'],
       ),
-      specialistId: attachedDatabase.typeMapping.read(
+      adultId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}specialist_id'],
+        data['${effectivePrefix}adult_id'],
       ),
       location: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -9211,8 +9177,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
   final String title;
   final String? groupId;
   final bool allGroups;
-  final String? specialistName;
-  final String? specialistId;
+  final String? adultName;
+  final String? adultId;
   final String? location;
   final String? notes;
   final String kind;
@@ -9236,8 +9202,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     required this.title,
     this.groupId,
     required this.allGroups,
-    this.specialistName,
-    this.specialistId,
+    this.adultName,
+    this.adultId,
     this.location,
     this.notes,
     required this.kind,
@@ -9264,11 +9230,11 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       map['group_id'] = Variable<String>(groupId);
     }
     map['all_groups'] = Variable<bool>(allGroups);
-    if (!nullToAbsent || specialistName != null) {
-      map['specialist_name'] = Variable<String>(specialistName);
+    if (!nullToAbsent || adultName != null) {
+      map['adult_name'] = Variable<String>(adultName);
     }
-    if (!nullToAbsent || specialistId != null) {
-      map['specialist_id'] = Variable<String>(specialistId);
+    if (!nullToAbsent || adultId != null) {
+      map['adult_id'] = Variable<String>(adultId);
     }
     if (!nullToAbsent || location != null) {
       map['location'] = Variable<String>(location);
@@ -9309,12 +9275,12 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
           ? const Value.absent()
           : Value(groupId),
       allGroups: Value(allGroups),
-      specialistName: specialistName == null && nullToAbsent
+      adultName: adultName == null && nullToAbsent
           ? const Value.absent()
-          : Value(specialistName),
-      specialistId: specialistId == null && nullToAbsent
+          : Value(adultName),
+      adultId: adultId == null && nullToAbsent
           ? const Value.absent()
-          : Value(specialistId),
+          : Value(adultId),
       location: location == null && nullToAbsent
           ? const Value.absent()
           : Value(location),
@@ -9354,8 +9320,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       title: serializer.fromJson<String>(json['title']),
       groupId: serializer.fromJson<String?>(json['groupId']),
       allGroups: serializer.fromJson<bool>(json['allGroups']),
-      specialistName: serializer.fromJson<String?>(json['specialistName']),
-      specialistId: serializer.fromJson<String?>(json['specialistId']),
+      adultName: serializer.fromJson<String?>(json['adultName']),
+      adultId: serializer.fromJson<String?>(json['adultId']),
       location: serializer.fromJson<String?>(json['location']),
       notes: serializer.fromJson<String?>(json['notes']),
       kind: serializer.fromJson<String>(json['kind']),
@@ -9384,8 +9350,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       'title': serializer.toJson<String>(title),
       'groupId': serializer.toJson<String?>(groupId),
       'allGroups': serializer.toJson<bool>(allGroups),
-      'specialistName': serializer.toJson<String?>(specialistName),
-      'specialistId': serializer.toJson<String?>(specialistId),
+      'adultName': serializer.toJson<String?>(adultName),
+      'adultId': serializer.toJson<String?>(adultId),
       'location': serializer.toJson<String?>(location),
       'notes': serializer.toJson<String?>(notes),
       'kind': serializer.toJson<String>(kind),
@@ -9408,8 +9374,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     String? title,
     Value<String?> groupId = const Value.absent(),
     bool? allGroups,
-    Value<String?> specialistName = const Value.absent(),
-    Value<String?> specialistId = const Value.absent(),
+    Value<String?> adultName = const Value.absent(),
+    Value<String?> adultId = const Value.absent(),
     Value<String?> location = const Value.absent(),
     Value<String?> notes = const Value.absent(),
     String? kind,
@@ -9429,10 +9395,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     title: title ?? this.title,
     groupId: groupId.present ? groupId.value : this.groupId,
     allGroups: allGroups ?? this.allGroups,
-    specialistName: specialistName.present
-        ? specialistName.value
-        : this.specialistName,
-    specialistId: specialistId.present ? specialistId.value : this.specialistId,
+    adultName: adultName.present ? adultName.value : this.adultName,
+    adultId: adultId.present ? adultId.value : this.adultId,
     location: location.present ? location.value : this.location,
     notes: notes.present ? notes.value : this.notes,
     kind: kind ?? this.kind,
@@ -9458,12 +9422,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
       title: data.title.present ? data.title.value : this.title,
       groupId: data.groupId.present ? data.groupId.value : this.groupId,
       allGroups: data.allGroups.present ? data.allGroups.value : this.allGroups,
-      specialistName: data.specialistName.present
-          ? data.specialistName.value
-          : this.specialistName,
-      specialistId: data.specialistId.present
-          ? data.specialistId.value
-          : this.specialistId,
+      adultName: data.adultName.present ? data.adultName.value : this.adultName,
+      adultId: data.adultId.present ? data.adultId.value : this.adultId,
       location: data.location.present ? data.location.value : this.location,
       notes: data.notes.present ? data.notes.value : this.notes,
       kind: data.kind.present ? data.kind.value : this.kind,
@@ -9494,8 +9454,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
           ..write('title: $title, ')
           ..write('groupId: $groupId, ')
           ..write('allGroups: $allGroups, ')
-          ..write('specialistName: $specialistName, ')
-          ..write('specialistId: $specialistId, ')
+          ..write('adultName: $adultName, ')
+          ..write('adultId: $adultId, ')
           ..write('location: $location, ')
           ..write('notes: $notes, ')
           ..write('kind: $kind, ')
@@ -9520,8 +9480,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
     title,
     groupId,
     allGroups,
-    specialistName,
-    specialistId,
+    adultName,
+    adultId,
     location,
     notes,
     kind,
@@ -9545,8 +9505,8 @@ class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
           other.title == this.title &&
           other.groupId == this.groupId &&
           other.allGroups == this.allGroups &&
-          other.specialistName == this.specialistName &&
-          other.specialistId == this.specialistId &&
+          other.adultName == this.adultName &&
+          other.adultId == this.adultId &&
           other.location == this.location &&
           other.notes == this.notes &&
           other.kind == this.kind &&
@@ -9568,8 +9528,8 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
   final Value<String> title;
   final Value<String?> groupId;
   final Value<bool> allGroups;
-  final Value<String?> specialistName;
-  final Value<String?> specialistId;
+  final Value<String?> adultName;
+  final Value<String?> adultId;
   final Value<String?> location;
   final Value<String?> notes;
   final Value<String> kind;
@@ -9590,8 +9550,8 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     this.title = const Value.absent(),
     this.groupId = const Value.absent(),
     this.allGroups = const Value.absent(),
-    this.specialistName = const Value.absent(),
-    this.specialistId = const Value.absent(),
+    this.adultName = const Value.absent(),
+    this.adultId = const Value.absent(),
     this.location = const Value.absent(),
     this.notes = const Value.absent(),
     this.kind = const Value.absent(),
@@ -9613,8 +9573,8 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     required String title,
     this.groupId = const Value.absent(),
     this.allGroups = const Value.absent(),
-    this.specialistName = const Value.absent(),
-    this.specialistId = const Value.absent(),
+    this.adultName = const Value.absent(),
+    this.adultId = const Value.absent(),
     this.location = const Value.absent(),
     this.notes = const Value.absent(),
     required String kind,
@@ -9641,8 +9601,8 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     Expression<String>? title,
     Expression<String>? groupId,
     Expression<bool>? allGroups,
-    Expression<String>? specialistName,
-    Expression<String>? specialistId,
+    Expression<String>? adultName,
+    Expression<String>? adultId,
     Expression<String>? location,
     Expression<String>? notes,
     Expression<String>? kind,
@@ -9664,8 +9624,8 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
       if (title != null) 'title': title,
       if (groupId != null) 'group_id': groupId,
       if (allGroups != null) 'all_groups': allGroups,
-      if (specialistName != null) 'specialist_name': specialistName,
-      if (specialistId != null) 'specialist_id': specialistId,
+      if (adultName != null) 'adult_name': adultName,
+      if (adultId != null) 'adult_id': adultId,
       if (location != null) 'location': location,
       if (notes != null) 'notes': notes,
       if (kind != null) 'kind': kind,
@@ -9691,8 +9651,8 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     Value<String>? title,
     Value<String?>? groupId,
     Value<bool>? allGroups,
-    Value<String?>? specialistName,
-    Value<String?>? specialistId,
+    Value<String?>? adultName,
+    Value<String?>? adultId,
     Value<String?>? location,
     Value<String?>? notes,
     Value<String>? kind,
@@ -9714,8 +9674,8 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
       title: title ?? this.title,
       groupId: groupId ?? this.groupId,
       allGroups: allGroups ?? this.allGroups,
-      specialistName: specialistName ?? this.specialistName,
-      specialistId: specialistId ?? this.specialistId,
+      adultName: adultName ?? this.adultName,
+      adultId: adultId ?? this.adultId,
       location: location ?? this.location,
       notes: notes ?? this.notes,
       kind: kind ?? this.kind,
@@ -9759,11 +9719,11 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
     if (allGroups.present) {
       map['all_groups'] = Variable<bool>(allGroups.value);
     }
-    if (specialistName.present) {
-      map['specialist_name'] = Variable<String>(specialistName.value);
+    if (adultName.present) {
+      map['adult_name'] = Variable<String>(adultName.value);
     }
-    if (specialistId.present) {
-      map['specialist_id'] = Variable<String>(specialistId.value);
+    if (adultId.present) {
+      map['adult_id'] = Variable<String>(adultId.value);
     }
     if (location.present) {
       map['location'] = Variable<String>(location.value);
@@ -9814,8 +9774,8 @@ class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
           ..write('title: $title, ')
           ..write('groupId: $groupId, ')
           ..write('allGroups: $allGroups, ')
-          ..write('specialistName: $specialistName, ')
-          ..write('specialistId: $specialistId, ')
+          ..write('adultName: $adultName, ')
+          ..write('adultId: $adultId, ')
           ..write('location: $location, ')
           ..write('notes: $notes, ')
           ..write('kind: $kind, ')
@@ -13299,18 +13259,18 @@ class $AdultDayBlocksTable extends AdultDayBlocks
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _specialistIdMeta = const VerificationMeta(
-    'specialistId',
+  static const VerificationMeta _adultIdMeta = const VerificationMeta(
+    'adultId',
   );
   @override
-  late final GeneratedColumn<String> specialistId = GeneratedColumn<String>(
-    'specialist_id',
+  late final GeneratedColumn<String> adultId = GeneratedColumn<String>(
+    'adult_id',
     aliasedName,
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES specialists (id) ON DELETE CASCADE',
+      'REFERENCES adults (id) ON DELETE CASCADE',
     ),
   );
   static const VerificationMeta _dayOfWeekMeta = const VerificationMeta(
@@ -13396,7 +13356,7 @@ class $AdultDayBlocksTable extends AdultDayBlocks
   @override
   List<GeneratedColumn> get $columns => [
     id,
-    specialistId,
+    adultId,
     dayOfWeek,
     startTime,
     endTime,
@@ -13422,16 +13382,13 @@ class $AdultDayBlocksTable extends AdultDayBlocks
     } else if (isInserting) {
       context.missing(_idMeta);
     }
-    if (data.containsKey('specialist_id')) {
+    if (data.containsKey('adult_id')) {
       context.handle(
-        _specialistIdMeta,
-        specialistId.isAcceptableOrUnknown(
-          data['specialist_id']!,
-          _specialistIdMeta,
-        ),
+        _adultIdMeta,
+        adultId.isAcceptableOrUnknown(data['adult_id']!, _adultIdMeta),
       );
     } else if (isInserting) {
-      context.missing(_specialistIdMeta);
+      context.missing(_adultIdMeta);
     }
     if (data.containsKey('day_of_week')) {
       context.handle(
@@ -13496,9 +13453,9 @@ class $AdultDayBlocksTable extends AdultDayBlocks
         DriftSqlType.string,
         data['${effectivePrefix}id'],
       )!,
-      specialistId: attachedDatabase.typeMapping.read(
+      adultId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}specialist_id'],
+        data['${effectivePrefix}adult_id'],
       )!,
       dayOfWeek: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
@@ -13539,7 +13496,7 @@ class $AdultDayBlocksTable extends AdultDayBlocks
 
 class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
   final String id;
-  final String specialistId;
+  final String adultId;
 
   /// ISO day of week (1 = Mon, 7 = Sun). Program runs M-F so values
   /// are almost always 1..5, but no CHECK constraint — weekend is
@@ -13554,11 +13511,11 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
 
   /// 'lead' or 'specialist'. Bad values fall back to 'specialist' at
   /// read time — matches how `AdultRole.fromDb` handles the similar
-  /// field on Specialists.
+  /// field on Adults.
   final String role;
 
   /// For lead blocks — which group the adult is anchoring during
-  /// this span. Null for specialist blocks. FK to groups with
+  /// this span. Null for adult blocks. FK to groups with
   /// setNull on delete so deleting a group silently detaches any
   /// legacy lead blocks rather than cascading-deleting the whole
   /// timeline.
@@ -13567,7 +13524,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
   final DateTime updatedAt;
   const AdultDayBlock({
     required this.id,
-    required this.specialistId,
+    required this.adultId,
     required this.dayOfWeek,
     required this.startTime,
     required this.endTime,
@@ -13580,7 +13537,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
-    map['specialist_id'] = Variable<String>(specialistId);
+    map['adult_id'] = Variable<String>(adultId);
     map['day_of_week'] = Variable<int>(dayOfWeek);
     map['start_time'] = Variable<String>(startTime);
     map['end_time'] = Variable<String>(endTime);
@@ -13596,7 +13553,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
   AdultDayBlocksCompanion toCompanion(bool nullToAbsent) {
     return AdultDayBlocksCompanion(
       id: Value(id),
-      specialistId: Value(specialistId),
+      adultId: Value(adultId),
       dayOfWeek: Value(dayOfWeek),
       startTime: Value(startTime),
       endTime: Value(endTime),
@@ -13616,7 +13573,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return AdultDayBlock(
       id: serializer.fromJson<String>(json['id']),
-      specialistId: serializer.fromJson<String>(json['specialistId']),
+      adultId: serializer.fromJson<String>(json['adultId']),
       dayOfWeek: serializer.fromJson<int>(json['dayOfWeek']),
       startTime: serializer.fromJson<String>(json['startTime']),
       endTime: serializer.fromJson<String>(json['endTime']),
@@ -13631,7 +13588,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
-      'specialistId': serializer.toJson<String>(specialistId),
+      'adultId': serializer.toJson<String>(adultId),
       'dayOfWeek': serializer.toJson<int>(dayOfWeek),
       'startTime': serializer.toJson<String>(startTime),
       'endTime': serializer.toJson<String>(endTime),
@@ -13644,7 +13601,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
 
   AdultDayBlock copyWith({
     String? id,
-    String? specialistId,
+    String? adultId,
     int? dayOfWeek,
     String? startTime,
     String? endTime,
@@ -13654,7 +13611,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
     DateTime? updatedAt,
   }) => AdultDayBlock(
     id: id ?? this.id,
-    specialistId: specialistId ?? this.specialistId,
+    adultId: adultId ?? this.adultId,
     dayOfWeek: dayOfWeek ?? this.dayOfWeek,
     startTime: startTime ?? this.startTime,
     endTime: endTime ?? this.endTime,
@@ -13666,9 +13623,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
   AdultDayBlock copyWithCompanion(AdultDayBlocksCompanion data) {
     return AdultDayBlock(
       id: data.id.present ? data.id.value : this.id,
-      specialistId: data.specialistId.present
-          ? data.specialistId.value
-          : this.specialistId,
+      adultId: data.adultId.present ? data.adultId.value : this.adultId,
       dayOfWeek: data.dayOfWeek.present ? data.dayOfWeek.value : this.dayOfWeek,
       startTime: data.startTime.present ? data.startTime.value : this.startTime,
       endTime: data.endTime.present ? data.endTime.value : this.endTime,
@@ -13683,7 +13638,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
   String toString() {
     return (StringBuffer('AdultDayBlock(')
           ..write('id: $id, ')
-          ..write('specialistId: $specialistId, ')
+          ..write('adultId: $adultId, ')
           ..write('dayOfWeek: $dayOfWeek, ')
           ..write('startTime: $startTime, ')
           ..write('endTime: $endTime, ')
@@ -13698,7 +13653,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
   @override
   int get hashCode => Object.hash(
     id,
-    specialistId,
+    adultId,
     dayOfWeek,
     startTime,
     endTime,
@@ -13712,7 +13667,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
       identical(this, other) ||
       (other is AdultDayBlock &&
           other.id == this.id &&
-          other.specialistId == this.specialistId &&
+          other.adultId == this.adultId &&
           other.dayOfWeek == this.dayOfWeek &&
           other.startTime == this.startTime &&
           other.endTime == this.endTime &&
@@ -13724,7 +13679,7 @@ class AdultDayBlock extends DataClass implements Insertable<AdultDayBlock> {
 
 class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
   final Value<String> id;
-  final Value<String> specialistId;
+  final Value<String> adultId;
   final Value<int> dayOfWeek;
   final Value<String> startTime;
   final Value<String> endTime;
@@ -13735,7 +13690,7 @@ class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
   final Value<int> rowid;
   const AdultDayBlocksCompanion({
     this.id = const Value.absent(),
-    this.specialistId = const Value.absent(),
+    this.adultId = const Value.absent(),
     this.dayOfWeek = const Value.absent(),
     this.startTime = const Value.absent(),
     this.endTime = const Value.absent(),
@@ -13747,7 +13702,7 @@ class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
   });
   AdultDayBlocksCompanion.insert({
     required String id,
-    required String specialistId,
+    required String adultId,
     required int dayOfWeek,
     required String startTime,
     required String endTime,
@@ -13757,14 +13712,14 @@ class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
-       specialistId = Value(specialistId),
+       adultId = Value(adultId),
        dayOfWeek = Value(dayOfWeek),
        startTime = Value(startTime),
        endTime = Value(endTime),
        role = Value(role);
   static Insertable<AdultDayBlock> custom({
     Expression<String>? id,
-    Expression<String>? specialistId,
+    Expression<String>? adultId,
     Expression<int>? dayOfWeek,
     Expression<String>? startTime,
     Expression<String>? endTime,
@@ -13776,7 +13731,7 @@ class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
-      if (specialistId != null) 'specialist_id': specialistId,
+      if (adultId != null) 'adult_id': adultId,
       if (dayOfWeek != null) 'day_of_week': dayOfWeek,
       if (startTime != null) 'start_time': startTime,
       if (endTime != null) 'end_time': endTime,
@@ -13790,7 +13745,7 @@ class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
 
   AdultDayBlocksCompanion copyWith({
     Value<String>? id,
-    Value<String>? specialistId,
+    Value<String>? adultId,
     Value<int>? dayOfWeek,
     Value<String>? startTime,
     Value<String>? endTime,
@@ -13802,7 +13757,7 @@ class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
   }) {
     return AdultDayBlocksCompanion(
       id: id ?? this.id,
-      specialistId: specialistId ?? this.specialistId,
+      adultId: adultId ?? this.adultId,
       dayOfWeek: dayOfWeek ?? this.dayOfWeek,
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,
@@ -13820,8 +13775,8 @@ class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
     if (id.present) {
       map['id'] = Variable<String>(id.value);
     }
-    if (specialistId.present) {
-      map['specialist_id'] = Variable<String>(specialistId.value);
+    if (adultId.present) {
+      map['adult_id'] = Variable<String>(adultId.value);
     }
     if (dayOfWeek.present) {
       map['day_of_week'] = Variable<int>(dayOfWeek.value);
@@ -13854,7 +13809,7 @@ class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
   String toString() {
     return (StringBuffer('AdultDayBlocksCompanion(')
           ..write('id: $id, ')
-          ..write('specialistId: $specialistId, ')
+          ..write('adultId: $adultId, ')
           ..write('dayOfWeek: $dayOfWeek, ')
           ..write('startTime: $startTime, ')
           ..write('endTime: $endTime, ')
@@ -14694,9 +14649,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ObservationAttachmentsTable(this);
   late final $ObservationDomainTagsTable observationDomainTags =
       $ObservationDomainTagsTable(this);
-  late final $SpecialistsTable specialists = $SpecialistsTable(this);
-  late final $SpecialistAvailabilityTable specialistAvailability =
-      $SpecialistAvailabilityTable(this);
+  late final $AdultsTable adults = $AdultsTable(this);
+  late final $AdultAvailabilityTable adultAvailability =
+      $AdultAvailabilityTable(this);
   late final $ActivityLibraryTable activityLibrary = $ActivityLibraryTable(
     this,
   );
@@ -14734,8 +14689,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     observationChildren,
     observationAttachments,
     observationDomainTags,
-    specialists,
-    specialistAvailability,
+    adults,
+    adultAvailability,
     activityLibrary,
     scheduleTemplates,
     scheduleEntries,
@@ -14860,18 +14815,18 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         'groups',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('specialists', kind: UpdateKind.update)],
+      result: [TableUpdate('adults', kind: UpdateKind.update)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
-        'specialists',
+        'adults',
         limitUpdateKind: UpdateKind.delete,
       ),
-      result: [TableUpdate('specialist_availability', kind: UpdateKind.delete)],
+      result: [TableUpdate('adult_availability', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
-        'specialists',
+        'adults',
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('activity_library', kind: UpdateKind.update)],
@@ -14885,7 +14840,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
-        'specialists',
+        'adults',
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('schedule_templates', kind: UpdateKind.update)],
@@ -14913,7 +14868,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
-        'specialists',
+        'adults',
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('schedule_entries', kind: UpdateKind.update)],
@@ -15006,7 +14961,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
-        'specialists',
+        'adults',
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('adult_day_blocks', kind: UpdateKind.delete)],
@@ -15145,22 +15100,19 @@ final class $$GroupsTableReferences
     );
   }
 
-  static MultiTypedResultKey<$SpecialistsTable, List<Specialist>>
-  _specialistsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.specialists,
-    aliasName: $_aliasNameGenerator(
-      db.groups.id,
-      db.specialists.anchoredGroupId,
-    ),
+  static MultiTypedResultKey<$AdultsTable, List<Adult>> _adultsRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.adults,
+    aliasName: $_aliasNameGenerator(db.groups.id, db.adults.anchoredGroupId),
   );
 
-  $$SpecialistsTableProcessedTableManager get specialistsRefs {
-    final manager = $$SpecialistsTableTableManager($_db, $_db.specialists)
-        .filter(
-          (f) => f.anchoredGroupId.id.sqlEquals($_itemColumn<String>('id')!),
-        );
+  $$AdultsTableProcessedTableManager get adultsRefs {
+    final manager = $$AdultsTableTableManager($_db, $_db.adults).filter(
+      (f) => f.anchoredGroupId.id.sqlEquals($_itemColumn<String>('id')!),
+    );
 
-    final cache = $_typedResult.readTableOrNull(_specialistsRefsTable($_db));
+    final cache = $_typedResult.readTableOrNull(_adultsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -15419,22 +15371,22 @@ class $$GroupsTableFilterComposer
     return f(composer);
   }
 
-  Expression<bool> specialistsRefs(
-    Expression<bool> Function($$SpecialistsTableFilterComposer f) f,
+  Expression<bool> adultsRefs(
+    Expression<bool> Function($$AdultsTableFilterComposer f) f,
   ) {
-    final $$SpecialistsTableFilterComposer composer = $composerBuilder(
+    final $$AdultsTableFilterComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.specialists,
+      referencedTable: $db.adults,
       getReferencedColumn: (t) => t.anchoredGroupId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$SpecialistsTableFilterComposer(
+          }) => $$AdultsTableFilterComposer(
             $db: $db,
-            $table: $db.specialists,
+            $table: $db.adults,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -15754,22 +15706,22 @@ class $$GroupsTableAnnotationComposer
     return f(composer);
   }
 
-  Expression<T> specialistsRefs<T extends Object>(
-    Expression<T> Function($$SpecialistsTableAnnotationComposer a) f,
+  Expression<T> adultsRefs<T extends Object>(
+    Expression<T> Function($$AdultsTableAnnotationComposer a) f,
   ) {
-    final $$SpecialistsTableAnnotationComposer composer = $composerBuilder(
+    final $$AdultsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.specialists,
+      referencedTable: $db.adults,
       getReferencedColumn: (t) => t.anchoredGroupId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$SpecialistsTableAnnotationComposer(
+          }) => $$AdultsTableAnnotationComposer(
             $db: $db,
-            $table: $db.specialists,
+            $table: $db.adults,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -15949,7 +15901,7 @@ class $$GroupsTableTableManager
             bool tripGroupsRefs,
             bool roomsRefs,
             bool observationsRefs,
-            bool specialistsRefs,
+            bool adultsRefs,
             bool scheduleTemplatesRefs,
             bool scheduleEntriesRefs,
             bool templateGroupsRefs,
@@ -16013,7 +15965,7 @@ class $$GroupsTableTableManager
                 tripGroupsRefs = false,
                 roomsRefs = false,
                 observationsRefs = false,
-                specialistsRefs = false,
+                adultsRefs = false,
                 scheduleTemplatesRefs = false,
                 scheduleEntriesRefs = false,
                 templateGroupsRefs = false,
@@ -16028,7 +15980,7 @@ class $$GroupsTableTableManager
                     if (tripGroupsRefs) db.tripGroups,
                     if (roomsRefs) db.rooms,
                     if (observationsRefs) db.observations,
-                    if (specialistsRefs) db.specialists,
+                    if (adultsRefs) db.adults,
                     if (scheduleTemplatesRefs) db.scheduleTemplates,
                     if (scheduleEntriesRefs) db.scheduleEntries,
                     if (templateGroupsRefs) db.templateGroups,
@@ -16111,21 +16063,13 @@ class $$GroupsTableTableManager
                               ),
                           typedResults: items,
                         ),
-                      if (specialistsRefs)
-                        await $_getPrefetchedData<
-                          Group,
-                          $GroupsTable,
-                          Specialist
-                        >(
+                      if (adultsRefs)
+                        await $_getPrefetchedData<Group, $GroupsTable, Adult>(
                           currentTable: table,
                           referencedTable: $$GroupsTableReferences
-                              ._specialistsRefsTable(db),
+                              ._adultsRefsTable(db),
                           managerFromTypedResult: (p0) =>
-                              $$GroupsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).specialistsRefs,
+                              $$GroupsTableReferences(db, table, p0).adultsRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.anchoredGroupId == item.id,
@@ -16283,7 +16227,7 @@ typedef $$GroupsTableProcessedTableManager =
         bool tripGroupsRefs,
         bool roomsRefs,
         bool observationsRefs,
-        bool specialistsRefs,
+        bool adultsRefs,
         bool scheduleTemplatesRefs,
         bool scheduleEntriesRefs,
         bool templateGroupsRefs,
@@ -22295,8 +22239,8 @@ typedef $$ObservationDomainTagsTableProcessedTableManager =
       ObservationDomainTag,
       PrefetchHooks Function({bool observationId})
     >;
-typedef $$SpecialistsTableCreateCompanionBuilder =
-    SpecialistsCompanion Function({
+typedef $$AdultsTableCreateCompanionBuilder =
+    AdultsCompanion Function({
       required String id,
       required String name,
       Value<String?> role,
@@ -22308,8 +22252,8 @@ typedef $$SpecialistsTableCreateCompanionBuilder =
       Value<DateTime> updatedAt,
       Value<int> rowid,
     });
-typedef $$SpecialistsTableUpdateCompanionBuilder =
-    SpecialistsCompanion Function({
+typedef $$AdultsTableUpdateCompanionBuilder =
+    AdultsCompanion Function({
       Value<String> id,
       Value<String> name,
       Value<String?> role,
@@ -22322,13 +22266,13 @@ typedef $$SpecialistsTableUpdateCompanionBuilder =
       Value<int> rowid,
     });
 
-final class $$SpecialistsTableReferences
-    extends BaseReferences<_$AppDatabase, $SpecialistsTable, Specialist> {
-  $$SpecialistsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+final class $$AdultsTableReferences
+    extends BaseReferences<_$AppDatabase, $AdultsTable, Adult> {
+  $$AdultsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
   static $GroupsTable _anchoredGroupIdTable(_$AppDatabase db) =>
       db.groups.createAlias(
-        $_aliasNameGenerator(db.specialists.anchoredGroupId, db.groups.id),
+        $_aliasNameGenerator(db.adults.anchoredGroupId, db.groups.id),
       );
 
   $$GroupsTableProcessedTableManager? get anchoredGroupId {
@@ -22346,27 +22290,26 @@ final class $$SpecialistsTableReferences
   }
 
   static MultiTypedResultKey<
-    $SpecialistAvailabilityTable,
-    List<SpecialistAvailabilityData>
+    $AdultAvailabilityTable,
+    List<AdultAvailabilityData>
   >
-  _specialistAvailabilityRefsTable(_$AppDatabase db) =>
+  _adultAvailabilityRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
-        db.specialistAvailability,
+        db.adultAvailability,
         aliasName: $_aliasNameGenerator(
-          db.specialists.id,
-          db.specialistAvailability.specialistId,
+          db.adults.id,
+          db.adultAvailability.adultId,
         ),
       );
 
-  $$SpecialistAvailabilityTableProcessedTableManager
-  get specialistAvailabilityRefs {
-    final manager = $$SpecialistAvailabilityTableTableManager(
+  $$AdultAvailabilityTableProcessedTableManager get adultAvailabilityRefs {
+    final manager = $$AdultAvailabilityTableTableManager(
       $_db,
-      $_db.specialistAvailability,
-    ).filter((f) => f.specialistId.id.sqlEquals($_itemColumn<String>('id')!));
+      $_db.adultAvailability,
+    ).filter((f) => f.adultId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(
-      _specialistAvailabilityRefsTable($_db),
+      _adultAvailabilityRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -22376,17 +22319,14 @@ final class $$SpecialistsTableReferences
   static MultiTypedResultKey<$ActivityLibraryTable, List<ActivityLibraryData>>
   _activityLibraryRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.activityLibrary,
-    aliasName: $_aliasNameGenerator(
-      db.specialists.id,
-      db.activityLibrary.specialistId,
-    ),
+    aliasName: $_aliasNameGenerator(db.adults.id, db.activityLibrary.adultId),
   );
 
   $$ActivityLibraryTableProcessedTableManager get activityLibraryRefs {
     final manager = $$ActivityLibraryTableTableManager(
       $_db,
       $_db.activityLibrary,
-    ).filter((f) => f.specialistId.id.sqlEquals($_itemColumn<String>('id')!));
+    ).filter((f) => f.adultId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(
       _activityLibraryRefsTable($_db),
@@ -22401,8 +22341,8 @@ final class $$SpecialistsTableReferences
       MultiTypedResultKey.fromTable(
         db.scheduleTemplates,
         aliasName: $_aliasNameGenerator(
-          db.specialists.id,
-          db.scheduleTemplates.specialistId,
+          db.adults.id,
+          db.scheduleTemplates.adultId,
         ),
       );
 
@@ -22410,7 +22350,7 @@ final class $$SpecialistsTableReferences
     final manager = $$ScheduleTemplatesTableTableManager(
       $_db,
       $_db.scheduleTemplates,
-    ).filter((f) => f.specialistId.id.sqlEquals($_itemColumn<String>('id')!));
+    ).filter((f) => f.adultId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(
       _scheduleTemplatesRefsTable($_db),
@@ -22423,17 +22363,14 @@ final class $$SpecialistsTableReferences
   static MultiTypedResultKey<$ScheduleEntriesTable, List<ScheduleEntry>>
   _scheduleEntriesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.scheduleEntries,
-    aliasName: $_aliasNameGenerator(
-      db.specialists.id,
-      db.scheduleEntries.specialistId,
-    ),
+    aliasName: $_aliasNameGenerator(db.adults.id, db.scheduleEntries.adultId),
   );
 
   $$ScheduleEntriesTableProcessedTableManager get scheduleEntriesRefs {
     final manager = $$ScheduleEntriesTableTableManager(
       $_db,
       $_db.scheduleEntries,
-    ).filter((f) => f.specialistId.id.sqlEquals($_itemColumn<String>('id')!));
+    ).filter((f) => f.adultId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(
       _scheduleEntriesRefsTable($_db),
@@ -22446,17 +22383,14 @@ final class $$SpecialistsTableReferences
   static MultiTypedResultKey<$AdultDayBlocksTable, List<AdultDayBlock>>
   _adultDayBlocksRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.adultDayBlocks,
-    aliasName: $_aliasNameGenerator(
-      db.specialists.id,
-      db.adultDayBlocks.specialistId,
-    ),
+    aliasName: $_aliasNameGenerator(db.adults.id, db.adultDayBlocks.adultId),
   );
 
   $$AdultDayBlocksTableProcessedTableManager get adultDayBlocksRefs {
     final manager = $$AdultDayBlocksTableTableManager(
       $_db,
       $_db.adultDayBlocks,
-    ).filter((f) => f.specialistId.id.sqlEquals($_itemColumn<String>('id')!));
+    ).filter((f) => f.adultId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_adultDayBlocksRefsTable($_db));
     return ProcessedTableManager(
@@ -22465,9 +22399,9 @@ final class $$SpecialistsTableReferences
   }
 }
 
-class $$SpecialistsTableFilterComposer
-    extends Composer<_$AppDatabase, $SpecialistsTable> {
-  $$SpecialistsTableFilterComposer({
+class $$AdultsTableFilterComposer
+    extends Composer<_$AppDatabase, $AdultsTable> {
+  $$AdultsTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -22537,29 +22471,28 @@ class $$SpecialistsTableFilterComposer
     return composer;
   }
 
-  Expression<bool> specialistAvailabilityRefs(
-    Expression<bool> Function($$SpecialistAvailabilityTableFilterComposer f) f,
+  Expression<bool> adultAvailabilityRefs(
+    Expression<bool> Function($$AdultAvailabilityTableFilterComposer f) f,
   ) {
-    final $$SpecialistAvailabilityTableFilterComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.specialistAvailability,
-          getReferencedColumn: (t) => t.specialistId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
+    final $$AdultAvailabilityTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.adultAvailability,
+      getReferencedColumn: (t) => t.adultId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AdultAvailabilityTableFilterComposer(
+            $db: $db,
+            $table: $db.adultAvailability,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
                 $removeJoinBuilderFromRootComposer,
-              }) => $$SpecialistAvailabilityTableFilterComposer(
-                $db: $db,
-                $table: $db.specialistAvailability,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
+          ),
+    );
     return f(composer);
   }
 
@@ -22570,7 +22503,7 @@ class $$SpecialistsTableFilterComposer
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.activityLibrary,
-      getReferencedColumn: (t) => t.specialistId,
+      getReferencedColumn: (t) => t.adultId,
       builder:
           (
             joinBuilder, {
@@ -22595,7 +22528,7 @@ class $$SpecialistsTableFilterComposer
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.scheduleTemplates,
-      getReferencedColumn: (t) => t.specialistId,
+      getReferencedColumn: (t) => t.adultId,
       builder:
           (
             joinBuilder, {
@@ -22620,7 +22553,7 @@ class $$SpecialistsTableFilterComposer
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.scheduleEntries,
-      getReferencedColumn: (t) => t.specialistId,
+      getReferencedColumn: (t) => t.adultId,
       builder:
           (
             joinBuilder, {
@@ -22645,7 +22578,7 @@ class $$SpecialistsTableFilterComposer
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.adultDayBlocks,
-      getReferencedColumn: (t) => t.specialistId,
+      getReferencedColumn: (t) => t.adultId,
       builder:
           (
             joinBuilder, {
@@ -22664,9 +22597,9 @@ class $$SpecialistsTableFilterComposer
   }
 }
 
-class $$SpecialistsTableOrderingComposer
-    extends Composer<_$AppDatabase, $SpecialistsTable> {
-  $$SpecialistsTableOrderingComposer({
+class $$AdultsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AdultsTable> {
+  $$AdultsTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -22737,9 +22670,9 @@ class $$SpecialistsTableOrderingComposer
   }
 }
 
-class $$SpecialistsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $SpecialistsTable> {
-  $$SpecialistsTableAnnotationComposer({
+class $$AdultsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AdultsTable> {
+  $$AdultsTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -22795,23 +22728,23 @@ class $$SpecialistsTableAnnotationComposer
     return composer;
   }
 
-  Expression<T> specialistAvailabilityRefs<T extends Object>(
-    Expression<T> Function($$SpecialistAvailabilityTableAnnotationComposer a) f,
+  Expression<T> adultAvailabilityRefs<T extends Object>(
+    Expression<T> Function($$AdultAvailabilityTableAnnotationComposer a) f,
   ) {
-    final $$SpecialistAvailabilityTableAnnotationComposer composer =
+    final $$AdultAvailabilityTableAnnotationComposer composer =
         $composerBuilder(
           composer: this,
           getCurrentColumn: (t) => t.id,
-          referencedTable: $db.specialistAvailability,
-          getReferencedColumn: (t) => t.specialistId,
+          referencedTable: $db.adultAvailability,
+          getReferencedColumn: (t) => t.adultId,
           builder:
               (
                 joinBuilder, {
                 $addJoinBuilderToRootComposer,
                 $removeJoinBuilderFromRootComposer,
-              }) => $$SpecialistAvailabilityTableAnnotationComposer(
+              }) => $$AdultAvailabilityTableAnnotationComposer(
                 $db: $db,
-                $table: $db.specialistAvailability,
+                $table: $db.adultAvailability,
                 $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
                 joinBuilder: joinBuilder,
                 $removeJoinBuilderFromRootComposer:
@@ -22828,7 +22761,7 @@ class $$SpecialistsTableAnnotationComposer
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.activityLibrary,
-      getReferencedColumn: (t) => t.specialistId,
+      getReferencedColumn: (t) => t.adultId,
       builder:
           (
             joinBuilder, {
@@ -22854,7 +22787,7 @@ class $$SpecialistsTableAnnotationComposer
           composer: this,
           getCurrentColumn: (t) => t.id,
           referencedTable: $db.scheduleTemplates,
-          getReferencedColumn: (t) => t.specialistId,
+          getReferencedColumn: (t) => t.adultId,
           builder:
               (
                 joinBuilder, {
@@ -22879,7 +22812,7 @@ class $$SpecialistsTableAnnotationComposer
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.scheduleEntries,
-      getReferencedColumn: (t) => t.specialistId,
+      getReferencedColumn: (t) => t.adultId,
       builder:
           (
             joinBuilder, {
@@ -22904,7 +22837,7 @@ class $$SpecialistsTableAnnotationComposer
       composer: this,
       getCurrentColumn: (t) => t.id,
       referencedTable: $db.adultDayBlocks,
-      getReferencedColumn: (t) => t.specialistId,
+      getReferencedColumn: (t) => t.adultId,
       builder:
           (
             joinBuilder, {
@@ -22923,39 +22856,39 @@ class $$SpecialistsTableAnnotationComposer
   }
 }
 
-class $$SpecialistsTableTableManager
+class $$AdultsTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $SpecialistsTable,
-          Specialist,
-          $$SpecialistsTableFilterComposer,
-          $$SpecialistsTableOrderingComposer,
-          $$SpecialistsTableAnnotationComposer,
-          $$SpecialistsTableCreateCompanionBuilder,
-          $$SpecialistsTableUpdateCompanionBuilder,
-          (Specialist, $$SpecialistsTableReferences),
-          Specialist,
+          $AdultsTable,
+          Adult,
+          $$AdultsTableFilterComposer,
+          $$AdultsTableOrderingComposer,
+          $$AdultsTableAnnotationComposer,
+          $$AdultsTableCreateCompanionBuilder,
+          $$AdultsTableUpdateCompanionBuilder,
+          (Adult, $$AdultsTableReferences),
+          Adult,
           PrefetchHooks Function({
             bool anchoredGroupId,
-            bool specialistAvailabilityRefs,
+            bool adultAvailabilityRefs,
             bool activityLibraryRefs,
             bool scheduleTemplatesRefs,
             bool scheduleEntriesRefs,
             bool adultDayBlocksRefs,
           })
         > {
-  $$SpecialistsTableTableManager(_$AppDatabase db, $SpecialistsTable table)
+  $$AdultsTableTableManager(_$AppDatabase db, $AdultsTable table)
     : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$SpecialistsTableFilterComposer($db: db, $table: table),
+              $$AdultsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$SpecialistsTableOrderingComposer($db: db, $table: table),
+              $$AdultsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$SpecialistsTableAnnotationComposer($db: db, $table: table),
+              $$AdultsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
@@ -22968,7 +22901,7 @@ class $$SpecialistsTableTableManager
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => SpecialistsCompanion(
+              }) => AdultsCompanion(
                 id: id,
                 name: name,
                 role: role,
@@ -22992,7 +22925,7 @@ class $$SpecialistsTableTableManager
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => SpecialistsCompanion.insert(
+              }) => AdultsCompanion.insert(
                 id: id,
                 name: name,
                 role: role,
@@ -23006,16 +22939,14 @@ class $$SpecialistsTableTableManager
               ),
           withReferenceMapper: (p0) => p0
               .map(
-                (e) => (
-                  e.readTable(table),
-                  $$SpecialistsTableReferences(db, table, e),
-                ),
+                (e) =>
+                    (e.readTable(table), $$AdultsTableReferences(db, table, e)),
               )
               .toList(),
           prefetchHooksCallback:
               ({
                 anchoredGroupId = false,
-                specialistAvailabilityRefs = false,
+                adultAvailabilityRefs = false,
                 activityLibraryRefs = false,
                 scheduleTemplatesRefs = false,
                 scheduleEntriesRefs = false,
@@ -23024,7 +22955,7 @@ class $$SpecialistsTableTableManager
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
-                    if (specialistAvailabilityRefs) db.specialistAvailability,
+                    if (adultAvailabilityRefs) db.adultAvailability,
                     if (activityLibraryRefs) db.activityLibrary,
                     if (scheduleTemplatesRefs) db.scheduleTemplates,
                     if (scheduleEntriesRefs) db.scheduleEntries,
@@ -23051,13 +22982,11 @@ class $$SpecialistsTableTableManager
                               state.withJoin(
                                     currentTable: table,
                                     currentColumn: table.anchoredGroupId,
-                                    referencedTable:
-                                        $$SpecialistsTableReferences
-                                            ._anchoredGroupIdTable(db),
-                                    referencedColumn:
-                                        $$SpecialistsTableReferences
-                                            ._anchoredGroupIdTable(db)
-                                            .id,
+                                    referencedTable: $$AdultsTableReferences
+                                        ._anchoredGroupIdTable(db),
+                                    referencedColumn: $$AdultsTableReferences
+                                        ._anchoredGroupIdTable(db)
+                                        .id,
                                   )
                                   as T;
                         }
@@ -23066,108 +22995,108 @@ class $$SpecialistsTableTableManager
                       },
                   getPrefetchedDataCallback: (items) async {
                     return [
-                      if (specialistAvailabilityRefs)
+                      if (adultAvailabilityRefs)
                         await $_getPrefetchedData<
-                          Specialist,
-                          $SpecialistsTable,
-                          SpecialistAvailabilityData
+                          Adult,
+                          $AdultsTable,
+                          AdultAvailabilityData
                         >(
                           currentTable: table,
-                          referencedTable: $$SpecialistsTableReferences
-                              ._specialistAvailabilityRefsTable(db),
+                          referencedTable: $$AdultsTableReferences
+                              ._adultAvailabilityRefsTable(db),
                           managerFromTypedResult: (p0) =>
-                              $$SpecialistsTableReferences(
+                              $$AdultsTableReferences(
                                 db,
                                 table,
                                 p0,
-                              ).specialistAvailabilityRefs,
+                              ).adultAvailabilityRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.specialistId == item.id,
+                                (e) => e.adultId == item.id,
                               ),
                           typedResults: items,
                         ),
                       if (activityLibraryRefs)
                         await $_getPrefetchedData<
-                          Specialist,
-                          $SpecialistsTable,
+                          Adult,
+                          $AdultsTable,
                           ActivityLibraryData
                         >(
                           currentTable: table,
-                          referencedTable: $$SpecialistsTableReferences
+                          referencedTable: $$AdultsTableReferences
                               ._activityLibraryRefsTable(db),
                           managerFromTypedResult: (p0) =>
-                              $$SpecialistsTableReferences(
+                              $$AdultsTableReferences(
                                 db,
                                 table,
                                 p0,
                               ).activityLibraryRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.specialistId == item.id,
+                                (e) => e.adultId == item.id,
                               ),
                           typedResults: items,
                         ),
                       if (scheduleTemplatesRefs)
                         await $_getPrefetchedData<
-                          Specialist,
-                          $SpecialistsTable,
+                          Adult,
+                          $AdultsTable,
                           ScheduleTemplate
                         >(
                           currentTable: table,
-                          referencedTable: $$SpecialistsTableReferences
+                          referencedTable: $$AdultsTableReferences
                               ._scheduleTemplatesRefsTable(db),
                           managerFromTypedResult: (p0) =>
-                              $$SpecialistsTableReferences(
+                              $$AdultsTableReferences(
                                 db,
                                 table,
                                 p0,
                               ).scheduleTemplatesRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.specialistId == item.id,
+                                (e) => e.adultId == item.id,
                               ),
                           typedResults: items,
                         ),
                       if (scheduleEntriesRefs)
                         await $_getPrefetchedData<
-                          Specialist,
-                          $SpecialistsTable,
+                          Adult,
+                          $AdultsTable,
                           ScheduleEntry
                         >(
                           currentTable: table,
-                          referencedTable: $$SpecialistsTableReferences
+                          referencedTable: $$AdultsTableReferences
                               ._scheduleEntriesRefsTable(db),
                           managerFromTypedResult: (p0) =>
-                              $$SpecialistsTableReferences(
+                              $$AdultsTableReferences(
                                 db,
                                 table,
                                 p0,
                               ).scheduleEntriesRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.specialistId == item.id,
+                                (e) => e.adultId == item.id,
                               ),
                           typedResults: items,
                         ),
                       if (adultDayBlocksRefs)
                         await $_getPrefetchedData<
-                          Specialist,
-                          $SpecialistsTable,
+                          Adult,
+                          $AdultsTable,
                           AdultDayBlock
                         >(
                           currentTable: table,
-                          referencedTable: $$SpecialistsTableReferences
+                          referencedTable: $$AdultsTableReferences
                               ._adultDayBlocksRefsTable(db),
                           managerFromTypedResult: (p0) =>
-                              $$SpecialistsTableReferences(
+                              $$AdultsTableReferences(
                                 db,
                                 table,
                                 p0,
                               ).adultDayBlocksRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
-                                (e) => e.specialistId == item.id,
+                                (e) => e.adultId == item.id,
                               ),
                           typedResults: items,
                         ),
@@ -23179,31 +23108,31 @@ class $$SpecialistsTableTableManager
       );
 }
 
-typedef $$SpecialistsTableProcessedTableManager =
+typedef $$AdultsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $SpecialistsTable,
-      Specialist,
-      $$SpecialistsTableFilterComposer,
-      $$SpecialistsTableOrderingComposer,
-      $$SpecialistsTableAnnotationComposer,
-      $$SpecialistsTableCreateCompanionBuilder,
-      $$SpecialistsTableUpdateCompanionBuilder,
-      (Specialist, $$SpecialistsTableReferences),
-      Specialist,
+      $AdultsTable,
+      Adult,
+      $$AdultsTableFilterComposer,
+      $$AdultsTableOrderingComposer,
+      $$AdultsTableAnnotationComposer,
+      $$AdultsTableCreateCompanionBuilder,
+      $$AdultsTableUpdateCompanionBuilder,
+      (Adult, $$AdultsTableReferences),
+      Adult,
       PrefetchHooks Function({
         bool anchoredGroupId,
-        bool specialistAvailabilityRefs,
+        bool adultAvailabilityRefs,
         bool activityLibraryRefs,
         bool scheduleTemplatesRefs,
         bool scheduleEntriesRefs,
         bool adultDayBlocksRefs,
       })
     >;
-typedef $$SpecialistAvailabilityTableCreateCompanionBuilder =
-    SpecialistAvailabilityCompanion Function({
+typedef $$AdultAvailabilityTableCreateCompanionBuilder =
+    AdultAvailabilityCompanion Function({
       required String id,
-      required String specialistId,
+      required String adultId,
       required int dayOfWeek,
       required String startTime,
       required String endTime,
@@ -23219,10 +23148,10 @@ typedef $$SpecialistAvailabilityTableCreateCompanionBuilder =
       Value<DateTime> updatedAt,
       Value<int> rowid,
     });
-typedef $$SpecialistAvailabilityTableUpdateCompanionBuilder =
-    SpecialistAvailabilityCompanion Function({
+typedef $$AdultAvailabilityTableUpdateCompanionBuilder =
+    AdultAvailabilityCompanion Function({
       Value<String> id,
-      Value<String> specialistId,
+      Value<String> adultId,
       Value<int> dayOfWeek,
       Value<String> startTime,
       Value<String> endTime,
@@ -23239,35 +23168,31 @@ typedef $$SpecialistAvailabilityTableUpdateCompanionBuilder =
       Value<int> rowid,
     });
 
-final class $$SpecialistAvailabilityTableReferences
+final class $$AdultAvailabilityTableReferences
     extends
         BaseReferences<
           _$AppDatabase,
-          $SpecialistAvailabilityTable,
-          SpecialistAvailabilityData
+          $AdultAvailabilityTable,
+          AdultAvailabilityData
         > {
-  $$SpecialistAvailabilityTableReferences(
+  $$AdultAvailabilityTableReferences(
     super.$_db,
     super.$_table,
     super.$_typedResult,
   );
 
-  static $SpecialistsTable _specialistIdTable(_$AppDatabase db) =>
-      db.specialists.createAlias(
-        $_aliasNameGenerator(
-          db.specialistAvailability.specialistId,
-          db.specialists.id,
-        ),
-      );
+  static $AdultsTable _adultIdTable(_$AppDatabase db) => db.adults.createAlias(
+    $_aliasNameGenerator(db.adultAvailability.adultId, db.adults.id),
+  );
 
-  $$SpecialistsTableProcessedTableManager get specialistId {
-    final $_column = $_itemColumn<String>('specialist_id')!;
+  $$AdultsTableProcessedTableManager get adultId {
+    final $_column = $_itemColumn<String>('adult_id')!;
 
-    final manager = $$SpecialistsTableTableManager(
+    final manager = $$AdultsTableTableManager(
       $_db,
-      $_db.specialists,
+      $_db.adults,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_specialistIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_adultIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -23275,9 +23200,9 @@ final class $$SpecialistAvailabilityTableReferences
   }
 }
 
-class $$SpecialistAvailabilityTableFilterComposer
-    extends Composer<_$AppDatabase, $SpecialistAvailabilityTable> {
-  $$SpecialistAvailabilityTableFilterComposer({
+class $$AdultAvailabilityTableFilterComposer
+    extends Composer<_$AppDatabase, $AdultAvailabilityTable> {
+  $$AdultAvailabilityTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -23354,20 +23279,20 @@ class $$SpecialistAvailabilityTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  $$SpecialistsTableFilterComposer get specialistId {
-    final $$SpecialistsTableFilterComposer composer = $composerBuilder(
+  $$AdultsTableFilterComposer get adultId {
+    final $$AdultsTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.specialistId,
-      referencedTable: $db.specialists,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$SpecialistsTableFilterComposer(
+          }) => $$AdultsTableFilterComposer(
             $db: $db,
-            $table: $db.specialists,
+            $table: $db.adults,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -23378,9 +23303,9 @@ class $$SpecialistAvailabilityTableFilterComposer
   }
 }
 
-class $$SpecialistAvailabilityTableOrderingComposer
-    extends Composer<_$AppDatabase, $SpecialistAvailabilityTable> {
-  $$SpecialistAvailabilityTableOrderingComposer({
+class $$AdultAvailabilityTableOrderingComposer
+    extends Composer<_$AppDatabase, $AdultAvailabilityTable> {
+  $$AdultAvailabilityTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -23457,20 +23382,20 @@ class $$SpecialistAvailabilityTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  $$SpecialistsTableOrderingComposer get specialistId {
-    final $$SpecialistsTableOrderingComposer composer = $composerBuilder(
+  $$AdultsTableOrderingComposer get adultId {
+    final $$AdultsTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.specialistId,
-      referencedTable: $db.specialists,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$SpecialistsTableOrderingComposer(
+          }) => $$AdultsTableOrderingComposer(
             $db: $db,
-            $table: $db.specialists,
+            $table: $db.adults,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -23481,9 +23406,9 @@ class $$SpecialistAvailabilityTableOrderingComposer
   }
 }
 
-class $$SpecialistAvailabilityTableAnnotationComposer
-    extends Composer<_$AppDatabase, $SpecialistAvailabilityTable> {
-  $$SpecialistAvailabilityTableAnnotationComposer({
+class $$AdultAvailabilityTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AdultAvailabilityTable> {
+  $$AdultAvailabilityTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -23538,20 +23463,20 @@ class $$SpecialistAvailabilityTableAnnotationComposer
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
-  $$SpecialistsTableAnnotationComposer get specialistId {
-    final $$SpecialistsTableAnnotationComposer composer = $composerBuilder(
+  $$AdultsTableAnnotationComposer get adultId {
+    final $$AdultsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.specialistId,
-      referencedTable: $db.specialists,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$SpecialistsTableAnnotationComposer(
+          }) => $$AdultsTableAnnotationComposer(
             $db: $db,
-            $table: $db.specialists,
+            $table: $db.adults,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -23562,47 +23487,41 @@ class $$SpecialistAvailabilityTableAnnotationComposer
   }
 }
 
-class $$SpecialistAvailabilityTableTableManager
+class $$AdultAvailabilityTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $SpecialistAvailabilityTable,
-          SpecialistAvailabilityData,
-          $$SpecialistAvailabilityTableFilterComposer,
-          $$SpecialistAvailabilityTableOrderingComposer,
-          $$SpecialistAvailabilityTableAnnotationComposer,
-          $$SpecialistAvailabilityTableCreateCompanionBuilder,
-          $$SpecialistAvailabilityTableUpdateCompanionBuilder,
-          (SpecialistAvailabilityData, $$SpecialistAvailabilityTableReferences),
-          SpecialistAvailabilityData,
-          PrefetchHooks Function({bool specialistId})
+          $AdultAvailabilityTable,
+          AdultAvailabilityData,
+          $$AdultAvailabilityTableFilterComposer,
+          $$AdultAvailabilityTableOrderingComposer,
+          $$AdultAvailabilityTableAnnotationComposer,
+          $$AdultAvailabilityTableCreateCompanionBuilder,
+          $$AdultAvailabilityTableUpdateCompanionBuilder,
+          (AdultAvailabilityData, $$AdultAvailabilityTableReferences),
+          AdultAvailabilityData,
+          PrefetchHooks Function({bool adultId})
         > {
-  $$SpecialistAvailabilityTableTableManager(
+  $$AdultAvailabilityTableTableManager(
     _$AppDatabase db,
-    $SpecialistAvailabilityTable table,
+    $AdultAvailabilityTable table,
   ) : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$SpecialistAvailabilityTableFilterComposer(
-                $db: db,
-                $table: table,
-              ),
+              $$AdultAvailabilityTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$SpecialistAvailabilityTableOrderingComposer(
-                $db: db,
-                $table: table,
-              ),
+              $$AdultAvailabilityTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$SpecialistAvailabilityTableAnnotationComposer(
+              $$AdultAvailabilityTableAnnotationComposer(
                 $db: db,
                 $table: table,
               ),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
-                Value<String> specialistId = const Value.absent(),
+                Value<String> adultId = const Value.absent(),
                 Value<int> dayOfWeek = const Value.absent(),
                 Value<String> startTime = const Value.absent(),
                 Value<String> endTime = const Value.absent(),
@@ -23617,9 +23536,9 @@ class $$SpecialistAvailabilityTableTableManager
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => SpecialistAvailabilityCompanion(
+              }) => AdultAvailabilityCompanion(
                 id: id,
-                specialistId: specialistId,
+                adultId: adultId,
                 dayOfWeek: dayOfWeek,
                 startTime: startTime,
                 endTime: endTime,
@@ -23638,7 +23557,7 @@ class $$SpecialistAvailabilityTableTableManager
           createCompanionCallback:
               ({
                 required String id,
-                required String specialistId,
+                required String adultId,
                 required int dayOfWeek,
                 required String startTime,
                 required String endTime,
@@ -23653,9 +23572,9 @@ class $$SpecialistAvailabilityTableTableManager
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => SpecialistAvailabilityCompanion.insert(
+              }) => AdultAvailabilityCompanion.insert(
                 id: id,
-                specialistId: specialistId,
+                adultId: adultId,
                 dayOfWeek: dayOfWeek,
                 startTime: startTime,
                 endTime: endTime,
@@ -23675,11 +23594,11 @@ class $$SpecialistAvailabilityTableTableManager
               .map(
                 (e) => (
                   e.readTable(table),
-                  $$SpecialistAvailabilityTableReferences(db, table, e),
+                  $$AdultAvailabilityTableReferences(db, table, e),
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({specialistId = false}) {
+          prefetchHooksCallback: ({adultId = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [],
@@ -23699,17 +23618,17 @@ class $$SpecialistAvailabilityTableTableManager
                       dynamic
                     >
                   >(state) {
-                    if (specialistId) {
+                    if (adultId) {
                       state =
                           state.withJoin(
                                 currentTable: table,
-                                currentColumn: table.specialistId,
+                                currentColumn: table.adultId,
                                 referencedTable:
-                                    $$SpecialistAvailabilityTableReferences
-                                        ._specialistIdTable(db),
+                                    $$AdultAvailabilityTableReferences
+                                        ._adultIdTable(db),
                                 referencedColumn:
-                                    $$SpecialistAvailabilityTableReferences
-                                        ._specialistIdTable(db)
+                                    $$AdultAvailabilityTableReferences
+                                        ._adultIdTable(db)
                                         .id,
                               )
                               as T;
@@ -23726,26 +23645,26 @@ class $$SpecialistAvailabilityTableTableManager
       );
 }
 
-typedef $$SpecialistAvailabilityTableProcessedTableManager =
+typedef $$AdultAvailabilityTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $SpecialistAvailabilityTable,
-      SpecialistAvailabilityData,
-      $$SpecialistAvailabilityTableFilterComposer,
-      $$SpecialistAvailabilityTableOrderingComposer,
-      $$SpecialistAvailabilityTableAnnotationComposer,
-      $$SpecialistAvailabilityTableCreateCompanionBuilder,
-      $$SpecialistAvailabilityTableUpdateCompanionBuilder,
-      (SpecialistAvailabilityData, $$SpecialistAvailabilityTableReferences),
-      SpecialistAvailabilityData,
-      PrefetchHooks Function({bool specialistId})
+      $AdultAvailabilityTable,
+      AdultAvailabilityData,
+      $$AdultAvailabilityTableFilterComposer,
+      $$AdultAvailabilityTableOrderingComposer,
+      $$AdultAvailabilityTableAnnotationComposer,
+      $$AdultAvailabilityTableCreateCompanionBuilder,
+      $$AdultAvailabilityTableUpdateCompanionBuilder,
+      (AdultAvailabilityData, $$AdultAvailabilityTableReferences),
+      AdultAvailabilityData,
+      PrefetchHooks Function({bool adultId})
     >;
 typedef $$ActivityLibraryTableCreateCompanionBuilder =
     ActivityLibraryCompanion Function({
       required String id,
       required String title,
       Value<int?> defaultDurationMin,
-      Value<String?> specialistId,
+      Value<String?> adultId,
       Value<String?> location,
       Value<String?> notes,
       Value<int?> audienceMinAge,
@@ -23766,7 +23685,7 @@ typedef $$ActivityLibraryTableUpdateCompanionBuilder =
       Value<String> id,
       Value<String> title,
       Value<int?> defaultDurationMin,
-      Value<String?> specialistId,
+      Value<String?> adultId,
       Value<String?> location,
       Value<String?> notes,
       Value<int?> audienceMinAge,
@@ -23796,22 +23715,18 @@ final class $$ActivityLibraryTableReferences
     super.$_typedResult,
   );
 
-  static $SpecialistsTable _specialistIdTable(_$AppDatabase db) =>
-      db.specialists.createAlias(
-        $_aliasNameGenerator(
-          db.activityLibrary.specialistId,
-          db.specialists.id,
-        ),
-      );
+  static $AdultsTable _adultIdTable(_$AppDatabase db) => db.adults.createAlias(
+    $_aliasNameGenerator(db.activityLibrary.adultId, db.adults.id),
+  );
 
-  $$SpecialistsTableProcessedTableManager? get specialistId {
-    final $_column = $_itemColumn<String>('specialist_id');
+  $$AdultsTableProcessedTableManager? get adultId {
+    final $_column = $_itemColumn<String>('adult_id');
     if ($_column == null) return null;
-    final manager = $$SpecialistsTableTableManager(
+    final manager = $$AdultsTableTableManager(
       $_db,
-      $_db.specialists,
+      $_db.adults,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_specialistIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_adultIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -23960,20 +23875,20 @@ class $$ActivityLibraryTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  $$SpecialistsTableFilterComposer get specialistId {
-    final $$SpecialistsTableFilterComposer composer = $composerBuilder(
+  $$AdultsTableFilterComposer get adultId {
+    final $$AdultsTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.specialistId,
-      referencedTable: $db.specialists,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$SpecialistsTableFilterComposer(
+          }) => $$AdultsTableFilterComposer(
             $db: $db,
-            $table: $db.specialists,
+            $table: $db.adults,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -24123,20 +24038,20 @@ class $$ActivityLibraryTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  $$SpecialistsTableOrderingComposer get specialistId {
-    final $$SpecialistsTableOrderingComposer composer = $composerBuilder(
+  $$AdultsTableOrderingComposer get adultId {
+    final $$AdultsTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.specialistId,
-      referencedTable: $db.specialists,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$SpecialistsTableOrderingComposer(
+          }) => $$AdultsTableOrderingComposer(
             $db: $db,
-            $table: $db.specialists,
+            $table: $db.adults,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -24216,20 +24131,20 @@ class $$ActivityLibraryTableAnnotationComposer
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
-  $$SpecialistsTableAnnotationComposer get specialistId {
-    final $$SpecialistsTableAnnotationComposer composer = $composerBuilder(
+  $$AdultsTableAnnotationComposer get adultId {
+    final $$AdultsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.specialistId,
-      referencedTable: $db.specialists,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$SpecialistsTableAnnotationComposer(
+          }) => $$AdultsTableAnnotationComposer(
             $db: $db,
-            $table: $db.specialists,
+            $table: $db.adults,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -24305,7 +24220,7 @@ class $$ActivityLibraryTableTableManager
           (ActivityLibraryData, $$ActivityLibraryTableReferences),
           ActivityLibraryData,
           PrefetchHooks Function({
-            bool specialistId,
+            bool adultId,
             bool scheduleTemplatesRefs,
             bool scheduleEntriesRefs,
           })
@@ -24328,7 +24243,7 @@ class $$ActivityLibraryTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String> title = const Value.absent(),
                 Value<int?> defaultDurationMin = const Value.absent(),
-                Value<String?> specialistId = const Value.absent(),
+                Value<String?> adultId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<int?> audienceMinAge = const Value.absent(),
@@ -24347,7 +24262,7 @@ class $$ActivityLibraryTableTableManager
                 id: id,
                 title: title,
                 defaultDurationMin: defaultDurationMin,
-                specialistId: specialistId,
+                adultId: adultId,
                 location: location,
                 notes: notes,
                 audienceMinAge: audienceMinAge,
@@ -24368,7 +24283,7 @@ class $$ActivityLibraryTableTableManager
                 required String id,
                 required String title,
                 Value<int?> defaultDurationMin = const Value.absent(),
-                Value<String?> specialistId = const Value.absent(),
+                Value<String?> adultId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<int?> audienceMinAge = const Value.absent(),
@@ -24387,7 +24302,7 @@ class $$ActivityLibraryTableTableManager
                 id: id,
                 title: title,
                 defaultDurationMin: defaultDurationMin,
-                specialistId: specialistId,
+                adultId: adultId,
                 location: location,
                 notes: notes,
                 audienceMinAge: audienceMinAge,
@@ -24413,7 +24328,7 @@ class $$ActivityLibraryTableTableManager
               .toList(),
           prefetchHooksCallback:
               ({
-                specialistId = false,
+                adultId = false,
                 scheduleTemplatesRefs = false,
                 scheduleEntriesRefs = false,
               }) {
@@ -24439,17 +24354,17 @@ class $$ActivityLibraryTableTableManager
                           dynamic
                         >
                       >(state) {
-                        if (specialistId) {
+                        if (adultId) {
                           state =
                               state.withJoin(
                                     currentTable: table,
-                                    currentColumn: table.specialistId,
+                                    currentColumn: table.adultId,
                                     referencedTable:
                                         $$ActivityLibraryTableReferences
-                                            ._specialistIdTable(db),
+                                            ._adultIdTable(db),
                                     referencedColumn:
                                         $$ActivityLibraryTableReferences
-                                            ._specialistIdTable(db)
+                                            ._adultIdTable(db)
                                             .id,
                                   )
                                   as T;
@@ -24522,7 +24437,7 @@ typedef $$ActivityLibraryTableProcessedTableManager =
       (ActivityLibraryData, $$ActivityLibraryTableReferences),
       ActivityLibraryData,
       PrefetchHooks Function({
-        bool specialistId,
+        bool adultId,
         bool scheduleTemplatesRefs,
         bool scheduleEntriesRefs,
       })
@@ -24538,8 +24453,8 @@ typedef $$ScheduleTemplatesTableCreateCompanionBuilder =
       Value<String?> seriesId,
       Value<String?> groupId,
       Value<bool> allGroups,
-      Value<String?> specialistName,
-      Value<String?> specialistId,
+      Value<String?> adultName,
+      Value<String?> adultId,
       Value<String?> location,
       Value<String?> notes,
       Value<DateTime?> startDate,
@@ -24561,8 +24476,8 @@ typedef $$ScheduleTemplatesTableUpdateCompanionBuilder =
       Value<String?> seriesId,
       Value<String?> groupId,
       Value<bool> allGroups,
-      Value<String?> specialistName,
-      Value<String?> specialistId,
+      Value<String?> adultName,
+      Value<String?> adultId,
       Value<String?> location,
       Value<String?> notes,
       Value<DateTime?> startDate,
@@ -24605,22 +24520,18 @@ final class $$ScheduleTemplatesTableReferences
     );
   }
 
-  static $SpecialistsTable _specialistIdTable(_$AppDatabase db) =>
-      db.specialists.createAlias(
-        $_aliasNameGenerator(
-          db.scheduleTemplates.specialistId,
-          db.specialists.id,
-        ),
-      );
+  static $AdultsTable _adultIdTable(_$AppDatabase db) => db.adults.createAlias(
+    $_aliasNameGenerator(db.scheduleTemplates.adultId, db.adults.id),
+  );
 
-  $$SpecialistsTableProcessedTableManager? get specialistId {
-    final $_column = $_itemColumn<String>('specialist_id');
+  $$AdultsTableProcessedTableManager? get adultId {
+    final $_column = $_itemColumn<String>('adult_id');
     if ($_column == null) return null;
-    final manager = $$SpecialistsTableTableManager(
+    final manager = $$AdultsTableTableManager(
       $_db,
-      $_db.specialists,
+      $_db.adults,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_specialistIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_adultIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -24762,8 +24673,8 @@ class $$ScheduleTemplatesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get specialistName => $composableBuilder(
-    column: $table.specialistName,
+  ColumnFilters<String> get adultName => $composableBuilder(
+    column: $table.adultName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -24820,20 +24731,20 @@ class $$ScheduleTemplatesTableFilterComposer
     return composer;
   }
 
-  $$SpecialistsTableFilterComposer get specialistId {
-    final $$SpecialistsTableFilterComposer composer = $composerBuilder(
+  $$AdultsTableFilterComposer get adultId {
+    final $$AdultsTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.specialistId,
-      referencedTable: $db.specialists,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$SpecialistsTableFilterComposer(
+          }) => $$AdultsTableFilterComposer(
             $db: $db,
-            $table: $db.specialists,
+            $table: $db.adults,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -24989,8 +24900,8 @@ class $$ScheduleTemplatesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get specialistName => $composableBuilder(
-    column: $table.specialistName,
+  ColumnOrderings<String> get adultName => $composableBuilder(
+    column: $table.adultName,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -25047,20 +24958,20 @@ class $$ScheduleTemplatesTableOrderingComposer
     return composer;
   }
 
-  $$SpecialistsTableOrderingComposer get specialistId {
-    final $$SpecialistsTableOrderingComposer composer = $composerBuilder(
+  $$AdultsTableOrderingComposer get adultId {
+    final $$AdultsTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.specialistId,
-      referencedTable: $db.specialists,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$SpecialistsTableOrderingComposer(
+          }) => $$AdultsTableOrderingComposer(
             $db: $db,
-            $table: $db.specialists,
+            $table: $db.adults,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -25150,10 +25061,8 @@ class $$ScheduleTemplatesTableAnnotationComposer
   GeneratedColumn<bool> get allGroups =>
       $composableBuilder(column: $table.allGroups, builder: (column) => column);
 
-  GeneratedColumn<String> get specialistName => $composableBuilder(
-    column: $table.specialistName,
-    builder: (column) => column,
-  );
+  GeneratedColumn<String> get adultName =>
+      $composableBuilder(column: $table.adultName, builder: (column) => column);
 
   GeneratedColumn<String> get location =>
       $composableBuilder(column: $table.location, builder: (column) => column);
@@ -25196,20 +25105,20 @@ class $$ScheduleTemplatesTableAnnotationComposer
     return composer;
   }
 
-  $$SpecialistsTableAnnotationComposer get specialistId {
-    final $$SpecialistsTableAnnotationComposer composer = $composerBuilder(
+  $$AdultsTableAnnotationComposer get adultId {
+    final $$AdultsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.specialistId,
-      referencedTable: $db.specialists,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$SpecialistsTableAnnotationComposer(
+          }) => $$AdultsTableAnnotationComposer(
             $db: $db,
-            $table: $db.specialists,
+            $table: $db.adults,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -25331,7 +25240,7 @@ class $$ScheduleTemplatesTableTableManager
           ScheduleTemplate,
           PrefetchHooks Function({
             bool groupId,
-            bool specialistId,
+            bool adultId,
             bool sourceLibraryItemId,
             bool roomId,
             bool scheduleEntriesRefs,
@@ -25365,8 +25274,8 @@ class $$ScheduleTemplatesTableTableManager
                 Value<String?> seriesId = const Value.absent(),
                 Value<String?> groupId = const Value.absent(),
                 Value<bool> allGroups = const Value.absent(),
-                Value<String?> specialistName = const Value.absent(),
-                Value<String?> specialistId = const Value.absent(),
+                Value<String?> adultName = const Value.absent(),
+                Value<String?> adultId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<DateTime?> startDate = const Value.absent(),
@@ -25386,8 +25295,8 @@ class $$ScheduleTemplatesTableTableManager
                 seriesId: seriesId,
                 groupId: groupId,
                 allGroups: allGroups,
-                specialistName: specialistName,
-                specialistId: specialistId,
+                adultName: adultName,
+                adultId: adultId,
                 location: location,
                 notes: notes,
                 startDate: startDate,
@@ -25409,8 +25318,8 @@ class $$ScheduleTemplatesTableTableManager
                 Value<String?> seriesId = const Value.absent(),
                 Value<String?> groupId = const Value.absent(),
                 Value<bool> allGroups = const Value.absent(),
-                Value<String?> specialistName = const Value.absent(),
-                Value<String?> specialistId = const Value.absent(),
+                Value<String?> adultName = const Value.absent(),
+                Value<String?> adultId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<DateTime?> startDate = const Value.absent(),
@@ -25430,8 +25339,8 @@ class $$ScheduleTemplatesTableTableManager
                 seriesId: seriesId,
                 groupId: groupId,
                 allGroups: allGroups,
-                specialistName: specialistName,
-                specialistId: specialistId,
+                adultName: adultName,
+                adultId: adultId,
                 location: location,
                 notes: notes,
                 startDate: startDate,
@@ -25453,7 +25362,7 @@ class $$ScheduleTemplatesTableTableManager
           prefetchHooksCallback:
               ({
                 groupId = false,
-                specialistId = false,
+                adultId = false,
                 sourceLibraryItemId = false,
                 roomId = false,
                 scheduleEntriesRefs = false,
@@ -25496,17 +25405,17 @@ class $$ScheduleTemplatesTableTableManager
                                   )
                                   as T;
                         }
-                        if (specialistId) {
+                        if (adultId) {
                           state =
                               state.withJoin(
                                     currentTable: table,
-                                    currentColumn: table.specialistId,
+                                    currentColumn: table.adultId,
                                     referencedTable:
                                         $$ScheduleTemplatesTableReferences
-                                            ._specialistIdTable(db),
+                                            ._adultIdTable(db),
                                     referencedColumn:
                                         $$ScheduleTemplatesTableReferences
-                                            ._specialistIdTable(db)
+                                            ._adultIdTable(db)
                                             .id,
                                   )
                                   as T;
@@ -25610,7 +25519,7 @@ typedef $$ScheduleTemplatesTableProcessedTableManager =
       ScheduleTemplate,
       PrefetchHooks Function({
         bool groupId,
-        bool specialistId,
+        bool adultId,
         bool sourceLibraryItemId,
         bool roomId,
         bool scheduleEntriesRefs,
@@ -25628,8 +25537,8 @@ typedef $$ScheduleEntriesTableCreateCompanionBuilder =
       required String title,
       Value<String?> groupId,
       Value<bool> allGroups,
-      Value<String?> specialistName,
-      Value<String?> specialistId,
+      Value<String?> adultName,
+      Value<String?> adultId,
       Value<String?> location,
       Value<String?> notes,
       required String kind,
@@ -25652,8 +25561,8 @@ typedef $$ScheduleEntriesTableUpdateCompanionBuilder =
       Value<String> title,
       Value<String?> groupId,
       Value<bool> allGroups,
-      Value<String?> specialistName,
-      Value<String?> specialistId,
+      Value<String?> adultName,
+      Value<String?> adultId,
       Value<String?> location,
       Value<String?> notes,
       Value<String> kind,
@@ -25693,22 +25602,18 @@ final class $$ScheduleEntriesTableReferences
     );
   }
 
-  static $SpecialistsTable _specialistIdTable(_$AppDatabase db) =>
-      db.specialists.createAlias(
-        $_aliasNameGenerator(
-          db.scheduleEntries.specialistId,
-          db.specialists.id,
-        ),
-      );
+  static $AdultsTable _adultIdTable(_$AppDatabase db) => db.adults.createAlias(
+    $_aliasNameGenerator(db.scheduleEntries.adultId, db.adults.id),
+  );
 
-  $$SpecialistsTableProcessedTableManager? get specialistId {
-    final $_column = $_itemColumn<String>('specialist_id');
+  $$AdultsTableProcessedTableManager? get adultId {
+    final $_column = $_itemColumn<String>('adult_id');
     if ($_column == null) return null;
-    final manager = $$SpecialistsTableTableManager(
+    final manager = $$AdultsTableTableManager(
       $_db,
-      $_db.specialists,
+      $_db.adults,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_specialistIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_adultIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -25867,8 +25772,8 @@ class $$ScheduleEntriesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get specialistName => $composableBuilder(
-    column: $table.specialistName,
+  ColumnFilters<String> get adultName => $composableBuilder(
+    column: $table.adultName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -25920,20 +25825,20 @@ class $$ScheduleEntriesTableFilterComposer
     return composer;
   }
 
-  $$SpecialistsTableFilterComposer get specialistId {
-    final $$SpecialistsTableFilterComposer composer = $composerBuilder(
+  $$AdultsTableFilterComposer get adultId {
+    final $$AdultsTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.specialistId,
-      referencedTable: $db.specialists,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$SpecialistsTableFilterComposer(
+          }) => $$AdultsTableFilterComposer(
             $db: $db,
-            $table: $db.specialists,
+            $table: $db.adults,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -26110,8 +26015,8 @@ class $$ScheduleEntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get specialistName => $composableBuilder(
-    column: $table.specialistName,
+  ColumnOrderings<String> get adultName => $composableBuilder(
+    column: $table.adultName,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -26163,20 +26068,20 @@ class $$ScheduleEntriesTableOrderingComposer
     return composer;
   }
 
-  $$SpecialistsTableOrderingComposer get specialistId {
-    final $$SpecialistsTableOrderingComposer composer = $composerBuilder(
+  $$AdultsTableOrderingComposer get adultId {
+    final $$AdultsTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.specialistId,
-      referencedTable: $db.specialists,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$SpecialistsTableOrderingComposer(
+          }) => $$AdultsTableOrderingComposer(
             $db: $db,
-            $table: $db.specialists,
+            $table: $db.adults,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -26312,10 +26217,8 @@ class $$ScheduleEntriesTableAnnotationComposer
   GeneratedColumn<bool> get allGroups =>
       $composableBuilder(column: $table.allGroups, builder: (column) => column);
 
-  GeneratedColumn<String> get specialistName => $composableBuilder(
-    column: $table.specialistName,
-    builder: (column) => column,
-  );
+  GeneratedColumn<String> get adultName =>
+      $composableBuilder(column: $table.adultName, builder: (column) => column);
 
   GeneratedColumn<String> get location =>
       $composableBuilder(column: $table.location, builder: (column) => column);
@@ -26355,20 +26258,20 @@ class $$ScheduleEntriesTableAnnotationComposer
     return composer;
   }
 
-  $$SpecialistsTableAnnotationComposer get specialistId {
-    final $$SpecialistsTableAnnotationComposer composer = $composerBuilder(
+  $$AdultsTableAnnotationComposer get adultId {
+    final $$AdultsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.specialistId,
-      referencedTable: $db.specialists,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$SpecialistsTableAnnotationComposer(
+          }) => $$AdultsTableAnnotationComposer(
             $db: $db,
-            $table: $db.specialists,
+            $table: $db.adults,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -26512,7 +26415,7 @@ class $$ScheduleEntriesTableTableManager
           ScheduleEntry,
           PrefetchHooks Function({
             bool groupId,
-            bool specialistId,
+            bool adultId,
             bool sourceTripId,
             bool overridesTemplateId,
             bool sourceLibraryItemId,
@@ -26544,8 +26447,8 @@ class $$ScheduleEntriesTableTableManager
                 Value<String> title = const Value.absent(),
                 Value<String?> groupId = const Value.absent(),
                 Value<bool> allGroups = const Value.absent(),
-                Value<String?> specialistName = const Value.absent(),
-                Value<String?> specialistId = const Value.absent(),
+                Value<String?> adultName = const Value.absent(),
+                Value<String?> adultId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<String> kind = const Value.absent(),
@@ -26566,8 +26469,8 @@ class $$ScheduleEntriesTableTableManager
                 title: title,
                 groupId: groupId,
                 allGroups: allGroups,
-                specialistName: specialistName,
-                specialistId: specialistId,
+                adultName: adultName,
+                adultId: adultId,
                 location: location,
                 notes: notes,
                 kind: kind,
@@ -26590,8 +26493,8 @@ class $$ScheduleEntriesTableTableManager
                 required String title,
                 Value<String?> groupId = const Value.absent(),
                 Value<bool> allGroups = const Value.absent(),
-                Value<String?> specialistName = const Value.absent(),
-                Value<String?> specialistId = const Value.absent(),
+                Value<String?> adultName = const Value.absent(),
+                Value<String?> adultId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 required String kind,
@@ -26612,8 +26515,8 @@ class $$ScheduleEntriesTableTableManager
                 title: title,
                 groupId: groupId,
                 allGroups: allGroups,
-                specialistName: specialistName,
-                specialistId: specialistId,
+                adultName: adultName,
+                adultId: adultId,
                 location: location,
                 notes: notes,
                 kind: kind,
@@ -26636,7 +26539,7 @@ class $$ScheduleEntriesTableTableManager
           prefetchHooksCallback:
               ({
                 groupId = false,
-                specialistId = false,
+                adultId = false,
                 sourceTripId = false,
                 overridesTemplateId = false,
                 sourceLibraryItemId = false,
@@ -26679,17 +26582,17 @@ class $$ScheduleEntriesTableTableManager
                                   )
                                   as T;
                         }
-                        if (specialistId) {
+                        if (adultId) {
                           state =
                               state.withJoin(
                                     currentTable: table,
-                                    currentColumn: table.specialistId,
+                                    currentColumn: table.adultId,
                                     referencedTable:
                                         $$ScheduleEntriesTableReferences
-                                            ._specialistIdTable(db),
+                                            ._adultIdTable(db),
                                     referencedColumn:
                                         $$ScheduleEntriesTableReferences
-                                            ._specialistIdTable(db)
+                                            ._adultIdTable(db)
                                             .id,
                                   )
                                   as T;
@@ -26802,7 +26705,7 @@ typedef $$ScheduleEntriesTableProcessedTableManager =
       ScheduleEntry,
       PrefetchHooks Function({
         bool groupId,
-        bool specialistId,
+        bool adultId,
         bool sourceTripId,
         bool overridesTemplateId,
         bool sourceLibraryItemId,
@@ -29495,7 +29398,7 @@ typedef $$ChildScheduleOverridesTableProcessedTableManager =
 typedef $$AdultDayBlocksTableCreateCompanionBuilder =
     AdultDayBlocksCompanion Function({
       required String id,
-      required String specialistId,
+      required String adultId,
       required int dayOfWeek,
       required String startTime,
       required String endTime,
@@ -29508,7 +29411,7 @@ typedef $$AdultDayBlocksTableCreateCompanionBuilder =
 typedef $$AdultDayBlocksTableUpdateCompanionBuilder =
     AdultDayBlocksCompanion Function({
       Value<String> id,
-      Value<String> specialistId,
+      Value<String> adultId,
       Value<int> dayOfWeek,
       Value<String> startTime,
       Value<String> endTime,
@@ -29527,19 +29430,18 @@ final class $$AdultDayBlocksTableReferences
     super.$_typedResult,
   );
 
-  static $SpecialistsTable _specialistIdTable(_$AppDatabase db) =>
-      db.specialists.createAlias(
-        $_aliasNameGenerator(db.adultDayBlocks.specialistId, db.specialists.id),
-      );
+  static $AdultsTable _adultIdTable(_$AppDatabase db) => db.adults.createAlias(
+    $_aliasNameGenerator(db.adultDayBlocks.adultId, db.adults.id),
+  );
 
-  $$SpecialistsTableProcessedTableManager get specialistId {
-    final $_column = $_itemColumn<String>('specialist_id')!;
+  $$AdultsTableProcessedTableManager get adultId {
+    final $_column = $_itemColumn<String>('adult_id')!;
 
-    final manager = $$SpecialistsTableTableManager(
+    final manager = $$AdultsTableTableManager(
       $_db,
-      $_db.specialists,
+      $_db.adults,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_specialistIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_adultIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -29609,20 +29511,20 @@ class $$AdultDayBlocksTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  $$SpecialistsTableFilterComposer get specialistId {
-    final $$SpecialistsTableFilterComposer composer = $composerBuilder(
+  $$AdultsTableFilterComposer get adultId {
+    final $$AdultsTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.specialistId,
-      referencedTable: $db.specialists,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$SpecialistsTableFilterComposer(
+          }) => $$AdultsTableFilterComposer(
             $db: $db,
-            $table: $db.specialists,
+            $table: $db.adults,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -29700,20 +29602,20 @@ class $$AdultDayBlocksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  $$SpecialistsTableOrderingComposer get specialistId {
-    final $$SpecialistsTableOrderingComposer composer = $composerBuilder(
+  $$AdultsTableOrderingComposer get adultId {
+    final $$AdultsTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.specialistId,
-      referencedTable: $db.specialists,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$SpecialistsTableOrderingComposer(
+          }) => $$AdultsTableOrderingComposer(
             $db: $db,
-            $table: $db.specialists,
+            $table: $db.adults,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -29777,20 +29679,20 @@ class $$AdultDayBlocksTableAnnotationComposer
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
-  $$SpecialistsTableAnnotationComposer get specialistId {
-    final $$SpecialistsTableAnnotationComposer composer = $composerBuilder(
+  $$AdultsTableAnnotationComposer get adultId {
+    final $$AdultsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.specialistId,
-      referencedTable: $db.specialists,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$SpecialistsTableAnnotationComposer(
+          }) => $$AdultsTableAnnotationComposer(
             $db: $db,
-            $table: $db.specialists,
+            $table: $db.adults,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -29837,7 +29739,7 @@ class $$AdultDayBlocksTableTableManager
           $$AdultDayBlocksTableUpdateCompanionBuilder,
           (AdultDayBlock, $$AdultDayBlocksTableReferences),
           AdultDayBlock,
-          PrefetchHooks Function({bool specialistId, bool groupId})
+          PrefetchHooks Function({bool adultId, bool groupId})
         > {
   $$AdultDayBlocksTableTableManager(
     _$AppDatabase db,
@@ -29855,7 +29757,7 @@ class $$AdultDayBlocksTableTableManager
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
-                Value<String> specialistId = const Value.absent(),
+                Value<String> adultId = const Value.absent(),
                 Value<int> dayOfWeek = const Value.absent(),
                 Value<String> startTime = const Value.absent(),
                 Value<String> endTime = const Value.absent(),
@@ -29866,7 +29768,7 @@ class $$AdultDayBlocksTableTableManager
                 Value<int> rowid = const Value.absent(),
               }) => AdultDayBlocksCompanion(
                 id: id,
-                specialistId: specialistId,
+                adultId: adultId,
                 dayOfWeek: dayOfWeek,
                 startTime: startTime,
                 endTime: endTime,
@@ -29879,7 +29781,7 @@ class $$AdultDayBlocksTableTableManager
           createCompanionCallback:
               ({
                 required String id,
-                required String specialistId,
+                required String adultId,
                 required int dayOfWeek,
                 required String startTime,
                 required String endTime,
@@ -29890,7 +29792,7 @@ class $$AdultDayBlocksTableTableManager
                 Value<int> rowid = const Value.absent(),
               }) => AdultDayBlocksCompanion.insert(
                 id: id,
-                specialistId: specialistId,
+                adultId: adultId,
                 dayOfWeek: dayOfWeek,
                 startTime: startTime,
                 endTime: endTime,
@@ -29908,7 +29810,7 @@ class $$AdultDayBlocksTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({specialistId = false, groupId = false}) {
+          prefetchHooksCallback: ({adultId = false, groupId = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [],
@@ -29928,16 +29830,16 @@ class $$AdultDayBlocksTableTableManager
                       dynamic
                     >
                   >(state) {
-                    if (specialistId) {
+                    if (adultId) {
                       state =
                           state.withJoin(
                                 currentTable: table,
-                                currentColumn: table.specialistId,
+                                currentColumn: table.adultId,
                                 referencedTable: $$AdultDayBlocksTableReferences
-                                    ._specialistIdTable(db),
+                                    ._adultIdTable(db),
                                 referencedColumn:
                                     $$AdultDayBlocksTableReferences
-                                        ._specialistIdTable(db)
+                                        ._adultIdTable(db)
                                         .id,
                               )
                               as T;
@@ -29980,7 +29882,7 @@ typedef $$AdultDayBlocksTableProcessedTableManager =
       $$AdultDayBlocksTableUpdateCompanionBuilder,
       (AdultDayBlock, $$AdultDayBlocksTableReferences),
       AdultDayBlock,
-      PrefetchHooks Function({bool specialistId, bool groupId})
+      PrefetchHooks Function({bool adultId, bool groupId})
     >;
 typedef $$FormSubmissionsTableCreateCompanionBuilder =
     FormSubmissionsCompanion Function({
@@ -30784,13 +30686,10 @@ class $AppDatabaseManager {
       );
   $$ObservationDomainTagsTableTableManager get observationDomainTags =>
       $$ObservationDomainTagsTableTableManager(_db, _db.observationDomainTags);
-  $$SpecialistsTableTableManager get specialists =>
-      $$SpecialistsTableTableManager(_db, _db.specialists);
-  $$SpecialistAvailabilityTableTableManager get specialistAvailability =>
-      $$SpecialistAvailabilityTableTableManager(
-        _db,
-        _db.specialistAvailability,
-      );
+  $$AdultsTableTableManager get adults =>
+      $$AdultsTableTableManager(_db, _db.adults);
+  $$AdultAvailabilityTableTableManager get adultAvailability =>
+      $$AdultAvailabilityTableTableManager(_db, _db.adultAvailability);
   $$ActivityLibraryTableTableManager get activityLibrary =>
       $$ActivityLibraryTableTableManager(_db, _db.activityLibrary);
   $$ScheduleTemplatesTableTableManager get scheduleTemplates =>

@@ -1,9 +1,9 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/children/widgets/edit_child_sheet.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
@@ -272,12 +272,12 @@ class _TimelineRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final specialistId = item.specialistId;
-    final specialist = specialistId == null
+    final adultId = item.adultId;
+    final adult = adultId == null
         ? null
-        : ref.watch(specialistProvider(specialistId)).asData?.value;
+        : ref.watch(adultProvider(adultId)).asData?.value;
     final subtitleParts = <String>[];
-    if (specialist != null) subtitleParts.add(specialist.name);
+    if (adult != null) subtitleParts.add(adult.name);
     if (item.location != null && item.location!.isNotEmpty) {
       subtitleParts.add(item.location!);
     }

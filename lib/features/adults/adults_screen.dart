@@ -1,6 +1,6 @@
 import 'package:basecamp/database/database.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
-import 'package:basecamp/features/specialists/widgets/new_specialist_wizard.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
+import 'package:basecamp/features/adults/widgets/new_adult_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
@@ -10,24 +10,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class SpecialistsScreen extends ConsumerStatefulWidget {
-  const SpecialistsScreen({super.key});
+class AdultsScreen extends ConsumerStatefulWidget {
+  const AdultsScreen({super.key});
 
   @override
-  ConsumerState<SpecialistsScreen> createState() => _SpecialistsScreenState();
+  ConsumerState<AdultsScreen> createState() => _AdultsScreenState();
 }
 
-class _SpecialistsScreenState extends ConsumerState<SpecialistsScreen>
+class _AdultsScreenState extends ConsumerState<AdultsScreen>
     with BulkSelectionMixin {
   Future<void> _openWizard() async {
     // Full step-by-step wizard walks a first-timer through every v28
     // field — identity, job title, role, anchor group (when Lead),
     // shift, break/lunch, notes. Editing an existing row still opens
-    // the dense [EditSpecialistSheet]; wizard is creation-only.
+    // the dense [EditAdultSheet]; wizard is creation-only.
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => const NewSpecialistWizardScreen(),
+        builder: (_) => const NewAdultWizardScreen(),
       ),
     );
   }
@@ -36,12 +36,12 @@ class _SpecialistsScreenState extends ConsumerState<SpecialistsScreen>
     final count = selectedCount;
     if (count == 0) return;
     // Snapshot the selected rows before delete so undo can restore
-    // them — ids alone aren't enough; we need the full Specialist
+    // them — ids alone aren't enough; we need the full Adult
     // objects to re-insert.
     final toDelete = selectedIds.toList();
     final all =
-        ref.read(specialistsProvider).asData?.value ??
-            const <Specialist>[];
+        ref.read(adultsProvider).asData?.value ??
+            const <Adult>[];
     final snapshot = [
       for (final s in all)
         if (toDelete.contains(s.id)) s,
@@ -54,12 +54,12 @@ class _SpecialistsScreenState extends ConsumerState<SpecialistsScreen>
           'the adult slot just becomes empty.',
       confirmLabel: count == 1 ? 'Remove' : 'Remove $count',
       onDelete: () => ref
-          .read(specialistsRepositoryProvider)
-          .deleteSpecialists(toDelete),
+          .read(adultsRepositoryProvider)
+          .deleteAdults(toDelete),
       undoLabel: count == 1 ? 'Adult removed' : '$count adults removed',
       onUndo: () => ref
-          .read(specialistsRepositoryProvider)
-          .restoreSpecialists(snapshot),
+          .read(adultsRepositoryProvider)
+          .restoreAdults(snapshot),
     );
     if (!confirmed || !mounted) return;
     clearSelection();
@@ -67,7 +67,7 @@ class _SpecialistsScreenState extends ConsumerState<SpecialistsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final specialistsAsync = ref.watch(specialistsProvider);
+    final adultsAsync = ref.watch(adultsProvider);
 
     return PopScope(
       canPop: !isSelecting,
@@ -102,11 +102,11 @@ class _SpecialistsScreenState extends ConsumerState<SpecialistsScreen>
                 icon: const Icon(Icons.add),
                 label: const Text('Adult'),
               ),
-        body: specialistsAsync.when(
+        body: adultsAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (err, _) => Center(child: Text('Error: $err')),
-          data: (specialists) {
-            if (specialists.isEmpty) {
+          data: (adults) {
+            if (adults.isEmpty) {
               return _EmptyState(onAdd: _openWizard);
             }
             return ListView.separated(
@@ -116,13 +116,13 @@ class _SpecialistsScreenState extends ConsumerState<SpecialistsScreen>
                 top: AppSpacing.md,
                 bottom: AppSpacing.xxxl * 2,
               ),
-              itemCount: specialists.length,
+              itemCount: adults.length,
               separatorBuilder: (_, _) =>
                   const SizedBox(height: AppSpacing.md),
               itemBuilder: (_, i) {
-                final s = specialists[i];
-                return _SpecialistTile(
-                  specialist: s,
+                final s = adults[i];
+                return _AdultTile(
+                  adult: s,
                   selected: isSelected(s.id),
                   onTap: isSelecting
                       ? () => toggleSelection(s.id)
@@ -138,15 +138,15 @@ class _SpecialistsScreenState extends ConsumerState<SpecialistsScreen>
   }
 }
 
-class _SpecialistTile extends StatelessWidget {
-  const _SpecialistTile({
-    required this.specialist,
+class _AdultTile extends StatelessWidget {
+  const _AdultTile({
+    required this.adult,
     required this.onTap,
     required this.onLongPress,
     this.selected = false,
   });
 
-  final Specialist specialist;
+  final Adult adult;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
   final bool selected;
@@ -154,11 +154,11 @@ class _SpecialistTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final initial = specialist.name.isNotEmpty
-        ? specialist.name.characters.first.toUpperCase()
+    final initial = adult.name.isNotEmpty
+        ? adult.name.characters.first.toUpperCase()
         : '?';
 
-    final adultRole = AdultRole.fromDb(specialist.adultRole);
+    final adultRole = AdultRole.fromDb(adult.adultRole);
     return AppCard(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -166,7 +166,7 @@ class _SpecialistTile extends StatelessWidget {
       child: Row(
         children: [
           SmallAvatar(
-            path: specialist.avatarPath,
+            path: adult.avatarPath,
             fallbackInitial: initial,
             backgroundColor: theme.colorScheme.secondaryContainer,
             foregroundColor: theme.colorScheme.onSecondaryContainer,
@@ -180,18 +180,18 @@ class _SpecialistTile extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        specialist.name,
+                        adult.name,
                         style: theme.textTheme.titleMedium,
                       ),
                     ),
                     _RoleChip(role: adultRole),
                   ],
                 ),
-                if (specialist.role != null && specialist.role!.isNotEmpty)
+                if (adult.role != null && adult.role!.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
-                      specialist.role!,
+                      adult.role!,
                       style: theme.textTheme.bodySmall,
                     ),
                   ),
@@ -209,7 +209,7 @@ class _SpecialistTile extends StatelessWidget {
 }
 
 /// Small role pill on each adult tile. Colors picked to stay legible
-/// in both light + dark: Lead uses the primary tint, Specialist the
+/// in both light + dark: Lead uses the primary tint, Adult the
 /// tertiary, Ambient neutral surface.
 class _RoleChip extends StatelessWidget {
   const _RoleChip({required this.role});
@@ -227,7 +227,7 @@ class _RoleChip extends StatelessWidget {
       AdultRole.specialist => (
           theme.colorScheme.tertiaryContainer,
           theme.colorScheme.onTertiaryContainer,
-          'Specialist',
+          'Adult',
         ),
       AdultRole.ambient => (
           theme.colorScheme.surfaceContainerHighest,
@@ -275,7 +275,7 @@ class _EmptyState extends StatelessWidget {
             Text('No adults yet', style: theme.textTheme.titleLarge),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Add everyone who works the program — leads, specialists, '
+              'Add everyone who works the program — leads, adults, '
               'director, kitchen, nurse.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,

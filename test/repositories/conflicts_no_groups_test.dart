@@ -13,7 +13,7 @@ ScheduleItem _item({
   bool isFullDay = false,
   bool allGroups = true,
   List<String> groupIds = const [],
-  String? specialistId,
+  String? adultId,
   String? roomId,
   DateTime? date,
 }) {
@@ -26,7 +26,7 @@ ScheduleItem _item({
     isFromTemplate: true,
     groupIds: groupIds,
     allGroups: allGroups,
-    specialistId: specialistId,
+    adultId: adultId,
     roomId: roomId,
     date: date ?? DateTime(2026, 4, 20),
   );
@@ -189,24 +189,24 @@ void main() {
       expect(detectConflictingIds([a, b]), isEmpty);
     });
 
-    test('specialist clash still fires even when one side isNoGroups', () {
-      // Specialist double-booking is separate from group sharing — a
-      // staff-prep slot that reserves a specialist should still conflict
-      // with anything else using that specialist at the same time.
+    test('adult clash still fires even when one side isNoGroups', () {
+      // Adult double-booking is separate from group sharing — a
+      // staff-prep slot that reserves a adult should still conflict
+      // with anything else using that adult at the same time.
       final prep = _item(
         id: 'prep',
         title: 'Prep',
         start: '09:00',
         end: '10:00',
         allGroups: false,
-        specialistId: 's1',
+        adultId: 's1',
       );
       final lesson = _item(
         id: 'lesson',
         title: 'Art',
         start: '09:30',
         end: '10:30',
-        specialistId: 's1',
+        adultId: 's1',
       );
       final conflicts = detectConflictingIds([prep, lesson]);
       expect(conflicts, containsAll({'prep', 'lesson'}));

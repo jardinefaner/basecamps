@@ -254,7 +254,7 @@ class Observations extends Table {
 }
 
 /// Reusable activity definitions. Originally a set of scheduling
-/// presets (title + duration + location + specialist) — the original
+/// presets (title + duration + location + adult) — the original
 /// columns stay for backwards compatibility with existing rows and the
 /// library picker used by the schedule wizards.
 ///
@@ -267,9 +267,9 @@ class ActivityLibrary extends Table {
   TextColumn get id => text()();
   TextColumn get title => text()();
   IntColumn get defaultDurationMin => integer().nullable()();
-  TextColumn get specialistId => text()
+  TextColumn get adultId => text()
       .nullable()
-      .references(Specialists, #id, onDelete: KeyAction.setNull)();
+      .references(Adults, #id, onDelete: KeyAction.setNull)();
   TextColumn get location => text().nullable()();
   TextColumn get notes => text().nullable()();
 
@@ -318,8 +318,8 @@ class ActivityLibrary extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-/// One block of "I'm available to work" for a specialist — e.g. "Mon
-/// 9:00–17:00". Any given specialist can have multiple rows (Mon 9–12,
+/// One block of "I'm available to work" for an adult — e.g. "Mon
+/// 9:00–17:00". Any given adult can have multiple rows (Mon 9–12,
 /// Mon 13–17) to model split shifts, and each row can be bounded by
 /// [startDate]/[endDate] to model seasonal work or time off. Same ISO
 /// day-of-week convention (1..7) the schedule uses everywhere else.
@@ -328,10 +328,10 @@ class ActivityLibrary extends Table {
 /// encode each adult's daily break + lunch inside their shift, so the
 /// Today view can show "on lunch until 1:00" and the conflict layer
 /// can warn when activities are scheduled on top of breaks.
-class SpecialistAvailability extends Table {
+class AdultAvailability extends Table {
   TextColumn get id => text()();
-  TextColumn get specialistId => text()
-      .references(Specialists, #id, onDelete: KeyAction.cascade)();
+  TextColumn get adultId => text()
+      .references(Adults, #id, onDelete: KeyAction.cascade)();
   IntColumn get dayOfWeek => integer()();
   TextColumn get startTime => text()();
   TextColumn get endTime => text()();
@@ -358,28 +358,28 @@ class SpecialistAvailability extends Table {
 
 /// Per-adult, per-day role timeline — subdivides an adult's shift
 /// into labeled blocks. Models the "group lead 8:30-11, then
-/// specialist rotator 11-12, then back to group lead 12-3" pattern
-/// that the static `Specialist.adultRole` alone can't express.
+/// adult rotator 11-12, then back to group lead 12-3" pattern
+/// that the static `Adult.adultRole` alone can't express.
 ///
 /// Gaps between blocks on a given day are implied "off". Adults with
-/// NO blocks for a day fall back to `Specialist.adultRole` interpreted
-/// as a single shift-long block (so the existing specialist-as-rotator
+/// NO blocks for a day fall back to `Adult.adultRole` interpreted
+/// as a single shift-long block (so the existing adult-as-rotator
 /// behavior keeps working for the simple case).
 ///
-/// Break + lunch remain on the specialist_availability row for the
-/// MVP; they layer ON TOP of this timeline — a specialist block
-/// running 11-12 with a lunch 11:30-12:00 just means the specialist
+/// Break + lunch remain on the adult_availability row for the
+/// MVP; they layer ON TOP of this timeline — a adult block
+/// running 11-12 with a lunch 11:30-12:00 just means the adult
 /// is rotating 11-11:30 and at lunch 11:30-12. Duplicating break /
 /// lunch into this table would be noise for the common case.
 ///
 /// `role` values:
 ///   - 'lead'       — anchored to a group (requires `group_id`)
-///   - 'specialist' — rotating, no group
+///   - 'adult' — rotating, no group
 @DataClassName('AdultDayBlock')
 class AdultDayBlocks extends Table {
   TextColumn get id => text()();
-  TextColumn get specialistId => text()
-      .references(Specialists, #id, onDelete: KeyAction.cascade)();
+  TextColumn get adultId => text()
+      .references(Adults, #id, onDelete: KeyAction.cascade)();
 
   /// ISO day of week (1 = Mon, 7 = Sun). Program runs M-F so values
   /// are almost always 1..5, but no CHECK constraint — weekend is
@@ -392,13 +392,13 @@ class AdultDayBlocks extends Table {
   TextColumn get startTime => text()();
   TextColumn get endTime => text()();
 
-  /// 'lead' or 'specialist'. Bad values fall back to 'specialist' at
+  /// 'lead' or 'adult'. Bad values fall back to 'adult' at
   /// read time — matches how `AdultRole.fromDb` handles the similar
-  /// field on Specialists.
+  /// field on Adults.
   TextColumn get role => text()();
 
   /// For lead blocks — which group the adult is anchoring during
-  /// this span. Null for specialist blocks. FK to groups with
+  /// this span. Null for adult blocks. FK to groups with
   /// setNull on delete so deleting a group silently detaches any
   /// legacy lead blocks rather than cascading-deleting the whole
   /// timeline.
@@ -415,40 +415,39 @@ class AdultDayBlocks extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-/// Adults in the program — teachers, specialists, directors, kitchen,
-/// nurse, etc. Table name stays "specialists" for backwards compat with
-/// pre-v28 rows and existing foreign keys. The UI surfaces these as
-/// "Adults."
+/// Adults in the program — teachers, adults, directors, kitchen,
+/// nurse, etc. The UI surfaces these as "Adults."
 ///
 /// Structural role (v28) governs how the adult participates in the
 /// schedule:
 ///   - 'lead'       → anchored to a single group all day, in that
 ///                     group's home room by default
-///   - 'specialist' → rover who rotates between activities (existing
+///   - 'adult' → rover who rotates between activities (existing
 ///                     behavior)
 ///   - 'ambient'    → present in the building but not on the activity
 ///                     grid (director, nurse, kitchen, front desk)
 ///
 /// [role] (the free-form text) stays as the job-title blurb
 /// ("Art teacher", "Head cook"). [adultRole] is the structural one.
-class Specialists extends Table {
+@DataClassName('Adult')
+class Adults extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
   TextColumn get role => text().nullable()();
   TextColumn get notes => text().nullable()();
-  // Local file path for the specialist's photo. Remote upload comes later.
+  // Local file path for the adult's photo. Remote upload comes later.
   TextColumn get avatarPath => text().nullable()();
 
   // -- v28: adult roles --
 
-  /// 'lead' | 'specialist' | 'ambient'. Null-defaults to 'specialist'
+  /// 'lead' | 'adult' | 'ambient'. Null-defaults to 'adult'
   /// on existing rows (matches current behavior — every adult was
   /// treated as a rover).
   TextColumn get adultRole =>
-      text().withDefault(const Constant('specialist'))();
+      text().withDefault(const Constant('adult'))();
 
   /// For leads: the single group they're anchored to all day. For
-  /// specialists and ambient staff: null. FK setNull on delete so
+  /// adults and ambient staff: null. FK setNull on delete so
   /// removing a group doesn't orphan the adult.
   TextColumn get anchoredGroupId => text()
       .nullable()
@@ -531,11 +530,11 @@ class ScheduleTemplates extends Table {
   // template_groups list, which conflated "for everyone" with "for
   // nobody yet chosen".
   BoolColumn get allGroups => boolean().withDefault(const Constant(true))();
-  // Deprecated: use specialistId instead. Retained for migration backfill only.
-  TextColumn get specialistName => text().nullable()();
-  TextColumn get specialistId => text()
+  // Deprecated: use adultId instead. Retained for migration backfill only.
+  TextColumn get adultName => text().nullable()();
+  TextColumn get adultId => text()
       .nullable()
-      .references(Specialists, #id, onDelete: KeyAction.setNull)();
+      .references(Adults, #id, onDelete: KeyAction.setNull)();
   TextColumn get location => text().nullable()();
   TextColumn get notes => text().nullable()();
   DateTimeColumn get startDate => dateTime().nullable()();
@@ -829,11 +828,11 @@ class ScheduleEntries extends Table {
       text().nullable().references(Groups, #id, onDelete: KeyAction.setNull)();
   // Mirror of ScheduleTemplates.allGroups — see the comment there.
   BoolColumn get allGroups => boolean().withDefault(const Constant(true))();
-  // Deprecated: use specialistId instead. Retained for migration backfill only.
-  TextColumn get specialistName => text().nullable()();
-  TextColumn get specialistId => text()
+  // Deprecated: use adultId instead. Retained for migration backfill only.
+  TextColumn get adultName => text().nullable()();
+  TextColumn get adultId => text()
       .nullable()
-      .references(Specialists, #id, onDelete: KeyAction.setNull)();
+      .references(Adults, #id, onDelete: KeyAction.setNull)();
   TextColumn get location => text().nullable()();
   TextColumn get notes => text().nullable()();
   TextColumn get kind => text()();

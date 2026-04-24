@@ -15,7 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// every AI-generated field and made saved cards feel one-way.
 ///
 /// Actions at the bottom:
-///   - Edit (preset fields only — title/duration/specialist/location
+///   - Edit (preset fields only — title/duration/adult/location
 ///     /notes via the existing EditLibraryItemSheet)
 ///   - Delete (with confirm)
 ///   - Copy link (when a sourceUrl is set)

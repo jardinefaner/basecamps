@@ -4,7 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Structural role an adult plays on the schedule (v28). Distinct from
-/// [Specialist.role], which is the free-form job-title blurb
+/// [Adult.role], which is the free-form job-title blurb
 /// ("Art teacher", "Director").
 ///
 ///   - [AdultRole.lead]       — anchored to one group all day; the
@@ -32,29 +32,29 @@ enum AdultRole {
   }
 }
 
-class SpecialistsRepository {
-  SpecialistsRepository(this._db);
+class AdultsRepository {
+  AdultsRepository(this._db);
 
   final AppDatabase _db;
 
-  Stream<List<Specialist>> watchAll() {
-    final query = _db.select(_db.specialists)
+  Stream<List<Adult>> watchAll() {
+    final query = _db.select(_db.adults)
       ..orderBy([(s) => OrderingTerm.asc(s.name)]);
     return query.watch();
   }
 
-  Future<Specialist?> getSpecialist(String id) {
-    return (_db.select(_db.specialists)..where((s) => s.id.equals(id)))
+  Future<Adult?> getAdult(String id) {
+    return (_db.select(_db.adults)..where((s) => s.id.equals(id)))
         .getSingleOrNull();
   }
 
-  /// Stream a single specialist so tiles/detail rebuild on edit.
-  Stream<Specialist?> watchSpecialist(String id) {
-    return (_db.select(_db.specialists)..where((s) => s.id.equals(id)))
+  /// Stream a single adult so tiles/detail rebuild on edit.
+  Stream<Adult?> watchAdult(String id) {
+    return (_db.select(_db.adults)..where((s) => s.id.equals(id)))
         .watchSingleOrNull();
   }
 
-  Future<String> addSpecialist({
+  Future<String> addAdult({
     required String name,
     String? role,
     String? notes,
@@ -63,8 +63,8 @@ class SpecialistsRepository {
     String? anchoredGroupId,
   }) async {
     final id = newId();
-    await _db.into(_db.specialists).insert(
-          SpecialistsCompanion.insert(
+    await _db.into(_db.adults).insert(
+          AdultsCompanion.insert(
             id: id,
             name: name,
             role: Value(role),
@@ -77,7 +77,7 @@ class SpecialistsRepository {
     return id;
   }
 
-  Future<void> updateSpecialist({
+  Future<void> updateAdult({
     required String id,
     required String name,
     String? role,
@@ -90,8 +90,8 @@ class SpecialistsRepository {
     Value<String> adultRole = const Value.absent(),
     Value<String?> anchoredGroupId = const Value.absent(),
   }) async {
-    await (_db.update(_db.specialists)..where((s) => s.id.equals(id))).write(
-      SpecialistsCompanion(
+    await (_db.update(_db.adults)..where((s) => s.id.equals(id))).write(
+      AdultsCompanion(
         name: Value(name),
         role: Value(role),
         notes: Value(notes),
@@ -107,40 +107,40 @@ class SpecialistsRepository {
     );
   }
 
-  Future<void> deleteSpecialist(String id) async {
-    await (_db.delete(_db.specialists)..where((s) => s.id.equals(id))).go();
+  Future<void> deleteAdult(String id) async {
+    await (_db.delete(_db.adults)..where((s) => s.id.equals(id))).go();
   }
 
-  Future<void> deleteSpecialists(Iterable<String> ids) async {
+  Future<void> deleteAdults(Iterable<String> ids) async {
     final list = ids.toList();
     if (list.isEmpty) return;
-    await (_db.delete(_db.specialists)..where((s) => s.id.isIn(list))).go();
+    await (_db.delete(_db.adults)..where((s) => s.id.isIn(list))).go();
   }
 
   /// Re-insert a previously-deleted adult row. Used by the undo
   /// snackbar on delete. Cascaded joins (availability rows, day-
   /// timeline blocks, observation authorship by name) aren't
   /// restored — same 5-second-window tradeoff as other restores.
-  Future<void> restoreSpecialist(Specialist row) async {
-    await _db.into(_db.specialists).insertOnConflictUpdate(row);
+  Future<void> restoreAdult(Adult row) async {
+    await _db.into(_db.adults).insertOnConflictUpdate(row);
   }
 
   /// Batch restore for bulk-undo on the Adults screen.
-  Future<void> restoreSpecialists(Iterable<Specialist> rows) async {
+  Future<void> restoreAdults(Iterable<Adult> rows) async {
     await _db.transaction(() async {
       for (final row in rows) {
-        await _db.into(_db.specialists).insertOnConflictUpdate(row);
+        await _db.into(_db.adults).insertOnConflictUpdate(row);
       }
     });
   }
 
   // -------- Availability --------
 
-  Stream<List<SpecialistAvailabilityData>> watchAvailabilityFor(
-    String specialistId,
+  Stream<List<AdultAvailabilityData>> watchAvailabilityFor(
+    String adultId,
   ) {
-    return (_db.select(_db.specialistAvailability)
-          ..where((a) => a.specialistId.equals(specialistId))
+    return (_db.select(_db.adultAvailability)
+          ..where((a) => a.adultId.equals(adultId))
           ..orderBy([
             (a) => OrderingTerm.asc(a.dayOfWeek),
             (a) => OrderingTerm.asc(a.startTime),
@@ -152,21 +152,21 @@ class SpecialistsRepository {
   /// program timeline view — one watched stream instead of N
   /// per-adult subscriptions, which matters once the program has
   /// 10+ adults running across 5 weekdays.
-  Stream<List<SpecialistAvailabilityData>> watchAllAvailability() {
-    return (_db.select(_db.specialistAvailability)
+  Stream<List<AdultAvailabilityData>> watchAllAvailability() {
+    return (_db.select(_db.adultAvailability)
           ..orderBy([
-            (a) => OrderingTerm.asc(a.specialistId),
+            (a) => OrderingTerm.asc(a.adultId),
             (a) => OrderingTerm.asc(a.dayOfWeek),
             (a) => OrderingTerm.asc(a.startTime),
           ]))
         .watch();
   }
 
-  Future<List<SpecialistAvailabilityData>> availabilityFor(
-    String specialistId,
+  Future<List<AdultAvailabilityData>> availabilityFor(
+    String adultId,
   ) {
-    return (_db.select(_db.specialistAvailability)
-          ..where((a) => a.specialistId.equals(specialistId))
+    return (_db.select(_db.adultAvailability)
+          ..where((a) => a.adultId.equals(adultId))
           ..orderBy([
             (a) => OrderingTerm.asc(a.dayOfWeek),
             (a) => OrderingTerm.asc(a.startTime),
@@ -175,7 +175,7 @@ class SpecialistsRepository {
   }
 
   Future<String> addAvailability({
-    required String specialistId,
+    required String adultId,
     required int dayOfWeek,
     required String startTime,
     required String endTime,
@@ -187,10 +187,10 @@ class SpecialistsRepository {
     String? lunchEnd,
   }) async {
     final id = newId();
-    await _db.into(_db.specialistAvailability).insert(
-          SpecialistAvailabilityCompanion.insert(
+    await _db.into(_db.adultAvailability).insert(
+          AdultAvailabilityCompanion.insert(
             id: id,
-            specialistId: specialistId,
+            adultId: adultId,
             dayOfWeek: dayOfWeek,
             startTime: startTime,
             endTime: endTime,
@@ -206,27 +206,27 @@ class SpecialistsRepository {
   }
 
   Future<void> deleteAvailability(String id) async {
-    await (_db.delete(_db.specialistAvailability)
+    await (_db.delete(_db.adultAvailability)
           ..where((a) => a.id.equals(id)))
         .go();
   }
 
-  /// Replace the whole availability set for a specialist in one atomic
+  /// Replace the whole availability set for a adult in one atomic
   /// write — used by the wizard/edit sheet where the teacher is
   /// editing multiple blocks at once.
   Future<void> replaceAvailability({
-    required String specialistId,
+    required String adultId,
     required List<AvailabilityInput> blocks,
   }) async {
     await _db.transaction(() async {
-      await (_db.delete(_db.specialistAvailability)
-            ..where((a) => a.specialistId.equals(specialistId)))
+      await (_db.delete(_db.adultAvailability)
+            ..where((a) => a.adultId.equals(adultId)))
           .go();
       for (final b in blocks) {
-        await _db.into(_db.specialistAvailability).insert(
-              SpecialistAvailabilityCompanion.insert(
+        await _db.into(_db.adultAvailability).insert(
+              AdultAvailabilityCompanion.insert(
                 id: newId(),
-                specialistId: specialistId,
+                adultId: adultId,
                 dayOfWeek: b.dayOfWeek,
                 startTime: b.startTime,
                 endTime: b.endTime,
@@ -279,34 +279,34 @@ class AvailabilityInput {
   final String? lunchEnd;
 }
 
-final specialistsRepositoryProvider = Provider<SpecialistsRepository>((ref) {
-  return SpecialistsRepository(ref.watch(databaseProvider));
+final adultsRepositoryProvider = Provider<AdultsRepository>((ref) {
+  return AdultsRepository(ref.watch(databaseProvider));
 });
 
-final specialistsProvider = StreamProvider<List<Specialist>>((ref) {
-  return ref.watch(specialistsRepositoryProvider).watchAll();
-});
-
-// Riverpod family return type is complex; inference is intentional.
-// ignore: specify_nonobvious_property_types
-final specialistProvider =
-    StreamProvider.family<Specialist?, String>((ref, id) {
-  return ref.watch(specialistsRepositoryProvider).watchSpecialist(id);
+final adultsProvider = StreamProvider<List<Adult>>((ref) {
+  return ref.watch(adultsRepositoryProvider).watchAll();
 });
 
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types
-final specialistAvailabilityProvider = StreamProvider.family<
-    List<SpecialistAvailabilityData>, String>((ref, specialistId) {
+final adultProvider =
+    StreamProvider.family<Adult?, String>((ref, id) {
+  return ref.watch(adultsRepositoryProvider).watchAdult(id);
+});
+
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final adultAvailabilityProvider = StreamProvider.family<
+    List<AdultAvailabilityData>, String>((ref, adultId) {
   return ref
-      .watch(specialistsRepositoryProvider)
-      .watchAvailabilityFor(specialistId);
+      .watch(adultsRepositoryProvider)
+      .watchAvailabilityFor(adultId);
 });
 
 /// Every availability row across the whole program. Used by the
 /// program-wide timeline screen — one subscription beats N per-adult
 /// family reads.
 final allAvailabilityProvider =
-    StreamProvider<List<SpecialistAvailabilityData>>((ref) {
-  return ref.watch(specialistsRepositoryProvider).watchAllAvailability();
+    StreamProvider<List<AdultAvailabilityData>>((ref) {
+  return ref.watch(adultsRepositoryProvider).watchAllAvailability();
 });

@@ -1,39 +1,39 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adult_timeline_repository.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
+import 'package:basecamp/features/adults/widgets/edit_adult_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:basecamp/features/schedule/widgets/edit_template_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
-import 'package:basecamp/features/specialists/adult_timeline_repository.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
-import 'package:basecamp/features/specialists/widgets/edit_specialist_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Profile + schedule surface for a single specialist. Header shows
+/// Profile + schedule surface for a single adult. Header shows
 /// their avatar and contact info; below it sits a weekly list of the
 /// blocks they're available plus every activity they currently run.
-/// A "+ Add activity" button pre-fills this specialist into the
+/// A "+ Add activity" button pre-fills this adult into the
 /// activity wizard so teachers can schedule them without leaving the
 /// context.
-class SpecialistDetailScreen extends ConsumerWidget {
-  const SpecialistDetailScreen({required this.specialistId, super.key});
+class AdultDetailScreen extends ConsumerWidget {
+  const AdultDetailScreen({required this.adultId, super.key});
 
-  final String specialistId;
+  final String adultId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final specialistAsync = ref.watch(specialistProvider(specialistId));
+    final adultAsync = ref.watch(adultProvider(adultId));
 
     return Scaffold(
       appBar: AppBar(
         actions: [
-          specialistAsync.maybeWhen(
+          adultAsync.maybeWhen(
             data: (s) => s == null
                 ? const SizedBox.shrink()
                 : IconButton(
@@ -45,7 +45,7 @@ class SpecialistDetailScreen extends ConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: specialistAsync.maybeWhen(
+      floatingActionButton: adultAsync.maybeWhen(
         data: (s) => s == null
             ? null
             : FloatingActionButton.extended(
@@ -55,7 +55,7 @@ class SpecialistDetailScreen extends ConsumerWidget {
               ),
         orElse: () => null,
       ),
-      body: specialistAsync.when(
+      body: adultAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => Center(child: Text('Error: $err')),
         data: (s) {
@@ -70,14 +70,14 @@ class SpecialistDetailScreen extends ConsumerWidget {
               AppSpacing.xxxl * 2,
             ),
             children: [
-              _Header(specialist: s, onEdit: () => _openEdit(context, s)),
+              _Header(adult: s, onEdit: () => _openEdit(context, s)),
               const SizedBox(height: AppSpacing.xl),
-              _TodayBlocksSection(specialistId: specialistId),
+              _TodayBlocksSection(adultId: adultId),
               const SizedBox(height: AppSpacing.lg),
-              _AvailabilitySection(specialistId: specialistId),
+              _AvailabilitySection(adultId: adultId),
               const SizedBox(height: AppSpacing.lg),
               _AssignedActivitiesSection(
-                specialistId: specialistId,
+                adultId: adultId,
                 onItemTap: (item) => _openTemplate(context, ref, item),
               ),
               if ((s.notes ?? '').trim().isNotEmpty) ...[
@@ -100,20 +100,20 @@ class SpecialistDetailScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _openEdit(BuildContext context, Specialist s) async {
+  Future<void> _openEdit(BuildContext context, Adult s) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => EditSpecialistSheet(specialist: s),
+      builder: (_) => EditAdultSheet(adult: s),
     );
   }
 
-  Future<void> _openAddActivity(BuildContext context, Specialist s) async {
+  Future<void> _openAddActivity(BuildContext context, Adult s) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => NewActivityWizardScreen(initialSpecialistId: s.id),
+        builder: (_) => NewActivityWizardScreen(initialAdultId: s.id),
       ),
     );
   }
@@ -139,22 +139,22 @@ class SpecialistDetailScreen extends ConsumerWidget {
 }
 
 class _Header extends ConsumerWidget {
-  const _Header({required this.specialist, required this.onEdit});
+  const _Header({required this.adult, required this.onEdit});
 
-  final Specialist specialist;
+  final Adult adult;
   final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final initial = specialist.name.isNotEmpty
-        ? specialist.name.characters.first.toUpperCase()
+    final initial = adult.name.isNotEmpty
+        ? adult.name.characters.first.toUpperCase()
         : '?';
-    final role = AdultRole.fromDb(specialist.adultRole);
+    final role = AdultRole.fromDb(adult.adultRole);
     // Anchor group name is only meaningful for leads. Safe-default
     // to a null watcher when the adult has no anchor so we don't
     // spin up a provider just to get an empty string back.
-    final anchorId = specialist.anchoredGroupId;
+    final anchorId = adult.anchoredGroupId;
     final anchorName = anchorId == null
         ? null
         : ref.watch(groupProvider(anchorId)).asData?.value?.name;
@@ -167,7 +167,7 @@ class _Header extends ConsumerWidget {
         child: Row(
           children: [
             SmallAvatar(
-              path: specialist.avatarPath,
+              path: adult.avatarPath,
               fallbackInitial: initial,
               radius: 32,
               backgroundColor: theme.colorScheme.secondaryContainer,
@@ -179,12 +179,12 @@ class _Header extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    specialist.name,
+                    adult.name,
                     style: theme.textTheme.headlineMedium,
                   ),
-                  if ((specialist.role ?? '').trim().isNotEmpty)
+                  if ((adult.role ?? '').trim().isNotEmpty)
                     Text(
-                      specialist.role!,
+                      adult.role!,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -231,7 +231,7 @@ class _RoleChip extends StatelessWidget {
       AdultRole.specialist => (
           theme.colorScheme.tertiaryContainer,
           theme.colorScheme.onTertiaryContainer,
-          'Specialist',
+          'Adult',
         ),
       AdultRole.ambient => (
           theme.colorScheme.surfaceContainerHighest,
@@ -257,7 +257,7 @@ class _RoleChip extends StatelessWidget {
 }
 
 /// "Anchors: Butterflies" chip next to the role. Shown only for
-/// leads with an anchor — specialists + ambient never anchor a
+/// leads with an anchor — adults + ambient never anchor a
 /// group.
 class _AnchorChip extends StatelessWidget {
   const _AnchorChip({required this.name});
@@ -295,15 +295,15 @@ class _AnchorChip extends StatelessWidget {
 }
 
 class _AvailabilitySection extends ConsumerWidget {
-  const _AvailabilitySection({required this.specialistId});
+  const _AvailabilitySection({required this.adultId});
 
-  final String specialistId;
+  final String adultId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final availabilityAsync =
-        ref.watch(specialistAvailabilityProvider(specialistId));
+        ref.watch(adultAvailabilityProvider(adultId));
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -322,7 +322,7 @@ class _AvailabilitySection extends ConsumerWidget {
                   ),
                 );
               }
-              final byDay = <int, List<SpecialistAvailabilityData>>{};
+              final byDay = <int, List<AdultAvailabilityData>>{};
               for (final b in blocks) {
                 byDay.putIfAbsent(b.dayOfWeek, () => []).add(b);
               }
@@ -347,7 +347,7 @@ class _AvailabilityRow extends StatelessWidget {
   const _AvailabilityRow({required this.day, required this.blocks});
 
   final int day;
-  final List<SpecialistAvailabilityData> blocks;
+  final List<AdultAvailabilityData> blocks;
 
   @override
   Widget build(BuildContext context) {
@@ -387,7 +387,7 @@ class _AvailabilityRow extends StatelessWidget {
   /// Top line is the shift span; below it, a single muted row lists
   /// break + lunch windows when set. Kept on one row so a teacher
   /// scanning the week sees the shape at a glance.
-  Widget _blockLine(ThemeData theme, SpecialistAvailabilityData b) {
+  Widget _blockLine(ThemeData theme, AdultAvailabilityData b) {
     final extras = <String>[
       if (b.breakStart != null && b.breakEnd != null)
         'break ${_display(b.breakStart!)}–${_display(b.breakEnd!)}',
@@ -429,17 +429,17 @@ class _AvailabilityRow extends StatelessWidget {
 
 class _AssignedActivitiesSection extends ConsumerWidget {
   const _AssignedActivitiesSection({
-    required this.specialistId,
+    required this.adultId,
     required this.onItemTap,
   });
 
-  final String specialistId;
+  final String adultId;
   final ValueChanged<ScheduleItem> onItemTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final templatesAsync = ref.watch(templatesBySpecialistProvider(specialistId));
+    final templatesAsync = ref.watch(templatesByAdultProvider(adultId));
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -480,7 +480,7 @@ class _AssignedActivitiesSection extends ConsumerWidget {
                             title: t.title,
                             groupIds: const [],
                             allGroups: t.allGroups,
-                            specialistId: t.specialistId,
+                            adultId: t.adultId,
                             location: t.location,
                             notes: t.notes,
                             isFromTemplate: true,
@@ -591,9 +591,9 @@ class _DayGroup extends StatelessWidget {
 /// Availability section above already tells the teacher what day
 /// shape they're on.
 class _TodayBlocksSection extends ConsumerWidget {
-  const _TodayBlocksSection({required this.specialistId});
+  const _TodayBlocksSection({required this.adultId});
 
-  final String specialistId;
+  final String adultId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -610,7 +610,7 @@ class _TodayBlocksSection extends ConsumerWidget {
       StreamProvider.autoDispose<List<AdultDayBlock>>(
         (ref) => ref
             .watch(adultTimelineRepositoryProvider)
-            .watchBlocksFor(specialistId),
+            .watchBlocksFor(adultId),
       ),
     );
     final blocks = (blocksAsync.asData?.value ?? const <AdultDayBlock>[])
@@ -637,7 +637,7 @@ class _TodayBlocksSection extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           for (final b in blocks)
-            _BlockRow(specialistId: specialistId, block: b),
+            _BlockRow(adultId: adultId, block: b),
         ],
       ),
     );
@@ -645,9 +645,9 @@ class _TodayBlocksSection extends ConsumerWidget {
 }
 
 class _BlockRow extends ConsumerWidget {
-  const _BlockRow({required this.specialistId, required this.block});
+  const _BlockRow({required this.adultId, required this.block});
 
-  final String specialistId;
+  final String adultId;
   final AdultDayBlock block;
 
   @override
@@ -658,7 +658,7 @@ class _BlockRow extends ConsumerWidget {
     // Resolve destination label.
     //
     // Lead block: block.groupId is the anchored group — name it.
-    // Specialist block: render one row per overlapping scheduled
+    // Adult block: render one row per overlapping scheduled
     // template (rotating into different activities through the
     // day), each resolved to the destination group + that group's
     // anchor-lead name inside a dedicated child widget.
@@ -678,12 +678,12 @@ class _BlockRow extends ConsumerWidget {
         style: theme.textTheme.bodyMedium,
       );
     } else {
-      // Specialist — cross-ref scheduled templates that overlap the
+      // Adult — cross-ref scheduled templates that overlap the
       // block window. Each gets its own line with the destination
       // group + anchor-lead name resolved through the
       // templateGroupsProvider join.
       final allTemplates =
-          ref.watch(templatesBySpecialistProvider(specialistId))
+          ref.watch(templatesByAdultProvider(adultId))
                   .asData?.value ??
               const <ScheduleTemplate>[];
       final blockStart = _parseHHmm(block.startTime);
@@ -709,7 +709,7 @@ class _BlockRow extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             for (final t in overlapping)
-              _SpecialistDestinationLine(
+              _AdultDestinationLine(
                 template: t,
                 summariesByGroupId: summariesByGroupId,
               ),
@@ -760,7 +760,7 @@ class _BlockRow extends ConsumerWidget {
   }
 }
 
-/// One line inside a specialist block — describes a single activity
+/// One line inside a adult block — describes a single activity
 /// they're running during that block, with the destination group(s)
 /// and each group's anchor-lead name so the covering lead knows
 /// where they're heading and who the "home" lead there is.
@@ -769,8 +769,8 @@ class _BlockRow extends ConsumerWidget {
 /// parent row doesn't have to thread N async lookups. Loading
 /// state shows a muted activity title only; once the join lands,
 /// destinations + anchors fill in.
-class _SpecialistDestinationLine extends ConsumerWidget {
-  const _SpecialistDestinationLine({
+class _AdultDestinationLine extends ConsumerWidget {
+  const _AdultDestinationLine({
     required this.template,
     required this.summariesByGroupId,
   });

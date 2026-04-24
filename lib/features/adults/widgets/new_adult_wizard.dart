@@ -1,6 +1,6 @@
+import 'package:basecamp/features/adults/adults_repository.dart';
+import 'package:basecamp/features/adults/widgets/availability_editor.dart';
 import 'package:basecamp/features/children/children_repository.dart';
-import 'package:basecamp/features/specialists/specialists_repository.dart';
-import 'package:basecamp/features/specialists/widgets/availability_editor.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
@@ -9,28 +9,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Create-only step-wizard for a new adult. Editing an existing row
-/// still uses the dense EditSpecialistSheet; this flow walks a
+/// still uses the dense EditAdultSheet; this flow walks a
 /// first-timer through every field one page at a time so nothing the
 /// edit sheet exposes is hidden from creation.
 ///
 /// Pages:
 ///   1. Who is this?          — photo + name
 ///   2. Job title              — free-form ("Art teacher")
-///   3. Role on the schedule   — Lead / Specialist / Ambient
+///   3. Role on the schedule   — Lead / Adult / Ambient
 ///   4. Anchor group           — only when Lead; skipped otherwise
 ///   5. When do they work?     — per-day shift (Mon–Fri)
 ///   6. Break & lunch          — per-day break + lunch windows
 ///   7. Notes                  — freeform (optional)
-class NewSpecialistWizardScreen extends ConsumerStatefulWidget {
-  const NewSpecialistWizardScreen({super.key});
+class NewAdultWizardScreen extends ConsumerStatefulWidget {
+  const NewAdultWizardScreen({super.key});
 
   @override
-  ConsumerState<NewSpecialistWizardScreen> createState() =>
-      _NewSpecialistWizardScreenState();
+  ConsumerState<NewAdultWizardScreen> createState() =>
+      _NewAdultWizardScreenState();
 }
 
-class _NewSpecialistWizardScreenState
-    extends ConsumerState<NewSpecialistWizardScreen> {
+class _NewAdultWizardScreenState
+    extends ConsumerState<NewAdultWizardScreen> {
   final _name = TextEditingController();
   final _role = TextEditingController();
   final _notes = TextEditingController();
@@ -79,12 +79,12 @@ class _NewSpecialistWizardScreenState
   Future<void> _submit() async {
     final role = _role.text.trim();
     final notes = _notes.text.trim();
-    final repo = ref.read(specialistsRepositoryProvider);
+    final repo = ref.read(adultsRepositoryProvider);
     // Anchor only applies to leads — don't persist a stale value if
     // the teacher picked Lead, set a group, then switched roles.
     final effectiveAnchor =
         _adultRole == AdultRole.lead ? _anchoredGroupId : null;
-    final id = await repo.addSpecialist(
+    final id = await repo.addAdult(
       name: _name.text.trim(),
       role: role.isEmpty ? null : role,
       notes: notes.isEmpty ? null : notes,
@@ -101,7 +101,7 @@ class _NewSpecialistWizardScreenState
             .toList()
         : _availability.values.map((b) => b.toInput()).toList();
     await repo.replaceAvailability(
-      specialistId: id,
+      adultId: id,
       blocks: blocks,
     );
     if (!mounted) return;
@@ -136,7 +136,7 @@ class _NewSpecialistWizardScreenState
           content: _buildRolePage(),
         ),
         // Anchor page only matters for Leads; the wizard still shows it
-        // but lets specialists/ambient skip through it with the default
+        // but lets adults/ambient skip through it with the default
         // "Skip" action.
         WizardStep(
           headline: 'Which group do they anchor?',
@@ -229,7 +229,7 @@ class _NewSpecialistWizardScreenState
               ? "Leads anchor a single group — you'll pick which on "
                   'the next step.'
               : _adultRole == AdultRole.specialist
-                  ? 'Specialists rotate between activities on the '
+                  ? 'Adults rotate between activities on the '
                       'schedule.'
                   : "Ambient staff have a shift but aren't on the "
                       'activity grid — director, nurse, kitchen, etc.',
@@ -586,7 +586,7 @@ class _RoleOption extends StatelessWidget {
               'typical classroom setup.',
         ),
       AdultRole.specialist => (
-          'Specialist',
+          'Adult',
           'Rotates between activities (art, music, swim, etc.). '
               'Comes into a group for one block, moves to the next.',
         ),

@@ -21,8 +21,8 @@ QueryExecutor _openConnection() {
     ObservationChildren,
     ObservationAttachments,
     ObservationDomainTags,
-    Specialists,
-    SpecialistAvailability,
+    Adults,
+    AdultAvailability,
     Rooms,
     ActivityLibrary,
     ScheduleTemplates,
@@ -43,7 +43,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 35;
+  int get schemaVersion => 36;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -237,15 +237,15 @@ class AppDatabase extends _$AppDatabase {
             // v28: adults (lead/specialist/ambient roles + anchor) and
             // rooms (tracked entities for collision detection).
             //
-            // Specialists gain two columns:
-            //   - adult_role: 'lead' | 'specialist' | 'ambient'
-            //     (defaults to 'specialist' so existing rows keep
+            // The adults table (named "specialists" pre-v36) gains two columns:
+            //   - adult_role: 'lead' | 'adult' | 'ambient'
+            //     (defaults to 'adult' so existing rows keep
             //     their current rover behavior)
             //   - anchored_group_id: for leads, which group they stay
             //     with. Nullable, setNull on group delete.
             await _runSilent(
               'ALTER TABLE "specialists" '
-              "ADD COLUMN \"adult_role\" TEXT NOT NULL DEFAULT 'specialist'",
+              "ADD COLUMN \"adult_role\" TEXT NOT NULL DEFAULT 'adult'",
             );
             await _runSilent(
               'ALTER TABLE "specialists" '
@@ -343,10 +343,10 @@ class AppDatabase extends _$AppDatabase {
           if (from < 30) {
             // v30: adult day-timeline. Per-adult-per-day role blocks
             // ('lead' / 'specialist') that subdivide the shift so
-            // "group lead 8:30-11, specialist rotator 11-12, back to
+            // "group lead 8:30-11, adult rotator 11-12, back to
             // group lead 12-3" is representable. Gaps are implied off;
             // adults with zero blocks fall back to the static
-            // `specialists.adult_role` for compatibility.
+            // `adults.adult_role` for compatibility.
             await _runSilent(
               'CREATE TABLE IF NOT EXISTS "adult_day_blocks" ( '
               '"id" TEXT NOT NULL PRIMARY KEY, '
@@ -398,6 +398,49 @@ class AppDatabase extends _$AppDatabase {
             );
           }
           // --- version gates below ---
+          if (from < 36) {
+            // v36: entity rename "specialist" → "adult". Table names,
+            // the specialist_id FK column on every related table, and
+            // the idx_adult_block_specialist_day index all move to
+            // "adult" naming to match the UI vocabulary. The
+            // 'adult' STRING VALUE in adult_role / role columns
+            // is unchanged — that's the rotating-rover role label.
+            await _runSilent(
+              'ALTER TABLE "specialists" RENAME TO "adults"',
+            );
+            await _runSilent(
+              'ALTER TABLE "specialist_availability" '
+              'RENAME TO "adult_availability"',
+            );
+            await _runSilent(
+              'ALTER TABLE "adult_availability" '
+              'RENAME COLUMN "specialist_id" TO "adult_id"',
+            );
+            await _runSilent(
+              'ALTER TABLE "activity_library" '
+              'RENAME COLUMN "specialist_id" TO "adult_id"',
+            );
+            await _runSilent(
+              'ALTER TABLE "adult_day_blocks" '
+              'RENAME COLUMN "specialist_id" TO "adult_id"',
+            );
+            await _runSilent(
+              'ALTER TABLE "schedule_templates" '
+              'RENAME COLUMN "specialist_id" TO "adult_id"',
+            );
+            await _runSilent(
+              'ALTER TABLE "schedule_entries" '
+              'RENAME COLUMN "specialist_id" TO "adult_id"',
+            );
+            await _runSilent(
+              'DROP INDEX IF EXISTS "idx_adult_block_specialist_day"',
+            );
+            await _runSilent(
+              'CREATE INDEX IF NOT EXISTS '
+              '"idx_adult_block_adult_day" '
+              'ON "adult_day_blocks" ("adult_id", "day_of_week")',
+            );
+          }
           if (from < 35) {
             // v35: second break window on adult availability. v28 added
             // one break + one lunch; some programs run a morning AND

@@ -5,7 +5,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// GroupSummary is a derived view over groups + specialists + rooms +
+/// GroupSummary is a derived view over groups + adults + rooms +
 /// children. These tests seed an in-memory DB with a realistic group
 /// shape and assert the join produces the right bundle. The join
 /// logic itself is non-trivial (three indexes, two filters) and easy
@@ -52,42 +52,42 @@ void main() {
             GroupsCompanion.insert(id: 'g-l', name: 'Ladybugs'),
           );
 
-      await db.into(db.specialists).insert(
-            SpecialistsCompanion.insert(
+      await db.into(db.adults).insert(
+            AdultsCompanion.insert(
               id: 's-sarah',
               name: 'Sarah',
               adultRole: const Value('lead'),
               anchoredGroupId: const Value('g-b'),
             ),
           );
-      await db.into(db.specialists).insert(
-            SpecialistsCompanion.insert(
+      await db.into(db.adults).insert(
+            AdultsCompanion.insert(
               id: 's-mike',
               name: 'Mike',
               adultRole: const Value('lead'),
               anchoredGroupId: const Value('g-l'),
             ),
           );
-      await db.into(db.specialists).insert(
-            SpecialistsCompanion.insert(
+      await db.into(db.adults).insert(
+            AdultsCompanion.insert(
               id: 's-jen',
               name: 'Jen',
               adultRole: const Value('lead'),
               anchoredGroupId: const Value('g-l'),
             ),
           );
-      await db.into(db.specialists).insert(
-            SpecialistsCompanion.insert(
+      await db.into(db.adults).insert(
+            AdultsCompanion.insert(
               id: 's-alex',
               name: 'Alex',
-              // Specialist rotator with a leftover anchor — must NOT
+              // Adult rotator with a leftover anchor — must NOT
               // show up in anchorLeads because role != lead.
-              adultRole: const Value('specialist'),
+              adultRole: const Value('adult'),
               anchoredGroupId: const Value('g-b'),
             ),
           );
-      await db.into(db.specialists).insert(
-            SpecialistsCompanion.insert(
+      await db.into(db.adults).insert(
+            AdultsCompanion.insert(
               id: 's-pat',
               name: 'Pat',
               adultRole: const Value('ambient'),
@@ -170,14 +170,14 @@ void main() {
       expect(c.read(groupSummariesProvider).requireValue, isEmpty);
     });
 
-    test('specialist with lead role but no anchor is ignored', () async {
+    test('adult with lead role but no anchor is ignored', () async {
       final db = _db();
       addTearDown(db.close);
       await db.into(db.groups).insert(
             GroupsCompanion.insert(id: 'g-b', name: 'Butterflies'),
           );
-      await db.into(db.specialists).insert(
-            SpecialistsCompanion.insert(
+      await db.into(db.adults).insert(
+            AdultsCompanion.insert(
               id: 's-1',
               name: 'Unassigned Lead',
               adultRole: const Value('lead'),
