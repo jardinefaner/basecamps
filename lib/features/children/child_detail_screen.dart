@@ -3,6 +3,10 @@ import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/child_recap_share.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/children/widgets/edit_child_sheet.dart';
+import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
+import 'package:basecamp/features/forms/polymorphic/definitions/incident.dart';
+import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
+import 'package:basecamp/features/observations/widgets/observation_composer.dart';
 import 'package:basecamp/features/parents/parents_repository.dart';
 import 'package:basecamp/features/parents/widgets/edit_parent_sheet.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
@@ -13,6 +17,7 @@ import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ChildDetailScreen extends ConsumerWidget {
   const ChildDetailScreen({required this.childId, super.key});
@@ -122,6 +127,8 @@ class ChildDetailScreen extends ConsumerWidget {
               _TodayTimeline(child: child),
               const SizedBox(height: AppSpacing.md),
               _ParentsSection(child: child),
+              const SizedBox(height: AppSpacing.md),
+              _CaptureActionCard(child: child),
               const SizedBox(height: AppSpacing.md),
               AppCard(
                 child: Column(
@@ -548,11 +555,10 @@ class _LinkRow extends ConsumerWidget {
     final theme = Theme.of(context);
     final p = link.parent;
     final name = _formatName(p);
-    final sub = <String>[];
-    if (p.relationship != null && p.relationship!.isNotEmpty) {
-      sub.add(p.relationship!);
-    }
-    if (p.phone != null && p.phone!.isNotEmpty) sub.add(p.phone!);
+    final phone = p.phone?.trim();
+    final email = p.email?.trim();
+    final hasPhone = phone != null && phone.isNotEmpty;
+    final hasEmail = email != null && email.isNotEmpty;
     return InkWell(
       onTap: () => context.push('/more/parents/${p.id}'),
       onLongPress: () => _confirmUnlink(context, ref, p),
@@ -583,11 +589,37 @@ class _LinkRow extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(name, style: theme.textTheme.titleSmall),
-                  if (sub.isNotEmpty)
+                  if (p.relationship != null && p.relationship!.isNotEmpty)
                     Text(
-                      sub.join(' · '),
+                      p.relationship!,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  // Phone + email as their own tappable chips so a
+                  // single tap dials or composes without leaving the
+                  // child screen. Sits inside the same InkWell that
+                  // otherwise pushes the parent detail — GestureDetector
+                  // in a child widget wins the hit test, so the row-
+                  // level InkWell still fires everywhere else.
+                  if (hasPhone)
+                    _ContactLine(
+                      icon: Icons.phone_outlined,
+                      text: phone,
+                      onTap: () => _launchContact(
+                        context,
+                        Uri(scheme: 'tel', path: phone),
+                        fallbackLabel: 'Phone',
+                      ),
+                    ),
+                  if (hasEmail)
+                    _ContactLine(
+                      icon: Icons.mail_outline,
+                      text: email,
+                      onTap: () => _launchContact(
+                        context,
+                        Uri(scheme: 'mailto', path: email),
+                        fallbackLabel: 'Email',
                       ),
                     ),
                 ],
@@ -601,6 +633,35 @@ class _LinkRow extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// Launch a `tel:` / `mailto:` uri via url_launcher. On devices
+  /// without a handler (simulator, stripped-down OS image) we show a
+  /// snackbar instead of failing silently.
+  Future<void> _launchContact(
+    BuildContext context,
+    Uri uri, {
+    required String fallbackLabel,
+  }) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final ok = await launchUrl(uri);
+      if (!ok && context.mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              "Couldn't open $fallbackLabel — no app registered for "
+              '${uri.scheme}: links.',
+            ),
+          ),
+        );
+      }
+    } on Object catch (e) {
+      if (!context.mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text("Couldn't open $fallbackLabel: $e")),
+      );
+    }
   }
 
   Future<void> _confirmUnlink(
@@ -744,6 +805,171 @@ class _ParentPickerSheet extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.sm),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Tappable "icon · text" line used under a parent name to surface
+/// phone + email as one-tap launchers. Rendered inside an InkWell so
+/// the whole strip shows a ripple on press; the parent row's own
+/// InkWell still handles taps on the non-contact area.
+class _ContactLine extends StatelessWidget {
+  const _ContactLine({
+    required this.icon,
+    required this.text,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String text;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Flexible(
+              child: Text(
+                text,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                  decoration: TextDecoration.underline,
+                  decorationColor: theme.colorScheme.primary
+                      .withValues(alpha: 0.4),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Three-button capture card on child detail: observation / incident /
+/// concern, each pre-linked to this child. Saves here mean the teacher
+/// never has to search for the child in the target form.
+///
+///   - Observation → bottom-sheet composer with prefillChildIds so
+///     the saved row auto-links via observation_children.
+///   - Incident → fullscreen form with prefillChildId so the typed
+///     child_id FK on form_submissions is set.
+///   - Concern → fullscreen wizard with initialChildIds so the child
+///     picker is pre-seeded (and the parent auto-fills).
+class _CaptureActionCard extends StatelessWidget {
+  const _CaptureActionCard({required this.child});
+
+  final Child child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Capture', style: theme.textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Log something about ${child.firstName} from right here — '
+            'all pre-linked to this child.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => _openObservation(context),
+                icon: const Icon(Icons.visibility_outlined, size: 18),
+                label: const Text('Observation'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _openIncident(context),
+                icon: Icon(
+                  Icons.report_problem_outlined,
+                  size: 18,
+                  color: theme.colorScheme.error,
+                ),
+                label: Text(
+                  'Incident',
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(
+                    color: theme.colorScheme.error.withValues(alpha: 0.4),
+                  ),
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _openConcern(context),
+                icon: const Icon(Icons.chat_outlined, size: 18),
+                label: const Text('Concern'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openObservation(BuildContext context) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: ObservationComposer(prefillChildIds: [child.id]),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openIncident(BuildContext context) {
+    return Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => GenericFormScreen(
+          definition: incidentForm,
+          prefillChildId: child.id,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openConcern(BuildContext context) {
+    return Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => ParentConcernFormScreen(
+          presentation: ConcernFormPresentation.wizard,
+          initialChildIds: [child.id],
         ),
       ),
     );

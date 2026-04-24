@@ -5,6 +5,10 @@ import 'package:basecamp/features/activity_library/activity_library_repository.d
 import 'package:basecamp/features/activity_library/widgets/library_card_detail_sheet.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
+import 'package:basecamp/features/forms/polymorphic/definitions/incident.dart';
+import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
+import 'package:basecamp/features/observations/widgets/observation_composer.dart';
 import 'package:basecamp/features/rooms/rooms_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/edit_template_sheet.dart';
@@ -120,6 +124,12 @@ class ActivityDetailSheet extends ConsumerWidget {
             ),
             if (_canOverride)
               _JustForTodaySection(item: item),
+            // Capture shortcuts — observation / incident / concern
+            // seeded with this activity's context. Sits above the
+            // delete row so the destructive action stays visually
+            // isolated.
+            const SizedBox(height: AppSpacing.lg),
+            _CaptureActionRow(item: item),
             // Exactly one delete button — the two paths are mutually
             // exclusive by intent, even though a template-sourced
             // item CAN carry both templateId AND entryId (the entry
@@ -867,6 +877,133 @@ class _RosterTile extends ConsumerWidget {
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Three-button shortcut row: log observation, report incident, or
+/// start a concern note — all pre-seeded with the activity's context
+/// so the teacher doesn't retype it.
+///
+/// The row lives on every activity detail sheet (the unified drill-
+/// through surface), so a teacher reading about what's running can
+/// go straight into capture without bouncing back to the FAB. Each
+/// button pops the sheet first and then opens the target surface on
+/// the root navigator — keeps the nav stack shallow.
+class _CaptureActionRow extends StatelessWidget {
+  const _CaptureActionRow({required this.item});
+
+  final ScheduleItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        OutlinedButton.icon(
+          onPressed: () => _openObservation(context),
+          icon: const Icon(Icons.visibility_outlined, size: 18),
+          label: const Text('Observation'),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => _openIncident(context),
+          icon: Icon(
+            Icons.report_problem_outlined,
+            size: 18,
+            color: theme.colorScheme.error,
+          ),
+          label: Text(
+            'Incident',
+            style: TextStyle(color: theme.colorScheme.error),
+          ),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(
+              color: theme.colorScheme.error.withValues(alpha: 0.4),
+            ),
+          ),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => _openConcern(context),
+          icon: const Icon(Icons.chat_outlined, size: 18),
+          label: const Text('Concern'),
+        ),
+      ],
+    );
+  }
+
+  /// Open the observation composer as a bottom sheet scoped to this
+  /// activity. Mirrors Today's wrapper so the "Saved" snackbar renders
+  /// inside the sheet rather than on a messenger hidden behind the
+  /// modal backdrop.
+  Future<void> _openObservation(BuildContext context) async {
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    Navigator.of(context).pop();
+    // Defer to the next frame so the detail sheet is fully dismissed
+    // before the composer sheet mounts. Without this, Flutter warns
+    // about pushing while a route is being removed.
+    await Future<void>.delayed(Duration.zero);
+    if (!rootNav.mounted) return;
+    await showModalBottomSheet<void>(
+      context: rootNav.context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: ObservationComposer(forActivity: item),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Open the incident form as a fullscreen dialog. activity_label
+  /// and location prefill so the teacher doesn't retype context
+  /// they're literally looking at — the "where" and "during what"
+  /// fields come filled in.
+  Future<void> _openIncident(BuildContext context) async {
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    Navigator.of(context).pop();
+    await Future<void>.delayed(Duration.zero);
+    if (!rootNav.mounted) return;
+    await rootNav.push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => GenericFormScreen(
+          definition: incidentForm,
+          prefillData: {
+            'activity_label': item.title,
+            if (item.location != null && item.location!.isNotEmpty)
+              'location': item.location,
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Open a fresh concern note in wizard presentation. Concerns
+  /// aren't activity-scoped (they're parent-raised about a child),
+  /// so nothing prefills — the button is here for consistency with
+  /// the other detail screens.
+  Future<void> _openConcern(BuildContext context) async {
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    Navigator.of(context).pop();
+    await Future<void>.delayed(Duration.zero);
+    if (!rootNav.mounted) return;
+    await rootNav.push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const ParentConcernFormScreen(
+          presentation: ConcernFormPresentation.wizard,
+        ),
       ),
     );
   }

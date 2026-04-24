@@ -4,7 +4,11 @@ import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/children/widgets/edit_child_sheet.dart';
 import 'package:basecamp/features/children/widgets/edit_group_sheet.dart';
+import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
+import 'package:basecamp/features/forms/polymorphic/definitions/incident.dart';
+import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
+import 'package:basecamp/features/observations/widgets/observation_composer.dart';
 import 'package:basecamp/features/rooms/rooms_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
@@ -141,6 +145,8 @@ class _Body extends ConsumerWidget {
         _HeroHeader(summary: summary),
         const SizedBox(height: AppSpacing.lg),
         _UnstaffedWarning(summary: summary),
+        _CaptureActionCard(summary: summary),
+        const SizedBox(height: AppSpacing.lg),
         _RoomSection(summary: summary),
         const SizedBox(height: AppSpacing.lg),
         _LeadsSection(summary: summary),
@@ -1091,6 +1097,120 @@ class _UnstaffedWarning extends ConsumerWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Three-button capture card on group detail: observation / incident /
+/// concern, pre-linked to this group where it makes sense.
+///
+///   - Observation → bottom-sheet composer with prefillGroupId. Saves
+///     ignore the current-time/last-expanded resolution and pin the
+///     observation to THIS group.
+///   - Incident → fullscreen form with prefillGroupId so the typed
+///     group_id FK on form_submissions is set.
+///   - Concern → fullscreen wizard. Concerns are parent-raised about
+///     a specific child, not a group — no group-level prefill; the
+///     button is here for consistency with the other detail screens.
+class _CaptureActionCard extends StatelessWidget {
+  const _CaptureActionCard({required this.summary});
+
+  final GroupSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return _SectionCard(
+      title: 'CAPTURE',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Log something about ${summary.name} — observations and '
+            'incidents land here pre-tagged to this group.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => _openObservation(context),
+                icon: const Icon(Icons.visibility_outlined, size: 18),
+                label: const Text('Observation'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _openIncident(context),
+                icon: Icon(
+                  Icons.report_problem_outlined,
+                  size: 18,
+                  color: theme.colorScheme.error,
+                ),
+                label: Text(
+                  'Incident',
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(
+                    color: theme.colorScheme.error.withValues(alpha: 0.4),
+                  ),
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _openConcern(context),
+                icon: const Icon(Icons.chat_outlined, size: 18),
+                label: const Text('Concern'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openObservation(BuildContext context) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: ObservationComposer(prefillGroupId: summary.id),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openIncident(BuildContext context) {
+    return Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => GenericFormScreen(
+          definition: incidentForm,
+          prefillGroupId: summary.id,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openConcern(BuildContext context) {
+    return Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const ParentConcernFormScreen(
+          presentation: ConcernFormPresentation.wizard,
         ),
       ),
     );

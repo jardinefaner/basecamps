@@ -38,15 +38,22 @@ enum ConcernFormPresentation { wizard, scroll }
 /// [presentation] defaults to [ConcernFormPresentation.scroll] —
 /// creation sites explicitly pass `wizard` so the new-note flow
 /// mirrors the new-activity / new-child wizards.
+///
+/// [initialChildIds] pre-seeds the child picker on a fresh create so
+/// a teacher starting a concern note from a child's detail screen
+/// doesn't have to re-pick that child. Ignored when editing an
+/// existing note (its saved selection wins).
 class ParentConcernFormScreen extends ConsumerStatefulWidget {
   const ParentConcernFormScreen({
     this.noteId,
     this.presentation = ConcernFormPresentation.scroll,
+    this.initialChildIds = const [],
     super.key,
   });
 
   final String? noteId;
   final ConcernFormPresentation presentation;
+  final List<String> initialChildIds;
 
   @override
   ConsumerState<ParentConcernFormScreen> createState() =>
@@ -145,6 +152,19 @@ class _ParentConcernFormScreenState
     } else {
       _loaded = true;
       _input.concernDate = DateTime.now();
+      // Fresh create opened from a child detail's "Concern note"
+      // shortcut — seed the child picker so the teacher doesn't
+      // re-pick the child they're already looking at. Auto-fill of
+      // the parent name from the seeded children happens after the
+      // first frame, when the childrenProvider is guaranteed to be
+      // populated.
+      if (widget.initialChildIds.isNotEmpty) {
+        _selectedChildIds.addAll(widget.initialChildIds);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _autoFillParent(_selectedChildIds);
+        });
+      }
       // Brand-new note: every keystroke counts as "dirty" from the
       // get-go, so listeners can attach right away. `_dirty` stays
       // false until the user actually types, so Save is gated by
