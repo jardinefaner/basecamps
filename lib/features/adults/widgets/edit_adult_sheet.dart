@@ -7,6 +7,7 @@ import 'package:basecamp/features/adults/widgets/adult_timeline_editor_sheet.dar
 import 'package:basecamp/features/adults/widgets/availability_editor.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/children/widgets/new_group_wizard.dart';
+import 'package:basecamp/features/parents/parents_repository.dart';
 import 'package:basecamp/features/roles/roles_repository.dart';
 import 'package:basecamp/features/roles/widgets/edit_role_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -34,10 +35,19 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
       TextEditingController(text: widget.adult?.name ?? '');
   late final _roleController =
       TextEditingController(text: widget.adult?.role ?? '');
+  late final _phoneController =
+      TextEditingController(text: widget.adult?.phone ?? '');
+  late final _emailController =
+      TextEditingController(text: widget.adult?.email ?? '');
   late final _notesController =
       TextEditingController(text: widget.adult?.notes ?? '');
 
   late String? _avatarPath = widget.adult?.avatarPath;
+
+  /// v40: link to the Parents row when this staff member is also a
+  /// parent of a child in the program. Null when not linked. The
+  /// picker below the role section reads/writes this directly.
+  late String? _parentId = widget.adult?.parentId;
 
   /// v39: FK to a Roles row. When non-null the role picker
   /// supersedes the free-text [_roleController] — we save
@@ -80,12 +90,19 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
         _roleController.text.trim().isEmpty ? null : _roleController.text.trim();
     if (currentRole != adult.role) return true;
     if (_roleId != adult.roleId) return true;
+    final currentPhone =
+        _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim();
+    if (currentPhone != adult.phone) return true;
+    final currentEmail =
+        _emailController.text.trim().isEmpty ? null : _emailController.text.trim();
+    if (currentEmail != adult.email) return true;
     final currentNotes =
         _notesController.text.trim().isEmpty ? null : _notesController.text.trim();
     if (currentNotes != adult.notes) return true;
     if (_avatarPath != adult.avatarPath) return true;
     if (_adultRole.dbValue != adult.adultRole) return true;
     if (_anchoredGroupId != adult.anchoredGroupId) return true;
+    if (_parentId != adult.parentId) return true;
     if (!_availabilityLoaded) return false;
     final current = _currentAvailabilitySig();
     if (current.length != _availabilityBaseline.length) return true;
@@ -146,6 +163,8 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
   void dispose() {
     _nameController.dispose();
     _roleController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -162,6 +181,12 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
         _roleController.text.trim().isEmpty ? null : _roleController.text.trim();
     final role = _roleId != null ? null : typed;
     final roleId = _roleId;
+    final phone = _phoneController.text.trim().isEmpty
+        ? null
+        : _phoneController.text.trim();
+    final email = _emailController.text.trim().isEmpty
+        ? null
+        : _emailController.text.trim();
     final notes = _notesController.text.trim().isEmpty
         ? null
         : _notesController.text.trim();
@@ -185,6 +210,9 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
             _avatarPath == null && existing.avatarPath != null,
         adultRole: Value(_adultRole.dbValue),
         anchoredGroupId: Value(effectiveAnchor),
+        phone: Value(phone),
+        email: Value(email),
+        parentId: Value(_parentId),
       );
       id = existing.id;
     } else {
@@ -196,6 +224,9 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
         avatarPath: _avatarPath,
         adultRole: _adultRole,
         anchoredGroupId: effectiveAnchor,
+        phone: phone,
+        email: email,
+        parentId: _parentId,
       );
     }
     if (_availabilityLoaded) {
@@ -295,6 +326,22 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
               if (v.trim().isNotEmpty && _roleId != null) _roleId = null;
             }),
           ),
+          const SizedBox(height: AppSpacing.lg),
+          // v40: direct contact on the adult row itself. Placed right
+          // under the name/role cluster so first-timers fill them out
+          // in one pass. Validation matches how parents handle it —
+          // lenient, no strict format check.
+          AppTextField(
+            controller: _phoneController,
+            label: 'Phone (optional)',
+            keyboardType: TextInputType.phone,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          AppTextField(
+            controller: _emailController,
+            label: 'Email (optional)',
+            keyboardType: TextInputType.emailAddress,
+          ),
           const SizedBox(height: AppSpacing.xl),
           _RolePicker(
             selected: _adultRole,
@@ -310,6 +357,11 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
               onChanged: (id) => setState(() => _anchoredGroupId = id),
             ),
           ],
+          const SizedBox(height: AppSpacing.xl),
+          _ParentLinkSection(
+            parentId: _parentId,
+            onChanged: (id) => setState(() => _parentId = id),
+          ),
           const SizedBox(height: AppSpacing.xl),
           Text('Availability', style: theme.textTheme.titleSmall),
           const SizedBox(height: AppSpacing.sm),
@@ -716,6 +768,250 @@ class _AnchorGroupPicker extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+/// v40: "Link to parent record" section on the adult edit sheet.
+/// When `parentId == null` shows an outlined button that opens a
+/// picker sheet listing every Parent alphabetically with search.
+/// When `parentId` is set shows a chip with the parent's display name
+/// + a small X to un-link. The FK lives on `adults.parent_id`, so
+/// the parallel section on EditParentSheet just does the reverse
+/// lookup — no second column needed.
+class _ParentLinkSection extends ConsumerWidget {
+  const _ParentLinkSection({
+    required this.parentId,
+    required this.onChanged,
+  });
+
+  final String? parentId;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Link to parent record', style: theme.textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Set when this staff member is also a parent of a child in '
+          'the program. The parent row keeps pickup authorization and '
+          'contact info; this row keeps their shift and role.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        if (parentId == null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: () => _pick(context, ref),
+              icon: const Icon(Icons.person_add_outlined, size: 18),
+              label: const Text('Link parent record'),
+            ),
+          )
+        else
+          _LinkedParentChip(
+            parentId: parentId!,
+            onClear: () => onChanged(null),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _pick(BuildContext context, WidgetRef ref) async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (_) => const _ParentPickerSheet(),
+    );
+    if (picked != null) onChanged(picked);
+  }
+}
+
+/// Chip rendered when the adult has a parent link set. Name lives in
+/// the Parents table — stream it so the chip updates when someone
+/// edits the parent's name elsewhere. X clears the link.
+class _LinkedParentChip extends ConsumerWidget {
+  const _LinkedParentChip({
+    required this.parentId,
+    required this.onClear,
+  });
+
+  final String parentId;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final parentAsync = ref.watch(parentProvider(parentId));
+    final parent = parentAsync.asData?.value;
+    final label = parent == null
+        ? '…'
+        : _displayName(parent);
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: InputChip(
+        avatar: const Icon(Icons.person_outline, size: 16),
+        label: Text(label),
+        onDeleted: onClear,
+        deleteIcon: const Icon(Icons.close, size: 16),
+        deleteButtonTooltipMessage: 'Unlink parent',
+        backgroundColor: theme.colorScheme.secondaryContainer,
+      ),
+    );
+  }
+
+  String _displayName(Parent p) {
+    final last = p.lastName;
+    return last == null || last.isEmpty
+        ? p.firstName
+        : '${p.firstName} $last';
+  }
+}
+
+/// Modal sheet that lists every Parent alphabetically with a search
+/// field at the top. Taps pop with the parent's id; search filters
+/// by name substring (case-insensitive). Kept small and private —
+/// shared picker infrastructure isn't worth the abstraction yet.
+class _ParentPickerSheet extends ConsumerStatefulWidget {
+  const _ParentPickerSheet();
+
+  @override
+  ConsumerState<_ParentPickerSheet> createState() =>
+      _ParentPickerSheetState();
+}
+
+class _ParentPickerSheetState extends ConsumerState<_ParentPickerSheet> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final parentsAsync = ref.watch(parentsProvider);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.sm,
+          AppSpacing.lg,
+          AppSpacing.lg,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: Text(
+                'Link parent record',
+                style: theme.textTheme.titleLarge,
+              ),
+            ),
+            AppTextField(
+              controller: _searchController,
+              label: 'Search parents',
+              onChanged: (v) => setState(() => _query = v.trim()),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Flexible(
+              child: parentsAsync.when(
+                loading: () => const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(AppSpacing.xl),
+                    child: CircularProgressIndicator(),
+                  ),
+                ),
+                error: (err, _) => Text('Error: $err'),
+                data: (parents) {
+                  final filtered = _filter(parents);
+                  if (filtered.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppSpacing.lg,
+                      ),
+                      child: Text(
+                        parents.isEmpty
+                            ? 'No parents yet. Add one from the Parents '
+                                'tab first.'
+                            : 'No matches.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    );
+                  }
+                  return ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: filtered.length,
+                    itemBuilder: (context, i) {
+                      final p = filtered[i];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          radius: 16,
+                          backgroundColor:
+                              theme.colorScheme.secondaryContainer,
+                          foregroundColor:
+                              theme.colorScheme.onSecondaryContainer,
+                          child: Text(
+                            p.firstName.isEmpty
+                                ? '?'
+                                : p.firstName.characters.first
+                                    .toUpperCase(),
+                          ),
+                        ),
+                        title: Text(_display(p)),
+                        subtitle: p.relationship == null ||
+                                p.relationship!.isEmpty
+                            ? null
+                            : Text(p.relationship!),
+                        onTap: () => Navigator.of(context).pop(p.id),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Parent> _filter(List<Parent> all) {
+    final sorted = [...all]..sort((a, b) {
+        final byFirst =
+            a.firstName.toLowerCase().compareTo(b.firstName.toLowerCase());
+        if (byFirst != 0) return byFirst;
+        return (a.lastName ?? '')
+            .toLowerCase()
+            .compareTo((b.lastName ?? '').toLowerCase());
+      });
+    if (_query.isEmpty) return sorted;
+    final q = _query.toLowerCase();
+    return sorted.where((p) {
+      final name = _display(p).toLowerCase();
+      return name.contains(q);
+    }).toList();
+  }
+
+  String _display(Parent p) {
+    final last = p.lastName;
+    return last == null || last.isEmpty
+        ? p.firstName
+        : '${p.firstName} $last';
   }
 }
 

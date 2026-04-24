@@ -29,6 +29,7 @@ class ScheduleItem {
     this.entryId,
     this.sourceLibraryItemId,
     this.roomId,
+    this.sourceUrl,
   });
 
   final String id;
@@ -62,6 +63,11 @@ class ScheduleItem {
   /// and ad-hoc note escape hatch. Room conflict detection fires when
   /// two items share the same [roomId] at overlapping times.
   final String? roomId;
+
+  /// v40: per-occurrence reference link (recipe URL, lesson plan,
+  /// article). Rendered tappably on the detail sheet when set.
+  /// Independent of any library-card back-reference.
+  final String? sourceUrl;
 
   /// The concrete calendar date this item renders on. Set by the
   /// repository while expanding templates and entries into day-
@@ -170,6 +176,7 @@ class ScheduleRepository {
           templateId: t.id,
           sourceLibraryItemId: t.sourceLibraryItemId,
           roomId: t.roomId,
+          sourceUrl: t.sourceUrl,
         );
         byDay.putIfAbsent(t.dayOfWeek, () => []).add(item);
       }
@@ -228,6 +235,10 @@ class ScheduleRepository {
     // Tracked-room FK (v28). When set, drives room conflict detection
     // and overrides the free-form [location] string for display.
     String? roomId,
+    // v40: free-text reference URL (recipe, lesson plan, article).
+    // Persists alongside the other display fields; the detail sheet
+    // renders it tappably via url_launcher when set.
+    String? sourceUrl,
   }) async {
     final id = newId();
     await _db.transaction(() async {
@@ -248,6 +259,7 @@ class ScheduleRepository {
               seriesId: Value(seriesId),
               sourceLibraryItemId: Value(sourceLibraryItemId),
               roomId: Value(roomId),
+              sourceUrl: Value(sourceUrl),
             ),
           );
       for (final groupId in groupIds) {
@@ -430,6 +442,7 @@ class ScheduleRepository {
     String? notes,
     String? sourceLibraryItemId,
     String? roomId,
+    String? sourceUrl,
   }) async {
     final id = newId();
     // Normalize bounds so the range is always [start, end] with
@@ -455,6 +468,7 @@ class ScheduleRepository {
               notes: Value(notes),
               sourceLibraryItemId: Value(sourceLibraryItemId),
               roomId: Value(roomId),
+              sourceUrl: Value(sourceUrl),
               kind: 'addition',
             ),
           );
@@ -894,6 +908,9 @@ class ScheduleRepository {
             // the template's. Lets a "just for today" move to a
             // different room show up correctly on the day.
             roomId: override.roomId ?? t.roomId,
+            // Reference URL (v40): same rule as room — override wins
+            // when set, else inherit the template's link.
+            sourceUrl: override.sourceUrl ?? t.sourceUrl,
           ),
         );
       } else {
@@ -914,6 +931,7 @@ class ScheduleRepository {
             templateId: t.id,
             sourceLibraryItemId: t.sourceLibraryItemId,
             roomId: t.roomId,
+            sourceUrl: t.sourceUrl,
           ),
         );
       }
@@ -941,6 +959,7 @@ class ScheduleRepository {
             entryId: e.id,
             sourceLibraryItemId: e.sourceLibraryItemId,
             roomId: e.roomId,
+            sourceUrl: e.sourceUrl,
           ),
         );
       }

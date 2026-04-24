@@ -345,6 +345,122 @@ class ActivityLibrary extends Table {
   /// the scraped page's title or host during generation.
   TextColumn get sourceAttribution => text().nullable()();
 
+  /// Comma- or newline-separated list of materials — free-text for
+  /// now. A future filter can parse this into chips.
+  TextColumn get materials => text().nullable()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Free-form curriculum-domain tags for activity library items
+/// (v40). A library item can live in multiple domains ("Music",
+/// "Movement") and the join lets the library screen filter by any
+/// subset without storing a denormalized list-string. Values are
+/// free text for now; a future picker can normalize them.
+class ActivityLibraryDomainTags extends Table {
+  TextColumn get libraryItemId => text()
+      .references(ActivityLibrary, #id, onDelete: KeyAction.cascade)();
+  TextColumn get domain => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {libraryItemId, domain};
+}
+
+/// Log row recorded each time a library card is instantiated into a
+/// schedule (template or entry). Drives "recently used" sort and the
+/// "last used at" affordance on library cards. Both template_id and
+/// entry_id are nullable so a usage can record just one side — e.g.
+/// a template created from the card sets template_id; when that
+/// template expands into a per-date entry through the override flow,
+/// that entry's usage row can point at entry_id instead.
+class ActivityLibraryUsages extends Table {
+  TextColumn get id => text()();
+  TextColumn get libraryItemId => text()
+      .references(ActivityLibrary, #id, onDelete: KeyAction.cascade)();
+  TextColumn get templateId => text().nullable().references(
+        ScheduleTemplates,
+        #id,
+        onDelete: KeyAction.setNull,
+      )();
+  TextColumn get entryId => text().nullable().references(
+        ScheduleEntries,
+        #id,
+        onDelete: KeyAction.setNull,
+      )();
+
+  /// The date the card was instantiated for — i.e. the date the
+  /// schedule row lives on. Used for "used this week" aggregations.
+  DateTimeColumn get usedOn => dateTime()();
+
+  /// When the usage row itself was recorded.
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Named ordered sequences of library activities — "this week's
+/// plan", "fall unit 3", "Bug Week lessons". Each sequence owns an
+/// ordered list of library items via [LessonSequenceItems]. No UI
+/// this round; schema lands so Round 4 can build on top.
+class LessonSequences extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get description => text().nullable()();
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Ordered join from [LessonSequences] to [ActivityLibrary]. A single
+/// library item can appear multiple times in a sequence (the same
+/// activity running twice), hence the dedicated id instead of a
+/// composite PK. `position` is 0-based; reorder flows rewrite it.
+class LessonSequenceItems extends Table {
+  TextColumn get id => text()();
+  TextColumn get sequenceId => text()
+      .references(LessonSequences, #id, onDelete: KeyAction.cascade)();
+  TextColumn get libraryItemId => text()
+      .references(ActivityLibrary, #id, onDelete: KeyAction.cascade)();
+
+  /// 0-based position inside the sequence. Sort is authoritative on
+  /// read, and inserts / reorders rewrite this column.
+  IntColumn get position => integer()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Program-level themes — "Bug week", "Kindness week". A theme spans
+/// a date range and colors the Today / planning surfaces without
+/// mandating which activities run. No UI this round; schema lands so
+/// later rounds (plan-a-week / PDF export) can consume it.
+///
+/// Data class is named `ProgramTheme` to avoid clashing with
+/// Flutter's `Theme` widget — callers already importing
+/// `flutter/material.dart` need a disambiguated symbol.
+@DataClassName('ProgramTheme')
+class Themes extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get colorHex => text().nullable()();
+  DateTimeColumn get startDate => dateTime()();
+  DateTimeColumn get endDate => dateTime()();
+  TextColumn get notes => text().nullable()();
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -496,6 +612,22 @@ class Adults extends Table {
   // Local file path for the adult's photo. Remote upload comes later.
   TextColumn get avatarPath => text().nullable()();
 
+  /// v40: direct contact columns on the adult row itself. Both
+  /// nullable — programs that don't capture staff phone/email yet
+  /// leave them blank. Validation is lenient (match Parents' shape),
+  /// and tap-to-call / tap-to-email on the detail screen keys off
+  /// the raw strings.
+  TextColumn get phone => text().nullable()();
+  TextColumn get email => text().nullable()();
+
+  /// Set when this staff member is also a parent of a child in the
+  /// program. The Parents row carries phone/email /
+  /// pickup-authorization; the Adults row carries shift + role.
+  /// Both can be true simultaneously.
+  TextColumn get parentId => text()
+      .nullable()
+      .references(Parents, #id, onDelete: KeyAction.setNull)();
+
   // -- v28: adult roles --
 
   /// 'lead' | 'adult' | 'ambient'. Null-defaults to 'adult'
@@ -615,6 +747,13 @@ class ScheduleTemplates extends Table {
   TextColumn get roomId => text()
       .nullable()
       .references(Rooms, #id, onDelete: KeyAction.setNull)();
+
+  /// v40: optional reference link the teacher pasted when creating
+  /// the activity. Rendered tappably on the detail sheet so teachers
+  /// can jump to the source page (recipe, lesson plan, article).
+  /// Independent of the rich library-card `sourceUrl` — this is per-
+  /// occurrence metadata.
+  TextColumn get sourceUrl => text().nullable()();
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -917,6 +1056,10 @@ class ScheduleEntries extends Table {
   TextColumn get roomId => text()
       .nullable()
       .references(Rooms, #id, onDelete: KeyAction.setNull)();
+
+  /// Mirror of [ScheduleTemplates.sourceUrl] (v40). Per-occurrence
+  /// reference link, independent of any library-card source.
+  TextColumn get sourceUrl => text().nullable()();
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>

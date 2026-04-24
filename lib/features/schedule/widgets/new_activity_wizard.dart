@@ -52,10 +52,11 @@ class _NewActivityWizardScreenState
   // of the activity right at creation time, not only via the rich
   // library-card flow. Writes straight through to the existing
   // ScheduleTemplates.notes column (no schema change needed).
-  //
-  // TODO: Link field pending — needs ScheduleTemplates.sourceUrl
-  // migration after the roles slice lands.
   final _notes = TextEditingController();
+  // v40: per-activity reference link. Writes to the new
+  // ScheduleTemplates.sourceUrl column — independent of any library-
+  // card sourceUrl. Rendered tappably on the detail sheet when set.
+  final _sourceUrl = TextEditingController();
 
   late final Set<int> _selectedDays = widget.initialDays?.toSet() ??
       <int>{clampToScheduleDay(DateTime.now().weekday)};
@@ -93,6 +94,7 @@ class _NewActivityWizardScreenState
     _title.dispose();
     _location.dispose();
     _notes.dispose();
+    _sourceUrl.dispose();
     super.dispose();
   }
 
@@ -100,6 +102,7 @@ class _NewActivityWizardScreenState
       _title.text.trim().isNotEmpty ||
       _location.text.trim().isNotEmpty ||
       _notes.text.trim().isNotEmpty ||
+      _sourceUrl.text.trim().isNotEmpty ||
       _groupIds.isNotEmpty ||
       _adultId != null ||
       _startDate != null ||
@@ -192,6 +195,9 @@ class _NewActivityWizardScreenState
         ? null
         : _location.text.trim();
     final notes = _notes.text.trim().isEmpty ? null : _notes.text.trim();
+    final sourceUrl = _sourceUrl.text.trim().isEmpty
+        ? null
+        : _sourceUrl.text.trim();
     // If the teacher didn't touch page 5, default to "this week only"
     // instead of weekly-forever. That matches what most one-off
     // activities actually are, and keeps the schedule from filling up
@@ -222,6 +228,10 @@ class _NewActivityWizardScreenState
         // Tracked room when picked; null = custom location mode
         // (location string in _location still saved as display fallback).
         roomId: _roomId,
+        // v40: per-activity reference link. Null when the teacher
+        // left the field blank. Independent of the library-card
+        // sourceUrl copied above.
+        sourceUrl: sourceUrl,
       );
     }
     if (!mounted) return;
@@ -388,15 +398,24 @@ class _NewActivityWizardScreenState
         ),
         const SizedBox(height: AppSpacing.lg),
         // "Describe" writes into the existing ScheduleTemplates.notes
-        // column — no schema change. The separate sourceUrl / link
-        // field needs a migration owned by the roles-slice agent; see
-        // the TODO comment next to `_notes` above.
+        // column — no schema change.
         AppTextField(
           controller: _notes,
           label: 'Describe (optional)',
           hint: 'What is this activity? What will kids do?',
           keyboardType: TextInputType.multiline,
           maxLines: 4,
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        // v40: reference link field. Single-line URL input; persists
+        // to ScheduleTemplates.sourceUrl on save. Detail sheet
+        // launches it via url_launcher when set.
+        AppTextField(
+          controller: _sourceUrl,
+          label: 'Reference link (optional)',
+          hint: 'https://…',
+          keyboardType: TextInputType.url,
           onChanged: (_) => setState(() {}),
         ),
       ],

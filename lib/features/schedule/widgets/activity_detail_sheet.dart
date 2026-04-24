@@ -21,6 +21,7 @@ import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Bottom sheet showing an activity's details and the child roster for it.
 /// Roster is derived from group membership: children whose group is listed (or
@@ -82,6 +83,11 @@ class ActivityDetailSheet extends ConsumerWidget {
               const SizedBox(height: AppSpacing.xs),
               Text(item.notes!, style: theme.textTheme.bodyMedium),
             ],
+            // v40: reference link row. Self-hides when unset, so
+            // activities without a link render unchanged. Tap launches
+            // the URL via url_launcher; failure pops a snackbar.
+            if (item.sourceUrl != null && item.sourceUrl!.isNotEmpty)
+              _SourceUrlRow(url: item.sourceUrl!),
             const SizedBox(height: AppSpacing.xl),
             Text('Roster', style: theme.textTheme.titleSmall),
             const SizedBox(height: AppSpacing.sm),
@@ -417,6 +423,68 @@ class _JustForTodaySection extends ConsumerWidget {
       'Dec',
     ];
     return '${months[date.month - 1]} ${date.day}';
+  }
+}
+
+/// v40: reference link row on the detail sheet. Sits near the Notes
+/// block. Renders as icon + truncated URL; tap launches via
+/// url_launcher. When the OS can't handle the scheme we surface a
+/// brief snackbar rather than failing silently.
+class _SourceUrlRow extends StatelessWidget {
+  const _SourceUrlRow({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.md),
+      child: InkWell(
+        onTap: () => _launch(context),
+        borderRadius: BorderRadius.circular(AppSpacing.xs),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+          child: Row(
+            children: [
+              Icon(
+                Icons.link,
+                size: 16,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  url,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.primary,
+                    decoration: TextDecoration.underline,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _launch(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text("Couldn't parse that link.")),
+      );
+      return;
+    }
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text("Couldn't open that link.")),
+      );
+    }
   }
 }
 
