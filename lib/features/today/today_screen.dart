@@ -78,6 +78,12 @@ class TodayScreen extends ConsumerWidget {
       context: context,
       showDragHandle: true,
       useSafeArea: true,
+      // Seven list tiles + title + drag handle overflow the default
+      // half-screen cap on shorter devices. isScrollControlled lets
+      // the sheet size to content; wrapping the column in a
+      // SingleChildScrollView keeps it safe when the device is
+      // even shorter than the intrinsic height of the menu.
+      isScrollControlled: true,
       builder: (ctx) {
         final theme = Theme.of(ctx);
         Future<void> runAfterPop(Future<void> Function() action) async {
@@ -91,109 +97,110 @@ class TodayScreen extends ConsumerWidget {
 
         return SafeArea(
           top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.xs,
-                  AppSpacing.lg,
-                  AppSpacing.sm,
-                ),
-                child: Text(
-                  'Add…',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg,
+                    AppSpacing.xs,
+                    AppSpacing.lg,
+                    AppSpacing.sm,
+                  ),
+                  child: Text(
+                    'Add…',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.auto_awesome_mosaic_outlined),
-                title: const Text('Activity'),
-                onTap: () => runAfterPop(
-                  () => _openAddPicker(context, now),
+                ListTile(
+                  leading: const Icon(Icons.auto_awesome_mosaic_outlined),
+                  title: const Text('Activity'),
+                  onTap: () => runAfterPop(
+                    () => _openAddPicker(context, now),
+                  ),
                 ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.visibility_outlined),
-                title: const Text('Observation'),
-                onTap: () => runAfterPop(
-                  () => _openObservationComposer(context),
+                ListTile(
+                  leading: const Icon(Icons.visibility_outlined),
+                  title: const Text('Observation'),
+                  onTap: () => runAfterPop(
+                    () => _openObservationComposer(context),
+                  ),
                 ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.chat_outlined),
-                title: const Text('Concern note'),
-                onTap: () => runAfterPop(() async {
-                  if (!context.mounted) return;
-                  await Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      fullscreenDialog: true,
-                      builder: (_) => const ParentConcernFormScreen(
-                        presentation: ConcernFormPresentation.wizard,
+                ListTile(
+                  leading: const Icon(Icons.chat_outlined),
+                  title: const Text('Concern note'),
+                  onTap: () => runAfterPop(() async {
+                    if (!context.mounted) return;
+                    await Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        fullscreenDialog: true,
+                        builder: (_) => const ParentConcernFormScreen(
+                          presentation: ConcernFormPresentation.wizard,
+                        ),
                       ),
-                    ),
-                  );
-                }),
-              ),
-              ListTile(
-                leading: Icon(
-                  Icons.report_problem_outlined,
-                  color: theme.colorScheme.error,
+                    );
+                  }),
                 ),
-                title: const Text('Incident'),
-                subtitle: const Text('Injury or behavior on a child'),
-                onTap: () => runAfterPop(() async {
-                  if (!context.mounted) return;
-                  await Navigator.of(context, rootNavigator: true)
-                      .push<void>(
-                    MaterialPageRoute(
-                      fullscreenDialog: true,
-                      builder: (_) => const GenericFormScreen(
-                        definition: incidentForm,
+                ListTile(
+                  leading: Icon(
+                    Icons.report_problem_outlined,
+                    color: theme.colorScheme.error,
+                  ),
+                  title: const Text('Incident'),
+                  subtitle: const Text('Injury or behavior on a child'),
+                  onTap: () => runAfterPop(() async {
+                    if (!context.mounted) return;
+                    await Navigator.of(context, rootNavigator: true).push<void>(
+                      MaterialPageRoute(
+                        fullscreenDialog: true,
+                        builder: (_) => const GenericFormScreen(
+                          definition: incidentForm,
+                        ),
                       ),
-                    ),
-                  );
-                }),
-              ),
-              ListTile(
-                leading: const Icon(Icons.map_outlined),
-                title: const Text('Trip'),
-                onTap: () => runAfterPop(() async {
-                  if (!context.mounted) return;
-                  await Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      fullscreenDialog: true,
-                      builder: (_) => const NewTripWizardScreen(),
-                    ),
-                  );
-                }),
-              ),
-              ListTile(
-                leading: const Icon(Icons.event_outlined),
-                title: const Text('Event (full-day)'),
-                onTap: () => runAfterPop(() async {
-                  if (!context.mounted) return;
-                  await Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      fullscreenDialog: true,
-                      builder: (_) => const NewFullDayEventWizardScreen(),
-                    ),
-                  );
-                }),
-              ),
-              ListTile(
-                leading: const Icon(Icons.assignment_outlined),
-                title: const Text('Start a form…'),
-                onTap: () => runAfterPop(() async {
-                  if (!context.mounted) return;
-                  unawaited(context.push('/more/forms'));
-                }),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-            ],
+                    );
+                  }),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.map_outlined),
+                  title: const Text('Trip'),
+                  onTap: () => runAfterPop(() async {
+                    if (!context.mounted) return;
+                    await Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        fullscreenDialog: true,
+                        builder: (_) => const NewTripWizardScreen(),
+                      ),
+                    );
+                  }),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.event_outlined),
+                  title: const Text('Event (full-day)'),
+                  onTap: () => runAfterPop(() async {
+                    if (!context.mounted) return;
+                    await Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        fullscreenDialog: true,
+                        builder: (_) => const NewFullDayEventWizardScreen(),
+                      ),
+                    );
+                  }),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.assignment_outlined),
+                  title: const Text('Start a form…'),
+                  onTap: () => runAfterPop(() async {
+                    if (!context.mounted) return;
+                    unawaited(context.push('/more/forms'));
+                  }),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+            ),
           ),
         );
       },
@@ -251,8 +258,8 @@ class TodayScreen extends ConsumerWidget {
     final range = c.startDate == null
         ? ''
         : (c.endDate == null
-            ? ', starting ${DateFormat.MMMd().format(c.startDate!)}'
-            : ', ${DateFormat.MMMd().format(c.startDate!)} → ${DateFormat.MMMd().format(c.endDate!)}');
+              ? ', starting ${DateFormat.MMMd().format(c.startDate!)}'
+              : ', ${DateFormat.MMMd().format(c.startDate!)} → ${DateFormat.MMMd().format(c.endDate!)}');
     return '$title $dayPart$range';
   }
 
@@ -281,106 +288,106 @@ class TodayScreen extends ConsumerWidget {
         // hit it accidentally.
       },
       child: Scaffold(
-      // Wide drawer — the launcher hosts search + people grids +
-      // destinations + library pills, all of which feel cramped in the
-      // Drawer default 304dp. 88% of the screen width gives the
-      // content room to breathe without fully hiding Today.
-      drawer: Drawer(
-        width: MediaQuery.of(context).size.width * 0.88,
-        child: const LauncherScreen(),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openCreateMenu(context, now, ref),
-        icon: const Icon(Icons.add),
-        label: const Text('Add'),
-      ),
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            // Wrapped in a Builder so the IconButton's onPressed has a
-            // context sitting *below* this Scaffold — Scaffold.of(...)
-            // walks up from the passed context and would otherwise
-            // find no Scaffold ancestor (this build method's `context`
-            // is above the Scaffold we just returned).
-            leading: Builder(
-              builder: (ctx) => IconButton(
-                icon: const Icon(Icons.menu),
-                tooltip: 'Menu',
-                onPressed: () => Scaffold.of(ctx).openDrawer(),
-              ),
-            ),
-            // Title carries today's date inline so a quick glance
-            // confirms the day without scrolling. Weekday + short
-            // date — the full year is visible enough elsewhere.
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Today'),
-                Text(
-                  dateLabel,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w500,
-                  ),
+        // Wide drawer — the launcher hosts search + people grids +
+        // destinations + library pills, all of which feel cramped in the
+        // Drawer default 304dp. 88% of the screen width gives the
+        // content room to breathe without fully hiding Today.
+        drawer: Drawer(
+          width: MediaQuery.of(context).size.width * 0.88,
+          child: const LauncherScreen(),
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => _openCreateMenu(context, now, ref),
+          icon: const Icon(Icons.add),
+          label: const Text('Add'),
+        ),
+        body: CustomScrollView(
+          slivers: [
+            SliverAppBar(
+              // Wrapped in a Builder so the IconButton's onPressed has a
+              // context sitting *below* this Scaffold — Scaffold.of(...)
+              // walks up from the passed context and would otherwise
+              // find no Scaffold ancestor (this build method's `context`
+              // is above the Scaffold we just returned).
+              leading: Builder(
+                builder: (ctx) => IconButton(
+                  icon: const Icon(Icons.menu),
+                  tooltip: 'Menu',
+                  onPressed: () => Scaffold.of(ctx).openDrawer(),
                 ),
-              ],
-            ),
-            floating: true,
-            snap: true,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.tune_outlined),
-                tooltip: 'Schedule',
-                onPressed: () => context.push('/today/schedule'),
               ),
-              // Gear icon opens a PopupMenuButton with settings / forms.
-              // Forms was previously only reachable via /more — needs
-              // its own entry here so teachers don't lose access now
-              // that the /more top-level branch is retired.
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.settings_outlined),
-                tooltip: 'More',
-                onSelected: (v) {
-                  switch (v) {
-                    case 'settings':
-                      unawaited(context.push('/more/settings'));
-                    case 'forms':
-                      unawaited(context.push('/more/forms'));
-                  }
-                },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(
-                    value: 'settings',
-                    child: Text('Program settings'),
-                  ),
-                  PopupMenuItem(
-                    value: 'forms',
-                    child: Text('Forms & surveys'),
+              // Title carries today's date inline so a quick glance
+              // confirms the day without scrolling. Weekday + short
+              // date — the full year is visible enough elsewhere.
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Today'),
+                  Text(
+                    dateLabel,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(width: AppSpacing.xs),
-            ],
-          ),
-          scheduleAsync.when(
-            loading: () => const SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(child: CircularProgressIndicator()),
+              floating: true,
+              snap: true,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.tune_outlined),
+                  tooltip: 'Schedule',
+                  onPressed: () => context.push('/today/schedule'),
+                ),
+                // Gear icon opens a PopupMenuButton with settings / forms.
+                // Forms was previously only reachable via /more — needs
+                // its own entry here so teachers don't lose access now
+                // that the /more top-level branch is retired.
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.settings_outlined),
+                  tooltip: 'More',
+                  onSelected: (v) {
+                    switch (v) {
+                      case 'settings':
+                        unawaited(context.push('/more/settings'));
+                      case 'forms':
+                        unawaited(context.push('/more/forms'));
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'settings',
+                      child: Text('Program settings'),
+                    ),
+                    PopupMenuItem(
+                      value: 'forms',
+                      child: Text('Forms & surveys'),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: AppSpacing.xs),
+              ],
             ),
-            error: (err, _) => SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(child: Text('Error: $err')),
+            scheduleAsync.when(
+              loading: () => const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (err, _) => SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: Text('Error: $err')),
+              ),
+              data: (items) => _Body(
+                items: items,
+                now: now,
+                dateLabel: dateLabel,
+                theme: theme,
+                onOpenDetail: (item) => _openDetail(context, item),
+              ),
             ),
-            data: (items) => _Body(
-              items: items,
-              now: now,
-              dateLabel: dateLabel,
-              theme: theme,
-              onOpenDetail: (item) => _openDetail(context, item),
-            ),
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }
@@ -427,14 +434,12 @@ class _Body extends ConsumerWidget {
     // adult once and run the detector against today's schedule.
     final allAvail =
         ref.watch(allAvailabilityProvider).asData?.value ??
-            const <AdultAvailabilityData>[];
+        const <AdultAvailabilityData>[];
     final adultsList =
         ref.watch(adultsProvider).asData?.value ?? const <Adult>[];
     final availabilityByAdult = <String, List<AdultAvailabilityData>>{};
     for (final row in allAvail) {
-      (availabilityByAdult[row.adultId] ??=
-              <AdultAvailabilityData>[])
-          .add(row);
+      (availabilityByAdult[row.adultId] ??= <AdultAvailabilityData>[]).add(row);
     }
     final adultsById = <String, Adult>{
       for (final a in adultsList) a.id: a,
@@ -448,11 +453,10 @@ class _Body extends ConsumerWidget {
 
     // Trip conflicts (slice B): today's trips + their group
     // memberships, intersected with the day's activities.
-    final allTrips =
-        ref.watch(tripsProvider).asData?.value ?? const <Trip>[];
+    final allTrips = ref.watch(tripsProvider).asData?.value ?? const <Trip>[];
     final tripGroupsMap =
         ref.watch(_allTripGroupsByTripProvider).asData?.value ??
-            const <String, List<String>>{};
+        const <String, List<String>>{};
     final allGroups =
         ref.watch(groupsProvider).asData?.value ?? const <Group>[];
     final groupsById = <String, Group>{
@@ -478,25 +482,24 @@ class _Body extends ConsumerWidget {
     );
 
     ConflictsFor conflictsFor(String id) => ConflictsFor(
-          activity: conflicts[id] ?? const <ConflictInfo>[],
-          shift: shiftConflicts[id] ?? const <ShiftConflict>[],
-          trip: tripConflictResult.byActivityId[id] ??
-              const <TripConflict>[],
-        );
+      activity: conflicts[id] ?? const <ConflictInfo>[],
+      shift: shiftConflicts[id] ?? const <ShiftConflict>[],
+      trip: tripConflictResult.byActivityId[id] ?? const <TripConflict>[],
+    );
     final activityCounts =
         ref.watch(todayActivityCountsProvider).asData?.value ??
-            const <String, int>{};
+        const <String, int>{};
     final concerns =
         ref.watch(todayConcernNotesProvider).asData?.value ??
-            const <ParentConcernNote>[];
+        const <ParentConcernNote>[];
     final concernChildLinks =
         ref.watch(concernKidLinksProvider).asData?.value ??
-            const <String, Set<String>>{};
+        const <String, Set<String>>{};
     final allKids =
         ref.watch(childrenProvider).asData?.value ?? const <Child>[];
     final attendanceMap =
         ref.watch(todayAttendanceProvider).asData?.value ??
-            const <String, AttendanceRecord>{};
+        const <String, AttendanceRecord>{};
 
     // -- Bucket items by time relative to now --
     final buckets = bucketTodayItems(items, nowMinutes);
@@ -524,14 +527,14 @@ class _Body extends ConsumerWidget {
     final filteredCurrent = current.where(inSelectedView).toList();
     final filteredUpcoming = upcoming.where(inSelectedView).toList();
     final filteredPast = past.where(inSelectedView).toList();
-    final primaryCurrent =
-        filteredCurrent.isEmpty ? null : filteredCurrent.first;
+    final primaryCurrent = filteredCurrent.isEmpty
+        ? null
+        : filteredCurrent.first;
     final alsoNow = filteredCurrent.length > 1
         ? filteredCurrent.sublist(1)
         : const <ScheduleItem>[];
 
-    final nextUp =
-        filteredUpcoming.isEmpty ? null : filteredUpcoming.first;
+    final nextUp = filteredUpcoming.isEmpty ? null : filteredUpcoming.first;
     final nextUpMinutes = nextUp == null
         ? null
         : nextUp.startMinutes - nowMinutes;
@@ -541,8 +544,9 @@ class _Body extends ConsumerWidget {
     // cares about its own stats); program-wide otherwise. The chip
     // row sits directly above the stats strip so the relationship
     // reads visually — pick a group, the numbers follow.
-    final scopedItems =
-        selectedGroupId == null ? items : items.where(inSelectedView).toList();
+    final scopedItems = selectedGroupId == null
+        ? items
+        : items.where(inSelectedView).toList();
     final uniqueAdults = <String>{
       for (final i in scopedItems)
         if (i.adultId != null) i.adultId!,
@@ -561,7 +565,8 @@ class _Body extends ConsumerWidget {
         }
         if (i.isAllGroups) {
           childrenInActivityGroups.add(child.id);
-        } else if (child.groupId != null && i.groupIds.contains(child.groupId)) {
+        } else if (child.groupId != null &&
+            i.groupIds.contains(child.groupId)) {
           childrenInActivityGroups.add(child.id);
         }
       }
@@ -609,21 +614,23 @@ class _Body extends ConsumerWidget {
     // only when the window is open — no wasted work in the morning.
     final draftForms = showCloseOut
         ? (ref
-                .watch(formSubmissionsByStatusProvider(FormStatus.draft))
-                .asData
-                ?.value ??
-            const <FormSubmission>[])
+                  .watch(formSubmissionsByStatusProvider(FormStatus.draft))
+                  .asData
+                  ?.value ??
+              const <FormSubmission>[])
         : const <FormSubmission>[];
     final allConcernNotes = showCloseOut
         ? (ref.watch(parentConcernNotesProvider).asData?.value ??
-            const <ParentConcernNote>[])
+              const <ParentConcernNote>[])
         : const <ParentConcernNote>[];
     final unsignedConcerns = allConcernNotes
-        .where((n) =>
-            (n.supervisorSignature == null ||
-                n.supervisorSignature!.trim().isEmpty) &&
-            (n.supervisorSignaturePath == null ||
-                n.supervisorSignaturePath!.trim().isEmpty))
+        .where(
+          (n) =>
+              (n.supervisorSignature == null ||
+                  n.supervisorSignature!.trim().isEmpty) &&
+              (n.supervisorSignaturePath == null ||
+                  n.supervisorSignaturePath!.trim().isEmpty),
+        )
         .length;
     // Program-wide "missing obs" count — the close-out strip isn't
     // scoped to the selected group, it's a whole-day tidy-up.
@@ -724,220 +731,214 @@ class _Body extends ConsumerWidget {
       ),
       sliver: SliverList(
         delegate: SliverChildListDelegate([
-        // Fresh-program nudge. Self-hides unless BOTH adults and
-        // groups are empty, so populated programs see no extra
-        // chrome here — but a brand-new install still gets the
-        // bootstrap card on the Today screen even if someone
-        // happened to schedule an activity first.
-        const BootstrapSetupCard(),
+          // Fresh-program nudge. Self-hides unless BOTH adults and
+          // groups are empty, so populated programs see no extra
+          // chrome here — but a brand-new install still gets the
+          // bootstrap card on the Today screen even if someone
+          // happened to schedule an activity first.
+          const BootstrapSetupCard(),
 
-        // Loud-when-needed strip: self-hides when zero kids are flagged
-        // and no reviews are due. Sits at the top so a late child or
-        // overdue review pulls the eye before anything else.
-        LatenessFlagsStrip(now: now),
+          // Loud-when-needed strip: self-hides when zero kids are flagged
+          // and no reviews are due. Sits at the top so a late child or
+          // overdue review pulls the eye before anything else.
+          LatenessFlagsStrip(now: now),
 
-        // All-day activities / notes float above the per-group view.
-        // Program-wide context (field trip banners, whole-day notes)
-        // isn't tied to a specific group's chip selection.
-        if (allDay.isNotEmpty) ...[
-          AllDayCarousel(
-            cards: [
-              for (final item in allDay)
-                ScheduleItemCard(
-                  item: item,
-                  isNow: false,
-                  isPast: false,
-                  conflicts: conflictsFor(item.id).activity,
-                  shiftConflicts: conflictsFor(item.id).shift,
-                  tripConflicts: conflictsFor(item.id).trip,
-                  concernMatch: concernForItem(item),
-                  attendance: attendanceFor(item),
-                  onTap: () => onOpenDetail(item),
-                  onOpenConcern: () => _goConcern(
-                    context,
-                    concernForItem(item)?.id,
-                  ),
-                  onOpenAttendance: () => openAttendance(item),
-                ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-        ],
-
-        // Mode toggle — Groups view vs Agenda view. Coexist by
-        // design; teachers pick based on the question they want
-        // answered right now. Persists across launches via
-        // todayModeProvider.
-        _TodayModeToggle(mode: ref.watch(todayModeProvider)),
-        const SizedBox(height: AppSpacing.md),
-
-        // End-of-day close-out strip. Only appears in the 60-min
-        // window before program close and the 30-min tail after.
-        // Muted in tone — it's a nudge to wrap up, not an alert.
-        if (showCloseOut) ...[
-          CloseOutStrip(
-            counts: CloseOutCounts(
-              pendingObs: programPendingObs,
-              draftForms: draftForms.length,
-              unsignedConcerns: unsignedConcerns,
-            ),
-            onTapPendingObs: () {
-              if (firstPendingObsItem != null) {
-                onOpenDetail(firstPendingObsItem);
-              } else {
-                context.go('/observations');
-              }
-            },
-            onTapDraftForms: () =>
-                unawaited(context.push('/more/forms')),
-            onTapUnsignedConcerns: () =>
-                unawaited(context.push('/more/forms/parent-concern')),
-          ),
-          const SizedBox(height: AppSpacing.md),
-        ],
-
-        // Group chip selector — horizontally scrollable row of groups.
-        // Same in both modes: in Groups mode it drives the hero/
-        // upcoming/earlier filter; in Agenda mode it scopes the
-        // chronological feed to the selected group + program-wide +
-        // that group's leads' breaks.
-        const _GroupChipRow(),
-        const SizedBox(height: AppSpacing.md),
-
-        // Day stats sit under the group chip row so the numbers track
-        // the selected group: pick "Butterflies" and the counts rescope
-        // to that group only. With no group selected, the counts read
-        // program-wide. Compact — one strip, five numbers, tappable.
-        DaySummaryStrip(
-          activities: scopedItems.length,
-          children: childrenInActivityGroups.length,
-          adults: uniqueAdults.length,
-          concerns: scopedConcerns.length,
-          pendingObs: pendingObs,
-          onTapConcerns: () =>
-              context.push('/more/forms/parent-concern'),
-          onTapPending: () => context.go('/observations'),
-        ),
-        const SizedBox(height: AppSpacing.md),
-
-        // Body branches on mode. Agenda mode renders the calendar
-        // synthesizer's chronological feed; Groups mode keeps the
-        // hero / upcoming / earlier layout below.
-        if (ref.watch(todayModeProvider) == TodayMode.agenda) ...[
-          TodayAgendaView(now: now),
-          const SizedBox(height: AppSpacing.xl),
-        ] else ...[
-
-        // Hero "right now" card — dominates the fold when an activity
-        // is in progress. When several activities overlap the primary
-        // (earliest-started) is the hero; the rest surface compactly
-        // in the Also-now strip right below so nothing gets dropped.
-        if (primaryCurrent != null) ...[
-          HeroNowCard(
-            item: primaryCurrent,
-            now: now,
-            observationCount: activityCounts[primaryCurrent.title] ?? 0,
-            attendance: attendanceFor(primaryCurrent),
-            // Hero pulls the same ConflictsFor bundle the schedule
-            // cards use — a red "⚠ Conflicts" pill appears in the
-            // header when any of the three lists is non-empty, and
-            // tapping it opens the same ConflictSheet.
-            conflicts: conflictsFor(primaryCurrent.id).activity,
-            shiftConflicts: conflictsFor(primaryCurrent.id).shift,
-            tripConflicts: conflictsFor(primaryCurrent.id).trip,
-            onTap: () => onOpenDetail(primaryCurrent),
-            onCapture: () => context.go('/observations'),
-            onOpenAttendance: () => openAttendance(primaryCurrent),
-          ),
-          if (alsoNow.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
-            _AlsoNowStrip(
-              items: alsoNow,
-              now: now,
-              onOpenDetail: onOpenDetail,
-            ),
-          ],
-          const SizedBox(height: AppSpacing.lg),
-        ] else if (nextUp != null) ...[
-          _BetweenActivitiesBanner(
-            minutesUntilNext: nextUpMinutes ?? 0,
-            nextTitle: nextUp.title,
-          ),
-          const SizedBox(height: AppSpacing.lg),
-        ] else if (past.isNotEmpty && allDay.isEmpty) ...[
-          _WrapUpBanner(
-            onReview: () => context.go('/observations'),
-            pendingCount: pendingObs,
-          ),
-          const SizedBox(height: AppSpacing.lg),
-        ],
-
-        // Upcoming — filtered to the selected group's schedule (plus
-        // program-wide items). First gets the "IN N MIN" chip.
-        for (var i = 0; i < filteredUpcoming.length; i++) ...[
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: ScheduleItemCard(
-              item: filteredUpcoming[i],
-              isNow: false,
-              isPast: false,
-              conflicts:
-                  conflictsFor(filteredUpcoming[i].id).activity,
-              shiftConflicts:
-                  conflictsFor(filteredUpcoming[i].id).shift,
-              tripConflicts:
-                  conflictsFor(filteredUpcoming[i].id).trip,
-              minutesUntilStart: i == 0 ? nextUpMinutes : null,
-              concernMatch: concernForItem(filteredUpcoming[i]),
-              onTap: () => onOpenDetail(filteredUpcoming[i]),
-              onOpenConcern: () => _goConcern(
-                context,
-                concernForItem(filteredUpcoming[i])?.id,
-              ),
-            ),
-          ),
-        ],
-
-        // Earlier today — filtered to the selected group. Collapsible
-        // so the morning doesn't clutter the afternoon view.
-        if (filteredPast.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.xs),
-          EarlierTodayGroup(
-            count: filteredPast.length,
-            children: [
-              for (final item in filteredPast)
-                Padding(
-                  padding: const EdgeInsets.only(
-                    top: AppSpacing.sm,
-                  ),
-                  child: ScheduleItemCard(
+          // All-day activities / notes float above the per-group view.
+          // Program-wide context (field trip banners, whole-day notes)
+          // isn't tied to a specific group's chip selection.
+          if (allDay.isNotEmpty) ...[
+            AllDayCarousel(
+              cards: [
+                for (final item in allDay)
+                  ScheduleItemCard(
                     item: item,
                     isNow: false,
-                    isPast: true,
+                    isPast: false,
                     conflicts: conflictsFor(item.id).activity,
                     shiftConflicts: conflictsFor(item.id).shift,
                     tripConflicts: conflictsFor(item.id).trip,
-                    showLogObservationsPrompt:
-                        (activityCounts[item.title] ?? 0) == 0,
                     concernMatch: concernForItem(item),
                     attendance: attendanceFor(item),
                     onTap: () => onOpenDetail(item),
-                    onLogObservations: () => context.go('/observations'),
                     onOpenConcern: () => _goConcern(
                       context,
                       concernForItem(item)?.id,
                     ),
                     onOpenAttendance: () => openAttendance(item),
                   ),
-                ),
-            ],
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+
+          // Mode toggle — Groups view vs Agenda view. Coexist by
+          // design; teachers pick based on the question they want
+          // answered right now. Persists across launches via
+          // todayModeProvider.
+          _TodayModeToggle(mode: ref.watch(todayModeProvider)),
+          const SizedBox(height: AppSpacing.md),
+
+          // End-of-day close-out strip. Only appears in the 60-min
+          // window before program close and the 30-min tail after.
+          // Muted in tone — it's a nudge to wrap up, not an alert.
+          if (showCloseOut) ...[
+            CloseOutStrip(
+              counts: CloseOutCounts(
+                pendingObs: programPendingObs,
+                draftForms: draftForms.length,
+                unsignedConcerns: unsignedConcerns,
+              ),
+              onTapPendingObs: () {
+                if (firstPendingObsItem != null) {
+                  onOpenDetail(firstPendingObsItem);
+                } else {
+                  context.go('/observations');
+                }
+              },
+              onTapDraftForms: () => unawaited(context.push('/more/forms')),
+              onTapUnsignedConcerns: () =>
+                  unawaited(context.push('/more/forms/parent-concern')),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+
+          // Group chip selector — horizontally scrollable row of groups.
+          // Same in both modes: in Groups mode it drives the hero/
+          // upcoming/earlier filter; in Agenda mode it scopes the
+          // chronological feed to the selected group + program-wide +
+          // that group's leads' breaks.
+          const _GroupChipRow(),
+          const SizedBox(height: AppSpacing.md),
+
+          // Day stats sit under the group chip row so the numbers track
+          // the selected group: pick "Butterflies" and the counts rescope
+          // to that group only. With no group selected, the counts read
+          // program-wide. Compact — one strip, five numbers, tappable.
+          DaySummaryStrip(
+            activities: scopedItems.length,
+            children: childrenInActivityGroups.length,
+            adults: uniqueAdults.length,
+            concerns: scopedConcerns.length,
+            pendingObs: pendingObs,
+            onTapConcerns: () => context.push('/more/forms/parent-concern'),
+            onTapPending: () => context.go('/observations'),
           ),
-        ],
-        ], // end Groups-mode body
-        // Staff-today strip at the bottom in both modes — still
-        // collapsible, still handy for end-of-day roll review.
-        const SizedBox(height: AppSpacing.md),
-        StaffTodayStrip(now: now),
+          const SizedBox(height: AppSpacing.md),
+
+          // Body branches on mode. Agenda mode renders the calendar
+          // synthesizer's chronological feed; Groups mode keeps the
+          // hero / upcoming / earlier layout below.
+          if (ref.watch(todayModeProvider) == TodayMode.agenda) ...[
+            TodayAgendaView(now: now),
+            const SizedBox(height: AppSpacing.xl),
+          ] else ...[
+            // Hero "right now" card — dominates the fold when an activity
+            // is in progress. When several activities overlap the primary
+            // (earliest-started) is the hero; the rest surface compactly
+            // in the Also-now strip right below so nothing gets dropped.
+            if (primaryCurrent != null) ...[
+              HeroNowCard(
+                item: primaryCurrent,
+                now: now,
+                observationCount: activityCounts[primaryCurrent.title] ?? 0,
+                attendance: attendanceFor(primaryCurrent),
+                // Hero pulls the same ConflictsFor bundle the schedule
+                // cards use — a red "⚠ Conflicts" pill appears in the
+                // header when any of the three lists is non-empty, and
+                // tapping it opens the same ConflictSheet.
+                conflicts: conflictsFor(primaryCurrent.id).activity,
+                shiftConflicts: conflictsFor(primaryCurrent.id).shift,
+                tripConflicts: conflictsFor(primaryCurrent.id).trip,
+                onTap: () => onOpenDetail(primaryCurrent),
+                onCapture: () => context.go('/observations'),
+                onOpenAttendance: () => openAttendance(primaryCurrent),
+              ),
+              if (alsoNow.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.sm),
+                _AlsoNowStrip(
+                  items: alsoNow,
+                  now: now,
+                  onOpenDetail: onOpenDetail,
+                ),
+              ],
+              const SizedBox(height: AppSpacing.lg),
+            ] else if (nextUp != null) ...[
+              _BetweenActivitiesBanner(
+                minutesUntilNext: nextUpMinutes ?? 0,
+                nextTitle: nextUp.title,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+            ] else if (past.isNotEmpty && allDay.isEmpty) ...[
+              _WrapUpBanner(
+                onReview: () => context.go('/observations'),
+                pendingCount: pendingObs,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+            ],
+
+            // Upcoming — filtered to the selected group's schedule (plus
+            // program-wide items). First gets the "IN N MIN" chip.
+            for (var i = 0; i < filteredUpcoming.length; i++) ...[
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                child: ScheduleItemCard(
+                  item: filteredUpcoming[i],
+                  isNow: false,
+                  isPast: false,
+                  conflicts: conflictsFor(filteredUpcoming[i].id).activity,
+                  shiftConflicts: conflictsFor(filteredUpcoming[i].id).shift,
+                  tripConflicts: conflictsFor(filteredUpcoming[i].id).trip,
+                  minutesUntilStart: i == 0 ? nextUpMinutes : null,
+                  concernMatch: concernForItem(filteredUpcoming[i]),
+                  onTap: () => onOpenDetail(filteredUpcoming[i]),
+                  onOpenConcern: () => _goConcern(
+                    context,
+                    concernForItem(filteredUpcoming[i])?.id,
+                  ),
+                ),
+              ),
+            ],
+
+            // Earlier today — filtered to the selected group. Collapsible
+            // so the morning doesn't clutter the afternoon view.
+            if (filteredPast.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.xs),
+              EarlierTodayGroup(
+                count: filteredPast.length,
+                children: [
+                  for (final item in filteredPast)
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        top: AppSpacing.sm,
+                      ),
+                      child: ScheduleItemCard(
+                        item: item,
+                        isNow: false,
+                        isPast: true,
+                        conflicts: conflictsFor(item.id).activity,
+                        shiftConflicts: conflictsFor(item.id).shift,
+                        tripConflicts: conflictsFor(item.id).trip,
+                        showLogObservationsPrompt:
+                            (activityCounts[item.title] ?? 0) == 0,
+                        concernMatch: concernForItem(item),
+                        attendance: attendanceFor(item),
+                        onTap: () => onOpenDetail(item),
+                        onLogObservations: () => context.go('/observations'),
+                        onOpenConcern: () => _goConcern(
+                          context,
+                          concernForItem(item)?.id,
+                        ),
+                        onOpenAttendance: () => openAttendance(item),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ], // end Groups-mode body
+          // Staff-today strip at the bottom in both modes — still
+          // collapsible, still handy for end-of-day roll review.
+          const SizedBox(height: AppSpacing.md),
+          StaffTodayStrip(now: now),
         ]),
       ),
     );
@@ -1020,8 +1021,9 @@ class _BetweenActivitiesBanner extends StatelessWidget {
                 Text(
                   'Between activities',
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSecondaryContainer
-                        .withValues(alpha: 0.75),
+                    color: theme.colorScheme.onSecondaryContainer.withValues(
+                      alpha: 0.75,
+                    ),
                     letterSpacing: 0.5,
                     fontWeight: FontWeight.w700,
                   ),
@@ -1058,8 +1060,8 @@ class _WrapUpBanner extends StatelessWidget {
     final message = pendingCount == 0
         ? 'All activities logged. Nice work.'
         : pendingCount == 1
-            ? '1 activity still needs observations.'
-            : '$pendingCount activities still need observations.';
+        ? '1 activity still needs observations.'
+        : '$pendingCount activities still need observations.';
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -1166,8 +1168,7 @@ class _GroupChipRowState extends ConsumerState<_GroupChipRow> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final summariesAsync = ref.watch(groupSummariesProvider);
-    final summaries =
-        summariesAsync.asData?.value ?? const <GroupSummary>[];
+    final summaries = summariesAsync.asData?.value ?? const <GroupSummary>[];
     if (summaries.isEmpty) return const SizedBox.shrink();
 
     final selectedId = ref.watch(lastExpandedGroupProvider);
@@ -1177,8 +1178,7 @@ class _GroupChipRowState extends ConsumerState<_GroupChipRow> {
     // as a post-frame side effect to avoid modifying provider state
     // during build.
     if (!_autoSelected &&
-        (selectedId == null ||
-            !summaries.any((g) => g.id == selectedId))) {
+        (selectedId == null || !summaries.any((g) => g.id == selectedId))) {
       _autoSelected = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         unawaited(
@@ -1196,11 +1196,12 @@ class _GroupChipRowState extends ConsumerState<_GroupChipRow> {
     // while the providers warm up.
     final allAdults =
         ref.watch(adultsProvider).asData?.value ?? const <Adult>[];
-    final allAvail = ref.watch(allAvailabilityProvider).asData?.value ??
+    final allAvail =
+        ref.watch(allAvailabilityProvider).asData?.value ??
         const <AdultAvailabilityData>[];
     final todayBlocks =
         ref.watch(todayAdultBlocksProvider).asData?.value ??
-            const <AdultDayBlock>[];
+        const <AdultDayBlock>[];
     final weekday = DateTime.now().weekday;
 
     return SingleChildScrollView(
@@ -1219,11 +1220,9 @@ class _GroupChipRowState extends ConsumerState<_GroupChipRow> {
                 todayDayBlocks: todayBlocks,
                 availability: allAvail,
               ),
-              onSelected: () => ref
-                  .read(lastExpandedGroupProvider.notifier)
-                  .toggle(g.id),
-              onLongPress: () =>
-                  GroupDetailScreen.open(context, g.id),
+              onSelected: () =>
+                  ref.read(lastExpandedGroupProvider.notifier).toggle(g.id),
+              onLongPress: () => GroupDetailScreen.open(context, g.id),
               theme: theme,
             ),
             const SizedBox(width: AppSpacing.xs),
@@ -1264,8 +1263,8 @@ class _GroupChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _parseHex(summary.group.colorHex) ??
-        theme.colorScheme.primary;
+    final color =
+        _parseHex(summary.group.colorHex) ?? theme.colorScheme.primary;
     // Unstaffed chips get the errorContainer tint regardless of
     // selection. The selection check-ring (FilterChip paints one
     // automatically when `selected` is true) still reads over the
@@ -1277,8 +1276,7 @@ class _GroupChip extends StatelessWidget {
         selected: selected,
         onSelected: (_) => onSelected(),
         showCheckmark: false,
-        backgroundColor:
-            isStaffed ? null : theme.colorScheme.errorContainer,
+        backgroundColor: isStaffed ? null : theme.colorScheme.errorContainer,
         avatar: isStaffed
             ? Container(
                 width: 10,
@@ -1296,9 +1294,7 @@ class _GroupChip extends StatelessWidget {
         label: Text(
           '${summary.name} · ${summary.childCount}',
           style: theme.textTheme.labelMedium?.copyWith(
-            color: isStaffed
-                ? null
-                : theme.colorScheme.onErrorContainer,
+            color: isStaffed ? null : theme.colorScheme.onErrorContainer,
           ),
         ),
       ),
@@ -1396,8 +1392,8 @@ class _AlsoNowRow extends StatelessWidget {
     final endLabel = minsLeft <= 1
         ? 'ending now'
         : minsLeft <= 30
-            ? 'ends in $minsLeft min'
-            : 'ends ${_formatTime(item.endTime)}';
+        ? 'ends in $minsLeft min'
+        : 'ends ${_formatTime(item.endTime)}';
     final meta = <String>[
       endLabel,
       if (item.location != null && item.location!.trim().isNotEmpty)
@@ -1522,7 +1518,8 @@ class _EmptyState extends StatelessWidget {
 /// `TripsRepository.watchAllGroupsByTrip()` so the Today screen can
 /// run the trip-conflict detector without threading the repo call
 /// through a FutureBuilder.
-final _allTripGroupsByTripProvider =
-    StreamProvider<Map<String, List<String>>>((ref) {
+final _allTripGroupsByTripProvider = StreamProvider<Map<String, List<String>>>((
+  ref,
+) {
   return ref.watch(tripsRepositoryProvider).watchAllGroupsByTrip();
 });
