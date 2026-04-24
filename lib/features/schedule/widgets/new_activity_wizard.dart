@@ -68,13 +68,14 @@ class _NewActivityWizardScreenState
   /// as a display fallback only.
   String? _roomId;
 
-  // Start date defaults to today so the range tile always shows
-  // something concrete — teachers were confused when it said "Pick a
-  // date" and left it blank, wondering if/when their activity would
-  // run. End date stays null → "runs from today, weekly, forever"
-  // unless the teacher bounds it.
+  // Both dates default to concrete values so teachers don't have to
+  // guess what "blank" means. Start = today; end = start + 8 weeks
+  // (typical program-term length). A teacher running an activity
+  // every week for the semester gets a reasonable bound baked in;
+  // anyone wanting longer just pushes the end date out. Clearing
+  // the end date is opt-in "forever" behavior and shows a warning.
   late DateTime? _startDate = _today();
-  DateTime? _endDate;
+  late DateTime? _endDate = _today().add(const Duration(days: 7 * 8));
 
   /// When non-null, the wizard is populated from a library item.
   ActivityLibraryData? _fromLibrary;

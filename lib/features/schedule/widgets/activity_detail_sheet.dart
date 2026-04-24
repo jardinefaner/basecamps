@@ -130,6 +130,15 @@ class ActivityDetailSheet extends ConsumerWidget {
               const SizedBox(height: AppSpacing.lg),
               _DeleteEntryButton(item: item),
             ],
+            // Template-sourced recurring activities get their own
+            // delete button that offers both "just this day" (via
+            // cancelTemplateForDate) and "every occurrence, weekly"
+            // (via deleteTemplateGroupFor). Without this, killing a
+            // recurring pattern required opening Edit first.
+            if (item.isFromTemplate && item.templateId != null) ...[
+              const SizedBox(height: AppSpacing.lg),
+              _DeleteTemplateButton(item: item),
+            ],
           ],
         ),
       ),
@@ -594,6 +603,162 @@ class _TitleRow extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Recurring-template delete. Taps open a modal-sheet with two
+/// choices: "Just this day" (non-destructive cancel-for-date) or
+/// "Every occurrence" (nukes the template + sibling pattern with an
+/// undo). Placed on the detail sheet so teachers don't have to go
+/// through Edit to delete a weekly pattern.
+class _DeleteTemplateButton extends ConsumerWidget {
+  const _DeleteTemplateButton({required this.item});
+
+  final ScheduleItem item;
+
+  Future<void> _open(BuildContext context, WidgetRef ref) async {
+    final templateId = item.templateId;
+    if (templateId == null) return;
+    final choice = await showModalBottomSheet<_TemplateDeleteChoice>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => _TemplateDeleteChoiceSheet(title: item.title),
+    );
+    if (choice == null || !context.mounted) return;
+    final repo = ref.read(scheduleRepositoryProvider);
+    final navigator = Navigator.of(context);
+    switch (choice) {
+      case _TemplateDeleteChoice.thisDay:
+        // cancelTemplateForDate writes a 'cancellation' entry for
+        // this date — the weekly pattern stays, just this occurrence
+        // hides. Confirmation snackbar only, no undo helper.
+        await repo.cancelTemplateForDate(
+          templateId: templateId,
+          date: item.date,
+        );
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                '"${item.title}" hidden for this day only.',
+              ),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        navigator.pop();
+      case _TemplateDeleteChoice.everyOccurrence:
+        // Snapshot the sibling set before delete so the 5-second
+        // undo restores the whole weekly pattern, not just one row.
+        final siblings = await repo.siblingTemplatesFor(templateId);
+        if (!context.mounted) return;
+        final confirmed = await confirmDeleteWithUndo(
+          context: context,
+          title: 'Delete every occurrence?',
+          message: siblings.length > 1
+              ? 'This removes "${item.title}" from all '
+                  '${siblings.length} days it runs. '
+                  "You'll get a 5-second window to undo."
+              : 'This removes "${item.title}" from every day it '
+                  "runs (weekly pattern). You'll get a 5-second "
+                  'window to undo.',
+          confirmLabel: 'Delete all',
+          onDelete: () => repo.deleteTemplateGroupFor(templateId),
+          undoLabel: '"${item.title}" removed',
+          onUndo: () => repo.restoreTemplates(siblings),
+        );
+        if (!confirmed) return;
+        navigator.pop();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    return OutlinedButton.icon(
+      onPressed: () => _open(context, ref),
+      icon: Icon(
+        Icons.delete_outline,
+        color: theme.colorScheme.error,
+      ),
+      label: Text(
+        'Delete…',
+        style: TextStyle(color: theme.colorScheme.error),
+      ),
+      style: OutlinedButton.styleFrom(
+        side: BorderSide(
+          color: theme.colorScheme.error.withValues(alpha: 0.5),
+        ),
+      ),
+    );
+  }
+}
+
+enum _TemplateDeleteChoice { thisDay, everyOccurrence }
+
+class _TemplateDeleteChoiceSheet extends StatelessWidget {
+  const _TemplateDeleteChoiceSheet({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.md,
+                top: AppSpacing.xs,
+                bottom: AppSpacing.md,
+              ),
+              child: Text(
+                'Delete "$title"',
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.today_outlined),
+              title: const Text('Just this day'),
+              subtitle: const Text(
+                'Hides the activity on this date; the weekly pattern '
+                'keeps running every other week.',
+              ),
+              onTap: () => Navigator.of(context).pop(
+                _TemplateDeleteChoice.thisDay,
+              ),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.event_busy_outlined,
+                color: theme.colorScheme.error,
+              ),
+              title: Text(
+                'Every occurrence (weekly)',
+                style: TextStyle(color: theme.colorScheme.error),
+              ),
+              subtitle: const Text(
+                'Removes the template entirely. Past instances stay '
+                'in history; future ones stop happening.',
+              ),
+              onTap: () => Navigator.of(context).pop(
+                _TemplateDeleteChoice.everyOccurrence,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
     );
   }
 }
