@@ -6,6 +6,7 @@ import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 /// Compact "who's working today" strip on Today — sits between the
 /// day-summary and the all-day carousel. Collapsible; shows a count
@@ -199,33 +200,50 @@ class _StaffRow extends ConsumerWidget {
 
     return Row(
       children: [
-        SmallAvatar(
-          path: adult.avatarPath,
-          fallbackInitial: initial,
-          radius: 16,
-          backgroundColor: theme.colorScheme.secondaryContainer,
-          foregroundColor: theme.colorScheme.onSecondaryContainer,
-        ),
-        const SizedBox(width: AppSpacing.sm),
+        // Avatar + name read as a single unit, so the whole pair is
+        // the tap target for "open this adult's detail". The ripple is
+        // scoped to that pair so it doesn't flood the row or fight the
+        // outer AppCard's expand/collapse tap.
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                anchorName == null
-                    ? adult.name
-                    : '${adult.name}  ·  $anchorName',
-                style: theme.textTheme.bodyMedium,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => context.push('/more/adults/${adult.id}'),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  SmallAvatar(
+                    path: adult.avatarPath,
+                    fallbackInitial: initial,
+                    radius: 16,
+                    backgroundColor: theme.colorScheme.secondaryContainer,
+                    foregroundColor: theme.colorScheme.onSecondaryContainer,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          anchorName == null
+                              ? adult.name
+                              : '${adult.name}  ·  $anchorName',
+                          style: theme.textTheme.bodyMedium,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          _shiftLine(entry.availability),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              Text(
-                _shiftLine(entry.availability),
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
         _StatusBadge(status: status),
