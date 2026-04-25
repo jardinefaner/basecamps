@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:basecamp/features/forms/polymorphic/form_submission_repository.dart';
+import 'package:basecamp/features/launcher/launcher_screen.dart';
 import 'package:basecamp/features/observations/observation_media_store.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/router.dart';
@@ -81,6 +82,80 @@ class _BasecampAppState extends ConsumerState<BasecampApp> {
       theme: lightTheme(),
       darkTheme: darkTheme(),
       routerConfig: router,
+      // Web / desktop windows can be a thousand pixels wider than a
+      // phone screen. Without a clamp every list, hero card, and
+      // form field stretches edge-to-edge and looks wrong. Wrap
+      // every route in a max-width box so on wide windows content
+      // sits in a centered column with the surface color filling
+      // the gutters. Mobile screens (width below the cap) see no
+      // effect.
+      builder: (context, child) => _ResponsiveShell(child: child),
+    );
+  }
+}
+
+/// Adaptive shell that pivots between phone and web layouts.
+///
+/// Phones (width &lt; [_kSidebarBreakpoint]): unchanged. The route's
+/// own Scaffold + slide-in Drawer pattern handles everything.
+///
+/// Wide windows (web, desktop, tablet landscape): renders the
+/// launcher as a permanent left sidebar + the route content in the
+/// right column. Reads like a real web app — fixed nav rail on the
+/// left, working pane on the right. The route's slide-in Drawer
+/// remains wired so the hamburger button still works as a fallback,
+/// but teachers shouldn't reach for it because the sidebar's
+/// already there.
+class _ResponsiveShell extends StatelessWidget {
+  const _ResponsiveShell({required this.child});
+
+  final Widget? child;
+
+  /// Width threshold for switching to the permanent-sidebar layout.
+  /// 900dp matches Material's "expanded" breakpoint and comfortably
+  /// fits a 320dp sidebar plus a 580dp content column — more than
+  /// enough for a phone-shaped Today page to render without
+  /// crowding.
+  static const double _kSidebarBreakpoint = 900;
+
+  /// Width of the persistent sidebar on wide layouts. 320dp matches
+  /// the Material navigation drawer default; the launcher's rows
+  /// were already designed for that footprint.
+  static const double _kSidebarWidth = 320;
+
+  @override
+  Widget build(BuildContext context) {
+    if (child == null) return const SizedBox.shrink();
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    if (screenWidth < _kSidebarBreakpoint) return child!;
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        // Left rail — the launcher in its own Material container so
+        // it picks up the surface color stack and shows its own
+        // elevation against the route. SizedBox + Material gives
+        // it a clean stop without the slide-in animation overhead
+        // a Drawer would carry.
+        SizedBox(
+          width: _kSidebarWidth,
+          child: Material(
+            color: theme.colorScheme.surfaceContainerLow,
+            // SafeArea so the launcher's search pill doesn't slide
+            // under desktop chrome on browsers that expose a top
+            // inset.
+            child: const SafeArea(
+              child: LauncherScreen(),
+            ),
+          ),
+        ),
+        // Hairline separator. VerticalDivider inherits the theme's
+        // outlineVariant — looks right against surface tiers.
+        const VerticalDivider(width: 1, thickness: 1),
+        // Route pane. Fills whatever the sidebar doesn't claim. No
+        // max-width clamp here — teachers on a 27-inch monitor see
+        // the full pane, week-plan grids breathe, etc.
+        Expanded(child: child!),
+      ],
     );
   }
 }
