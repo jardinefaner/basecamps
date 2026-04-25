@@ -10,6 +10,7 @@ import 'package:basecamp/features/parents/parents_repository.dart';
 import 'package:basecamp/features/parents/widgets/edit_parent_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
+import 'package:basecamp/ui/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -53,169 +54,219 @@ class _Body extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final kidsAsync = ref.watch(childrenForParentProvider(parent.id));
-    return ListView(
-      padding: const EdgeInsets.only(
-        left: AppSpacing.lg,
-        right: AppSpacing.lg,
-        top: AppSpacing.md,
-        bottom: AppSpacing.xxxl * 2,
-      ),
-      children: [
-        AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+
+    // Identity card — avatar, name, relationship, phone/email rows,
+    // free-text notes, "also on staff" bridge. Becomes the left column
+    // on wide; leads the stack otherwise.
+    final identityCard = AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: theme.colorScheme.secondaryContainer,
-                    foregroundColor:
-                        theme.colorScheme.onSecondaryContainer,
-                    child: Text(
-                      parent.firstName.isEmpty
-                          ? '?'
-                          : parent.firstName[0].toUpperCase(),
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: theme.colorScheme.secondaryContainer,
+                foregroundColor:
+                    theme.colorScheme.onSecondaryContainer,
+                child: Text(
+                  parent.firstName.isEmpty
+                      ? '?'
+                      : parent.firstName[0].toUpperCase(),
+                  style: theme.textTheme.titleLarge,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _formatName(parent),
                       style: theme.textTheme.titleLarge,
                     ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _formatName(parent),
-                          style: theme.textTheme.titleLarge,
-                        ),
-                        if (parent.relationship != null &&
-                            parent.relationship!.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Text(
-                              parent.relationship!,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color:
-                                    theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
+                    if (parent.relationship != null &&
+                        parent.relationship!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          parent.relationship!,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color:
+                                theme.colorScheme.onSurfaceVariant,
                           ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () => _edit(context),
+                tooltip: 'Edit',
+                icon: const Icon(Icons.edit_outlined),
+              ),
+            ],
+          ),
+          if (parent.phone != null || parent.email != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            if (parent.phone case final phone?)
+              _ContactRow(
+                icon: Icons.call_outlined,
+                label: phone,
+                uri: Uri(scheme: 'tel', path: phone),
+                failMessage: "Couldn't start a call.",
+              ),
+            if (parent.email case final email?)
+              _ContactRow(
+                icon: Icons.mail_outlined,
+                label: email,
+                uri: Uri(scheme: 'mailto', path: email),
+                failMessage: "Couldn't open your email app.",
+              ),
+          ],
+          if (parent.notes != null && parent.notes!.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Notes',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(parent.notes!, style: theme.textTheme.bodyMedium),
+          ],
+          // v40: reverse of the staff↔parent bridge. Shows when
+          // an adult row points here. Tap jumps to that adult's
+          // detail screen.
+          _AlsoOnStaffBadge(parentId: parent.id),
+        ],
+      ),
+    );
+
+    // Secondary sections — linked children list + recent activity feed.
+    // Scroll independently on wide; feed into the single column on
+    // narrow.
+    final bodySections = <Widget>[
+      Text(
+        'CHILDREN',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.primary,
+          letterSpacing: 0.8,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      const SizedBox(height: AppSpacing.sm),
+      kidsAsync.when(
+        loading: () => const Padding(
+          padding: EdgeInsets.all(AppSpacing.lg),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+        error: (err, _) => Text('Error: $err'),
+        data: (kids) {
+          if (kids.isEmpty) {
+            return Text(
+              'Not linked to any children yet. Open a child and use '
+              '"Add parent" to link this parent.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final k in kids)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: AppCard(
+                    onTap: () => context.push('/children/${k.id}'),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.child_care_outlined,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: Text(
+                            _formatChild(k),
+                            style: theme.textTheme.titleMedium,
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ],
                     ),
                   ),
-                  IconButton(
-                    onPressed: () => _edit(context),
-                    tooltip: 'Edit',
-                    icon: const Icon(Icons.edit_outlined),
-                  ),
-                ],
-              ),
-              if (parent.phone != null || parent.email != null) ...[
-                const SizedBox(height: AppSpacing.md),
-                if (parent.phone case final phone?)
-                  _ContactRow(
-                    icon: Icons.call_outlined,
-                    label: phone,
-                    uri: Uri(scheme: 'tel', path: phone),
-                    failMessage: "Couldn't start a call.",
-                  ),
-                if (parent.email case final email?)
-                  _ContactRow(
-                    icon: Icons.mail_outlined,
-                    label: email,
-                    uri: Uri(scheme: 'mailto', path: email),
-                    failMessage: "Couldn't open your email app.",
-                  ),
-              ],
-              if (parent.notes != null && parent.notes!.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.md),
-                Text(
-                  'Notes',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
                 ),
-                const SizedBox(height: 2),
-                Text(parent.notes!, style: theme.textTheme.bodyMedium),
-              ],
-              // v40: reverse of the staff↔parent bridge. Shows when
-              // an adult row points here. Tap jumps to that adult's
-              // detail screen.
-              _AlsoOnStaffBadge(parentId: parent.id),
+            ],
+          );
+        },
+      ),
+      const SizedBox(height: AppSpacing.lg),
+      Text(
+        'RECENT ACTIVITY',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.primary,
+          letterSpacing: 0.8,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      const SizedBox(height: AppSpacing.sm),
+      _RecentActivitySection(parentId: parent.id),
+    ];
+
+    return BreakpointBuilder(
+      builder: (context, breakpoint) {
+        if (breakpoint.index < Breakpoint.expanded.index) {
+          return ListView(
+            padding: const EdgeInsets.only(
+              left: AppSpacing.lg,
+              right: AppSpacing.lg,
+              top: AppSpacing.md,
+              bottom: AppSpacing.xxxl * 2,
+            ),
+            children: [
+              identityCard,
+              const SizedBox(height: AppSpacing.lg),
+              ...bodySections,
+            ],
+          );
+        }
+        // Wide: parent identity is medium-sized (card + contact rows +
+        // optional notes), and the "Recent activity" list on the right
+        // tends to run long. 40/60 gives the activity stream room to
+        // breathe without squeezing the contact card.
+        return Padding(
+          padding: const EdgeInsets.only(
+            left: AppSpacing.lg,
+            right: AppSpacing.lg,
+            top: AppSpacing.md,
+            bottom: AppSpacing.lg,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 40,
+                child: SingleChildScrollView(child: identityCard),
+              ),
+              const SizedBox(width: AppSpacing.xl),
+              Expanded(
+                flex: 60,
+                child: ListView(
+                  padding: const EdgeInsets.only(
+                    bottom: AppSpacing.xxxl,
+                  ),
+                  children: bodySections,
+                ),
+              ),
             ],
           ),
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        Text(
-          'CHILDREN',
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.primary,
-            letterSpacing: 0.8,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        kidsAsync.when(
-          loading: () => const Padding(
-            padding: EdgeInsets.all(AppSpacing.lg),
-            child: Center(child: CircularProgressIndicator()),
-          ),
-          error: (err, _) => Text('Error: $err'),
-          data: (kids) {
-            if (kids.isEmpty) {
-              return Text(
-                'Not linked to any children yet. Open a child and use '
-                '"Add parent" to link this parent.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              );
-            }
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final k in kids)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: AppCard(
-                      onTap: () => context.push('/children/${k.id}'),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.child_care_outlined,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          Expanded(
-                            child: Text(
-                              _formatChild(k),
-                              style: theme.textTheme.titleMedium,
-                            ),
-                          ),
-                          Icon(
-                            Icons.chevron_right,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            );
-          },
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        Text(
-          'RECENT ACTIVITY',
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.primary,
-            letterSpacing: 0.8,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        _RecentActivitySection(parentId: parent.id),
-      ],
+        );
+      },
     );
   }
 

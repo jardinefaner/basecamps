@@ -7,6 +7,7 @@ import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/library_picker_screen.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
+import 'package:basecamp/ui/responsive.dart';
 import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -310,33 +311,105 @@ class LessonSequenceDetailScreen extends ConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: itemsAsync.maybeWhen(
-        data: (rows) => FloatingActionButton.extended(
-          onPressed: rows.isEmpty
-              ? null
-              : () => _useSequence(context, ref, rows),
-          icon: const Icon(Icons.event_available_outlined),
-          label: const Text('Use this sequence'),
-        ),
-        orElse: () => null,
-      ),
+      // On wide viewports the "Use this sequence" action lives in the
+      // right-hand metadata panel instead — a FAB would double up. We
+      // still expose it as a FAB on narrow screens.
+      floatingActionButton: Breakpoints.isWide(context)
+          ? null
+          : itemsAsync.maybeWhen(
+              data: (rows) => FloatingActionButton.extended(
+                onPressed: rows.isEmpty
+                    ? null
+                    : () => _useSequence(context, ref, rows),
+                icon: const Icon(Icons.event_available_outlined),
+                label: const Text('Use this sequence'),
+              ),
+              orElse: () => null,
+            ),
       body: itemsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => Center(child: Text('Error: $err')),
         data: (rows) {
-          return Column(
+          final listPane = _ItemsPane(
+            rows: rows,
+            sequenceAsync: sequenceAsync,
+            onAdd: () => _addItem(context, ref),
+            onRemove: (row) => _removeItem(context, ref, row),
+            onReorder: (oldIndex, newIndex) =>
+                _onReorder(ref, rows, oldIndex, newIndex),
+            compactHeader: !Breakpoints.isWide(context),
+          );
+          if (!Breakpoints.isWide(context)) {
+            return listPane;
+          }
+          // Wide: split pane. List on the left (roughly 55%),
+          // metadata + scheduling action on the right (45%). The
+          // ReorderableListView inside listPane still gets a bounded
+          // height from the Row's Expanded, which is what it needs.
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.md,
-                  AppSpacing.lg,
-                  AppSpacing.sm,
+              Expanded(flex: 55, child: listPane),
+              const VerticalDivider(width: 1),
+              Expanded(
+                flex: 45,
+                child: _SequenceMetaPane(
+                  sequenceAsync: sequenceAsync,
+                  rows: rows,
+                  onUseSequence: rows.isEmpty
+                      ? null
+                      : () => _useSequence(context, ref, rows),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: sequenceAsync.maybeWhen(
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Left (or full-width on narrow) pane: the ordered list of items
+/// plus its "Add activity" row. Separated out so the wide split-pane
+/// Row can hand this chunk a bounded-height [Expanded] container —
+/// [ReorderableListView] requires one to work.
+class _ItemsPane extends StatelessWidget {
+  const _ItemsPane({
+    required this.rows,
+    required this.sequenceAsync,
+    required this.onAdd,
+    required this.onRemove,
+    required this.onReorder,
+    required this.compactHeader,
+  });
+
+  final List<SequenceItemWithLibrary> rows;
+  final AsyncValue<LessonSequence?> sequenceAsync;
+  final VoidCallback onAdd;
+  final ValueChanged<SequenceItemWithLibrary> onRemove;
+  final void Function(int oldIndex, int newIndex) onReorder;
+
+  /// Narrow screens keep the header row (description + "Add activity"
+  /// button). On wide the description lives in the right pane, so we
+  /// only show a minimal add-activity row here.
+  final bool compactHeader;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            AppSpacing.sm,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: compactHeader
+                    ? sequenceAsync.maybeWhen(
                         data: (s) => Text(
                           (s?.description ?? '').isEmpty
                               ? '${rows.length} '
@@ -345,45 +418,127 @@ class LessonSequenceDetailScreen extends ConsumerWidget {
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         orElse: () => const SizedBox.shrink(),
+                      )
+                    : Text(
+                        '${rows.length} '
+                        '${rows.length == 1 ? 'activity' : 'activities'}',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
                       ),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () => _addItem(context, ref),
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Add activity'),
-                    ),
-                  ],
+              ),
+              OutlinedButton.icon(
+                onPressed: onAdd,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add activity'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: rows.isEmpty
+              ? _EmptyItems(onAdd: onAdd)
+              : ReorderableListView.builder(
+                  padding: const EdgeInsets.only(
+                    left: AppSpacing.lg,
+                    right: AppSpacing.lg,
+                    top: AppSpacing.sm,
+                    bottom: AppSpacing.xxxl * 2,
+                  ),
+                  itemCount: rows.length,
+                  itemBuilder: (_, i) {
+                    final r = rows[i];
+                    return Padding(
+                      key: ValueKey(r.item.id),
+                      padding: const EdgeInsets.only(
+                        bottom: AppSpacing.md,
+                      ),
+                      child: _ItemRow(
+                        position: i + 1,
+                        row: r,
+                        onRemove: () => onRemove(r),
+                      ),
+                    );
+                  },
+                  onReorder: onReorder,
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Right-hand pane on wide viewports. Surfaces the sequence's
+/// identity (name, description), the item count, and the primary
+/// "Use this sequence" action. Kept intentionally low-density — it's
+/// a reading surface paired with the list.
+class _SequenceMetaPane extends StatelessWidget {
+  const _SequenceMetaPane({
+    required this.sequenceAsync,
+    required this.rows,
+    required this.onUseSequence,
+  });
+
+  final AsyncValue<LessonSequence?> sequenceAsync;
+  final List<SequenceItemWithLibrary> rows;
+  final VoidCallback? onUseSequence;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: sequenceAsync.when(
+        loading: () => const SizedBox.shrink(),
+        error: (err, _) => Text('Error: $err'),
+        data: (s) {
+          if (s == null) return const SizedBox.shrink();
+          final description = (s.description ?? '').trim();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'About this sequence',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  letterSpacing: 0.6,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              Expanded(
-                child: rows.isEmpty
-                    ? _EmptyItems(onAdd: () => _addItem(context, ref))
-                    : ReorderableListView.builder(
-                        padding: const EdgeInsets.only(
-                          left: AppSpacing.lg,
-                          right: AppSpacing.lg,
-                          top: AppSpacing.sm,
-                          bottom: AppSpacing.xxxl * 2,
-                        ),
-                        itemCount: rows.length,
-                        itemBuilder: (_, i) {
-                          final r = rows[i];
-                          return Padding(
-                            key: ValueKey(r.item.id),
-                            padding: const EdgeInsets.only(
-                              bottom: AppSpacing.md,
-                            ),
-                            child: _ItemRow(
-                              position: i + 1,
-                              row: r,
-                              onRemove: () => _removeItem(context, ref, r),
-                            ),
-                          );
-                        },
-                        onReorder: (oldIndex, newIndex) =>
-                            _onReorder(ref, rows, oldIndex, newIndex),
-                      ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(s.name, style: theme.textTheme.headlineSmall),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                '${rows.length} '
+                '${rows.length == 1 ? 'activity' : 'activities'}',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
+              if (description.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.lg),
+                Text(description, style: theme.textTheme.bodyLarge),
+              ],
+              const SizedBox(height: AppSpacing.xl),
+              FilledButton.icon(
+                onPressed: onUseSequence,
+                icon: const Icon(Icons.event_available_outlined),
+                label: const Text('Use this sequence'),
+              ),
+              if (onUseSequence == null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Add at least one activity to schedule.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ],
           );
         },

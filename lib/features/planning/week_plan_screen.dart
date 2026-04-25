@@ -6,6 +6,7 @@ import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
+import 'package:basecamp/ui/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -205,43 +206,30 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (err, _) => Center(child: Text('Error: $err')),
               data: (byDay) {
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    // Narrow layout → horizontal scroll. Fixed 220dp
-                    // columns keep the cards readable on phones.
-                    const columnWidth = 220.0;
-                    return SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.lg,
-                        vertical: AppSpacing.md,
-                      ),
-                      child: SizedBox(
-                        width: columnWidth * scheduleDayCount,
-                        height: constraints.maxHeight - AppSpacing.md * 2,
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            for (var i = 0; i < scheduleDayCount; i++)
-                              Padding(
-                                padding: EdgeInsets.only(
-                                  right: i == scheduleDayCount - 1
-                                      ? 0
-                                      : AppSpacing.md,
-                                ),
-                                child: SizedBox(
-                                  width: columnWidth - AppSpacing.md,
-                                  child: _DayColumn(
-                                    date: _monday.add(Duration(days: i)),
-                                    items: byDay[i + 1] ?? const [],
-                                    onTapItem: _openDetail,
-                                    onAcceptDrop: _onDrop,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
+                // Picks a column count per breakpoint band:
+                //   compact  → 1  (phones portrait — vertical stack)
+                //   medium   → 2  (phones landscape, small tablets)
+                //   expanded → 3  (tablets landscape, small desktops)
+                //   large    → 5  (full week grid, the original pitch)
+                return BreakpointBuilder(
+                  builder: (context, bp) {
+                    final int cols;
+                    switch (bp) {
+                      case Breakpoint.compact:
+                        cols = 1;
+                      case Breakpoint.medium:
+                        cols = 2;
+                      case Breakpoint.expanded:
+                        cols = 3;
+                      case Breakpoint.large:
+                        cols = 5;
+                    }
+                    return _WeekGrid(
+                      monday: _monday,
+                      byDay: byDay,
+                      columns: cols,
+                      onTapItem: _openDetail,
+                      onAcceptDrop: _onDrop,
                     );
                   },
                 );
@@ -251,6 +239,107 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
         ],
       ),
       backgroundColor: theme.colorScheme.surface,
+    );
+  }
+}
+
+/// Lays the 5 weekday columns out as a grid whose column count
+/// adapts to the breakpoint. Each day tile hosts a full [_DayColumn]
+/// (header + draggable schedule cards + drop target).
+///
+/// Layout strategy:
+///   - large (5 cols): one horizontal row, each column fills the
+///     viewport's remaining height. The classic "week grid" pitch.
+///   - expanded/medium/compact: wrap into a vertical grid. Each
+///     tile gets a fixed height so the [ReorderableListView]/
+///     [ListView] inside has a bounded parent; the outer
+///     [SingleChildScrollView] handles overflow when the week is
+///     taller than the viewport.
+class _WeekGrid extends StatelessWidget {
+  const _WeekGrid({
+    required this.monday,
+    required this.byDay,
+    required this.columns,
+    required this.onTapItem,
+    required this.onAcceptDrop,
+  });
+
+  final DateTime monday;
+  final Map<int, List<ScheduleItem>> byDay;
+  final int columns;
+  final ValueChanged<ScheduleItem> onTapItem;
+  final Future<void> Function({
+    required ScheduleItem item,
+    required DateTime sourceDate,
+    required DateTime targetDate,
+  }) onAcceptDrop;
+
+  @override
+  Widget build(BuildContext context) {
+    // Large screens: render the full 5-column week grid filling the
+    // vertical space. All other breakpoints wrap onto multiple rows
+    // with a fixed per-tile height and scroll the outer container.
+    if (columns >= scheduleDayCount) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.md,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < scheduleDayCount; i++) ...[
+              if (i > 0) const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: _DayColumn(
+                  date: monday.add(Duration(days: i)),
+                  items: byDay[i + 1] ?? const [],
+                  onTapItem: onTapItem,
+                  onAcceptDrop: onAcceptDrop,
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    // Narrower bands: fixed-height tiles flowing left-to-right then
+    // top-to-bottom. 360dp per tile keeps 4-5 items visible before
+    // the inner list starts scrolling — matches the compact phone
+    // stacking we had before.
+    const tileHeight = 360.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gutter = AppSpacing.md;
+        const horizontalPadding = AppSpacing.lg * 2;
+        final available = constraints.maxWidth - horizontalPadding;
+        final tileWidth =
+            (available - gutter * (columns - 1)) / columns;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.md,
+          ),
+          child: Wrap(
+            spacing: gutter,
+            runSpacing: gutter,
+            children: [
+              for (var i = 0; i < scheduleDayCount; i++)
+                SizedBox(
+                  width: tileWidth,
+                  height: tileHeight,
+                  child: _DayColumn(
+                    date: monday.add(Duration(days: i)),
+                    items: byDay[i + 1] ?? const [],
+                    onTapItem: onTapItem,
+                    onAcceptDrop: onAcceptDrop,
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

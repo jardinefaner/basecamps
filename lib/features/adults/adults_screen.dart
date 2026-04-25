@@ -6,6 +6,7 @@ import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:basecamp/ui/bootstrap_setup_card.dart';
 import 'package:basecamp/ui/bulk_selection.dart';
+import 'package:basecamp/ui/responsive.dart';
 import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -110,25 +111,54 @@ class _AdultsScreenState extends ConsumerState<AdultsScreen>
             if (adults.isEmpty) {
               return _EmptyState(onAdd: _openWizard);
             }
-            return ListView.separated(
-              padding: const EdgeInsets.only(
-                left: AppSpacing.lg,
-                right: AppSpacing.lg,
-                top: AppSpacing.md,
-                bottom: AppSpacing.xxxl * 2,
-              ),
-              itemCount: adults.length,
-              separatorBuilder: (_, _) =>
-                  const SizedBox(height: AppSpacing.md),
-              itemBuilder: (_, i) {
-                final s = adults[i];
-                return _AdultTile(
-                  adult: s,
-                  selected: isSelected(s.id),
-                  onTap: isSelecting
-                      ? () => toggleSelection(s.id)
-                      : () => context.push('/more/adults/${s.id}'),
-                  onLongPress: () => toggleSelection(s.id),
+            return BreakpointBuilder(
+              builder: (context, bp) {
+                // Simple row tiles — default `columnsFor` ramp
+                // (1 / 1 / 2 / 3) reads well across breakpoints.
+                final columns = Breakpoints.columnsFor(context);
+                final hSide = bp == Breakpoint.compact
+                    ? AppSpacing.lg
+                    : AppSpacing.xl;
+                final padding = EdgeInsets.only(
+                  left: hSide,
+                  right: hSide,
+                  top: AppSpacing.md,
+                  bottom: AppSpacing.xxxl * 2,
+                );
+                Widget tileFor(int i) {
+                  final s = adults[i];
+                  return _AdultTile(
+                    adult: s,
+                    selected: isSelected(s.id),
+                    onTap: isSelecting
+                        ? () => toggleSelection(s.id)
+                        : () => context.push('/more/adults/${s.id}'),
+                    onLongPress: () => toggleSelection(s.id),
+                  );
+                }
+
+                if (columns == 1) {
+                  return ListView.separated(
+                    padding: padding,
+                    itemCount: adults.length,
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(height: AppSpacing.md),
+                    itemBuilder: (_, i) => tileFor(i),
+                  );
+                }
+                return GridView.builder(
+                  padding: padding,
+                  gridDelegate:
+                      SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    mainAxisSpacing: AppSpacing.md,
+                    crossAxisSpacing: AppSpacing.md,
+                    // Tile is a single-line row — keep it short so
+                    // the grid reads as a tight list of cards.
+                    mainAxisExtent: 88,
+                  ),
+                  itemCount: adults.length,
+                  itemBuilder: (_, i) => tileFor(i),
                 );
               },
             );
@@ -261,46 +291,55 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Shows only when BOTH adults and groups are empty. Once
-          // groups exist, this collapses and the familiar "Add adult"
-          // CTA below is what the teacher sees.
-          const BootstrapSetupCard(),
-          const SizedBox(height: AppSpacing.xl),
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.badge_outlined,
-                  size: 56,
-                  color: theme.colorScheme.onSurfaceVariant,
+    return Center(
+      child: ConstrainedBox(
+        // Keep the empty-state message column readable on wide
+        // windows — otherwise the bootstrap card stretches across
+        // the full 1500dp pane and dwarfs the copy below.
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Shows only when BOTH adults and groups are empty. Once
+              // groups exist, this collapses and the familiar "Add adult"
+              // CTA below is what the teacher sees.
+              const BootstrapSetupCard(),
+              const SizedBox(height: AppSpacing.xl),
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.badge_outlined,
+                      size: 56,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    Text('No adults yet',
+                        style: theme.textTheme.titleLarge),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      'Add everyone who works the program — leads, adults, '
+                      'director, kitchen, nurse.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                    FilledButton.icon(
+                      onPressed: onAdd,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add adult'),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: AppSpacing.lg),
-                Text('No adults yet', style: theme.textTheme.titleLarge),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'Add everyone who works the program — leads, adults, '
-                  'director, kitchen, nurse.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: AppSpacing.xl),
-                FilledButton.icon(
-                  onPressed: onAdd,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add adult'),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

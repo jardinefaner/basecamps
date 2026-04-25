@@ -14,6 +14,7 @@ import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
+import 'package:basecamp/ui/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -67,13 +68,10 @@ class AdultDetailScreen extends ConsumerWidget {
           if (s == null) {
             return const Center(child: Text('Adult not found'));
           }
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.lg,
-              AppSpacing.lg,
-              AppSpacing.xxxl * 2,
-            ),
+          // Identity column — header + contact rows + parent bridge.
+          // Left column on wide, leads the stack on narrow.
+          final identity = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _Header(adult: s, onEdit: () => _openEdit(context, s)),
               // v40: tap-to-call / tap-to-email + "also a parent"
@@ -81,30 +79,85 @@ class AdultDetailScreen extends ConsumerWidget {
               // collapses cleanly when a field is unset.
               _ContactSection(adult: s),
               _AlsoParentBadge(adult: s),
-              const SizedBox(height: AppSpacing.xl),
-              _DataIssuesCard(adult: s),
-              _TodayBlocksSection(adultId: adultId),
-              const SizedBox(height: AppSpacing.lg),
-              _AvailabilitySection(adultId: adultId),
-              const SizedBox(height: AppSpacing.lg),
-              _AssignedActivitiesSection(
-                adultId: adultId,
-                onItemTap: (item) => _openTemplate(context, ref, item),
-              ),
-              if ((s.notes ?? '').trim().isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.lg),
-                AppCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Notes', style: theme.textTheme.titleMedium),
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(s.notes!, style: theme.textTheme.bodyMedium),
-                    ],
-                  ),
-                ),
-              ],
             ],
+          );
+
+          // Body — the heavyweight half of this screen: data issues,
+          // today's blocks, availability grid, "what they run", notes.
+          final bodySections = <Widget>[
+            _DataIssuesCard(adult: s),
+            _TodayBlocksSection(adultId: adultId),
+            const SizedBox(height: AppSpacing.lg),
+            _AvailabilitySection(adultId: adultId),
+            const SizedBox(height: AppSpacing.lg),
+            _AssignedActivitiesSection(
+              adultId: adultId,
+              onItemTap: (item) => _openTemplate(context, ref, item),
+            ),
+            if ((s.notes ?? '').trim().isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.lg),
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Notes', style: theme.textTheme.titleMedium),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(s.notes!, style: theme.textTheme.bodyMedium),
+                  ],
+                ),
+              ),
+            ],
+          ];
+
+          return BreakpointBuilder(
+            builder: (context, breakpoint) {
+              if (breakpoint.index < Breakpoint.expanded.index) {
+                return ListView(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg,
+                    AppSpacing.lg,
+                    AppSpacing.lg,
+                    AppSpacing.xxxl * 2,
+                  ),
+                  children: [
+                    identity,
+                    const SizedBox(height: AppSpacing.xl),
+                    ...bodySections,
+                  ],
+                );
+              }
+              // Wide: adult detail has a heavy "Today's blocks" +
+              // availability + assignments stack on the right. 40/60
+              // reserves enough for the time-grid rows without cramping
+              // the header.
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 40,
+                      child: SingleChildScrollView(child: identity),
+                    ),
+                    const SizedBox(width: AppSpacing.xl),
+                    Expanded(
+                      flex: 60,
+                      child: ListView(
+                        padding: const EdgeInsets.only(
+                          bottom: AppSpacing.xxxl,
+                        ),
+                        children: bodySections,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           );
         },
       ),

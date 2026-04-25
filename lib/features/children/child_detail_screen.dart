@@ -14,6 +14,7 @@ import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
+import 'package:basecamp/ui/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -82,102 +83,143 @@ class ChildDetailScreen extends ConsumerWidget {
               [child.firstName, child.lastName].whereType<String>().join(' ');
           final initial = child.firstName.characters.first.toUpperCase();
 
-          return ListView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            children: [
-              InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () => _openEditSheet(context, ref, child),
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.xs),
-                  child: Row(
-                    children: [
-                      SmallAvatar(
-                        path: child.avatarPath,
-                        fallbackInitial: initial,
-                        radius: 32,
-                      ),
-                      const SizedBox(width: AppSpacing.lg),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              fullName,
-                              style: theme.textTheme.headlineMedium,
-                            ),
-                            if (child.groupId != null)
-                              _GroupLabel(groupId: child.groupId!)
-                            else
-                              Text(
-                                'Unassigned',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color:
-                                      theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
+          // Header — avatar + name + group label. Becomes the left
+          // column on wide; leads the stack otherwise.
+          final header = InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => _openEditSheet(context, ref, child),
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.xs),
+              child: Row(
+                children: [
+                  SmallAvatar(
+                    path: child.avatarPath,
+                    fallbackInitial: initial,
+                    radius: 32,
                   ),
-                ),
+                  const SizedBox(width: AppSpacing.lg),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          fullName,
+                          style: theme.textTheme.headlineMedium,
+                        ),
+                        if (child.groupId != null)
+                          _GroupLabel(groupId: child.groupId!)
+                        else
+                          Text(
+                            'Unassigned',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color:
+                                  theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: AppSpacing.xl),
-              _TodayTimeline(child: child),
-              const SizedBox(height: AppSpacing.md),
-              _ParentsSection(child: child),
-              const SizedBox(height: AppSpacing.md),
-              _CaptureActionCard(child: child),
-              const SizedBox(height: AppSpacing.md),
-              AppCard(
-                child: Column(
+            ),
+          );
+
+          // Body sections — today, parents, capture, and the
+          // coming-soon cards. Scrolls on the right column when wide,
+          // vertical continuation on narrow.
+          final bodySections = <Widget>[
+            _TodayTimeline(child: child),
+            const SizedBox(height: AppSpacing.md),
+            _ParentsSection(child: child),
+            const SizedBox(height: AppSpacing.md),
+            _CaptureActionCard(child: child),
+            const SizedBox(height: AppSpacing.md),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Observations', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'Coming soon — structured observations tied to this child.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Photos & moments', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'Coming soon — everything tagged with this child from the Today feed.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Share', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    "Coming soon — send this child's recap to parents via email, SMS, or a read-only link.",
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ];
+
+          return BreakpointBuilder(
+            builder: (context, breakpoint) {
+              if (breakpoint.index < Breakpoint.expanded.index) {
+                return ListView(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  children: [
+                    header,
+                    const SizedBox(height: AppSpacing.xl),
+                    ...bodySections,
+                  ],
+                );
+              }
+              // Wide: child has rich right-column sections (today
+              // timeline + parents + capture actions + three
+              // coming-soon cards). 35/65 lets all of that breathe
+              // while still keeping the identity card visible.
+              return Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Observations', style: theme.textTheme.titleMedium),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      'Coming soon — structured observations tied to this child.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                    Expanded(
+                      flex: 35,
+                      child: SingleChildScrollView(child: header),
+                    ),
+                    const SizedBox(width: AppSpacing.xl),
+                    Expanded(
+                      flex: 65,
+                      child: ListView(
+                        padding: EdgeInsets.zero,
+                        children: bodySections,
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Photos & moments', style: theme.textTheme.titleMedium),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      'Coming soon — everything tagged with this child from the Today feed.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Share', style: theme.textTheme.titleMedium),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      "Coming soon — send this child's recap to parents via email, SMS, or a read-only link.",
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              );
+            },
           );
         },
       ),

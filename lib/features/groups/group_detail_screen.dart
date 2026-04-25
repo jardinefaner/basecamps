@@ -15,6 +15,7 @@ import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
+import 'package:basecamp/ui/responsive.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -136,26 +137,75 @@ class _Body extends ConsumerWidget {
     final kidsInGroup = kids.where((k) => k.groupId == summary.id).toList()
       ..sort((a, b) => a.firstName.compareTo(b.firstName));
 
-    return ListView(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
-        vertical: AppSpacing.md,
-      ),
+    // Identity column — the color-dot hero header. Sparse but anchors
+    // the screen. Becomes the left column on wide.
+    final identity = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _HeroHeader(summary: summary),
-        const SizedBox(height: AppSpacing.lg),
-        _UnstaffedWarning(summary: summary),
-        _CaptureActionCard(summary: summary),
-        const SizedBox(height: AppSpacing.lg),
-        _RoomSection(summary: summary),
-        const SizedBox(height: AppSpacing.lg),
-        _LeadsSection(summary: summary),
-        const SizedBox(height: AppSpacing.lg),
-        _VisitorsTodaySection(summary: summary),
-        const SizedBox(height: AppSpacing.lg),
-        _KidsSection(summary: summary, kids: kidsInGroup),
-        const SizedBox(height: AppSpacing.xxxl),
       ],
+    );
+
+    // Body sections — unstaffed warning, capture actions, room,
+    // leads, visitors today, kids roster. Stacks vertically in both
+    // narrow and wide layouts, just inside different parents.
+    final bodySections = <Widget>[
+      _UnstaffedWarning(summary: summary),
+      _CaptureActionCard(summary: summary),
+      const SizedBox(height: AppSpacing.lg),
+      _RoomSection(summary: summary),
+      const SizedBox(height: AppSpacing.lg),
+      _LeadsSection(summary: summary),
+      const SizedBox(height: AppSpacing.lg),
+      _VisitorsTodaySection(summary: summary),
+      const SizedBox(height: AppSpacing.lg),
+      _KidsSection(summary: summary, kids: kidsInGroup),
+      const SizedBox(height: AppSpacing.xxxl),
+    ];
+
+    return BreakpointBuilder(
+      builder: (context, breakpoint) {
+        if (breakpoint.index < Breakpoint.expanded.index) {
+          return ListView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
+            children: [
+              identity,
+              const SizedBox(height: AppSpacing.lg),
+              ...bodySections,
+            ],
+          );
+        }
+        // Wide: group detail has a lean header (color dot + count
+        // summary) and a heavy right column of actionable sections
+        // (warnings, captures, kids roster). 35/65 pushes more space
+        // to the list-heavy body.
+        return Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.md,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 35,
+                child: SingleChildScrollView(child: identity),
+              ),
+              const SizedBox(width: AppSpacing.xl),
+              Expanded(
+                flex: 65,
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: bodySections,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

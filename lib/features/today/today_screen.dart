@@ -45,6 +45,7 @@ import 'package:basecamp/features/trips/widgets/new_trip_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/bootstrap_setup_card.dart';
+import 'package:basecamp/ui/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -382,8 +383,18 @@ class TodayScreen extends ConsumerWidget {
           icon: const Icon(Icons.add),
           label: const Text('Add'),
         ),
-        body: CustomScrollView(
-          slivers: [
+        // On wide viewports (expanded+), clamp the scrolling column to
+        // ~720dp centered — a phone-layout stretched edge-to-edge on a
+        // desktop window looks like empty gutters; a reading-width
+        // column reads native. Side gutters take the scaffold's
+        // surfaceContainerLowest backdrop underneath.
+        backgroundColor: Breakpoints.isWide(context)
+            ? theme.colorScheme.surfaceContainerLowest
+            : null,
+        body: _maybeClampToReadingColumn(
+          context,
+          CustomScrollView(
+            slivers: [
             SliverAppBar(
               // Wrapped in a Builder so the IconButton's onPressed has a
               // context sitting *below* this Scaffold — Scaffold.of(...)
@@ -507,10 +518,26 @@ class TodayScreen extends ConsumerWidget {
               ),
             ),
           ],
+          ),
         ),
       ),
     );
   }
+}
+
+/// If the viewport is at least [Breakpoint.expanded] wide, wraps
+/// [child] in a [Center] + [ConstrainedBox] so the Today column
+/// reads like an article (max ~720dp) instead of stretching edge-
+/// to-edge. On phones/narrower tablets this is a no-op so the
+/// existing compact layout is unchanged.
+Widget _maybeClampToReadingColumn(BuildContext context, Widget child) {
+  if (!Breakpoints.isWide(context)) return child;
+  return Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 720),
+      child: child,
+    ),
+  );
 }
 
 /// AppBar bottom band: prev / center date / next. Sits underneath

@@ -3,6 +3,7 @@ import 'package:basecamp/features/themes/themes_repository.dart';
 import 'package:basecamp/features/themes/widgets/edit_theme_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
+import 'package:basecamp/ui/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -45,16 +46,47 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
           if (themes.isEmpty) {
             return _EmptyState(onAdd: _openSheet);
           }
-          return ListView.separated(
+          // On wide screens render the themes as a grid — cards are
+          // small enough that stretching them across the full width
+          // of a desktop window just wastes horizontal real-estate.
+          // columnsFor: compact/medium → 1, expanded → 2, large → 3.
+          final columns = Breakpoints.columnsFor(context);
+          if (columns == 1) {
+            return ListView.separated(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.lg,
+                right: AppSpacing.lg,
+                top: AppSpacing.md,
+                bottom: AppSpacing.xxxl * 2,
+              ),
+              itemCount: themes.length,
+              separatorBuilder: (_, _) =>
+                  const SizedBox(height: AppSpacing.md),
+              itemBuilder: (_, i) {
+                final t = themes[i];
+                return _ThemeTile(
+                  programTheme: t,
+                  onTap: () => _openSheet(theme: t),
+                );
+              },
+            );
+          }
+          return GridView.builder(
             padding: const EdgeInsets.only(
               left: AppSpacing.lg,
               right: AppSpacing.lg,
               top: AppSpacing.md,
               bottom: AppSpacing.xxxl * 2,
             ),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              crossAxisSpacing: AppSpacing.md,
+              mainAxisSpacing: AppSpacing.md,
+              // Short, wide cards — the row content (swatch + name +
+              // date range + chevron) is fundamentally horizontal.
+              mainAxisExtent: 96,
+            ),
             itemCount: themes.length,
-            separatorBuilder: (_, _) =>
-                const SizedBox(height: AppSpacing.md),
             itemBuilder: (_, i) {
               final t = themes[i];
               return _ThemeTile(

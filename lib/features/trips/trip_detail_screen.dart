@@ -5,6 +5,7 @@ import 'package:basecamp/features/trips/trips_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/address_field.dart';
 import 'package:basecamp/ui/app_card.dart';
+import 'package:basecamp/ui/responsive.dart';
 import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,96 +44,150 @@ class TripDetailScreen extends ConsumerWidget {
           }
           final dateLabel = DateFormat.yMMMMEEEEd().format(trip.date);
 
-          return ListView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            children: [
-              Text(trip.name, style: theme.textTheme.displaySmall),
-              const SizedBox(height: AppSpacing.sm),
-              _MetaRow(icon: Icons.calendar_today_outlined, text: dateLabel),
-              if (trip.departureTime != null || trip.returnTime != null)
-                _MetaRow(
-                  icon: Icons.schedule_outlined,
-                  text: _formatRange(
-                    trip.departureTime,
-                    trip.returnTime,
+          // Header — trip name + date / time range / location / groups.
+          // Becomes the left column on wide screens, otherwise leads the
+          // vertical stack.
+          Widget buildHeader() {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(trip.name, style: theme.textTheme.displaySmall),
+                const SizedBox(height: AppSpacing.sm),
+                _MetaRow(icon: Icons.calendar_today_outlined, text: dateLabel),
+                if (trip.departureTime != null || trip.returnTime != null)
+                  _MetaRow(
+                    icon: Icons.schedule_outlined,
+                    text: _formatRange(
+                      trip.departureTime,
+                      trip.returnTime,
+                    ),
                   ),
-                ),
-              if (trip.location != null && trip.location!.isNotEmpty)
-                // Tappable address row — opens Google Maps externally
-                // searched at the saved address. No API key / billing
-                // setup, just a URL scheme deep link.
-                Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.xs),
-                  child: AddressRow(address: trip.location!),
-                ),
-              _GroupsRow(tripId: trip.id),
-              const SizedBox(height: AppSpacing.xl),
-              if (trip.notes != null && trip.notes!.isNotEmpty) ...[
-                AppCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Notes', style: theme.textTheme.titleMedium),
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(trip.notes!, style: theme.textTheme.bodyMedium),
-                    ],
+                if (trip.location != null && trip.location!.isNotEmpty)
+                  // Tappable address row — opens Google Maps externally
+                  // searched at the saved address. No API key / billing
+                  // setup, just a URL scheme deep link.
+                  Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.xs),
+                    child: AddressRow(address: trip.location!),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.md),
+                _GroupsRow(tripId: trip.id),
               ],
-              _RosterCard(tripId: trip.id),
-              const SizedBox(height: AppSpacing.md),
+            );
+          }
+
+          // Body sections — attendance, notes, itinerary, journal, and
+          // the vehicle-check shortcut. Each renders as its own widget
+          // so we can reuse the list unchanged between narrow and wide
+          // layouts.
+          final bodySections = <Widget>[
+            if (trip.notes != null && trip.notes!.isNotEmpty) ...[
               AppCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Itinerary', style: theme.textTheme.titleMedium),
+                    Text('Notes', style: theme.textTheme.titleMedium),
                     const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      'Coming soon — ordered stops with times and notes.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
+                    Text(trip.notes!, style: theme.textTheme.bodyMedium),
                   ],
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
-              AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Trip journal', style: theme.textTheme.titleMedium),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      'Coming soon — photos, observations, and notes from this trip.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              // Shortcut into the vehicle-check form, prefilled with this
-              // trip id so the submission writes back to `tripId` on the
-              // typed column. Staff doing pre-trip checks never have to
-              // re-pick the trip they're already looking at.
-              OutlinedButton.icon(
-                onPressed: () =>
-                    Navigator.of(context, rootNavigator: true).push<void>(
-                  MaterialPageRoute(
-                    fullscreenDialog: true,
-                    builder: (_) => GenericFormScreen(
-                      definition: vehicleCheckForm,
-                      prefillTripId: trip.id,
+            ],
+            _RosterCard(tripId: trip.id),
+            const SizedBox(height: AppSpacing.md),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Itinerary', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'Coming soon — ordered stops with times and notes.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                ),
-                icon: const Icon(Icons.directions_bus_outlined),
-                label: const Text('Run vehicle check'),
+                ],
               ),
-            ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Trip journal', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'Coming soon — photos, observations, and notes from this trip.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            // Shortcut into the vehicle-check form, prefilled with this
+            // trip id so the submission writes back to `tripId` on the
+            // typed column. Staff doing pre-trip checks never have to
+            // re-pick the trip they're already looking at.
+            OutlinedButton.icon(
+              onPressed: () =>
+                  Navigator.of(context, rootNavigator: true).push<void>(
+                MaterialPageRoute(
+                  fullscreenDialog: true,
+                  builder: (_) => GenericFormScreen(
+                    definition: vehicleCheckForm,
+                    prefillTripId: trip.id,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.directions_bus_outlined),
+              label: const Text('Run vehicle check'),
+            ),
+          ];
+
+          return BreakpointBuilder(
+            builder: (context, breakpoint) {
+              // Narrow: existing single-column scroll. Header leads the
+              // body sections vertically.
+              if (breakpoint.index < Breakpoint.expanded.index) {
+                return ListView(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  children: [
+                    buildHeader(),
+                    const SizedBox(height: AppSpacing.xl),
+                    ...bodySections,
+                  ],
+                );
+              }
+              // Wide: 40% header on the left (identity / date / groups),
+              // 60% scrolling body on the right. Trip details are
+              // lightweight text, so a bit more space for the roster
+              // and itinerary on the right reads better.
+              return Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 40,
+                      child: SingleChildScrollView(
+                        child: buildHeader(),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xl),
+                    Expanded(
+                      flex: 60,
+                      child: ListView(
+                        padding: EdgeInsets.zero,
+                        children: bodySections,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           );
         },
       ),

@@ -4,6 +4,7 @@ import 'package:basecamp/features/rooms/rooms_repository.dart';
 import 'package:basecamp/features/rooms/widgets/edit_room_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
+import 'package:basecamp/ui/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -43,21 +44,46 @@ class _RoomsScreenState extends ConsumerState<RoomsScreen> {
           if (rooms.isEmpty) {
             return _EmptyState(onAdd: _openSheet);
           }
-          return ListView.separated(
-            padding: const EdgeInsets.only(
-              left: AppSpacing.lg,
-              right: AppSpacing.lg,
-              top: AppSpacing.md,
-              bottom: AppSpacing.xxxl * 2,
-            ),
-            itemCount: rooms.length,
-            separatorBuilder: (_, _) =>
-                const SizedBox(height: AppSpacing.md),
-            itemBuilder: (_, i) {
-              final r = rooms[i];
-              return _RoomTile(
-                room: r,
-                onTap: () => _openSheet(room: r),
+          return BreakpointBuilder(
+            builder: (context, bp) {
+              // Default 1 / 1 / 2 / 3 ramp — tiles are simple rows.
+              final columns = Breakpoints.columnsFor(context);
+              final hSide = bp == Breakpoint.compact
+                  ? AppSpacing.lg
+                  : AppSpacing.xl;
+              final padding = EdgeInsets.only(
+                left: hSide,
+                right: hSide,
+                top: AppSpacing.md,
+                bottom: AppSpacing.xxxl * 2,
+              );
+              Widget tileFor(int i) {
+                final r = rooms[i];
+                return _RoomTile(
+                  room: r,
+                  onTap: () => _openSheet(room: r),
+                );
+              }
+
+              if (columns == 1) {
+                return ListView.separated(
+                  padding: padding,
+                  itemCount: rooms.length,
+                  separatorBuilder: (_, _) =>
+                      const SizedBox(height: AppSpacing.md),
+                  itemBuilder: (_, i) => tileFor(i),
+                );
+              }
+              return GridView.builder(
+                padding: padding,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  mainAxisSpacing: AppSpacing.md,
+                  crossAxisSpacing: AppSpacing.md,
+                  mainAxisExtent: 96,
+                ),
+                itemCount: rooms.length,
+                itemBuilder: (_, i) => tileFor(i),
               );
             },
           );
@@ -139,12 +165,14 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             Icon(
               Icons.meeting_room_outlined,
               size: 56,
@@ -171,7 +199,8 @@ class _EmptyState extends StatelessWidget {
             ),
           ],
         ),
-      ),
+          ),
+        ),
     );
   }
 }
