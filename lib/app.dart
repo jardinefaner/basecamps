@@ -156,8 +156,16 @@ class _ResponsiveShell extends StatelessWidget {
             child: Overlay(
               initialEntries: [
                 OverlayEntry(
-                  builder: (_) => const SafeArea(
-                    child: LauncherScreen(),
+                  // Positioned.fill is required: the Overlay's
+                  // _Theatre lays out children with loose
+                  // constraints, so a SafeArea+LauncherScreen
+                  // without explicit sizing trips a "RenderBox
+                  // was not laid out" assertion the first time
+                  // focus traversal walks the tree.
+                  builder: (_) => const Positioned.fill(
+                    child: SafeArea(
+                      child: LauncherScreen(),
+                    ),
                   ),
                 ),
               ],

@@ -15,11 +15,11 @@ import 'package:basecamp/features/schedule/widgets/new_full_day_event_wizard.dar
 import 'package:basecamp/features/trips/trips_repository.dart';
 import 'package:basecamp/features/trips/widgets/new_trip_wizard.dart';
 import 'package:basecamp/features/vehicles/vehicles_repository.dart';
+import 'package:basecamp/router.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 /// Drawer content for Today. Gmail-style vertical list: a rounded
 /// search pill pinned at the top, then sections of labeled rows — each
@@ -447,11 +447,19 @@ String _parentDisplayName(Parent p) =>
 /// Default is `push` (stacks onto Today); pass `go: true` for
 /// horizontal moves that should clear any lower stack (rarely needed
 /// now that /today is the only root).
+///
+/// Pulls the GoRouter through Riverpod's [routerProvider] rather than
+/// `GoRouter.of(context)`. The launcher renders both inside a Drawer
+/// (mobile, where the route's navigator is in scope) and inside a
+/// permanent sidebar Overlay (web/desktop, where it isn't). The
+/// provider lookup works in both — `ProviderScope` is at the root.
 void _navigateTo(BuildContext context, String path, {bool go = false}) {
+  final router = ProviderScope.containerOf(context, listen: false)
+      .read(routerProvider);
   if (go) {
-    context.go(path);
+    router.go(path);
   } else {
-    unawaited(context.push(path));
+    unawaited(router.push(path));
   }
 }
 
