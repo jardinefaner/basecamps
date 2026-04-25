@@ -143,8 +143,24 @@ class _ResponsiveShell extends StatelessWidget {
             // SafeArea so the launcher's search pill doesn't slide
             // under desktop chrome on browsers that expose a top
             // inset.
-            child: const SafeArea(
-              child: LauncherScreen(),
+            //
+            // The local Overlay is required: LauncherScreen wraps
+            // pinnable tiles in LongPressDraggable, which renders
+            // its drag feedback into an Overlay ancestor. Inside a
+            // Drawer route (mobile) the Navigator supplies one; here
+            // we're a plain Row child with no route, so we add our
+            // own. Navigation taps still bubble to the root
+            // navigator via go_router — this Overlay only hosts
+            // local floating widgets (drag feedback, future
+            // tooltips, etc.).
+            child: Overlay(
+              initialEntries: [
+                OverlayEntry(
+                  builder: (_) => const SafeArea(
+                    child: LauncherScreen(),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
