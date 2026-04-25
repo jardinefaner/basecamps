@@ -599,6 +599,111 @@ class ScheduleRepository {
     );
   }
 
+  /// Clone an existing template onto another weekday. Group
+  /// assignments come along. The new row gets a fresh id and is
+  /// treated as independent — no `seriesId` is propagated, so the
+  /// "delete every occurrence" wizard rule won't touch the original
+  /// when the copy is later deleted (or vice versa). Returns the
+  /// new template id.
+  ///
+  /// Used by the week-plan drag-to-duplicate path. Cancellation /
+  /// override entries (which the drop handler rejects upstream) never
+  /// reach this method.
+  Future<String> copyTemplateToDay({
+    required String templateId,
+    required int targetDay,
+  }) async {
+    final src = await getTemplate(templateId);
+    if (src == null) {
+      throw StateError('Template $templateId no longer exists');
+    }
+    final newTemplateId = newId();
+    await _db.transaction(() async {
+      await _db.into(_db.scheduleTemplates).insert(
+            ScheduleTemplatesCompanion.insert(
+              id: newTemplateId,
+              dayOfWeek: targetDay,
+              startTime: src.startTime,
+              endTime: src.endTime,
+              isFullDay: Value(src.isFullDay),
+              title: src.title,
+              allGroups: Value(src.allGroups),
+              adultId: Value(src.adultId),
+              location: Value(src.location),
+              notes: Value(src.notes),
+              startDate: Value(src.startDate),
+              endDate: Value(src.endDate),
+              sourceLibraryItemId: Value(src.sourceLibraryItemId),
+              roomId: Value(src.roomId),
+              sourceUrl: Value(src.sourceUrl),
+            ),
+          );
+      final groupIds = await groupsForTemplate(templateId);
+      for (final groupId in groupIds) {
+        await _db.into(_db.templateGroups).insert(
+              TemplateGroupsCompanion.insert(
+                templateId: newTemplateId,
+                groupId: groupId,
+              ),
+            );
+      }
+    });
+    return newTemplateId;
+  }
+
+  /// Clone a one-off entry onto a new date. Multi-day spans preserve
+  /// their length (endDate shifts by the same delta). Group
+  /// assignments come along. The new row is always written as
+  /// `kind: 'addition'` — override / cancellation entries never reach
+  /// this method because the drop handler rejects them. Returns the
+  /// new entry id.
+  Future<String> copyEntryToDate({
+    required String entryId,
+    required DateTime newDate,
+  }) async {
+    final row = await (_db.select(_db.scheduleEntries)
+          ..where((e) => e.id.equals(entryId)))
+        .getSingle();
+    final oldStart = _dayOnly(row.date);
+    final newStart = _dayOnly(newDate);
+    final deltaDays = newStart.difference(oldStart).inDays;
+    final newEnd = row.endDate == null
+        ? null
+        : _dayOnly(row.endDate!).add(Duration(days: deltaDays));
+    final newEntryId = newId();
+    await _db.transaction(() async {
+      await _db.into(_db.scheduleEntries).insert(
+            ScheduleEntriesCompanion.insert(
+              id: newEntryId,
+              date: newStart,
+              endDate: Value(newEnd),
+              startTime: row.startTime,
+              endTime: row.endTime,
+              isFullDay: Value(row.isFullDay),
+              title: row.title,
+              allGroups: Value(row.allGroups),
+              adultId: Value(row.adultId),
+              location: Value(row.location),
+              notes: Value(row.notes),
+              sourceLibraryItemId: Value(row.sourceLibraryItemId),
+              roomId: Value(row.roomId),
+              sourceUrl: Value(row.sourceUrl),
+              kind: 'addition',
+            ),
+          );
+      final groupIds = await groupsForEntry(entryId);
+      for (final groupId in groupIds) {
+        await _db.into(_db.entryGroups).insert(
+              EntryGroupsCompanion.insert(
+                entryId: newEntryId,
+                groupId: groupId,
+              ),
+            );
+      }
+    });
+    return newEntryId;
+  }
+
   /// Move a one-off entry's date. Updates `date` + `endDate` when the
   /// entry is multi-day (the endDate shifts by the same delta so the
   /// range length is preserved).

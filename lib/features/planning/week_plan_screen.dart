@@ -8,14 +8,21 @@ import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/responsive.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 /// `/week-plan` — Monday-to-Friday column layout showing every
 /// scheduled item on each day. Tap a card → [ActivityDetailSheet].
-/// Long-press-drag a card onto another column to move it: template-
-/// backed cards shift the recurring weekday (all future weeks),
-/// entry-backed cards shift just that one occurrence's date.
+/// Long-press-drag a card onto another column to either move or
+/// copy it — a bottom sheet asks which on every drop. Holding
+/// Alt/Option while dropping skips the chooser and goes straight to
+/// copy (Finder-style fast-path). Move semantics: template-backed
+/// cards shift the recurring weekday (all future weeks); entry-
+/// backed cards shift just that one occurrence's date. Copy semantics:
+/// the original stays put and a clone (with the same group/adult/room
+/// assignments) lands on the target day.
+///
 /// Trailing "Duplicate last week" action copies one-off entries from
 /// the prior week forward onto their mirror day (templates already
 /// recur, so they're skipped).
@@ -90,8 +97,11 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
     );
   }
 
-  /// Handle a drop: figure out whether the payload is a template-move
-  /// or entry-move, confirm with the teacher, then write and snack.
+  /// Handle a drop: reject overrides, otherwise pick an action
+  /// (move or copy) and execute. The chooser is skipped when Alt /
+  /// Option is held at drop time — pressing the modifier fast-paths
+  /// straight to copy, the way Finder/Explorer's drag-with-Option
+  /// gesture works. Touch users always get the chooser.
   Future<void> _onDrop({
     required ScheduleItem item,
     required DateTime sourceDate,
@@ -101,8 +111,8 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
     if (_sameDay(sourceDate, targetDate)) return;
 
     // Cancellation/override entries are attached to a specific
-    // template on a specific date — they can't be "moved" in any
-    // meaningful sense. Surface the toast and stop.
+    // template on a specific date — they can't be moved or copied in
+    // any meaningful sense. Surface the toast and stop.
     final isTemplate = item.isFromTemplate && item.templateId != null;
     final isEntry = !item.isFromTemplate && item.entryId != null;
     if (!isTemplate && !isEntry) {
@@ -118,52 +128,115 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
       return;
     }
 
+    // Alt / Option held at drop time → skip the chooser and copy.
+    // HardwareKeyboard reflects the live state, which is what we want:
+    // the gesture's modifier is whatever's pressed at the moment the
+    // pointer comes up, not what was pressed when the long-press
+    // started.
+    final altHeld = HardwareKeyboard.instance.isAltPressed;
+    final action = altHeld
+        ? _DropAction.copy
+        : await _showMoveOrCopySheet(item: item, targetDate: targetDate);
+    if (action == null || !mounted) return;
+
     final targetWeekdayLabel = DateFormat.EEEE().format(targetDate);
-    final targetWeekdayPlural = '${targetWeekdayLabel}s';
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Move "${item.title}"?'),
-        content: Text(
-          isTemplate
-              ? 'Move "${item.title}" to $targetWeekdayPlural? '
-                  'Every future week’s occurrence will shift too.'
-              : 'Move "${item.title}" to '
-                  '${DateFormat.MMMMd().format(targetDate)}?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Move'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
     final repo = ref.read(scheduleRepositoryProvider);
-    if (isTemplate) {
-      await repo.moveTemplateToDay(
-        templateId: item.templateId!,
-        newDayOfWeek: targetDate.weekday,
-      );
-    } else {
-      await repo.moveEntryToDate(
-        entryId: item.entryId!,
-        newDate: targetDate,
-      );
+    switch (action) {
+      case _DropAction.move:
+        if (isTemplate) {
+          await repo.moveTemplateToDay(
+            templateId: item.templateId!,
+            newDayOfWeek: targetDate.weekday,
+          );
+        } else {
+          await repo.moveEntryToDate(
+            entryId: item.entryId!,
+            newDate: targetDate,
+          );
+        }
+      case _DropAction.copy:
+        if (isTemplate) {
+          await repo.copyTemplateToDay(
+            templateId: item.templateId!,
+            targetDay: targetDate.weekday,
+          );
+        } else {
+          await repo.copyEntryToDate(
+            entryId: item.entryId!,
+            newDate: targetDate,
+          );
+        }
     }
     if (!mounted) return;
+    final verb = action == _DropAction.move ? 'Moved' : 'Copied';
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
       ..showSnackBar(
-        SnackBar(content: Text('Moved to $targetWeekdayLabel.')),
+        SnackBar(content: Text('$verb to $targetWeekdayLabel.')),
       );
+  }
+
+  /// Bottom-sheet chooser shown after a drop when the teacher didn't
+  /// hold Alt/Option. Three options: Move, Copy, Cancel. The body
+  /// describes both effects in plain language so the choice doesn't
+  /// hinge on remembering template-vs-entry semantics.
+  Future<_DropAction?> _showMoveOrCopySheet({
+    required ScheduleItem item,
+    required DateTime targetDate,
+  }) {
+    final isTemplate = item.isFromTemplate && item.templateId != null;
+    final targetWeekdayPlural = '${DateFormat.EEEE().format(targetDate)}s';
+    final targetDateLabel = DateFormat.MMMMd().format(targetDate);
+    final moveDetail = isTemplate
+        ? 'Shifts the recurring slot to $targetWeekdayPlural — '
+            'every future week moves too.'
+        : 'Just this one occurrence moves to $targetDateLabel.';
+    final copyDetail = isTemplate
+        ? 'Adds a second recurring slot on $targetWeekdayPlural; '
+            'the original keeps repeating on its own day.'
+        : 'Adds a second one-off on $targetDateLabel; the original '
+            'stays put.';
+    return showModalBottomSheet<_DropAction>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.sm,
+                AppSpacing.lg,
+                AppSpacing.md,
+              ),
+              child: Text(
+                '"${item.title}" → ${DateFormat.EEEE().format(targetDate)}',
+                style: Theme.of(ctx).textTheme.titleMedium,
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.swap_horiz),
+              title: const Text('Move here'),
+              subtitle: Text(moveDetail),
+              onTap: () => Navigator.of(ctx).pop(_DropAction.move),
+            ),
+            ListTile(
+              leading: const Icon(Icons.content_copy_outlined),
+              title: const Text('Copy here'),
+              subtitle: Text(copyDetail),
+              onTap: () => Navigator.of(ctx).pop(_DropAction.copy),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
   }
 
   static bool _sameDay(DateTime a, DateTime b) =>
@@ -396,6 +469,11 @@ class _WeekNavRow extends StatelessWidget {
     );
   }
 }
+
+/// What to do when a card is dropped onto another day. The drop
+/// handler picks one — either via the bottom-sheet chooser or via
+/// the held-Alt fast-path — then branches the repository write.
+enum _DropAction { move, copy }
 
 /// Payload for a card drag between columns. Holds just the schedule
 /// item plus its source date — the target column contributes its own
