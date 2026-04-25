@@ -7,7 +7,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 part 'database.g.dart';
 
 QueryExecutor _openConnection() {
-  return driftDatabase(name: 'basecamp');
+  return driftDatabase(
+    name: 'basecamp',
+    // Web build needs explicit WASM + worker URIs; native builds
+    // ignore this parameter and use the platform's sqlite3 binding.
+    // The two files (sqlite3.wasm + drift_worker.js) are committed
+    // into web/ so the bundle ships with them. See web/README.md
+    // (or drift_dev's `make-defaults` command) for regenerating
+    // them when drift bumps.
+    web: DriftWebOptions(
+      sqlite3Wasm: Uri.parse('sqlite3.wasm'),
+      driftWorker: Uri.parse('drift_worker.js'),
+    ),
+  );
 }
 
 @DriftDatabase(
