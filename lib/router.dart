@@ -2,6 +2,8 @@ import 'package:basecamp/features/activity_library/activity_library_screen.dart'
 import 'package:basecamp/features/adults/adult_detail_screen.dart';
 import 'package:basecamp/features/adults/adults_screen.dart';
 import 'package:basecamp/features/adults/program_timeline_screen.dart';
+import 'package:basecamp/features/auth/auth_repository.dart';
+import 'package:basecamp/features/auth/sign_in_screen.dart';
 import 'package:basecamp/features/children/child_detail_screen.dart';
 import 'package:basecamp/features/children/children_screen.dart';
 import 'package:basecamp/features/forms/forms_hub_screen.dart';
@@ -52,16 +54,58 @@ class _UnfocusOnTransition extends NavigatorObserver {
       _dropFocus();
 }
 
+/// Bridges the Riverpod auth-state stream into a [Listenable] so
+/// GoRouter's `refreshListenable` can rebuild the route tree on
+/// sign-in / sign-out without us reaching into the auth singletons
+/// from inside the router.
+class _AuthRefreshNotifier extends ChangeNotifier {
+  _AuthRefreshNotifier(Ref ref) {
+    // ref.listen fires once per auth-state event; notifyListeners
+    // tells GoRouter to re-evaluate `redirect` for the current
+    // location. Without this the user signs in but stays parked on
+    // /sign-in until they manually navigate.
+    _sub = ref.listen(authStateProvider, (_, _) => notifyListeners());
+  }
+
+  late final ProviderSubscription<dynamic> _sub;
+
+  @override
+  void dispose() {
+    _sub.close();
+    super.dispose();
+  }
+}
+
 /// Flat top-level route tree. Today is the root — every other screen is
 /// a pushed route accessible from Today's drawer (or deep-linked). The
 /// old StatefulShell with its launcher + five-tab setup is gone; the
 /// launcher is rendered inside Today's drawer instead of as its own
 /// route.
+///
+/// Auth gate: every route requires a session except `/sign-in`. The
+/// `redirect` callback below funnels signed-out users to /sign-in and
+/// bounces signed-in users away from /sign-in back to /today. The
+/// `refreshListenable` rebuilds the redirect on every auth-state
+/// change so sign-in immediately routes the teacher into the app.
 final routerProvider = Provider<GoRouter>((ref) {
+  final refresh = _AuthRefreshNotifier(ref);
+  ref.onDispose(refresh.dispose);
   return GoRouter(
     initialLocation: '/today',
     observers: [_UnfocusOnTransition()],
+    refreshListenable: refresh,
+    redirect: (context, state) {
+      final session = ref.read(authRepositoryProvider).currentSession;
+      final goingToSignIn = state.matchedLocation == '/sign-in';
+      if (session == null && !goingToSignIn) return '/sign-in';
+      if (session != null && goingToSignIn) return '/today';
+      return null;
+    },
     routes: [
+      GoRoute(
+        path: '/sign-in',
+        builder: (_, _) => const SignInScreen(),
+      ),
       GoRoute(
         path: '/today',
         builder: (_, _) => const TodayScreen(),

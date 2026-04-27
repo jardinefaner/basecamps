@@ -1,4 +1,5 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/settings/program_settings.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -43,8 +44,58 @@ class ProgramSettingsScreen extends ConsumerWidget {
             onChanged: notifier.setPickupGrace,
           ),
           const SizedBox(height: AppSpacing.xxl),
+          const _AccountCard(),
+          const SizedBox(height: AppSpacing.xxl),
           const _DangerZone(),
         ],
+      ),
+    );
+  }
+}
+
+/// Shows the signed-in Google account and a sign-out button. The
+/// account is the only auth surface for the v1 cloud-backup story —
+/// no profile editing, no avatar upload. Sign-out wipes the local
+/// session; the router redirects to /sign-in on the next frame.
+class _AccountCard extends ConsumerWidget {
+  const _AccountCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final session = ref.watch(currentSessionProvider);
+    final email = session?.user.email ?? '—';
+    return AppCard(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Account',
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Signed in as $email.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.logout, size: 18),
+                label: const Text('Sign out'),
+                onPressed: () async {
+                  await ref.read(authRepositoryProvider).signOut();
+                  // Router redirect picks it up — nothing to do here.
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
