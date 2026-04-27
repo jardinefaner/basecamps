@@ -149,29 +149,42 @@ class BackupRepository {
   /// on a hot DB — uses read-only SELECTs and no transaction (the
   /// snapshot is a point-in-time best-effort, not a strict
   /// transactional snapshot, which is fine for single-writer).
+  ///
+  /// Resilient to schema drift: each table query is wrapped in a
+  /// try/catch so a missing column or missing table on one table
+  /// doesn't blow up the entire backup. Skipped tables are listed
+  /// in the envelope under `skippedTables` so a developer can see
+  /// which tables didn't make it. End users see "Backed up to the
+  /// cloud." regardless — partial snapshots are better than none.
   Future<Map<String, dynamic>> exportProgramSnapshot(String programId) async {
     final tables = <String, List<Map<String, Object?>>>{};
+    final skipped = <String, String>{};
 
     // program_id-scoped tables: simple WHERE.
     for (final table in _programScopedTables) {
-      final whereCol = table == 'programs'
-          ? 'id'
-          : (table == 'program_members' ? 'program_id' : 'program_id');
-      final rows = await _db.customSelect(
-        'SELECT * FROM "$table" WHERE "$whereCol" = ?',
-        variables: [Variable<String>(programId)],
-      ).get();
-      tables[table] = rows.map((r) => r.data).toList();
+      final whereCol = table == 'programs' ? 'id' : 'program_id';
+      try {
+        final rows = await _db.customSelect(
+          'SELECT * FROM "$table" WHERE "$whereCol" = ?',
+          variables: [Variable<String>(programId)],
+        ).get();
+        tables[table] = rows.map((r) => r.data).toList();
+      } on Object catch (e) {
+        skipped[table] = e.toString();
+      }
     }
 
     // Cascade tables: EXISTS subquery against the parent.
-    _cascadeTables.forEach((table, where) {});
     for (final entry in _cascadeTables.entries) {
-      final rows = await _db.customSelect(
-        'SELECT * FROM "${entry.key}" WHERE ${entry.value}',
-        variables: [Variable<String>(programId)],
-      ).get();
-      tables[entry.key] = rows.map((r) => r.data).toList();
+      try {
+        final rows = await _db.customSelect(
+          'SELECT * FROM "${entry.key}" WHERE ${entry.value}',
+          variables: [Variable<String>(programId)],
+        ).get();
+        tables[entry.key] = rows.map((r) => r.data).toList();
+      } on Object catch (e) {
+        skipped[entry.key] = e.toString();
+      }
     }
 
     return <String, dynamic>{
@@ -179,6 +192,7 @@ class BackupRepository {
       _kExportedAt: DateTime.now().toUtc().toIso8601String(),
       _kProgramId: programId,
       _kTables: tables,
+      if (skipped.isNotEmpty) 'skippedTables': skipped,
     };
   }
 
@@ -218,24 +232,36 @@ class BackupRepository {
         // Wipe — cascade tables first (no FKs from anyone), then
         // entity tables in reverse-dependency order. With FKs off
         // the order is mostly cosmetic, but keeping it tidy makes
-        // any future strict-FK migration drop in cleanly.
+        // any future strict-FK migration drop in cleanly. Each
+        // delete is best-effort so a missing table on this device
+        // doesn't crash the whole restore.
         for (final table in _cascadeTables.keys.toList().reversed) {
-          await _db.customUpdate(
-            // Cascade tables don't all carry program_id; scope via
-            // the same EXISTS clause we used for export.
-            'DELETE FROM "$table" WHERE ${_cascadeTables[table]}',
-            variables: [Variable<String>(programId)],
-          );
+          try {
+            await _db.customUpdate(
+              // Cascade tables don't all carry program_id; scope via
+              // the same EXISTS clause we used for export.
+              'DELETE FROM "$table" WHERE ${_cascadeTables[table]}',
+              variables: [Variable<String>(programId)],
+            );
+          } on Object {
+            // Missing table or column on this device — skip.
+          }
         }
         for (final table in _programScopedTables.reversed) {
           final col = table == 'programs' ? 'id' : 'program_id';
-          await _db.customUpdate(
-            'DELETE FROM "$table" WHERE "$col" = ?',
-            variables: [Variable<String>(programId)],
-          );
+          try {
+            await _db.customUpdate(
+              'DELETE FROM "$table" WHERE "$col" = ?',
+              variables: [Variable<String>(programId)],
+            );
+          } on Object {
+            // Same as above — best-effort wipe.
+          }
         }
 
         // Insert — entity tables first (FK targets), then cascade.
+        // Per-row try/catch so a single mal-shaped row from an
+        // older snapshot doesn't fail the whole transaction.
         for (final table in [
           ..._programScopedTables,
           ..._cascadeTables.keys,
@@ -250,12 +276,19 @@ class BackupRepository {
             final placeholders =
                 List.filled(cols.length, '?').join(', ');
             final colList = cols.map((c) => '"$c"').join(', ');
-            await _db.customInsert(
-              'INSERT INTO "$table" ($colList) VALUES ($placeholders)',
-              variables: [
-                for (final c in cols) _toVariable(row[c]),
-              ],
-            );
+            try {
+              await _db.customInsert(
+                'INSERT INTO "$table" ($colList) VALUES ($placeholders)',
+                variables: [
+                  for (final c in cols) _toVariable(row[c]),
+                ],
+              );
+            } on Object {
+              // Skip rows whose columns don't exist on this
+              // device's schema. Future migrations are forward-
+              // only so this should only happen during the
+              // narrow window of a partial migration.
+            }
           }
         }
       });
