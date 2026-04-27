@@ -5,6 +5,13 @@ class Groups extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
   TextColumn get colorHex => text().nullable()();
+
+  /// Owning program (v42). Nullable so the schema migration can
+  /// land additively — a one-shot backfill on first sign-in stamps
+  /// existing rows with the user's default program. Repositories
+  /// pass `activeProgramIdProvider` on every insert from then on.
+  TextColumn get programId => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -45,6 +52,10 @@ class Children extends Table {
   // [ChildScheduleOverrides] below.
   TextColumn get expectedArrival => text().nullable()();
   TextColumn get expectedPickup => text().nullable()();
+
+  /// Owning program (v42). See [Groups.programId] for nullability
+  /// rationale.
+  TextColumn get programId => text().nullable()();
 
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
@@ -121,6 +132,9 @@ class Vehicles extends Table {
   /// contact, whatever the program wants tied to the vehicle.
   TextColumn get notes => text().nullable()();
 
+  /// Owning program (v42). See [Groups.programId] for the rule.
+  TextColumn get programId => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -141,6 +155,10 @@ class Trips extends Table {
   // the trip is considered full-day.
   TextColumn get departureTime => text().nullable()();
   TextColumn get returnTime => text().nullable()();
+
+  /// Owning program (v42). See [Groups.programId] for the rule.
+  TextColumn get programId => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -280,6 +298,9 @@ class Observations extends Table {
         onDelete: KeyAction.setNull,
       )();
 
+  /// Owning program (v42). See [Groups.programId] for the rule.
+  TextColumn get programId => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -349,6 +370,9 @@ class ActivityLibrary extends Table {
   /// now. A future filter can parse this into chips.
   TextColumn get materials => text().nullable()();
 
+  /// Owning program (v42). See [Groups.programId] for the rule.
+  TextColumn get programId => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -414,6 +438,10 @@ class LessonSequences extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
   TextColumn get description => text().nullable()();
+
+  /// Owning program (v42). See [Groups.programId] for the rule.
+  TextColumn get programId => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -461,6 +489,10 @@ class Themes extends Table {
   DateTimeColumn get startDate => dateTime()();
   DateTimeColumn get endDate => dateTime()();
   TextColumn get notes => text().nullable()();
+
+  /// Owning program (v42). See [Groups.programId] for the rule.
+  TextColumn get programId => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -575,6 +607,10 @@ class AdultDayBlocks extends Table {
 class Roles extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
+
+  /// Owning program (v42). See [Groups.programId] for the rule.
+  TextColumn get programId => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -643,6 +679,9 @@ class Adults extends Table {
       .nullable()
       .references(Groups, #id, onDelete: KeyAction.setNull)();
 
+  /// Owning program (v42). See [Groups.programId] for the rule.
+  TextColumn get programId => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -678,6 +717,9 @@ class Rooms extends Table {
   TextColumn get defaultForGroupId => text()
       .nullable()
       .references(Groups, #id, onDelete: KeyAction.setNull)();
+
+  /// Owning program (v42). See [Groups.programId] for the rule.
+  TextColumn get programId => text().nullable()();
 
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
@@ -754,6 +796,10 @@ class ScheduleTemplates extends Table {
   /// Independent of the rich library-card `sourceUrl` — this is per-
   /// occurrence metadata.
   TextColumn get sourceUrl => text().nullable()();
+
+  /// Owning program (v42). See [Groups.programId] for the rule.
+  TextColumn get programId => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -845,6 +891,9 @@ class ParentConcernNotes extends Table {
   TextColumn get supervisorSignature => text().nullable()();
   TextColumn get supervisorSignaturePath => text().nullable()();
   DateTimeColumn get supervisorSignatureDate => dateTime().nullable()();
+
+  /// Owning program (v42). See [Groups.programId] for the rule.
+  TextColumn get programId => text().nullable()();
 
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
@@ -984,6 +1033,9 @@ class FormSubmissions extends Table {
   TextColumn get data =>
       text().withDefault(const Constant('{}'))();
 
+  /// Owning program (v42). See [Groups.programId] for the rule.
+  TextColumn get programId => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -1060,6 +1112,10 @@ class ScheduleEntries extends Table {
   /// Mirror of [ScheduleTemplates.sourceUrl] (v40). Per-occurrence
   /// reference link, independent of any library-card source.
   TextColumn get sourceUrl => text().nullable()();
+
+  /// Owning program (v42). See [Groups.programId] for the rule.
+  TextColumn get programId => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -1096,6 +1152,9 @@ class Parents extends Table {
   TextColumn get phone => text().nullable()();
   TextColumn get email => text().nullable()();
   TextColumn get notes => text().nullable()();
+
+  /// Owning program (v42). See [Groups.programId] for the rule.
+  TextColumn get programId => text().nullable()();
 
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();

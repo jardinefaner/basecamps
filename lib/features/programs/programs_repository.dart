@@ -134,6 +134,53 @@ class ProgramsRepository {
           ..where((m) => m.programId.equals(programId)))
         .get();
   }
+
+  /// One-shot stamp of every untagged row in every entity table
+  /// with [programId]. Idempotent — only touches rows where
+  /// `program_id IS NULL`, so re-running is cheap (no rows match
+  /// after the first pass) and safe.
+  ///
+  /// Called by the auth bootstrap right after [ensureDefaultProgram]
+  /// when the user signs in for the first time on a device that
+  /// already has data (legacy local DB pre-program model). Future
+  /// inserts go through repositories that stamp the column at
+  /// write time, so this should only ever update rows on the
+  /// transition migration.
+  Future<int> backfillUntaggedRows({required String programId}) async {
+    // Same list as the v42 migration in database.dart. Kept in
+    // sync by hand — if a new entity table lands, both lists need
+    // an entry.
+    const tables = [
+      'children',
+      'groups',
+      'vehicles',
+      'trips',
+      'adults',
+      'roles',
+      'parents',
+      'rooms',
+      'schedule_templates',
+      'schedule_entries',
+      'observations',
+      'activity_library',
+      'lesson_sequences',
+      'themes',
+      'parent_concern_notes',
+      'form_submissions',
+    ];
+    var totalUpdated = 0;
+    await _db.transaction(() async {
+      for (final table in tables) {
+        final rowsAffected = await _db.customUpdate(
+          'UPDATE "$table" SET "program_id" = ? '
+          'WHERE "program_id" IS NULL',
+          variables: [Variable<String>(programId)],
+        );
+        totalUpdated += rowsAffected;
+      }
+    });
+    return totalUpdated;
+  }
 }
 
 final programsRepositoryProvider = Provider<ProgramsRepository>((ref) {

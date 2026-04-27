@@ -67,7 +67,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 41;
+  int get schemaVersion => 42;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -97,6 +97,55 @@ class AppDatabase extends _$AppDatabase {
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
             );
+          }
+          if (from < 42) {
+            // v42: stamp every entity table with a nullable
+            // `program_id`. Additive, no NOT NULL constraint yet —
+            // existing rows stay untagged until the auth bootstrap
+            // runs a one-shot backfill (see ProgramsRepository
+            // .backfillUntaggedRows). Repositories start carrying
+            // the active program id on inserts from this version
+            // forward; reads remain program-agnostic until Slice C
+            // adds RLS-style filters.
+            //
+            // Joins / cascade-children tables (TripGroups,
+            // TemplateGroups, EntryGroups, ParentChildren,
+            // ObservationChildren / -Attachments / -DomainTags,
+            // CaptureChildren, ParentConcernChildren,
+            // AdultAvailability, AdultDayBlocks,
+            // ChildScheduleOverrides, Attendance, Captures,
+            // ActivityLibraryDomainTags, ActivityLibraryUsages,
+            // LessonSequenceItems) intentionally do NOT get a
+            // program_id — they belong to whichever parent row
+            // already carries one.
+            const tables = [
+              'children',
+              'groups',
+              'vehicles',
+              'trips',
+              'adults',
+              'roles',
+              'parents',
+              'rooms',
+              'schedule_templates',
+              'schedule_entries',
+              'observations',
+              'activity_library',
+              'lesson_sequences',
+              'themes',
+              'parent_concern_notes',
+              'form_submissions',
+            ];
+            for (final t in tables) {
+              await _runSilent(
+                'ALTER TABLE "$t" ADD COLUMN "program_id" TEXT NULL',
+              );
+              await _runSilent(
+                'CREATE INDEX IF NOT EXISTS '
+                '"idx_${t}_program" '
+                'ON "$t" ("program_id")',
+              );
+            }
           }
           if (from < 41) {
             // v41: introduce the program scaffold. Programs are the

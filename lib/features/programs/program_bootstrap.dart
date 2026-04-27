@@ -4,6 +4,7 @@ import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Listens to auth-state changes and ensures every signed-in user
@@ -46,16 +47,38 @@ class ProgramAuthBootstrap {
 
   Future<void> _onSessionChanged(String userId) async {
     try {
-      final id = await _ref
-          .read(programsRepositoryProvider)
-          .ensureDefaultProgram(userId: userId);
+      final repo = _ref.read(programsRepositoryProvider);
+      final id = await repo.ensureDefaultProgram(userId: userId);
       await _ref.read(activeProgramIdProvider.notifier).set(id);
+      await _maybeBackfillUntaggedRows(repo, programId: id);
     } on Object catch (e, st) {
       // Bootstrap failure is recoverable — the user's still signed
       // in, just sitting on a no-program state until the next
       // attempt. Logging it lets a dev debug; a user-visible toast
       // would be more noise than signal for a transient DB hiccup.
       debugPrint('Program bootstrap failed: $e\n$st');
+    }
+  }
+
+  /// Stamps any pre-program-model rows with [programId] the first
+  /// time it sees this program. Guarded by a SharedPreferences flag
+  /// so we don't re-scan every launch — once per (program, install)
+  /// is enough since new rows go in pre-stamped via the repos.
+  ///
+  /// The flag is per-program-id so a user with multiple programs
+  /// (eventual feature) gets a separate one-shot per program. Right
+  /// now every install only ever sees one program here.
+  Future<void> _maybeBackfillUntaggedRows(
+    ProgramsRepository repo, {
+    required String programId,
+  }) async {
+    final flagKey = 'program_${programId}_backfill_v42_done';
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(flagKey) ?? false) return;
+    final updated = await repo.backfillUntaggedRows(programId: programId);
+    await prefs.setBool(flagKey, true);
+    if (updated > 0) {
+      debugPrint('Stamped $updated legacy rows with program $programId.');
     }
   }
 }
