@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
+import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
 import 'package:basecamp/features/forms/polymorphic/registry.dart';
@@ -421,6 +422,11 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                       ],
                     ),
             ),
+            // Account chip — sticks to the bottom of the launcher,
+            // outside the scrollable area so it's always visible.
+            // Tapping opens a popup menu (Sign out for now; future:
+            // switch account, account settings).
+            const _AccountFooter(),
           ],
         ),
       ),
@@ -937,6 +943,127 @@ class _LibraryRow extends StatelessWidget {
 // ================================================================
 // Destinations — main tabs + sub-surfaces
 // ================================================================
+
+/// Sticky launcher footer showing the signed-in Google account. A
+/// thin row with the user's avatar (or fallback initial), the
+/// account email, and a popup menu trigger. Always visible — sits
+/// outside the scrollable section list, the way Gmail's account
+/// switcher rides at the bottom of its drawer.
+///
+/// The popup menu currently has one item (Sign out). When a real
+/// "switch account" or "account settings" flow lands they slot in
+/// here without redesigning the chip.
+class _AccountFooter extends ConsumerWidget {
+  const _AccountFooter();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final session = ref.watch(currentSessionProvider);
+    if (session == null) {
+      // Should never render in normal use — the router gates every
+      // route on a session. Bail to an empty box rather than throwing
+      // if some transient state slips us through.
+      return const SizedBox.shrink();
+    }
+    final user = session.user;
+    final email = user.email ?? 'Signed in';
+    // Google identity providers stash the avatar URL under either
+    // 'avatar_url' (Supabase's normalized name) or 'picture' (Google's
+    // raw payload). Prefer the explicit one, fall back to the raw.
+    final meta = user.userMetadata ?? const <String, dynamic>{};
+    final avatarUrl = (meta['avatar_url'] ?? meta['picture']) as String?;
+    final fallbackInitial = email.isEmpty
+        ? '?'
+        : email.characters.first.toUpperCase();
+
+    return Material(
+      color: theme.colorScheme.surfaceContainerLow,
+      child: InkWell(
+        onTap: () async {
+          // Open a small menu anchored to the chip itself. Using
+          // showMenu (not PopupMenuButton) lets the whole row act as
+          // the trigger instead of just an icon corner.
+          final box = context.findRenderObject() as RenderBox?;
+          if (box == null) return;
+          final overlay = Overlay.of(context).context.findRenderObject()
+              as RenderBox?;
+          if (overlay == null) return;
+          final position = RelativeRect.fromRect(
+            Rect.fromPoints(
+              box.localToGlobal(Offset.zero, ancestor: overlay),
+              box.localToGlobal(
+                box.size.bottomRight(Offset.zero),
+                ancestor: overlay,
+              ),
+            ),
+            Offset.zero & overlay.size,
+          );
+          final action = await showMenu<String>(
+            context: context,
+            position: position,
+            items: const [
+              PopupMenuItem(
+                value: 'sign_out',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.logout),
+                  title: Text('Sign out'),
+                ),
+              ),
+            ],
+          );
+          if (action == 'sign_out') {
+            await ref.read(authRepositoryProvider).signOut();
+            // Router redirect handles the navigation.
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.md,
+          ),
+          child: Row(
+            children: [
+              // Inline CircleAvatar instead of SmallAvatar — the
+              // shared widget only knows how to load local file paths
+              // (and skips images entirely on web). Google's profile
+              // picture is an `https://...googleusercontent.com` URL
+              // we want shown on every platform, web included.
+              CircleAvatar(
+                radius: 14,
+                backgroundColor: theme.colorScheme.primaryContainer,
+                foregroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                    ? NetworkImage(avatarUrl)
+                    : null,
+                child: Text(
+                  fallbackInitial,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Text(
+                  email,
+                  style: theme.textTheme.bodyMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(
+                Icons.expand_less,
+                size: 18,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _DestinationData {
   const _DestinationData({
