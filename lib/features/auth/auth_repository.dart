@@ -20,30 +20,57 @@ class AuthRepository {
   /// the router rebuilds on changes.
   Stream<AuthState> get onAuthStateChange => _client.auth.onAuthStateChange;
 
-  /// Custom URL scheme for OAuth round-trip on native iOS/Android.
+  /// Custom URL scheme for the auth round-trip on native iOS/Android.
   /// Registered in `ios/Runner/Info.plist` (CFBundleURLTypes) and in
   /// `android/app/src/main/AndroidManifest.xml` (an intent-filter on
   /// MainActivity). Must also be added to Supabase's allowed
   /// Redirect URLs list — without that Supabase won't accept the
   /// destination and bounces the user to the Site URL fallback.
   ///
-  /// Web ignores this and uses the current origin instead.
-  static const String _nativeOauthRedirect =
+  /// Web uses the current origin instead (Supabase's Site URL).
+  static const String _nativeAuthRedirect =
       'com.example.basecamps://login-callback/';
 
-  /// Kicks off the Google OAuth flow. The browser leaves to Google's
-  /// consent screen, then to Supabase's callback, then back to our
-  /// app — to the current origin on web, or to [_nativeOauthRedirect]
-  /// on iOS/Android (which the OS routes to this app's MainActivity /
-  /// SceneDelegate, where supabase_flutter's app-link listener picks
-  /// up the fragment and updates the session).
+  /// Kicks off the Google OAuth flow. Used on native (iOS/Android),
+  /// where it works cleanly via the custom URL scheme deep link. The
+  /// browser leaves to Google's consent screen, then Supabase's
+  /// callback, then routes back to this app's MainActivity /
+  /// SceneDelegate via [_nativeAuthRedirect]; supabase_flutter's
+  /// app-link listener picks up the session.
+  ///
+  /// Web sign-in goes through [signInWithMagicLink] instead — Google
+  /// OAuth + GitHub Pages + PKCE turned out to be a maze of edge cases
+  /// (Workspace policies, redirect-host validation, hash routing
+  /// collisions) that swallowed real time without payoff. Magic link
+  /// works in one step on every browser.
   ///
   /// Returns true when the redirect was initiated. The actual session
   /// arrives later via [onAuthStateChange].
   Future<bool> signInWithGoogle() {
     return _client.auth.signInWithOAuth(
       OAuthProvider.google,
-      redirectTo: kIsWeb ? null : _nativeOauthRedirect,
+      redirectTo: kIsWeb ? null : _nativeAuthRedirect,
+    );
+  }
+
+  /// Email magic-link sign-in. Used as the primary web path (where
+  /// Google OAuth has been finicky). Supabase emails the address a
+  /// link the user clicks once — clicking it lands them back at the
+  /// app URL with an auth token, supabase_flutter parses it, and the
+  /// session lands.
+  ///
+  /// Works on native too as a fallback, but the default native flow
+  /// is Google OAuth.
+  ///
+  /// Throws on Supabase errors (rate-limit, invalid email, etc); the
+  /// sign-in screen catches and surfaces the message inline.
+  Future<void> signInWithMagicLink({required String email}) {
+    return _client.auth.signInWithOtp(
+      email: email,
+      // Web reads the current origin from Supabase's Site URL config
+      // when redirectTo is null. Native deep-links to the same scheme
+      // we use for OAuth so the round-trip lands inside the app.
+      emailRedirectTo: kIsWeb ? null : _nativeAuthRedirect,
     );
   }
 
