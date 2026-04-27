@@ -760,10 +760,14 @@ class _QuickActionData {
       label: 'New activity',
       icon: Icons.add,
       onTap: (ctx, _) async {
-        // Push on the root navigator so the wizard sits above the
-        // drawer. Drawer stays open in Scaffold state; when the
-        // wizard pops, the drawer is still there.
-        await Navigator.of(ctx, rootNavigator: true).push<void>(
+        // Push via the GoRouter root-navigator key, not
+        // Navigator.of(ctx). On the web sidebar the launcher is a
+        // sibling of the route's Navigator (not an ancestor), so
+        // Navigator.of with rootNavigator:true finds nothing and
+        // the push silently no-ops. The key works in both the
+        // sidebar and the mobile drawer because it doesn't depend
+        // on the local context's ancestor chain.
+        await rootNavigatorKey.currentState?.push<void>(
           MaterialPageRoute(
             fullscreenDialog: true,
             builder: (_) => const NewActivityWizardScreen(),
@@ -776,7 +780,7 @@ class _QuickActionData {
       label: 'New event',
       icon: Icons.event_outlined,
       onTap: (ctx, _) async {
-        await Navigator.of(ctx, rootNavigator: true).push<void>(
+        await rootNavigatorKey.currentState?.push<void>(
           MaterialPageRoute(
             fullscreenDialog: true,
             builder: (_) => const NewFullDayEventWizardScreen(),
@@ -789,7 +793,7 @@ class _QuickActionData {
       label: 'New trip',
       icon: Icons.map_outlined,
       onTap: (ctx, _) async {
-        await Navigator.of(ctx, rootNavigator: true).push<void>(
+        await rootNavigatorKey.currentState?.push<void>(
           MaterialPageRoute(
             fullscreenDialog: true,
             builder: (_) => const NewTripWizardScreen(),
@@ -802,7 +806,7 @@ class _QuickActionData {
       label: 'New note',
       icon: Icons.chat_outlined,
       onTap: (ctx, _) async {
-        await Navigator.of(ctx, rootNavigator: true).push<void>(
+        await rootNavigatorKey.currentState?.push<void>(
           MaterialPageRoute(
             fullscreenDialog: true,
             builder: (_) => const ParentConcernFormScreen(
@@ -944,15 +948,20 @@ class _LibraryRow extends StatelessWidget {
 // Destinations — main tabs + sub-surfaces
 // ================================================================
 
-/// Sticky launcher footer showing the signed-in Google account. A
-/// thin row with the user's avatar (or fallback initial), the
-/// account email, and a popup menu trigger. Always visible — sits
-/// outside the scrollable section list, the way Gmail's account
-/// switcher rides at the bottom of its drawer.
+/// Sticky launcher footer showing the signed-in Google account.
+/// Avatar + email on the left, a dedicated logout IconButton on
+/// the right. Always visible — sits outside the scrollable section
+/// list, like Gmail's account chip at the bottom of its drawer.
 ///
-/// The popup menu currently has one item (Sign out). When a real
-/// "switch account" or "account settings" flow lands they slot in
-/// here without redesigning the chip.
+/// Uses an explicit IconButton instead of an InkWell + showMenu
+/// because the launcher renders inside the responsive shell's
+/// sidebar on web, where it's a sibling of the route's Navigator
+/// rather than a descendant. Anything that pushes a route
+/// (showMenu, showDialog, Navigator.of(...).push) silently
+/// no-ops in that context. A plain icon button calls signOut
+/// directly with no route push at all, so it works in both the
+/// mobile drawer (where Navigator is fine) and the web sidebar
+/// (where it isn't).
 class _AccountFooter extends ConsumerWidget {
   const _AccountFooter();
 
@@ -979,86 +988,51 @@ class _AccountFooter extends ConsumerWidget {
 
     return Material(
       color: theme.colorScheme.surfaceContainerLow,
-      child: InkWell(
-        onTap: () async {
-          // Open a small menu anchored to the chip itself. Using
-          // showMenu (not PopupMenuButton) lets the whole row act as
-          // the trigger instead of just an icon corner.
-          final box = context.findRenderObject() as RenderBox?;
-          if (box == null) return;
-          final overlay = Overlay.of(context).context.findRenderObject()
-              as RenderBox?;
-          if (overlay == null) return;
-          final position = RelativeRect.fromRect(
-            Rect.fromPoints(
-              box.localToGlobal(Offset.zero, ancestor: overlay),
-              box.localToGlobal(
-                box.size.bottomRight(Offset.zero),
-                ancestor: overlay,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
+          children: [
+            // Inline CircleAvatar instead of SmallAvatar — the
+            // shared widget only knows how to load local file paths
+            // (and skips images entirely on web). Google's profile
+            // picture is an `https://...googleusercontent.com` URL
+            // we want shown on every platform, web included.
+            CircleAvatar(
+              radius: 14,
+              backgroundColor: theme.colorScheme.primaryContainer,
+              foregroundImage:
+                  (avatarUrl != null && avatarUrl.isNotEmpty)
+                      ? NetworkImage(avatarUrl)
+                      : null,
+              child: Text(
+                fallbackInitial,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: theme.colorScheme.onPrimaryContainer,
+                ),
               ),
             ),
-            Offset.zero & overlay.size,
-          );
-          final action = await showMenu<String>(
-            context: context,
-            position: position,
-            items: const [
-              PopupMenuItem(
-                value: 'sign_out',
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.logout),
-                  title: Text('Sign out'),
-                ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Text(
+                email,
+                style: theme.textTheme.bodyMedium,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ],
-          );
-          if (action == 'sign_out') {
-            await ref.read(authRepositoryProvider).signOut();
-            // Router redirect handles the navigation.
-          }
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: AppSpacing.md,
-          ),
-          child: Row(
-            children: [
-              // Inline CircleAvatar instead of SmallAvatar — the
-              // shared widget only knows how to load local file paths
-              // (and skips images entirely on web). Google's profile
-              // picture is an `https://...googleusercontent.com` URL
-              // we want shown on every platform, web included.
-              CircleAvatar(
-                radius: 14,
-                backgroundColor: theme.colorScheme.primaryContainer,
-                foregroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
-                    ? NetworkImage(avatarUrl)
-                    : null,
-                child: Text(
-                  fallbackInitial,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: theme.colorScheme.onPrimaryContainer,
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Text(
-                  email,
-                  style: theme.textTheme.bodyMedium,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Icon(
-                Icons.expand_less,
-                size: 18,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ],
-          ),
+            ),
+            IconButton(
+              tooltip: 'Sign out',
+              icon: const Icon(Icons.logout, size: 20),
+              color: theme.colorScheme.onSurfaceVariant,
+              onPressed: () async {
+                await ref.read(authRepositoryProvider).signOut();
+                // Router redirect picks it up — nothing to do here.
+              },
+            ),
+          ],
         ),
       ),
     );

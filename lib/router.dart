@@ -80,6 +80,15 @@ class _AuthRefreshNotifier extends ChangeNotifier {
   }
 }
 
+/// Global key on the GoRouter's root Navigator. Sidebar widgets
+/// (the launcher) live as siblings of the route's Navigator rather
+/// than descendants — so `Navigator.of(context, rootNavigator: true)`
+/// from inside the sidebar can't find the route navigator and any
+/// route push (`showDialog`, `showMenu`, `Navigator.push`) silently
+/// no-ops there. This key lets sidebar code reach the root navigator
+/// directly: `rootNavigatorKey.currentState?.push(...)`.
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
 /// Flat top-level route tree. Today is the root — every other screen is
 /// a pushed route accessible from Today's drawer (or deep-linked). The
 /// old StatefulShell with its launcher + five-tab setup is gone; the
@@ -96,6 +105,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(refresh.dispose);
   return GoRouter(
     initialLocation: '/today',
+    navigatorKey: rootNavigatorKey,
     observers: [_UnfocusOnTransition()],
     refreshListenable: refresh,
     redirect: (context, state) {
