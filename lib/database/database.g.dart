@@ -18575,6 +18575,686 @@ class ThemesCompanion extends UpdateCompanion<ProgramTheme> {
   }
 }
 
+class $ProgramsTable extends Programs with TableInfo<$ProgramsTable, Program> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ProgramsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdByMeta = const VerificationMeta(
+    'createdBy',
+  );
+  @override
+  late final GeneratedColumn<String> createdBy = GeneratedColumn<String>(
+    'created_by',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    createdBy,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'programs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Program> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('created_by')) {
+      context.handle(
+        _createdByMeta,
+        createdBy.isAcceptableOrUnknown(data['created_by']!, _createdByMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdByMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Program map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Program(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      createdBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_by'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ProgramsTable createAlias(String alias) {
+    return $ProgramsTable(attachedDatabase, alias);
+  }
+}
+
+class Program extends DataClass implements Insertable<Program> {
+  final String id;
+
+  /// Display name shown in the program switcher and on the launcher
+  /// chip. Editable after creation.
+  final String name;
+
+  /// Supabase auth user id (UUID as string) of the member who
+  /// created the program. Stays as a text reference rather than a
+  /// real FK because Drift has no row in auth.users to link to —
+  /// the FK lives in Supabase only, not locally.
+  final String createdBy;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const Program({
+    required this.id,
+    required this.name,
+    required this.createdBy,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['created_by'] = Variable<String>(createdBy);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  ProgramsCompanion toCompanion(bool nullToAbsent) {
+    return ProgramsCompanion(
+      id: Value(id),
+      name: Value(name),
+      createdBy: Value(createdBy),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory Program.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Program(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      createdBy: serializer.fromJson<String>(json['createdBy']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'createdBy': serializer.toJson<String>(createdBy),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  Program copyWith({
+    String? id,
+    String? name,
+    String? createdBy,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => Program(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    createdBy: createdBy ?? this.createdBy,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  Program copyWithCompanion(ProgramsCompanion data) {
+    return Program(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      createdBy: data.createdBy.present ? data.createdBy.value : this.createdBy,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Program(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('createdBy: $createdBy, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, createdBy, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Program &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.createdBy == this.createdBy &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ProgramsCompanion extends UpdateCompanion<Program> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> createdBy;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const ProgramsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.createdBy = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ProgramsCompanion.insert({
+    required String id,
+    required String name,
+    required String createdBy,
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       createdBy = Value(createdBy);
+  static Insertable<Program> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? createdBy,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (createdBy != null) 'created_by': createdBy,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ProgramsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? createdBy,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return ProgramsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      createdBy: createdBy ?? this.createdBy,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (createdBy.present) {
+      map['created_by'] = Variable<String>(createdBy.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProgramsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('createdBy: $createdBy, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ProgramMembersTable extends ProgramMembers
+    with TableInfo<$ProgramMembersTable, ProgramMember> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ProgramMembersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _programIdMeta = const VerificationMeta(
+    'programId',
+  );
+  @override
+  late final GeneratedColumn<String> programId = GeneratedColumn<String>(
+    'program_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES programs (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _roleMeta = const VerificationMeta('role');
+  @override
+  late final GeneratedColumn<String> role = GeneratedColumn<String>(
+    'role',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('teacher'),
+  );
+  static const VerificationMeta _joinedAtMeta = const VerificationMeta(
+    'joinedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> joinedAt = GeneratedColumn<DateTime>(
+    'joined_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [programId, userId, role, joinedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'program_members';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ProgramMember> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('program_id')) {
+      context.handle(
+        _programIdMeta,
+        programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_programIdMeta);
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('role')) {
+      context.handle(
+        _roleMeta,
+        role.isAcceptableOrUnknown(data['role']!, _roleMeta),
+      );
+    }
+    if (data.containsKey('joined_at')) {
+      context.handle(
+        _joinedAtMeta,
+        joinedAt.isAcceptableOrUnknown(data['joined_at']!, _joinedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {programId, userId};
+  @override
+  ProgramMember map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ProgramMember(
+      programId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}program_id'],
+      )!,
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      )!,
+      role: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}role'],
+      )!,
+      joinedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}joined_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ProgramMembersTable createAlias(String alias) {
+    return $ProgramMembersTable(attachedDatabase, alias);
+  }
+}
+
+class ProgramMember extends DataClass implements Insertable<ProgramMember> {
+  final String programId;
+
+  /// Supabase auth user id (UUID as string). No FK — see
+  /// [Programs.createdBy] for the same reasoning.
+  final String userId;
+
+  /// Free-text role label. Conventional values right now: `admin`,
+  /// `teacher`. Surfaced in the (future) member-list UI. Defaulted
+  /// to `teacher` so manual inserts don't leave it null.
+  final String role;
+  final DateTime joinedAt;
+  const ProgramMember({
+    required this.programId,
+    required this.userId,
+    required this.role,
+    required this.joinedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['program_id'] = Variable<String>(programId);
+    map['user_id'] = Variable<String>(userId);
+    map['role'] = Variable<String>(role);
+    map['joined_at'] = Variable<DateTime>(joinedAt);
+    return map;
+  }
+
+  ProgramMembersCompanion toCompanion(bool nullToAbsent) {
+    return ProgramMembersCompanion(
+      programId: Value(programId),
+      userId: Value(userId),
+      role: Value(role),
+      joinedAt: Value(joinedAt),
+    );
+  }
+
+  factory ProgramMember.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ProgramMember(
+      programId: serializer.fromJson<String>(json['programId']),
+      userId: serializer.fromJson<String>(json['userId']),
+      role: serializer.fromJson<String>(json['role']),
+      joinedAt: serializer.fromJson<DateTime>(json['joinedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'programId': serializer.toJson<String>(programId),
+      'userId': serializer.toJson<String>(userId),
+      'role': serializer.toJson<String>(role),
+      'joinedAt': serializer.toJson<DateTime>(joinedAt),
+    };
+  }
+
+  ProgramMember copyWith({
+    String? programId,
+    String? userId,
+    String? role,
+    DateTime? joinedAt,
+  }) => ProgramMember(
+    programId: programId ?? this.programId,
+    userId: userId ?? this.userId,
+    role: role ?? this.role,
+    joinedAt: joinedAt ?? this.joinedAt,
+  );
+  ProgramMember copyWithCompanion(ProgramMembersCompanion data) {
+    return ProgramMember(
+      programId: data.programId.present ? data.programId.value : this.programId,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      role: data.role.present ? data.role.value : this.role,
+      joinedAt: data.joinedAt.present ? data.joinedAt.value : this.joinedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProgramMember(')
+          ..write('programId: $programId, ')
+          ..write('userId: $userId, ')
+          ..write('role: $role, ')
+          ..write('joinedAt: $joinedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(programId, userId, role, joinedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ProgramMember &&
+          other.programId == this.programId &&
+          other.userId == this.userId &&
+          other.role == this.role &&
+          other.joinedAt == this.joinedAt);
+}
+
+class ProgramMembersCompanion extends UpdateCompanion<ProgramMember> {
+  final Value<String> programId;
+  final Value<String> userId;
+  final Value<String> role;
+  final Value<DateTime> joinedAt;
+  final Value<int> rowid;
+  const ProgramMembersCompanion({
+    this.programId = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.role = const Value.absent(),
+    this.joinedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ProgramMembersCompanion.insert({
+    required String programId,
+    required String userId,
+    this.role = const Value.absent(),
+    this.joinedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : programId = Value(programId),
+       userId = Value(userId);
+  static Insertable<ProgramMember> custom({
+    Expression<String>? programId,
+    Expression<String>? userId,
+    Expression<String>? role,
+    Expression<DateTime>? joinedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (programId != null) 'program_id': programId,
+      if (userId != null) 'user_id': userId,
+      if (role != null) 'role': role,
+      if (joinedAt != null) 'joined_at': joinedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ProgramMembersCompanion copyWith({
+    Value<String>? programId,
+    Value<String>? userId,
+    Value<String>? role,
+    Value<DateTime>? joinedAt,
+    Value<int>? rowid,
+  }) {
+    return ProgramMembersCompanion(
+      programId: programId ?? this.programId,
+      userId: userId ?? this.userId,
+      role: role ?? this.role,
+      joinedAt: joinedAt ?? this.joinedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (programId.present) {
+      map['program_id'] = Variable<String>(programId.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (role.present) {
+      map['role'] = Variable<String>(role.value);
+    }
+    if (joinedAt.present) {
+      map['joined_at'] = Variable<DateTime>(joinedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProgramMembersCompanion(')
+          ..write('programId: $programId, ')
+          ..write('userId: $userId, ')
+          ..write('role: $role, ')
+          ..write('joinedAt: $joinedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -18632,6 +19312,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $LessonSequenceItemsTable lessonSequenceItems =
       $LessonSequenceItemsTable(this);
   late final $ThemesTable themes = $ThemesTable(this);
+  late final $ProgramsTable programs = $ProgramsTable(this);
+  late final $ProgramMembersTable programMembers = $ProgramMembersTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -18670,6 +19352,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     lessonSequences,
     lessonSequenceItems,
     themes,
+    programs,
+    programMembers,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -19040,6 +19724,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('lesson_sequence_items', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'programs',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('program_members', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -38865,6 +39556,618 @@ typedef $$ThemesTableProcessedTableManager =
       ProgramTheme,
       PrefetchHooks Function()
     >;
+typedef $$ProgramsTableCreateCompanionBuilder =
+    ProgramsCompanion Function({
+      required String id,
+      required String name,
+      required String createdBy,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$ProgramsTableUpdateCompanionBuilder =
+    ProgramsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String> createdBy,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$ProgramsTableReferences
+    extends BaseReferences<_$AppDatabase, $ProgramsTable, Program> {
+  $$ProgramsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$ProgramMembersTable, List<ProgramMember>>
+  _programMembersRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.programMembers,
+    aliasName: $_aliasNameGenerator(
+      db.programs.id,
+      db.programMembers.programId,
+    ),
+  );
+
+  $$ProgramMembersTableProcessedTableManager get programMembersRefs {
+    final manager = $$ProgramMembersTableTableManager(
+      $_db,
+      $_db.programMembers,
+    ).filter((f) => f.programId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_programMembersRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$ProgramsTableFilterComposer
+    extends Composer<_$AppDatabase, $ProgramsTable> {
+  $$ProgramsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get createdBy => $composableBuilder(
+    column: $table.createdBy,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> programMembersRefs(
+    Expression<bool> Function($$ProgramMembersTableFilterComposer f) f,
+  ) {
+    final $$ProgramMembersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.programMembers,
+      getReferencedColumn: (t) => t.programId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProgramMembersTableFilterComposer(
+            $db: $db,
+            $table: $db.programMembers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$ProgramsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ProgramsTable> {
+  $$ProgramsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get createdBy => $composableBuilder(
+    column: $table.createdBy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ProgramsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ProgramsTable> {
+  $$ProgramsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get createdBy =>
+      $composableBuilder(column: $table.createdBy, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  Expression<T> programMembersRefs<T extends Object>(
+    Expression<T> Function($$ProgramMembersTableAnnotationComposer a) f,
+  ) {
+    final $$ProgramMembersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.programMembers,
+      getReferencedColumn: (t) => t.programId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProgramMembersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.programMembers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$ProgramsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ProgramsTable,
+          Program,
+          $$ProgramsTableFilterComposer,
+          $$ProgramsTableOrderingComposer,
+          $$ProgramsTableAnnotationComposer,
+          $$ProgramsTableCreateCompanionBuilder,
+          $$ProgramsTableUpdateCompanionBuilder,
+          (Program, $$ProgramsTableReferences),
+          Program,
+          PrefetchHooks Function({bool programMembersRefs})
+        > {
+  $$ProgramsTableTableManager(_$AppDatabase db, $ProgramsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ProgramsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ProgramsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ProgramsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> createdBy = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ProgramsCompanion(
+                id: id,
+                name: name,
+                createdBy: createdBy,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                required String createdBy,
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ProgramsCompanion.insert(
+                id: id,
+                name: name,
+                createdBy: createdBy,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ProgramsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({programMembersRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (programMembersRefs) db.programMembers,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (programMembersRefs)
+                    await $_getPrefetchedData<
+                      Program,
+                      $ProgramsTable,
+                      ProgramMember
+                    >(
+                      currentTable: table,
+                      referencedTable: $$ProgramsTableReferences
+                          ._programMembersRefsTable(db),
+                      managerFromTypedResult: (p0) => $$ProgramsTableReferences(
+                        db,
+                        table,
+                        p0,
+                      ).programMembersRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.programId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ProgramsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ProgramsTable,
+      Program,
+      $$ProgramsTableFilterComposer,
+      $$ProgramsTableOrderingComposer,
+      $$ProgramsTableAnnotationComposer,
+      $$ProgramsTableCreateCompanionBuilder,
+      $$ProgramsTableUpdateCompanionBuilder,
+      (Program, $$ProgramsTableReferences),
+      Program,
+      PrefetchHooks Function({bool programMembersRefs})
+    >;
+typedef $$ProgramMembersTableCreateCompanionBuilder =
+    ProgramMembersCompanion Function({
+      required String programId,
+      required String userId,
+      Value<String> role,
+      Value<DateTime> joinedAt,
+      Value<int> rowid,
+    });
+typedef $$ProgramMembersTableUpdateCompanionBuilder =
+    ProgramMembersCompanion Function({
+      Value<String> programId,
+      Value<String> userId,
+      Value<String> role,
+      Value<DateTime> joinedAt,
+      Value<int> rowid,
+    });
+
+final class $$ProgramMembersTableReferences
+    extends BaseReferences<_$AppDatabase, $ProgramMembersTable, ProgramMember> {
+  $$ProgramMembersTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ProgramsTable _programIdTable(_$AppDatabase db) =>
+      db.programs.createAlias(
+        $_aliasNameGenerator(db.programMembers.programId, db.programs.id),
+      );
+
+  $$ProgramsTableProcessedTableManager get programId {
+    final $_column = $_itemColumn<String>('program_id')!;
+
+    final manager = $$ProgramsTableTableManager(
+      $_db,
+      $_db.programs,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_programIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ProgramMembersTableFilterComposer
+    extends Composer<_$AppDatabase, $ProgramMembersTable> {
+  $$ProgramMembersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get joinedAt => $composableBuilder(
+    column: $table.joinedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProgramsTableFilterComposer get programId {
+    final $$ProgramsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.programId,
+      referencedTable: $db.programs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProgramsTableFilterComposer(
+            $db: $db,
+            $table: $db.programs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ProgramMembersTableOrderingComposer
+    extends Composer<_$AppDatabase, $ProgramMembersTable> {
+  $$ProgramMembersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get joinedAt => $composableBuilder(
+    column: $table.joinedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProgramsTableOrderingComposer get programId {
+    final $$ProgramsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.programId,
+      referencedTable: $db.programs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProgramsTableOrderingComposer(
+            $db: $db,
+            $table: $db.programs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ProgramMembersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ProgramMembersTable> {
+  $$ProgramMembersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get role =>
+      $composableBuilder(column: $table.role, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get joinedAt =>
+      $composableBuilder(column: $table.joinedAt, builder: (column) => column);
+
+  $$ProgramsTableAnnotationComposer get programId {
+    final $$ProgramsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.programId,
+      referencedTable: $db.programs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProgramsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.programs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ProgramMembersTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ProgramMembersTable,
+          ProgramMember,
+          $$ProgramMembersTableFilterComposer,
+          $$ProgramMembersTableOrderingComposer,
+          $$ProgramMembersTableAnnotationComposer,
+          $$ProgramMembersTableCreateCompanionBuilder,
+          $$ProgramMembersTableUpdateCompanionBuilder,
+          (ProgramMember, $$ProgramMembersTableReferences),
+          ProgramMember,
+          PrefetchHooks Function({bool programId})
+        > {
+  $$ProgramMembersTableTableManager(
+    _$AppDatabase db,
+    $ProgramMembersTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ProgramMembersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ProgramMembersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ProgramMembersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> programId = const Value.absent(),
+                Value<String> userId = const Value.absent(),
+                Value<String> role = const Value.absent(),
+                Value<DateTime> joinedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ProgramMembersCompanion(
+                programId: programId,
+                userId: userId,
+                role: role,
+                joinedAt: joinedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String programId,
+                required String userId,
+                Value<String> role = const Value.absent(),
+                Value<DateTime> joinedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ProgramMembersCompanion.insert(
+                programId: programId,
+                userId: userId,
+                role: role,
+                joinedAt: joinedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ProgramMembersTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({programId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (programId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.programId,
+                                referencedTable: $$ProgramMembersTableReferences
+                                    ._programIdTable(db),
+                                referencedColumn:
+                                    $$ProgramMembersTableReferences
+                                        ._programIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ProgramMembersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ProgramMembersTable,
+      ProgramMember,
+      $$ProgramMembersTableFilterComposer,
+      $$ProgramMembersTableOrderingComposer,
+      $$ProgramMembersTableAnnotationComposer,
+      $$ProgramMembersTableCreateCompanionBuilder,
+      $$ProgramMembersTableUpdateCompanionBuilder,
+      (ProgramMember, $$ProgramMembersTableReferences),
+      ProgramMember,
+      PrefetchHooks Function({bool programId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -38944,4 +40247,8 @@ class $AppDatabaseManager {
       $$LessonSequenceItemsTableTableManager(_db, _db.lessonSequenceItems);
   $$ThemesTableTableManager get themes =>
       $$ThemesTableTableManager(_db, _db.themes);
+  $$ProgramsTableTableManager get programs =>
+      $$ProgramsTableTableManager(_db, _db.programs);
+  $$ProgramMembersTableTableManager get programMembers =>
+      $$ProgramMembersTableTableManager(_db, _db.programMembers);
 }

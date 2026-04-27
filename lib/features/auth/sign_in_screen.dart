@@ -1,19 +1,20 @@
 import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Sign-in landing page. Two flows depending on platform:
+/// Sign-in landing page. Two flows offered side-by-side on every
+/// platform:
 ///
-/// - **Web**: email magic-link form. Type email → "Send sign-in link"
-///   → Supabase emails a one-click link → click it → signed in. No
-///   passwords, no third-party OAuth, no hash-routing edge cases.
-/// - **Native (iOS/Android)**: "Continue with Google" button.
-///   Round-trips cleanly via the registered URL scheme deep link.
+/// - **Continue with Google** — primary, one-tap when it works.
+///   Round-trips through Google's consent screen and back into the
+///   app (deep link on native, page redirect on web).
+/// - **Magic link** — type email, click the link in your inbox.
+///   No third-party OAuth, no PKCE verifier, no deep-link config.
+///   Always works as a fallback when Google misbehaves.
 ///
-/// The two paths converge on the same [authStateProvider] and the
-/// router redirects them both to /today once a session lands.
+/// Both paths converge on the same [authStateProvider] and the
+/// router redirects to /today once a session lands.
 class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
 
@@ -125,20 +126,29 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xxl),
-                if (kIsWeb)
-                  _magicLinkSentTo == null
-                      ? _MagicLinkForm(
-                          formKey: _formKey,
-                          controller: _emailCtrl,
-                          busy: _busy,
-                          onSubmit: _handleMagicLink,
-                        )
-                      : _MagicLinkSentNotice(
-                          email: _magicLinkSentTo!,
-                          onUseDifferentEmail: _resetMagicLinkState,
-                        )
-                else
+                // Both flows on every platform. Google as the primary
+                // (one-tap when it works), magic link as the fallback
+                // (always works — no third-party OAuth, no PKCE
+                // verifier, no deep-link config). Native users almost
+                // always pick Google; web users may prefer magic
+                // link until Google's web flow is rock-solid.
+                if (_magicLinkSentTo == null) ...[
                   _GoogleButton(busy: _busy, onPressed: _handleGoogle),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                    child: _OrSeparator(),
+                  ),
+                  _MagicLinkForm(
+                    formKey: _formKey,
+                    controller: _emailCtrl,
+                    busy: _busy,
+                    onSubmit: _handleMagicLink,
+                  ),
+                ] else
+                  _MagicLinkSentNotice(
+                    email: _magicLinkSentTo!,
+                    onUseDifferentEmail: _resetMagicLinkState,
+                  ),
                 if (_error != null) ...[
                   const SizedBox(height: AppSpacing.md),
                   Text(
@@ -154,6 +164,34 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Hairline divider with "OR" text — visual gap between the Google
+/// button and the magic-link form so they read as alternatives, not
+/// stacked actions.
+class _OrSeparator extends StatelessWidget {
+  const _OrSeparator();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.outlineVariant;
+    return Row(
+      children: [
+        Expanded(child: Divider(color: color, height: 1)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          child: Text(
+            'or',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        Expanded(child: Divider(color: color, height: 1)),
+      ],
     );
   }
 }

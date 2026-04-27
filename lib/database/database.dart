@@ -57,6 +57,8 @@ QueryExecutor _openConnection() {
     LessonSequences,
     LessonSequenceItems,
     Themes,
+    Programs,
+    ProgramMembers,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -65,7 +67,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 40;
+  int get schemaVersion => 41;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -94,6 +96,54 @@ class AppDatabase extends _$AppDatabase {
               'fresh at schema 25. This only affects devs who have '
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
+            );
+          }
+          if (from < 41) {
+            // v41: introduce the program scaffold. Programs are the
+            // unit of sharing in the multi-user model — every
+            // existing data table will eventually carry a
+            // `program_id` (a later migration), so a single Supabase
+            // database can host many programs without leaking data
+            // across them. v41 only lays down the two membership
+            // tables; the column-stamping comes once we ship Slice C.
+            //
+            // No backfill here. Existing local rows stay untagged
+            // until the user signs in, at which point the auth
+            // bootstrap creates a default program and tags
+            // everything with it. That bootstrap lives outside the
+            // migration so it can run after the auth session is
+            // available (migrations run during DB open, before any
+            // network is touched).
+            await _runSilent(
+              'CREATE TABLE IF NOT EXISTS "programs" ( '
+              '"id" TEXT NOT NULL PRIMARY KEY, '
+              '"name" TEXT NOT NULL, '
+              '"created_by" TEXT NOT NULL, '
+              '"created_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now')), "
+              '"updated_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now'))"
+              ' )',
+            );
+            await _runSilent(
+              'CREATE TABLE IF NOT EXISTS "program_members" ( '
+              '"program_id" TEXT NOT NULL '
+              'REFERENCES "programs"("id") ON DELETE CASCADE, '
+              '"user_id" TEXT NOT NULL, '
+              '"role" TEXT NOT NULL DEFAULT \'teacher\', '
+              '"joined_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now')), "
+              'PRIMARY KEY ("program_id", "user_id")'
+              ' )',
+            );
+            // Lookup index: "what programs is this user in?" runs on
+            // every active-program resolution and the future invite
+            // flow. (program_id, user_id) PK already covers the
+            // forward direction; this covers the reverse.
+            await _runSilent(
+              'CREATE INDEX IF NOT EXISTS '
+              '"idx_program_members_user" '
+              'ON "program_members" ("user_id")',
             );
           }
           if (from < 40) {

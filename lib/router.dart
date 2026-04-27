@@ -29,6 +29,7 @@ import 'package:basecamp/features/vehicles/vehicles_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Drops any open keyboard/focus whenever a route transitions. Fixes
 /// a long-standing bug where, e.g., closing the Observe composer and
@@ -64,10 +65,13 @@ class _AuthRefreshNotifier extends ChangeNotifier {
     // tells GoRouter to re-evaluate `redirect` for the current
     // location. Without this the user signs in but stays parked on
     // /sign-in until they manually navigate.
-    _sub = ref.listen(authStateProvider, (_, _) => notifyListeners());
+    _sub = ref.listen<AsyncValue<AuthState>>(
+      authStateProvider,
+      (_, _) => notifyListeners(),
+    );
   }
 
-  late final ProviderSubscription<dynamic> _sub;
+  late final ProviderSubscription<AsyncValue<AuthState>> _sub;
 
   @override
   void dispose() {

@@ -5,12 +5,14 @@ import 'package:basecamp/features/forms/polymorphic/form_submission_repository.d
 import 'package:basecamp/features/launcher/launcher_screen.dart';
 import 'package:basecamp/features/observations/observation_media_store.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
+import 'package:basecamp/features/programs/program_bootstrap.dart';
 import 'package:basecamp/router.dart';
 import 'package:basecamp/theme/theme.dart';
 import 'package:basecamp/ui/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class BasecampApp extends ConsumerStatefulWidget {
   const BasecampApp({super.key});
@@ -20,9 +22,19 @@ class BasecampApp extends ConsumerStatefulWidget {
 }
 
 class _BasecampAppState extends ConsumerState<BasecampApp> {
+  ProviderSubscription<Session?>? _programBootstrapSub;
+
   @override
   void initState() {
     super.initState();
+    // Subscribe the program bootstrap to auth state. On every
+    // sign-in this ensures the user has a default program and
+    // pumps the active program id into Riverpod for the rest of
+    // the app to consume. Runs once per sign-in (idempotent —
+    // existing programs are reused, not re-created).
+    _programBootstrapSub =
+        ref.read(programAuthBootstrapProvider).start();
+
     // Orphan-attachment sweep on startup. Reaps files in the app-
     // owned observation-media dir that no attachment row points at
     // — left behind when an undo-enabled delete ages past the 5-
@@ -32,6 +44,12 @@ class _BasecampAppState extends ConsumerState<BasecampApp> {
       unawaited(_sweepOrphans());
       unawaited(_backfillIncidentChildIds());
     });
+  }
+
+  @override
+  void dispose() {
+    _programBootstrapSub?.close();
+    super.dispose();
   }
 
   Future<void> _sweepOrphans() async {

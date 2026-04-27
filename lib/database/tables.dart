@@ -1133,3 +1133,67 @@ class ParentChildren extends Table {
   @override
   Set<Column<Object>> get primaryKey => {parentId, childId};
 }
+
+/// A program (school, after-school site, classroom, neighborhood
+/// circle — eventually any "room" in the First Mate frame). Every
+/// data table will eventually carry a `program_id` so a single
+/// Supabase database can host many programs without leaking data
+/// across them. Multiple users can be members of one program — the
+/// program is the unit of sharing.
+///
+/// Created locally on first sign-in (the user becomes the lone
+/// admin of a default "My Program") and pushed up to Supabase via
+/// the Slice C sync. The `createdBy` column stores the Supabase
+/// `auth.users.id` (UUID as text) of whichever user kicked it off.
+@DataClassName('Program')
+class Programs extends Table {
+  TextColumn get id => text()();
+
+  /// Display name shown in the program switcher and on the launcher
+  /// chip. Editable after creation.
+  TextColumn get name => text()();
+
+  /// Supabase auth user id (UUID as string) of the member who
+  /// created the program. Stays as a text reference rather than a
+  /// real FK because Drift has no row in auth.users to link to —
+  /// the FK lives in Supabase only, not locally.
+  TextColumn get createdBy => text()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Many-to-many membership join: which Supabase users belong to
+/// which Program, and at what role. The composite PK
+/// (programId, userId) is what RLS policies will eventually scope
+/// against on the cloud side.
+///
+/// Roles for v1: `'admin'` and `'teacher'`. Admins can rename the
+/// program and invite/remove other members; teachers can write
+/// program data but not change membership. The string is
+/// intentionally not enum-typed so we can grow it (`viewer`,
+/// `parent`, etc.) without a schema migration.
+class ProgramMembers extends Table {
+  TextColumn get programId =>
+      text().references(Programs, #id, onDelete: KeyAction.cascade)();
+
+  /// Supabase auth user id (UUID as string). No FK — see
+  /// [Programs.createdBy] for the same reasoning.
+  TextColumn get userId => text()();
+
+  /// Free-text role label. Conventional values right now: `admin`,
+  /// `teacher`. Surfaced in the (future) member-list UI. Defaulted
+  /// to `teacher` so manual inserts don't leave it null.
+  TextColumn get role => text().withDefault(const Constant('teacher'))();
+
+  DateTimeColumn get joinedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {programId, userId};
+}
