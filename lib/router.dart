@@ -95,6 +95,15 @@ final routerProvider = Provider<GoRouter>((ref) {
     observers: [_UnfocusOnTransition()],
     refreshListenable: refresh,
     redirect: (context, state) {
+      // PKCE OAuth round-trip: if the URL still carries `?code=...`
+      // (the OAuth callback param), Supabase is mid-exchange and the
+      // session hasn't landed yet. Don't push the user to /sign-in
+      // during that window — main() awaits the exchange explicitly
+      // before runApp, so by the time we get here without a code
+      // present, the session reflects reality. This guard is belt-
+      // and-suspenders against any future flow where the code lingers
+      // a tick longer than the first frame.
+      if (state.uri.queryParameters.containsKey('code')) return null;
       final session = ref.read(authRepositoryProvider).currentSession;
       final goingToSignIn = state.matchedLocation == '/sign-in';
       if (session == null && !goingToSignIn) return '/sign-in';
