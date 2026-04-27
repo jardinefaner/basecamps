@@ -1,0 +1,106 @@
+# Build the Flutter web bundle and publish it to GitHub Pages on every
+# push to main. Pairs with `ci.yml` (analyze + test) — that one gates
+# correctness, this one gates the deploy.
+#
+# What ships
+#   * Supabase URL + anon key, baked in via --dart-define from repo
+#     secrets. Both are public-by-design (the anon key is the
+#     "anonymous client" JWT — RLS is the real security boundary), but
+#     keeping them out of source means rotation is one click instead
+#     of a code commit.
+#   * NO Deepgram or OpenAI keys. Those are real secrets that would
+#     leak if baked into a public bundle. The runtime guards
+#     (Env.hasDeepgram / Env.hasOpenAi) gracefully degrade to disabled
+#     when the values are empty.
+#
+# GitHub UI prerequisites (one-time)
+#   1. Settings → Secrets and variables → Actions → New repository
+#      secret. Add SUPABASE_URL and SUPABASE_ANON_KEY.
+#   2. Settings → Pages → Source: "GitHub Actions" (not the
+#      deploy-from-a-branch flow).
+#
+# Supabase prerequisite (one-time)
+#   * Authentication → URL Configuration → Site URL +
+#     Redirect URLs: add https://jardinefaner.github.io/basecamps/
+#     so OAuth/magic-link flows redirect back. Skipping this means
+#     auth round-trips land on a 404.
+
+name: Deploy web
+
+on:
+  push:
+    branches: [main]
+  # Manual trigger so a rotation or config-only change can redeploy
+  # without faking a commit.
+  workflow_dispatch:
+
+# GitHub Pages requires `pages: write` and an OIDC-attested deploy
+# (`id-token: write`). `contents: read` is the minimum for checkout.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One in-flight deploy at a time. Newer push cancels an older queued
+# build — the live site only ever reflects HEAD of main.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build web bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        # Same pin as ci.yml — keep these in lockstep when bumping.
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.2
+          channel: stable
+          cache: true
+
+      - name: Install deps
+        run: flutter pub get
+
+      - name: Drift codegen
+        # Drift schema lives in a generated `database.g.dart`. CI's
+        # tests run codegen too — kept here explicitly so a fresh
+        # checkout produces a buildable web bundle.
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build web (release)
+        # --base-href matches the GitHub Pages user/project URL
+        # (https://jardinefaner.github.io/basecamps/). When the custom
+        # domain lands later, drop this back to "/".
+        #
+        # Deepgram + OpenAI keys intentionally not passed — the web
+        # bundle ships without those features until they're proxied
+        # through an edge function. See env.dart for the runtime
+        # guards that handle the empty-string case.
+        run: |
+          flutter build web --release \
+            --base-href "/basecamps/" \
+            --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
+            --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
