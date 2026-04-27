@@ -374,10 +374,18 @@ class TodayScreen extends ConsumerWidget {
         // destinations + library pills, all of which feel cramped in the
         // Drawer default 304dp. 88% of the screen width gives the
         // content room to breathe without fully hiding Today.
-        drawer: Drawer(
-          width: MediaQuery.of(context).size.width * 0.88,
-          child: const LauncherScreen(),
-        ),
+        //
+        // Suppressed on layouts that already show the launcher as a
+        // permanent sidebar (web / wide windows). Two launchers fighting
+        // for the same screen — one slide-in, one fixed left rail —
+        // confuses the trigger affordance and wastes the hamburger
+        // slot. Mobile / narrow windows keep the slide-in Drawer.
+        drawer: Breakpoints.hasPersistentSidebar(context)
+            ? null
+            : Drawer(
+                width: MediaQuery.of(context).size.width * 0.88,
+                child: const LauncherScreen(),
+              ),
         floatingActionButton: FloatingActionButton.extended(
           onPressed: () => _openCreateMenu(context, now, ref),
           icon: const Icon(Icons.add),
@@ -396,18 +404,23 @@ class TodayScreen extends ConsumerWidget {
           CustomScrollView(
             slivers: [
             SliverAppBar(
-              // Wrapped in a Builder so the IconButton's onPressed has a
-              // context sitting *below* this Scaffold — Scaffold.of(...)
-              // walks up from the passed context and would otherwise
-              // find no Scaffold ancestor (this build method's `context`
-              // is above the Scaffold we just returned).
-              leading: Builder(
-                builder: (ctx) => IconButton(
-                  icon: const Icon(Icons.menu),
-                  tooltip: 'Menu',
-                  onPressed: () => Scaffold.of(ctx).openDrawer(),
-                ),
-              ),
+              // Hide the leading menu button when the permanent sidebar
+              // is on screen — there's no Drawer to open and the
+              // hamburger would just sit there pointing at empty space.
+              // Narrow layouts keep the explicit Builder + IconButton so
+              // the onPressed has a context sitting below the Scaffold
+              // (Scaffold.of walks up; the build's outer context is
+              // above the Scaffold we returned).
+              automaticallyImplyLeading: false,
+              leading: Breakpoints.hasPersistentSidebar(context)
+                  ? null
+                  : Builder(
+                      builder: (ctx) => IconButton(
+                        icon: const Icon(Icons.menu),
+                        tooltip: 'Menu',
+                        onPressed: () => Scaffold.of(ctx).openDrawer(),
+                      ),
+                    ),
               // Plain "Today" title — date + cycle controls live in
               // the AppBar's `bottom` slot below so the title row
               // doesn't fight for space with the prev/next/gear/etc

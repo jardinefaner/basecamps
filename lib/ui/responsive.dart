@@ -32,6 +32,21 @@ class Breakpoints {
   static bool isWide(BuildContext context) =>
       of(context).index >= Breakpoint.expanded.index;
 
+  /// Width threshold (in dp) at which the app paints a permanent
+  /// launcher sidebar instead of the slide-in Drawer. Slightly wider
+  /// than `expanded` so a 320dp sidebar plus a 580dp content column
+  /// fits cleanly. Routes that own a Scaffold should suppress their
+  /// own Drawer + hamburger button at or above this threshold —
+  /// otherwise the menu sits redundantly next to a sidebar already
+  /// showing the same content.
+  static const double sidebarThreshold = 900;
+
+  /// True when the responsive shell is painting a permanent sidebar.
+  /// Routes use this to drop their own Drawer + leading menu button
+  /// on the same breakpoint.
+  static bool hasPersistentSidebar(BuildContext context) =>
+      MediaQuery.sizeOf(context).width >= sidebarThreshold;
+
   /// Default column count for grid-style list screens. Individual screens
   /// may pick a different ramp — see call sites for overrides.
   ///

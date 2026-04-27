@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/forms/polymorphic/form_submission_repository.dart';
 import 'package:basecamp/features/launcher/launcher_screen.dart';
 import 'package:basecamp/features/observations/observation_media_store.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/router.dart';
 import 'package:basecamp/theme/theme.dart';
+import 'package:basecamp/ui/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -96,27 +98,26 @@ class _BasecampAppState extends ConsumerState<BasecampApp> {
 
 /// Adaptive shell that pivots between phone and web layouts.
 ///
-/// Phones (width &lt; [_kSidebarBreakpoint]): unchanged. The route's
-/// own Scaffold + slide-in Drawer pattern handles everything.
+/// Signed-out routes (just /sign-in for now) skip the shell entirely
+/// — there's no point rendering a sidebar full of destinations the
+/// user can't navigate to yet, and the sign-in page wants the full
+/// viewport for its centered card.
+///
+/// Phones (width below [Breakpoints.sidebarThreshold]): unchanged.
+/// The route's own Scaffold + slide-in Drawer pattern handles
+/// everything.
 ///
 /// Wide windows (web, desktop, tablet landscape): renders the
 /// launcher as a permanent left sidebar + the route content in the
 /// right column. Reads like a real web app — fixed nav rail on the
-/// left, working pane on the right. The route's slide-in Drawer
-/// remains wired so the hamburger button still works as a fallback,
-/// but teachers shouldn't reach for it because the sidebar's
-/// already there.
-class _ResponsiveShell extends StatelessWidget {
+/// left, working pane on the right. Routes also drop their slide-in
+/// Drawer + hamburger on this layout (see Today's Scaffold) so the
+/// menu doesn't sit redundantly next to a sidebar that's already
+/// showing the same content.
+class _ResponsiveShell extends ConsumerWidget {
   const _ResponsiveShell({required this.child});
 
   final Widget? child;
-
-  /// Width threshold for switching to the permanent-sidebar layout.
-  /// 900dp matches Material's "expanded" breakpoint and comfortably
-  /// fits a 320dp sidebar plus a 580dp content column — more than
-  /// enough for a phone-shaped Today page to render without
-  /// crowding.
-  static const double _kSidebarBreakpoint = 900;
 
   /// Width of the persistent sidebar on wide layouts. 320dp matches
   /// the Material navigation drawer default; the launcher's rows
@@ -124,10 +125,13 @@ class _ResponsiveShell extends StatelessWidget {
   static const double _kSidebarWidth = 320;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (child == null) return const SizedBox.shrink();
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    if (screenWidth < _kSidebarBreakpoint) return child!;
+    // Signed-out routes (Sign in) own their full layout; we're not
+    // wrapping them in a sidebar that points nowhere.
+    final session = ref.watch(currentSessionProvider);
+    if (session == null) return child!;
+    if (!Breakpoints.hasPersistentSidebar(context)) return child!;
     final theme = Theme.of(context);
     return Row(
       children: [
