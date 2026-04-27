@@ -1,11 +1,12 @@
 {
-    "name": "basecamps",
-    "short_name": "basecamps",
-    "start_url": ".",
+    "name": "Basecamp",
+    "short_name": "Basecamp",
+    "start_url": "/basecamps/",
+    "scope": "/basecamps/",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FAFAF8",
+    "theme_color": "#4A9E8E",
+    "description": "Teacher coordination — schedule, observations, and parent forms in one room.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
