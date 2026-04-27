@@ -26,10 +26,37 @@ class AuthRepository {
   /// MainActivity). Must also be added to Supabase's allowed
   /// Redirect URLs list — without that Supabase won't accept the
   /// destination and bounces the user to the Site URL fallback.
-  ///
-  /// Web uses the current origin instead (Supabase's Site URL).
   static const String _nativeAuthRedirect =
       'com.example.basecamps://login-callback/';
+
+  /// Resolves the redirect URL for an in-progress web auth round-
+  /// trip. Strips any query/fragment off the current URL so the
+  /// callback lands on a clean app URL — `Uri.base` on a route
+  /// like `/basecamps/sign-in?something=x#hash` would otherwise
+  /// preserve the cruft and confuse the post-sign-in router.
+  ///
+  /// Why we don't just leave `redirectTo: null` and trust Supabase
+  /// to use Site URL: supabase_flutter web defaults a missing
+  /// redirect to `window.location.origin` (just the host, no
+  /// path), and that bare-origin URL is sometimes in the Redirect
+  /// URLs allowlist (matching a wildcard or root entry). Supabase
+  /// then honors it over Site URL and lands the user at
+  /// `https://<host>/?code=...`, which 404s on GitHub Pages
+  /// because the project is at `/basecamps/`, not the root.
+  ///
+  /// Reading the base path from the running app means the same
+  /// code works for local dev (`http://localhost:5000/`) and
+  /// production (`https://jardinefaner.github.io/basecamps/`)
+  /// without a build-time flag.
+  static String _webAuthRedirect() {
+    final base = Uri.base;
+    return Uri(
+      scheme: base.scheme,
+      host: base.host,
+      port: base.hasPort ? base.port : null,
+      path: base.path,
+    ).toString();
+  }
 
   /// Kicks off the Google OAuth flow. Used on native (iOS/Android),
   /// where it works cleanly via the custom URL scheme deep link. The
@@ -49,7 +76,7 @@ class AuthRepository {
   Future<bool> signInWithGoogle() {
     return _client.auth.signInWithOAuth(
       OAuthProvider.google,
-      redirectTo: kIsWeb ? null : _nativeAuthRedirect,
+      redirectTo: kIsWeb ? _webAuthRedirect() : _nativeAuthRedirect,
     );
   }
 
@@ -67,10 +94,13 @@ class AuthRepository {
   Future<void> signInWithMagicLink({required String email}) {
     return _client.auth.signInWithOtp(
       email: email,
-      // Web reads the current origin from Supabase's Site URL config
-      // when redirectTo is null. Native deep-links to the same scheme
-      // we use for OAuth so the round-trip lands inside the app.
-      emailRedirectTo: kIsWeb ? null : _nativeAuthRedirect,
+      // Same web vs native split as signInWithGoogle. The web path
+      // builds an explicit URL from Uri.base so the magic-link
+      // email's embedded redirect lands at /basecamps/, not at the
+      // bare origin (which 404s — see [_webAuthRedirect] for the
+      // long version of why).
+      emailRedirectTo:
+          kIsWeb ? _webAuthRedirect() : _nativeAuthRedirect,
     );
   }
 
