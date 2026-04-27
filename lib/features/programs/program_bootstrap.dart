@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:flutter/foundation.dart';
@@ -51,12 +52,72 @@ class ProgramAuthBootstrap {
       final id = await repo.ensureDefaultProgram(userId: userId);
       await _ref.read(activeProgramIdProvider.notifier).set(id);
       await _maybeBackfillUntaggedRows(repo, programId: id);
+      await _maybePushProgramToCloud(programId: id, userId: userId);
     } on Object catch (e, st) {
       // Bootstrap failure is recoverable — the user's still signed
       // in, just sitting on a no-program state until the next
       // attempt. Logging it lets a dev debug; a user-visible toast
       // would be more noise than signal for a transient DB hiccup.
       debugPrint('Program bootstrap failed: $e\n$st');
+    }
+  }
+
+  /// Mirrors the active program + this user's membership row to
+  /// Supabase. Required for any cloud feature gated by program
+  /// membership (Storage RLS on the backup bucket, future per-table
+  /// RLS in Slice C). Without it the cloud has no idea this user is
+  /// in any program and rejects every cross-table policy check.
+  ///
+  /// Idempotent on the cloud side via upsert. Guarded by a
+  /// SharedPreferences flag so we don't pile on round-trips every
+  /// launch — once per (program, install) is enough since the
+  /// rows don't change shape.
+  ///
+  /// Best-effort. If the network is down or RLS rejects, log and
+  /// move on. Backup will fail in that case but the rest of the
+  /// app keeps working; the next launch retries.
+  Future<void> _maybePushProgramToCloud({
+    required String programId,
+    required String userId,
+  }) async {
+    final flagKey = 'program_${programId}_pushed_to_cloud';
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(flagKey) ?? false) return;
+
+    try {
+      final db = _ref.read(databaseProvider);
+      final program = await (db.select(db.programs)
+            ..where((p) => p.id.equals(programId)))
+          .getSingleOrNull();
+      if (program == null) return;
+
+      final supabase = Supabase.instance.client;
+      // Upsert the program row (id is the PK; other fields update
+      // when re-running). RLS allows this only when created_by
+      // matches auth.uid() — the bootstrap always sets created_by
+      // to the current user, so the policy passes.
+      await supabase.from('programs').upsert(<String, Object?>{
+        'id': program.id,
+        'name': program.name,
+        'created_by': program.createdBy,
+        'created_at': program.createdAt.toUtc().toIso8601String(),
+        'updated_at': program.updatedAt.toUtc().toIso8601String(),
+      });
+      // Now the membership row. RLS allows the bootstrap-creator
+      // case (user inserting their own first row in a program they
+      // just created) so this passes on the first run.
+      await supabase.from('program_members').upsert(<String, Object?>{
+        'program_id': programId,
+        'user_id': userId,
+        'role': 'admin',
+      });
+      await prefs.setBool(flagKey, true);
+    } on Object catch (e) {
+      // Network failure, RLS rejection, etc. Don't set the flag
+      // so the next launch retries. Don't surface to the user;
+      // they'll see "backup failed" if the cloud is needed later
+      // and that error message is the right place to explain.
+      debugPrint('Push program to cloud failed: $e');
     }
   }
 
