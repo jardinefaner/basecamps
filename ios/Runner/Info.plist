@@ -74,5 +74,25 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- Custom URL scheme for OAuth round-trip on native iOS. After
+	     Supabase exchanges the Google auth code, it redirects to
+	     com.example.basecamps://login-callback/ — iOS hands that off
+	     to this app, supabase_flutter parses the fragment, and the
+	     auth state stream emits a signed-in session. Without this
+	     entry the redirect lands in Safari and the standalone app
+	     never sees the session. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.example.basecamps</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.example.basecamps</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -20,23 +20,30 @@ class AuthRepository {
   /// the router rebuilds on changes.
   Stream<AuthState> get onAuthStateChange => _client.auth.onAuthStateChange;
 
-  /// Kicks off the Google OAuth flow. On web the browser navigates to
-  /// Google's consent screen, then back to Supabase's callback, then
-  /// to our app. Supabase's redirectTo defaults to the current origin
-  /// when null — passing the explicit origin avoids surprises in the
-  /// rare case the host changes during the redirect chain.
+  /// Custom URL scheme for OAuth round-trip on native iOS/Android.
+  /// Registered in `ios/Runner/Info.plist` (CFBundleURLTypes) and in
+  /// `android/app/src/main/AndroidManifest.xml` (an intent-filter on
+  /// MainActivity). Must also be added to Supabase's allowed
+  /// Redirect URLs list — without that Supabase won't accept the
+  /// destination and bounces the user to the Site URL fallback.
+  ///
+  /// Web ignores this and uses the current origin instead.
+  static const String _nativeOauthRedirect =
+      'com.example.basecamps://login-callback/';
+
+  /// Kicks off the Google OAuth flow. The browser leaves to Google's
+  /// consent screen, then to Supabase's callback, then back to our
+  /// app — to the current origin on web, or to [_nativeOauthRedirect]
+  /// on iOS/Android (which the OS routes to this app's MainActivity /
+  /// SceneDelegate, where supabase_flutter's app-link listener picks
+  /// up the fragment and updates the session).
   ///
   /// Returns true when the redirect was initiated. The actual session
-  /// arrives later via [onAuthStateChange] when the browser comes
-  /// back to our origin.
+  /// arrives later via [onAuthStateChange].
   Future<bool> signInWithGoogle() {
     return _client.auth.signInWithOAuth(
       OAuthProvider.google,
-      // On web Supabase reads the current origin; passing null lets it
-      // do the right thing in dev (localhost) and prod (Pages URL)
-      // without a build flag. On native we'd configure a deep-link
-      // scheme — out of scope for this slice (live target is web).
-      redirectTo: kIsWeb ? null : null,
+      redirectTo: kIsWeb ? null : _nativeOauthRedirect,
     );
   }
 

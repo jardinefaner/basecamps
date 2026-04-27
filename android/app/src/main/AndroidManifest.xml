@@ -32,6 +32,22 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- OAuth deep link. Supabase redirects to
+                 com.example.basecamps://login-callback/ after Google
+                 hands back the auth code; Android routes that URL to
+                 this activity, supabase_flutter picks up the fragment,
+                 and the auth state stream emits a signed-in session.
+                 Without BROWSABLE the link can't be opened from a
+                 browser; without DEFAULT it can't be matched
+                 implicitly. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="com.example.basecamps"
+                    android:host="login-callback" />
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
