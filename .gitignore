@@ -48,5 +48,10 @@ app.*.map.json
 # Environment variables
 .env
 
+# Local dart-define values for `flutter run`. Mirrors what the GitHub
+# Actions web deploy injects via repo secrets. Never commit — holds
+# real OpenAI / Deepgram / Supabase keys.
+dart_defines.json
+
 # Claude Code local state
 .claude/

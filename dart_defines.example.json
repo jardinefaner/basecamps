@@ -1,0 +1,24 @@
+{
+  "_comment": [
+    "Template for local dart-define values. Copy to dart_defines.json",
+    "(gitignored) and fill in real values for `flutter run`.",
+    "",
+    "Use it via:  flutter run --dart-define-from-file=dart_defines.json",
+    "",
+    "Mirrors what the GitHub Actions web deploy injects from repo",
+    "secrets — except the public web build only ever gets the two",
+    "Supabase values. Deepgram + OpenAI are real secrets and stay",
+    "out of public bundles; they're only injected when you run on a",
+    "phone or in a private TestFlight / Play Store build.",
+    "",
+    "Long term these keys move behind Supabase Edge Functions so",
+    "they never ship in any client bundle. Until then: keep them in",
+    "this file (gitignored) and don't dart-define them on web."
+  ],
+
+  "SUPABASE_URL": "https://your-project.supabase.co",
+  "SUPABASE_ANON_KEY": "eyJ...your-publishable-key...",
+
+  "DEEPGRAM_API_KEY": "your-deepgram-key-here",
+  "OPENAI_API_KEY": "sk-your-openai-key-here"
+}
