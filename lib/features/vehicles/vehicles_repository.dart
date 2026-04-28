@@ -1,5 +1,6 @@
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,9 +17,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// deleted, historical submissions just read back the raw id; the
 /// UI renders "(deleted vehicle)" in that case.
 class VehiclesRepository {
-  VehiclesRepository(this._db);
+  VehiclesRepository(this._db, this._ref);
 
   final AppDatabase _db;
+  final Ref _ref;
+
+  /// See ObservationsRepository._programId for why we read this on
+  /// every insert rather than caching at construction time.
+  String? get _programId => _ref.read(activeProgramIdProvider);
 
   Stream<List<Vehicle>> watchAll() {
     final query = _db.select(_db.vehicles)
@@ -56,6 +62,7 @@ class VehiclesRepository {
             makeModel: Value(makeModel),
             licensePlate: Value(licensePlate),
             notes: Value(notes),
+            programId: Value(_programId),
           ),
         );
     return id;
@@ -93,7 +100,7 @@ class VehiclesRepository {
 }
 
 final vehiclesRepositoryProvider = Provider<VehiclesRepository>((ref) {
-  return VehiclesRepository(ref.watch(databaseProvider));
+  return VehiclesRepository(ref.watch(databaseProvider), ref);
 });
 
 final vehiclesProvider = StreamProvider<List<Vehicle>>((ref) {

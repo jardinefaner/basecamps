@@ -1,22 +1,26 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers/test_database.dart';
 
 void main() {
   late AppDatabase db;
+  late ProviderContainer container;
   late AttendanceRepository att;
   late ChildrenRepository kids;
 
   setUp(() {
     db = createTestDatabase();
+    container = createTestContainer();
     att = AttendanceRepository(db);
-    kids = ChildrenRepository(db);
+    kids = ChildrenRepository(db, fakeRef(container));
   });
 
   tearDown(() async {
+    container.dispose();
     await db.close();
   });
 

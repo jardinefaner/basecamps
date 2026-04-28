@@ -1,5 +1,6 @@
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,9 +15,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// enforces "at most one primary per child" since SQLite can't
 /// express it cheaply.
 class ParentsRepository {
-  ParentsRepository(this._db);
+  ParentsRepository(this._db, this._ref);
 
   final AppDatabase _db;
+  final Ref _ref;
+
+  /// See ObservationsRepository._programId for why we read this on
+  /// every insert rather than caching at construction time.
+  String? get _programId => _ref.read(activeProgramIdProvider);
 
   // ---- Reads ----
 
@@ -112,6 +118,7 @@ class ParentsRepository {
             phone: Value(phone),
             email: Value(email),
             notes: Value(notes),
+            programId: Value(_programId),
           ),
         );
     return id;
@@ -227,7 +234,7 @@ class ParentLink {
 }
 
 final parentsRepositoryProvider = Provider<ParentsRepository>((ref) {
-  return ParentsRepository(ref.watch(databaseProvider));
+  return ParentsRepository(ref.watch(databaseProvider), ref);
 });
 
 final parentsProvider = StreamProvider<List<Parent>>((ref) {

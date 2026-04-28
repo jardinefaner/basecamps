@@ -1,5 +1,6 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/test_database.dart';
@@ -33,14 +34,17 @@ void main() {
 
   group('watchObservationsWithDomain', () {
     late AppDatabase db;
+    late ProviderContainer container;
     late ObservationsRepository obs;
 
     setUp(() {
       db = createTestDatabase();
-      obs = ObservationsRepository(db);
+      container = createTestContainer();
+      obs = ObservationsRepository(db, fakeRef(container));
     });
 
     tearDown(() async {
+      container.dispose();
       await db.close();
     });
 

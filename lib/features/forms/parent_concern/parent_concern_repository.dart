@@ -1,5 +1,6 @@
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -111,9 +112,14 @@ class ParentConcernInput {
 }
 
 class ParentConcernRepository {
-  ParentConcernRepository(this._db);
+  ParentConcernRepository(this._db, this._ref);
 
   final AppDatabase _db;
+  final Ref _ref;
+
+  /// See ObservationsRepository._programId for why we read this on
+  /// every insert rather than caching at construction time.
+  String? get _programId => _ref.read(activeProgramIdProvider);
 
   Stream<List<ParentConcernNote>> watchAll() {
     return (_db.select(_db.parentConcernNotes)
@@ -290,13 +296,16 @@ class ParentConcernRepository {
       // must refresh updatedAt only.
       createdAt: updating ? const Value.absent() : Value(now),
       updatedAt: Value(now),
+      // Stamp the active program on insert only — update paths leave
+      // programId untouched so a row's tenant scope can't drift.
+      programId: updating ? const Value.absent() : Value(_programId),
     );
   }
 }
 
 final parentConcernRepositoryProvider =
     Provider<ParentConcernRepository>((ref) {
-  return ParentConcernRepository(ref.watch(databaseProvider));
+  return ParentConcernRepository(ref.watch(databaseProvider), ref);
 });
 
 final parentConcernNotesProvider =

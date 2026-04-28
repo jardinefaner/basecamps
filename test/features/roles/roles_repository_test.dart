@@ -1,19 +1,23 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/roles/roles_repository.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/test_database.dart';
 
 void main() {
   late AppDatabase db;
+  late ProviderContainer container;
   late RolesRepository repo;
 
   setUp(() {
     db = createTestDatabase();
-    repo = RolesRepository(db);
+    container = createTestContainer();
+    repo = RolesRepository(db, fakeRef(container));
   });
 
   tearDown(() async {
+    container.dispose();
     await db.close();
   });
 

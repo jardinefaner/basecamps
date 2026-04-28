@@ -1,5 +1,6 @@
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,9 +13,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// builds the planner; Round 5 wires PDF export. Kept thin so the
 /// later rounds grow the API without renaming what's here.
 class ThemesRepository {
-  ThemesRepository(this._db);
+  ThemesRepository(this._db, this._ref);
 
   final AppDatabase _db;
+  final Ref _ref;
+
+  /// See ObservationsRepository._programId for why we read this on
+  /// every insert rather than caching at construction time.
+  String? get _programId => _ref.read(activeProgramIdProvider);
 
   Stream<List<ProgramTheme>> watchAll() {
     final query = _db.select(_db.themes)
@@ -51,6 +57,7 @@ class ThemesRepository {
             endDate: _dayOnly(endDate),
             colorHex: Value(colorHex),
             notes: Value(notes),
+            programId: Value(_programId),
           ),
         );
     return id;
@@ -95,7 +102,7 @@ class ThemesRepository {
 }
 
 final themesRepositoryProvider = Provider<ThemesRepository>((ref) {
-  return ThemesRepository(ref.watch(databaseProvider));
+  return ThemesRepository(ref.watch(databaseProvider), ref);
 });
 
 final themesProvider = StreamProvider<List<ProgramTheme>>((ref) {

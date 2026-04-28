@@ -1,12 +1,18 @@
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class TripsRepository {
-  TripsRepository(this._db);
+  TripsRepository(this._db, this._ref);
 
   final AppDatabase _db;
+  final Ref _ref;
+
+  /// See ObservationsRepository._programId for why we read this on
+  /// every insert rather than caching at construction time.
+  String? get _programId => _ref.read(activeProgramIdProvider);
 
   Stream<List<Trip>> watchAll() {
     final query = _db.select(_db.trips)
@@ -71,6 +77,7 @@ class TripsRepository {
               notes: Value(notes),
               departureTime: Value(departureTime),
               returnTime: Value(returnTime),
+              programId: Value(_programId),
             ),
           );
       for (final groupId in groupIds) {
@@ -78,7 +85,10 @@ class TripsRepository {
               TripGroupsCompanion.insert(tripId: tripId, groupId: groupId),
             );
       }
-      // Mirror onto the schedule.
+      // Mirror onto the schedule. Stamp programId so the trip's
+      // schedule entry is in the same program as the trip itself —
+      // bypasses ScheduleRepository on this path so we have to do
+      // it here directly.
       await _db.into(_db.scheduleEntries).insert(
             ScheduleEntriesCompanion.insert(
               id: entryId,
@@ -91,6 +101,7 @@ class TripsRepository {
               notes: Value(notes),
               kind: 'addition',
               sourceTripId: Value(tripId),
+              programId: Value(_programId),
             ),
           );
       for (final groupId in groupIds) {
@@ -138,7 +149,7 @@ class TripsRepository {
 }
 
 final tripsRepositoryProvider = Provider<TripsRepository>((ref) {
-  return TripsRepository(ref.watch(databaseProvider));
+  return TripsRepository(ref.watch(databaseProvider), ref);
 });
 
 final tripsProvider = StreamProvider<List<Trip>>((ref) {

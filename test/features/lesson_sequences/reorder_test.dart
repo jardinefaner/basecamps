@@ -1,22 +1,26 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/lesson_sequences/lesson_sequences_repository.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/test_database.dart';
 
 void main() {
   late AppDatabase db;
+  late ProviderContainer container;
   late LessonSequencesRepository repo;
   late ActivityLibraryRepository libRepo;
 
   setUp(() {
     db = createTestDatabase();
-    repo = LessonSequencesRepository(db);
-    libRepo = ActivityLibraryRepository(db);
+    container = createTestContainer();
+    repo = LessonSequencesRepository(db, fakeRef(container));
+    libRepo = ActivityLibraryRepository(db, fakeRef(container));
   });
 
   tearDown(() async {
+    container.dispose();
     await db.close();
   });
 

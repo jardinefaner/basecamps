@@ -1,12 +1,18 @@
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class ChildrenRepository {
-  ChildrenRepository(this._db);
+  ChildrenRepository(this._db, this._ref);
 
   final AppDatabase _db;
+  final Ref _ref;
+
+  /// See ObservationsRepository._programId for why we read this on
+  /// every insert rather than caching at construction time.
+  String? get _programId => _ref.read(activeProgramIdProvider);
 
   Stream<List<Group>> watchGroups() {
     final query = _db.select(_db.groups)
@@ -58,6 +64,7 @@ class ChildrenRepository {
             id: id,
             name: name,
             colorHex: Value(colorHex),
+            programId: Value(_programId),
           ),
         );
     return id;
@@ -105,6 +112,7 @@ class ChildrenRepository {
             parentName: Value(parentName),
             expectedArrival: Value(expectedArrival),
             expectedPickup: Value(expectedPickup),
+            programId: Value(_programId),
           ),
         );
     return id;
@@ -207,7 +215,7 @@ class ChildrenRepository {
 }
 
 final childrenRepositoryProvider = Provider<ChildrenRepository>((ref) {
-  return ChildrenRepository(ref.watch(databaseProvider));
+  return ChildrenRepository(ref.watch(databaseProvider), ref);
 });
 
 final groupsProvider = StreamProvider<List<Group>>((ref) {

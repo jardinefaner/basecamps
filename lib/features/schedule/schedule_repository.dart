@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
@@ -110,9 +111,14 @@ class ScheduleItem {
 }
 
 class ScheduleRepository {
-  ScheduleRepository(this._db);
+  ScheduleRepository(this._db, this._ref);
 
   final AppDatabase _db;
+  final Ref _ref;
+
+  /// See ObservationsRepository._programId for why we read this on
+  /// every insert rather than caching at construction time.
+  String? get _programId => _ref.read(activeProgramIdProvider);
 
   Stream<List<ScheduleTemplate>> watchTemplates() {
     final query = _db.select(_db.scheduleTemplates)
@@ -260,6 +266,7 @@ class ScheduleRepository {
               sourceLibraryItemId: Value(sourceLibraryItemId),
               roomId: Value(roomId),
               sourceUrl: Value(sourceUrl),
+              programId: Value(_programId),
             ),
           );
       for (final groupId in groupIds) {
@@ -450,6 +457,7 @@ class ScheduleRepository {
                   notes: Value(src.notes),
                   startDate: Value(src.startDate),
                   endDate: Value(src.endDate),
+                  programId: Value(_programId),
                 ),
               );
           final groupIds = await groupsForTemplate(src.id);
@@ -509,6 +517,7 @@ class ScheduleRepository {
               roomId: Value(roomId),
               sourceUrl: Value(sourceUrl),
               kind: 'addition',
+              programId: Value(_programId),
             ),
           );
       for (final groupId in groupIds) {
@@ -568,6 +577,7 @@ class ScheduleRepository {
               notes: Value(template.notes),
               kind: 'override',
               overridesTemplateId: Value(templateId),
+              programId: Value(_programId),
             ),
           );
       for (final groupId in templateGroups) {
@@ -636,6 +646,7 @@ class ScheduleRepository {
               sourceLibraryItemId: Value(src.sourceLibraryItemId),
               roomId: Value(src.roomId),
               sourceUrl: Value(src.sourceUrl),
+              programId: Value(_programId),
             ),
           );
       final groupIds = await groupsForTemplate(templateId);
@@ -689,6 +700,7 @@ class ScheduleRepository {
               roomId: Value(row.roomId),
               sourceUrl: Value(row.sourceUrl),
               kind: 'addition',
+              programId: Value(_programId),
             ),
           );
       final groupIds = await groupsForEntry(entryId);
@@ -768,6 +780,7 @@ class ScheduleRepository {
             allGroups: Value(template.allGroups),
             kind: 'cancellation',
             overridesTemplateId: Value(templateId),
+            programId: Value(_programId),
           ),
         );
   }
@@ -922,6 +935,7 @@ class ScheduleRepository {
                 roomId: Value(src.roomId),
                 sourceUrl: Value(src.sourceUrl),
                 kind: 'addition',
+                programId: Value(_programId),
               ),
             );
         final groupIds = await groupsForEntry(src.id);
@@ -1248,7 +1262,7 @@ class ScheduleRepository {
 }
 
 final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
-  return ScheduleRepository(ref.watch(databaseProvider));
+  return ScheduleRepository(ref.watch(databaseProvider), ref);
 });
 
 final templatesProvider = StreamProvider<List<ScheduleTemplate>>((ref) {

@@ -11,7 +11,9 @@ void main() {
   test('updateItem leaves absent fields untouched', () async {
     final db = createTestDatabase();
     addTearDown(db.close);
-    final repo = ActivityLibraryRepository(db);
+    final container = createTestContainer();
+    addTearDown(container.dispose);
+    final repo = ActivityLibraryRepository(db, fakeRef(container));
 
     // Seed a richly-populated card — this is what the AI wizard
     // writes on save.
@@ -51,7 +53,9 @@ void main() {
   test('updateItem DOES null a field when explicitly set to Value(null)', () async {
     final db = createTestDatabase();
     addTearDown(db.close);
-    final repo = ActivityLibraryRepository(db);
+    final container = createTestContainer();
+    addTearDown(container.dispose);
+    final repo = ActivityLibraryRepository(db, fakeRef(container));
 
     final id = await repo.addItem(
       title: 'Art',

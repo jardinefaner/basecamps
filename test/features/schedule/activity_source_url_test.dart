@@ -1,5 +1,6 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/test_database.dart';
@@ -10,14 +11,17 @@ import '../../helpers/test_database.dart';
 /// sheet can render the link row.
 void main() {
   late AppDatabase db;
+  late ProviderContainer container;
   late ScheduleRepository repo;
 
   setUp(() {
     db = createTestDatabase();
-    repo = ScheduleRepository(db);
+    container = createTestContainer();
+    repo = ScheduleRepository(db, fakeRef(container));
   });
 
   tearDown(() async {
+    container.dispose();
     await db.close();
   });
 

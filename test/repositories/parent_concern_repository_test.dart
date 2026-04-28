@@ -1,22 +1,26 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/parent_concern/parent_concern_repository.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers/test_database.dart';
 
 void main() {
   late AppDatabase db;
+  late ProviderContainer container;
   late ParentConcernRepository concerns;
   late ChildrenRepository kids;
 
   setUp(() {
     db = createTestDatabase();
-    concerns = ParentConcernRepository(db);
-    kids = ChildrenRepository(db);
+    container = createTestContainer();
+    concerns = ParentConcernRepository(db, fakeRef(container));
+    kids = ChildrenRepository(db, fakeRef(container));
   });
 
   tearDown(() async {
+    container.dispose();
     await db.close();
   });
 

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -121,9 +122,16 @@ enum ObservationSentiment {
 }
 
 class ObservationsRepository {
-  ObservationsRepository(this._db);
+  ObservationsRepository(this._db, this._ref);
 
   final AppDatabase _db;
+  final Ref _ref;
+
+  /// Active program id, read fresh on every insert. Null while the
+  /// auth bootstrap hasn't run yet — rows in that window go in with
+  /// program_id NULL and get picked up by the next-launch backfill.
+  /// Steady state: every new row is stamped on insert.
+  String? get _programId => _ref.read(activeProgramIdProvider);
 
   Stream<List<Observation>> watchAll() {
     final query = _db.select(_db.observations)
@@ -288,6 +296,7 @@ class ObservationsRepository {
               scheduleSourceId: Value(scheduleSourceId),
               activityDate: Value(activityDate),
               roomId: Value(roomId),
+              programId: Value(_programId),
             ),
           );
       for (final d in uniqueDomains) {
@@ -713,7 +722,7 @@ class ObservationAttachmentInput {
 
 final observationsRepositoryProvider =
     Provider<ObservationsRepository>((ref) {
-  return ObservationsRepository(ref.watch(databaseProvider));
+  return ObservationsRepository(ref.watch(databaseProvider), ref);
 });
 
 final observationsProvider = StreamProvider<List<Observation>>((ref) {

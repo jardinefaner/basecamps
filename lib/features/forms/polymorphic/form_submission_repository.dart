@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/forms/polymorphic/form_definition.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,9 +11,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// here — the repository doesn't know anything form-specific, it just
 /// shuttles the JSON blob + typed columns in and out.
 class FormSubmissionRepository {
-  FormSubmissionRepository(this._db);
+  FormSubmissionRepository(this._db, this._ref);
 
   final AppDatabase _db;
+  final Ref _ref;
+
+  /// See ObservationsRepository._programId for why we read this on
+  /// every insert rather than caching at construction time.
+  String? get _programId => _ref.read(activeProgramIdProvider);
 
   /// All submissions of a given [formType], newest first. Powers the
   /// forms-hub list screens.
@@ -103,6 +109,7 @@ class FormSubmissionRepository {
             parentSubmissionId: Value(parentSubmissionId),
             authorName: Value(authorName),
             reviewDueAt: Value(reviewDueAt),
+            programId: Value(_programId),
           ),
         );
     return id;
@@ -241,7 +248,7 @@ Map<String, dynamic> decodeFormData(FormSubmission s) {
 
 final formSubmissionRepositoryProvider =
     Provider<FormSubmissionRepository>((ref) {
-  return FormSubmissionRepository(ref.watch(databaseProvider));
+  return FormSubmissionRepository(ref.watch(databaseProvider), ref);
 });
 
 /// All submissions of a given form type, streamed.

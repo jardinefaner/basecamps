@@ -1,5 +1,6 @@
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,9 +14,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// free-form text on the trip / entry row and open in Google Maps on
 /// tap.
 class RoomsRepository {
-  RoomsRepository(this._db);
+  RoomsRepository(this._db, this._ref);
 
   final AppDatabase _db;
+  final Ref _ref;
+
+  /// See ObservationsRepository._programId for why we read this on
+  /// every insert rather than caching at construction time.
+  String? get _programId => _ref.read(activeProgramIdProvider);
 
   Stream<List<Room>> watchAll() {
     final query = _db.select(_db.rooms)
@@ -63,6 +69,7 @@ class RoomsRepository {
             capacity: Value(capacity),
             notes: Value(notes),
             defaultForGroupId: Value(defaultForGroupId),
+            programId: Value(_programId),
           ),
         );
     return id;
@@ -99,7 +106,7 @@ class RoomsRepository {
 }
 
 final roomsRepositoryProvider = Provider<RoomsRepository>((ref) {
-  return RoomsRepository(ref.watch(databaseProvider));
+  return RoomsRepository(ref.watch(databaseProvider), ref);
 });
 
 final roomsProvider = StreamProvider<List<Room>>((ref) {

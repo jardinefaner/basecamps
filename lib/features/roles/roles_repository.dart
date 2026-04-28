@@ -1,5 +1,6 @@
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,9 +14,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// null) — the adult keeps existing, with their legacy free-text
 /// string as the display fallback if present.
 class RolesRepository {
-  RolesRepository(this._db);
+  RolesRepository(this._db, this._ref);
 
   final AppDatabase _db;
+  final Ref _ref;
+
+  /// See ObservationsRepository._programId for why we read this on
+  /// every insert rather than caching at construction time.
+  String? get _programId => _ref.read(activeProgramIdProvider);
 
   Stream<List<Role>> watchAll() {
     final query = _db.select(_db.roles)
@@ -45,6 +51,7 @@ class RolesRepository {
           RolesCompanion.insert(
             id: id,
             name: name,
+            programId: Value(_programId),
           ),
         );
     return id;
@@ -76,7 +83,7 @@ class RolesRepository {
 }
 
 final rolesRepositoryProvider = Provider<RolesRepository>((ref) {
-  return RolesRepository(ref.watch(databaseProvider));
+  return RolesRepository(ref.watch(databaseProvider), ref);
 });
 
 final rolesProvider = StreamProvider<List<Role>>((ref) {

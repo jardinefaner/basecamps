@@ -2,6 +2,7 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/parents/parents_repository.dart';
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/test_database.dart';
@@ -14,16 +15,19 @@ import '../../helpers/test_database.dart';
 /// row paired to a parent.
 void main() {
   late AppDatabase db;
+  late ProviderContainer container;
   late AdultsRepository adults;
   late ParentsRepository parents;
 
   setUp(() {
     db = createTestDatabase();
-    adults = AdultsRepository(db);
-    parents = ParentsRepository(db);
+    container = createTestContainer();
+    adults = AdultsRepository(db, fakeRef(container));
+    parents = ParentsRepository(db, fakeRef(container));
   });
 
   tearDown(() async {
+    container.dispose();
     await db.close();
   });
 

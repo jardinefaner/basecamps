@@ -1,6 +1,7 @@
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers/test_database.dart';
@@ -10,14 +11,19 @@ import '../helpers/test_database.dart';
 /// lives in the wizard UI, not in the data layer.
 void main() {
   late AppDatabase db;
+  late ProviderContainer container;
   late ScheduleRepository schedule;
 
   setUp(() {
     db = createTestDatabase();
-    schedule = ScheduleRepository(db);
+    container = createTestContainer();
+    schedule = ScheduleRepository(db, fakeRef(container));
   });
 
-  tearDown(() async => db.close());
+  tearDown(() async {
+    container.dispose();
+    await db.close();
+  });
 
   group('multi-day recurring activity', () {
     test('addTemplate in a loop creates one row per picked day', () async {

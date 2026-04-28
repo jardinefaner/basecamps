@@ -2,6 +2,7 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/attendance/widgets/attendance_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers/pump.dart';
@@ -9,6 +10,7 @@ import '../helpers/test_database.dart';
 
 void main() {
   late AppDatabase db;
+  late ProviderContainer container;
   late ChildrenRepository kids;
   late AttendanceRepository att;
   late String groupId;
@@ -17,7 +19,9 @@ void main() {
 
   setUp(() async {
     db = createTestDatabase();
-    kids = ChildrenRepository(db);
+    container = createTestContainer();
+    addTearDown(container.dispose);
+    kids = ChildrenRepository(db, fakeRef(container));
     att = AttendanceRepository(db);
     groupId = await kids.addGroup(name: 'Seedlings');
     maya = await kids.addChild(firstName: 'Maya', groupId: groupId);

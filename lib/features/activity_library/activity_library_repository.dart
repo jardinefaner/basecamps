@@ -1,13 +1,19 @@
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class ActivityLibraryRepository {
-  ActivityLibraryRepository(this._db);
+  ActivityLibraryRepository(this._db, this._ref);
 
   final AppDatabase _db;
+  final Ref _ref;
+
+  /// See ObservationsRepository._programId for why we read this on
+  /// every insert rather than caching at construction time.
+  String? get _programId => _ref.read(activeProgramIdProvider);
 
   Stream<List<ActivityLibraryData>> watchAll() {
     // Newest first — the user's spec for the creation flow ends with
@@ -61,6 +67,7 @@ class ActivityLibraryRepository {
             sourceUrl: Value(sourceUrl),
             sourceAttribution: Value(sourceAttribution),
             materials: Value(materials),
+            programId: Value(_programId),
           ),
         );
     return id;
@@ -264,6 +271,7 @@ class ActivityLibraryRepository {
               materials: Value(source.materials),
               createdAt: Value(now),
               updatedAt: Value(now),
+              programId: Value(_programId),
             ),
           );
       final sourceDomains = await (_db.select(_db.activityLibraryDomainTags)
@@ -390,7 +398,7 @@ class _SimilarScored {
 
 final activityLibraryRepositoryProvider =
     Provider<ActivityLibraryRepository>((ref) {
-  return ActivityLibraryRepository(ref.watch(databaseProvider));
+  return ActivityLibraryRepository(ref.watch(databaseProvider), ref);
 });
 
 final activityLibraryProvider =

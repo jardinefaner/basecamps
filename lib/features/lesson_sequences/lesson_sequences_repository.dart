@@ -1,5 +1,6 @@
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,9 +10,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// builds the week-planner on top. Kept deliberately thin so the later
 /// round can grow the API without renaming what's here.
 class LessonSequencesRepository {
-  LessonSequencesRepository(this._db);
+  LessonSequencesRepository(this._db, this._ref);
 
   final AppDatabase _db;
+  final Ref _ref;
+
+  /// See ObservationsRepository._programId for why we read this on
+  /// every insert rather than caching at construction time.
+  String? get _programId => _ref.read(activeProgramIdProvider);
 
   // -------- Sequences --------
 
@@ -36,6 +42,7 @@ class LessonSequencesRepository {
             id: id,
             name: name,
             description: Value(description),
+            programId: Value(_programId),
           ),
         );
     return id;
@@ -172,7 +179,7 @@ class SequenceItemWithLibrary {
 
 final lessonSequencesRepositoryProvider =
     Provider<LessonSequencesRepository>((ref) {
-  return LessonSequencesRepository(ref.watch(databaseProvider));
+  return LessonSequencesRepository(ref.watch(databaseProvider), ref);
 });
 
 final lessonSequencesProvider =

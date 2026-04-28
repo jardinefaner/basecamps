@@ -1,19 +1,23 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/themes/themes_repository.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/test_database.dart';
 
 void main() {
   late AppDatabase db;
+  late ProviderContainer container;
   late ThemesRepository repo;
 
   setUp(() {
     db = createTestDatabase();
-    repo = ThemesRepository(db);
+    container = createTestContainer();
+    repo = ThemesRepository(db, fakeRef(container));
   });
 
   tearDown(() async {
+    container.dispose();
     await db.close();
   });
 

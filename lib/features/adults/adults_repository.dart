@@ -1,5 +1,6 @@
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -33,7 +34,10 @@ enum AdultRole {
 }
 
 class AdultsRepository {
-  AdultsRepository(this._db);
+  AdultsRepository(this._db, this._ref);
+
+  final Ref _ref;
+  String? get _programId => _ref.read(activeProgramIdProvider);
 
   final AppDatabase _db;
 
@@ -83,6 +87,7 @@ class AdultsRepository {
             phone: Value(phone),
             email: Value(email),
             parentId: Value(parentId),
+            programId: Value(_programId),
           ),
         );
     return id;
@@ -319,7 +324,7 @@ class AvailabilityInput {
 }
 
 final adultsRepositoryProvider = Provider<AdultsRepository>((ref) {
-  return AdultsRepository(ref.watch(databaseProvider));
+  return AdultsRepository(ref.watch(databaseProvider), ref);
 });
 
 final adultsProvider = StreamProvider<List<Adult>>((ref) {
