@@ -53,5 +53,10 @@ app.*.map.json
 # real OpenAI / Deepgram / Supabase keys.
 dart_defines.json
 
+# Supabase CLI scratch state — project ref, version cache, etc.
+# Regenerated on every `supabase link`; nothing here is meaningful
+# to source control.
+supabase/.temp/
+
 # Claude Code local state
 .claude/
