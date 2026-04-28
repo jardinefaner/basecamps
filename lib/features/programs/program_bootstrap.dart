@@ -25,6 +25,18 @@ class ProgramAuthBootstrap {
 
   final Ref _ref;
 
+  /// Last user id we ran [_onSessionChanged] for. Guards against
+  /// the bootstrap firing on every JWT rotation — supabase-flutter
+  /// notifies `currentSessionProvider` whenever the session
+  /// refreshes, but the user is the same. Without this guard the
+  /// bootstrap would do a full hydrate + push every refresh,
+  /// which (a) wastes bandwidth and (b) created a feedback loop
+  /// when the bootstrap itself called `refreshSession()` — the
+  /// refresh notified the listener, which re-ran bootstrap, which
+  /// refreshed again, until Supabase auth rate-limited at 429 and
+  /// the user effectively got signed out.
+  String? _lastProcessedUserId;
+
   /// Subscribes to [currentSessionProvider] and runs
   /// [_onSessionChanged] for every transition. Returns the
   /// subscription so the caller can close it from dispose().
@@ -33,10 +45,12 @@ class ProgramAuthBootstrap {
     // already signed in (browser refresh, native app reopen).
     final initial = _ref.read(currentSessionProvider);
     if (initial != null) {
+      _lastProcessedUserId = initial.user.id;
       unawaited(_onSessionChanged(initial.user.id));
     }
     return _ref.listen<Session?>(currentSessionProvider, (_, session) {
       if (session == null) {
+        _lastProcessedUserId = null;
         // Sign-out: clear the active program. The notifier also
         // wipes itself on auth state, but doing it explicitly here
         // makes the order deterministic (active program clears
@@ -52,6 +66,10 @@ class ProgramAuthBootstrap {
         unawaited(_ref.read(databaseProvider).wipeAllProgramData());
         return;
       }
+      // Skip JWT rotations / re-emits — they don't change who's
+      // signed in. Only run bootstrap on actual user transitions.
+      if (_lastProcessedUserId == session.user.id) return;
+      _lastProcessedUserId = session.user.id;
       unawaited(_onSessionChanged(session.user.id));
     });
   }
@@ -191,24 +209,16 @@ class ProgramAuthBootstrap {
       // Skip cleanly.
       if (program.createdBy != userId) return;
 
-      // Verify the JWT is server-valid before pushing. Same
-      // pattern as `createAndSwitchProgram` — without this, a
-      // stale-but-cached session keeps 42501-ing every launch.
-      final auth = Supabase.instance.client.auth;
-      try {
-        await auth.refreshSession();
-        final verified = await auth.getUser();
-        if (verified.user?.id != userId) {
-          debugPrint(
-            'Bootstrap skip cloud push — JWT user '
-            '${verified.user?.id} != local user $userId',
-          );
-          return;
-        }
-      } on Object catch (e) {
-        debugPrint('Bootstrap skip cloud push — auth verify failed: $e');
-        return;
-      }
+      // Don't refresh the session here. Calling
+      // `refreshSession()` rotates the JWT, which notifies
+      // currentSessionProvider, which re-fires this bootstrap,
+      // which... refreshes again. The earlier user-id guard in
+      // `start()` short-circuits the loop, but even one extra
+      // refresh per launch hits Supabase auth's rate limit when
+      // chained with `createAndSwitchProgram`'s refresh on
+      // user-initiated create. Just trust the session that's
+      // already in scope — supabase-flutter auto-refreshes
+      // ahead of expiry on its own clock.
 
       final supabase = Supabase.instance.client;
       // Upsert the program row (id is the PK; other fields update
