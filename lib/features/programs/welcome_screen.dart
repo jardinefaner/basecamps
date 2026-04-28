@@ -7,6 +7,7 @@ import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/save_action.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 /// `/welcome` — landing page for a signed-in user with no program.
 ///
@@ -218,10 +219,19 @@ class _CreateProgramSheetState
     if (name.isEmpty) return;
     setState(() => _saving = true);
     await runWithErrorReport(context, () async {
-      await ref
+      final newId = await ref
           .read(programAuthBootstrapProvider)
           .createAndSwitchProgram(name: name, userId: widget.userId);
-      if (mounted) Navigator.of(context).pop();
+      if (!mounted) return;
+      // Pop the modal first, then navigate. Without explicit
+      // navigation we'd rely on the router's "active is non-null
+      // → bounce off /welcome to /today" redirect; landing on
+      // the new program's detail screen gives the user immediate
+      // context (here's your program, here's how to invite
+      // teachers) and avoids the empty /today flash.
+      Navigator.of(context).pop();
+      if (!context.mounted) return;
+      context.go('/more/programs/$newId');
     });
     if (mounted) setState(() => _saving = false);
   }

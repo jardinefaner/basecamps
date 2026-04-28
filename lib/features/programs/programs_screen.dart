@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/programs/invite_repository.dart';
@@ -334,19 +336,24 @@ class _NewProgramSheetState extends ConsumerState<_NewProgramSheet> {
     if (name.isEmpty) return;
     setState(() => _saving = true);
     await runWithErrorReport(context, () async {
-      await ref.read(programAuthBootstrapProvider).createAndSwitchProgram(
-            name: name,
-            userId: widget.userId,
-          );
-      if (mounted) {
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Created "$name"'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
+      final newId = await ref
+          .read(programAuthBootstrapProvider)
+          .createAndSwitchProgram(name: name, userId: widget.userId);
+      if (!mounted) return;
+      // Pop the modal sheet, then navigate to the freshly created
+      // program's detail screen so the user sees their new
+      // program (members card, invite codes, etc.) right away
+      // instead of bouncing back to the list and having to find
+      // the row.
+      Navigator.of(context).pop();
+      if (!context.mounted) return;
+      unawaited(context.push('/more/programs/$newId'));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Created "$name"'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
     });
     if (mounted) setState(() => _saving = false);
   }

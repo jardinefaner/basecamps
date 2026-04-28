@@ -5,7 +5,6 @@ import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
-import 'package:basecamp/features/sync/synced_tables.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -76,23 +75,20 @@ class ProgramAuthBootstrap {
       } on Object catch (e) {
         debugPrint('Cloud program hydrate skipped: $e');
       }
-      // Decide which program (if any) to set active. Slice 3
-      // changed the "no programs anywhere" semantics: we used to
-      // auto-create a "My program" default for every signed-in
-      // user, which meant fresh accounts got an empty silo before
-      // they had a chance to enter an invite code. Now we leave
-      // [activeProgramIdProvider] null in that case, and the
-      // router redirects to /welcome where the user picks Create
-      // or Join.
+      // Decide which program (if any) to set active. Hard rule:
+      // **never auto-create a default program**. A signed-in user
+      // with zero memberships belongs on /welcome, where they
+      // pick "Join with code" or "Start a new program" — not on
+      // a silently-minted "My program" that hides whatever data
+      // they were expecting.
       //
-      // Auto-create still kicks in for legacy local-only users
-      // (i.e. anyone who has rows in the local Drift DB from
-      // before the multi-program model — those rows have to
-      // belong to *some* program for the program-scoped reads in
-      // slice 1 to surface them). Detect this by checking whether
-      // any synced table has a row that hasn't been backfilled
-      // yet (`program_id IS NULL`). If so, mint a default and the
-      // backfill stamps every row with it.
+      // We used to auto-create when local Drift had rows tagged
+      // `program_id IS NULL` (legacy pre-program-model users), but
+      // (a) that path silently inserts a program for every fresh
+      // sign-in on a device that previously had a different
+      // account's data, and (b) every install is now well past
+      // v42 so genuinely-untagged rows shouldn't exist anyway.
+      // Welcome is the safer landing.
       final notifier = _ref.read(activeProgramIdProvider.notifier);
       final persisted = await notifier.readPersisted();
       final memberships = await repo.programsForUser(userId);
@@ -101,21 +97,10 @@ class ProgramAuthBootstrap {
           memberships.any((p) => p.id == persisted)) {
         id = persisted;
       } else if (memberships.isNotEmpty) {
-        // Pick the oldest existing membership — same tiebreaker as
-        // [ensureDefaultProgram] when the persisted id isn't valid.
         final sorted = [...memberships]
           ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
         id = sorted.first.id;
-      } else if (await _hasLegacyUntaggedRows()) {
-        // Pre-program-model rows exist on this device — mint a
-        // default so the backfill has something to stamp.
-        id = await repo.createProgram(
-          name: 'My program',
-          userId: userId,
-        );
       }
-      // No memberships and no legacy rows → leave active null.
-      // The router will redirect to /welcome.
       if (id == null) {
         await notifier.clear();
         return;
@@ -184,11 +169,27 @@ class ProgramAuthBootstrap {
           .getSingleOrNull();
       if (program == null) return;
 
+      // Only the creator can push the program / membership rows
+      // through RLS:
+      //   * `programs` INSERT policy → `auth.uid() = created_by`
+      //   * `programs` UPDATE policy → `is_program_admin`
+      //   * `program_members` INSERT policy → admin-of-program OR
+      //     self-as-program-creator
+      //
+      // For invitees and other non-creators, the program row was
+      // pushed by the original creator and the membership row was
+      // inserted by the `accept-invite` edge function (service-
+      // role bypass). Re-pushing from a non-creator's bootstrap
+      // would 42501 every launch — exactly the symptom we hit
+      // when "rooms" sync push started failing because the
+      // bootstrap had already poisoned the membership state.
+      // Skip cleanly.
+      if (program.createdBy != userId) return;
+
       final supabase = Supabase.instance.client;
       // Upsert the program row (id is the PK; other fields update
       // when re-running). RLS allows this only when created_by
-      // matches auth.uid() — the bootstrap always sets created_by
-      // to the current user, so the policy passes.
+      // matches auth.uid() — guaranteed since we just checked.
       await supabase.from('programs').upsert(<String, Object?>{
         'id': program.id,
         'name': program.name,
@@ -216,33 +217,6 @@ class ProgramAuthBootstrap {
       // because we no longer guard with a SharedPreferences flag.
       debugPrint('Ensure program/membership in cloud failed: $e');
     }
-  }
-
-  /// Returns true if any synced table has at least one row with
-  /// `program_id IS NULL`. Used by the bootstrap to decide whether
-  /// to mint a default program for a brand-new sign-in: if there's
-  /// pre-program-model data on this device (legacy local rows), we
-  /// auto-create so the backfill stamps every row; otherwise we
-  /// leave the active program null and let the user pick "Create
-  /// or join" on the welcome screen.
-  ///
-  /// One probe per synced table, EXISTS predicate, short-circuits
-  /// on the first hit. Cheap even on a hot DB.
-  Future<bool> _hasLegacyUntaggedRows() async {
-    final db = _ref.read(databaseProvider);
-    for (final t in kSyncedTableNames) {
-      try {
-        final row = await db.customSelect(
-          'SELECT 1 FROM "$t" WHERE "program_id" IS NULL LIMIT 1',
-        ).getSingleOrNull();
-        if (row != null) return true;
-      } on Object {
-        // Schema drift / missing column — skip this table. Doesn't
-        // change the answer; if other tables have legacy rows we'll
-        // still detect them.
-      }
-    }
-    return false;
   }
 
   /// Stamps any pre-program-model rows with [programId] the first
@@ -314,29 +288,47 @@ class ProgramAuthBootstrap {
     required String name,
     required String userId,
   }) async {
+    // Always derive the user id from the live session at write
+    // time — the `userId` arg can go stale across token refreshes
+    // or sign-out/sign-in cycles, and `auth.uid() = created_by`
+    // RLS rejects when they drift apart.
+    final live = Supabase.instance.client.auth.currentUser?.id;
+    if (live == null) {
+      throw StateError(
+        'Not signed in. Sign in again before creating a program.',
+      );
+    }
+    final effectiveUserId = live;
     final repo = _ref.read(programsRepositoryProvider);
-    final id = await repo.createProgram(name: name, userId: userId);
+    final id =
+        await repo.createProgram(name: name, userId: effectiveUserId);
     final supabase = Supabase.instance.client;
-    // Same shape as `_maybePushProgramToCloud` minus the flag —
-    // we know this is a fresh create so the upsert is harmless if
-    // it somehow re-runs.
     final db = _ref.read(databaseProvider);
     final program = await (db.select(db.programs)
           ..where((p) => p.id.equals(id)))
         .getSingleOrNull();
+    // Cloud push is best-effort. If the upsert 403s (transient
+    // RLS / network), the local row stays and the next launch's
+    // bootstrap will retry — without this catch, a single push
+    // failure would leave the user trapped on the create modal
+    // with a snackbar and no recovery path.
     if (program != null) {
-      await supabase.from('programs').upsert(<String, Object?>{
-        'id': program.id,
-        'name': program.name,
-        'created_by': program.createdBy,
-        'created_at': program.createdAt.toUtc().toIso8601String(),
-        'updated_at': program.updatedAt.toUtc().toIso8601String(),
-      });
-      await supabase.from('program_members').upsert(<String, Object?>{
-        'program_id': id,
-        'user_id': userId,
-        'role': 'admin',
-      });
+      try {
+        await supabase.from('programs').upsert(<String, Object?>{
+          'id': program.id,
+          'name': program.name,
+          'created_by': program.createdBy,
+          'created_at': program.createdAt.toUtc().toIso8601String(),
+          'updated_at': program.updatedAt.toUtc().toIso8601String(),
+        });
+        await supabase.from('program_members').upsert(<String, Object?>{
+          'program_id': id,
+          'user_id': effectiveUserId,
+          'role': 'admin',
+        });
+      } on Object catch (e) {
+        debugPrint('Cloud push of new program failed: $e');
+      }
     }
     // Fast switch — a fresh program has zero data on the cloud
     // side (we just created it), so the full `switchProgram`
