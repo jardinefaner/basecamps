@@ -280,19 +280,31 @@ class ActiveProgramNotifier extends Notifier<String?> {
         unawaited(_clearPersisted());
       }
     });
-    // Hydrate the persisted value asynchronously. UI initially sees
-    // null; the bootstrap fills it in within a few frames of
-    // launch / sign-in.
-    unawaited(_hydrate());
+    // Note: we used to async-hydrate from SharedPreferences here,
+    // but that raced with [ProgramAuthBootstrap._onSessionChanged]
+    // which also writes to state via [set]. If hydrate's getString
+    // returned the old SP value AFTER bootstrap's set wrote the
+    // new one, state ended up clobbered by the stale id — and
+    // every downstream pull / push / realtime subscribe operated
+    // against a program the user wasn't a cloud-member of, which
+    // surfaced as silent 403s and "I created a row but it didn't
+    // sync." Bootstrap is now the single authoritative writer:
+    // it reads `readPersisted()` once, decides, and calls `set`.
     return null;
   }
 
-  Future<void> _hydrate() async {
+  /// One-shot read of the persisted active program id. Bootstrap
+  /// uses this to favor the user's last-active selection when they
+  /// belong to multiple programs, falling back to "oldest" only
+  /// when the persisted id isn't a current membership.
+  ///
+  /// Read-only — does NOT touch [state] (that's bootstrap's job
+  /// via [set]). Avoids the race the old `_hydrate` had.
+  Future<String?> readPersisted() async {
     final prefs = await SharedPreferences.getInstance();
     final stored = prefs.getString(_kPrefKey);
-    if (stored != null && stored.isNotEmpty) {
-      state = stored;
-    }
+    if (stored == null || stored.isEmpty) return null;
+    return stored;
   }
 
   Future<void> _clearPersisted() async {
@@ -301,8 +313,8 @@ class ActiveProgramNotifier extends Notifier<String?> {
   }
 
   /// Writes [id] as the active program both in memory (state) and
-  /// to SharedPreferences. Used by the bootstrap on sign-in and by
-  /// a future "switch program" action.
+  /// to SharedPreferences. Called by the bootstrap on sign-in /
+  /// session change and by the program switcher screen.
   Future<void> set(String id) async {
     state = id;
     final prefs = await SharedPreferences.getInstance();

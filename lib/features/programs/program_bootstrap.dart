@@ -75,10 +75,35 @@ class ProgramAuthBootstrap {
       } on Object catch (e) {
         debugPrint('Cloud program hydrate skipped: $e');
       }
-      final id = await repo.ensureDefaultProgram(userId: userId);
-      await _ref.read(activeProgramIdProvider.notifier).set(id);
+      // Decide which program to set active. Honor the user's
+      // last-active selection (persisted in SharedPreferences) when
+      // it's still a valid membership; otherwise fall back to the
+      // "oldest" tiebreaker via ensureDefaultProgram. This keeps a
+      // user who switched to "Summer camp 2026" on their laptop
+      // landing in that same program on their phone the next day.
+      final notifier = _ref.read(activeProgramIdProvider.notifier);
+      final persisted = await notifier.readPersisted();
+      String? id;
+      if (persisted != null) {
+        final memberships = await repo.programsForUser(userId);
+        if (memberships.any((p) => p.id == persisted)) {
+          id = persisted;
+        }
+      }
+      id ??= await repo.ensureDefaultProgram(userId: userId);
+      await notifier.set(id);
       await _maybeBackfillUntaggedRows(repo, programId: id);
-      await _maybePushProgramToCloud(programId: id, userId: userId);
+      // Always upsert the program + membership rows on every
+      // launch — idempotent + cheap (two upserts), and the only
+      // way to recover from a previous launch where the push
+      // silently failed (e.g. RLS recursion before 0011 landed).
+      // Without this, a user stuck in that state would never be
+      // able to push / sync / back up because their cloud
+      // membership row was missing.
+      await _ensureProgramAndMembershipInCloud(
+        programId: id,
+        userId: userId,
+      );
       // Slice C: incremental, watermarked pull of every synced
       // table. Cheap on quiet days (just a "give me rows newer
       // than X" query that returns nothing per table) and cheap
@@ -108,27 +133,29 @@ class ProgramAuthBootstrap {
   }
 
   /// Mirrors the active program + this user's membership row to
-  /// Supabase. Required for any cloud feature gated by program
-  /// membership (Storage RLS on the backup bucket, future per-table
-  /// RLS in Slice C). Without it the cloud has no idea this user is
-  /// in any program and rejects every cross-table policy check.
+  /// Supabase on every launch. Idempotent: both writes are upserts
+  /// against composite PKs, so re-running is a no-op when nothing
+  /// changed. Required for any cloud feature gated by program
+  /// membership — sync push/pull, realtime subscribe, storage
+  /// upload — and the only way to recover from a state where a
+  /// prior push silently failed (e.g. RLS recursion before 0011
+  /// landed left the membership row missing in cloud).
   ///
-  /// Idempotent on the cloud side via upsert. Guarded by a
-  /// SharedPreferences flag so we don't pile on round-trips every
-  /// launch — once per (program, install) is enough since the
-  /// rows don't change shape.
+  /// Used to be guarded by a SharedPreferences "already pushed"
+  /// flag (commit history: `_maybePushProgramToCloud`) so we'd
+  /// skip the round-trip after the first success. We dropped the
+  /// flag because a single silent failure left the user
+  /// permanently stuck — the flag prevented retries, every later
+  /// push 403'd against the missing membership, and the user saw
+  /// "I created a row but it didn't sync" with no path to recover.
+  /// Two cheap upserts per launch is the right trade.
   ///
   /// Best-effort. If the network is down or RLS rejects, log and
-  /// move on. Backup will fail in that case but the rest of the
-  /// app keeps working; the next launch retries.
-  Future<void> _maybePushProgramToCloud({
+  /// move on; the next launch retries.
+  Future<void> _ensureProgramAndMembershipInCloud({
     required String programId,
     required String userId,
   }) async {
-    final flagKey = 'program_${programId}_pushed_to_cloud';
-    final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool(flagKey) ?? false) return;
-
     try {
       final db = _ref.read(databaseProvider);
       final program = await (db.select(db.programs)
@@ -151,18 +178,22 @@ class ProgramAuthBootstrap {
       // Now the membership row. RLS allows the bootstrap-creator
       // case (user inserting their own first row in a program they
       // just created) so this passes on the first run.
+      // Membership upsert. The composite PK (program_id, user_id)
+      // makes this idempotent — a re-run for the same pair is a
+      // no-op if the row already exists, or fixes the role if it
+      // somehow drifted. RLS allows: admin of the program OR
+      // self-insert when the user is the program's `created_by`.
+      // Bootstrap created the program with `created_by = auth.uid()`
+      // so this passes on first launch and on every subsequent one.
       await supabase.from('program_members').upsert(<String, Object?>{
         'program_id': programId,
         'user_id': userId,
         'role': 'admin',
       });
-      await prefs.setBool(flagKey, true);
     } on Object catch (e) {
-      // Network failure, RLS rejection, etc. Don't set the flag
-      // so the next launch retries. Don't surface to the user;
-      // they'll see "backup failed" if the cloud is needed later
-      // and that error message is the right place to explain.
-      debugPrint('Push program to cloud failed: $e');
+      // Network failure, RLS rejection, etc. The next launch retries
+      // because we no longer guard with a SharedPreferences flag.
+      debugPrint('Ensure program/membership in cloud failed: $e');
     }
   }
 

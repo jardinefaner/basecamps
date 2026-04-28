@@ -151,6 +151,17 @@ class SyncEngine {
   final StreamController<SyncConflict> _conflictController =
       StreamController<SyncConflict>.broadcast();
 
+  /// Stream of push failures. Emits each time a debounced push hits
+  /// an exception (network, RLS rejection, validation). The app
+  /// listens at the root and surfaces a snackbar so users see when
+  /// something they thought saved didn't actually reach the cloud
+  /// — without this, push errors only landed in `debugPrint` and
+  /// gave the false impression of "live sync working" when really
+  /// every write was 403-ing silently.
+  Stream<SyncPushError> get pushErrors => _pushErrorController.stream;
+  final StreamController<SyncPushError> _pushErrorController =
+      StreamController<SyncPushError>.broadcast();
+
   SupabaseClient? get _client {
     try {
       return Supabase.instance.client;
@@ -246,6 +257,16 @@ class SyncEngine {
       }
     } on Object catch (e, st) {
       debugPrint('Sync push failed for ${spec.table}/$id: $e\n$st');
+      // Broadcast to listeners (the app shell shows a snackbar).
+      // Don't rethrow — push runs detached from any user gesture,
+      // and we'd just log-and-swallow at every call site anyway.
+      if (!_pushErrorController.isClosed) {
+        _pushErrorController.add(SyncPushError(
+          table: spec.table,
+          id: id,
+          error: e,
+        ));
+      }
     }
   }
 
@@ -811,6 +832,7 @@ class SyncEngine {
     _pendingPushes.clear();
     unawaited(unsubscribeFromRealtime());
     unawaited(_conflictController.close());
+    unawaited(_pushErrorController.close());
   }
 }
 
@@ -854,4 +876,41 @@ class SyncConflict {
   String toString() =>
       'SyncConflict($table/$rowId, local=$localUpdatedAt, '
       'remote=$remoteUpdatedAt, via=$detectedVia)';
+}
+
+/// One row's push failure. Emitted on `engine.pushErrors` so the
+/// app shell can surface a snackbar / banner — without this,
+/// silent 403s (RLS, missing membership) felt like "live sync
+/// stopped working" with no signal anywhere.
+@immutable
+class SyncPushError {
+  const SyncPushError({
+    required this.table,
+    required this.id,
+    required this.error,
+  });
+
+  final String table;
+  final String id;
+
+  /// The thrown error. Usually a `PostgrestException` (with
+  /// `.message` / `.code`) for RLS / constraint failures, or a
+  /// network exception for offline pushes.
+  final Object error;
+
+  /// User-friendly one-line summary suitable for a snackbar.
+  /// Strips the more technical wrapping so a teacher sees
+  /// "Save failed: row violates row-level security policy"
+  /// instead of "PostgrestException(message: ..., code: 42501)".
+  String get summary {
+    final raw = error.toString();
+    // Slice out the message=… field of a PostgrestException to
+    // get the bare message. Fallback: full toString.
+    final match = RegExp(r'message:\s*([^,)]+)').firstMatch(raw);
+    final msg = match?.group(1)?.trim() ?? raw;
+    return 'Save failed in $table: $msg';
+  }
+
+  @override
+  String toString() => 'SyncPushError($table/$id: $error)';
 }

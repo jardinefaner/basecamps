@@ -1,22 +1,33 @@
+import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
+import 'package:drift/drift.dart' show OrderingTerm;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
-/// Sync-status card for Program Settings. Conceptually distinct
-/// from BackupCard:
-///   - **Backup** is an opaque JSON snapshot for "I lost my
-///     laptop." One file per program, restore wipes-and-replays.
-///   - **Sync** is per-row, per-table cloud mirroring. Incremental
-///     and watermarked — push happens automatically on every
-///     local write; pull runs on sign-in and on this button.
+/// Cloud-sync card for Program Settings (and the *only* surface for
+/// "is this device in sync with the cloud?").
 ///
-/// Right now sync only covers Observations (Slice C v1). When the
-/// next table comes online (Schedule? Children?) the button kicks
-/// pull on every wired table.
+/// What it shows:
+///   - The active program's name (so a user with multiple programs
+///     can confirm which one they're operating on without bouncing
+///     to the programs screen).
+///   - "Last synced N min ago" — derived from the most recent
+///     `lastPulledAt` across the per-table watermark in `sync_state`.
+///   - "Sync now" button — manual force-pull of every synced table
+///     for callers who don't want to wait for the next debounce.
+///   - An error banner if the last manual sync failed.
+///
+/// What it deliberately doesn't say: anything about backups. The
+/// previous BackupCard offered an opaque JSON snapshot push/restore
+/// flow that was redundant with live sync — every row already
+/// mirrors to cloud per-row, so the snapshot was a divergent second
+/// source of truth. Retired in favor of this card being the single
+/// "your data is on the cloud, here's the freshness signal" surface.
 class SyncCard extends ConsumerStatefulWidget {
   const SyncCard({super.key});
 
@@ -39,8 +50,9 @@ class _SyncCardState extends ConsumerState<SyncCard> {
     });
     try {
       // Same FK-ordered tier walk as the bootstrap — parallel
-      // within each tier, sequential between. force=true
-      // bypasses the 30-second debounce on each spec.
+      // within each tier, sequential between. force=true bypasses
+      // the 30-second debounce on each spec so this is a real
+      // pull, not a "show me the cached debounce result."
       final engine = ref.read(syncEngineProvider);
       var total = 0;
       for (final tier in kSpecTiers) {
@@ -74,6 +86,14 @@ class _SyncCardState extends ConsumerState<SyncCard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final programId = ref.watch(activeProgramIdProvider);
+    final programAsync = programId == null
+        ? const AsyncValue<Program?>.data(null)
+        : ref.watch(_activeProgramRowProvider(programId));
+    final lastSyncAsync = programId == null
+        ? const AsyncValue<DateTime?>.data(null)
+        : ref.watch(_lastSyncedAtProvider(programId));
+
     return AppCard(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -83,11 +103,30 @@ class _SyncCardState extends ConsumerState<SyncCard> {
             Text('Cloud sync', style: theme.textTheme.titleMedium),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              'Observations sync to the cloud automatically as you '
-              'create them. Tap below to pull any changes from your '
-              'other devices right now.',
+              'Everything you create syncs across your devices '
+              'automatically while you’re signed in. Nothing '
+              'to back up — every row lives on the cloud the moment '
+              'it’s saved.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _StatusRow(
+              label: 'Program',
+              value: programAsync.when(
+                data: (p) => p?.name ?? '—',
+                loading: () => '…',
+                error: (_, _) => '—',
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            _StatusRow(
+              label: 'Last synced',
+              value: lastSyncAsync.when(
+                data: _formatLastSync,
+                loading: () => '…',
+                error: (_, _) => 'unknown',
               ),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -102,7 +141,7 @@ class _SyncCardState extends ConsumerState<SyncCard> {
                       )
                     : const Icon(Icons.sync, size: 18),
                 label: const Text('Sync now'),
-                onPressed: _busy ? null : _handleSync,
+                onPressed: _busy || programId == null ? null : _handleSync,
               ),
             ),
             if (_lastResult != null) ...[
@@ -128,4 +167,87 @@ class _SyncCardState extends ConsumerState<SyncCard> {
       ),
     );
   }
+
+  /// Render the relative-time label users actually want: "just
+  /// now" / "5 min ago" / "2 h ago" / "Apr 27, 3:14 PM" for older.
+  /// Absolute beyond 24h because "yesterday" is ambiguous across
+  /// timezone changes.
+  static String _formatLastSync(DateTime? at) {
+    if (at == null) return 'never';
+    final now = DateTime.now();
+    final diff = now.difference(at);
+    if (diff.inSeconds < 30) return 'just now';
+    if (diff.inMinutes < 1) return '${diff.inSeconds}s ago';
+    if (diff.inMinutes < 60) {
+      return '${diff.inMinutes} min ago';
+    }
+    if (diff.inHours < 24) return '${diff.inHours} h ago';
+    return DateFormat.MMMd().add_jm().format(at);
+  }
 }
+
+class _StatusRow extends StatelessWidget {
+  const _StatusRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 88,
+          child: Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: theme.textTheme.bodyMedium,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Reactive single-program lookup for the sync card's header. Family-
+/// keyed by program id so a switch lights up the new name without a
+/// stale frame.
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final _activeProgramRowProvider =
+    StreamProvider.family<Program?, String>((ref, id) {
+  final db = ref.watch(databaseProvider);
+  return (db.select(db.programs)..where((p) => p.id.equals(id)))
+      .watchSingleOrNull();
+});
+
+/// "When was the last successful pull?" — the max `lastPulledAt`
+/// across every sync_state row for this program. Returns null when
+/// no row exists yet (first launch, never pulled).
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final _lastSyncedAtProvider =
+    StreamProvider.family<DateTime?, String>((ref, programId) {
+  final db = ref.watch(databaseProvider);
+  // Pick the most recent watermark across the per-table rows. If
+  // sync_state is empty for this program (no pull has ever
+  // succeeded) we return null and the UI renders "never".
+  final query = db.select(db.syncState)
+    ..where((s) => s.programId.equals(programId))
+    ..orderBy([(s) => OrderingTerm.desc(s.lastPulledAt)])
+    ..limit(1);
+  return query
+      .watchSingleOrNull()
+      .map((row) => row?.lastPulledAt);
+});

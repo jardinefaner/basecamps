@@ -32,6 +32,8 @@ class BasecampApp extends ConsumerStatefulWidget {
 class _BasecampAppState extends ConsumerState<BasecampApp> {
   ProviderSubscription<Session?>? _programBootstrapSub;
   StreamSubscription<SyncConflict>? _conflictsSub;
+  StreamSubscription<SyncPushError>? _pushErrorsSub;
+  DateTime? _lastPushErrorToastAt;
 
   @override
   void initState() {
@@ -65,6 +67,33 @@ class _BasecampAppState extends ConsumerState<BasecampApp> {
         );
     });
 
+    // Push-error toast. Without this, RLS rejections / network
+    // failures only landed in `debugPrint` and gave the user the
+    // false impression that their save worked when really nothing
+    // reached the cloud. Throttled so a burst of failures (one
+    // per row in a multi-row save) collapses into a single
+    // snackbar — bombarding the user with a dozen error toasts
+    // helps no one.
+    _pushErrorsSub =
+        ref.read(syncEngineProvider).pushErrors.listen((err) {
+      final now = DateTime.now();
+      final last = _lastPushErrorToastAt;
+      if (last != null && now.difference(last).inSeconds < 5) {
+        return;
+      }
+      _lastPushErrorToastAt = now;
+      final messenger = scaffoldMessengerKey.currentState;
+      if (messenger == null) return;
+      messenger
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(err.summary),
+            duration: const Duration(seconds: 6),
+          ),
+        );
+    });
+
     // Orphan-attachment sweep on startup. Reaps files in the app-
     // owned observation-media dir that no attachment row points at
     // — left behind when an undo-enabled delete ages past the 5-
@@ -86,6 +115,7 @@ class _BasecampAppState extends ConsumerState<BasecampApp> {
   void dispose() {
     _programBootstrapSub?.close();
     unawaited(_conflictsSub?.cancel());
+    unawaited(_pushErrorsSub?.cancel());
     super.dispose();
   }
 
