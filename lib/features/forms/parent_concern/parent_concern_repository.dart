@@ -286,6 +286,7 @@ class ParentConcernRepository {
   /// don't.
   Future<void> restore(ParentConcernNote row) async {
     await _db.into(_db.parentConcernNotes).insertOnConflictUpdate(row);
+    unawaited(_sync.pushRow(parentConcernNotesSpec, row.id));
   }
 
   Future<void> restoreMany(Iterable<ParentConcernNote> rows) async {
@@ -294,6 +295,9 @@ class ParentConcernRepository {
         await _db.into(_db.parentConcernNotes).insertOnConflictUpdate(row);
       }
     });
+    for (final row in rows) {
+      unawaited(_sync.pushRow(parentConcernNotesSpec, row.id));
+    }
   }
 
   ParentConcernNotesCompanion _companion(

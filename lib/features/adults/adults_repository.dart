@@ -197,6 +197,7 @@ class AdultsRepository {
   /// restored — same 5-second-window tradeoff as other restores.
   Future<void> restoreAdult(Adult row) async {
     await _db.into(_db.adults).insertOnConflictUpdate(row);
+    unawaited(_sync.pushRow(adultsSpec, row.id));
   }
 
   /// Batch restore for bulk-undo on the Adults screen.
@@ -206,6 +207,9 @@ class AdultsRepository {
         await _db.into(_db.adults).insertOnConflictUpdate(row);
       }
     });
+    for (final row in rows) {
+      unawaited(_sync.pushRow(adultsSpec, row.id));
+    }
   }
 
   // -------- Availability --------

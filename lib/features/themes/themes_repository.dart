@@ -112,6 +112,7 @@ class ThemesRepository {
   /// destructive flow.
   Future<void> restoreTheme(ProgramTheme row) async {
     await _db.into(_db.themes).insertOnConflictUpdate(row);
+    unawaited(_sync.pushRow(themesSpec, row.id));
   }
 
   DateTime _dayOnly(DateTime d) => DateTime(d.year, d.month, d.day);

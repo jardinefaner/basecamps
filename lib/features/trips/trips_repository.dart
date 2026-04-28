@@ -166,6 +166,7 @@ class TripsRepository {
   /// referenced this trip) aren't restored.
   Future<void> restoreTrip(Trip row) async {
     await _db.into(_db.trips).insertOnConflictUpdate(row);
+    unawaited(_sync.pushRow(tripsSpec, row.id));
   }
 
   /// Batch restore for bulk-undo. Writes in one transaction so
@@ -176,6 +177,9 @@ class TripsRepository {
         await _db.into(_db.trips).insertOnConflictUpdate(row);
       }
     });
+    for (final row in rows) {
+      unawaited(_sync.pushRow(tripsSpec, row.id));
+    }
   }
 
   DateTime _dayOnly(DateTime d) => DateTime(d.year, d.month, d.day);

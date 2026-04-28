@@ -180,6 +180,7 @@ class ParentsRepository {
         await _db.into(_db.parentChildren).insertOnConflictUpdate(l);
       }
     });
+    unawaited(_sync.pushRow(parentsSpec, row.id));
   }
 
   /// Snapshot the join rows for a parent before deleting, so undo

@@ -153,31 +153,39 @@ class ProgramAuthBootstrap {
     }
   }
 
-  /// Slice C pull entry point. Walks every spec in [kAllSpecs]
-  /// and runs a watermarked pull through the generic engine.
-  /// Each table's pull is independent — a failure on one (RLS
-  /// blip, transient network error) doesn't stop the next from
-  /// trying. Logs counts per table and a total when anything
-  /// landed; silent on a fully-up-to-date pull.
+  /// Slice C pull entry point. Walks the FK-ordered tier list
+  /// from `kSpecTiers` — pulls every table in a tier in parallel
+  /// (Future.wait), but waits for the tier to finish before
+  /// starting the next so FK targets land before dependents.
   ///
-  /// Order matters: kAllSpecs is FK-aware (parents before
-  /// dependents), so even if local FK enforcement was strict,
-  /// rows arrive in a satisfying order.
+  /// Cost shape: 16 sequential 1s round-trips (the old loop)
+  /// becomes 3 tier-batches (~1s each) for ~3s total — 5x faster
+  /// on first launch. Quiet-day pulls were already fast (empty
+  /// deltas) but now they're even faster.
+  ///
+  /// Each table's pull is independent — a failure on one (RLS
+  /// blip, transient network error) doesn't stop the rest.
   Future<void> _pullAllTables({required String programId}) async {
     final engine = _ref.read(syncEngineProvider);
     var total = 0;
-    for (final spec in kAllSpecs) {
-      try {
-        final applied = await engine.pullTable(
-          spec: spec,
-          programId: programId,
-        );
-        if (applied > 0) {
-          debugPrint('Pulled $applied ${spec.table} for $programId.');
-          total += applied;
-        }
-      } on Object catch (e, st) {
-        debugPrint('Pull ${spec.table} failed: $e\n$st');
+    for (final tier in kSpecTiers) {
+      // Parallel within the tier; sequential between tiers.
+      final results = await Future.wait([
+        for (final spec in tier)
+          engine
+              .pullTable(spec: spec, programId: programId)
+              .then<int>((applied) {
+            if (applied > 0) {
+              debugPrint('Pulled $applied ${spec.table} for $programId.');
+            }
+            return applied;
+          }).catchError((Object e, StackTrace st) {
+            debugPrint('Pull ${spec.table} failed: $e\n$st');
+            return 0;
+          }),
+      ]);
+      for (final n in results) {
+        total += n;
       }
     }
     if (total > 0) {

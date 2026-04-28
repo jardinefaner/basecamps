@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/auth/auth_repository.dart';
+import 'package:basecamp/features/sync/synced_tables.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -147,30 +148,12 @@ class ProgramsRepository {
   /// write time, so this should only ever update rows on the
   /// transition migration.
   Future<int> backfillUntaggedRows({required String programId}) async {
-    // Same list as the v42 migration in database.dart. Kept in
-    // sync by hand — if a new entity table lands, both lists need
-    // an entry.
-    const tables = [
-      'children',
-      'groups',
-      'vehicles',
-      'trips',
-      'adults',
-      'roles',
-      'parents',
-      'rooms',
-      'schedule_templates',
-      'schedule_entries',
-      'observations',
-      'activity_library',
-      'lesson_sequences',
-      'themes',
-      'parent_concern_notes',
-      'form_submissions',
-    ];
+    // Reads from kSyncedTableNames — same single source of truth
+    // the schema-heal and the cloud sync layer use. Adding a new
+    // synced table updates this backfill automatically.
     var totalUpdated = 0;
     await _db.transaction(() async {
-      for (final table in tables) {
+      for (final table in kSyncedTableNames) {
         final rowsAffected = await _db.customUpdate(
           'UPDATE "$table" SET "program_id" = ? '
           'WHERE "program_id" IS NULL',

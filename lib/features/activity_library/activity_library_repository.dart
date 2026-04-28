@@ -179,6 +179,7 @@ class ActivityLibraryRepository {
   /// cascade and don't come back.
   Future<void> restoreItem(ActivityLibraryData row) async {
     await _db.into(_db.activityLibrary).insertOnConflictUpdate(row);
+    unawaited(_sync.pushRow(activityLibrarySpec, row.id));
   }
 
   Future<void> restoreItems(Iterable<ActivityLibraryData> rows) async {
@@ -187,6 +188,9 @@ class ActivityLibraryRepository {
         await _db.into(_db.activityLibrary).insertOnConflictUpdate(row);
       }
     });
+    for (final row in rows) {
+      unawaited(_sync.pushRow(activityLibrarySpec, row.id));
+    }
   }
 
   // ---- v40: free-text domain tags per library item ----

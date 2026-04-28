@@ -188,31 +188,61 @@ const formSubmissionsSpec = TableSpec(
   dateColumns: {'submitted_at', 'review_due_at', 'created_at', 'updated_at'},
 );
 
-/// Every spec, in pull order. FK targets first (groups before
-/// children that reference them; library items before lesson-
-/// sequence-items, etc). Bootstrap iterates this list to pull all
-/// tables on sign-in; manual "Sync now" does the same.
-const List<TableSpec> kAllSpecs = [
-  // Foundation: no FKs out, referenced by many.
-  groupsSpec,
-  roomsSpec,
-  rolesSpec,
-  // People — parents → children → adults so FKs land cleanly.
-  parentsSpec,
-  childrenSpec,
-  adultsSpec,
-  // Standalone entities.
-  vehiclesSpec,
-  // Library + sequences (sequences reference library items).
-  activityLibrarySpec,
-  lessonSequencesSpec,
-  themesSpec,
-  // Schedule before trips (trips can spawn schedule_entries).
-  scheduleTemplatesSpec,
-  tripsSpec,
-  scheduleEntriesSpec,
-  // Forms — observations + concerns + polymorphic forms.
-  observationsSpec,
-  parentConcernNotesSpec,
-  formSubmissionsSpec,
+/// Every spec, organized into FK-ordered tiers. Each tier may pull
+/// in parallel (no FKs between siblings); tiers run sequentially so
+/// FK targets land before dependents. Bootstrap and Sync Now both
+/// honor this — the engine's pull is parallel within a tier and
+/// awaited between tiers.
+///
+/// To add a new table: define a const TableSpec above, add it to
+/// the right tier here, and add the matching cloud SQL migration.
+/// Nothing else updates — the schema-heal, the backfill, and the
+/// pull bootstrap all read from this list.
+const List<List<TableSpec>> kSpecTiers = [
+  // Tier 1 — foundation. No FKs to other entity tables.
+  [
+    groupsSpec,
+    roomsSpec,
+    rolesSpec,
+    vehiclesSpec,
+    themesSpec,
+  ],
+  // Tier 2 — people + library. Reference groups/roles. No
+  // dependents inside this tier.
+  [
+    parentsSpec,
+    childrenSpec,
+    adultsSpec,
+    activityLibrarySpec,
+    lessonSequencesSpec,
+  ],
+  // Tier 3 — events + forms. Reference tier-1/tier-2 entities.
+  [
+    scheduleTemplatesSpec,
+    tripsSpec,
+    scheduleEntriesSpec,
+    observationsSpec,
+    parentConcernNotesSpec,
+    formSubmissionsSpec,
+  ],
 ];
+
+/// Flat view of every spec in tier order. Use [kSpecTiers] when
+/// you care about FK ordering (pull, parallel batching); use this
+/// when you just want to iterate every synced table (schema-heal,
+/// backfill, cloud-table SQL generation).
+List<TableSpec> get kAllSpecs => [
+      for (final tier in kSpecTiers) ...tier,
+    ];
+
+/// Just the SQL table names. Used by:
+///   - Drift's `_healProgramIdColumns` (re-run the v42 ALTER for
+///     each)
+///   - ProgramsRepository.backfillUntaggedRows (UPDATE program_id
+///     for each)
+///   - cross-references in cloud SQL comments
+///
+/// Single source of truth: change this list (via the specs above)
+/// and every consumer updates in lockstep.
+List<String> get kAllSyncedTableNames =>
+    [for (final s in kAllSpecs) s.table];

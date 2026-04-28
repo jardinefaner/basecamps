@@ -1,5 +1,6 @@
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/tables.dart';
+import 'package:basecamp/features/sync/synced_tables.dart';
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -146,25 +147,7 @@ class AppDatabase extends _$AppDatabase {
             // LessonSequenceItems) intentionally do NOT get a
             // program_id — they belong to whichever parent row
             // already carries one.
-            const tables = [
-              'children',
-              'groups',
-              'vehicles',
-              'trips',
-              'adults',
-              'roles',
-              'parents',
-              'rooms',
-              'schedule_templates',
-              'schedule_entries',
-              'observations',
-              'activity_library',
-              'lesson_sequences',
-              'themes',
-              'parent_concern_notes',
-              'form_submissions',
-            ];
-            for (final t in tables) {
+            for (final t in kSyncedTableNames) {
               await _runSilent(
                 'ALTER TABLE "$t" ADD COLUMN "program_id" TEXT NULL',
               );
@@ -950,26 +933,12 @@ class AppDatabase extends _$AppDatabase {
   /// migrated DB sees this as a no-op series of failed-and-ignored
   /// statements (cheap), and a partially-migrated DB gets the
   /// missing columns filled in.
+  ///
+  /// Reads the table list from [kSyncedTableNames] — single source
+  /// of truth shared with the cloud sync layer. Adding a synced
+  /// table updates this heal automatically.
   Future<void> _healProgramIdColumns() async {
-    const tables = [
-      'children',
-      'groups',
-      'vehicles',
-      'trips',
-      'adults',
-      'roles',
-      'parents',
-      'rooms',
-      'schedule_templates',
-      'schedule_entries',
-      'observations',
-      'activity_library',
-      'lesson_sequences',
-      'themes',
-      'parent_concern_notes',
-      'form_submissions',
-    ];
-    for (final t in tables) {
+    for (final t in kSyncedTableNames) {
       await _runSilent(
         'ALTER TABLE "$t" ADD COLUMN "program_id" TEXT NULL',
       );

@@ -38,18 +38,23 @@ class _SyncCardState extends ConsumerState<SyncCard> {
       _lastResult = null;
     });
     try {
-      // Walk every spec in kAllSpecs. force=true bypasses the
-      // 30-second debounce on each — the user explicitly asked
-      // for a refresh, don't tell them to wait per-table.
+      // Same FK-ordered tier walk as the bootstrap — parallel
+      // within each tier, sequential between. force=true
+      // bypasses the 30-second debounce on each spec.
       final engine = ref.read(syncEngineProvider);
       var total = 0;
-      for (final spec in kAllSpecs) {
-        final applied = await engine.pullTable(
-          spec: spec,
-          programId: programId,
-          force: true,
-        );
-        total += applied;
+      for (final tier in kSpecTiers) {
+        final results = await Future.wait([
+          for (final spec in tier)
+            engine.pullTable(
+              spec: spec,
+              programId: programId,
+              force: true,
+            ),
+        ]);
+        for (final n in results) {
+          total += n;
+        }
       }
       if (!mounted) return;
       setState(() {

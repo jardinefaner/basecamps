@@ -232,12 +232,14 @@ class ChildrenRepository {
   /// delete typically hasn't lost meaningful pairings.
   Future<void> restoreGroup(Group row) async {
     await _db.into(_db.groups).insertOnConflictUpdate(row);
+    unawaited(_sync.pushRow(groupsSpec, row.id));
   }
 
   /// Re-insert a previously-deleted child row. See [restoreGroup]
   /// for the cascade caveat.
   Future<void> restoreChild(Child row) async {
     await _db.into(_db.children).insertOnConflictUpdate(row);
+    unawaited(_sync.pushRow(childrenSpec, row.id));
   }
 }
 

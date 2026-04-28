@@ -95,8 +95,26 @@ class SyncEngine {
   /// Bypassed by `force: true` (manual "Sync now").
   static const Duration _kPullDebounce = Duration(seconds: 30);
 
+  /// Coalesce window for repeated push of the same row. Rapid
+  /// edits to the same observation (typing, formatting,
+  /// bulk-toggling kids) collapse into a single cloud upsert
+  /// after the user pauses for this long. Saves bandwidth and
+  /// upstream churn at the cost of a tiny visible-on-cloud lag.
+  /// 250ms is fast enough that a normal Save → cross-device
+  /// pull arrives within "feels instant," slow enough to
+  /// coalesce keystroke-driven flurries.
+  static const Duration _kPushDebounce = Duration(milliseconds: 250);
+
   /// Sentinel watermark for first-launch pull (everything > epoch).
   static final DateTime _kEpoch = DateTime.utc(1970);
+
+  /// Pending-push timers keyed by `${table}/${id}`. When a new
+  /// pushRow comes in, we cancel the existing timer for that key
+  /// and start a fresh one — last write within the debounce window
+  /// wins, all earlier ones collapse into the eventual fire.
+  ///
+  /// Only one push per key is ever in flight at once.
+  final Map<String, Timer> _pendingPushes = <String, Timer>{};
 
   SupabaseClient? get _client {
     try {
@@ -109,10 +127,35 @@ class SyncEngine {
   // -- Push --------------------------------------------------------
 
   /// Pushes the row identified by [id] in [spec] plus all its
-  /// cascade rows. Best-effort: catches its own errors and logs
-  /// via debugPrint so a failed push doesn't bubble up to the
-  /// local-write callsite.
+  /// cascade rows. Coalesced — repeated calls for the same
+  /// (table, id) within [_kPushDebounce] collapse into a single
+  /// upsert after the user pauses. Best-effort: catches its own
+  /// errors and logs via debugPrint so a failed push doesn't
+  /// bubble up to the local-write callsite.
+  ///
+  /// Returns immediately. The actual push fires after the
+  /// debounce window. Caveat: if the app is killed during that
+  /// 250ms window, the most recent edit doesn't reach cloud
+  /// until the next mutation re-triggers a push (any later
+  /// pushRow on the same row will read the latest state from
+  /// Drift, so no data loss — just a sync lag).
   Future<void> pushRow(TableSpec spec, String id) async {
+    final client = _client;
+    if (client == null) return;
+    if (client.auth.currentSession == null) return;
+
+    final key = '${spec.table}/$id';
+    _pendingPushes[key]?.cancel();
+    _pendingPushes[key] = Timer(_kPushDebounce, () {
+      _pendingPushes.remove(key);
+      // The actual push runs detached so the timer callback
+      // returns instantly. Errors are caught inside _pushRowNow.
+      unawaited(_pushRowNow(spec, id));
+    });
+  }
+
+  /// The actual push body, separated from the debouncer.
+  Future<void> _pushRowNow(TableSpec spec, String id) async {
     final client = _client;
     if (client == null) return;
     if (client.auth.currentSession == null) return;

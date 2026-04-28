@@ -95,6 +95,7 @@ class RolesRepository {
   /// display fallback.
   Future<void> restoreRole(Role row) async {
     await _db.into(_db.roles).insertOnConflictUpdate(row);
+    unawaited(_sync.pushRow(rolesSpec, row.id));
   }
 }
 

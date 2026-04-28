@@ -695,6 +695,10 @@ class ObservationsRepository {
             .insertOnConflictUpdate(r);
       }
     });
+    final observationIds = {for (final r in rows) r.observationId};
+    for (final id in observationIds) {
+      unawaited(_sync.pushObservation(id));
+    }
   }
 
   /// Sweeps local media files that no attachment row points at.

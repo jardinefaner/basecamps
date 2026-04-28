@@ -150,6 +150,7 @@ class LessonSequencesRepository {
   /// so removals have a 5-second take-back window.
   Future<void> restoreItem(LessonSequenceItem row) async {
     await _db.into(_db.lessonSequenceItems).insertOnConflictUpdate(row);
+    unawaited(_sync.pushRow(lessonSequencesSpec, row.sequenceId));
   }
 
   /// Rewrite `position` for every item in [sequenceId] so the order

@@ -857,6 +857,7 @@ class ScheduleRepository {
   /// entry comes back but without its group multi-select.
   Future<void> restoreEntry(ScheduleEntry row) async {
     await _db.into(_db.scheduleEntries).insertOnConflictUpdate(row);
+    unawaited(_sync.pushRow(scheduleEntriesSpec, row.id));
   }
 
   /// Restore helpers for template deletes. `restoreTemplates` takes
@@ -865,6 +866,7 @@ class ScheduleRepository {
   /// in one snackbar.
   Future<void> restoreTemplate(ScheduleTemplate row) async {
     await _db.into(_db.scheduleTemplates).insertOnConflictUpdate(row);
+    unawaited(_sync.pushRow(scheduleTemplatesSpec, row.id));
   }
 
   Future<void> restoreTemplates(Iterable<ScheduleTemplate> rows) async {
@@ -873,6 +875,9 @@ class ScheduleRepository {
         await _db.into(_db.scheduleTemplates).insertOnConflictUpdate(row);
       }
     });
+    for (final row in rows) {
+      unawaited(_sync.pushRow(scheduleTemplatesSpec, row.id));
+    }
   }
 
   Future<ScheduleEntry?> getEntry(String id) {

@@ -118,6 +118,7 @@ class RoomsRepository {
   /// aren't re-linked — the room comes back unassigned.
   Future<void> restoreRoom(Room row) async {
     await _db.into(_db.rooms).insertOnConflictUpdate(row);
+    unawaited(_sync.pushRow(roomsSpec, row.id));
   }
 }
 

@@ -112,6 +112,7 @@ class VehiclesRepository {
   /// resolving correctly once restored — the id stays stable.
   Future<void> restoreVehicle(Vehicle row) async {
     await _db.into(_db.vehicles).insertOnConflictUpdate(row);
+    unawaited(_sync.pushRow(vehiclesSpec, row.id));
   }
 }
 
