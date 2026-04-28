@@ -5,6 +5,7 @@ import 'package:basecamp/features/forms/polymorphic/form_definition.dart'
     as fd;
 import 'package:basecamp/features/forms/polymorphic/form_submission_repository.dart';
 import 'package:basecamp/features/forms/polymorphic/form_submission_share.dart';
+import 'package:basecamp/features/forms/widgets/inline_signature_pad.dart';
 import 'package:basecamp/features/vehicles/vehicles_repository.dart';
 import 'package:basecamp/features/vehicles/widgets/edit_vehicle_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -69,6 +70,14 @@ class GenericFormScreen extends ConsumerStatefulWidget {
 class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
   final Map<String, dynamic> _values = {};
   final Map<String, TextEditingController> _textControllers = {};
+
+  /// Per-field controllers for the printed-name input inside
+  /// FormSignatureField. Lifted out of _textControllers because
+  /// signature fields don't pre-populate via the same hydration
+  /// path; values come from the composite map under the field's
+  /// own key.
+  final Map<String, TextEditingController> _signatureNameControllers = {};
+
   bool _loading = true;
   bool _submitting = false;
   String? _resolvedSubmissionId;
@@ -148,6 +157,9 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
   @override
   void dispose() {
     for (final c in _textControllers.values) {
+      c.dispose();
+    }
+    for (final c in _signatureNameControllers.values) {
       c.dispose();
     }
     super.dispose();
@@ -456,6 +468,8 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
         fd.FormBoolField() => _buildBool(field),
         fd.FormVehiclePickerField() => _buildVehiclePicker(field),
         fd.FormChildPickerField() => _buildChildPicker(field),
+        fd.FormMultiChildPickerField() => _buildMultiChildPicker(field),
+        fd.FormSignatureField() => _buildSignature(field),
       },
     );
   }
@@ -817,6 +831,274 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
       title: Text(field.label),
       subtitle: field.helpText == null ? null : Text(field.helpText!),
       contentPadding: EdgeInsets.zero,
+    );
+  }
+
+  // -- Multi-child picker -------------------------------------------
+
+  /// Multi-select wrapper around the existing child picker sheet.
+  /// Stores `["id1", "id2"]` JSON arrays in the data blob. Tapping
+  /// the chip area opens the same sheet as single-pick but with
+  /// checkbox semantics.
+  Widget _buildMultiChildPicker(fd.FormMultiChildPickerField field) {
+    final raw = _values[field.key];
+    final selectedIds = <String>{
+      if (raw is List)
+        for (final v in raw)
+          if (v is String) v,
+    };
+    final childrenAsync = ref.watch(childrenProvider);
+    final children = childrenAsync.asData?.value ?? const <Child>[];
+    final picked = <Child>[
+      for (final c in children)
+        if (selectedIds.contains(c.id)) c,
+    ];
+
+    return _LabeledField(
+      label: field.label,
+      help: field.helpText,
+      child: OutlinedButton.icon(
+        onPressed: () => _openMultiChildPicker(field, children),
+        icon: const Icon(Icons.group_outlined),
+        label: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            picked.isEmpty
+                ? 'Pick children'
+                : picked.map(_childDisplayName).join(', '),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openMultiChildPicker(
+    fd.FormMultiChildPickerField field,
+    List<Child> children,
+  ) async {
+    final raw = _values[field.key];
+    final initial = <String>{
+      if (raw is List)
+        for (final v in raw)
+          if (v is String) v,
+    };
+    final picked = await showModalBottomSheet<Set<String>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _MultiChildPickerSheet(
+        children: children,
+        initialSelected: initial,
+      ),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _values[field.key] = picked.toList();
+    });
+  }
+
+  // -- Signature ----------------------------------------------------
+
+  /// Composite signature field: typed printed name, optional drawn
+  /// signature image (via the InlineSignaturePad widget) plus the
+  /// timestamp of when
+  /// the signing happened. Stored as a single JSON object keyed
+  /// by the field's `key`:
+  ///   `{ name, signaturePath, signedAt }`
+  ///
+  /// The signature pad lives in a sub-sheet so the form's flow
+  /// isn't blocked by an inline drawing surface — open, draw,
+  /// commit, close. Existing signatures show the typed name with
+  /// a small thumbnail; tapping re-opens the pad.
+  Widget _buildSignature(fd.FormSignatureField field) {
+    final raw = _values[field.key];
+    final name = raw is Map ? (raw['name'] as String?) : null;
+    final signaturePath =
+        raw is Map ? (raw['signaturePath'] as String?) : null;
+    final signedAt = raw is Map ? (raw['signedAt'] as String?) : null;
+
+    return _LabeledField(
+      label: field.label,
+      help: field.helpText,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppTextField(
+            controller: _signatureNameController(field.key, name),
+            label: 'Printed name',
+            onChanged: (v) {
+              final current = _values[field.key];
+              final next = <String, dynamic>{
+                if (current is Map) ...current.cast<String, dynamic>(),
+                'name': v,
+              };
+              setState(() => _values[field.key] = next);
+            },
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.draw_outlined),
+            label: Text(
+              signaturePath == null
+                  ? 'Add signature'
+                  : 'Re-sign',
+            ),
+            onPressed: () => _openSignaturePad(field),
+          ),
+          if (signaturePath != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              signedAt == null
+                  ? 'Signed.'
+                  : 'Signed ${_formatSignedAt(signedAt)}.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Per-field text controller for the printed-name input. Lazily
+  /// instantiated so re-renders don't reset cursor position.
+  TextEditingController _signatureNameController(
+    String key,
+    String? initialName,
+  ) {
+    final existing = _signatureNameControllers[key];
+    if (existing != null) return existing;
+    final ctrl = TextEditingController(text: initialName ?? '');
+    _signatureNameControllers[key] = ctrl;
+    return ctrl;
+  }
+
+  Future<void> _openSignaturePad(fd.FormSignatureField field) async {
+    final result = await showModalBottomSheet<_SignatureResult>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetCtx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+        ),
+        child: SizedBox(
+          height: 360,
+          child: InlineSignaturePad(
+            onSigned: (path, when) =>
+                Navigator.of(sheetCtx).pop(_SignatureResult(path, when)),
+            onCancel: () => Navigator.of(sheetCtx).pop(),
+          ),
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    final current = _values[field.key];
+    setState(() {
+      _values[field.key] = <String, dynamic>{
+        if (current is Map) ...current.cast<String, dynamic>(),
+        'signaturePath': result.path,
+        'signedAt': result.signedAt.toIso8601String(),
+      };
+    });
+  }
+
+  String _formatSignedAt(String iso) {
+    try {
+      final dt = DateTime.parse(iso).toLocal();
+      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-'
+          '${dt.day.toString().padLeft(2, '0')}';
+    } on Object {
+      return iso;
+    }
+  }
+}
+
+/// Tuple returned by the signature pad sheet — the path of the
+/// PNG on disk plus the moment the signature was committed.
+class _SignatureResult {
+  const _SignatureResult(this.path, this.signedAt);
+  final String path;
+  final DateTime signedAt;
+}
+
+/// Multi-select sheet for FormMultiChildPickerField. Mirrors the
+/// shape of the existing single-pick sheet but with checkbox
+/// semantics and a Done button.
+class _MultiChildPickerSheet extends StatefulWidget {
+  const _MultiChildPickerSheet({
+    required this.children,
+    required this.initialSelected,
+  });
+
+  final List<Child> children;
+  final Set<String> initialSelected;
+
+  @override
+  State<_MultiChildPickerSheet> createState() =>
+      _MultiChildPickerSheetState();
+}
+
+class _MultiChildPickerSheetState extends State<_MultiChildPickerSheet> {
+  late final Set<String> _picked = {...widget.initialSelected};
+
+  @override
+  Widget build(BuildContext context) {
+    final children = [...widget.children]
+      ..sort((a, b) => a.firstName.toLowerCase()
+          .compareTo(b.firstName.toLowerCase()));
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.sm,
+              AppSpacing.lg,
+              AppSpacing.sm,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Pick children',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(_picked),
+                  child: const Text('Done'),
+                ),
+              ],
+            ),
+          ),
+          Flexible(
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: children.length,
+              itemBuilder: (_, i) {
+                final c = children[i];
+                final selected = _picked.contains(c.id);
+                return CheckboxListTile(
+                  value: selected,
+                  onChanged: (v) => setState(() {
+                    if (v ?? false) {
+                      _picked.add(c.id);
+                    } else {
+                      _picked.remove(c.id);
+                    }
+                  }),
+                  title: Text(c.firstName +
+                      (c.lastName == null || c.lastName!.trim().isEmpty
+                          ? ''
+                          : ' ${c.lastName}')),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+        ],
+      ),
     );
   }
 }

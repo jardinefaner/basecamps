@@ -194,6 +194,54 @@ class FormChildPickerField extends FormField {
   });
 }
 
+/// Multi-select picker for children. Stores a JSON array of child
+/// ids in the data blob: `["id1", "id2", "id3"]`. Forms that
+/// scope to multiple children (parent concern, group incident
+/// reports) use this instead of the single-pick variant.
+///
+/// The renderer pre-fills from the typed `child_id` column when
+/// `key` is the conventional `'child_ids'` and the submission's
+/// child_id was set on a prior save (rare — covers the upgrade
+/// path from single-child to multi-child forms).
+class FormMultiChildPickerField extends FormField {
+  const FormMultiChildPickerField({
+    required super.key,
+    required super.label,
+    super.helpText,
+    super.required,
+  });
+}
+
+/// Multi-line free text + an inline signature pad + a captured
+/// signed-on date. Stores all three under one composite JSON
+/// object in the data blob:
+///
+///     {
+///       "name": "Jardine Faner",       // typed printed name
+///       "signaturePath": "/path/...",   // local file path of PNG
+///       "signedAt": "2026-04-27T..."    // ISO timestamp
+///     }
+///
+/// Either of the three can be missing (e.g. typed name without a
+/// drawn signature is "typed signature"; a drawn signature alone
+/// is anonymous). The renderer captures the signature drawing to
+/// a per-form local file via the existing InlineSignaturePad
+/// widget and stamps the path here.
+///
+/// Long-term the signaturePath will follow MediaService's
+/// upload-on-attach pattern so signatures sync across devices like
+/// observation attachments. For v1 the local-only path is fine —
+/// signed forms are typically completed on one device and reviewed
+/// from there.
+class FormSignatureField extends FormField {
+  const FormSignatureField({
+    required super.key,
+    required super.label,
+    super.helpText,
+    super.required,
+  });
+}
+
 /// Grouping of related fields on the form. Rendered as a titled
 /// section — keeps long checklists scannable.
 class FormSection {

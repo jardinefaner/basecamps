@@ -214,7 +214,52 @@ String? _renderField({
     fd.FormVehiclePickerField() =>
       _renderVehicle(field, data, vehicleNamesById),
     fd.FormChildPickerField() => _renderChild(field, data, childNamesById),
+    fd.FormMultiChildPickerField() =>
+      _renderMultiChild(field, data, childNamesById),
+    fd.FormSignatureField() => _renderSignature(field, data),
   };
+}
+
+String? _renderMultiChild(
+  fd.FormMultiChildPickerField field,
+  Map<String, dynamic> data,
+  Map<String, String> childNamesById,
+) {
+  final raw = data[field.key];
+  if (raw is! List) return null;
+  final names = <String>[];
+  for (final id in raw) {
+    if (id is! String) continue;
+    final name = childNamesById[id];
+    names.add(name ?? '(deleted child)');
+  }
+  if (names.isEmpty) return null;
+  return '${field.label}: ${names.join(', ')}';
+}
+
+String? _renderSignature(
+  fd.FormSignatureField field,
+  Map<String, dynamic> data,
+) {
+  final raw = data[field.key];
+  if (raw is! Map) return null;
+  final name = raw['name'] as String?;
+  final signedAt = raw['signedAt'] as String?;
+  final hasSignature = raw['signaturePath'] is String;
+  final parts = <String>[];
+  if (name != null && name.trim().isNotEmpty) parts.add(name.trim());
+  if (hasSignature) parts.add('(signed)');
+  if (signedAt != null) {
+    try {
+      final dt = DateTime.parse(signedAt).toLocal();
+      parts.add('${dt.year}-${dt.month.toString().padLeft(2, '0')}-'
+          '${dt.day.toString().padLeft(2, '0')}');
+    } on Object {
+      // ignore — corrupt timestamp, drop
+    }
+  }
+  if (parts.isEmpty) return null;
+  return '${field.label}: ${parts.join(' · ')}';
 }
 
 String? _renderText(fd.FormTextField field, Map<String, dynamic> data) {
