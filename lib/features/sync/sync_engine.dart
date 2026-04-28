@@ -116,6 +116,19 @@ class SyncEngine {
   /// Only one push per key is ever in flight at once.
   final Map<String, Timer> _pendingPushes = <String, Timer>{};
 
+  /// Per-(table, parentId) cache of the last cascade-payload
+  /// fingerprint we successfully pushed. Used by [pushRow] to
+  /// skip the cascade delete + insert pair when the local cascade
+  /// rows haven't changed since the last push.
+  ///
+  /// Saves 2 round-trips per cascade table per parent push when
+  /// the parent is being re-pushed for an unrelated reason
+  /// (e.g., editing an observation's note doesn't change which
+  /// children it tags). Memory-only — empties on app restart,
+  /// which is fine because a fresh launch's first push pays the
+  /// full cost once and caches from there.
+  final Map<String, String> _lastCascadeFingerprint = <String, String>{};
+
   /// Active realtime channel for the current program. Single channel
   /// multiplexes change events for every spec — cheaper than one
   /// channel per table (each open channel is a heartbeat-burning
@@ -200,6 +213,23 @@ class SyncEngine {
           cascade.parentColumn,
           id,
         );
+
+        // Skip the delete + insert pair entirely when the
+        // cascade payload hasn't changed since our last push.
+        // Real bandwidth save when the parent is being re-pushed
+        // for an unrelated reason (e.g. editing the parent
+        // observation's note while the same set of kids stays
+        // tagged). Fingerprint is a stable serialization of the
+        // cascade rows; memory cache empties on app restart, so
+        // a fresh launch's first push always pays the full cost
+        // once and caches from there.
+        final fingerprintKey =
+            '${cascade.table}/${cascade.parentColumn}/$id';
+        final fingerprint = _fingerprintRows(cascadeRows);
+        if (_lastCascadeFingerprint[fingerprintKey] == fingerprint) {
+          continue;
+        }
+
         // Replace wholesale. delete-then-upsert is fine within
         // one parent's tiny cascade footprint.
         await client
@@ -212,6 +242,7 @@ class SyncEngine {
               _toCloudShape(r, cascade.dateColumns),
           ]);
         }
+        _lastCascadeFingerprint[fingerprintKey] = fingerprint;
       }
     } on Object catch (e, st) {
       debugPrint('Sync push failed for ${spec.table}/$id: $e\n$st');
@@ -689,6 +720,29 @@ class SyncEngine {
         for (final c in cols) _toVariable(projected[c]),
       ],
     );
+  }
+
+  /// Stable string fingerprint for a list of cascade rows. The
+  /// goal isn't cryptographic — just "same input always yields
+  /// same string" so we can compare against the last-push value.
+  /// Sorts row keys to normalize Dart's Map iteration order, then
+  /// joins fields. Null bytes in values would only appear in
+  /// notes-style text columns; the unique separator avoids
+  /// collisions between (a='12', b='3') and (a='1', b='23').
+  static String _fingerprintRows(List<Map<String, Object?>> rows) {
+    final buf = StringBuffer();
+    for (final row in rows) {
+      final keys = row.keys.toList()..sort();
+      for (final k in keys) {
+        buf
+          ..write(k)
+          ..write('\x00')
+          ..write(row[k])
+          ..write('\x01');
+      }
+      buf.write('\x02');
+    }
+    return buf.toString();
   }
 
   static String _placeholders(int n) => List.filled(n, '?').join(', ');
