@@ -6,6 +6,7 @@ import 'package:basecamp/features/launcher/launcher_screen.dart';
 import 'package:basecamp/features/observations/observation_media_store.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/programs/program_bootstrap.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/router.dart';
 import 'package:basecamp/theme/theme.dart';
 import 'package:basecamp/ui/responsive.dart';
@@ -13,6 +14,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+/// Global ScaffoldMessenger key. Lets out-of-tree code (sync
+/// engine's conflict stream, future background tasks, etc.) reach
+/// `ScaffoldMessenger.of(ctx)` without holding a BuildContext.
+/// Wired into [MaterialApp.router]'s `scaffoldMessengerKey` below.
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
 
 class BasecampApp extends ConsumerStatefulWidget {
   const BasecampApp({super.key});
@@ -23,6 +31,7 @@ class BasecampApp extends ConsumerStatefulWidget {
 
 class _BasecampAppState extends ConsumerState<BasecampApp> {
   ProviderSubscription<Session?>? _programBootstrapSub;
+  StreamSubscription<SyncConflict>? _conflictsSub;
 
   @override
   void initState() {
@@ -34,6 +43,27 @@ class _BasecampAppState extends ConsumerState<BasecampApp> {
     // existing programs are reused, not re-created).
     _programBootstrapSub =
         ref.read(programAuthBootstrapProvider).start();
+
+    // Conflict-detection: when sync overwrites a local row that
+    // had unsynced edits, surface a snackbar so the teacher
+    // knows their work was shadowed by another device. The toast
+    // groups the table + row id and is short — last-write-wins
+    // is the semantic; this just adds visibility.
+    _conflictsSub = ref.read(syncEngineProvider).conflicts.listen((c) {
+      final messenger = scaffoldMessengerKey.currentState;
+      if (messenger == null) return;
+      messenger
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'A change from another device overwrote a local edit '
+              'on ${c.table}. (Last write wins.)',
+            ),
+            duration: const Duration(seconds: 6),
+          ),
+        );
+    });
 
     // Orphan-attachment sweep on startup. Reaps files in the app-
     // owned observation-media dir that no attachment row points at
@@ -49,6 +79,7 @@ class _BasecampAppState extends ConsumerState<BasecampApp> {
   @override
   void dispose() {
     _programBootstrapSub?.close();
+    unawaited(_conflictsSub?.cancel());
     super.dispose();
   }
 
@@ -99,6 +130,7 @@ class _BasecampAppState extends ConsumerState<BasecampApp> {
 
     return MaterialApp.router(
       title: 'Basecamp',
+      scaffoldMessengerKey: scaffoldMessengerKey,
       theme: lightTheme(),
       darkTheme: darkTheme(),
       routerConfig: router,
