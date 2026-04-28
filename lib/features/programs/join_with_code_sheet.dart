@@ -63,14 +63,23 @@ class _JoinWithCodeSheetState extends ConsumerState<JoinWithCodeSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final viewInsets = MediaQuery.of(context).viewInsets;
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
+    // Canonical keyboard-aware modal pattern: outer padding =
+    // viewInsets.bottom (so the modal lifts as the keyboard rises),
+    // inner SingleChildScrollView so content can scroll when the
+    // available area is smaller than its natural height (tablets
+    // with their tall keyboards are the worst offender).
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(
           AppSpacing.lg,
           AppSpacing.md,
           AppSpacing.lg,
-          AppSpacing.lg + viewInsets.bottom,
+          AppSpacing.lg,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -147,6 +156,7 @@ class _JoinWithCodeSheetState extends ConsumerState<JoinWithCodeSheet> {
               ],
             ),
           ],
+        ),
         ),
       ),
     );

@@ -264,20 +264,28 @@ class _CreateProgramSheetState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final viewInsets = MediaQuery.of(context).viewInsets;
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.md,
-          AppSpacing.lg,
-          AppSpacing.lg + viewInsets.bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Start a program', style: theme.textTheme.titleLarge),
+    return Padding(
+      // Outer padding lifts the modal as the keyboard rises;
+      // inner SingleChildScrollView lets content scroll when
+      // the available area shrinks below the natural height
+      // (tablet keyboards eat half the screen).
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            AppSpacing.lg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Start a program', style: theme.textTheme.titleLarge),
             const SizedBox(height: AppSpacing.xs),
             Text(
               'Pick something concrete — your school year, the camp, '
@@ -325,6 +333,7 @@ class _CreateProgramSheetState
               ],
             ),
           ],
+        ),
         ),
       ),
     );

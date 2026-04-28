@@ -366,23 +366,31 @@ class _NewProgramSheetState extends ConsumerState<_NewProgramSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final viewInsets = MediaQuery.of(context).viewInsets;
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.md,
-          AppSpacing.lg,
-          AppSpacing.lg + viewInsets.bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'New program',
-              style: theme.textTheme.titleLarge,
-            ),
+    return Padding(
+      // Keyboard-aware modal: outer padding lifts with the
+      // keyboard, inner SingleChildScrollView lets content
+      // scroll when the visible area is smaller than the sheet's
+      // natural height.
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            AppSpacing.lg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'New program',
+                style: theme.textTheme.titleLarge,
+              ),
             const SizedBox(height: AppSpacing.xs),
             Text(
               'Each program has its own roster, schedule, and '
@@ -432,6 +440,7 @@ class _NewProgramSheetState extends ConsumerState<_NewProgramSheet> {
               ],
             ),
           ],
+        ),
         ),
       ),
     );

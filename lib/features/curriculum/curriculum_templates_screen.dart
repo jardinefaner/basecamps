@@ -255,25 +255,33 @@ class _UseTemplateSheetState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final viewInsets = MediaQuery.of(context).viewInsets;
     final dateLabel = DateFormat.yMMMMEEEEd().format(_startDate);
     final endLabel = DateFormat.yMMMd().format(_endDate);
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.md,
-          AppSpacing.lg,
-          AppSpacing.lg + viewInsets.bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              widget.template.name,
-              style: theme.textTheme.titleLarge,
-            ),
+    return Padding(
+      // Keyboard-aware modal — same canonical pattern used in
+      // every other input sheet: outer padding lifts with the
+      // IME, inner SingleChildScrollView lets content scroll if
+      // it doesn't fit.
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            AppSpacing.lg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                widget.template.name,
+                style: theme.textTheme.titleLarge,
+              ),
             const SizedBox(height: AppSpacing.xs),
             Text(
               widget.template.tagline,
@@ -352,6 +360,7 @@ class _UseTemplateSheetState
               ],
             ),
           ],
+        ),
         ),
       ),
     );
