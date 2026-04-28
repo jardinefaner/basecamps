@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
-import 'package:basecamp/features/forms/parent_concern/parent_concern_repository.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/incident.dart';
 import 'package:basecamp/features/forms/polymorphic/form_submission_repository.dart';
 import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
@@ -350,13 +349,12 @@ class _ContactRow extends StatelessWidget {
   }
 }
 
-/// Merged feed of parent-concern notes + incident form submissions
-/// that touch any child linked to this parent. Both streams are
-/// watched broadly (all concerns + all incidents) and filtered
-/// client-side by child id — the parent-linked-children set is tiny
-/// (single-digit) and each stream is already bounded to a form type,
-/// so no repository-side join needed yet. Bounded to the 10 most
-/// recent entries.
+/// Merged feed of parent-concern + incident form submissions that
+/// touch any child linked to this parent. Both streams are watched
+/// broadly (one per form type) and filtered client-side by child id
+/// — the parent-linked-children set is tiny (single-digit), and each
+/// stream is already bounded to a form type, so no repository-side
+/// join needed yet. Bounded to the 10 most recent entries.
 class _RecentActivitySection extends ConsumerWidget {
   const _RecentActivitySection({required this.parentId});
 
@@ -366,14 +364,13 @@ class _RecentActivitySection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final kidsAsync = ref.watch(childrenForParentProvider(parentId));
-    final concernsAsync = ref.watch(parentConcernNotesProvider);
-    final linksAsync = ref.watch(concernKidLinksProvider);
+    final concernsAsync =
+        ref.watch(formSubmissionsByTypeProvider('parent_concern'));
     final incidentsAsync =
         ref.watch(formSubmissionsByTypeProvider('incident'));
 
     if (kidsAsync.isLoading ||
         concernsAsync.isLoading ||
-        linksAsync.isLoading ||
         incidentsAsync.isLoading) {
       return const Padding(
         padding: EdgeInsets.all(AppSpacing.md),
@@ -382,9 +379,7 @@ class _RecentActivitySection extends ConsumerWidget {
     }
     final kids = kidsAsync.asData?.value ?? const <Child>[];
     final concerns =
-        concernsAsync.asData?.value ?? const <ParentConcernNote>[];
-    final links =
-        linksAsync.asData?.value ?? const <String, Set<String>>{};
+        concernsAsync.asData?.value ?? const <FormSubmission>[];
     final incidents =
         incidentsAsync.asData?.value ?? const <FormSubmission>[];
 
@@ -394,14 +389,24 @@ class _RecentActivitySection extends ConsumerWidget {
     }
 
     final items = <_ActivityItem>[];
-    for (final note in concerns) {
-      final linked = links[note.id] ?? const <String>{};
+    for (final sub in concerns) {
+      final data = decodeFormData(sub);
+      // Concern's structured child list lives under `child_ids` in the
+      // form data (FormMultiChildPickerField). Mirror the bespoke
+      // join-table semantics: include if any linked child belongs to
+      // this parent.
+      final raw = data['child_ids'];
+      final linked = <String>{
+        if (raw is List)
+          for (final v in raw)
+            if (v is String) v,
+      };
       if (linked.any(childIds.contains)) {
         items.add(
           _ActivityItem.concern(
-            id: note.id,
-            createdAt: note.updatedAt,
-            headline: _concernHeadline(note),
+            id: sub.id,
+            createdAt: sub.submittedAt ?? sub.updatedAt,
+            headline: _concernHeadline(sub, data),
           ),
         );
       }
@@ -495,11 +500,10 @@ class _RecentActivitySection extends ConsumerWidget {
     }
   }
 
-  String _concernHeadline(ParentConcernNote note) {
-    final desc = note.concernDescription.trim();
+  String _concernHeadline(FormSubmission sub, Map<String, dynamic> data) {
+    final desc = (data['concern_description'] as String?)?.trim() ?? '';
     if (desc.isNotEmpty) return 'Concern — $desc';
-    final kids = note.childNames.trim();
-    return kids.isEmpty ? 'Parent concern' : 'Concern — $kids';
+    return 'Parent concern';
   }
 
   String _incidentHeadline(FormSubmission sub, List<Child> kids) {

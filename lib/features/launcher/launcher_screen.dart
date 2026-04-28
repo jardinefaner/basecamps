@@ -5,7 +5,8 @@ import 'package:basecamp/features/activity_library/activity_library_repository.d
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
-import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
+import 'package:basecamp/features/forms/polymorphic/definitions/parent_concern.dart';
+import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
 import 'package:basecamp/features/forms/polymorphic/registry.dart';
 import 'package:basecamp/features/launcher/pinned_actions_repository.dart';
 import 'package:basecamp/features/parents/parents_repository.dart';
@@ -806,11 +807,14 @@ class _QuickActionData {
       label: 'New note',
       icon: Icons.chat_outlined,
       onTap: (ctx, _) async {
+        // Routes through the polymorphic generic form screen with the
+        // parent_concern definition — same UI / wizard / fields as the
+        // retired bespoke screen, just rendered from the FormDefinition.
         await rootNavigatorKey.currentState?.push<void>(
           MaterialPageRoute(
             fullscreenDialog: true,
-            builder: (_) => const ParentConcernFormScreen(
-              presentation: ConcernFormPresentation.wizard,
+            builder: (_) => const GenericFormScreen(
+              definition: parentConcernForm,
             ),
           ),
         );

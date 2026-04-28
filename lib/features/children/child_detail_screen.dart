@@ -3,8 +3,8 @@ import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/child_recap_share.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/children/widgets/edit_child_sheet.dart';
-import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/incident.dart';
+import 'package:basecamp/features/forms/polymorphic/definitions/parent_concern.dart';
 import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
 import 'package:basecamp/features/observations/widgets/observation_composer.dart';
 import 'package:basecamp/features/parents/parents_repository.dart';
@@ -1009,9 +1009,15 @@ class _CaptureActionCard extends StatelessWidget {
     return Navigator.of(context, rootNavigator: true).push<void>(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => ParentConcernFormScreen(
-          presentation: ConcernFormPresentation.wizard,
-          initialChildIds: [child.id],
+        builder: (_) => GenericFormScreen(
+          definition: parentConcernForm,
+          // Multi-child picker isn't covered by `prefillChildId`
+          // (that path only seeds single-pick fields). Seed the
+          // structured `child_ids` slot directly so the wizard lands
+          // on step 1 with this child already chipped.
+          prefillData: {
+            'child_ids': [child.id],
+          },
         ),
       ),
     );

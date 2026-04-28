@@ -6,8 +6,8 @@ import 'package:basecamp/features/activity_library/widgets/edit_library_item_she
 import 'package:basecamp/features/activity_library/widgets/library_card_detail_sheet.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
-import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/incident.dart';
+import 'package:basecamp/features/forms/polymorphic/definitions/parent_concern.dart';
 import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
 import 'package:basecamp/features/observations/widgets/observation_composer.dart';
 import 'package:basecamp/features/rooms/rooms_repository.dart';
@@ -1187,9 +1187,8 @@ class _CaptureActionRow extends StatelessWidget {
     await rootNav.push<void>(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => const ParentConcernFormScreen(
-          presentation: ConcernFormPresentation.wizard,
-        ),
+        builder: (_) =>
+            const GenericFormScreen(definition: parentConcernForm),
       ),
     );
   }

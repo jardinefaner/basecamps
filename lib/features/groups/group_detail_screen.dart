@@ -4,8 +4,8 @@ import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/children/widgets/edit_child_sheet.dart';
 import 'package:basecamp/features/children/widgets/edit_group_sheet.dart';
-import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/incident.dart';
+import 'package:basecamp/features/forms/polymorphic/definitions/parent_concern.dart';
 import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
 import 'package:basecamp/features/observations/widgets/observation_composer.dart';
@@ -1259,8 +1259,8 @@ class _CaptureActionCard extends StatelessWidget {
     return Navigator.of(context, rootNavigator: true).push<void>(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => const ParentConcernFormScreen(
-          presentation: ConcernFormPresentation.wizard,
+        builder: (_) => const GenericFormScreen(
+          definition: parentConcernForm,
         ),
       ),
     );

@@ -8,9 +8,8 @@ import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/attendance/widgets/attendance_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/export/export_actions.dart';
-import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
-import 'package:basecamp/features/forms/parent_concern/parent_concern_repository.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/incident.dart';
+import 'package:basecamp/features/forms/polymorphic/definitions/parent_concern.dart';
 import 'package:basecamp/features/forms/polymorphic/form_definition.dart';
 import 'package:basecamp/features/forms/polymorphic/form_submission_repository.dart';
 import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
@@ -190,8 +189,8 @@ class TodayScreen extends ConsumerWidget {
                     await Navigator.of(context).push(
                       MaterialPageRoute<void>(
                         fullscreenDialog: true,
-                        builder: (_) => const ParentConcernFormScreen(
-                          presentation: ConcernFormPresentation.wizard,
+                        builder: (_) => const GenericFormScreen(
+                          definition: parentConcernForm,
                         ),
                       ),
                     );
@@ -744,12 +743,41 @@ class _Body extends ConsumerWidget {
     final activityCounts =
         ref.watch(todayActivityCountsProvider).asData?.value ??
         const <String, int>{};
-    final concerns =
-        ref.watch(todayConcernNotesProvider).asData?.value ??
-        const <ParentConcernNote>[];
-    final concernChildLinks =
-        ref.watch(concernKidLinksProvider).asData?.value ??
-        const <String, Set<String>>{};
+    // Polymorphic parent_concern submissions, scoped to today using
+    // the same logic the bespoke `watchForDay` used: a concern_date in
+    // the form data that lands on this day, OR (concern_date null)
+    // updated today. Build the structured (concern → child ids) link
+    // map from each row's `data.child_ids` so per-activity flagging
+    // matches the bespoke join-table semantics.
+    final allConcernSubmissions = ref
+            .watch(formSubmissionsByTypeProvider('parent_concern'))
+            .asData
+            ?.value ??
+        const <FormSubmission>[];
+    final dayStart = DateTime(now.year, now.month, now.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
+    final concerns = <FormSubmission>[];
+    final concernChildLinks = <String, Set<String>>{};
+    for (final sub in allConcernSubmissions) {
+      final data = decodeFormData(sub);
+      final rawDate = data['concern_date'];
+      DateTime? concernDate;
+      if (rawDate is String && rawDate.isNotEmpty) {
+        concernDate = DateTime.tryParse(rawDate);
+      }
+      final ts = sub.updatedAt;
+      final inDay = concernDate != null
+          ? !concernDate.isBefore(dayStart) && concernDate.isBefore(dayEnd)
+          : !ts.isBefore(dayStart) && ts.isBefore(dayEnd);
+      if (inDay) concerns.add(sub);
+      final raw = data['child_ids'];
+      if (raw is List && raw.isNotEmpty) {
+        concernChildLinks[sub.id] = <String>{
+          for (final v in raw)
+            if (v is String) v,
+        };
+      }
+    }
     final allKids =
         ref.watch(childrenProvider).asData?.value ?? const <Child>[];
     final attendanceMap =
@@ -874,19 +902,22 @@ class _Body extends ConsumerWidget {
                   ?.value ??
               const <FormSubmission>[])
         : const <FormSubmission>[];
-    final allConcernNotes = showCloseOut
-        ? (ref.watch(parentConcernNotesProvider).asData?.value ??
-              const <ParentConcernNote>[])
-        : const <ParentConcernNote>[];
-    final unsignedConcerns = allConcernNotes
-        .where(
-          (n) =>
-              (n.supervisorSignature == null ||
-                  n.supervisorSignature!.trim().isEmpty) &&
-              (n.supervisorSignaturePath == null ||
-                  n.supervisorSignaturePath!.trim().isEmpty),
-        )
-        .length;
+    // Concerns whose supervisor signature is still empty — same
+    // close-out nudge as the bespoke version, just reading from the
+    // polymorphic data blob. The signature field in the form
+    // definition stores a {signature, signaturePath, signedAt} map
+    // under `supervisor_signature`; an unsigned row has both the typed
+    // name and the drawn-pad path empty/missing.
+    final unsignedConcerns = !showCloseOut
+        ? 0
+        : allConcernSubmissions.where((sub) {
+            final data = decodeFormData(sub);
+            final sig = data['supervisor_signature'];
+            if (sig is! Map) return true;
+            final typed = (sig['signature'] as String?)?.trim() ?? '';
+            final drawn = (sig['signaturePath'] as String?)?.trim() ?? '';
+            return typed.isEmpty && drawn.isEmpty;
+          }).length;
     // Program-wide "missing obs" count — the close-out strip isn't
     // scoped to the selected group, it's a whole-day tidy-up.
     final programPendingObs = past
@@ -1258,14 +1289,15 @@ class _Body extends ConsumerWidget {
     unawaited(context.push(route));
   }
 
-  String _concernPreview(ParentConcernNote note) {
-    final names = note.childNames.trim();
-    final desc = note.concernDescription.trim();
-    if (names.isNotEmpty && desc.isNotEmpty) {
-      return '$names — $desc';
-    }
+  String _concernPreview(FormSubmission sub) {
+    final data = decodeFormData(sub);
+    // The bespoke row had a `childNames` free-text column that we'd
+    // splice into the headline. The polymorphic version derives that
+    // from the structured chip picker — no separate free-text field —
+    // so we lean on `concern_description` (always present, required by
+    // the form definition) and fall back when it's empty.
+    final desc = (data['concern_description'] as String?)?.trim() ?? '';
     if (desc.isNotEmpty) return desc;
-    if (names.isNotEmpty) return 'Concern noted for $names';
     return 'Active concern today';
   }
 }

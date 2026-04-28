@@ -7,9 +7,9 @@ import 'package:basecamp/features/auth/sign_in_screen.dart';
 import 'package:basecamp/features/children/child_detail_screen.dart';
 import 'package:basecamp/features/children/children_screen.dart';
 import 'package:basecamp/features/forms/forms_hub_screen.dart';
-import 'package:basecamp/features/forms/parent_concern/parent_concern_form_screen.dart';
-import 'package:basecamp/features/forms/parent_concern/parent_concern_notes_screen.dart';
+import 'package:basecamp/features/forms/polymorphic/definitions/parent_concern.dart';
 import 'package:basecamp/features/forms/polymorphic/generic_form_list_screen.dart';
+import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
 import 'package:basecamp/features/forms/polymorphic/registry.dart';
 import 'package:basecamp/features/lesson_sequences/lesson_sequence_detail_screen.dart';
 import 'package:basecamp/features/lesson_sequences/lesson_sequences_screen.dart';
@@ -276,23 +276,29 @@ final routerProvider = Provider<GoRouter>((ref) {
               return GenericFormListScreen(definition: def);
             },
           ),
+          // Legacy /more/forms/parent-concern[/<sub>] routes — kept as
+          // entry-points so every existing context.push still resolves,
+          // but now backed by the polymorphic generic screen + the
+          // parent_concern FormDefinition. The bespoke
+          // ParentConcernFormScreen + ParentConcernNotesScreen widgets
+          // are deleted; the polymorphic surface handles every field
+          // shape they used (multi-child picker + signature pad, both
+          // landed in commit eb82aa3).
           GoRoute(
             path: 'parent-concern',
-            builder: (_, _) => const ParentConcernNotesScreen(),
+            builder: (_, _) =>
+                const GenericFormListScreen(definition: parentConcernForm),
             routes: [
               GoRoute(
                 path: 'new',
-                // Creation flows through the step wizard so first-timers
-                // aren't faced with seven sections at once; editing
-                // keeps the scroll layout.
-                builder: (_, _) => const ParentConcernFormScreen(
-                  presentation: ConcernFormPresentation.wizard,
-                ),
+                builder: (_, _) =>
+                    const GenericFormScreen(definition: parentConcernForm),
               ),
               GoRoute(
                 path: ':id',
-                builder: (_, state) => ParentConcernFormScreen(
-                  noteId: state.pathParameters['id'],
+                builder: (_, state) => GenericFormScreen(
+                  definition: parentConcernForm,
+                  submissionId: state.pathParameters['id'],
                 ),
               ),
             ],
