@@ -338,7 +338,22 @@ class ProgramAuthBootstrap {
         'role': 'admin',
       });
     }
-    await switchProgram(id);
+    // Fast switch — a fresh program has zero data on the cloud
+    // side (we just created it), so the full `switchProgram`
+    // (which awaits a tier-by-tier `_pullAllTables`) would just
+    // burn seconds on round-trips that all return empty. Bug:
+    // when the create sheet awaited the long switch, the modal
+    // sat with a spinner long enough that the user thought
+    // nothing was happening. Instead: flush, set active, kick
+    // pull + realtime in the background and return immediately.
+    final engine = _ref.read(syncEngineProvider);
+    await engine.flushPendingPushes(kAllSpecs);
+    await engine.unsubscribeFromRealtime();
+    await _ref.read(activeProgramIdProvider.notifier).set(id);
+    unawaited(_pullAllTables(programId: id));
+    unawaited(
+      engine.subscribeToRealtime(programId: id, specs: kAllSpecs),
+    );
     return id;
   }
 

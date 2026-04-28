@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/programs/invite_repository.dart';
+import 'package:basecamp/features/programs/program_bootstrap.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -160,13 +161,57 @@ class ProgramDetailScreen extends ConsumerWidget {
     );
     if (!ok || !context.mounted) return;
     await runWithErrorReport(context, () async {
-      await ref.read(inviteRepositoryProvider).deleteProgram(program.id);
-      // After delete the user's active program may still be set
-      // to this id. Clear it; the router redirects to /welcome.
-      await ref.read(activeProgramIdProvider.notifier).clear();
+      await _moveOffAndDispose(ref, programIdToRemove: program.id, () {
+        return ref.read(inviteRepositoryProvider).deleteProgram(program.id);
+      });
       if (context.mounted) context.pop();
     });
   }
+}
+
+/// After a destructive action that takes the user OFF [programIdToRemove]
+/// (delete program, leave program), pick a remaining membership and
+/// switch to it instead of clearing the active id and bouncing the
+/// user to /welcome. Only when no other membership exists do we clear
+/// — that's the actual zero-program state /welcome is for.
+///
+/// [body] runs the destructive cloud + local write itself; this
+/// helper handles the active-program reshuffling around it.
+Future<void> _moveOffAndDispose(
+  WidgetRef ref,
+  Future<void> Function() body, {
+  required String programIdToRemove,
+}) async {
+  final session = ref.read(currentSessionProvider);
+  if (session == null) {
+    await body();
+    return;
+  }
+  final userId = session.user.id;
+  // Snapshot memberships BEFORE running the body — after delete /
+  // leave, the row we're about to remove is gone and the local
+  // table reflects the post-state. We need the pre-state to know
+  // whether there's anywhere to land.
+  final memberships =
+      await ref.read(programsRepositoryProvider).programsForUser(userId);
+  final remaining = memberships.where((p) => p.id != programIdToRemove).toList()
+    ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
+  await body();
+
+  if (remaining.isEmpty) {
+    // True zero-program state — clear active and let the router's
+    // welcome redirect fire. This is the only path that should
+    // land on /welcome after launch.
+    await ref.read(activeProgramIdProvider.notifier).clear();
+    return;
+  }
+  // Land in the oldest remaining program. Switch (not just `set`)
+  // so realtime resubscribes + pull runs against the new program
+  // — same flow the manual switcher uses.
+  await ref
+      .read(programAuthBootstrapProvider)
+      .switchProgram(remaining.first.id);
 }
 
 class _HeaderCard extends StatelessWidget {
@@ -444,13 +489,17 @@ class _MemberRow extends ConsumerWidget {
         );
         if (!ok || !context.mounted) return;
         await runWithErrorReport(context, () async {
-          await repo.removeMember(
-            programId: programId,
-            userId: member.userId,
+          // Same shape as program-delete: switch to a remaining
+          // membership instead of forcing the user to /welcome.
+          // Welcome is for the zero-program state only.
+          await _moveOffAndDispose(
+            ref,
+            programIdToRemove: programId,
+            () => repo.removeMember(
+              programId: programId,
+              userId: member.userId,
+            ),
           );
-          // Active program is now stale — clear so the router
-          // sends us to /welcome.
-          await ref.read(activeProgramIdProvider.notifier).clear();
           if (context.mounted) context.pop();
         });
     }
