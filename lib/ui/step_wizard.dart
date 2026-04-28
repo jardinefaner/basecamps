@@ -145,6 +145,22 @@ class _StepWizardScaffoldState extends State<StepWizardScaffold> {
       setState(() => _submitting = true);
       try {
         await widget.onFinalAction();
+      } on Object catch (e, st) {
+        // Without a visible error, a failed save reads as "nothing
+        // happened" — the wizard just stops responding. Surface
+        // every exception via snackbar so the teacher sees what
+        // went wrong (and a developer's console gets the stack).
+        debugPrint('Wizard final action failed: $e\n$st');
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+            ..clearSnackBars()
+            ..showSnackBar(
+              SnackBar(
+                content: Text('Save failed: $e'),
+                duration: const Duration(seconds: 6),
+              ),
+            );
+        }
       } finally {
         if (mounted) setState(() => _submitting = false);
       }
