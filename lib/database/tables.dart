@@ -487,6 +487,30 @@ class LessonSequences extends Table {
   /// Optional.
   TextColumn get coreQuestion => text().nullable()();
 
+  /// Phase grouping (v47) — sequences with the same `phase` value
+  /// render under one phase header in the curriculum view, e.g.
+  /// "ALL ABOUT ME" spans weeks 1–2. Free-text so curriculum
+  /// authors can name phases however they want without a schema
+  /// migration. Null for sequences that aren't part of a phased
+  /// arc (legacy, or single-week lesson plans).
+  TextColumn get phase => text().nullable()();
+
+  /// Per-week accent color override (v47). Hex string like
+  /// `#ff6b6b`. The curriculum view uses this to tint that week's
+  /// chip, callout, and milestone star — falling back to
+  /// `themes.colorHex` when null. Lets a 10-week theme have a
+  /// gradient of colors across its phases (week 1 reddish, week 2
+  /// orange-red, etc.) without mutating the theme color.
+  TextColumn get colorHex => text().nullable()();
+
+  /// Pedagogical / "under the hood" notes per week (v47). Free-
+  /// form text the curriculum author writes for themselves /
+  /// other teachers — what concepts the week is meant to surface,
+  /// what behaviors to watch for. Surfaced behind a toggle in the
+  /// curriculum view (admins / teachers see it; could later be
+  /// gated to admin-only via UI).
+  TextColumn get engineNotes => text().nullable()();
+
   /// Owning program (v42). See [Groups.programId] for the rule.
   TextColumn get programId => text().nullable()();
 

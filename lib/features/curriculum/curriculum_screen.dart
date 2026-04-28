@@ -40,18 +40,32 @@ class _CurriculumScreenState extends ConsumerState<CurriculumScreen> {
   /// they want to see how the activity reads for a different age.
   bool _ageScalingOn = false;
 
+  /// "Show engine notes" toggle. Off by default — the engine
+  /// commentary is curriculum-author-facing, not learner-facing.
+  /// Surfaces the per-week pedagogical notes (`engine_notes`)
+  /// behind the same toggle row as age scaling.
+  bool _engineOn = false;
+
   /// Selected age for scaling. Defaults to 6 — middle of the
   /// elementary band — and clamped to 3..12 by the chip row.
   int _scaleAge = 6;
 
   @override
   Widget build(BuildContext context) {
+    final flutterTheme = Theme.of(context);
     final themeAsync = ref.watch(themeByIdProvider(widget.themeId));
     final sequencesAsync =
         ref.watch(lessonSequencesForThemeProvider(widget.themeId));
 
     return Scaffold(
+      // Lock the scaffold + app-bar background to scaffoldBackgroundColor
+      // so the system status bar area + the bar itself + the body all
+      // share one color. Without this the AppBar uses the theme's
+      // surface color and we get a visible seam at the top of the
+      // safe area.
+      backgroundColor: flutterTheme.scaffoldBackgroundColor,
       appBar: AppBar(
+        backgroundColor: flutterTheme.scaffoldBackgroundColor,
         title: themeAsync.when(
           data: (t) => Text(t?.name ?? 'Curriculum'),
           loading: () => const Text('Curriculum'),
@@ -70,21 +84,29 @@ class _CurriculumScreenState extends ConsumerState<CurriculumScreen> {
           final selected = _selectedWeek.clamp(0, sequences.length - 1);
           final sequence = sequences[selected];
           final theme = themeAsync.value;
-          final accent = _accentForTheme(context, theme);
+          // Per-week color overrides theme color when set (v47).
+          // Lets a 10-week arc tint each week individually
+          // (e.g. red for week 1, orange-red for week 2) without
+          // mutating the theme's accent.
+          final accent = _parseHex(sequence.colorHex) ??
+              _accentForTheme(context, theme);
           return Column(
             children: [
+              _PhaseStrip(sequences: sequences, selectedIndex: selected),
               _WeekStrip(
                 sequences: sequences,
                 selectedIndex: selected,
-                accent: accent,
+                fallbackAccent: _accentForTheme(context, theme),
                 onSelect: (i) => setState(() => _selectedWeek = i),
               ),
               const Divider(height: 1),
-              _AgeScalingBar(
-                enabled: _ageScalingOn,
+              _ToggleBar(
+                ageEnabled: _ageScalingOn,
                 age: _scaleAge,
-                onToggle: (v) => setState(() => _ageScalingOn = v),
+                engineEnabled: _engineOn,
+                onAgeToggle: (v) => setState(() => _ageScalingOn = v),
                 onAgeChanged: (a) => setState(() => _scaleAge = a),
+                onEngineToggle: (v) => setState(() => _engineOn = v),
               ),
               const Divider(height: 1),
               Expanded(
@@ -94,6 +116,7 @@ class _CurriculumScreenState extends ConsumerState<CurriculumScreen> {
                   accent: accent,
                   ageScalingOn: _ageScalingOn,
                   scaleAge: _scaleAge,
+                  engineOn: _engineOn,
                 ),
               ),
             ],
@@ -104,20 +127,11 @@ class _CurriculumScreenState extends ConsumerState<CurriculumScreen> {
   }
 
   /// Resolve the accent color: theme.colorHex if set, otherwise the
-  /// app's primary. Hex parsing is forgiving — invalid strings
-  /// fall back to primary.
+  /// app's primary. Delegates the hex parsing to the file-level
+  /// [_parseHex] so per-week colors share the same logic.
   Color _accentForTheme(BuildContext context, ProgramTheme? theme) {
-    final hex = theme?.colorHex;
-    if (hex == null || hex.isEmpty) {
-      return Theme.of(context).colorScheme.primary;
-    }
-    try {
-      var clean = hex.replaceFirst('#', '');
-      if (clean.length == 6) clean = 'FF$clean';
-      return Color(int.parse(clean, radix: 16));
-    } on FormatException {
-      return Theme.of(context).colorScheme.primary;
-    }
+    return _parseHex(theme?.colorHex) ??
+        Theme.of(context).colorScheme.primary;
   }
 }
 
@@ -159,21 +173,170 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
+/// Phase strip — colored bars across the top showing the 5 phases
+/// of a multi-week arc (e.g. "ALL ABOUT ME" spans weeks 1–2).
+/// Groups consecutive sequences with the same `phase` value into
+/// one bar, tinted with the first sequence in that group's color.
+/// Empty when no sequence in the theme has a phase set.
+class _PhaseStrip extends StatelessWidget {
+  const _PhaseStrip({
+    required this.sequences,
+    required this.selectedIndex,
+  });
+
+  final List<LessonSequence> sequences;
+  final int selectedIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final groups = _groupByPhase(sequences);
+    if (groups.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.xs,
+      ),
+      child: Row(
+        children: [
+          for (final g in groups)
+            Expanded(
+              flex: g.weekCount,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 2),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: g.color.withValues(alpha: 0.10),
+                    border: Border(
+                      top: BorderSide(color: g.color, width: 2),
+                    ),
+                    borderRadius: const BorderRadius.vertical(
+                      bottom: Radius.circular(3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'W${g.weekRange}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: g.color,
+                          letterSpacing: 1.2,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        g.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: g.color,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static List<_PhaseGroup> _groupByPhase(List<LessonSequence> seqs) {
+    final out = <_PhaseGroup>[];
+    for (final s in seqs) {
+      final phase = s.phase;
+      if (phase == null || phase.isEmpty) continue;
+      if (out.isNotEmpty && out.last.label == phase) {
+        out.last.endIndex = out.length;
+        out[out.length - 1] = out.last.copyExtended();
+      } else {
+        out.add(
+          _PhaseGroup(
+            label: phase,
+            color: _parseHex(s.colorHex) ?? Colors.grey,
+            startIndex: out.fold<int>(0, (a, g) => a + g.weekCount),
+            endIndex: out.fold<int>(0, (a, g) => a + g.weekCount),
+          ),
+        );
+      }
+    }
+    // We only used the running total above — recompute weekCount
+    // off the actual sequence list using each phase's first/last
+    // run of contiguous matches. Simpler: re-walk.
+    out.clear();
+    String? current;
+    for (var i = 0; i < seqs.length; i++) {
+      final phase = seqs[i].phase;
+      if (phase == null || phase.isEmpty) continue;
+      if (current == phase && out.isNotEmpty) {
+        out.last.endIndex = i;
+      } else {
+        out.add(
+          _PhaseGroup(
+            label: phase,
+            color: _parseHex(seqs[i].colorHex) ?? Colors.grey,
+            startIndex: i,
+            endIndex: i,
+          ),
+        );
+        current = phase;
+      }
+    }
+    return out;
+  }
+}
+
+class _PhaseGroup {
+  _PhaseGroup({
+    required this.label,
+    required this.color,
+    required this.startIndex,
+    required this.endIndex,
+  });
+
+  final String label;
+  final Color color;
+  final int startIndex;
+  int endIndex;
+
+  int get weekCount => endIndex - startIndex + 1;
+  String get weekRange => weekCount == 1
+      ? '${startIndex + 1}'
+      : '${startIndex + 1}-${endIndex + 1}';
+
+  _PhaseGroup copyExtended() => _PhaseGroup(
+        label: label,
+        color: color,
+        startIndex: startIndex,
+        endIndex: endIndex + 1,
+      );
+}
+
 /// Horizontal scroller of week chips at the top of the screen.
 /// Each chip is "Wk N" with its label hint (the sequence name's
-/// first segment) — taps swap the selected index. Renders the
-/// theme's accent color on the active chip.
+/// first segment) — taps swap the selected index. Each chip is
+/// tinted with that week's `colorHex` (or the theme color when
+/// the sequence has none).
 class _WeekStrip extends StatelessWidget {
   const _WeekStrip({
     required this.sequences,
     required this.selectedIndex,
-    required this.accent,
+    required this.fallbackAccent,
     required this.onSelect,
   });
 
   final List<LessonSequence> sequences;
   final int selectedIndex;
-  final Color accent;
+  final Color fallbackAccent;
   final ValueChanged<int> onSelect;
 
   @override
@@ -191,6 +354,8 @@ class _WeekStrip extends StatelessWidget {
         separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
         itemBuilder: (_, i) {
           final isSel = i == selectedIndex;
+          final accent =
+              _parseHex(sequences[i].colorHex) ?? fallbackAccent;
           final fill = isSel ? accent : theme.colorScheme.surfaceContainerHigh;
           // Pick a readable foreground for the accent — bright accents
           // get black text, dim ones get white. Computing luminance
@@ -212,6 +377,10 @@ class _WeekStrip extends StatelessWidget {
               decoration: BoxDecoration(
                 color: fill,
                 borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isSel ? accent : Colors.transparent,
+                  width: 1.5,
+                ),
               ),
               child: Row(
                 children: [
@@ -248,23 +417,29 @@ class _WeekStrip extends StatelessWidget {
   }
 }
 
-/// Toggle row for "Show age scaling" + age picker.
-class _AgeScalingBar extends StatelessWidget {
-  const _AgeScalingBar({
-    required this.enabled,
+/// Two compact toggle chips — "Age scaling" (with age dropdown
+/// when on) and "Engine notes" — sit on a single row above the
+/// week body. Tapping a chip flips its state; the corresponding
+/// content slot below the toggle bar appears or disappears.
+class _ToggleBar extends StatelessWidget {
+  const _ToggleBar({
+    required this.ageEnabled,
     required this.age,
-    required this.onToggle,
+    required this.engineEnabled,
+    required this.onAgeToggle,
     required this.onAgeChanged,
+    required this.onEngineToggle,
   });
 
-  final bool enabled;
+  final bool ageEnabled;
   final int age;
-  final ValueChanged<bool> onToggle;
+  final bool engineEnabled;
+  final ValueChanged<bool> onAgeToggle;
   final ValueChanged<int> onAgeChanged;
+  final ValueChanged<bool> onEngineToggle;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.lg,
@@ -272,17 +447,13 @@ class _AgeScalingBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Switch.adaptive(
-            value: enabled,
-            onChanged: onToggle,
+          FilterChip(
+            label: const Text('Age scaling'),
+            selected: ageEnabled,
+            onSelected: onAgeToggle,
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Text(
-            'Age scaling',
-            style: theme.textTheme.labelLarge,
-          ),
-          const Spacer(),
-          if (enabled)
+          if (ageEnabled) ...[
+            const SizedBox(width: AppSpacing.sm),
             DropdownButton<int>(
               value: age,
               underline: const SizedBox.shrink(),
@@ -294,9 +465,31 @@ class _AgeScalingBar extends StatelessWidget {
                 if (v != null) onAgeChanged(v);
               },
             ),
+          ],
+          const Spacer(),
+          FilterChip(
+            label: const Text('Engine notes'),
+            selected: engineEnabled,
+            onSelected: onEngineToggle,
+          ),
         ],
       ),
     );
+  }
+}
+
+/// Forgiving hex parser. Returns null on malformed input so the
+/// caller can fall back to a default. Accepts `#rrggbb` and
+/// `rrggbb`; longer / shorter strings are rejected.
+Color? _parseHex(String? hex) {
+  if (hex == null || hex.isEmpty) return null;
+  try {
+    var clean = hex.replaceFirst('#', '');
+    if (clean.length == 6) clean = 'FF$clean';
+    if (clean.length != 8) return null;
+    return Color(int.parse(clean, radix: 16));
+  } on FormatException {
+    return null;
   }
 }
 
@@ -309,8 +502,10 @@ class _WeekDetail extends ConsumerWidget {
     required this.accent,
     required this.ageScalingOn,
     required this.scaleAge,
+    required this.engineOn,
   });
 
+  final bool engineOn;
   final LessonSequence sequence;
   final int weekNumber;
   final Color accent;
@@ -365,6 +560,12 @@ class _WeekDetail extends ConsumerWidget {
                 question: sequence.coreQuestion!,
                 accent: accent,
               ),
+            ],
+            if (engineOn &&
+                sequence.engineNotes != null &&
+                sequence.engineNotes!.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.md),
+              _EngineNotesPanel(text: sequence.engineNotes!),
             ],
             const SizedBox(height: AppSpacing.xl),
 
@@ -446,6 +647,64 @@ class _CoreQuestionCallout extends StatelessWidget {
             question,
             style: theme.textTheme.titleMedium?.copyWith(
               fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Under the hood" panel — surfaces the curriculum author's
+/// pedagogical commentary (engine_notes) for the current week.
+/// Hidden by default; shown when the user flips the "Engine
+/// notes" toggle on the bar above. Visually muted so it doesn't
+/// compete with the learner-facing daily list.
+class _EngineNotesPanel extends StatelessWidget {
+  const _EngineNotesPanel({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.auto_awesome_outlined,
+                size: 14,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                'UNDER THE HOOD',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  letterSpacing: 1.4,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            text,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface,
+              height: 1.5,
             ),
           ),
         ],

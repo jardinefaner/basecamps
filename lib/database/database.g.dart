@@ -8792,11 +8792,10 @@ class ActivityLibraryData extends DataClass
   /// [learningGoals] for adjacent ages, stored as a single JSON blob
   /// (v46). Shape:
   ///
-  /// ```
+  /// ```json
   /// {
   ///   "5":  { "summary": "...", "keyPoints": "...", "goals": "..." },
-  ///   "6":  { "summary": "...", ... },
-  ///   ...
+  ///   "6":  { "summary": "...", ... }
   /// }
   /// ```
   ///
@@ -17017,6 +17016,37 @@ class $LessonSequencesTable extends LessonSequences
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _phaseMeta = const VerificationMeta('phase');
+  @override
+  late final GeneratedColumn<String> phase = GeneratedColumn<String>(
+    'phase',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _colorHexMeta = const VerificationMeta(
+    'colorHex',
+  );
+  @override
+  late final GeneratedColumn<String> colorHex = GeneratedColumn<String>(
+    'color_hex',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _engineNotesMeta = const VerificationMeta(
+    'engineNotes',
+  );
+  @override
+  late final GeneratedColumn<String> engineNotes = GeneratedColumn<String>(
+    'engine_notes',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _programIdMeta = const VerificationMeta(
     'programId',
   );
@@ -17059,6 +17089,9 @@ class $LessonSequencesTable extends LessonSequences
     description,
     themeId,
     coreQuestion,
+    phase,
+    colorHex,
+    engineNotes,
     programId,
     createdAt,
     updatedAt,
@@ -17112,6 +17145,27 @@ class $LessonSequencesTable extends LessonSequences
         ),
       );
     }
+    if (data.containsKey('phase')) {
+      context.handle(
+        _phaseMeta,
+        phase.isAcceptableOrUnknown(data['phase']!, _phaseMeta),
+      );
+    }
+    if (data.containsKey('color_hex')) {
+      context.handle(
+        _colorHexMeta,
+        colorHex.isAcceptableOrUnknown(data['color_hex']!, _colorHexMeta),
+      );
+    }
+    if (data.containsKey('engine_notes')) {
+      context.handle(
+        _engineNotesMeta,
+        engineNotes.isAcceptableOrUnknown(
+          data['engine_notes']!,
+          _engineNotesMeta,
+        ),
+      );
+    }
     if (data.containsKey('program_id')) {
       context.handle(
         _programIdMeta,
@@ -17159,6 +17213,18 @@ class $LessonSequencesTable extends LessonSequences
         DriftSqlType.string,
         data['${effectivePrefix}core_question'],
       ),
+      phase: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}phase'],
+      ),
+      colorHex: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color_hex'],
+      ),
+      engineNotes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}engine_notes'],
+      ),
       programId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}program_id'],
@@ -17198,6 +17264,30 @@ class LessonSequence extends DataClass implements Insertable<LessonSequence> {
   /// Optional.
   final String? coreQuestion;
 
+  /// Phase grouping (v47) — sequences with the same `phase` value
+  /// render under one phase header in the curriculum view, e.g.
+  /// "ALL ABOUT ME" spans weeks 1–2. Free-text so curriculum
+  /// authors can name phases however they want without a schema
+  /// migration. Null for sequences that aren't part of a phased
+  /// arc (legacy, or single-week lesson plans).
+  final String? phase;
+
+  /// Per-week accent color override (v47). Hex string like
+  /// `#ff6b6b`. The curriculum view uses this to tint that week's
+  /// chip, callout, and milestone star — falling back to
+  /// `themes.colorHex` when null. Lets a 10-week theme have a
+  /// gradient of colors across its phases (week 1 reddish, week 2
+  /// orange-red, etc.) without mutating the theme color.
+  final String? colorHex;
+
+  /// Pedagogical / "under the hood" notes per week (v47). Free-
+  /// form text the curriculum author writes for themselves /
+  /// other teachers — what concepts the week is meant to surface,
+  /// what behaviors to watch for. Surfaced behind a toggle in the
+  /// curriculum view (admins / teachers see it; could later be
+  /// gated to admin-only via UI).
+  final String? engineNotes;
+
   /// Owning program (v42). See [Groups.programId] for the rule.
   final String? programId;
   final DateTime createdAt;
@@ -17208,6 +17298,9 @@ class LessonSequence extends DataClass implements Insertable<LessonSequence> {
     this.description,
     this.themeId,
     this.coreQuestion,
+    this.phase,
+    this.colorHex,
+    this.engineNotes,
     this.programId,
     required this.createdAt,
     required this.updatedAt,
@@ -17225,6 +17318,15 @@ class LessonSequence extends DataClass implements Insertable<LessonSequence> {
     }
     if (!nullToAbsent || coreQuestion != null) {
       map['core_question'] = Variable<String>(coreQuestion);
+    }
+    if (!nullToAbsent || phase != null) {
+      map['phase'] = Variable<String>(phase);
+    }
+    if (!nullToAbsent || colorHex != null) {
+      map['color_hex'] = Variable<String>(colorHex);
+    }
+    if (!nullToAbsent || engineNotes != null) {
+      map['engine_notes'] = Variable<String>(engineNotes);
     }
     if (!nullToAbsent || programId != null) {
       map['program_id'] = Variable<String>(programId);
@@ -17247,6 +17349,15 @@ class LessonSequence extends DataClass implements Insertable<LessonSequence> {
       coreQuestion: coreQuestion == null && nullToAbsent
           ? const Value.absent()
           : Value(coreQuestion),
+      phase: phase == null && nullToAbsent
+          ? const Value.absent()
+          : Value(phase),
+      colorHex: colorHex == null && nullToAbsent
+          ? const Value.absent()
+          : Value(colorHex),
+      engineNotes: engineNotes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(engineNotes),
       programId: programId == null && nullToAbsent
           ? const Value.absent()
           : Value(programId),
@@ -17266,6 +17377,9 @@ class LessonSequence extends DataClass implements Insertable<LessonSequence> {
       description: serializer.fromJson<String?>(json['description']),
       themeId: serializer.fromJson<String?>(json['themeId']),
       coreQuestion: serializer.fromJson<String?>(json['coreQuestion']),
+      phase: serializer.fromJson<String?>(json['phase']),
+      colorHex: serializer.fromJson<String?>(json['colorHex']),
+      engineNotes: serializer.fromJson<String?>(json['engineNotes']),
       programId: serializer.fromJson<String?>(json['programId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -17280,6 +17394,9 @@ class LessonSequence extends DataClass implements Insertable<LessonSequence> {
       'description': serializer.toJson<String?>(description),
       'themeId': serializer.toJson<String?>(themeId),
       'coreQuestion': serializer.toJson<String?>(coreQuestion),
+      'phase': serializer.toJson<String?>(phase),
+      'colorHex': serializer.toJson<String?>(colorHex),
+      'engineNotes': serializer.toJson<String?>(engineNotes),
       'programId': serializer.toJson<String?>(programId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -17292,6 +17409,9 @@ class LessonSequence extends DataClass implements Insertable<LessonSequence> {
     Value<String?> description = const Value.absent(),
     Value<String?> themeId = const Value.absent(),
     Value<String?> coreQuestion = const Value.absent(),
+    Value<String?> phase = const Value.absent(),
+    Value<String?> colorHex = const Value.absent(),
+    Value<String?> engineNotes = const Value.absent(),
     Value<String?> programId = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -17301,6 +17421,9 @@ class LessonSequence extends DataClass implements Insertable<LessonSequence> {
     description: description.present ? description.value : this.description,
     themeId: themeId.present ? themeId.value : this.themeId,
     coreQuestion: coreQuestion.present ? coreQuestion.value : this.coreQuestion,
+    phase: phase.present ? phase.value : this.phase,
+    colorHex: colorHex.present ? colorHex.value : this.colorHex,
+    engineNotes: engineNotes.present ? engineNotes.value : this.engineNotes,
     programId: programId.present ? programId.value : this.programId,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -17316,6 +17439,11 @@ class LessonSequence extends DataClass implements Insertable<LessonSequence> {
       coreQuestion: data.coreQuestion.present
           ? data.coreQuestion.value
           : this.coreQuestion,
+      phase: data.phase.present ? data.phase.value : this.phase,
+      colorHex: data.colorHex.present ? data.colorHex.value : this.colorHex,
+      engineNotes: data.engineNotes.present
+          ? data.engineNotes.value
+          : this.engineNotes,
       programId: data.programId.present ? data.programId.value : this.programId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -17330,6 +17458,9 @@ class LessonSequence extends DataClass implements Insertable<LessonSequence> {
           ..write('description: $description, ')
           ..write('themeId: $themeId, ')
           ..write('coreQuestion: $coreQuestion, ')
+          ..write('phase: $phase, ')
+          ..write('colorHex: $colorHex, ')
+          ..write('engineNotes: $engineNotes, ')
           ..write('programId: $programId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -17344,6 +17475,9 @@ class LessonSequence extends DataClass implements Insertable<LessonSequence> {
     description,
     themeId,
     coreQuestion,
+    phase,
+    colorHex,
+    engineNotes,
     programId,
     createdAt,
     updatedAt,
@@ -17357,6 +17491,9 @@ class LessonSequence extends DataClass implements Insertable<LessonSequence> {
           other.description == this.description &&
           other.themeId == this.themeId &&
           other.coreQuestion == this.coreQuestion &&
+          other.phase == this.phase &&
+          other.colorHex == this.colorHex &&
+          other.engineNotes == this.engineNotes &&
           other.programId == this.programId &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -17368,6 +17505,9 @@ class LessonSequencesCompanion extends UpdateCompanion<LessonSequence> {
   final Value<String?> description;
   final Value<String?> themeId;
   final Value<String?> coreQuestion;
+  final Value<String?> phase;
+  final Value<String?> colorHex;
+  final Value<String?> engineNotes;
   final Value<String?> programId;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -17378,6 +17518,9 @@ class LessonSequencesCompanion extends UpdateCompanion<LessonSequence> {
     this.description = const Value.absent(),
     this.themeId = const Value.absent(),
     this.coreQuestion = const Value.absent(),
+    this.phase = const Value.absent(),
+    this.colorHex = const Value.absent(),
+    this.engineNotes = const Value.absent(),
     this.programId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -17389,6 +17532,9 @@ class LessonSequencesCompanion extends UpdateCompanion<LessonSequence> {
     this.description = const Value.absent(),
     this.themeId = const Value.absent(),
     this.coreQuestion = const Value.absent(),
+    this.phase = const Value.absent(),
+    this.colorHex = const Value.absent(),
+    this.engineNotes = const Value.absent(),
     this.programId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -17401,6 +17547,9 @@ class LessonSequencesCompanion extends UpdateCompanion<LessonSequence> {
     Expression<String>? description,
     Expression<String>? themeId,
     Expression<String>? coreQuestion,
+    Expression<String>? phase,
+    Expression<String>? colorHex,
+    Expression<String>? engineNotes,
     Expression<String>? programId,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -17412,6 +17561,9 @@ class LessonSequencesCompanion extends UpdateCompanion<LessonSequence> {
       if (description != null) 'description': description,
       if (themeId != null) 'theme_id': themeId,
       if (coreQuestion != null) 'core_question': coreQuestion,
+      if (phase != null) 'phase': phase,
+      if (colorHex != null) 'color_hex': colorHex,
+      if (engineNotes != null) 'engine_notes': engineNotes,
       if (programId != null) 'program_id': programId,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -17425,6 +17577,9 @@ class LessonSequencesCompanion extends UpdateCompanion<LessonSequence> {
     Value<String?>? description,
     Value<String?>? themeId,
     Value<String?>? coreQuestion,
+    Value<String?>? phase,
+    Value<String?>? colorHex,
+    Value<String?>? engineNotes,
     Value<String?>? programId,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -17436,6 +17591,9 @@ class LessonSequencesCompanion extends UpdateCompanion<LessonSequence> {
       description: description ?? this.description,
       themeId: themeId ?? this.themeId,
       coreQuestion: coreQuestion ?? this.coreQuestion,
+      phase: phase ?? this.phase,
+      colorHex: colorHex ?? this.colorHex,
+      engineNotes: engineNotes ?? this.engineNotes,
       programId: programId ?? this.programId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -17461,6 +17619,15 @@ class LessonSequencesCompanion extends UpdateCompanion<LessonSequence> {
     if (coreQuestion.present) {
       map['core_question'] = Variable<String>(coreQuestion.value);
     }
+    if (phase.present) {
+      map['phase'] = Variable<String>(phase.value);
+    }
+    if (colorHex.present) {
+      map['color_hex'] = Variable<String>(colorHex.value);
+    }
+    if (engineNotes.present) {
+      map['engine_notes'] = Variable<String>(engineNotes.value);
+    }
     if (programId.present) {
       map['program_id'] = Variable<String>(programId.value);
     }
@@ -17484,6 +17651,9 @@ class LessonSequencesCompanion extends UpdateCompanion<LessonSequence> {
           ..write('description: $description, ')
           ..write('themeId: $themeId, ')
           ..write('coreQuestion: $coreQuestion, ')
+          ..write('phase: $phase, ')
+          ..write('colorHex: $colorHex, ')
+          ..write('engineNotes: $engineNotes, ')
           ..write('programId: $programId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -37726,6 +37896,9 @@ typedef $$LessonSequencesTableCreateCompanionBuilder =
       Value<String?> description,
       Value<String?> themeId,
       Value<String?> coreQuestion,
+      Value<String?> phase,
+      Value<String?> colorHex,
+      Value<String?> engineNotes,
       Value<String?> programId,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -37738,6 +37911,9 @@ typedef $$LessonSequencesTableUpdateCompanionBuilder =
       Value<String?> description,
       Value<String?> themeId,
       Value<String?> coreQuestion,
+      Value<String?> phase,
+      Value<String?> colorHex,
+      Value<String?> engineNotes,
       Value<String?> programId,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -37825,6 +38001,21 @@ class $$LessonSequencesTableFilterComposer
 
   ColumnFilters<String> get coreQuestion => $composableBuilder(
     column: $table.coreQuestion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get phase => $composableBuilder(
+    column: $table.phase,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get colorHex => $composableBuilder(
+    column: $table.colorHex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get engineNotes => $composableBuilder(
+    column: $table.engineNotes,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -37921,6 +38112,21 @@ class $$LessonSequencesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get phase => $composableBuilder(
+    column: $table.phase,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get colorHex => $composableBuilder(
+    column: $table.colorHex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get engineNotes => $composableBuilder(
+    column: $table.engineNotes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get programId => $composableBuilder(
     column: $table.programId,
     builder: (column) => ColumnOrderings(column),
@@ -37982,6 +38188,17 @@ class $$LessonSequencesTableAnnotationComposer
 
   GeneratedColumn<String> get coreQuestion => $composableBuilder(
     column: $table.coreQuestion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get phase =>
+      $composableBuilder(column: $table.phase, builder: (column) => column);
+
+  GeneratedColumn<String> get colorHex =>
+      $composableBuilder(column: $table.colorHex, builder: (column) => column);
+
+  GeneratedColumn<String> get engineNotes => $composableBuilder(
+    column: $table.engineNotes,
     builder: (column) => column,
   );
 
@@ -38079,6 +38296,9 @@ class $$LessonSequencesTableTableManager
                 Value<String?> description = const Value.absent(),
                 Value<String?> themeId = const Value.absent(),
                 Value<String?> coreQuestion = const Value.absent(),
+                Value<String?> phase = const Value.absent(),
+                Value<String?> colorHex = const Value.absent(),
+                Value<String?> engineNotes = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -38089,6 +38309,9 @@ class $$LessonSequencesTableTableManager
                 description: description,
                 themeId: themeId,
                 coreQuestion: coreQuestion,
+                phase: phase,
+                colorHex: colorHex,
+                engineNotes: engineNotes,
                 programId: programId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -38101,6 +38324,9 @@ class $$LessonSequencesTableTableManager
                 Value<String?> description = const Value.absent(),
                 Value<String?> themeId = const Value.absent(),
                 Value<String?> coreQuestion = const Value.absent(),
+                Value<String?> phase = const Value.absent(),
+                Value<String?> colorHex = const Value.absent(),
+                Value<String?> engineNotes = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -38111,6 +38337,9 @@ class $$LessonSequencesTableTableManager
                 description: description,
                 themeId: themeId,
                 coreQuestion: coreQuestion,
+                phase: phase,
+                colorHex: colorHex,
+                engineNotes: engineNotes,
                 programId: programId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,

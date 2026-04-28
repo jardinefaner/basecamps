@@ -18,19 +18,44 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="Basecamp — teacher coordination.">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="basecamps">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Match the app's surface color so the system status bar +
+       browser chrome share the same background as the Flutter
+       canvas. Without these, the safe-area / status-bar area
+       showed the browser's default white/black before the canvas
+       paints, leaving a visible seam at the top of the screen. -->
+  <meta name="theme-color" content="#FAFAF8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141413" media="(prefers-color-scheme: dark)">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
   <title>basecamps</title>
   <link rel="manifest" href="manifest.json">
+
+  <style>
+    /* Match the body background to the Flutter canvas's scaffold
+       color so any pixel outside the canvas (split-screen on
+       mobile web, scroll bounce, etc.) shares the same color
+       instead of flashing white/black. */
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #FAFAF8;
+    }
+    @media (prefers-color-scheme: dark) {
+      html, body {
+        background: #141413;
+      }
+    }
+  </style>
 </head>
 <body>
   <!--

@@ -293,11 +293,23 @@ class ProgramAuthBootstrap {
     required String name,
     required String userId,
   }) async {
-    // Always derive the user id from the live session at write
-    // time — the `userId` arg can go stale across token refreshes
-    // or sign-out/sign-in cycles, and `auth.uid() = created_by`
-    // RLS rejects when they drift apart.
-    final live = Supabase.instance.client.auth.currentUser?.id;
+    // Force a session refresh before the cloud upsert. The user
+    // hit 42501 ("new row violates RLS for 'programs'") repeatedly
+    // even though `currentUser` was non-null — the JWT in the
+    // Authorization header can outlive its server-side validity
+    // when the Dart client's `currentUser` was populated from a
+    // cached session. `refreshSession()` rotates the JWT to a
+    // freshly-signed one so `auth.uid()` server-side matches what
+    // we send as `created_by`.
+    final auth = Supabase.instance.client.auth;
+    try {
+      await auth.refreshSession();
+    } on Object {
+      // If the refresh itself fails, fall through and use whatever
+      // currentUser claims — the upsert below will surface the
+      // real error if the session is genuinely broken.
+    }
+    final live = auth.currentUser?.id;
     if (live == null) {
       throw StateError(
         'Not signed in. Sign in again before creating a program.',

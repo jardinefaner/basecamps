@@ -7,6 +7,7 @@ import 'package:basecamp/features/auth/sign_in_screen.dart';
 import 'package:basecamp/features/children/child_detail_screen.dart';
 import 'package:basecamp/features/children/children_screen.dart';
 import 'package:basecamp/features/curriculum/curriculum_screen.dart';
+import 'package:basecamp/features/curriculum/curriculum_templates_screen.dart';
 import 'package:basecamp/features/forms/forms_hub_screen.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/parent_concern.dart';
 import 'package:basecamp/features/forms/polymorphic/generic_form_list_screen.dart';
@@ -298,6 +299,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/more/themes',
         builder: (_, _) => const ThemesScreen(),
         routes: [
+          // Built-in curriculum templates (v47). One-tap import
+          // path so a teacher can spin up a multi-week arc
+          // without typing every activity card by hand.
+          GoRoute(
+            path: 'templates',
+            builder: (_, _) => const CurriculumTemplatesScreen(),
+          ),
           // Curriculum-arc view (v46) — multi-week phase/week/day
           // arc rendered from the theme's LessonSequences. Lives
           // under /more/themes/:id/curriculum so the URL reads as

@@ -45,6 +45,9 @@ class LessonSequencesRepository {
     String? description,
     String? themeId,
     String? coreQuestion,
+    String? phase,
+    String? colorHex,
+    String? engineNotes,
   }) async {
     final id = newId();
     await _db.into(_db.lessonSequences).insert(
@@ -54,6 +57,9 @@ class LessonSequencesRepository {
             description: Value(description),
             themeId: Value(themeId),
             coreQuestion: Value(coreQuestion),
+            phase: Value(phase),
+            colorHex: Value(colorHex),
+            engineNotes: Value(engineNotes),
             programId: Value(_programId),
           ),
         );
@@ -67,6 +73,9 @@ class LessonSequencesRepository {
     Value<String?> description = const Value.absent(),
     Value<String?> themeId = const Value.absent(),
     Value<String?> coreQuestion = const Value.absent(),
+    Value<String?> phase = const Value.absent(),
+    Value<String?> colorHex = const Value.absent(),
+    Value<String?> engineNotes = const Value.absent(),
   }) async {
     await (_db.update(_db.lessonSequences)..where((s) => s.id.equals(id)))
         .write(
@@ -75,6 +84,9 @@ class LessonSequencesRepository {
         description: description,
         themeId: themeId,
         coreQuestion: coreQuestion,
+        phase: phase,
+        colorHex: colorHex,
+        engineNotes: engineNotes,
         updatedAt: Value(DateTime.now()),
       ),
     );

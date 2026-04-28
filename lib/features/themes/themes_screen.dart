@@ -34,7 +34,19 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
   Widget build(BuildContext context) {
     final themesAsync = ref.watch(themesProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Themes')),
+      appBar: AppBar(
+        title: const Text('Themes'),
+        actions: [
+          IconButton(
+            tooltip: 'Curriculum templates',
+            icon: const Icon(Icons.auto_stories_outlined),
+            // Bundled multi-week curricula (e.g. Different World)
+            // that import in one tap — saves the typing pain of
+            // hand-creating 50 activity cards for a 10-week arc.
+            onPressed: () => context.push('/more/themes/templates'),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openSheet,
         icon: const Icon(Icons.add),

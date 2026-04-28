@@ -70,7 +70,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 46;
+  int get schemaVersion => 47;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -110,6 +110,28 @@ class AppDatabase extends _$AppDatabase {
               'fresh at schema 25. This only affects devs who have '
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
+            );
+          }
+          if (from < 47) {
+            // v47: curriculum phase + per-week color + engine
+            // notes on lesson_sequences. All additive nullable
+            // columns. Lets the curriculum view group weeks by
+            // phase (e.g. "ALL ABOUT ME" spans weeks 1–2),
+            // accent each week with its own color (gradient
+            // within a phase), and surface a behind-the-scenes
+            // note pane for the curriculum author. Mirrors the
+            // cloud migration in 0013_curriculum_phases.sql.
+            await _runSilent(
+              'ALTER TABLE "lesson_sequences" '
+              'ADD COLUMN "phase" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "lesson_sequences" '
+              'ADD COLUMN "color_hex" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "lesson_sequences" '
+              'ADD COLUMN "engine_notes" TEXT NULL',
             );
           }
           if (from < 46) {
@@ -1085,6 +1107,19 @@ class AppDatabase extends _$AppDatabase {
     await _runSilent(
       'ALTER TABLE "activity_library" '
       'ADD COLUMN "age_variants" TEXT NULL',
+    );
+    // v47 columns — phase / color / engine notes per week.
+    await _runSilent(
+      'ALTER TABLE "lesson_sequences" '
+      'ADD COLUMN "phase" TEXT NULL',
+    );
+    await _runSilent(
+      'ALTER TABLE "lesson_sequences" '
+      'ADD COLUMN "color_hex" TEXT NULL',
+    );
+    await _runSilent(
+      'ALTER TABLE "lesson_sequences" '
+      'ADD COLUMN "engine_notes" TEXT NULL',
     );
   }
 
