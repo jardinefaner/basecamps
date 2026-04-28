@@ -18,7 +18,10 @@ import 'package:basecamp/features/observations/observations_screen.dart';
 import 'package:basecamp/features/parents/parent_detail_screen.dart';
 import 'package:basecamp/features/parents/parents_screen.dart';
 import 'package:basecamp/features/planning/week_plan_screen.dart';
+import 'package:basecamp/features/programs/program_detail_screen.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/programs/programs_screen.dart';
+import 'package:basecamp/features/programs/welcome_screen.dart';
 import 'package:basecamp/features/roles/roles_screen.dart';
 import 'package:basecamp/features/rooms/rooms_screen.dart';
 import 'package:basecamp/features/schedule/schedule_editor_screen.dart';
@@ -67,17 +70,28 @@ class _AuthRefreshNotifier extends ChangeNotifier {
     // tells GoRouter to re-evaluate `redirect` for the current
     // location. Without this the user signs in but stays parked on
     // /sign-in until they manually navigate.
-    _sub = ref.listen<AsyncValue<AuthState>>(
+    _authSub = ref.listen<AsyncValue<AuthState>>(
       authStateProvider,
+      (_, _) => notifyListeners(),
+    );
+    // Also re-evaluate `redirect` whenever the active program
+    // changes — slice 3 sends signed-in users with no program to
+    // /welcome, and the redirect needs to fire when bootstrap
+    // first decides "no program here" *and* when the user later
+    // joins/creates one (so they bounce off /welcome to /today).
+    _activeProgramSub = ref.listen<String?>(
+      activeProgramIdProvider,
       (_, _) => notifyListeners(),
     );
   }
 
-  late final ProviderSubscription<AsyncValue<AuthState>> _sub;
+  late final ProviderSubscription<AsyncValue<AuthState>> _authSub;
+  late final ProviderSubscription<String?> _activeProgramSub;
 
   @override
   void dispose() {
-    _sub.close();
+    _authSub.close();
+    _activeProgramSub.close();
     super.dispose();
   }
 }
@@ -128,14 +142,35 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
       final session = ref.read(authRepositoryProvider).currentSession;
       final goingToSignIn = state.matchedLocation == '/sign-in';
+      final goingToWelcome = state.matchedLocation == '/welcome';
       if (session == null && !goingToSignIn) return '/sign-in';
       if (session != null && goingToSignIn) return '/today';
+      // No-active-program gate (Slice 3): a signed-in user without
+      // a current program belongs on /welcome, where they pick
+      // Create-vs-Join. Skip the redirect when they're already
+      // there (avoids a redirect loop) or while still on /sign-in
+      // (auth callback flow handles its own routing).
+      if (session != null && !goingToSignIn && !goingToWelcome) {
+        final activeId = ref.read(activeProgramIdProvider);
+        if (activeId == null) return '/welcome';
+      }
+      // And the inverse: if the user landed on /welcome but
+      // they DO have an active program (e.g. they joined and the
+      // bootstrap finished), bounce them to /today.
+      if (session != null && goingToWelcome) {
+        final activeId = ref.read(activeProgramIdProvider);
+        if (activeId != null) return '/today';
+      }
       return null;
     },
     routes: [
       GoRoute(
         path: '/sign-in',
         builder: (_, _) => const SignInScreen(),
+      ),
+      GoRoute(
+        path: '/welcome',
+        builder: (_, _) => const WelcomeScreen(),
       ),
       GoRoute(
         path: '/today',
@@ -234,6 +269,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/more/programs',
         builder: (_, _) => const ProgramsScreen(),
+        routes: [
+          GoRoute(
+            path: ':id',
+            builder: (_, state) => ProgramDetailScreen(
+              programId: state.pathParameters['id']!,
+            ),
+          ),
+        ],
       ),
       GoRoute(
         path: '/week-plan',

@@ -5,6 +5,7 @@ import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
+import 'package:basecamp/features/sync/synced_tables.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -75,22 +76,50 @@ class ProgramAuthBootstrap {
       } on Object catch (e) {
         debugPrint('Cloud program hydrate skipped: $e');
       }
-      // Decide which program to set active. Honor the user's
-      // last-active selection (persisted in SharedPreferences) when
-      // it's still a valid membership; otherwise fall back to the
-      // "oldest" tiebreaker via ensureDefaultProgram. This keeps a
-      // user who switched to "Summer camp 2026" on their laptop
-      // landing in that same program on their phone the next day.
+      // Decide which program (if any) to set active. Slice 3
+      // changed the "no programs anywhere" semantics: we used to
+      // auto-create a "My program" default for every signed-in
+      // user, which meant fresh accounts got an empty silo before
+      // they had a chance to enter an invite code. Now we leave
+      // [activeProgramIdProvider] null in that case, and the
+      // router redirects to /welcome where the user picks Create
+      // or Join.
+      //
+      // Auto-create still kicks in for legacy local-only users
+      // (i.e. anyone who has rows in the local Drift DB from
+      // before the multi-program model — those rows have to
+      // belong to *some* program for the program-scoped reads in
+      // slice 1 to surface them). Detect this by checking whether
+      // any synced table has a row that hasn't been backfilled
+      // yet (`program_id IS NULL`). If so, mint a default and the
+      // backfill stamps every row with it.
       final notifier = _ref.read(activeProgramIdProvider.notifier);
       final persisted = await notifier.readPersisted();
+      final memberships = await repo.programsForUser(userId);
       String? id;
-      if (persisted != null) {
-        final memberships = await repo.programsForUser(userId);
-        if (memberships.any((p) => p.id == persisted)) {
-          id = persisted;
-        }
+      if (persisted != null &&
+          memberships.any((p) => p.id == persisted)) {
+        id = persisted;
+      } else if (memberships.isNotEmpty) {
+        // Pick the oldest existing membership — same tiebreaker as
+        // [ensureDefaultProgram] when the persisted id isn't valid.
+        final sorted = [...memberships]
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        id = sorted.first.id;
+      } else if (await _hasLegacyUntaggedRows()) {
+        // Pre-program-model rows exist on this device — mint a
+        // default so the backfill has something to stamp.
+        id = await repo.createProgram(
+          name: 'My program',
+          userId: userId,
+        );
       }
-      id ??= await repo.ensureDefaultProgram(userId: userId);
+      // No memberships and no legacy rows → leave active null.
+      // The router will redirect to /welcome.
+      if (id == null) {
+        await notifier.clear();
+        return;
+      }
       await notifier.set(id);
       await _maybeBackfillUntaggedRows(repo, programId: id);
       // Always upsert the program + membership rows on every
@@ -98,25 +127,17 @@ class ProgramAuthBootstrap {
       // way to recover from a previous launch where the push
       // silently failed (e.g. RLS recursion before 0011 landed).
       // Without this, a user stuck in that state would never be
-      // able to push / sync / back up because their cloud
-      // membership row was missing.
+      // able to push / sync because their cloud membership row
+      // was missing.
       await _ensureProgramAndMembershipInCloud(
         programId: id,
         userId: userId,
       );
-      // Slice C: incremental, watermarked pull of every synced
-      // table. Cheap on quiet days (just a "give me rows newer
-      // than X" query that returns nothing per table) and cheap
-      // on first launch (capped page size, one round-trip per
-      // 500 rows). Errors here are non-fatal — local data still
-      // shows whatever was last synced; a manual "Sync now" or
-      // the next sign-in retries.
+      // Incremental watermarked pull of every synced table. Cheap
+      // on quiet days; capped page size on first launch.
       unawaited(_pullAllTables(programId: id));
-
-      // Open the realtime channel so subsequent changes from
-      // other devices land within milliseconds of being made.
-      // Echo-safe (engine compares updated_at before applying)
-      // and idempotent.
+      // Realtime channel so changes from other devices land
+      // within milliseconds. Echo-safe + idempotent.
       unawaited(
         _ref.read(syncEngineProvider).subscribeToRealtime(
               programId: id,
@@ -195,6 +216,33 @@ class ProgramAuthBootstrap {
       // because we no longer guard with a SharedPreferences flag.
       debugPrint('Ensure program/membership in cloud failed: $e');
     }
+  }
+
+  /// Returns true if any synced table has at least one row with
+  /// `program_id IS NULL`. Used by the bootstrap to decide whether
+  /// to mint a default program for a brand-new sign-in: if there's
+  /// pre-program-model data on this device (legacy local rows), we
+  /// auto-create so the backfill stamps every row; otherwise we
+  /// leave the active program null and let the user pick "Create
+  /// or join" on the welcome screen.
+  ///
+  /// One probe per synced table, EXISTS predicate, short-circuits
+  /// on the first hit. Cheap even on a hot DB.
+  Future<bool> _hasLegacyUntaggedRows() async {
+    final db = _ref.read(databaseProvider);
+    for (final t in kSyncedTableNames) {
+      try {
+        final row = await db.customSelect(
+          'SELECT 1 FROM "$t" WHERE "program_id" IS NULL LIMIT 1',
+        ).getSingleOrNull();
+        if (row != null) return true;
+      } on Object {
+        // Schema drift / missing column — skip this table. Doesn't
+        // change the answer; if other tables have legacy rows we'll
+        // still detect them.
+      }
+    }
+    return false;
   }
 
   /// Stamps any pre-program-model rows with [programId] the first

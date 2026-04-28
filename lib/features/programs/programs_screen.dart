@@ -1,5 +1,7 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/auth/auth_repository.dart';
+import 'package:basecamp/features/programs/invite_repository.dart';
+import 'package:basecamp/features/programs/join_with_code_sheet.dart';
 import 'package:basecamp/features/programs/program_bootstrap.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -7,6 +9,7 @@ import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/save_action.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 /// `/more/programs` — multi-program switcher (Slice 2).
@@ -35,7 +38,16 @@ class ProgramsScreen extends ConsumerWidget {
     final userId = session.user.id;
     final programsAsync = ref.watch(_programsForUserProvider(userId));
     return Scaffold(
-      appBar: AppBar(title: const Text('Programs')),
+      appBar: AppBar(
+        title: const Text('Programs'),
+        actions: [
+          IconButton(
+            tooltip: 'Join with code',
+            icon: const Icon(Icons.login_outlined),
+            onPressed: () => _openJoinSheet(context),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openCreateSheet(context, ref, userId: userId),
         icon: const Icon(Icons.add),
@@ -64,7 +76,8 @@ class ProgramsScreen extends ConsumerWidget {
               return _ProgramTile(
                 program: p,
                 isActive: isActive,
-                onTap: isActive
+                onTap: () => context.push('/more/programs/${p.id}'),
+                onSwitch: isActive
                     ? null
                     : () => _switchTo(context, ref, p),
               );
@@ -107,6 +120,23 @@ class ProgramsScreen extends ConsumerWidget {
       builder: (_) => _NewProgramSheet(userId: userId),
     );
   }
+
+  Future<void> _openJoinSheet(BuildContext context) async {
+    final result = await showModalBottomSheet<RedeemResult>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => const JoinWithCodeSheet(),
+    );
+    if (result != null && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Joined "${result.programName}"'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
 }
 
 /// Cached stream of the signed-in user's programs. Family-keyed by
@@ -125,11 +155,21 @@ class _ProgramTile extends StatelessWidget {
     required this.program,
     required this.isActive,
     required this.onTap,
+    required this.onSwitch,
   });
 
   final Program program;
   final bool isActive;
-  final VoidCallback? onTap;
+
+  /// Tapping the row body opens the detail screen (members,
+  /// invites, admin actions). Always non-null — even the active
+  /// program has a detail screen worth opening.
+  final VoidCallback onTap;
+
+  /// Quick-switch button on non-active rows. Null on the active
+  /// row (already current — nothing to switch to). Lets the user
+  /// flip programs without opening detail first.
+  final VoidCallback? onSwitch;
 
   @override
   Widget build(BuildContext context) {
@@ -193,11 +233,15 @@ class _ProgramTile extends StatelessWidget {
               ],
             ),
           ),
-          if (!isActive)
-            Icon(
-              Icons.chevron_right,
-              color: theme.colorScheme.onSurfaceVariant,
+          if (!isActive && onSwitch != null)
+            TextButton(
+              onPressed: onSwitch,
+              child: const Text('Switch'),
             ),
+          Icon(
+            Icons.chevron_right,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ],
       ),
     );
