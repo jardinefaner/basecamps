@@ -384,6 +384,25 @@ class ActivityLibrary extends Table {
   /// now. A future filter can parse this into chips.
   TextColumn get materials => text().nullable()();
 
+  /// Optional age-scaled rewrites of [summary] / [keyPoints] /
+  /// [learningGoals] for adjacent ages, stored as a single JSON blob
+  /// (v46). Shape:
+  ///
+  /// ```json
+  /// {
+  ///   "5":  { "summary": "...", "keyPoints": "...", "goals": "..." },
+  ///   "6":  { "summary": "...", ... }
+  /// }
+  /// ```
+  ///
+  /// Rendered by the curriculum view's age-scaling toggle. Stored as
+  /// a JSON string instead of a side table because the rewrites are
+  /// always read together with the parent row and never queried for.
+  /// Null on legacy rows; the renderer falls back to the unscaled
+  /// [summary] / [keyPoints] / [learningGoals] when no variant for the
+  /// requested age exists.
+  TextColumn get ageVariants => text().nullable()();
+
   /// Owning program (v42). See [Groups.programId] for the rule.
   TextColumn get programId => text().nullable()();
 
@@ -453,6 +472,21 @@ class LessonSequences extends Table {
   TextColumn get name => text()();
   TextColumn get description => text().nullable()();
 
+  /// Owning theme (v46). When non-null, the sequence is one "week"
+  /// (or arc) inside a 10-week / multi-week theme, and the
+  /// curriculum view groups sequences by phase under their theme.
+  /// Nullable so legacy free-floating sequences (lesson plans not
+  /// tied to a theme) keep working unchanged.
+  TextColumn get themeId => text()
+      .nullable()
+      .references(Themes, #id, onDelete: KeyAction.setNull)();
+
+  /// One-line "essential question" for the week — the prompt the
+  /// teacher returns to during morning meeting and the milestone
+  /// recap (v46). E.g. "What if everything was upside-down?".
+  /// Optional.
+  TextColumn get coreQuestion => text().nullable()();
+
   /// Owning program (v42). See [Groups.programId] for the rule.
   TextColumn get programId => text().nullable()();
 
@@ -479,6 +513,25 @@ class LessonSequenceItems extends Table {
   /// 0-based position inside the sequence. Sort is authoritative on
   /// read, and inserts / reorders rewrite this column.
   IntColumn get position => integer()();
+
+  /// Day-of-week the item runs on (v46). 1=Mon … 7=Sun, matching
+  /// `DateTime.weekday`. Nullable: legacy free-floating items have
+  /// no calendar slot, and `kind = 'milestone'` items also leave it
+  /// null because they span the whole week.
+  IntColumn get dayOfWeek => integer().nullable()();
+
+  /// What role this item plays inside the sequence (v46). Today's
+  /// known values:
+  ///
+  /// - `daily` — a per-day ritual (morning meeting, lunch ritual,
+  ///   afternoon investigation). Pairs with [dayOfWeek].
+  /// - `milestone` — the weekly capstone / Friday share-out.
+  ///   [dayOfWeek] is left null.
+  ///
+  /// Stored as free text (no enum table) so curriculum authors can
+  /// add ad-hoc kinds without a migration. Defaults to `daily` on
+  /// legacy rows via the v46 migration.
+  TextColumn get kind => text().withDefault(const Constant('daily'))();
 
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();

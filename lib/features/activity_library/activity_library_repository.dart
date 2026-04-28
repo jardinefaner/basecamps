@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
@@ -53,6 +54,7 @@ class ActivityLibraryRepository {
     String? sourceUrl,
     String? sourceAttribution,
     String? materials,
+    Map<int, AgeVariant>? ageVariants,
   }) async {
     final id = newId();
     await _db.into(_db.activityLibrary).insert(
@@ -73,6 +75,7 @@ class ActivityLibraryRepository {
             sourceUrl: Value(sourceUrl),
             sourceAttribution: Value(sourceAttribution),
             materials: Value(materials),
+            ageVariants: Value(_encodeAgeVariants(ageVariants)),
             programId: Value(_programId),
           ),
         );
@@ -108,6 +111,7 @@ class ActivityLibraryRepository {
     Value<String?> sourceUrl = const Value.absent(),
     Value<String?> sourceAttribution = const Value.absent(),
     Value<String?> materials = const Value.absent(),
+    Value<Map<int, AgeVariant>?> ageVariants = const Value.absent(),
   }) async {
     await (_db.update(_db.activityLibrary)..where((a) => a.id.equals(id)))
         .write(
@@ -127,6 +131,9 @@ class ActivityLibraryRepository {
         sourceUrl: sourceUrl,
         sourceAttribution: sourceAttribution,
         materials: materials,
+        ageVariants: ageVariants.present
+            ? Value(_encodeAgeVariants(ageVariants.value))
+            : const Value.absent(),
         updatedAt: Value(DateTime.now()),
       ),
     );
@@ -423,6 +430,117 @@ class ActivityLibraryRepository {
     final bHi = bMax ?? 999;
     return aLo <= bHi && aHi >= bLo;
   }
+
+  // ---- v46: age-scaled rendering helpers ----
+
+  /// Returns the row's text rendered for [age]. If
+  /// `ActivityLibrary.ageVariants` has a key matching [age], that
+  /// variant's `summary` / `keyPoints` / `learningGoals` win;
+  /// otherwise we fall back to the unscaled columns. Used by the
+  /// curriculum view's "show age scaling" toggle.
+  ScaledActivityCard scaleForAge(ActivityLibraryData row, int age) {
+    final variants = decodeAgeVariants(row.ageVariants);
+    final variant = variants[age];
+    return ScaledActivityCard(
+      title: row.title,
+      hook: row.hook,
+      summary: variant?.summary ?? row.summary,
+      keyPoints: variant?.keyPoints ?? row.keyPoints,
+      learningGoals: variant?.learningGoals ?? row.learningGoals,
+      // Materials / source / engagement time aren't age-scaled:
+      // they describe the activity logistics, not the framing.
+      materials: row.materials,
+      sourceAttribution: row.sourceAttribution,
+      sourceUrl: row.sourceUrl,
+      engagementTimeMin: row.engagementTimeMin,
+      // True when at least one variant is defined — drives the
+      // curriculum view's toggle visibility.
+      hasAgeVariants: variants.isNotEmpty,
+    );
+  }
+
+  // ---- Internal: age_variants JSON shape ----
+
+  static String? _encodeAgeVariants(Map<int, AgeVariant>? variants) {
+    if (variants == null || variants.isEmpty) return null;
+    return jsonEncode({
+      for (final e in variants.entries) e.key.toString(): e.value.toJson(),
+    });
+  }
+
+  /// Public so the curriculum view can decode straight off a row
+  /// without reaching back into a method on the repository.
+  static Map<int, AgeVariant> decodeAgeVariants(String? raw) {
+    if (raw == null || raw.isEmpty) return const {};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return const {};
+      final out = <int, AgeVariant>{};
+      decoded.forEach((key, value) {
+        final age = int.tryParse(key.toString());
+        if (age == null || value is! Map) return;
+        out[age] = AgeVariant.fromJson(Map<String, dynamic>.from(value));
+      });
+      return out;
+    } on FormatException {
+      // Malformed JSON shouldn't crash the renderer; just fall back
+      // to no variants so the unscaled columns are used.
+      return const {};
+    } on Object {
+      return const {};
+    }
+  }
+}
+
+/// One age slot inside `ActivityLibrary.ageVariants` (v46).
+class AgeVariant {
+  const AgeVariant({this.summary, this.keyPoints, this.learningGoals});
+
+  factory AgeVariant.fromJson(Map<String, dynamic> json) => AgeVariant(
+        summary: json['summary'] as String?,
+        keyPoints: json['keyPoints'] as String?,
+        learningGoals: json['goals'] as String? ??
+            json['learningGoals'] as String?,
+      );
+
+  final String? summary;
+  final String? keyPoints;
+  final String? learningGoals;
+
+  Map<String, String?> toJson() => {
+        'summary': summary,
+        'keyPoints': keyPoints,
+        'goals': learningGoals,
+      };
+}
+
+/// Render-ready card text after age scaling has been applied.
+/// The curriculum view consumes this directly — no further fallback
+/// logic on the widget side.
+class ScaledActivityCard {
+  const ScaledActivityCard({
+    required this.title,
+    required this.hook,
+    required this.summary,
+    required this.keyPoints,
+    required this.learningGoals,
+    required this.materials,
+    required this.sourceAttribution,
+    required this.sourceUrl,
+    required this.engagementTimeMin,
+    required this.hasAgeVariants,
+  });
+
+  final String title;
+  final String? hook;
+  final String? summary;
+  final String? keyPoints;
+  final String? learningGoals;
+  final String? materials;
+  final String? sourceAttribution;
+  final String? sourceUrl;
+  final int? engagementTimeMin;
+  final bool hasAgeVariants;
 }
 
 class _SimilarScored {

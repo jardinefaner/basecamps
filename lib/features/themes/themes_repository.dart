@@ -34,6 +34,21 @@ class ThemesRepository {
     return query.watch();
   }
 
+  /// Single-row fetch — used by the curriculum view to render the
+  /// app-bar title from the theme's name + tint the week chips
+  /// from `colorHex`.
+  Future<ProgramTheme?> getTheme(String id) {
+    return (_db.select(_db.themes)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  /// Reactive variant of [getTheme] — the curriculum view subscribes
+  /// so renames or color tweaks made elsewhere flow through live.
+  Stream<ProgramTheme?> watchTheme(String id) {
+    return (_db.select(_db.themes)..where((t) => t.id.equals(id)))
+        .watchSingleOrNull();
+  }
+
   /// Themes whose date range covers [date] inclusive. In practice
   /// it's at most one at a time, but the query returns a list so the
   /// UI layer decides what "active" means when two overlap.
@@ -131,4 +146,12 @@ final themesProvider = StreamProvider<List<ProgramTheme>>((ref) {
 final activeThemesProvider =
     StreamProvider.family<List<ProgramTheme>, DateTime>((ref, date) {
   return ref.watch(themesRepositoryProvider).watchActive(date);
+});
+
+/// One theme by id — used by the curriculum view's app bar.
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final themeByIdProvider =
+    StreamProvider.family<ProgramTheme?, String>((ref, id) {
+  return ref.watch(themesRepositoryProvider).watchTheme(id);
 });

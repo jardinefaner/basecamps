@@ -6,6 +6,7 @@ import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 /// `/more/themes` — list + add + edit program themes. Each theme marks
@@ -66,7 +67,9 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
                 final t = themes[i];
                 return _ThemeTile(
                   programTheme: t,
-                  onTap: () => _openSheet(theme: t),
+                  onTap: () =>
+                      context.push('/more/themes/${t.id}/curriculum'),
+                  onEdit: () => _openSheet(theme: t),
                 );
               },
             );
@@ -91,7 +94,9 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
               final t = themes[i];
               return _ThemeTile(
                 programTheme: t,
-                onTap: () => _openSheet(theme: t),
+                onTap: () =>
+                    context.push('/more/themes/${t.id}/curriculum'),
+                onEdit: () => _openSheet(theme: t),
               );
             },
           );
@@ -105,10 +110,18 @@ class _ThemeTile extends StatelessWidget {
   const _ThemeTile({
     required this.programTheme,
     required this.onTap,
+    required this.onEdit,
   });
 
   final ProgramTheme programTheme;
+
+  /// Primary tap — opens the curriculum view (v46) for this theme.
   final VoidCallback onTap;
+
+  /// Trailing pencil icon — opens the edit sheet. Separated from
+  /// the row tap so the common path (read the curriculum) is one
+  /// tap, not behind a long-press the user has to discover.
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -154,6 +167,12 @@ class _ThemeTile extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edit theme',
+            color: theme.colorScheme.onSurfaceVariant,
+            onPressed: onEdit,
           ),
           Icon(
             Icons.chevron_right,

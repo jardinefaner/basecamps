@@ -6,6 +6,7 @@ import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/auth/sign_in_screen.dart';
 import 'package:basecamp/features/children/child_detail_screen.dart';
 import 'package:basecamp/features/children/children_screen.dart';
+import 'package:basecamp/features/curriculum/curriculum_screen.dart';
 import 'package:basecamp/features/forms/forms_hub_screen.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/parent_concern.dart';
 import 'package:basecamp/features/forms/polymorphic/generic_form_list_screen.dart';
@@ -248,6 +249,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/more/themes',
         builder: (_, _) => const ThemesScreen(),
+        routes: [
+          // Curriculum-arc view (v46) — multi-week phase/week/day
+          // arc rendered from the theme's LessonSequences. Lives
+          // under /more/themes/:id/curriculum so the URL reads as
+          // "this theme's curriculum" and the existing CRUD screen
+          // stays at the parent path.
+          GoRoute(
+            path: ':themeId/curriculum',
+            builder: (_, state) => CurriculumScreen(
+              themeId: state.pathParameters['themeId']!,
+            ),
+          ),
+        ],
       ),
       GoRoute(
         path: '/more/forms',

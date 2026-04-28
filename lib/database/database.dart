@@ -70,7 +70,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 45;
+  int get schemaVersion => 46;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -92,6 +92,7 @@ class AppDatabase extends _$AppDatabase {
           // no-op when the column already exists, swallowed by
           // _runSilent).
           await _healProgramIdColumns();
+          await _healCurriculumArcColumns();
         },
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
@@ -109,6 +110,56 @@ class AppDatabase extends _$AppDatabase {
               'fresh at schema 25. This only affects devs who have '
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
+            );
+          }
+          if (from < 46) {
+            // v46: curriculum arc — wire LessonSequences to a Theme,
+            // give each sequence a "core question" prompt for the
+            // morning meeting / weekly recap, and stamp every
+            // LessonSequenceItem with a day-of-week + a `kind`
+            // discriminator (daily ritual vs weekly milestone).
+            //
+            // Also add an `age_variants` JSON blob to ActivityLibrary
+            // so a single card can carry adjacent-age rewrites of its
+            // summary / key points / learning goals — the renderer
+            // toggles between them when the curriculum view's "show
+            // age scaling" switch is on.
+            //
+            // All additive nullable columns (plus a defaulted text on
+            // `kind`), so existing rows keep working unchanged. The
+            // schema-heal in beforeOpen re-applies these every launch
+            // for users whose mid-upgrade IndexedDB closed before the
+            // ALTER finished.
+            await _runSilent(
+              'ALTER TABLE "lesson_sequences" '
+              'ADD COLUMN "theme_id" TEXT NULL '
+              'REFERENCES "themes"("id") ON DELETE SET NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "lesson_sequences" '
+              'ADD COLUMN "core_question" TEXT NULL',
+            );
+            await _runSilent(
+              'CREATE INDEX IF NOT EXISTS '
+              '"idx_lesson_sequences_theme" '
+              'ON "lesson_sequences" ("theme_id")',
+            );
+            await _runSilent(
+              'ALTER TABLE "lesson_sequence_items" '
+              'ADD COLUMN "day_of_week" INTEGER NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "lesson_sequence_items" '
+              "ADD COLUMN \"kind\" TEXT NOT NULL DEFAULT 'daily'",
+            );
+            await _runSilent(
+              'CREATE INDEX IF NOT EXISTS '
+              '"idx_lesson_sequence_items_kind" '
+              'ON "lesson_sequence_items" ("sequence_id", "kind")',
+            );
+            await _runSilent(
+              'ALTER TABLE "activity_library" '
+              'ADD COLUMN "age_variants" TEXT NULL',
             );
           }
           if (from < 45) {
@@ -995,6 +1046,46 @@ class AppDatabase extends _$AppDatabase {
         '"idx_${t}_program" ON "$t" ("program_id")',
       );
     }
+  }
+
+  /// Re-apply the v46 curriculum-arc additive ALTERs every launch.
+  /// Same logic as [_healProgramIdColumns]: cheap (no-ops once the
+  /// columns exist), defends against partial-upgrade IndexedDB
+  /// states. Without this, a sequence-edit screen on a half-migrated
+  /// DB would fail with "no such column: theme_id" the first time
+  /// the user touches the curriculum view.
+  Future<void> _healCurriculumArcColumns() async {
+    await _runSilent(
+      'ALTER TABLE "lesson_sequences" '
+      'ADD COLUMN "theme_id" TEXT NULL '
+      'REFERENCES "themes"("id") ON DELETE SET NULL',
+    );
+    await _runSilent(
+      'ALTER TABLE "lesson_sequences" '
+      'ADD COLUMN "core_question" TEXT NULL',
+    );
+    await _runSilent(
+      'CREATE INDEX IF NOT EXISTS '
+      '"idx_lesson_sequences_theme" '
+      'ON "lesson_sequences" ("theme_id")',
+    );
+    await _runSilent(
+      'ALTER TABLE "lesson_sequence_items" '
+      'ADD COLUMN "day_of_week" INTEGER NULL',
+    );
+    await _runSilent(
+      'ALTER TABLE "lesson_sequence_items" '
+      "ADD COLUMN \"kind\" TEXT NOT NULL DEFAULT 'daily'",
+    );
+    await _runSilent(
+      'CREATE INDEX IF NOT EXISTS '
+      '"idx_lesson_sequence_items_kind" '
+      'ON "lesson_sequence_items" ("sequence_id", "kind")',
+    );
+    await _runSilent(
+      'ALTER TABLE "activity_library" '
+      'ADD COLUMN "age_variants" TEXT NULL',
+    );
   }
 
   /// One-shot data migration for the v45 schema bump. Reads any
