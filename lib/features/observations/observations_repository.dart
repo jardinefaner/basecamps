@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/observations_sync_service.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -132,6 +134,14 @@ class ObservationsRepository {
   /// program_id NULL and get picked up by the next-launch backfill.
   /// Steady state: every new row is stamped on insert.
   String? get _programId => _ref.read(activeProgramIdProvider);
+
+  /// Slice C push hook. Every mutation (insert / update / delete /
+  /// attachment add / attachment delete) fires a fire-and-forget
+  /// push to cloud once the local commit lands. The service
+  /// catches its own errors so a network blip never trips the
+  /// local-write callsite.
+  ObservationsSyncService get _sync =>
+      _ref.read(observationsSyncServiceProvider);
 
   Stream<List<Observation>> watchAll() {
     final query = _db.select(_db.observations)
@@ -327,6 +337,9 @@ class ObservationsRepository {
             );
       }
     });
+    // Fire-and-forget cloud push. Failure logs but doesn't block —
+    // the local insert already succeeded.
+    unawaited(_sync.pushObservation(id));
     return id;
   }
 
@@ -398,6 +411,10 @@ class ObservationsRepository {
             durationMs: Value(input.durationMs),
           ),
         );
+    // Push the parent observation so the new cascade row is
+    // mirrored to cloud (the service replaces the cascade
+    // wholesale, so this picks up the new attachment).
+    unawaited(_sync.pushObservation(observationId));
     return id;
   }
 
@@ -407,9 +424,17 @@ class ObservationsRepository {
   /// orphaned files are reaped later by
   /// [sweepOrphanedAttachmentFiles].
   Future<void> deleteAttachment(String id) async {
+    final row = await (_db.select(_db.observationAttachments)
+          ..where((a) => a.id.equals(id)))
+        .getSingleOrNull();
     await (_db.delete(_db.observationAttachments)
           ..where((a) => a.id.equals(id)))
         .go();
+    if (row != null) {
+      // Re-push parent observation so cloud's cascade table loses
+      // the deleted row too.
+      unawaited(_sync.pushObservation(row.observationId));
+    }
   }
 
   /// Partial update. Anything left as `null` (or not passed) is left
@@ -508,6 +533,7 @@ class ObservationsRepository {
         }
       }
     });
+    unawaited(_sync.pushObservation(id));
   }
 
   /// Captures everything that CASCADE would wipe on delete, so the
@@ -569,7 +595,16 @@ class ObservationsRepository {
   /// everything — attachment files live on disk until the orphan
   /// sweeper reaps them (see [sweepOrphanedAttachmentFiles]).
   Future<void> deleteObservation(String id) async {
+    // Capture program before the row goes away — pushDelete needs
+    // the program_id and we can't read it once the row's gone.
+    final row = await (_db.select(_db.observations)
+          ..where((o) => o.id.equals(id)))
+        .getSingleOrNull();
     await (_db.delete(_db.observations)..where((o) => o.id.equals(id))).go();
+    final programId = row?.programId;
+    if (programId != null) {
+      unawaited(_sync.pushDelete(observationId: id, programId: programId));
+    }
   }
 
   /// Batch version. Groups the DB delete into a single `WHERE id IN`
@@ -578,8 +613,23 @@ class ObservationsRepository {
   Future<void> deleteObservations(Iterable<String> ids) async {
     final list = ids.toList();
     if (list.isEmpty) return;
+    // Capture program ids before the rows are gone so each delete
+    // can be soft-deleted in cloud. Group by id since each row may
+    // belong to a different program (rare but possible if the
+    // teacher switches programs between observations).
+    final rows = await (_db.select(_db.observations)
+          ..where((o) => o.id.isIn(list)))
+        .get();
     await (_db.delete(_db.observations)..where((o) => o.id.isIn(list)))
         .go();
+    for (final r in rows) {
+      final programId = r.programId;
+      if (programId != null) {
+        unawaited(
+          _sync.pushDelete(observationId: r.id, programId: programId),
+        );
+      }
+    }
   }
 
   /// Re-inserts an observation (or a batch of them) + every join row
@@ -603,6 +653,13 @@ class ObservationsRepository {
             .insertOnConflictUpdate(a);
       }
     });
+    // Re-push to cloud. Restore can come from the undo snackbar
+    // *after* a delete pushed deleted_at to cloud — the next push
+    // overwrites the row (without deleted_at, since the serializer
+    // omits that field) and other devices learn it's back.
+    for (final o in snap.observations) {
+      unawaited(_sync.pushObservation(o.id));
+    }
   }
 
   /// Delete attachment rows without touching the on-disk files. Used

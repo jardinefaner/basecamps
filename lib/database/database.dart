@@ -59,6 +59,7 @@ QueryExecutor _openConnection() {
     Themes,
     Programs,
     ProgramMembers,
+    SyncState,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -67,7 +68,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 42;
+  int get schemaVersion => 43;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -106,6 +107,23 @@ class AppDatabase extends _$AppDatabase {
               'fresh at schema 25. This only affects devs who have '
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
+            );
+          }
+          if (from < 43) {
+            // v43: per-table sync watermark for Slice C. Tracks
+            // the latest updated_at seen from cloud per (program,
+            // table) so pull-on-launch only fetches deltas. No
+            // backfill — empty table is fine; queries default the
+            // sentinel watermark to epoch when no row exists.
+            await _runSilent(
+              'CREATE TABLE IF NOT EXISTS "sync_state" ( '
+              '"program_id" TEXT NOT NULL, '
+              '"target_table" TEXT NOT NULL, '
+              '"last_pulled_at" INTEGER NOT NULL, '
+              '"updated_at" INTEGER NOT NULL '
+              "DEFAULT (strftime('%s', 'now')), "
+              'PRIMARY KEY ("program_id", "target_table")'
+              ' )',
             );
           }
           if (from < 42) {

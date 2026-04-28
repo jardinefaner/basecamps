@@ -11,7 +11,7 @@ void main() {
   test('updateItem leaves absent fields untouched', () async {
     final db = createTestDatabase();
     addTearDown(db.close);
-    final container = createTestContainer();
+    final container = createTestContainer(database: db);
     addTearDown(container.dispose);
     final repo = ActivityLibraryRepository(db, fakeRef(container));
 
@@ -53,7 +53,7 @@ void main() {
   test('updateItem DOES null a field when explicitly set to Value(null)', () async {
     final db = createTestDatabase();
     addTearDown(db.close);
-    final container = createTestContainer();
+    final container = createTestContainer(database: db);
     addTearDown(container.dispose);
     final repo = ActivityLibraryRepository(db, fakeRef(container));
 

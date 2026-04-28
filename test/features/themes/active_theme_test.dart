@@ -12,7 +12,7 @@ void main() {
 
   setUp(() {
     db = createTestDatabase();
-    container = createTestContainer();
+    container = createTestContainer(database: db);
     repo = ThemesRepository(db, fakeRef(container));
   });
 

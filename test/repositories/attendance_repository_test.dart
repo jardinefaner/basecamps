@@ -14,7 +14,7 @@ void main() {
 
   setUp(() {
     db = createTestDatabase();
-    container = createTestContainer();
+    container = createTestContainer(database: db);
     att = AttendanceRepository(db);
     kids = ChildrenRepository(db, fakeRef(container));
   });

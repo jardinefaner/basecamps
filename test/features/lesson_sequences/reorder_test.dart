@@ -14,7 +14,7 @@ void main() {
 
   setUp(() {
     db = createTestDatabase();
-    container = createTestContainer();
+    container = createTestContainer(database: db);
     repo = LessonSequencesRepository(db, fakeRef(container));
     libRepo = ActivityLibraryRepository(db, fakeRef(container));
   });

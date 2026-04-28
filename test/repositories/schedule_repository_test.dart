@@ -14,7 +14,7 @@ void main() {
 
   setUp(() {
     db = createTestDatabase();
-    container = createTestContainer();
+    container = createTestContainer(database: db);
     sch = ScheduleRepository(db, fakeRef(container));
     kids = ChildrenRepository(db, fakeRef(container));
   });

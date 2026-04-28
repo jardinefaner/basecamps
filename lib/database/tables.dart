@@ -1175,6 +1175,36 @@ class Parents extends Table {
 /// the repository layer (setting one clears any other) — SQLite
 /// has no partial-unique constraint that would enforce it
 /// server-side without dialect tricks.
+/// Per-table sync watermark. Tracks the most recent `updated_at`
+/// pulled from cloud for each (program, table) pair so the next
+/// pull-on-launch only fetches deltas. Slice C populates this on
+/// every successful pull; pre-Slice-C tables don't have rows here
+/// and use a sentinel of `1970-01-01` on first read.
+@DataClassName('SyncWatermark')
+class SyncState extends Table {
+  TextColumn get programId => text()();
+
+  /// SQL table this watermark applies to (e.g. `observations`).
+  /// Named `targetTable` because Drift's TableInfo mixin already
+  /// uses `tableName` and `entityName` for its own metadata, so a
+  /// collision-free Dart name is needed. Drift maps the snake-case
+  /// SQL column to `target_table` automatically.
+  TextColumn get targetTable => text()();
+
+  /// Latest `updated_at` we've seen from the cloud for this
+  /// (program, table). Stored UTC; the cloud column is timestamptz
+  /// so timezone is unambiguous.
+  DateTimeColumn get lastPulledAt => dateTime()();
+
+  /// Stamped on every successful pull so a developer can tell at a
+  /// glance when the last sync ran.
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {programId, targetTable};
+}
+
 class ParentChildren extends Table {
   TextColumn get parentId =>
       text().references(Parents, #id, onDelete: KeyAction.cascade)();

@@ -35,10 +35,18 @@ Ref fakeRef(ProviderContainer container) {
 /// to null. Use this everywhere a test needs to construct a repo —
 /// the alternative (real provider, default value) tries to hydrate
 /// from SharedPreferences and crashes before the binding is set up.
-ProviderContainer createTestContainer() {
+///
+/// When [database] is supplied, [databaseProvider] is overridden to
+/// return it — the sync services Slice C added read the database
+/// through Riverpod, so any test that goes through a mutating repo
+/// path needs the override or it tries to construct a real
+/// `driftDatabase()` (which opens a file on disk and breaks tests).
+/// Pass the test DB you already created with `createTestDatabase()`.
+ProviderContainer createTestContainer({AppDatabase? database}) {
   return ProviderContainer(
     overrides: [
       activeProgramIdProvider.overrideWith(_NullActiveProgramNotifier.new),
+      if (database != null) databaseProvider.overrideWithValue(database),
     ],
   );
 }

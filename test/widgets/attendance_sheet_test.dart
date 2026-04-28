@@ -19,7 +19,7 @@ void main() {
 
   setUp(() async {
     db = createTestDatabase();
-    container = createTestContainer();
+    container = createTestContainer(database: db);
     addTearDown(container.dispose);
     kids = ChildrenRepository(db, fakeRef(container));
     att = AttendanceRepository(db);
