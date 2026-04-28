@@ -269,7 +269,24 @@ class InviteRepository {
   /// next launch is the more reliable signal. Locally we mirror
   /// the cascade so the device is consistent immediately.
   Future<void> deleteProgram(String programId) async {
-    await _client.from('programs').delete().eq('id', programId);
+    // Use `.select()` so we can verify rows actually got deleted
+    // — without it, supabase-dart returns void and an RLS
+    // rejection (or "no rows matched") is indistinguishable from
+    // a real success. The user reported "I delete a program but
+    // it comes back" — that was this silent-success path.
+    final deleted = await _client
+        .from('programs')
+        .delete()
+        .eq('id', programId)
+        .select('id');
+    final rows = List<Map<String, dynamic>>.from(deleted);
+    if (rows.isEmpty) {
+      throw StateError(
+        'Cloud refused the delete — probably because you aren’t '
+        'an admin of this program (or the row was already gone). '
+        'Try signing out and back in to refresh permissions.',
+      );
+    }
     // Wipe the program's local data wholesale — Drift's FK
     // cascades on programs → program_members work, but the
     // program-scoped data tables (children, rooms, etc.) don't
