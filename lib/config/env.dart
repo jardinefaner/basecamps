@@ -9,21 +9,15 @@ abstract final class Env {
     defaultValue: 'placeholder-anon-key',
   );
 
-  /// Deepgram API key for live voice-to-text in Observe. Still read
-  /// client-side because Deepgram's realtime API uses WebSockets
-  /// which Supabase Edge Functions can't proxy directly — moving
-  /// this behind an edge function needs a temp-token grant pattern,
-  /// which is a separate slice. Until then it stays out of public
-  /// web bundles (`Env.hasDeepgram` returns false when the value is
-  /// empty, which it always is on the GitHub Pages deploy).
-  static const String deepgramApiKey =
-      String.fromEnvironment('DEEPGRAM_API_KEY');
-
-  static bool get hasDeepgram => deepgramApiKey.isNotEmpty;
-
-  // OPENAI_API_KEY removed from the client. All OpenAI calls now
-  // route through the Supabase Edge Function `openai-chat` (see
-  // `lib/features/ai/openai_client.dart`). The key lives only in
-  // Supabase's secret store, never in any client bundle. Use
-  // `OpenAiClient.isAvailable` instead of the old `Env.hasOpenAi`.
+  // OPENAI_API_KEY removed from the client (commit 452eb75). All
+  // OpenAI calls now route through the Supabase Edge Function
+  // `openai-chat`. The long-lived key lives only in Supabase's
+  // secret store. Use `OpenAiClient.isAvailable` to gate features.
+  //
+  // DEEPGRAM_API_KEY removed from the client too. The Edge Function
+  // `deepgram-token` exchanges the long-lived project key (server-
+  // side secret) for a 30-second JWT every time the client wants
+  // to open a realtime listen socket. The JWT is the only Deepgram
+  // credential the client ever sees, scoped to a single capture.
+  // See `voice_service.dart` for the grant-then-connect flow.
 }

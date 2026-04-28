@@ -11,20 +11,15 @@
     "out of public bundles; they're only injected when you run on a",
     "phone or in a private TestFlight / Play Store build.",
     "",
-    "OPENAI_API_KEY is no longer read by the client — every OpenAI",
-    "call routes through the Supabase Edge Function `openai-chat` and",
-    "the key lives in Supabase's secret store. Set it via:",
+    "OPENAI_API_KEY and DEEPGRAM_API_KEY are no longer read by the",
+    "client — both route through Supabase Edge Functions and the",
+    "long-lived keys live in Supabase's secret store. Set them via:",
     "  supabase secrets set OPENAI_API_KEY=sk-...",
+    "  supabase secrets set DEEPGRAM_API_KEY=...",
     "",
-    "DEEPGRAM_API_KEY is still client-side because realtime",
-    "transcription uses WebSockets and Edge Functions can't proxy",
-    "those without a separate temp-token-grant pattern. It's only",
-    "passed for native dev builds; the public web bundle ships",
-    "without it (Env.hasDeepgram returns false there)."
+    "Only the two Supabase values below are needed for local dev now."
   ],
 
   "SUPABASE_URL": "https://your-project.supabase.co",
-  "SUPABASE_ANON_KEY": "eyJ...your-publishable-key...",
-
-  "DEEPGRAM_API_KEY": "your-deepgram-key-here"
+  "SUPABASE_ANON_KEY": "eyJ...your-publishable-key..."
 }
