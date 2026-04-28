@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/children/widgets/new_child_wizard.dart';
 import 'package:basecamp/features/forms/polymorphic/form_definition.dart'
@@ -6,14 +10,18 @@ import 'package:basecamp/features/forms/polymorphic/form_definition.dart'
 import 'package:basecamp/features/forms/polymorphic/form_submission_repository.dart';
 import 'package:basecamp/features/forms/polymorphic/form_submission_share.dart';
 import 'package:basecamp/features/forms/widgets/inline_signature_pad.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/media_service.dart';
 import 'package:basecamp/features/vehicles/vehicles_repository.dart';
 import 'package:basecamp/features/vehicles/widgets/edit_vehicle_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/step_wizard.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 /// Generic form renderer. Takes a [fd.FormDefinition] + optional
@@ -138,7 +146,9 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
   }
 
   /// Text fields need stable controllers across rebuilds. Build one
-  /// per text-shaped field the first time we render.
+  /// per text-shaped field the first time we render. Number fields
+  /// share the same controller map — the switch on type below picks
+  /// the right initializer.
   void _ensureControllers() {
     for (final s in widget.definition.sections) {
       for (final f in s.fields) {
@@ -149,9 +159,27 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
               text: (_values[f.key] as String?) ?? '',
             ),
           );
+        } else if (f is fd.FormNumberField) {
+          _textControllers.putIfAbsent(
+            f.key,
+            () => TextEditingController(
+              text: _formatStoredNumber(_values[f.key], f),
+            ),
+          );
         }
       }
     }
+  }
+
+  /// Stringify whatever's already stored under a number field's key
+  /// (int, double, or null) so the controller seeds with the right
+  /// shape on first build.
+  String _formatStoredNumber(Object? value, fd.FormNumberField f) {
+    if (value is num) {
+      if (f.decimals == 0) return value.toInt().toString();
+      return value.toStringAsFixed(f.decimals);
+    }
+    return '';
   }
 
   @override
@@ -277,10 +305,40 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
 
   /// Copy current controller text into [_values] so "Save" reads the
   /// latest keystrokes even when nothing's triggered a rebuild.
+  /// Number fields go through the same map but parse to num; failures
+  /// drop silently (the existing on-screen error already flagged it).
   Future<void> _flushTextControllers() async {
-    for (final entry in _textControllers.entries) {
-      _values[entry.key] = entry.value.text;
+    final numberFields = <String, fd.FormNumberField>{};
+    for (final s in widget.definition.sections) {
+      for (final f in s.fields) {
+        if (f is fd.FormNumberField) numberFields[f.key] = f;
+      }
     }
+    for (final entry in _textControllers.entries) {
+      final numField = numberFields[entry.key];
+      if (numField == null) {
+        _values[entry.key] = entry.value.text;
+      } else {
+        final parsed = _parseNumber(entry.value.text, numField);
+        if (parsed != null) {
+          _values[entry.key] = parsed;
+        } else if (entry.value.text.trim().isEmpty) {
+          _values.remove(entry.key);
+        }
+      }
+    }
+  }
+
+  /// Parse a number-field's raw text per its decimals setting. Returns
+  /// null for blank input and for unparseable text — caller decides
+  /// whether to clear or keep the previous value.
+  num? _parseNumber(String raw, fd.FormNumberField field) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+    if (field.decimals == 0) {
+      return int.tryParse(trimmed) ?? double.tryParse(trimmed)?.toInt();
+    }
+    return double.tryParse(trimmed);
   }
 
   /// Opens the share bundle preview for the currently-edited
@@ -346,16 +404,17 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
           vertical: AppSpacing.md,
         ),
         children: [
-          for (final section in def.sections) ...[
-            _SectionCard(
-              title: section.title,
-              subtitle: section.subtitle,
-              children: [
-                for (final field in section.fields) _buildField(field),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-          ],
+          for (final section in def.sections)
+            if (section.showWhen == null || section.showWhen!(_values)) ...[
+              _SectionCard(
+                title: section.title,
+                subtitle: section.subtitle,
+                children: [
+                  for (final field in section.fields) _buildField(field),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
           const SizedBox(height: AppSpacing.sm),
           FilledButton(
             onPressed: _submitting ? null : _submit,
@@ -435,21 +494,22 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
       },
       steps: [
         for (final section in def.sections)
-          WizardStep(
-            headline: section.title,
-            subtitle: section.subtitle,
-            canSkip: true,
-            needsKeyboard: sectionNeedsKeyboard(section),
-            // All intermediate steps read "Next" — per-step auto-save
-            // is silent plumbing; the final step's Save button is the
-            // actual commit point.
-            content: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final field in section.fields) _buildField(field),
-              ],
+          if (section.showWhen == null || section.showWhen!(_values))
+            WizardStep(
+              headline: section.title,
+              subtitle: section.subtitle,
+              canSkip: true,
+              needsKeyboard: sectionNeedsKeyboard(section),
+              // All intermediate steps read "Next" — per-step auto-save
+              // is silent plumbing; the final step's Save button is the
+              // actual commit point.
+              content: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final field in section.fields) _buildField(field),
+                ],
+              ),
             ),
-          ),
       ],
     );
   }
@@ -457,6 +517,14 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
   // ---- Field renderers ----
 
   Widget _buildField(fd.FormField field) {
+    // Visibility gate: skip the field entirely (no spacer, no label)
+    // when its predicate evaluates false against the current data
+    // map. Predicate runs every rebuild — the host setState calls in
+    // each input's onChanged are what cause sibling fields with
+    // showWhen to re-evaluate.
+    if (field.showWhen != null && !field.showWhen!(_values)) {
+      return const SizedBox.shrink();
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: switch (field) {
@@ -468,7 +536,10 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
         fd.FormBoolField() => _buildBool(field),
         fd.FormVehiclePickerField() => _buildVehiclePicker(field),
         fd.FormChildPickerField() => _buildChildPicker(field),
+        fd.FormAdultPickerField() => _buildAdultPicker(field),
         fd.FormMultiChildPickerField() => _buildMultiChildPicker(field),
+        fd.FormNumberField() => _buildNumber(field),
+        fd.FormImageField() => _buildImage(field),
         fd.FormSignatureField() => _buildSignature(field),
       },
     );
@@ -823,6 +894,329 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
     });
   }
 
+  // -- Adult picker -------------------------------------------------
+
+  /// Adult picker. Mirrors the child picker exactly but reads
+  /// [adultsProvider]; stores the adult's id under the field's key.
+  /// Ids unresolvable at render time (deletion after save) read
+  /// "(deleted adult)" on the picker button — same pattern as the
+  /// vehicle and child variants.
+  Widget _buildAdultPicker(fd.FormAdultPickerField field) {
+    final selectedId = _values[field.key] as String?;
+    final adultsAsync = ref.watch(adultsProvider);
+    final adults = adultsAsync.asData?.value ?? const <Adult>[];
+    Adult? selected;
+    for (final a in adults) {
+      if (a.id == selectedId) {
+        selected = a;
+        break;
+      }
+    }
+    final label = selected != null
+        ? selected.name
+        : selectedId == null
+            ? 'Pick an adult'
+            : '(deleted adult)';
+    return _LabeledField(
+      label: field.label,
+      help: field.helpText,
+      child: OutlinedButton.icon(
+        onPressed: () => _openAdultPicker(field, adults),
+        icon: const Icon(Icons.person_outline),
+        label: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(label),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openAdultPicker(
+    fd.FormAdultPickerField field,
+    List<Adult> adults,
+  ) async {
+    final selectedId = _values[field.key] as String?;
+    final picked = await showModalBottomSheet<_AdultPickResult>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _AdultPickerSheet(
+        adults: adults,
+        selectedId: selectedId,
+      ),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _values[field.key] = picked.adultId;
+    });
+  }
+
+  // -- Number -------------------------------------------------------
+
+  /// Numeric input. Reuses the existing [_textControllers] map (the
+  /// controller was seeded in [_ensureControllers]). Stores int when
+  /// `decimals == 0` and double otherwise. Out-of-range values render
+  /// inline error text below the field; the renderer doesn't block
+  /// edits — the user can keep typing while the warning sits.
+  Widget _buildNumber(fd.FormNumberField field) {
+    final controller = _textControllers[field.key] ??
+        (throw StateError('Missing controller for ${field.key}'));
+    final stored = _values[field.key];
+    final current = stored is num ? stored : null;
+    String? error;
+    if (current != null) {
+      if (field.min != null && current < field.min!) {
+        error = 'Must be ≥ ${_formatBound(field.min!, field.decimals)}';
+      } else if (field.max != null && current > field.max!) {
+        error = 'Must be ≤ ${_formatBound(field.max!, field.decimals)}';
+      }
+    }
+    final theme = Theme.of(context);
+    return _LabeledField(
+      label: field.label,
+      help: field.helpText,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: controller,
+            keyboardType: TextInputType.numberWithOptions(
+              decimal: field.decimals > 0,
+              signed: (field.min ?? 0) < 0,
+            ),
+            decoration: InputDecoration(
+              suffixText: field.units,
+              errorText: error,
+            ),
+            onChanged: (raw) {
+              final parsed = _parseNumber(raw, field);
+              setState(() {
+                if (parsed != null) {
+                  _values[field.key] = parsed;
+                } else if (raw.trim().isEmpty) {
+                  _values.remove(field.key);
+                }
+                // Failed-parse non-empty input keeps the previous
+                // stored value; the inline error (if any) reflects
+                // that prior value while the user keeps typing.
+              });
+            },
+          ),
+          // _LabeledField doesn't have a helper-text slot; AppTextField
+          // doesn't surface errorText at all. We use the InputDecoration
+          // errorText above which renders inline. No extra widget here.
+          if (error != null && controller.text.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                error,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Format a min/max bound for the inline error label so a 0-decimals
+  /// field doesn't read "Must be ≥ 5.0".
+  String _formatBound(num bound, int decimals) {
+    if (decimals == 0) return bound.toInt().toString();
+    return bound.toStringAsFixed(decimals);
+  }
+
+  // -- Image --------------------------------------------------------
+
+  /// Image / photo upload. Stores `{localPath, storagePath?}` under
+  /// the field's key. Initial state is "Add photo"; once a file is
+  /// captured, the button becomes a small thumbnail that re-opens
+  /// the action sheet (Take photo / Choose from library / Remove).
+  ///
+  /// Capture kicks a fire-and-forget upload through MediaService;
+  /// on success the storagePath is stamped back onto _values so other
+  /// devices can pull the file from Storage on demand.
+  Widget _buildImage(fd.FormImageField field) {
+    final raw = _values[field.key];
+    final map = raw is Map ? raw.cast<String, dynamic>() : null;
+    final localPath = map?['localPath'] as String?;
+    final storagePath = map?['storagePath'] as String?;
+
+    Widget thumbnail() {
+      if (localPath != null && File(localPath).existsSync() && !kIsWeb) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.file(
+            File(localPath),
+            width: 80,
+            height: 80,
+            fit: BoxFit.cover,
+          ),
+        );
+      }
+      if (storagePath != null) {
+        // Lazy-resolve the storage path through MediaService when only
+        // the remote path is available (other-device case). FutureBuilder
+        // keeps the resolution off the build phase.
+        return _RemoteImageThumb(storagePath: storagePath);
+      }
+      return Container(
+        width: 80,
+        height: 80,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Icon(Icons.broken_image_outlined),
+      );
+    }
+
+    final hasImage = localPath != null || storagePath != null;
+    return _LabeledField(
+      label: field.label,
+      help: field.helpText,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: hasImage
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: () => _openImageSheet(field),
+                    child: thumbnail(),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  TextButton.icon(
+                    onPressed: () => _openImageSheet(field),
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Change'),
+                  ),
+                ],
+              )
+            : OutlinedButton.icon(
+                onPressed: () => _openImageSheet(field),
+                icon: const Icon(Icons.photo_camera_outlined),
+                label: const Text('Add photo'),
+              ),
+      ),
+    );
+  }
+
+  Future<void> _openImageSheet(fd.FormImageField field) async {
+    final picker = ImagePicker();
+    final raw = _values[field.key];
+    final hasExisting = raw is Map &&
+        ((raw['localPath'] as String?) != null ||
+            (raw['storagePath'] as String?) != null);
+
+    Future<void> capture(ImageSource source) async {
+      final messenger = ScaffoldMessenger.of(context);
+      try {
+        final file = await picker.pickImage(
+          source: source,
+          imageQuality: 85,
+          maxWidth: 1600,
+        );
+        if (file == null) return;
+        if (!mounted) return;
+        setState(() {
+          _values[field.key] = <String, dynamic>{
+            'localPath': file.path,
+          };
+        });
+        // Make sure the row exists so the storage path can scope to
+        // its id; if there's no submission row yet we save a draft to
+        // mint one. Then fire-and-forget the upload.
+        unawaited(_uploadFormImage(field, file.path));
+      } on Object catch (e) {
+        messenger.showSnackBar(
+          SnackBar(content: Text("Couldn't capture photo: $e")),
+        );
+      }
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!kIsWeb)
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Take photo'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  unawaited(capture(ImageSource.camera));
+                },
+              ),
+            if (field.allowGallery)
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Choose from library'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  unawaited(capture(ImageSource.gallery));
+                },
+              ),
+            if (hasExisting)
+              ListTile(
+                leading: const Icon(Icons.delete_outline),
+                title: const Text('Remove'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  setState(() => _values.remove(field.key));
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Resolves a submission id (creating a draft if needed) and kicks
+  /// the MediaService upload. On success, the storagePath is merged
+  /// back into _values so cross-device readers can pull the bytes.
+  /// Errors are logged via debugPrint — same fire-and-forget shape
+  /// as observation attachments.
+  Future<void> _uploadFormImage(
+    fd.FormImageField field,
+    String localPath,
+  ) async {
+    try {
+      // Need a submission id and a programId to scope the bucket key.
+      final programId = ref.read(activeProgramIdProvider);
+      if (programId == null) return;
+      if (_resolvedSubmissionId == null) {
+        await _saveDraft();
+      }
+      final submissionId = _resolvedSubmissionId;
+      if (submissionId == null) return;
+
+      final media = ref.read(mediaServiceProvider);
+      final storagePath = await media.uploadFormImage(
+        submissionId: submissionId,
+        fieldKey: field.key,
+        localPath: localPath,
+        programId: programId,
+      );
+      if (storagePath == null) return;
+      if (!mounted) return;
+      setState(() {
+        final current = _values[field.key];
+        _values[field.key] = <String, dynamic>{
+          if (current is Map) ...current.cast<String, dynamic>(),
+          'localPath': localPath,
+          'storagePath': storagePath,
+        };
+      });
+    } on Object catch (e, st) {
+      debugPrint('Form image upload failed: $e\n$st');
+    }
+  }
+
   Widget _buildBool(fd.FormBoolField field) {
     final current = _values[field.key] as bool? ?? false;
     return SwitchListTile(
@@ -1000,6 +1394,50 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
         'signedAt': result.signedAt.toIso8601String(),
       };
     });
+    // Fire-and-forget cloud upload of the signature PNG so signed
+    // forms travel between devices visibly. Mirrors the form-image
+    // path: stamps `storagePath` into the same composite map under
+    // the field's key. Other devices read storagePath when their
+    // local signaturePath file is missing.
+    unawaited(_uploadFormSignature(field, result.path));
+  }
+
+  /// Uploads the signature PNG at [localPath] to MediaService under
+  /// the same per-form bucket layout the image field uses. Reuses
+  /// `MediaService.uploadFormImage` since signatures are just images
+  /// from Storage's perspective — the bucket doesn't care.
+  Future<void> _uploadFormSignature(
+    fd.FormSignatureField field,
+    String localPath,
+  ) async {
+    try {
+      final programId = ref.read(activeProgramIdProvider);
+      if (programId == null) return;
+      if (_resolvedSubmissionId == null) {
+        await _saveDraft();
+      }
+      final submissionId = _resolvedSubmissionId;
+      if (submissionId == null) return;
+
+      final media = ref.read(mediaServiceProvider);
+      final storagePath = await media.uploadFormImage(
+        submissionId: submissionId,
+        fieldKey: field.key,
+        localPath: localPath,
+        programId: programId,
+      );
+      if (storagePath == null) return;
+      if (!mounted) return;
+      setState(() {
+        final current = _values[field.key];
+        _values[field.key] = <String, dynamic>{
+          if (current is Map) ...current.cast<String, dynamic>(),
+          'signatureStoragePath': storagePath,
+        };
+      });
+    } on Object catch (e, st) {
+      debugPrint('Signature upload failed: $e\n$st');
+    }
   }
 
   String _formatSignedAt(String iso) {
@@ -1240,6 +1678,165 @@ class _VehiclePickerSheet extends StatelessWidget {
     if (v.makeModel.isNotEmpty) parts.add(v.makeModel);
     if (v.licensePlate.isNotEmpty) parts.add(v.licensePlate);
     return parts.isEmpty ? null : parts.join(' · ');
+  }
+}
+
+/// Bottom-sheet result from the adult picker. Single shape — either
+/// an id is picked or the sheet was dismissed (caller treats null as
+/// no-op).
+class _AdultPickResult {
+  const _AdultPickResult({required this.adultId});
+  final String adultId;
+}
+
+/// Modal list of adults. Sorted alphabetically by name. No "Add new
+/// adult" affordance yet — staff onboarding lives outside the form
+/// flow (admin screens).
+class _AdultPickerSheet extends StatelessWidget {
+  const _AdultPickerSheet({
+    required this.adults,
+    required this.selectedId,
+  });
+
+  final List<Adult> adults;
+  final String? selectedId;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sorted = [...adults]
+      ..sort(
+        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      );
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.md,
+                top: AppSpacing.xs,
+                bottom: AppSpacing.md,
+              ),
+              child: Text(
+                'Pick an adult',
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
+            if (sorted.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Text(
+                  'No adults yet.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            for (final a in sorted)
+              ListTile(
+                leading: Icon(
+                  a.id == selectedId
+                      ? Icons.check_circle
+                      : Icons.person_outline,
+                  color: a.id == selectedId
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+                title: Text(a.name),
+                subtitle: a.role == null || a.role!.trim().isEmpty
+                    ? null
+                    : Text(a.role!),
+                onTap: () => Navigator.of(context).pop(
+                  _AdultPickResult(adultId: a.id),
+                ),
+              ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Lazy-loading thumbnail for an image field whose local file isn't
+/// present on this device (other-device sync case). Resolves the
+/// storage path through MediaService once and caches the result for
+/// subsequent rebuilds.
+class _RemoteImageThumb extends ConsumerStatefulWidget {
+  const _RemoteImageThumb({required this.storagePath});
+  final String storagePath;
+
+  @override
+  ConsumerState<_RemoteImageThumb> createState() =>
+      _RemoteImageThumbState();
+}
+
+class _RemoteImageThumbState extends ConsumerState<_RemoteImageThumb> {
+  String? _localPath;
+  Object? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_resolve());
+  }
+
+  Future<void> _resolve() async {
+    try {
+      final path = await ref
+          .read(mediaServiceProvider)
+          .ensureLocalFile(widget.storagePath);
+      if (!mounted) return;
+      setState(() => _localPath = path);
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error != null || kIsWeb) {
+      return Container(
+        width: 80,
+        height: 80,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Icon(Icons.image_outlined),
+      );
+    }
+    final path = _localPath;
+    if (path == null) {
+      return const SizedBox(
+        width: 80,
+        height: 80,
+        child: Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.file(
+        File(path),
+        width: 80,
+        height: 80,
+        fit: BoxFit.cover,
+      ),
+    );
   }
 }
 

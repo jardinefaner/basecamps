@@ -1,4 +1,5 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/polymorphic/form_definition.dart'
     as fd;
@@ -29,15 +30,19 @@ Future<void> showFormSubmissionShareSheet(
   FormSubmission submission,
   fd.FormDefinition definition,
 ) async {
-  // Pull vehicle + child lists once so the formatter can resolve
-  // picker ids to human strings. Latest snapshot — no watch.
+  // Pull vehicle + child + adult lists once so the formatter can
+  // resolve picker ids to human strings. Latest snapshot — no watch.
   final vehicles = await ref.read(vehiclesProvider.future);
   final children = await ref.read(childrenProvider.future);
+  final adults = await ref.read(adultsProvider.future);
   final vehicleNamesById = <String, String>{
     for (final v in vehicles) v.id: _vehicleSummary(v),
   };
   final childNamesById = <String, String>{
     for (final c in children) c.id: _childDisplayName(c),
+  };
+  final adultNamesById = <String, String>{
+    for (final a in adults) a.id: a.name,
   };
 
   final text = buildFormSubmissionShareText(
@@ -45,6 +50,7 @@ Future<void> showFormSubmissionShareSheet(
     definition: definition,
     vehicleNamesById: vehicleNamesById,
     childNamesById: childNamesById,
+    adultNamesById: adultNamesById,
   );
 
   if (!context.mounted) return;
@@ -148,6 +154,7 @@ String buildFormSubmissionShareText({
   required fd.FormDefinition definition,
   required Map<String, String> vehicleNamesById,
   required Map<String, String> childNamesById,
+  Map<String, String> adultNamesById = const {},
 }) {
   final data = decodeFormData(submission);
   final b = StringBuffer()
@@ -168,13 +175,21 @@ String buildFormSubmissionShareText({
     ..writeln(author);
 
   for (final section in definition.sections) {
+    // Section-level visibility gate: a hidden section contributes
+    // nothing to the share bundle (no header, no field lines). Mirrors
+    // the renderer's section-skip pass.
+    if (section.showWhen != null && !section.showWhen!(data)) continue;
     final lines = <String>[];
     for (final field in section.fields) {
+      // Field-level visibility gate — same rule, no line emitted when
+      // the predicate evaluates false against the saved data.
+      if (field.showWhen != null && !field.showWhen!(data)) continue;
       final line = _renderField(
         field: field,
         data: data,
         vehicleNamesById: vehicleNamesById,
         childNamesById: childNamesById,
+        adultNamesById: adultNamesById,
       );
       if (line != null) lines.add(line);
     }
@@ -203,6 +218,7 @@ String? _renderField({
   required Map<String, dynamic> data,
   required Map<String, String> vehicleNamesById,
   required Map<String, String> childNamesById,
+  required Map<String, String> adultNamesById,
 }) {
   return switch (field) {
     fd.FormTextField() => _renderText(field, data),
@@ -214,10 +230,54 @@ String? _renderField({
     fd.FormVehiclePickerField() =>
       _renderVehicle(field, data, vehicleNamesById),
     fd.FormChildPickerField() => _renderChild(field, data, childNamesById),
+    fd.FormAdultPickerField() => _renderAdult(field, data, adultNamesById),
     fd.FormMultiChildPickerField() =>
       _renderMultiChild(field, data, childNamesById),
+    fd.FormNumberField() => _renderNumber(field, data),
+    fd.FormImageField() => _renderImage(field, data),
     fd.FormSignatureField() => _renderSignature(field, data),
   };
+}
+
+String? _renderAdult(
+  fd.FormAdultPickerField field,
+  Map<String, dynamic> data,
+  Map<String, String> adultNamesById,
+) {
+  final raw = data[field.key];
+  if (raw is! String || raw.isEmpty) return null;
+  final resolved = adultNamesById[raw] ?? '(deleted adult)';
+  return '${field.label}: $resolved';
+}
+
+String? _renderNumber(
+  fd.FormNumberField field,
+  Map<String, dynamic> data,
+) {
+  final raw = data[field.key];
+  if (raw is! num) return null;
+  final formatted = field.decimals == 0
+      ? raw.toInt().toString()
+      : raw.toStringAsFixed(field.decimals);
+  final units = field.units;
+  if (units == null || units.isEmpty) {
+    return '${field.label}: $formatted';
+  }
+  return '${field.label}: $formatted $units';
+}
+
+String? _renderImage(
+  fd.FormImageField field,
+  Map<String, dynamic> data,
+) {
+  final raw = data[field.key];
+  if (raw is! Map) return null;
+  final hasLocal = raw['localPath'] is String &&
+      (raw['localPath'] as String).isNotEmpty;
+  final hasRemote = raw['storagePath'] is String &&
+      (raw['storagePath'] as String).isNotEmpty;
+  if (!hasLocal && !hasRemote) return null;
+  return '${field.label}: photo attached';
 }
 
 String? _renderMultiChild(

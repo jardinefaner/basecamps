@@ -213,6 +213,52 @@ class MediaService {
     }
   }
 
+  /// Uploads a form image-field's local file to the bucket under
+  /// `<programId>/forms/<submissionId>/<fieldKey>.<ext>`. Returns the
+  /// bucket key on success so the caller can stamp it onto the
+  /// submission's `data` blob (the renderer reads it back when
+  /// re-opening the form on another device).
+  ///
+  /// Same fire-and-forget shape as [uploadObservationAttachment]:
+  /// no-ops (returns null) when Supabase isn't ready, the local file
+  /// is gone, or the upload throws — never re-raises.
+  Future<String?> uploadFormImage({
+    required String submissionId,
+    required String fieldKey,
+    required String localPath,
+    required String programId,
+  }) async {
+    final client = _client;
+    if (client == null) return null;
+    if (client.auth.currentSession == null) return null;
+
+    try {
+      final file = File(localPath);
+      // ignore: avoid_slow_async_io — fire-and-forget; see siblings.
+      if (!await file.exists()) {
+        debugPrint(
+          'Form image upload skipped — local file missing for '
+          '$submissionId/$fieldKey',
+        );
+        return null;
+      }
+      final ext = p.extension(localPath);
+      final storagePath = '$programId/forms/$submissionId/$fieldKey$ext';
+      await client.storage.from(_bucket).uploadBinary(
+            storagePath,
+            await file.readAsBytes(),
+            fileOptions: FileOptions(
+              upsert: true,
+              contentType: _contentTypeFor(ext, 'photo'),
+            ),
+          );
+      return storagePath;
+    } on Object catch (e, st) {
+      debugPrint('Form image upload failed: $e\n$st');
+      return null;
+    }
+  }
+
   // -- Download ----------------------------------------------------
 
   /// Returns a local file path for the given [storagePath]. If

@@ -47,6 +47,7 @@ sealed class FormField {
     required this.label,
     this.helpText,
     this.required = false,
+    this.showWhen,
   });
 
   /// Stable identifier — becomes the JSON key in the submission's
@@ -63,7 +64,26 @@ sealed class FormField {
   /// Whether the form blocks "Submit" when this field is empty. Draft
   /// saves ignore this.
   final bool required;
+
+  /// Optional predicate: render this field only when the predicate
+  /// returns true given the current `data` map. Lets a form branch
+  /// (e.g. "if `notify_parent` is true, show `notification_method`")
+  /// without splitting into two FormDefinitions.
+  ///
+  /// `required` is also gated by this — a hidden required field
+  /// doesn't block submit. The predicate runs on every rebuild, so
+  /// keep it cheap (read keys, compare, return bool — no I/O).
+  ///
+  /// Null means "always show" (the default). Same predicate signature
+  /// works at the [FormSection] level for whole-section gating.
+  final FormVisibilityPredicate? showWhen;
 }
+
+/// Tiny shared signature for visibility gates so fields and sections
+/// look at the same shape.
+typedef FormVisibilityPredicate = bool Function(
+  Map<String, dynamic> data,
+);
 
 /// Keyboard flavors a FormTextField can request. Numeric fields
 /// (odometer, fuel level, phone number) pop the number pad instead
@@ -82,6 +102,7 @@ class FormTextField extends FormField {
     required super.label,
     super.helpText,
     super.required,
+    super.showWhen,
     this.hint,
     this.maxLines = 1,
     this.keyboard = FormTextKeyboard.text,
@@ -105,6 +126,7 @@ class FormDateField extends FormField {
     required super.label,
     super.helpText,
     super.required,
+    super.showWhen,
     this.includeTime = false,
     this.defaultsToNow = false,
   });
@@ -120,6 +142,7 @@ class FormChecklistStatusField extends FormField {
     required super.key,
     required super.label,
     super.helpText,
+    super.showWhen,
   });
 }
 
@@ -131,6 +154,7 @@ class FormChoiceField extends FormField {
     required this.options,
     super.helpText,
     super.required,
+    super.showWhen,
   });
   final List<FormChoiceOption> options;
 }
@@ -149,6 +173,7 @@ class FormMultiChoiceField extends FormField {
     required super.label,
     required this.options,
     super.helpText,
+    super.showWhen,
   });
   final List<FormChoiceOption> options;
 }
@@ -159,6 +184,7 @@ class FormBoolField extends FormField {
     required super.key,
     required super.label,
     super.helpText,
+    super.showWhen,
   });
 }
 
@@ -175,6 +201,7 @@ class FormVehiclePickerField extends FormField {
     required super.label,
     super.helpText,
     super.required,
+    super.showWhen,
   });
 }
 
@@ -191,7 +218,88 @@ class FormChildPickerField extends FormField {
     required super.label,
     super.helpText,
     super.required,
+    super.showWhen,
   });
+}
+
+/// Pick-from-list for an Adult row. Mirror of [FormChildPickerField]
+/// for staff. Stores the adult's id in the data blob. Forms that
+/// reference a specific staff member (incident report's responding
+/// staff, signed-off-by, etc.) use this instead of free-text.
+///
+/// On historical rows where the adult was deleted later, the
+/// renderer shows "(deleted adult)" in place of the name.
+class FormAdultPickerField extends FormField {
+  const FormAdultPickerField({
+    required super.key,
+    required super.label,
+    super.helpText,
+    super.required,
+    super.showWhen,
+  });
+}
+
+/// Numeric input. Stores as int (when [decimals] is 0) or double.
+/// Validates against [min] / [max] before submit; out-of-range
+/// values trigger inline error text on the field.
+///
+/// [units] renders as a suffix label inside the input ("min",
+/// "miles", "°F", etc) — visual cue, doesn't affect storage.
+class FormNumberField extends FormField {
+  const FormNumberField({
+    required super.key,
+    required super.label,
+    super.helpText,
+    super.required,
+    super.showWhen,
+    this.min,
+    this.max,
+    this.decimals = 0,
+    this.units,
+  });
+
+  final num? min;
+  final num? max;
+
+  /// 0 = integer (renders without a decimal point in the keyboard);
+  /// >0 = decimal field with that many places displayed. Stored
+  /// values keep full precision regardless.
+  final int decimals;
+
+  /// Suffix label like "min", "%", "°F". Display-only; values
+  /// don't include it in storage.
+  final String? units;
+}
+
+/// Image / photo upload. Captures or picks a photo via the
+/// device's image picker, uploads to MediaService into the
+/// per-form bucket area, and stores both the storage path and the
+/// local cache path under one composite JSON object keyed by the
+/// field's [key]:
+///
+///     {
+///       "localPath": "/path/...",
+///       "storagePath": "<programId>/forms/<rowId>/<fieldKey>.<ext>"
+///     }
+///
+/// Other devices read `storagePath` and lazy-download via
+/// `MediaService.ensureLocalFile`. Original device sees its local
+/// file directly until cache is cleared.
+///
+/// [allowGallery] gates whether the picker offers "choose from
+/// library" alongside camera. False for forms that need
+/// teacher-witnessed evidence (must be a fresh photo).
+class FormImageField extends FormField {
+  const FormImageField({
+    required super.key,
+    required super.label,
+    super.helpText,
+    super.required,
+    super.showWhen,
+    this.allowGallery = true,
+  });
+
+  final bool allowGallery;
 }
 
 /// Multi-select picker for children. Stores a JSON array of child
@@ -209,6 +317,7 @@ class FormMultiChildPickerField extends FormField {
     required super.label,
     super.helpText,
     super.required,
+    super.showWhen,
   });
 }
 
@@ -239,6 +348,7 @@ class FormSignatureField extends FormField {
     required super.label,
     super.helpText,
     super.required,
+    super.showWhen,
   });
 }
 
@@ -249,10 +359,17 @@ class FormSection {
     required this.title,
     required this.fields,
     this.subtitle,
+    this.showWhen,
   });
   final String title;
   final String? subtitle;
   final List<FormField> fields;
+
+  /// Optional predicate. When provided, the renderer skips the
+  /// whole section (header + every field) unless the predicate
+  /// returns true on the current data map. Use this when a wizard
+  /// page should appear only on certain branches.
+  final FormVisibilityPredicate? showWhen;
 }
 
 /// Layout shape for a form. `scroll` renders every section stacked
