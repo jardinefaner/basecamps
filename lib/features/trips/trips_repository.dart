@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
@@ -22,6 +23,7 @@ class TripsRepository {
 
   Stream<List<Trip>> watchAll() {
     final query = _db.select(_db.trips)
+      ..where((t) => matchesActiveProgram(t.programId, _programId))
       ..orderBy([(t) => OrderingTerm.asc(t.date)]);
     return query.watch();
   }
@@ -43,9 +45,17 @@ class TripsRepository {
   /// in the Today agenda. Cheap — trip_groups is tiny (one row per
   /// trip-group pair) and the whole set fits in memory comfortably.
   Stream<Map<String, List<String>>> watchAllGroupsByTrip() {
-    return _db.select(_db.tripGroups).watch().map((rows) {
+    // Scope through the parent trip — trip_groups is a cascade with
+    // no programId of its own, so we join to trips and filter on the
+    // joined trip's programId.
+    final query = _db.select(_db.tripGroups).join([
+      innerJoin(_db.trips, _db.trips.id.equalsExp(_db.tripGroups.tripId)),
+    ])
+      ..where(matchesActiveProgram(_db.trips.programId, _programId));
+    return query.watch().map((rows) {
       final out = <String, List<String>>{};
-      for (final r in rows) {
+      for (final row in rows) {
+        final r = row.readTable(_db.tripGroups);
         (out[r.tripId] ??= <String>[]).add(r.groupId);
       }
       return out;
@@ -190,6 +200,7 @@ final tripsRepositoryProvider = Provider<TripsRepository>((ref) {
 });
 
 final tripsProvider = StreamProvider<List<Trip>>((ref) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(tripsRepositoryProvider).watchAll();
 });
 

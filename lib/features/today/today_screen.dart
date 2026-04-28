@@ -18,6 +18,7 @@ import 'package:basecamp/features/groups/group_summary_repository.dart';
 import 'package:basecamp/features/launcher/launcher_screen.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/observations/widgets/observation_composer.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/schedule/adult_shift_conflicts.dart';
 import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
@@ -2094,5 +2095,6 @@ class _EmptyState extends StatelessWidget {
 final _allTripGroupsByTripProvider = StreamProvider<Map<String, List<String>>>((
   ref,
 ) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(tripsRepositoryProvider).watchAllGroupsByTrip();
 });

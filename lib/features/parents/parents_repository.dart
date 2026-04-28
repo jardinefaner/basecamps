@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
@@ -34,6 +35,7 @@ class ParentsRepository {
 
   Stream<List<Parent>> watchAll() {
     final query = _db.select(_db.parents)
+      ..where((p) => matchesActiveProgram(p.programId, _programId))
       ..orderBy([
         (p) => OrderingTerm.asc(p.firstName),
         (p) => OrderingTerm.asc(p.lastName),
@@ -43,6 +45,7 @@ class ParentsRepository {
 
   Future<List<Parent>> getAll() {
     final query = _db.select(_db.parents)
+      ..where((p) => matchesActiveProgram(p.programId, _programId))
       ..orderBy([
         (p) => OrderingTerm.asc(p.firstName),
         (p) => OrderingTerm.asc(p.lastName),
@@ -269,6 +272,7 @@ final parentsRepositoryProvider = Provider<ParentsRepository>((ref) {
 });
 
 final parentsProvider = StreamProvider<List<Parent>>((ref) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(parentsRepositoryProvider).watchAll();
 });
 

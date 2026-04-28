@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/sync/media_service.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
@@ -51,6 +52,7 @@ class AdultsRepository {
 
   Stream<List<Adult>> watchAll() {
     final query = _db.select(_db.adults)
+      ..where((s) => matchesActiveProgram(s.programId, _programId))
       ..orderBy([(s) => OrderingTerm.asc(s.name)]);
     return query.watch();
   }
@@ -383,6 +385,7 @@ final adultsRepositoryProvider = Provider<AdultsRepository>((ref) {
 });
 
 final adultsProvider = StreamProvider<List<Adult>>((ref) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(adultsRepositoryProvider).watchAll();
 });
 

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/forms/polymorphic/form_definition.dart';
+import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
@@ -29,7 +30,9 @@ class FormSubmissionRepository {
   /// forms-hub list screens.
   Stream<List<FormSubmission>> watchByType(String formType) {
     final query = _db.select(_db.formSubmissions)
-      ..where((s) => s.formType.equals(formType))
+      ..where((s) =>
+          s.formType.equals(formType) &
+          matchesActiveProgram(s.programId, _programId))
       ..orderBy([
         // Submitted rows first by submit time; drafts (null
         // submittedAt) fall through to createdAt order. Both
@@ -60,7 +63,9 @@ class FormSubmissionRepository {
   /// type. Feeds Today's close-out strip count of draft submissions.
   Stream<List<FormSubmission>> watchByStatus(FormStatus status) {
     final query = _db.select(_db.formSubmissions)
-      ..where((s) => s.status.equals(status.dbValue))
+      ..where((s) =>
+          s.status.equals(status.dbValue) &
+          matchesActiveProgram(s.programId, _programId))
       ..orderBy([(s) => OrderingTerm.desc(s.updatedAt)]);
     return query.watch();
   }
@@ -74,7 +79,8 @@ class FormSubmissionRepository {
           s.reviewDueAt.isNotNull() &
           s.reviewDueAt.isSmallerOrEqualValue(cutoff) &
           s.status.isNotValue(FormStatus.completed.dbValue) &
-          s.status.isNotValue(FormStatus.archived.dbValue))
+          s.status.isNotValue(FormStatus.archived.dbValue) &
+          matchesActiveProgram(s.programId, _programId))
       ..orderBy([(s) => OrderingTerm.asc(s.reviewDueAt)]);
     return query.watch();
   }
@@ -277,6 +283,7 @@ final formSubmissionRepositoryProvider =
 // ignore: specify_nonobvious_property_types
 final formSubmissionsByTypeProvider =
     StreamProvider.family<List<FormSubmission>, String>((ref, formType) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(formSubmissionRepositoryProvider).watchByType(formType);
 });
 
@@ -304,6 +311,7 @@ final formSubmissionChildrenProvider =
 // ignore: specify_nonobvious_property_types
 final formSubmissionsByStatusProvider =
     StreamProvider.family<List<FormSubmission>, FormStatus>((ref, status) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(formSubmissionRepositoryProvider).watchByStatus(status);
 });
 
@@ -313,6 +321,7 @@ final formSubmissionsByStatusProvider =
 /// forms system.
 final todayReviewDueProvider =
     StreamProvider<List<FormSubmission>>((ref) {
+  ref.watch(activeProgramIdProvider);
   final now = DateTime.now();
   final endOfToday = DateTime(now.year, now.month, now.day, 23, 59, 59);
   return ref

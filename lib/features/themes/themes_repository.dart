@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
@@ -30,6 +31,7 @@ class ThemesRepository {
 
   Stream<List<ProgramTheme>> watchAll() {
     final query = _db.select(_db.themes)
+      ..where((t) => matchesActiveProgram(t.programId, _programId))
       ..orderBy([(t) => OrderingTerm.desc(t.startDate)]);
     return query.watch();
   }
@@ -57,7 +59,8 @@ class ThemesRepository {
     final query = _db.select(_db.themes)
       ..where((t) =>
           t.startDate.isSmallerOrEqualValue(day) &
-          t.endDate.isBiggerOrEqualValue(day))
+          t.endDate.isBiggerOrEqualValue(day) &
+          matchesActiveProgram(t.programId, _programId))
       ..orderBy([(t) => OrderingTerm.asc(t.startDate)]);
     return query.watch();
   }
@@ -138,6 +141,7 @@ final themesRepositoryProvider = Provider<ThemesRepository>((ref) {
 });
 
 final themesProvider = StreamProvider<List<ProgramTheme>>((ref) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(themesRepositoryProvider).watchAll();
 });
 
@@ -145,6 +149,7 @@ final themesProvider = StreamProvider<List<ProgramTheme>>((ref) {
 // ignore: specify_nonobvious_property_types
 final activeThemesProvider =
     StreamProvider.family<List<ProgramTheme>, DateTime>((ref, date) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(themesRepositoryProvider).watchActive(date);
 });
 

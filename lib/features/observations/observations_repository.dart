@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/sync/media_service.dart';
 import 'package:basecamp/features/sync/observations_sync_service.dart';
@@ -151,6 +152,7 @@ class ObservationsRepository {
 
   Stream<List<Observation>> watchAll() {
     final query = _db.select(_db.observations)
+      ..where((o) => matchesActiveProgram(o.programId, _programId))
       ..orderBy([(o) => OrderingTerm.desc(o.createdAt)]);
     return query.watch();
   }
@@ -170,7 +172,8 @@ class ObservationsRepository {
         (o) =>
             o.createdAt.isBiggerOrEqualValue(start) &
             o.createdAt.isSmallerThanValue(end) &
-            o.activityLabel.isNotNull(),
+            o.activityLabel.isNotNull() &
+            matchesActiveProgram(o.programId, _programId),
       );
     return query.watch().map((rows) {
       final map = <String, int>{};
@@ -201,7 +204,8 @@ class ObservationsRepository {
         _db.observationDomainTags.observationId.equalsExp(_db.observations.id),
       ),
     ])
-      ..where(_db.observationDomainTags.domain.equals(domain.name))
+      ..where(_db.observationDomainTags.domain.equals(domain.name) &
+          matchesActiveProgram(_db.observations.programId, _programId))
       ..orderBy([OrderingTerm.desc(_db.observations.createdAt)]);
     return query.watch().map(
           (rows) => rows.map((r) => r.readTable(_db.observations)).toList(),
@@ -217,7 +221,8 @@ class ObservationsRepository {
         _db.observationChildren.observationId.equalsExp(_db.observations.id),
       ),
     ])
-      ..where(_db.observationChildren.childId.equals(childId))
+      ..where(_db.observationChildren.childId.equals(childId) &
+          matchesActiveProgram(_db.observations.programId, _programId))
       ..orderBy([OrderingTerm.desc(_db.observations.createdAt)]);
 
     return joinQuery.watch().map(
@@ -403,9 +408,25 @@ class ObservationsRepository {
   /// Watch every attachment in the DB, newest first. Feeds the
   /// media-only filter on the Observe tab.
   Stream<List<ObservationAttachment>> watchAllAttachments() {
-    return (_db.select(_db.observationAttachments)
-          ..orderBy([(a) => OrderingTerm.desc(a.createdAt)]))
-        .watch();
+    // Scope through the parent observation — attachments have no
+    // programId of their own (cascade table), so we join to
+    // observations and filter on the parent's programId.
+    final query = _db.select(_db.observationAttachments).join([
+      innerJoin(
+        _db.observations,
+        _db.observations.id
+            .equalsExp(_db.observationAttachments.observationId),
+      ),
+    ])
+      ..where(matchesActiveProgram(_db.observations.programId, _programId))
+      ..orderBy([
+        OrderingTerm.desc(_db.observationAttachments.createdAt),
+      ]);
+    return query.watch().map(
+          (rows) => rows
+              .map((r) => r.readTable(_db.observationAttachments))
+              .toList(),
+        );
   }
 
   Future<String> addAttachment({
@@ -802,6 +823,7 @@ final observationsRepositoryProvider =
 });
 
 final observationsProvider = StreamProvider<List<Observation>>((ref) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(observationsRepositoryProvider).watchAll();
 });
 
@@ -814,6 +836,7 @@ final observationsProvider = StreamProvider<List<Observation>>((ref) {
 /// a concern worth the extra wiring.
 final todayActivityCountsProvider =
     StreamProvider<Map<String, int>>((ref) {
+  ref.watch(activeProgramIdProvider);
   return ref
       .watch(observationsRepositoryProvider)
       .watchActivityCountsForDay(DateTime.now());
@@ -823,6 +846,7 @@ final todayActivityCountsProvider =
 // ignore: specify_nonobvious_property_types
 final observationsWithDomainProvider =
     StreamProvider.family<List<Observation>, ObservationDomain>((ref, domain) {
+  ref.watch(activeProgramIdProvider);
   return ref
       .watch(observationsRepositoryProvider)
       .watchObservationsWithDomain(domain);
@@ -832,6 +856,7 @@ final observationsWithDomainProvider =
 // ignore: specify_nonobvious_property_types
 final childObservationsProvider =
     StreamProvider.family<List<Observation>, String>((ref, childId) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(observationsRepositoryProvider).watchForKid(childId);
 });
 
@@ -858,6 +883,7 @@ final observationAttachmentsProvider =
 /// filter shows these in a grid.
 final allAttachmentsProvider =
     StreamProvider<List<ObservationAttachment>>((ref) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(observationsRepositoryProvider).watchAllAttachments();
 });
 

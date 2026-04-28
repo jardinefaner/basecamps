@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
@@ -27,6 +28,7 @@ class ActivityLibraryRepository {
     // the freshly-generated card appearing at the top of the bucket,
     // and that's the intuitive order for a bucket anyway.
     final query = _db.select(_db.activityLibrary)
+      ..where((a) => matchesActiveProgram(a.programId, _programId))
       ..orderBy([(a) => OrderingTerm.desc(a.createdAt)]);
     return query.watch();
   }
@@ -250,11 +252,25 @@ class ActivityLibraryRepository {
   /// subscriptions. Alphabetical order on the inner set is irrelevant
   /// (it's a membership check).
   Stream<Map<String, Set<String>>> watchAllDomainTags() {
-    final query = _db.select(_db.activityLibraryDomainTags);
+    // Scope through the parent table: domain tags are a cascade
+    // (no programId column of their own), so we join to
+    // activity_library and filter on its programId.
+    final query = _db.select(_db.activityLibraryDomainTags).join([
+      innerJoin(
+        _db.activityLibrary,
+        _db.activityLibrary.id
+            .equalsExp(_db.activityLibraryDomainTags.libraryItemId),
+      ),
+    ])
+      ..where(matchesActiveProgram(
+        _db.activityLibrary.programId,
+        _programId,
+      ));
     return query.watch().map((rows) {
       final map = <String, Set<String>>{};
       for (final r in rows) {
-        map.putIfAbsent(r.libraryItemId, () => <String>{}).add(r.domain);
+        final tag = r.readTable(_db.activityLibraryDomainTags);
+        map.putIfAbsent(tag.libraryItemId, () => <String>{}).add(tag.domain);
       }
       return map;
     });
@@ -352,15 +368,32 @@ class ActivityLibraryRepository {
     if (source == null) return const [];
     final sourceDomains = (await domainsFor(sourceId)).toSet();
     // Preload domain tags for every row in one shot — keeps this a
-    // simple in-memory rank rather than per-item round-trips.
-    final allTagRows = await _db.select(_db.activityLibraryDomainTags).get();
+    // simple in-memory rank rather than per-item round-trips. Scoped
+    // through the parent library table so we don't pull tags from
+    // other programs' rows.
+    final tagJoin = _db.select(_db.activityLibraryDomainTags).join([
+      innerJoin(
+        _db.activityLibrary,
+        _db.activityLibrary.id
+            .equalsExp(_db.activityLibraryDomainTags.libraryItemId),
+      ),
+    ])
+      ..where(matchesActiveProgram(
+        _db.activityLibrary.programId,
+        _programId,
+      ));
+    final allTagRows = await tagJoin
+        .map((r) => r.readTable(_db.activityLibraryDomainTags))
+        .get();
     final tagsByItem = <String, Set<String>>{};
     for (final r in allTagRows) {
       tagsByItem.putIfAbsent(r.libraryItemId, () => <String>{}).add(r.domain);
     }
     final sourceTitleTokens = _titleTokens(source.title);
     final candidates = await (_db.select(_db.activityLibrary)
-          ..where((a) => a.id.equals(sourceId).not()))
+          ..where((a) =>
+              a.id.equals(sourceId).not() &
+              matchesActiveProgram(a.programId, _programId)))
         .get();
     final scored = <_SimilarScored>[];
     for (final cand in candidates) {
@@ -564,6 +597,7 @@ final activityLibraryRepositoryProvider =
 
 final activityLibraryProvider =
     StreamProvider<List<ActivityLibraryData>>((ref) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(activityLibraryRepositoryProvider).watchAll();
 });
 
@@ -584,6 +618,7 @@ final libraryDomainsForItemProvider =
 /// can check a domain match without spinning up a per-card stream.
 final allLibraryDomainTagsProvider =
     StreamProvider<Map<String, Set<String>>>((ref) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(activityLibraryRepositoryProvider).watchAllDomainTags();
 });
 
@@ -595,8 +630,10 @@ final allLibraryDomainTagsProvider =
 final similarLibraryItemsProvider =
     FutureProvider.family<List<ActivityLibraryData>, String>(
   (ref, sourceId) async {
-    // Re-run when the library list changes so fresh cards appear.
+    // Re-run when program switches or the library list changes so
+    // freshly added (and program-scoped) cards appear.
     ref
+      ..watch(activeProgramIdProvider)
       ..watch(activityLibraryProvider)
       ..watch(allLibraryDomainTagsProvider);
     return ref

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
@@ -31,12 +32,14 @@ class RolesRepository {
 
   Stream<List<Role>> watchAll() {
     final query = _db.select(_db.roles)
+      ..where((r) => matchesActiveProgram(r.programId, _programId))
       ..orderBy([(r) => OrderingTerm.asc(r.name)]);
     return query.watch();
   }
 
   Future<List<Role>> getAll() {
     final query = _db.select(_db.roles)
+      ..where((r) => matchesActiveProgram(r.programId, _programId))
       ..orderBy([(r) => OrderingTerm.asc(r.name)]);
     return query.get();
   }
@@ -104,6 +107,7 @@ final rolesRepositoryProvider = Provider<RolesRepository>((ref) {
 });
 
 final rolesProvider = StreamProvider<List<Role>>((ref) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(rolesRepositoryProvider).watchAll();
 });
 

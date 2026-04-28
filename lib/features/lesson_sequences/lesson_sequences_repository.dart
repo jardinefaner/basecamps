@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
@@ -29,6 +30,7 @@ class LessonSequencesRepository {
 
   Stream<List<LessonSequence>> watchAll() {
     final query = _db.select(_db.lessonSequences)
+      ..where((s) => matchesActiveProgram(s.programId, _programId))
       ..orderBy([(s) => OrderingTerm.asc(s.name)]);
     return query.watch();
   }
@@ -85,7 +87,9 @@ class LessonSequencesRepository {
   /// view consumes this stream to render the week strip.
   Stream<List<LessonSequence>> watchSequencesForTheme(String themeId) {
     final query = _db.select(_db.lessonSequences)
-      ..where((s) => s.themeId.equals(themeId))
+      ..where((s) =>
+          s.themeId.equals(themeId) &
+          matchesActiveProgram(s.programId, _programId))
       ..orderBy([(s) => OrderingTerm.asc(s.name)]);
     return query.watch();
   }
@@ -333,6 +337,7 @@ final lessonSequencesRepositoryProvider =
 
 final lessonSequencesProvider =
     StreamProvider<List<LessonSequence>>((ref) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(lessonSequencesRepositoryProvider).watchAll();
 });
 
@@ -374,6 +379,7 @@ final lessonSequenceProvider =
 final lessonSequencesForThemeProvider =
     StreamProvider.family<List<LessonSequence>, String>(
   (ref, themeId) {
+    ref.watch(activeProgramIdProvider);
     return ref
         .watch(lessonSequencesRepositoryProvider)
         .watchSequencesForTheme(themeId);

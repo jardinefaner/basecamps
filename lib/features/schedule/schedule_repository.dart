@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
@@ -126,6 +127,7 @@ class ScheduleRepository {
 
   Stream<List<ScheduleTemplate>> watchTemplates() {
     final query = _db.select(_db.scheduleTemplates)
+      ..where((t) => matchesActiveProgram(t.programId, _programId))
       ..orderBy([
         (t) => OrderingTerm.asc(t.dayOfWeek),
         (t) => OrderingTerm.asc(t.startTime),
@@ -139,7 +141,9 @@ class ScheduleRepository {
     String adultId,
   ) {
     final query = _db.select(_db.scheduleTemplates)
-      ..where((t) => t.adultId.equals(adultId))
+      ..where((t) =>
+          t.adultId.equals(adultId) &
+          matchesActiveProgram(t.programId, _programId))
       ..orderBy([
         (t) => OrderingTerm.asc(t.dayOfWeek),
         (t) => OrderingTerm.asc(t.startTime),
@@ -149,7 +153,9 @@ class ScheduleRepository {
 
   Future<List<ScheduleTemplate>> templatesForDay(int dayOfWeek) {
     final query = _db.select(_db.scheduleTemplates)
-      ..where((t) => t.dayOfWeek.equals(dayOfWeek))
+      ..where((t) =>
+          t.dayOfWeek.equals(dayOfWeek) &
+          matchesActiveProgram(t.programId, _programId))
       ..orderBy([(t) => OrderingTerm.asc(t.startTime)]);
     return query.get();
   }
@@ -974,7 +980,8 @@ class ScheduleRepository {
           ..where((e) =>
               e.kind.equals('addition') &
               e.date.isBiggerOrEqualValue(sourceStart) &
-              e.date.isSmallerThanValue(sourceEnd)))
+              e.date.isSmallerThanValue(sourceEnd) &
+              matchesActiveProgram(e.programId, _programId)))
         .get();
 
     if (sources.isEmpty) return 0;
@@ -1033,7 +1040,9 @@ class ScheduleRepository {
     final monday = _dayOnly(weekStart);
     final nextMonday = monday.add(const Duration(days: 7));
 
-    final templatesStream = _db.select(_db.scheduleTemplates).watch();
+    final templatesStream = (_db.select(_db.scheduleTemplates)
+          ..where((t) => matchesActiveProgram(t.programId, _programId)))
+        .watch();
     // Entries can span a range — include any row whose [date, endDate]
     // touches this week, not just ones whose start date falls inside.
     // An entry with no endDate is treated as a single-day match.
@@ -1044,7 +1053,8 @@ class ScheduleRepository {
                 ((e.endDate.isNull() &
                         e.date.isBiggerOrEqualValue(monday)) |
                     (e.endDate.isNotNull() &
-                        e.endDate.isBiggerOrEqualValue(monday))),
+                        e.endDate.isBiggerOrEqualValue(monday))) &
+                matchesActiveProgram(e.programId, _programId),
           ))
         .watch();
 
@@ -1126,7 +1136,9 @@ class ScheduleRepository {
     final nextDay = day.add(const Duration(days: 1));
 
     final templatesStream = (_db.select(_db.scheduleTemplates)
-          ..where((t) => t.dayOfWeek.equals(dayOfWeek)))
+          ..where((t) =>
+              t.dayOfWeek.equals(dayOfWeek) &
+              matchesActiveProgram(t.programId, _programId)))
         .watch();
     // Include any entry whose [date, endDate] overlaps `day`. Single-
     // day entries (endDate null) match when date == day; multi-day
@@ -1138,7 +1150,8 @@ class ScheduleRepository {
                 ((e.endDate.isNull() &
                         e.date.isBiggerOrEqualValue(day)) |
                     (e.endDate.isNotNull() &
-                        e.endDate.isBiggerOrEqualValue(day))),
+                        e.endDate.isBiggerOrEqualValue(day))) &
+                matchesActiveProgram(e.programId, _programId),
           ))
         .watch();
 
@@ -1338,11 +1351,13 @@ final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
 });
 
 final templatesProvider = StreamProvider<List<ScheduleTemplate>>((ref) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(scheduleRepositoryProvider).watchTemplates();
 });
 
 final templateItemsByDayProvider =
     StreamProvider<Map<int, List<ScheduleItem>>>((ref) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(scheduleRepositoryProvider).watchTemplateItemsByDay();
 });
 
@@ -1355,6 +1370,7 @@ final templateItemsByDayProvider =
 final scheduleForWeekProvider =
     StreamProvider.family<Map<int, List<ScheduleItem>>, DateTime>(
   (ref, weekStart) {
+    ref.watch(activeProgramIdProvider);
     return ref
         .watch(scheduleRepositoryProvider)
         .watchScheduleForWeek(weekStart);
@@ -1362,6 +1378,7 @@ final scheduleForWeekProvider =
 );
 
 final todayScheduleProvider = StreamProvider<List<ScheduleItem>>((ref) {
+  ref.watch(activeProgramIdProvider);
   return ref
       .watch(scheduleRepositoryProvider)
       .watchScheduleForDate(DateTime.now());
@@ -1377,6 +1394,7 @@ final todayScheduleProvider = StreamProvider<List<ScheduleItem>>((ref) {
 // ignore: specify_nonobvious_property_types
 final scheduleForDateProvider =
     StreamProvider.family<List<ScheduleItem>, DateTime>((ref, date) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(scheduleRepositoryProvider).watchScheduleForDate(date);
 });
 
@@ -1385,6 +1403,7 @@ final scheduleForDateProvider =
 final templatesByAdultProvider =
     StreamProvider.family<List<ScheduleTemplate>, String>(
   (ref, adultId) {
+    ref.watch(activeProgramIdProvider);
     return ref
         .watch(scheduleRepositoryProvider)
         .watchTemplatesForAdult(adultId);

@@ -1,5 +1,7 @@
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/program_scope.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -11,9 +13,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// entry creation flows to auto-log a usage, and the library screen
 /// uses [lastUsedAtProvider] to decorate cards.
 class LibraryUsagesRepository {
-  LibraryUsagesRepository(this._db);
+  LibraryUsagesRepository(this._db, this._ref);
 
   final AppDatabase _db;
+  final Ref _ref;
+
+  /// See ObservationsRepository._programId for why we read this on
+  /// every read rather than caching at construction time.
+  String? get _programId => _ref.read(activeProgramIdProvider);
 
   /// Record that [libraryItemId] was used on [usedOn]. Exactly one of
   /// [templateId] / [entryId] is typically set (the schedule row the
@@ -42,10 +49,28 @@ class LibraryUsagesRepository {
   /// Most-recent [limit] usage rows across the whole library, newest
   /// first. Powers the "recently used" rail on the library screen.
   Stream<List<ActivityLibraryUsage>> watchRecentUsages(int limit) {
-    final query = _db.select(_db.activityLibraryUsages)
-      ..orderBy([(u) => OrderingTerm.desc(u.createdAt)])
+    // Scope through the parent activity_library row — usages have no
+    // programId of their own (cascade table), so we filter on the
+    // joined library row's programId.
+    final query = _db.select(_db.activityLibraryUsages).join([
+      innerJoin(
+        _db.activityLibrary,
+        _db.activityLibrary.id
+            .equalsExp(_db.activityLibraryUsages.libraryItemId),
+      ),
+    ])
+      ..where(matchesActiveProgram(
+        _db.activityLibrary.programId,
+        _programId,
+      ))
+      ..orderBy([
+        OrderingTerm.desc(_db.activityLibraryUsages.createdAt),
+      ])
       ..limit(limit);
-    return query.watch();
+    return query.watch().map(
+          (rows) =>
+              rows.map((r) => r.readTable(_db.activityLibraryUsages)).toList(),
+        );
   }
 
   /// The latest usage timestamp for [libraryItemId], or null when
@@ -62,13 +87,14 @@ class LibraryUsagesRepository {
 
 final libraryUsagesRepositoryProvider =
     Provider<LibraryUsagesRepository>((ref) {
-  return LibraryUsagesRepository(ref.watch(databaseProvider));
+  return LibraryUsagesRepository(ref.watch(databaseProvider), ref);
 });
 
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types
 final recentLibraryUsagesProvider =
     StreamProvider.family<List<ActivityLibraryUsage>, int>((ref, limit) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(libraryUsagesRepositoryProvider).watchRecentUsages(limit);
 });
 

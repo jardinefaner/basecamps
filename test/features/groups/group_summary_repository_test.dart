@@ -1,5 +1,6 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,9 +14,23 @@ import 'package:flutter_test/flutter_test.dart';
 
 AppDatabase _db() => AppDatabase.forTesting(NativeDatabase.memory());
 
+/// `groupsProvider` (and the rest of the program-scoped providers)
+/// now `ref.watch(activeProgramIdProvider)` so they rebuild on
+/// program switch. The default notifier hydrates from
+/// SharedPreferences, which crashes a non-binding test. Pin it to
+/// null with a stub so the in-memory DB just sees the legacy
+/// program_id IS NULL arm.
+class _NullActiveProgramNotifier extends ActiveProgramNotifier {
+  @override
+  String? build() => null;
+}
+
 ProviderContainer _container(AppDatabase db) {
   return ProviderContainer(
-    overrides: [databaseProvider.overrideWithValue(db)],
+    overrides: [
+      databaseProvider.overrideWithValue(db),
+      activeProgramIdProvider.overrideWith(_NullActiveProgramNotifier.new),
+    ],
   );
 }
 

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/sync/media_service.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
@@ -24,19 +25,23 @@ class ChildrenRepository {
 
   Stream<List<Group>> watchGroups() {
     final query = _db.select(_db.groups)
+      ..where((p) => matchesActiveProgram(p.programId, _programId))
       ..orderBy([(p) => OrderingTerm.asc(p.createdAt)]);
     return query.watch();
   }
 
   Stream<List<Child>> watchChildren() {
     final query = _db.select(_db.children)
+      ..where((k) => matchesActiveProgram(k.programId, _programId))
       ..orderBy([(k) => OrderingTerm.asc(k.firstName)]);
     return query.watch();
   }
 
   Stream<List<Child>> watchChildrenInGroup(String groupId) {
     final query = _db.select(_db.children)
-      ..where((k) => k.groupId.equals(groupId))
+      ..where((k) =>
+          k.groupId.equals(groupId) &
+          matchesActiveProgram(k.programId, _programId))
       ..orderBy([(k) => OrderingTerm.asc(k.firstName)]);
     return query.watch();
   }
@@ -262,10 +267,12 @@ final childrenRepositoryProvider = Provider<ChildrenRepository>((ref) {
 });
 
 final groupsProvider = StreamProvider<List<Group>>((ref) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(childrenRepositoryProvider).watchGroups();
 });
 
 final childrenProvider = StreamProvider<List<Child>>((ref) {
+  ref.watch(activeProgramIdProvider);
   return ref.watch(childrenRepositoryProvider).watchChildren();
 });
 
