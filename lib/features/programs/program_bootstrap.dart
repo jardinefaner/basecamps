@@ -191,6 +191,25 @@ class ProgramAuthBootstrap {
       // Skip cleanly.
       if (program.createdBy != userId) return;
 
+      // Verify the JWT is server-valid before pushing. Same
+      // pattern as `createAndSwitchProgram` — without this, a
+      // stale-but-cached session keeps 42501-ing every launch.
+      final auth = Supabase.instance.client.auth;
+      try {
+        await auth.refreshSession();
+        final verified = await auth.getUser();
+        if (verified.user?.id != userId) {
+          debugPrint(
+            'Bootstrap skip cloud push — JWT user '
+            '${verified.user?.id} != local user $userId',
+          );
+          return;
+        }
+      } on Object catch (e) {
+        debugPrint('Bootstrap skip cloud push — auth verify failed: $e');
+        return;
+      }
+
       final supabase = Supabase.instance.client;
       // Upsert the program row (id is the PK; other fields update
       // when re-running). RLS allows this only when created_by
@@ -293,26 +312,44 @@ class ProgramAuthBootstrap {
     required String name,
     required String userId,
   }) async {
-    // Force a session refresh before the cloud upsert. The user
-    // hit 42501 ("new row violates RLS for 'programs'") repeatedly
-    // even though `currentUser` was non-null — the JWT in the
-    // Authorization header can outlive its server-side validity
-    // when the Dart client's `currentUser` was populated from a
-    // cached session. `refreshSession()` rotates the JWT to a
-    // freshly-signed one so `auth.uid()` server-side matches what
-    // we send as `created_by`.
+    // The persistent 42501 ("new row violates RLS for 'programs'")
+    // means the server's `auth.uid()` doesn't match what we send
+    // as `created_by`. Before doing the cloud upsert, prove the
+    // session is actually valid server-side:
+    //
+    //   1. `refreshSession()` rotates the JWT.
+    //   2. `getUser()` contacts the server with the new JWT —
+    //      if it succeeds, we know `auth.uid()` server-side
+    //      matches the returned user.id. If it fails, the
+    //      session is broken (refresh token expired, project
+    //      mismatch, etc.) and we abort with a clean error
+    //      that tells the user to sign in again.
+    //
+    // Without step 2, `currentUser?.id` returns a cached value
+    // even when the JWT is no longer valid — the create flow
+    // proceeds with a `created_by` that the server rejects.
     final auth = Supabase.instance.client.auth;
     try {
       await auth.refreshSession();
-    } on Object {
-      // If the refresh itself fails, fall through and use whatever
-      // currentUser claims — the upsert below will surface the
-      // real error if the session is genuinely broken.
+    } on Object catch (e) {
+      throw StateError(
+        'Sign-in expired and the refresh failed: $e\n'
+        'Sign out and sign back in, then try again.',
+      );
     }
-    final live = auth.currentUser?.id;
+    final UserResponse verified;
+    try {
+      verified = await auth.getUser();
+    } on Object catch (e) {
+      throw StateError(
+        'Could not verify sign-in with the server: $e\n'
+        'Sign out and sign back in, then try again.',
+      );
+    }
+    final live = verified.user?.id;
     if (live == null) {
       throw StateError(
-        'Not signed in. Sign in again before creating a program.',
+        'Sign-in lapsed. Sign out and sign back in, then try again.',
       );
     }
     final effectiveUserId = live;

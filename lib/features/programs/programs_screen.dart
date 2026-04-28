@@ -44,6 +44,11 @@ class ProgramsScreen extends ConsumerWidget {
         title: const Text('Programs'),
         actions: [
           IconButton(
+            tooltip: 'Sync diagnostics',
+            icon: const Icon(Icons.health_and_safety_outlined),
+            onPressed: () => context.push('/more/programs/diagnostics'),
+          ),
+          IconButton(
             tooltip: 'Join with code',
             icon: const Icon(Icons.login_outlined),
             onPressed: () => _openJoinSheet(context),

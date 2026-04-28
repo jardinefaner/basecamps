@@ -22,6 +22,7 @@ import 'package:basecamp/features/planning/week_plan_screen.dart';
 import 'package:basecamp/features/programs/program_detail_screen.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/programs/programs_screen.dart';
+import 'package:basecamp/features/programs/sync_diagnostics_screen.dart';
 import 'package:basecamp/features/programs/welcome_screen.dart';
 import 'package:basecamp/features/roles/roles_screen.dart';
 import 'package:basecamp/features/rooms/rooms_screen.dart';
@@ -271,6 +272,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/more/programs',
         builder: (_, _) => const ProgramsScreen(),
         routes: [
+          GoRoute(
+            path: 'diagnostics',
+            builder: (_, _) => const SyncDiagnosticsScreen(),
+          ),
           GoRoute(
             path: ':id',
             builder: (_, state) => ProgramDetailScreen(

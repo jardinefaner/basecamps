@@ -80,11 +80,25 @@ class WelcomeScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpacing.xxl),
                 Center(
-                  child: TextButton.icon(
-                    icon: const Icon(Icons.logout, size: 16),
-                    label: const Text('Sign out'),
-                    onPressed: () =>
-                        ref.read(authRepositoryProvider).signOut(),
+                  child: Wrap(
+                    spacing: AppSpacing.sm,
+                    children: [
+                      TextButton.icon(
+                        icon: const Icon(Icons.logout, size: 16),
+                        label: const Text('Sign out'),
+                        onPressed: () =>
+                            ref.read(authRepositoryProvider).signOut(),
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(
+                          Icons.health_and_safety_outlined,
+                          size: 16,
+                        ),
+                        label: const Text('Sync diagnostics'),
+                        onPressed: () => context
+                            .push('/more/programs/diagnostics'),
+                      ),
+                    ],
                   ),
                 ),
               ],
