@@ -7,6 +7,7 @@ import 'package:basecamp/features/sync/synced_tables.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Drift-backed CRUD + bootstrap for the program model.
 ///
@@ -99,16 +100,103 @@ class ProgramsRepository {
   }) async {
     final existing = await programsForUser(userId);
     if (existing.isNotEmpty) {
-      // Pick the most recently created — when a switcher ships, the
-      // user's last-active selection (in SharedPreferences) overrides
-      // this default.
-      existing.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      // Pick the **oldest** — i.e. the first program the user ever
+      // created. Bug fix (2026-04-28): the previous "most recent"
+      // tiebreaker meant a fresh device that had already mistakenly
+      // forked its own program (before the cross-device hydrate
+      // landed) would keep picking the empty fork. The original
+      // program is by definition the older one, so prefer it. The
+      // multi-program switcher (when it ships) overrides this via
+      // SharedPreferences anyway, so this only matters for users
+      // sitting on the v1 single-program assumption.
+      existing.sort((a, b) => a.createdAt.compareTo(b.createdAt));
       return existing.first.id;
     }
     return createProgram(
       name: 'My program',
       userId: userId,
     );
+  }
+
+  /// Pulls the user's cloud `program_members` rows and the matching
+  /// `programs` rows into the local DB. Bug fix (2026-04-28): a
+  /// fresh device (e.g. signing in on the phone after using the
+  /// laptop) had an empty local DB, so [ensureDefaultProgram] saw
+  /// "no programs for this user" and created a brand-new one —
+  /// orphaning the laptop's data under a different program id.
+  ///
+  /// This method runs **before** `ensureDefaultProgram` so the
+  /// local lookup finds the cloud-discovered programs and reuses
+  /// the laptop's id instead of forking. Idempotent:
+  /// `insertOnConflictUpdate` against the same composite PKs.
+  ///
+  /// Best-effort: any cloud failure (offline, transient RLS blip)
+  /// falls through to "create local default", which is the same
+  /// recovery path as before this fix — so adding it can't make
+  /// things worse, only better.
+  Future<int> hydrateCloudProgramsForUser({
+    required String userId,
+    required SupabaseClient supabase,
+  }) async {
+    // Step 1: which programs does the cloud think this user is in?
+    // RLS only returns rows where `user_id = auth.uid()`, so a
+    // simple `.select()` is enough — no extra filter needed for
+    // safety, only for clarity.
+    final memberRowsRaw = await supabase
+        .from('program_members')
+        .select('program_id, user_id, role, joined_at')
+        .eq('user_id', userId);
+    final memberRows = List<Map<String, dynamic>>.from(memberRowsRaw);
+    if (memberRows.isEmpty) return 0;
+
+    // Step 2: pull the corresponding programs rows. The select
+    // RLS policy on `programs` allows reading any program the
+    // user is a member of, so this returns one row per id we
+    // just discovered.
+    final programIds = [
+      for (final m in memberRows) m['program_id'] as String,
+    ];
+    final programRowsRaw =
+        await supabase.from('programs').select().inFilter('id', programIds);
+    final programRows = List<Map<String, dynamic>>.from(programRowsRaw);
+
+    // Step 3: write everything into the local DB. Membership
+    // first would violate the FK from program_members → programs,
+    // so insert programs first, then memberships.
+    var written = 0;
+    await _db.transaction(() async {
+      for (final row in programRows) {
+        await _db.into(_db.programs).insertOnConflictUpdate(
+              ProgramsCompanion.insert(
+                id: row['id'] as String,
+                name: row['name'] as String,
+                createdBy: row['created_by'] as String,
+                createdAt: Value(_parseTs(row['created_at'])),
+                updatedAt: Value(_parseTs(row['updated_at'])),
+              ),
+            );
+        written++;
+      }
+      for (final m in memberRows) {
+        await _db.into(_db.programMembers).insertOnConflictUpdate(
+              ProgramMembersCompanion.insert(
+                programId: m['program_id'] as String,
+                userId: m['user_id'] as String,
+                role: Value(m['role'] as String? ?? 'teacher'),
+                joinedAt: Value(_parseTs(m['joined_at'])),
+              ),
+            );
+        written++;
+      }
+    });
+    return written;
+  }
+
+  static DateTime _parseTs(Object? value) {
+    if (value == null) return DateTime.now().toUtc();
+    if (value is DateTime) return value;
+    return DateTime.tryParse(value.toString())?.toUtc() ??
+        DateTime.now().toUtc();
   }
 
   /// Renames a program. Bumps `updatedAt` for any future sync

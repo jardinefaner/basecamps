@@ -54,6 +54,27 @@ class ProgramAuthBootstrap {
   Future<void> _onSessionChanged(String userId) async {
     try {
       final repo = _ref.read(programsRepositoryProvider);
+      // Cross-device fix (2026-04-28): pull the user's existing
+      // cloud programs into the local DB *before* we decide
+      // whether to create a default. Without this step a fresh
+      // device (signing in on the phone after using the laptop)
+      // would see "no local programs for this user", create a new
+      // one, and orphan the laptop's data under a different
+      // program id. Best-effort: if cloud is unreachable we fall
+      // through to the legacy "create local default" path, which
+      // is the same recovery as before — adding this step can't
+      // make things worse, only better.
+      try {
+        final hydrated = await repo.hydrateCloudProgramsForUser(
+          userId: userId,
+          supabase: Supabase.instance.client,
+        );
+        if (hydrated > 0) {
+          debugPrint('Hydrated $hydrated cloud program/membership rows.');
+        }
+      } on Object catch (e) {
+        debugPrint('Cloud program hydrate skipped: $e');
+      }
       final id = await repo.ensureDefaultProgram(userId: userId);
       await _ref.read(activeProgramIdProvider.notifier).set(id);
       await _maybeBackfillUntaggedRows(repo, programId: id);
