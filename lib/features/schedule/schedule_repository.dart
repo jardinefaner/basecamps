@@ -34,6 +34,7 @@ class ScheduleItem {
     this.sourceLibraryItemId,
     this.roomId,
     this.sourceUrl,
+    this.sourceTripId,
   });
 
   final String id;
@@ -72,6 +73,17 @@ class ScheduleItem {
   /// article). Rendered tappably on the detail sheet when set.
   /// Independent of any library-card back-reference.
   final String? sourceUrl;
+
+  /// Set on schedule entries that mirror a trip — when a teacher
+  /// creates a trip we also write a `schedule_entries` row with
+  /// `source_trip_id` pointing back at the trip. Without this
+  /// flag flowing through to [ScheduleItem], the today-agenda
+  /// rendered the trip twice (once from `trips`, once from the
+  /// mirrored schedule entry). Today agenda filters mirror entries
+  /// out so the trip card from `trips` is the canonical one;
+  /// schedule editor / week views still show them so the row is
+  /// editable in the schedule context too.
+  final String? sourceTripId;
 
   /// The concrete calendar date this item renders on. Set by the
   /// repository while expanding templates and entries into day-
@@ -1325,6 +1337,7 @@ class ScheduleRepository {
             sourceLibraryItemId: e.sourceLibraryItemId,
             roomId: e.roomId,
             sourceUrl: e.sourceUrl,
+            sourceTripId: e.sourceTripId,
           ),
         );
       }

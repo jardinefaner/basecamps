@@ -120,7 +120,17 @@ List<CalendarEvent> _combineDay({
   required Map<String, List<String>> groupsByTrip,
 }) {
   final out = <CalendarEvent>[];
+  // Skip schedule entries that mirror a trip — every trip writes a
+  // `schedule_entries` row with `source_trip_id` set so it appears
+  // in the schedule editor / week view, but the today agenda
+  // already renders trips from the trips list directly. Without
+  // this filter the agenda double-rendered every trip: once as a
+  // proper trip card (taps → trip detail) and once as an
+  // activity-style card from the mirror (taps → activity detail
+  // sheet — what the user called "the editing bottom sheet").
+  // Keep the trip card (the rich one); drop the mirror.
   for (final item in schedule) {
+    if (item.sourceTripId != null) continue;
     out.add(calendarEventFromScheduleItem(item));
   }
   for (final trip in trips) {

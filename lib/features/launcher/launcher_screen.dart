@@ -1137,6 +1137,11 @@ class _DestinationData {
       path: '/more/parents',
     ),
     _DestinationData(
+      label: 'Programs',
+      icon: Icons.workspaces_outline,
+      path: '/more/programs',
+    ),
+    _DestinationData(
       label: 'Program settings',
       icon: Icons.settings_outlined,
       path: '/more/settings',
