@@ -514,6 +514,18 @@ class $ChildrenTable extends Children with TableInfo<$ChildrenTable, Child> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _avatarStoragePathMeta = const VerificationMeta(
+    'avatarStoragePath',
+  );
+  @override
+  late final GeneratedColumn<String> avatarStoragePath =
+      GeneratedColumn<String>(
+        'avatar_storage_path',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _expectedArrivalMeta = const VerificationMeta(
     'expectedArrival',
   );
@@ -582,6 +594,7 @@ class $ChildrenTable extends Children with TableInfo<$ChildrenTable, Child> {
     notes,
     parentName,
     avatarPath,
+    avatarStoragePath,
     expectedArrival,
     expectedPickup,
     programId,
@@ -653,6 +666,15 @@ class $ChildrenTable extends Children with TableInfo<$ChildrenTable, Child> {
       context.handle(
         _avatarPathMeta,
         avatarPath.isAcceptableOrUnknown(data['avatar_path']!, _avatarPathMeta),
+      );
+    }
+    if (data.containsKey('avatar_storage_path')) {
+      context.handle(
+        _avatarStoragePathMeta,
+        avatarStoragePath.isAcceptableOrUnknown(
+          data['avatar_storage_path']!,
+          _avatarStoragePathMeta,
+        ),
       );
     }
     if (data.containsKey('expected_arrival')) {
@@ -736,6 +758,10 @@ class $ChildrenTable extends Children with TableInfo<$ChildrenTable, Child> {
         DriftSqlType.string,
         data['${effectivePrefix}avatar_path'],
       ),
+      avatarStoragePath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}avatar_storage_path'],
+      ),
       expectedArrival: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}expected_arrival'],
@@ -775,6 +801,12 @@ class Child extends DataClass implements Insertable<Child> {
   final String? notes;
   final String? parentName;
   final String? avatarPath;
+
+  /// v44: bucket-relative path of the avatar in the `media`
+  /// bucket. Set by MediaService.upload once the avatar's been
+  /// uploaded to cloud. Other devices use this to lazy-download
+  /// the avatar when the child first appears in their UI.
+  final String? avatarStoragePath;
   final String? expectedArrival;
   final String? expectedPickup;
 
@@ -793,6 +825,7 @@ class Child extends DataClass implements Insertable<Child> {
     this.notes,
     this.parentName,
     this.avatarPath,
+    this.avatarStoragePath,
     this.expectedArrival,
     this.expectedPickup,
     this.programId,
@@ -824,6 +857,9 @@ class Child extends DataClass implements Insertable<Child> {
     }
     if (!nullToAbsent || avatarPath != null) {
       map['avatar_path'] = Variable<String>(avatarPath);
+    }
+    if (!nullToAbsent || avatarStoragePath != null) {
+      map['avatar_storage_path'] = Variable<String>(avatarStoragePath);
     }
     if (!nullToAbsent || expectedArrival != null) {
       map['expected_arrival'] = Variable<String>(expectedArrival);
@@ -862,6 +898,9 @@ class Child extends DataClass implements Insertable<Child> {
       avatarPath: avatarPath == null && nullToAbsent
           ? const Value.absent()
           : Value(avatarPath),
+      avatarStoragePath: avatarStoragePath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(avatarStoragePath),
       expectedArrival: expectedArrival == null && nullToAbsent
           ? const Value.absent()
           : Value(expectedArrival),
@@ -891,6 +930,9 @@ class Child extends DataClass implements Insertable<Child> {
       notes: serializer.fromJson<String?>(json['notes']),
       parentName: serializer.fromJson<String?>(json['parentName']),
       avatarPath: serializer.fromJson<String?>(json['avatarPath']),
+      avatarStoragePath: serializer.fromJson<String?>(
+        json['avatarStoragePath'],
+      ),
       expectedArrival: serializer.fromJson<String?>(json['expectedArrival']),
       expectedPickup: serializer.fromJson<String?>(json['expectedPickup']),
       programId: serializer.fromJson<String?>(json['programId']),
@@ -911,6 +953,7 @@ class Child extends DataClass implements Insertable<Child> {
       'notes': serializer.toJson<String?>(notes),
       'parentName': serializer.toJson<String?>(parentName),
       'avatarPath': serializer.toJson<String?>(avatarPath),
+      'avatarStoragePath': serializer.toJson<String?>(avatarStoragePath),
       'expectedArrival': serializer.toJson<String?>(expectedArrival),
       'expectedPickup': serializer.toJson<String?>(expectedPickup),
       'programId': serializer.toJson<String?>(programId),
@@ -929,6 +972,7 @@ class Child extends DataClass implements Insertable<Child> {
     Value<String?> notes = const Value.absent(),
     Value<String?> parentName = const Value.absent(),
     Value<String?> avatarPath = const Value.absent(),
+    Value<String?> avatarStoragePath = const Value.absent(),
     Value<String?> expectedArrival = const Value.absent(),
     Value<String?> expectedPickup = const Value.absent(),
     Value<String?> programId = const Value.absent(),
@@ -944,6 +988,9 @@ class Child extends DataClass implements Insertable<Child> {
     notes: notes.present ? notes.value : this.notes,
     parentName: parentName.present ? parentName.value : this.parentName,
     avatarPath: avatarPath.present ? avatarPath.value : this.avatarPath,
+    avatarStoragePath: avatarStoragePath.present
+        ? avatarStoragePath.value
+        : this.avatarStoragePath,
     expectedArrival: expectedArrival.present
         ? expectedArrival.value
         : this.expectedArrival,
@@ -969,6 +1016,9 @@ class Child extends DataClass implements Insertable<Child> {
       avatarPath: data.avatarPath.present
           ? data.avatarPath.value
           : this.avatarPath,
+      avatarStoragePath: data.avatarStoragePath.present
+          ? data.avatarStoragePath.value
+          : this.avatarStoragePath,
       expectedArrival: data.expectedArrival.present
           ? data.expectedArrival.value
           : this.expectedArrival,
@@ -993,6 +1043,7 @@ class Child extends DataClass implements Insertable<Child> {
           ..write('notes: $notes, ')
           ..write('parentName: $parentName, ')
           ..write('avatarPath: $avatarPath, ')
+          ..write('avatarStoragePath: $avatarStoragePath, ')
           ..write('expectedArrival: $expectedArrival, ')
           ..write('expectedPickup: $expectedPickup, ')
           ..write('programId: $programId, ')
@@ -1013,6 +1064,7 @@ class Child extends DataClass implements Insertable<Child> {
     notes,
     parentName,
     avatarPath,
+    avatarStoragePath,
     expectedArrival,
     expectedPickup,
     programId,
@@ -1032,6 +1084,7 @@ class Child extends DataClass implements Insertable<Child> {
           other.notes == this.notes &&
           other.parentName == this.parentName &&
           other.avatarPath == this.avatarPath &&
+          other.avatarStoragePath == this.avatarStoragePath &&
           other.expectedArrival == this.expectedArrival &&
           other.expectedPickup == this.expectedPickup &&
           other.programId == this.programId &&
@@ -1049,6 +1102,7 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
   final Value<String?> notes;
   final Value<String?> parentName;
   final Value<String?> avatarPath;
+  final Value<String?> avatarStoragePath;
   final Value<String?> expectedArrival;
   final Value<String?> expectedPickup;
   final Value<String?> programId;
@@ -1065,6 +1119,7 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     this.notes = const Value.absent(),
     this.parentName = const Value.absent(),
     this.avatarPath = const Value.absent(),
+    this.avatarStoragePath = const Value.absent(),
     this.expectedArrival = const Value.absent(),
     this.expectedPickup = const Value.absent(),
     this.programId = const Value.absent(),
@@ -1082,6 +1137,7 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     this.notes = const Value.absent(),
     this.parentName = const Value.absent(),
     this.avatarPath = const Value.absent(),
+    this.avatarStoragePath = const Value.absent(),
     this.expectedArrival = const Value.absent(),
     this.expectedPickup = const Value.absent(),
     this.programId = const Value.absent(),
@@ -1100,6 +1156,7 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     Expression<String>? notes,
     Expression<String>? parentName,
     Expression<String>? avatarPath,
+    Expression<String>? avatarStoragePath,
     Expression<String>? expectedArrival,
     Expression<String>? expectedPickup,
     Expression<String>? programId,
@@ -1117,6 +1174,7 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
       if (notes != null) 'notes': notes,
       if (parentName != null) 'parent_name': parentName,
       if (avatarPath != null) 'avatar_path': avatarPath,
+      if (avatarStoragePath != null) 'avatar_storage_path': avatarStoragePath,
       if (expectedArrival != null) 'expected_arrival': expectedArrival,
       if (expectedPickup != null) 'expected_pickup': expectedPickup,
       if (programId != null) 'program_id': programId,
@@ -1136,6 +1194,7 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     Value<String?>? notes,
     Value<String?>? parentName,
     Value<String?>? avatarPath,
+    Value<String?>? avatarStoragePath,
     Value<String?>? expectedArrival,
     Value<String?>? expectedPickup,
     Value<String?>? programId,
@@ -1153,6 +1212,7 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
       notes: notes ?? this.notes,
       parentName: parentName ?? this.parentName,
       avatarPath: avatarPath ?? this.avatarPath,
+      avatarStoragePath: avatarStoragePath ?? this.avatarStoragePath,
       expectedArrival: expectedArrival ?? this.expectedArrival,
       expectedPickup: expectedPickup ?? this.expectedPickup,
       programId: programId ?? this.programId,
@@ -1192,6 +1252,9 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     if (avatarPath.present) {
       map['avatar_path'] = Variable<String>(avatarPath.value);
     }
+    if (avatarStoragePath.present) {
+      map['avatar_storage_path'] = Variable<String>(avatarStoragePath.value);
+    }
     if (expectedArrival.present) {
       map['expected_arrival'] = Variable<String>(expectedArrival.value);
     }
@@ -1225,6 +1288,7 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
           ..write('notes: $notes, ')
           ..write('parentName: $parentName, ')
           ..write('avatarPath: $avatarPath, ')
+          ..write('avatarStoragePath: $avatarStoragePath, ')
           ..write('expectedArrival: $expectedArrival, ')
           ..write('expectedPickup: $expectedPickup, ')
           ..write('programId: $programId, ')
@@ -4686,6 +4750,17 @@ class $ObservationAttachmentsTable extends ObservationAttachments
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _storagePathMeta = const VerificationMeta(
+    'storagePath',
+  );
+  @override
+  late final GeneratedColumn<String> storagePath = GeneratedColumn<String>(
+    'storage_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _thumbnailPathMeta = const VerificationMeta(
     'thumbnailPath',
   );
@@ -4727,6 +4802,7 @@ class $ObservationAttachmentsTable extends ObservationAttachments
     kind,
     localPath,
     remoteUrl,
+    storagePath,
     thumbnailPath,
     durationMs,
     createdAt,
@@ -4781,6 +4857,15 @@ class $ObservationAttachmentsTable extends ObservationAttachments
         remoteUrl.isAcceptableOrUnknown(data['remote_url']!, _remoteUrlMeta),
       );
     }
+    if (data.containsKey('storage_path')) {
+      context.handle(
+        _storagePathMeta,
+        storagePath.isAcceptableOrUnknown(
+          data['storage_path']!,
+          _storagePathMeta,
+        ),
+      );
+    }
     if (data.containsKey('thumbnail_path')) {
       context.handle(
         _thumbnailPathMeta,
@@ -4831,6 +4916,10 @@ class $ObservationAttachmentsTable extends ObservationAttachments
         DriftSqlType.string,
         data['${effectivePrefix}remote_url'],
       ),
+      storagePath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}storage_path'],
+      ),
       thumbnailPath: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}thumbnail_path'],
@@ -4859,6 +4948,14 @@ class ObservationAttachment extends DataClass
   final String kind;
   final String localPath;
   final String? remoteUrl;
+
+  /// v44: bucket-relative path in Supabase Storage's `media`
+  /// bucket. Set by MediaService.upload after the file lands in
+  /// cloud. On other devices (where localPath points at a file
+  /// that doesn't exist), readers fall back to fetching this
+  /// path through the bucket. Null for legacy rows + for
+  /// uploads that haven't completed yet.
+  final String? storagePath;
   final String? thumbnailPath;
   final int? durationMs;
   final DateTime createdAt;
@@ -4868,6 +4965,7 @@ class ObservationAttachment extends DataClass
     required this.kind,
     required this.localPath,
     this.remoteUrl,
+    this.storagePath,
     this.thumbnailPath,
     this.durationMs,
     required this.createdAt,
@@ -4881,6 +4979,9 @@ class ObservationAttachment extends DataClass
     map['local_path'] = Variable<String>(localPath);
     if (!nullToAbsent || remoteUrl != null) {
       map['remote_url'] = Variable<String>(remoteUrl);
+    }
+    if (!nullToAbsent || storagePath != null) {
+      map['storage_path'] = Variable<String>(storagePath);
     }
     if (!nullToAbsent || thumbnailPath != null) {
       map['thumbnail_path'] = Variable<String>(thumbnailPath);
@@ -4901,6 +5002,9 @@ class ObservationAttachment extends DataClass
       remoteUrl: remoteUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(remoteUrl),
+      storagePath: storagePath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(storagePath),
       thumbnailPath: thumbnailPath == null && nullToAbsent
           ? const Value.absent()
           : Value(thumbnailPath),
@@ -4922,6 +5026,7 @@ class ObservationAttachment extends DataClass
       kind: serializer.fromJson<String>(json['kind']),
       localPath: serializer.fromJson<String>(json['localPath']),
       remoteUrl: serializer.fromJson<String?>(json['remoteUrl']),
+      storagePath: serializer.fromJson<String?>(json['storagePath']),
       thumbnailPath: serializer.fromJson<String?>(json['thumbnailPath']),
       durationMs: serializer.fromJson<int?>(json['durationMs']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -4936,6 +5041,7 @@ class ObservationAttachment extends DataClass
       'kind': serializer.toJson<String>(kind),
       'localPath': serializer.toJson<String>(localPath),
       'remoteUrl': serializer.toJson<String?>(remoteUrl),
+      'storagePath': serializer.toJson<String?>(storagePath),
       'thumbnailPath': serializer.toJson<String?>(thumbnailPath),
       'durationMs': serializer.toJson<int?>(durationMs),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -4948,6 +5054,7 @@ class ObservationAttachment extends DataClass
     String? kind,
     String? localPath,
     Value<String?> remoteUrl = const Value.absent(),
+    Value<String?> storagePath = const Value.absent(),
     Value<String?> thumbnailPath = const Value.absent(),
     Value<int?> durationMs = const Value.absent(),
     DateTime? createdAt,
@@ -4957,6 +5064,7 @@ class ObservationAttachment extends DataClass
     kind: kind ?? this.kind,
     localPath: localPath ?? this.localPath,
     remoteUrl: remoteUrl.present ? remoteUrl.value : this.remoteUrl,
+    storagePath: storagePath.present ? storagePath.value : this.storagePath,
     thumbnailPath: thumbnailPath.present
         ? thumbnailPath.value
         : this.thumbnailPath,
@@ -4974,6 +5082,9 @@ class ObservationAttachment extends DataClass
       kind: data.kind.present ? data.kind.value : this.kind,
       localPath: data.localPath.present ? data.localPath.value : this.localPath,
       remoteUrl: data.remoteUrl.present ? data.remoteUrl.value : this.remoteUrl,
+      storagePath: data.storagePath.present
+          ? data.storagePath.value
+          : this.storagePath,
       thumbnailPath: data.thumbnailPath.present
           ? data.thumbnailPath.value
           : this.thumbnailPath,
@@ -4992,6 +5103,7 @@ class ObservationAttachment extends DataClass
           ..write('kind: $kind, ')
           ..write('localPath: $localPath, ')
           ..write('remoteUrl: $remoteUrl, ')
+          ..write('storagePath: $storagePath, ')
           ..write('thumbnailPath: $thumbnailPath, ')
           ..write('durationMs: $durationMs, ')
           ..write('createdAt: $createdAt')
@@ -5006,6 +5118,7 @@ class ObservationAttachment extends DataClass
     kind,
     localPath,
     remoteUrl,
+    storagePath,
     thumbnailPath,
     durationMs,
     createdAt,
@@ -5019,6 +5132,7 @@ class ObservationAttachment extends DataClass
           other.kind == this.kind &&
           other.localPath == this.localPath &&
           other.remoteUrl == this.remoteUrl &&
+          other.storagePath == this.storagePath &&
           other.thumbnailPath == this.thumbnailPath &&
           other.durationMs == this.durationMs &&
           other.createdAt == this.createdAt);
@@ -5031,6 +5145,7 @@ class ObservationAttachmentsCompanion
   final Value<String> kind;
   final Value<String> localPath;
   final Value<String?> remoteUrl;
+  final Value<String?> storagePath;
   final Value<String?> thumbnailPath;
   final Value<int?> durationMs;
   final Value<DateTime> createdAt;
@@ -5041,6 +5156,7 @@ class ObservationAttachmentsCompanion
     this.kind = const Value.absent(),
     this.localPath = const Value.absent(),
     this.remoteUrl = const Value.absent(),
+    this.storagePath = const Value.absent(),
     this.thumbnailPath = const Value.absent(),
     this.durationMs = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -5052,6 +5168,7 @@ class ObservationAttachmentsCompanion
     required String kind,
     required String localPath,
     this.remoteUrl = const Value.absent(),
+    this.storagePath = const Value.absent(),
     this.thumbnailPath = const Value.absent(),
     this.durationMs = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -5066,6 +5183,7 @@ class ObservationAttachmentsCompanion
     Expression<String>? kind,
     Expression<String>? localPath,
     Expression<String>? remoteUrl,
+    Expression<String>? storagePath,
     Expression<String>? thumbnailPath,
     Expression<int>? durationMs,
     Expression<DateTime>? createdAt,
@@ -5077,6 +5195,7 @@ class ObservationAttachmentsCompanion
       if (kind != null) 'kind': kind,
       if (localPath != null) 'local_path': localPath,
       if (remoteUrl != null) 'remote_url': remoteUrl,
+      if (storagePath != null) 'storage_path': storagePath,
       if (thumbnailPath != null) 'thumbnail_path': thumbnailPath,
       if (durationMs != null) 'duration_ms': durationMs,
       if (createdAt != null) 'created_at': createdAt,
@@ -5090,6 +5209,7 @@ class ObservationAttachmentsCompanion
     Value<String>? kind,
     Value<String>? localPath,
     Value<String?>? remoteUrl,
+    Value<String?>? storagePath,
     Value<String?>? thumbnailPath,
     Value<int?>? durationMs,
     Value<DateTime>? createdAt,
@@ -5101,6 +5221,7 @@ class ObservationAttachmentsCompanion
       kind: kind ?? this.kind,
       localPath: localPath ?? this.localPath,
       remoteUrl: remoteUrl ?? this.remoteUrl,
+      storagePath: storagePath ?? this.storagePath,
       thumbnailPath: thumbnailPath ?? this.thumbnailPath,
       durationMs: durationMs ?? this.durationMs,
       createdAt: createdAt ?? this.createdAt,
@@ -5126,6 +5247,9 @@ class ObservationAttachmentsCompanion
     if (remoteUrl.present) {
       map['remote_url'] = Variable<String>(remoteUrl.value);
     }
+    if (storagePath.present) {
+      map['storage_path'] = Variable<String>(storagePath.value);
+    }
     if (thumbnailPath.present) {
       map['thumbnail_path'] = Variable<String>(thumbnailPath.value);
     }
@@ -5149,6 +5273,7 @@ class ObservationAttachmentsCompanion
           ..write('kind: $kind, ')
           ..write('localPath: $localPath, ')
           ..write('remoteUrl: $remoteUrl, ')
+          ..write('storagePath: $storagePath, ')
           ..write('thumbnailPath: $thumbnailPath, ')
           ..write('durationMs: $durationMs, ')
           ..write('createdAt: $createdAt, ')
@@ -6423,6 +6548,18 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _avatarStoragePathMeta = const VerificationMeta(
+    'avatarStoragePath',
+  );
+  @override
+  late final GeneratedColumn<String> avatarStoragePath =
+      GeneratedColumn<String>(
+        'avatar_storage_path',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _phoneMeta = const VerificationMeta('phone');
   @override
   late final GeneratedColumn<String> phone = GeneratedColumn<String>(
@@ -6524,6 +6661,7 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
     roleId,
     notes,
     avatarPath,
+    avatarStoragePath,
     phone,
     email,
     parentId,
@@ -6580,6 +6718,15 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
       context.handle(
         _avatarPathMeta,
         avatarPath.isAcceptableOrUnknown(data['avatar_path']!, _avatarPathMeta),
+      );
+    }
+    if (data.containsKey('avatar_storage_path')) {
+      context.handle(
+        _avatarStoragePathMeta,
+        avatarStoragePath.isAcceptableOrUnknown(
+          data['avatar_storage_path']!,
+          _avatarStoragePathMeta,
+        ),
       );
     }
     if (data.containsKey('phone')) {
@@ -6666,6 +6813,10 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
         DriftSqlType.string,
         data['${effectivePrefix}avatar_path'],
       ),
+      avatarStoragePath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}avatar_storage_path'],
+      ),
       phone: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}phone'],
@@ -6719,6 +6870,10 @@ class Adult extends DataClass implements Insertable<Adult> {
   final String? notes;
   final String? avatarPath;
 
+  /// v44: bucket-relative path of the avatar in the `media`
+  /// bucket. See Children.avatarStoragePath for the same role.
+  final String? avatarStoragePath;
+
   /// v40: direct contact columns on the adult row itself. Both
   /// nullable — programs that don't capture staff phone/email yet
   /// leave them blank. Validation is lenient (match Parents' shape),
@@ -6754,6 +6909,7 @@ class Adult extends DataClass implements Insertable<Adult> {
     this.roleId,
     this.notes,
     this.avatarPath,
+    this.avatarStoragePath,
     this.phone,
     this.email,
     this.parentId,
@@ -6779,6 +6935,9 @@ class Adult extends DataClass implements Insertable<Adult> {
     }
     if (!nullToAbsent || avatarPath != null) {
       map['avatar_path'] = Variable<String>(avatarPath);
+    }
+    if (!nullToAbsent || avatarStoragePath != null) {
+      map['avatar_storage_path'] = Variable<String>(avatarStoragePath);
     }
     if (!nullToAbsent || phone != null) {
       map['phone'] = Variable<String>(phone);
@@ -6815,6 +6974,9 @@ class Adult extends DataClass implements Insertable<Adult> {
       avatarPath: avatarPath == null && nullToAbsent
           ? const Value.absent()
           : Value(avatarPath),
+      avatarStoragePath: avatarStoragePath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(avatarStoragePath),
       phone: phone == null && nullToAbsent
           ? const Value.absent()
           : Value(phone),
@@ -6848,6 +7010,9 @@ class Adult extends DataClass implements Insertable<Adult> {
       roleId: serializer.fromJson<String?>(json['roleId']),
       notes: serializer.fromJson<String?>(json['notes']),
       avatarPath: serializer.fromJson<String?>(json['avatarPath']),
+      avatarStoragePath: serializer.fromJson<String?>(
+        json['avatarStoragePath'],
+      ),
       phone: serializer.fromJson<String?>(json['phone']),
       email: serializer.fromJson<String?>(json['email']),
       parentId: serializer.fromJson<String?>(json['parentId']),
@@ -6868,6 +7033,7 @@ class Adult extends DataClass implements Insertable<Adult> {
       'roleId': serializer.toJson<String?>(roleId),
       'notes': serializer.toJson<String?>(notes),
       'avatarPath': serializer.toJson<String?>(avatarPath),
+      'avatarStoragePath': serializer.toJson<String?>(avatarStoragePath),
       'phone': serializer.toJson<String?>(phone),
       'email': serializer.toJson<String?>(email),
       'parentId': serializer.toJson<String?>(parentId),
@@ -6886,6 +7052,7 @@ class Adult extends DataClass implements Insertable<Adult> {
     Value<String?> roleId = const Value.absent(),
     Value<String?> notes = const Value.absent(),
     Value<String?> avatarPath = const Value.absent(),
+    Value<String?> avatarStoragePath = const Value.absent(),
     Value<String?> phone = const Value.absent(),
     Value<String?> email = const Value.absent(),
     Value<String?> parentId = const Value.absent(),
@@ -6901,6 +7068,9 @@ class Adult extends DataClass implements Insertable<Adult> {
     roleId: roleId.present ? roleId.value : this.roleId,
     notes: notes.present ? notes.value : this.notes,
     avatarPath: avatarPath.present ? avatarPath.value : this.avatarPath,
+    avatarStoragePath: avatarStoragePath.present
+        ? avatarStoragePath.value
+        : this.avatarStoragePath,
     phone: phone.present ? phone.value : this.phone,
     email: email.present ? email.value : this.email,
     parentId: parentId.present ? parentId.value : this.parentId,
@@ -6922,6 +7092,9 @@ class Adult extends DataClass implements Insertable<Adult> {
       avatarPath: data.avatarPath.present
           ? data.avatarPath.value
           : this.avatarPath,
+      avatarStoragePath: data.avatarStoragePath.present
+          ? data.avatarStoragePath.value
+          : this.avatarStoragePath,
       phone: data.phone.present ? data.phone.value : this.phone,
       email: data.email.present ? data.email.value : this.email,
       parentId: data.parentId.present ? data.parentId.value : this.parentId,
@@ -6944,6 +7117,7 @@ class Adult extends DataClass implements Insertable<Adult> {
           ..write('roleId: $roleId, ')
           ..write('notes: $notes, ')
           ..write('avatarPath: $avatarPath, ')
+          ..write('avatarStoragePath: $avatarStoragePath, ')
           ..write('phone: $phone, ')
           ..write('email: $email, ')
           ..write('parentId: $parentId, ')
@@ -6964,6 +7138,7 @@ class Adult extends DataClass implements Insertable<Adult> {
     roleId,
     notes,
     avatarPath,
+    avatarStoragePath,
     phone,
     email,
     parentId,
@@ -6983,6 +7158,7 @@ class Adult extends DataClass implements Insertable<Adult> {
           other.roleId == this.roleId &&
           other.notes == this.notes &&
           other.avatarPath == this.avatarPath &&
+          other.avatarStoragePath == this.avatarStoragePath &&
           other.phone == this.phone &&
           other.email == this.email &&
           other.parentId == this.parentId &&
@@ -7000,6 +7176,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
   final Value<String?> roleId;
   final Value<String?> notes;
   final Value<String?> avatarPath;
+  final Value<String?> avatarStoragePath;
   final Value<String?> phone;
   final Value<String?> email;
   final Value<String?> parentId;
@@ -7016,6 +7193,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     this.roleId = const Value.absent(),
     this.notes = const Value.absent(),
     this.avatarPath = const Value.absent(),
+    this.avatarStoragePath = const Value.absent(),
     this.phone = const Value.absent(),
     this.email = const Value.absent(),
     this.parentId = const Value.absent(),
@@ -7033,6 +7211,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     this.roleId = const Value.absent(),
     this.notes = const Value.absent(),
     this.avatarPath = const Value.absent(),
+    this.avatarStoragePath = const Value.absent(),
     this.phone = const Value.absent(),
     this.email = const Value.absent(),
     this.parentId = const Value.absent(),
@@ -7051,6 +7230,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     Expression<String>? roleId,
     Expression<String>? notes,
     Expression<String>? avatarPath,
+    Expression<String>? avatarStoragePath,
     Expression<String>? phone,
     Expression<String>? email,
     Expression<String>? parentId,
@@ -7068,6 +7248,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
       if (roleId != null) 'role_id': roleId,
       if (notes != null) 'notes': notes,
       if (avatarPath != null) 'avatar_path': avatarPath,
+      if (avatarStoragePath != null) 'avatar_storage_path': avatarStoragePath,
       if (phone != null) 'phone': phone,
       if (email != null) 'email': email,
       if (parentId != null) 'parent_id': parentId,
@@ -7087,6 +7268,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     Value<String?>? roleId,
     Value<String?>? notes,
     Value<String?>? avatarPath,
+    Value<String?>? avatarStoragePath,
     Value<String?>? phone,
     Value<String?>? email,
     Value<String?>? parentId,
@@ -7104,6 +7286,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
       roleId: roleId ?? this.roleId,
       notes: notes ?? this.notes,
       avatarPath: avatarPath ?? this.avatarPath,
+      avatarStoragePath: avatarStoragePath ?? this.avatarStoragePath,
       phone: phone ?? this.phone,
       email: email ?? this.email,
       parentId: parentId ?? this.parentId,
@@ -7136,6 +7319,9 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     }
     if (avatarPath.present) {
       map['avatar_path'] = Variable<String>(avatarPath.value);
+    }
+    if (avatarStoragePath.present) {
+      map['avatar_storage_path'] = Variable<String>(avatarStoragePath.value);
     }
     if (phone.present) {
       map['phone'] = Variable<String>(phone.value);
@@ -7176,6 +7362,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
           ..write('roleId: $roleId, ')
           ..write('notes: $notes, ')
           ..write('avatarPath: $avatarPath, ')
+          ..write('avatarStoragePath: $avatarStoragePath, ')
           ..write('phone: $phone, ')
           ..write('email: $email, ')
           ..write('parentId: $parentId, ')
@@ -22165,6 +22352,7 @@ typedef $$ChildrenTableCreateCompanionBuilder =
       Value<String?> notes,
       Value<String?> parentName,
       Value<String?> avatarPath,
+      Value<String?> avatarStoragePath,
       Value<String?> expectedArrival,
       Value<String?> expectedPickup,
       Value<String?> programId,
@@ -22183,6 +22371,7 @@ typedef $$ChildrenTableUpdateCompanionBuilder =
       Value<String?> notes,
       Value<String?> parentName,
       Value<String?> avatarPath,
+      Value<String?> avatarStoragePath,
       Value<String?> expectedArrival,
       Value<String?> expectedPickup,
       Value<String?> programId,
@@ -22437,6 +22626,11 @@ class $$ChildrenTableFilterComposer
 
   ColumnFilters<String> get avatarPath => $composableBuilder(
     column: $table.avatarPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get avatarStoragePath => $composableBuilder(
+    column: $table.avatarStoragePath,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -22740,6 +22934,11 @@ class $$ChildrenTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get avatarStoragePath => $composableBuilder(
+    column: $table.avatarStoragePath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get expectedArrival => $composableBuilder(
     column: $table.expectedArrival,
     builder: (column) => ColumnOrderings(column),
@@ -22823,6 +23022,11 @@ class $$ChildrenTableAnnotationComposer
 
   GeneratedColumn<String> get avatarPath => $composableBuilder(
     column: $table.avatarPath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get avatarStoragePath => $composableBuilder(
+    column: $table.avatarStoragePath,
     builder: (column) => column,
   );
 
@@ -23119,6 +23323,7 @@ class $$ChildrenTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<String?> parentName = const Value.absent(),
                 Value<String?> avatarPath = const Value.absent(),
+                Value<String?> avatarStoragePath = const Value.absent(),
                 Value<String?> expectedArrival = const Value.absent(),
                 Value<String?> expectedPickup = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
@@ -23135,6 +23340,7 @@ class $$ChildrenTableTableManager
                 notes: notes,
                 parentName: parentName,
                 avatarPath: avatarPath,
+                avatarStoragePath: avatarStoragePath,
                 expectedArrival: expectedArrival,
                 expectedPickup: expectedPickup,
                 programId: programId,
@@ -23153,6 +23359,7 @@ class $$ChildrenTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<String?> parentName = const Value.absent(),
                 Value<String?> avatarPath = const Value.absent(),
+                Value<String?> avatarStoragePath = const Value.absent(),
                 Value<String?> expectedArrival = const Value.absent(),
                 Value<String?> expectedPickup = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
@@ -23169,6 +23376,7 @@ class $$ChildrenTableTableManager
                 notes: notes,
                 parentName: parentName,
                 avatarPath: avatarPath,
+                avatarStoragePath: avatarStoragePath,
                 expectedArrival: expectedArrival,
                 expectedPickup: expectedPickup,
                 programId: programId,
@@ -27641,6 +27849,7 @@ typedef $$ObservationAttachmentsTableCreateCompanionBuilder =
       required String kind,
       required String localPath,
       Value<String?> remoteUrl,
+      Value<String?> storagePath,
       Value<String?> thumbnailPath,
       Value<int?> durationMs,
       Value<DateTime> createdAt,
@@ -27653,6 +27862,7 @@ typedef $$ObservationAttachmentsTableUpdateCompanionBuilder =
       Value<String> kind,
       Value<String> localPath,
       Value<String?> remoteUrl,
+      Value<String?> storagePath,
       Value<String?> thumbnailPath,
       Value<int?> durationMs,
       Value<DateTime> createdAt,
@@ -27724,6 +27934,11 @@ class $$ObservationAttachmentsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get storagePath => $composableBuilder(
+    column: $table.storagePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get thumbnailPath => $composableBuilder(
     column: $table.thumbnailPath,
     builder: (column) => ColumnFilters(column),
@@ -27792,6 +28007,11 @@ class $$ObservationAttachmentsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get storagePath => $composableBuilder(
+    column: $table.storagePath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get thumbnailPath => $composableBuilder(
     column: $table.thumbnailPath,
     builder: (column) => ColumnOrderings(column),
@@ -27851,6 +28071,11 @@ class $$ObservationAttachmentsTableAnnotationComposer
 
   GeneratedColumn<String> get remoteUrl =>
       $composableBuilder(column: $table.remoteUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get storagePath => $composableBuilder(
+    column: $table.storagePath,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get thumbnailPath => $composableBuilder(
     column: $table.thumbnailPath,
@@ -27933,6 +28158,7 @@ class $$ObservationAttachmentsTableTableManager
                 Value<String> kind = const Value.absent(),
                 Value<String> localPath = const Value.absent(),
                 Value<String?> remoteUrl = const Value.absent(),
+                Value<String?> storagePath = const Value.absent(),
                 Value<String?> thumbnailPath = const Value.absent(),
                 Value<int?> durationMs = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -27943,6 +28169,7 @@ class $$ObservationAttachmentsTableTableManager
                 kind: kind,
                 localPath: localPath,
                 remoteUrl: remoteUrl,
+                storagePath: storagePath,
                 thumbnailPath: thumbnailPath,
                 durationMs: durationMs,
                 createdAt: createdAt,
@@ -27955,6 +28182,7 @@ class $$ObservationAttachmentsTableTableManager
                 required String kind,
                 required String localPath,
                 Value<String?> remoteUrl = const Value.absent(),
+                Value<String?> storagePath = const Value.absent(),
                 Value<String?> thumbnailPath = const Value.absent(),
                 Value<int?> durationMs = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -27965,6 +28193,7 @@ class $$ObservationAttachmentsTableTableManager
                 kind: kind,
                 localPath: localPath,
                 remoteUrl: remoteUrl,
+                storagePath: storagePath,
                 thumbnailPath: thumbnailPath,
                 durationMs: durationMs,
                 createdAt: createdAt,
@@ -29116,6 +29345,7 @@ typedef $$AdultsTableCreateCompanionBuilder =
       Value<String?> roleId,
       Value<String?> notes,
       Value<String?> avatarPath,
+      Value<String?> avatarStoragePath,
       Value<String?> phone,
       Value<String?> email,
       Value<String?> parentId,
@@ -29134,6 +29364,7 @@ typedef $$AdultsTableUpdateCompanionBuilder =
       Value<String?> roleId,
       Value<String?> notes,
       Value<String?> avatarPath,
+      Value<String?> avatarStoragePath,
       Value<String?> phone,
       Value<String?> email,
       Value<String?> parentId,
@@ -29343,6 +29574,11 @@ class $$AdultsTableFilterComposer
 
   ColumnFilters<String> get avatarPath => $composableBuilder(
     column: $table.avatarPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get avatarStoragePath => $composableBuilder(
+    column: $table.avatarStoragePath,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -29605,6 +29841,11 @@ class $$AdultsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get avatarStoragePath => $composableBuilder(
+    column: $table.avatarStoragePath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get phone => $composableBuilder(
     column: $table.phone,
     builder: (column) => ColumnOrderings(column),
@@ -29728,6 +29969,11 @@ class $$AdultsTableAnnotationComposer
 
   GeneratedColumn<String> get avatarPath => $composableBuilder(
     column: $table.avatarPath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get avatarStoragePath => $composableBuilder(
+    column: $table.avatarStoragePath,
     builder: (column) => column,
   );
 
@@ -29989,6 +30235,7 @@ class $$AdultsTableTableManager
                 Value<String?> roleId = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<String?> avatarPath = const Value.absent(),
+                Value<String?> avatarStoragePath = const Value.absent(),
                 Value<String?> phone = const Value.absent(),
                 Value<String?> email = const Value.absent(),
                 Value<String?> parentId = const Value.absent(),
@@ -30005,6 +30252,7 @@ class $$AdultsTableTableManager
                 roleId: roleId,
                 notes: notes,
                 avatarPath: avatarPath,
+                avatarStoragePath: avatarStoragePath,
                 phone: phone,
                 email: email,
                 parentId: parentId,
@@ -30023,6 +30271,7 @@ class $$AdultsTableTableManager
                 Value<String?> roleId = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<String?> avatarPath = const Value.absent(),
+                Value<String?> avatarStoragePath = const Value.absent(),
                 Value<String?> phone = const Value.absent(),
                 Value<String?> email = const Value.absent(),
                 Value<String?> parentId = const Value.absent(),
@@ -30039,6 +30288,7 @@ class $$AdultsTableTableManager
                 roleId: roleId,
                 notes: notes,
                 avatarPath: avatarPath,
+                avatarStoragePath: avatarStoragePath,
                 phone: phone,
                 email: email,
                 parentId: parentId,

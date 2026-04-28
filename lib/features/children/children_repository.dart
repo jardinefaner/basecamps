@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/media_service.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
@@ -19,6 +20,7 @@ class ChildrenRepository {
   String? get _programId => _ref.read(activeProgramIdProvider);
 
   SyncEngine get _sync => _ref.read(syncEngineProvider);
+  MediaService get _media => _ref.read(mediaServiceProvider);
 
   Stream<List<Group>> watchGroups() {
     final query = _db.select(_db.groups)
@@ -124,6 +126,12 @@ class ChildrenRepository {
           ),
         );
     unawaited(_sync.pushRow(childrenSpec, id));
+    if (avatarPath != null) {
+      // Fire-and-forget media upload — stamps avatar_storage_path
+      // when the file lands in the bucket; the next push picks
+      // up the updated row.
+      unawaited(_media.uploadChildAvatar(id));
+    }
     return id;
   }
 
@@ -198,6 +206,12 @@ class ChildrenRepository {
     );
     await (_db.update(_db.children)..where((k) => k.id.equals(id))).write(companion);
     unawaited(_sync.pushRow(childrenSpec, id));
+    // If the avatar was set/changed in this update, kick a
+    // (re-)upload. Idempotent — MediaService skips when the row
+    // already has a non-null storage_path matching the file.
+    if (avatarPath != null && !clearAvatarPath) {
+      unawaited(_media.uploadChildAvatar(id));
+    }
   }
 
   Future<void> deleteGroup(String id) async {

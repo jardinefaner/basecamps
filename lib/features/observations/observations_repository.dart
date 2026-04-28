@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/media_service.dart';
 import 'package:basecamp/features/sync/observations_sync_service.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
@@ -142,6 +143,11 @@ class ObservationsRepository {
   /// local-write callsite.
   ObservationsSyncService get _sync =>
       _ref.read(observationsSyncServiceProvider);
+
+  /// Media uploader. After every attachment insert we kick a
+  /// fire-and-forget upload of the local file to Supabase Storage
+  /// so other devices can resolve through the bucket.
+  MediaService get _media => _ref.read(mediaServiceProvider);
 
   Stream<List<Observation>> watchAll() {
     final query = _db.select(_db.observations)
@@ -326,15 +332,20 @@ class ObservationsRepository {
             );
       }
       for (final att in attachments) {
+        final attachmentId = newId();
         await _db.into(_db.observationAttachments).insert(
               ObservationAttachmentsCompanion.insert(
-                id: newId(),
+                id: attachmentId,
                 observationId: id,
                 kind: att.kind,
                 localPath: att.localPath,
                 durationMs: Value(att.durationMs),
               ),
             );
+        // Fire-and-forget media upload. Stamps storage_path on
+        // the row when complete, then the next push picks up the
+        // updated row and propagates to other devices.
+        unawaited(_media.uploadObservationAttachment(attachmentId));
       }
     });
     // Fire-and-forget cloud push. Failure logs but doesn't block —
@@ -411,6 +422,10 @@ class ObservationsRepository {
             durationMs: Value(input.durationMs),
           ),
         );
+    // Fire-and-forget media upload. The push that follows picks
+    // up the row's eventual storage_path so other devices can
+    // resolve through the bucket.
+    unawaited(_media.uploadObservationAttachment(id));
     // Push the parent observation so the new cascade row is
     // mirrored to cloud (the service replaces the cascade
     // wholesale, so this picks up the new attachment).

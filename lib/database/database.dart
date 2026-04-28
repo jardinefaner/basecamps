@@ -69,7 +69,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 43;
+  int get schemaVersion => 44;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -108,6 +108,26 @@ class AppDatabase extends _$AppDatabase {
               'fresh at schema 25. This only affects devs who have '
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
+            );
+          }
+          if (from < 44) {
+            // v44: storage_path columns for media sync. Nullable
+            // additive — existing rows have null storage_path
+            // until MediaService.upload sends their local file
+            // to cloud. On other devices, readers fall back from
+            // localPath (no file) to storage_path (download on
+            // demand).
+            await _runSilent(
+              'ALTER TABLE "observation_attachments" '
+              'ADD COLUMN "storage_path" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "children" '
+              'ADD COLUMN "avatar_storage_path" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "adults" '
+              'ADD COLUMN "avatar_storage_path" TEXT NULL',
             );
           }
           if (from < 43) {

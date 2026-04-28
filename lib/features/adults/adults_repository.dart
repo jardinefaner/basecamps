@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/media_service.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
@@ -44,6 +45,7 @@ class AdultsRepository {
   String? get _programId => _ref.read(activeProgramIdProvider);
 
   SyncEngine get _sync => _ref.read(syncEngineProvider);
+  MediaService get _media => _ref.read(mediaServiceProvider);
 
   final AppDatabase _db;
 
@@ -97,6 +99,9 @@ class AdultsRepository {
           ),
         );
     unawaited(_sync.pushRow(adultsSpec, id));
+    if (avatarPath != null) {
+      unawaited(_media.uploadAdultAvatar(id));
+    }
     return id;
   }
 
@@ -145,6 +150,9 @@ class AdultsRepository {
       ),
     );
     unawaited(_sync.pushRow(adultsSpec, id));
+    if (avatarPath != null && !clearAvatarPath) {
+      unawaited(_media.uploadAdultAvatar(id));
+    }
   }
 
   /// v40: returns the (at-most-one) Adult linked to [parentId] via

@@ -44,6 +44,12 @@ class Children extends Table {
   // Local file path for the child's photo. Remote upload comes later.
   TextColumn get avatarPath => text().nullable()();
 
+  /// v44: bucket-relative path of the avatar in the `media`
+  /// bucket. Set by MediaService.upload once the avatar's been
+  /// uploaded to cloud. Other devices use this to lazy-download
+  /// the avatar when the child first appears in their UI.
+  TextColumn get avatarStoragePath => text().nullable()();
+
   // Standing expected drop-off / pickup time for this child, stored
   // as "HH:mm" strings (matches how schedule times are stored in
   // ScheduleTemplates). Nullable — a child with no expected time
@@ -215,6 +221,14 @@ class ObservationAttachments extends Table {
   TextColumn get kind => text()();
   TextColumn get localPath => text()();
   TextColumn get remoteUrl => text().nullable()();
+
+  /// v44: bucket-relative path in Supabase Storage's `media`
+  /// bucket. Set by MediaService.upload after the file lands in
+  /// cloud. On other devices (where localPath points at a file
+  /// that doesn't exist), readers fall back to fetching this
+  /// path through the bucket. Null for legacy rows + for
+  /// uploads that haven't completed yet.
+  TextColumn get storagePath => text().nullable()();
   TextColumn get thumbnailPath => text().nullable()();
   IntColumn get durationMs => integer().nullable()();
   DateTimeColumn get createdAt =>
@@ -647,6 +661,10 @@ class Adults extends Table {
   TextColumn get notes => text().nullable()();
   // Local file path for the adult's photo. Remote upload comes later.
   TextColumn get avatarPath => text().nullable()();
+
+  /// v44: bucket-relative path of the avatar in the `media`
+  /// bucket. See Children.avatarStoragePath for the same role.
+  TextColumn get avatarStoragePath => text().nullable()();
 
   /// v40: direct contact columns on the adult row itself. Both
   /// nullable — programs that don't capture staff phone/email yet
