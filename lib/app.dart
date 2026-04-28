@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/forms/polymorphic/form_submission_repository.dart';
+import 'package:basecamp/features/forms/polymorphic/parent_concern_migration.dart';
 import 'package:basecamp/features/launcher/launcher_screen.dart';
 import 'package:basecamp/features/observations/observation_media_store.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
@@ -73,6 +74,14 @@ class _BasecampAppState extends ConsumerState<BasecampApp> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_sweepOrphans());
       unawaited(_backfillIncidentChildIds());
+      // One-shot data migration: legacy parent_concern_notes rows
+      // → polymorphic form_submissions with form_type='parent_concern'.
+      // Guarded by a SharedPreferences flag so it only runs once
+      // per install. Idempotent (insertOnConflictUpdate) so a
+      // re-run doesn't duplicate.
+      unawaited(
+        ref.read(parentConcernMigrationProvider).runOnce(),
+      );
     });
   }
 
