@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/observations_sync_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -53,6 +54,13 @@ class ProgramAuthBootstrap {
       await _ref.read(activeProgramIdProvider.notifier).set(id);
       await _maybeBackfillUntaggedRows(repo, programId: id);
       await _maybePushProgramToCloud(programId: id, userId: userId);
+      // Slice C: incremental, watermarked pull. Cheap on quiet
+      // days (just a "give me rows newer than X" query that
+      // returns nothing) and cheap on first launch (capped page
+      // size, ~one round-trip per 500 observations). Errors here
+      // are non-fatal — local data still shows whatever was last
+      // synced; a manual "Sync now" or the next sign-in retries.
+      unawaited(_pullObservations(programId: id));
     } on Object catch (e, st) {
       // Bootstrap failure is recoverable — the user's still signed
       // in, just sitting on a no-program state until the next
@@ -140,6 +148,23 @@ class ProgramAuthBootstrap {
     await prefs.setBool(flagKey, true);
     if (updated > 0) {
       debugPrint('Stamped $updated legacy rows with program $programId.');
+    }
+  }
+
+  /// Slice C pull entry point. Runs the watermarked observations
+  /// pull and logs the count without surfacing to the user — a
+  /// failed pull just leaves the local DB at whatever it had
+  /// before, and the next sign-in or manual "Sync now" retries.
+  Future<void> _pullObservations({required String programId}) async {
+    try {
+      final applied = await _ref
+          .read(observationsSyncServiceProvider)
+          .pullObservations(programId: programId);
+      if (applied > 0) {
+        debugPrint('Pulled $applied observations for $programId.');
+      }
+    } on Object catch (e, st) {
+      debugPrint('Pull observations failed: $e\n$st');
     }
   }
 }

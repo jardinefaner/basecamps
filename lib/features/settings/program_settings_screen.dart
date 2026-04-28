@@ -2,6 +2,7 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/backup/backup_card.dart';
 import 'package:basecamp/features/settings/program_settings.dart';
+import 'package:basecamp/features/sync/sync_card.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/confirm_dialog.dart';
@@ -46,6 +47,8 @@ class ProgramSettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.xxl),
           const _AccountCard(),
+          const SizedBox(height: AppSpacing.md),
+          const SyncCard(),
           const SizedBox(height: AppSpacing.md),
           const BackupCard(),
           const SizedBox(height: AppSpacing.xxl),
