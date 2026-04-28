@@ -2,6 +2,7 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/roles/roles_repository.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/save_action.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
@@ -87,7 +88,9 @@ class _EditRoleSheetState extends ConsumerState<EditRoleSheet> {
             )
           : null,
       actionBar: AppButton.primary(
-        onPressed: _isValid && !_submitting ? _submit : null,
+        onPressed: _isValid && !_submitting
+            ? () => runWithErrorReport(context, _submit)
+            : null,
         label: _isEdit ? 'Save' : 'Add role',
         isLoading: _submitting,
       ),

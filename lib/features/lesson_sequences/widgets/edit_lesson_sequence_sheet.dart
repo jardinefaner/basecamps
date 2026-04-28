@@ -3,6 +3,7 @@ import 'package:basecamp/features/lesson_sequences/lesson_sequences_repository.d
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/save_action.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
@@ -66,7 +67,9 @@ class _EditLessonSequenceSheetState
     return StickyActionSheet(
       title: _isEdit ? 'Edit sequence' : 'New sequence',
       actionBar: AppButton.primary(
-        onPressed: _isValid && !_submitting ? _submit : null,
+        onPressed: _isValid && !_submitting
+            ? () => runWithErrorReport(context, _submit)
+            : null,
         label: _isEdit ? 'Save' : 'Create',
         isLoading: _submitting,
       ),

@@ -6,6 +6,7 @@ import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/save_action.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
@@ -319,8 +320,9 @@ class _EditLibraryItemSheetState
             )
           : null,
       actionBar: AppButton.primary(
-        onPressed:
-            _isValid && (!_isEdit || _hasChanges) ? _submit : null,
+        onPressed: _isValid && (!_isEdit || _hasChanges)
+            ? () => runWithErrorReport(context, _submit)
+            : null,
         label: _isEdit ? 'Save' : 'Add to library',
         isLoading: _submitting,
       ),

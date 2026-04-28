@@ -3,6 +3,7 @@ import 'package:basecamp/features/vehicles/vehicles_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/save_action.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:basecamp/ui/undo_delete.dart';
 import 'package:drift/drift.dart' show Value;
@@ -112,7 +113,9 @@ class _EditVehicleSheetState extends ConsumerState<EditVehicleSheet> {
             )
           : null,
       actionBar: AppButton.primary(
-        onPressed: _isValid && !_submitting ? _submit : null,
+        onPressed: _isValid && !_submitting
+            ? () => runWithErrorReport(context, _submit)
+            : null,
         label: _isEdit ? 'Save' : 'Add vehicle',
         isLoading: _submitting,
       ),

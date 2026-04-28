@@ -4,6 +4,7 @@ import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
+import 'package:basecamp/ui/save_action.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
@@ -183,7 +184,7 @@ class _EditChildSheetState extends ConsumerState<EditChildSheet> {
           : null,
       actionBar: AppButton.primary(
         onPressed: _isValid && (!_isEdit || _hasChanges) && !_submitting
-            ? _submit
+            ? () => runWithErrorReport(context, _submit)
             : null,
         label: _isEdit ? 'Save changes' : 'Add child',
         isLoading: _submitting,

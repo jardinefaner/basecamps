@@ -10,6 +10,7 @@ import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/save_action.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:basecamp/ui/undo_delete.dart';
 import 'package:drift/drift.dart' show Value;
@@ -408,8 +409,9 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
             )
           : null,
       actionBar: AppButton.primary(
-        onPressed:
-            _isValid && (!_isEdit || _hasChanges) ? _submit : null,
+        onPressed: _isValid && (!_isEdit || _hasChanges)
+            ? () => runWithErrorReport(context, _submit)
+            : null,
         label: _isEdit
             ? 'Save'
             : _selectedDays.length > 1

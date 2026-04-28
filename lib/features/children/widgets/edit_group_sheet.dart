@@ -4,6 +4,7 @@ import 'package:basecamp/features/children/group_colors.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
 import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/save_action.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
@@ -89,7 +90,9 @@ class _EditGroupSheetState extends ConsumerState<EditGroupSheet> {
         ),
       ),
       actionBar: AppButton.primary(
-        onPressed: _isValid && _hasChanges && !_submitting ? _save : null,
+        onPressed: _isValid && _hasChanges && !_submitting
+            ? () => runWithErrorReport(context, _save)
+            : null,
         label: 'Save changes',
         isLoading: _submitting,
       ),
