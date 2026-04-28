@@ -161,27 +161,10 @@ const observationsSpec = TableSpec(
   ],
 );
 
-const parentConcernNotesSpec = TableSpec(
-  table: 'parent_concern_notes',
-  dateColumns: {
-    'concern_date',
-    'follow_up_date',
-    'staff_signature_date',
-    'supervisor_signature_date',
-    'created_at',
-    'updated_at',
-  },
-  cascades: [
-    CascadeSpec(
-      table: 'parent_concern_children',
-      // Drift column is `concern_id` (the snake_case mapping of
-      // `concernId`). Cloud schema mirrors verbatim. No created_at
-      // column on this table — it's a pure (concern_id, child_id)
-      // join.
-      parentColumn: 'concern_id',
-    ),
-  ],
-);
+// parentConcernNotesSpec — REMOVED in v45 (the table was dropped
+// after migrating its rows into form_submissions). The polymorphic
+// form's data syncs through formSubmissionsSpec like every other
+// form type.
 
 const formSubmissionsSpec = TableSpec(
   table: 'form_submissions',
@@ -222,7 +205,6 @@ const List<List<TableSpec>> kSpecTiers = [
     tripsSpec,
     scheduleEntriesSpec,
     observationsSpec,
-    parentConcernNotesSpec,
     formSubmissionsSpec,
   ],
 ];

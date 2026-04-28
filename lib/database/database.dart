@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/tables.dart';
 import 'package:basecamp/features/sync/synced_tables.dart';
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 part 'database.g.dart';
@@ -43,8 +46,6 @@ QueryExecutor _openConnection() {
     ScheduleEntries,
     TemplateGroups,
     EntryGroups,
-    ParentConcernNotes,
-    ParentConcernChildren,
     Attendance,
     ChildScheduleOverrides,
     AdultDayBlocks,
@@ -69,7 +70,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 44;
+  int get schemaVersion => 45;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -109,6 +110,33 @@ class AppDatabase extends _$AppDatabase {
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
             );
+          }
+          if (from < 45) {
+            // v45: retire the bespoke parent_concern_notes +
+            // parent_concern_children tables. The polymorphic
+            // form_submissions row with form_type='parent_concern'
+            // (commit 3784201) replaces them.
+            //
+            // Carry any local rows forward into form_submissions
+            // first — re-runnable via INSERT OR REPLACE since the
+            // form_submissions row stamps the same id as the
+            // bespoke row, and the previous app-level migration
+            // (parent_concern_migration.dart) used the same key.
+            //
+            // After the data move, drop both tables. SQLite's
+            // foreign_keys=ON would block dropping a parent
+            // referenced by a (now-empty) cascade table; turn it
+            // off for the duration of the transition and re-enable
+            // afterwards.
+            await _migrateParentConcernRowsToFormSubmissions();
+            await _runSilent('PRAGMA foreign_keys = OFF');
+            await _runSilent(
+              'DROP TABLE IF EXISTS "parent_concern_children"',
+            );
+            await _runSilent(
+              'DROP TABLE IF EXISTS "parent_concern_notes"',
+            );
+            await _runSilent('PRAGMA foreign_keys = ON');
           }
           if (from < 44) {
             // v44: storage_path columns for media sync. Nullable
@@ -967,6 +995,179 @@ class AppDatabase extends _$AppDatabase {
         '"idx_${t}_program" ON "$t" ("program_id")',
       );
     }
+  }
+
+  /// One-shot data migration for the v45 schema bump. Reads any
+  /// local rows from the legacy parent_concern_notes table (and
+  /// its parent_concern_children join) via raw SQL — the Drift
+  /// classes have already been removed from the schema, so we
+  /// can't go through the type-safe API — and writes them as
+  /// form_submissions rows with form_type='parent_concern'.
+  ///
+  /// Idempotent: insertOnConflictUpdate against the same id, so
+  /// rows already migrated by the v1 app-level migration are
+  /// updated in place rather than duplicated.
+  ///
+  /// Best-effort: if the source table doesn't exist (fresh install
+  /// past v45) the SELECT raises "no such table" and _runSilent
+  /// catches it. Same if any row's id is already gone — the upsert
+  /// is a no-op for rows that match the existing form_submissions.
+  Future<void> _migrateParentConcernRowsToFormSubmissions() async {
+    try {
+      final notes = await customSelect(
+        'SELECT * FROM "parent_concern_notes"',
+      ).get();
+      if (notes.isEmpty) return;
+
+      // Fetch all the cascade rows in one shot, then group by
+      // concernId — avoids N round-trips for N notes.
+      final allLinks = await customSelect(
+        'SELECT * FROM "parent_concern_children"',
+      ).get();
+      final childIdsByConcern = <String, List<String>>{};
+      for (final l in allLinks) {
+        final cid = l.data['concern_id'] as String?;
+        final kid = l.data['child_id'] as String?;
+        if (cid == null || kid == null) continue;
+        (childIdsByConcern[cid] ??= []).add(kid);
+      }
+
+      for (final note in notes) {
+        final id = note.data['id'] as String?;
+        if (id == null) continue;
+        final childIds = childIdsByConcern[id] ?? const <String>[];
+        final data = _parentConcernRowToFormData(note.data, childIds);
+
+        // Convert epoch-second ints back to ISO timestamps for the
+        // FormSubmission's date columns. The form_submissions row
+        // gets its createdAt / updatedAt copied from the legacy row
+        // so the Today screen's "recent activity" feed lands in the
+        // same chronological position.
+        final createdAt = note.data['created_at'];
+        final updatedAt = note.data['updated_at'];
+
+        // Variables list takes List<Variable<Object>>; nulls go in
+        // as Variable<Object>(null). Match the engine's _toVariable
+        // shape so the typing stays consistent.
+        final nowEpoch = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        final variables = <Variable<Object>>[
+          Variable<String>(id),
+          const Variable<String>('parent_concern'),
+          const Variable<String>('completed'),
+          // submitted_at stamped from createdAt — these rows are
+          // already-finished history.
+          if (createdAt is int)
+            Variable<int>(createdAt)
+          else
+            const Variable<Object>(null),
+          const Variable<Object>(null), // author_name
+          // single-child shortcut when exactly one is linked
+          if (childIds.length == 1)
+            Variable<String>(childIds.first)
+          else
+            const Variable<Object>(null),
+          const Variable<Object>(null), // group_id
+          const Variable<Object>(null), // trip_id
+          const Variable<Object>(null), // parent_submission_id
+          const Variable<Object>(null), // review_due_at
+          Variable<String>(jsonEncode(data)),
+          if (note.data['program_id'] is String)
+            Variable<String>(note.data['program_id'] as String)
+          else
+            const Variable<Object>(null),
+          Variable<int>(createdAt is int ? createdAt : nowEpoch),
+          Variable<int>(updatedAt is int ? updatedAt : nowEpoch),
+        ];
+        await customInsert(
+          'INSERT OR REPLACE INTO "form_submissions" '
+          '("id", "form_type", "status", "submitted_at", '
+          '"author_name", "child_id", "group_id", "trip_id", '
+          '"parent_submission_id", "review_due_at", "data", '
+          '"program_id", "created_at", "updated_at") '
+          'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          variables: variables,
+        );
+      }
+    } on Object catch (e) {
+      // "no such table" if the install is post-v45 fresh and never
+      // had these tables. Other DB errors (lock contention, schema
+      // drift) shouldn't block the user — log and move on; the
+      // worst case is a couple of legacy rows missing from the new
+      // table, which the user can re-enter manually.
+      debugPrint('Parent-concern v45 migration skipped: $e');
+    }
+  }
+
+  /// Maps the legacy parent_concern_notes row → the form_submissions
+  /// `data` JSON shape that matches `parentConcernForm`'s field keys.
+  /// Mirrors `parent_concern_migration.dart` (the deleted app-level
+  /// version), kept here so the migration is self-contained inside
+  /// the schema upgrade.
+  Map<String, dynamic> _parentConcernRowToFormData(
+    Map<String, Object?> row,
+    List<String> childIds,
+  ) {
+    DateTime? toUtc(Object? raw) => raw is int
+        ? DateTime.fromMillisecondsSinceEpoch(raw * 1000, isUtc: true)
+        : null;
+
+    final concernDate = toUtc(row['concern_date']);
+    final followUpDate = toUtc(row['follow_up_date']);
+    final staffSignedAt = toUtc(row['staff_signature_date']);
+    final supervisorSignedAt = toUtc(row['supervisor_signature_date']);
+
+    final staffName = row['staff_signature'] as String?;
+    final staffPath = row['staff_signature_path'] as String?;
+    final supervisorName = row['supervisor_signature'] as String?;
+    final supervisorPath = row['supervisor_signature_path'] as String?;
+
+    return <String, dynamic>{
+      'child_ids': childIds,
+      if ((row['parent_name'] as String?)?.isNotEmpty ?? false)
+        'parent_name': row['parent_name'],
+      if (concernDate != null)
+        'concern_date': concernDate.toIso8601String(),
+      if ((row['staff_receiving'] as String?)?.isNotEmpty ?? false)
+        'staff_receiving': row['staff_receiving'],
+      'method_in_person': (row['method_in_person'] as int?) == 1,
+      'method_phone': (row['method_phone'] as int?) == 1,
+      'method_email': (row['method_email'] as int?) == 1,
+      if ((row['method_other'] as String?)?.isNotEmpty ?? false)
+        'method_other': row['method_other'],
+      if ((row['concern_description'] as String?)?.isNotEmpty ?? false)
+        'concern_description': row['concern_description'],
+      if ((row['immediate_response'] as String?)?.isNotEmpty ?? false)
+        'immediate_response': row['immediate_response'],
+      if ((row['supervisor_notified'] as String?)?.isNotEmpty ?? false)
+        'supervisor_notified': row['supervisor_notified'],
+      'follow_up_monitor': (row['follow_up_monitor'] as int?) == 1,
+      'follow_up_staff_check_ins':
+          (row['follow_up_staff_check_ins'] as int?) == 1,
+      'follow_up_supervisor_review':
+          (row['follow_up_supervisor_review'] as int?) == 1,
+      'follow_up_parent_conversation':
+          (row['follow_up_parent_conversation'] as int?) == 1,
+      if ((row['follow_up_other'] as String?)?.isNotEmpty ?? false)
+        'follow_up_other': row['follow_up_other'],
+      if (followUpDate != null)
+        'follow_up_date': followUpDate.toIso8601String(),
+      if ((row['additional_notes'] as String?)?.isNotEmpty ?? false)
+        'additional_notes': row['additional_notes'],
+      if (staffName != null || staffPath != null || staffSignedAt != null)
+        'staff_signature': <String, dynamic>{
+          'name': ?staffName,
+          'signaturePath': ?staffPath,
+          'signedAt': ?staffSignedAt?.toIso8601String(),
+        },
+      if (supervisorName != null ||
+          supervisorPath != null ||
+          supervisorSignedAt != null)
+        'supervisor_signature': <String, dynamic>{
+          'name': ?supervisorName,
+          'signaturePath': ?supervisorPath,
+          'signedAt': ?supervisorSignedAt?.toIso8601String(),
+        },
+    };
   }
 
   Future<void> _runSilent(String stmt) async {

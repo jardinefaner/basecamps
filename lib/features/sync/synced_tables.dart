@@ -38,6 +38,8 @@ const List<String> kSyncedTableNames = <String>[
   'trips',
   'schedule_entries',
   'observations',
-  'parent_concern_notes',
+  // parent_concern_notes — removed in v45 (commit 8cc3d68 + this).
+  // The polymorphic form_submissions row with form_type='parent_concern'
+  // replaces it; see definitions/parent_concern.dart.
   'form_submissions',
 ];

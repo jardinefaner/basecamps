@@ -855,72 +855,11 @@ class EntryGroups extends Table {
   Set<Column<Object>> get primaryKey => {entryId, groupId};
 }
 
-/// Parent concern notes — the first form type. Staff fill one out when a
-/// parent raises a concern; the form is broken into sections and can be
-/// saved mid-fill and returned to. Most fields are optional (and default
-/// to empty strings / nulls) so partial drafts save cleanly.
-class ParentConcernNotes extends Table {
-  TextColumn get id => text()();
-
-  // Header
-  TextColumn get childNames => text().withDefault(const Constant(''))();
-  TextColumn get parentName => text().withDefault(const Constant(''))();
-  DateTimeColumn get concernDate => dateTime().nullable()();
-  TextColumn get staffReceiving => text().withDefault(const Constant(''))();
-  TextColumn get supervisorNotified => text().nullable()();
-
-  // Method of communication — a concern can come in through more than
-  // one channel in the same conversation, so these are independent
-  // flags rather than a single enum.
-  BoolColumn get methodInPerson =>
-      boolean().withDefault(const Constant(false))();
-  BoolColumn get methodPhone => boolean().withDefault(const Constant(false))();
-  BoolColumn get methodEmail => boolean().withDefault(const Constant(false))();
-  TextColumn get methodOther => text().nullable()();
-
-  // Narrative
-  TextColumn get concernDescription =>
-      text().withDefault(const Constant(''))();
-  TextColumn get immediateResponse =>
-      text().withDefault(const Constant(''))();
-
-  // Follow-up plan — same shape as method of communication.
-  BoolColumn get followUpMonitor =>
-      boolean().withDefault(const Constant(false))();
-  BoolColumn get followUpStaffCheckIns =>
-      boolean().withDefault(const Constant(false))();
-  BoolColumn get followUpSupervisorReview =>
-      boolean().withDefault(const Constant(false))();
-  BoolColumn get followUpParentConversation =>
-      boolean().withDefault(const Constant(false))();
-  TextColumn get followUpOther => text().nullable()();
-  DateTimeColumn get followUpDate => dateTime().nullable()();
-
-  TextColumn get additionalNotes => text().nullable()();
-
-  // Signatures. [staffSignature] / [supervisorSignature] hold the
-  // typed printed name; the *Path columns hold a local PNG exported
-  // from the in-form signature pad. Both can be set independently —
-  // printed name without drawing is "typed signature", drawing alone
-  // is anonymous, and both is the full paper-form equivalent.
-  TextColumn get staffSignature => text().nullable()();
-  TextColumn get staffSignaturePath => text().nullable()();
-  DateTimeColumn get staffSignatureDate => dateTime().nullable()();
-  TextColumn get supervisorSignature => text().nullable()();
-  TextColumn get supervisorSignaturePath => text().nullable()();
-  DateTimeColumn get supervisorSignatureDate => dateTime().nullable()();
-
-  /// Owning program (v42). See [Groups.programId] for the rule.
-  TextColumn get programId => text().nullable()();
-
-  DateTimeColumn get createdAt =>
-      dateTime().withDefault(currentDateAndTime)();
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
-
-  @override
-  Set<Column<Object>> get primaryKey => {id};
-}
+// ParentConcernNotes table — REMOVED in schema v45. The form
+// migrated to the polymorphic form_submissions architecture
+// (commit 3784201). The v45 onUpgrade block carried any remaining
+// rows forward + dropped the bespoke table. Left this marker so
+// the absence is intentional, not accidental.
 
 /// One row per (child, date) with the day's attendance status.
 /// `status` is a string so new values (e.g. "excused") can be added
@@ -972,15 +911,10 @@ class Attendance extends Table {
   Set<Column<Object>> get primaryKey => {childId, date};
 }
 
-/// Structured link between a parent concern note and each child it
-/// mentions. Replaces a lossy substring-match against the free-text
-/// `childNames` column — the Today screen uses this join to show
-/// "an active concern mentions a child in this group" on the right
-/// activity card, and opens the specific concern on tap.
-///
-/// `childNames` is still kept on the concern row for display/export
-/// purposes (the parent's words), but this table is the source of
-/// truth for "which children are involved".
+// ParentConcernChildren cascade table — REMOVED in v45 alongside
+// ParentConcernNotes. The polymorphic form_submissions row stores
+// the multi-child link as a JSON array under `data.child_ids`.
+
 /// Generic submission row for the polymorphic forms system (v34). A
 /// single row represents one filled-in form of any type — vehicle
 /// check, behavior monitoring, future custom forms. The
@@ -1061,19 +995,6 @@ class FormSubmissions extends Table {
 
   @override
   Set<Column<Object>> get primaryKey => {id};
-}
-
-class ParentConcernChildren extends Table {
-  TextColumn get concernId => text().references(
-        ParentConcernNotes,
-        #id,
-        onDelete: KeyAction.cascade,
-      )();
-  TextColumn get childId =>
-      text().references(Children, #id, onDelete: KeyAction.cascade)();
-
-  @override
-  Set<Column<Object>> get primaryKey => {concernId, childId};
 }
 
 /// Per-date schedule entries. `kind` is 'addition' | 'override' | 'cancellation'.
