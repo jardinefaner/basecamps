@@ -153,9 +153,37 @@ class InviteRepository {
       if (e.status == 404) {
         throw const RedeemError(
           'function_not_deployed',
-          'Joining isn’t set up on the server yet. Deploy the '
-          '`accept-invite` edge function (supabase functions '
-          'deploy accept-invite).',
+          'Joining isn’t set up on the server yet. The admin '
+          'needs to deploy the `accept-invite` edge function: '
+          'supabase functions deploy accept-invite',
+        );
+      }
+      rethrow;
+    } on Object catch (e) {
+      // Network-level / load-failed errors don't come through as
+      // FunctionException — they bubble up as ClientException,
+      // SocketException, etc. The most common cause in practice
+      // is "function not deployed yet" so the URL is reachable
+      // (Supabase's project domain answers) but returns the same
+      // 404-ish unreachable-state via a non-HTTP failure on
+      // some platforms. Bundle them all into the deploy hint —
+      // genuine network outages are rare and the fix is the same
+      // (try again later); a missing edge function is the
+      // typical first-time-setup miss.
+      final raw = e.toString();
+      if (raw.contains('load failed') ||
+          raw.contains('ClientException') ||
+          raw.contains('SocketException') ||
+          raw.contains('Failed host lookup') ||
+          raw.contains('functions')) {
+        throw RedeemError(
+          'function_unreachable',
+          "Couldn't reach the server's invite function. Most "
+          'likely the `accept-invite` edge function hasn’t been '
+          'deployed yet. The admin needs to run: supabase '
+          'functions deploy accept-invite\n\nIf the function IS '
+          'deployed, check your network and try again.\n\n'
+          'Raw error: $e',
         );
       }
       rethrow;
