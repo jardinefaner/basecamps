@@ -17,6 +17,7 @@ import 'package:basecamp/features/vehicles/widgets/edit_vehicle_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/app_text_field.dart';
+import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:basecamp/ui/step_wizard.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -493,25 +494,102 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
         }
       },
       steps: [
-        for (final section in def.sections)
-          if (section.showWhen == null || section.showWhen!(_values))
-            WizardStep(
-              headline: section.title,
-              subtitle: section.subtitle,
-              canSkip: true,
-              needsKeyboard: sectionNeedsKeyboard(section),
-              // All intermediate steps read "Next" — per-step auto-save
-              // is silent plumbing; the final step's Save button is the
-              // actual commit point.
-              content: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final field in section.fields) _buildField(field),
-                ],
-              ),
+        for (var sectionIndex = 0;
+            sectionIndex < def.sections.length;
+            sectionIndex++)
+          if (def.sections[sectionIndex].showWhen == null ||
+              def.sections[sectionIndex].showWhen!(_values))
+            _buildWizardStep(
+              def: def,
+              sectionIndex: sectionIndex,
+              keyboardCheck: sectionNeedsKeyboard,
             ),
       ],
     );
+  }
+
+  /// Build a [WizardStep] for the section at [sectionIndex]. Splits
+  /// the construction out of the for-comprehension so we can wedge
+  /// in the per-section + per-form "Mark all OK" affordances
+  /// without bloating the inline expression.
+  ///
+  /// **Section-level shortcut:** sections containing any
+  /// `FormChecklistStatusField` get a "Mark all OK & continue →"
+  /// button at the top — flips every checklist item to `ok` and
+  /// taps Next in one go. Brings the happy-path tap count for a
+  /// pre-trip vehicle check down from ~27 to ~10.
+  ///
+  /// **Form-level shortcut (step 0 only):** when the form has any
+  /// checklist anywhere AND we're on the first step, also surface
+  /// an "Everything OK — just need notes" button that flips every
+  /// checklist field across every section to `ok` and jumps
+  /// directly to the last step (typically the Notes / free-text
+  /// finish). For "all is well" runs, that's effectively two taps
+  /// to fill the form: identity + this button.
+  WizardStep _buildWizardStep({
+    required fd.FormDefinition def,
+    required int sectionIndex,
+    required bool Function(fd.FormSection) keyboardCheck,
+  }) {
+    final section = def.sections[sectionIndex];
+    final hasChecklist =
+        section.fields.any((f) => f is fd.FormChecklistStatusField);
+    final formHasChecklist = def.sections.any(
+      (s) => s.fields.any((f) => f is fd.FormChecklistStatusField),
+    );
+    final isFirstStep = sectionIndex == 0;
+    return WizardStep(
+      headline: section.title,
+      subtitle: section.subtitle,
+      canSkip: true,
+      needsKeyboard: keyboardCheck(section),
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (isFirstStep && formHasChecklist)
+            _FormMarkAllOkButton(
+              definition: def,
+              onApply: _markAllChecklistsOk,
+            ),
+          if (hasChecklist)
+            _SectionMarkAllOkButton(
+              section: section,
+              onApply: () => _markSectionChecklistsOk(section),
+            ),
+          for (final field in section.fields) _buildField(field),
+        ],
+      ),
+    );
+  }
+
+  /// Set every `FormChecklistStatusField` value in [section] to
+  /// `'ok'`. Called by the per-section "Mark all OK" button —
+  /// the button itself follows up with `WizardController.next()`
+  /// to advance once values are flipped.
+  void _markSectionChecklistsOk(fd.FormSection section) {
+    setState(() {
+      for (final f in section.fields) {
+        if (f is fd.FormChecklistStatusField) {
+          _values[f.key] = 'ok';
+        }
+      }
+    });
+  }
+
+  /// Set every `FormChecklistStatusField` value across every
+  /// section in this form's definition to `'ok'`. Called by the
+  /// form-level "Everything OK" button — the button itself
+  /// jumps to the last step (Notes) once values are flipped.
+  void _markAllChecklistsOk() {
+    setState(() {
+      for (final section in widget.definition.sections) {
+        for (final f in section.fields) {
+          if (f is fd.FormChecklistStatusField) {
+            _values[f.key] = 'ok';
+          }
+        }
+      }
+    });
   }
 
   // ---- Field renderers ----
@@ -1990,5 +2068,125 @@ class _SectionCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// "Mark all OK & continue →" button at the top of every checklist
+/// section. Single tap flips every `FormChecklistStatusField` in
+/// that section to `'ok'` and advances the wizard to the next
+/// step.
+///
+/// Lives outside the form's setState chain — the parent owns the
+/// values map and passes [onApply] to mutate it. We only own the
+/// "advance after apply" half of the action via the wizard
+/// controller. Splitting it this way keeps the button decoupled
+/// from any single form's data shape.
+class _SectionMarkAllOkButton extends StatelessWidget {
+  const _SectionMarkAllOkButton({
+    required this.section,
+    required this.onApply,
+  });
+
+  final fd.FormSection section;
+  final VoidCallback onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          FilledButton.tonalIcon(
+            onPressed: () async {
+              onApply();
+              // Tiny delay so the user sees the items flip to ✓
+              // before the page slides — feels less jarring than
+              // an instant transition.
+              await Future<void>.delayed(
+                const Duration(milliseconds: 120),
+              );
+              if (!context.mounted) return;
+              await WizardController.of(context).next();
+            },
+            icon: const Icon(Icons.check_circle_outline, size: 18),
+            label: const Text('Mark all OK & continue'),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Center(
+            child: Text(
+              'Or check items individually',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Form-level "Everything OK — just need notes" shortcut. Shows
+/// only on step 1 (vehicle info) of forms that contain at least
+/// one `FormChecklistStatusField` somewhere. One tap flips every
+/// checklist field across every section to `'ok'` and jumps to
+/// the last step — typically Notes — so a teacher running an
+/// "all is well" pre-trip check can be done in two taps after
+/// picking the vehicle.
+///
+/// Visually de-emphasized vs the section-level button: this is a
+/// power-user shortcut, not the recommended flow. The phrasing
+/// reminds the user they're committing to all-OK without walking
+/// the form.
+class _FormMarkAllOkButton extends StatelessWidget {
+  const _FormMarkAllOkButton({
+    required this.definition,
+    required this.onApply,
+  });
+
+  final fd.FormDefinition definition;
+  final VoidCallback onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+      child: OutlinedButton.icon(
+        onPressed: () => _confirmAndApply(context),
+        icon: const Icon(Icons.fast_forward, size: 18),
+        label: Text(
+          'Everything OK — just need notes',
+          style: theme.textTheme.labelLarge,
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmAndApply(BuildContext context) async {
+    final ok = await showConfirmDialog(
+      context: context,
+      title: 'Mark every check as OK?',
+      message:
+          'Sets every item across the form to ✓ and skips you to '
+          "the last step. Use only when you've actually walked "
+          'the inspection and everything is acceptable. You can '
+          'still change individual items afterward.',
+      confirmLabel: 'Mark all OK',
+      destructive: false,
+    );
+    if (!ok || !context.mounted) return;
+    onApply();
+    final controller = WizardController.of(context);
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    if (!context.mounted) return;
+    // Jump to the last step. The wizard clamps the index, so the
+    // exact value doesn't matter as long as it's >= last index.
+    await controller.goTo(definition.sections.length - 1);
   }
 }

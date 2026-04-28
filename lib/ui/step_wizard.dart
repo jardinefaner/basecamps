@@ -2,6 +2,72 @@ import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:flutter/material.dart';
 
+/// Lightweight controller that step content can use to drive the
+/// wizard from inside its body — e.g. a "Mark all OK & continue"
+/// button on a checklist step that wants to flip values + advance
+/// in one tap.
+///
+/// Reach it from any descendant of [StepWizardScaffold] via
+/// `WizardController.of(context)`. The scaffold publishes itself
+/// through an InheritedWidget on every rebuild, so the controller
+/// always reflects the current step state (e.g. don't advance past
+/// the last step — call `submit` instead).
+abstract class WizardController {
+  /// Advance to the next step (or run the final action if already
+  /// on the last step). Same semantics as tapping "Next" / Save.
+  Future<void> next();
+
+  /// Jump directly to step [index]. Out-of-range targets are
+  /// clamped silently (so callers can do `goTo(steps.length - 1)`
+  /// without bounds-checking).
+  Future<void> goTo(int index);
+
+  /// Current 0-based step index, useful for "are we on step 1?"
+  /// affordances inside step content (e.g. show a form-level
+  /// shortcut button only on the first step).
+  int get currentIndex;
+
+  /// Total number of steps in the wizard.
+  int get stepCount;
+
+  /// Pull the controller from the closest enclosing wizard.
+  /// Throws if used outside a [StepWizardScaffold] — that's a
+  /// programmer error, not a runtime branch worth guarding.
+  static WizardController of(BuildContext context) {
+    final inh =
+        context.dependOnInheritedWidgetOfExactType<_WizardScope>();
+    assert(inh != null, 'No StepWizardScaffold found in context');
+    return inh!.controller;
+  }
+
+  /// Non-throwing variant for cases where the widget might be
+  /// reused outside a wizard. Returns null when nothing's
+  /// available.
+  static WizardController? maybeOf(BuildContext context) {
+    final inh =
+        context.dependOnInheritedWidgetOfExactType<_WizardScope>();
+    return inh?.controller;
+  }
+}
+
+/// InheritedWidget that surfaces the current [_StepWizardScaffoldState]'s
+/// controller to descendants. Rebuilds shouldn't notify dependents
+/// because none of the surfaced fields drive layout — the controller
+/// reads them lazily on call.
+class _WizardScope extends InheritedWidget {
+  const _WizardScope({
+    required this.controller,
+    required super.child,
+  });
+
+  final WizardController controller;
+
+  @override
+  bool updateShouldNotify(_WizardScope oldWidget) {
+    return controller != oldWidget.controller;
+  }
+}
+
 /// One page in a multi-step wizard. The wizard scaffold handles the
 /// shell (progress strip, heading, action bar, animated transitions);
 /// each step just supplies its own body content and tells the scaffold
@@ -105,10 +171,26 @@ class StepWizardScaffold extends StatefulWidget {
   State<StepWizardScaffold> createState() => _StepWizardScaffoldState();
 }
 
-class _StepWizardScaffoldState extends State<StepWizardScaffold> {
+class _StepWizardScaffoldState extends State<StepWizardScaffold>
+    implements WizardController {
   late int _index = widget.initialIndex;
   late final _pageController = PageController(initialPage: widget.initialIndex);
   bool _submitting = false;
+
+  @override
+  int get currentIndex => _index;
+
+  @override
+  int get stepCount => widget.steps.length;
+
+  @override
+  Future<void> next() => _next();
+
+  @override
+  Future<void> goTo(int index) {
+    final clamped = index.clamp(0, widget.steps.length - 1);
+    return _goTo(clamped);
+  }
 
   bool get _isLast => _index == widget.steps.length - 1;
   bool get _hasMultipleSteps => widget.steps.length > 1;
@@ -222,7 +304,9 @@ class _StepWizardScaffoldState extends State<StepWizardScaffold> {
           navigator.pop();
         }
       },
-      child: Scaffold(
+      child: _WizardScope(
+        controller: this,
+        child: Scaffold(
         backgroundColor: theme.colorScheme.surfaceContainerLowest,
         appBar: AppBar(
           backgroundColor: theme.colorScheme.surfaceContainerLowest,
@@ -323,6 +407,7 @@ class _StepWizardScaffoldState extends State<StepWizardScaffold> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
