@@ -40,6 +40,7 @@ class _SyncDiagnosticsScreenState
   String? _getUserResult;
   String? _authUidResult;
   String? _connectionResult;
+  String? _insertResult;
   String? _error;
 
   @override
@@ -112,6 +113,54 @@ class _SyncDiagnosticsScreenState
       _error = 'Unexpected: $e';
     } finally {
       if (mounted) setState(() => _running = false);
+    }
+  }
+
+  /// Manual smoke-test: try an actual INSERT into `programs` with
+  /// `created_by = currentUser.id`. Captures the exact server
+  /// error if any. The row is deleted right after on success so
+  /// we don't pollute the user's program list with diagnostic
+  /// programs.
+  ///
+  /// Useful when every other identity check passes (auth.uid()
+  /// matches currentUser, JWT is valid, etc.) but the actual
+  /// create flow keeps 42501-ing — proves whether the policy
+  /// itself is the blocker vs something in the upsert path.
+  Future<void> _runInsertProbe() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      setState(() => _insertResult = '✗ no current user');
+      return;
+    }
+    final probeId = 'diagnostic-${DateTime.now().microsecondsSinceEpoch}';
+    setState(() => _insertResult = 'running…');
+    try {
+      await Supabase.instance.client.from('programs').insert({
+        'id': probeId,
+        'name': '[diagnostic probe — safe to delete]',
+        'created_by': user.id,
+      });
+      // Clean up. Best-effort — if the delete fails the row is
+      // visible in the user's programs list with a clear name.
+      try {
+        await Supabase.instance.client
+            .from('programs')
+            .delete()
+            .eq('id', probeId);
+      } on Object {
+        // Leave the row if cleanup fails; the user can drop it.
+      }
+      if (!mounted) return;
+      setState(() => _insertResult =
+          '✓ INSERT succeeded — RLS lets you create programs.');
+    } on PostgrestException catch (e) {
+      if (!mounted) return;
+      setState(() => _insertResult =
+          '✗ INSERT failed: ${e.message} (code: ${e.code}, '
+          'details: ${e.details}, hint: ${e.hint})');
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() => _insertResult = '✗ INSERT failed: $e');
     }
   }
 
@@ -220,6 +269,36 @@ class _SyncDiagnosticsScreenState
             value: _connectionResult ?? '…',
             warn: (_connectionResult ?? '').startsWith('✗'),
           ),
+          const SizedBox(height: AppSpacing.lg),
+          const _Section(title: 'INSERT probe'),
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: Text(
+              'Tries an actual INSERT into programs with the same '
+              'created_by we use during create-program. Reveals '
+              'the exact PostgreSQL error if RLS is blocking. The '
+              'probe row is auto-deleted on success.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.tonalIcon(
+              onPressed: _running ? null : _runInsertProbe,
+              icon: const Icon(Icons.science_outlined, size: 18),
+              label: const Text('Try a real INSERT'),
+            ),
+          ),
+          if (_insertResult != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _DiagRow(
+              label: 'Result',
+              value: _insertResult!,
+              warn: _insertResult!.startsWith('✗'),
+            ),
+          ],
           const SizedBox(height: AppSpacing.lg),
           const _Section(title: 'App state'),
           _DiagRow(

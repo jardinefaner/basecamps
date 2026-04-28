@@ -380,7 +380,17 @@ Future<void> _showCreateFailureDialog(
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              unawaited(ctx.push('/more/programs/diagnostics'));
+              // Defer the route push to the next frame. Popping
+              // and pushing in the same tick disposes the
+              // dialog's Navigator while another navigation is
+              // in flight, which trips the
+              // `_debugLocked` assertion in finalizeTree.
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!context.mounted) return;
+                unawaited(
+                  context.push('/more/programs/diagnostics'),
+                );
+              });
             },
             child: const Text('Open diagnostics'),
           ),
