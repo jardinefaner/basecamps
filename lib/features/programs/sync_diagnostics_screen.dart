@@ -73,30 +73,25 @@ class _SyncDiagnosticsScreenState
       } on Object catch (e) {
         _getUserResult = '✗ getUser failed: $e';
       }
-      // 3. select auth.uid() — what the RLS engine actually sees
-      //    when evaluating CHECK clauses. This is the value
+      // 3. public.whoami() RPC — what the RLS engine actually
+      //    sees when evaluating CHECK clauses. This is the value
       //    `programs_insert` compares against `created_by`.
+      //    The function lives in migration 0014.
       try {
-        final result = await Supabase.instance.client.rpc<String?>(
-          'auth.uid_text',
-        );
-        _authUidResult = result?.toString() ?? '(null)';
+        final raw = await Supabase.instance.client.rpc<dynamic>('whoami');
+        final value = raw?.toString() ?? '';
+        _authUidResult = value.isEmpty
+            ? '(empty — no valid JWT received server-side)'
+            : value;
       } on PostgrestException catch (e) {
-        // The function probably doesn't exist — fall back to a
-        // raw select via a tiny inline RPC. If even that fails,
-        // surface the error.
-        _authUidResult =
-            'rpc.uid_text missing (${e.code}). Using fallback…';
-        try {
-          final fallback = await Supabase.instance.client
-              .from('programs')
-              .select('id')
-              .limit(0);
+        if (e.code == 'PGRST202' ||
+            e.code == '42883' ||
+            e.message.contains('not find')) {
           _authUidResult =
-              'rpc.uid_text missing — fallback select OK '
-              '(${fallback.runtimeType})';
-        } on Object catch (e2) {
-          _authUidResult = 'fallback select failed: $e2';
+              'whoami() not deployed — apply migration '
+              '0014_whoami.sql in the Supabase SQL editor.';
+        } else {
+          _authUidResult = '✗ rpc failed: ${e.message} (${e.code})';
         }
       } on Object catch (e) {
         _authUidResult = '✗ rpc failed: $e';

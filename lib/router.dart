@@ -158,14 +158,25 @@ final routerProvider = Provider<GoRouter>((ref) {
       final session = ref.read(authRepositoryProvider).currentSession;
       final goingToSignIn = state.matchedLocation == '/sign-in';
       final goingToWelcome = state.matchedLocation == '/welcome';
+      // Diagnostics has to stay reachable from the welcome
+      // screen, even when there's no active program — that's
+      // the exact state the user is in when they need it most.
+      // Without this exemption the no-active-program gate
+      // bounces /more/programs/diagnostics back to /welcome.
+      final goingToDiagnostics =
+          state.matchedLocation == '/more/programs/diagnostics';
       if (session == null && !goingToSignIn) return '/sign-in';
       if (session != null && goingToSignIn) return '/today';
       // No-active-program gate (Slice 3): a signed-in user without
       // a current program belongs on /welcome, where they pick
       // Create-vs-Join. Skip the redirect when they're already
-      // there (avoids a redirect loop) or while still on /sign-in
-      // (auth callback flow handles its own routing).
-      if (session != null && !goingToSignIn && !goingToWelcome) {
+      // there (avoids a redirect loop), still on /sign-in (auth
+      // callback flow), or in the diagnostics route (debugging
+      // the no-program state itself).
+      if (session != null &&
+          !goingToSignIn &&
+          !goingToWelcome &&
+          !goingToDiagnostics) {
         final activeId = ref.read(activeProgramIdProvider);
         if (activeId == null) return '/welcome';
       }
