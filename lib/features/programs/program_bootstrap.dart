@@ -42,6 +42,9 @@ class ProgramAuthBootstrap {
         // makes the order deterministic (active program clears
         // before any UI rebuild reacts to no-session).
         unawaited(_ref.read(activeProgramIdProvider.notifier).clear());
+        // Tear down realtime — no point streaming changes for a
+        // program no one's signed into.
+        unawaited(_ref.read(syncEngineProvider).unsubscribeFromRealtime());
         return;
       }
       unawaited(_onSessionChanged(session.user.id));
@@ -63,6 +66,17 @@ class ProgramAuthBootstrap {
       // shows whatever was last synced; a manual "Sync now" or
       // the next sign-in retries.
       unawaited(_pullAllTables(programId: id));
+
+      // Open the realtime channel so subsequent changes from
+      // other devices land within milliseconds of being made.
+      // Echo-safe (engine compares updated_at before applying)
+      // and idempotent.
+      unawaited(
+        _ref.read(syncEngineProvider).subscribeToRealtime(
+              programId: id,
+              specs: kAllSpecs,
+            ),
+      );
     } on Object catch (e, st) {
       // Bootstrap failure is recoverable — the user's still signed
       // in, just sitting on a no-program state until the next

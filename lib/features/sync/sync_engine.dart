@@ -116,6 +116,14 @@ class SyncEngine {
   /// Only one push per key is ever in flight at once.
   final Map<String, Timer> _pendingPushes = <String, Timer>{};
 
+  /// Active realtime channel for the current program. Single channel
+  /// multiplexes change events for every spec — cheaper than one
+  /// channel per table (each open channel is a heartbeat-burning
+  /// presence on the WS). Null when not subscribed (signed out, or
+  /// pre-subscribe).
+  RealtimeChannel? _realtimeChannel;
+  String? _realtimeProgramId;
+
   SupabaseClient? get _client {
     try {
       return Supabase.instance.client;
@@ -300,6 +308,158 @@ class SyncEngine {
           ),
         );
     return totalApplied;
+  }
+
+  // -- Realtime ----------------------------------------------------
+
+  /// Opens a single Supabase Realtime channel that listens for
+  /// changes on every entity table in [specs] (cascade tables ride
+  /// along — when a parent change lands we re-fetch its cascades).
+  /// Filters server-side by [programId] so the channel only
+  /// receives rows the user is allowed to see anyway; RLS still
+  /// gates the underlying SELECT.
+  ///
+  /// Echo-safe: events arriving from this device's own pushes are
+  /// applied like any other, but the local upsert short-circuits
+  /// when remote's `updated_at` matches what we already have. The
+  /// "last write wins by updated_at" rule plus the cloud trigger
+  /// that bumps updated_at on every UPDATE keeps echo loops
+  /// harmless — the worst case is a redundant local re-write of
+  /// the same bytes.
+  ///
+  /// Idempotent: calling subscribe twice for the same program is
+  /// a no-op; calling it for a different program tears down the
+  /// previous channel first. Caller wires this from the auth
+  /// bootstrap (subscribe on sign-in, [unsubscribeFromRealtime]
+  /// on sign-out).
+  Future<void> subscribeToRealtime({
+    required String programId,
+    required List<TableSpec> specs,
+  }) async {
+    final client = _client;
+    if (client == null) return;
+    if (client.auth.currentSession == null) return;
+
+    if (_realtimeProgramId == programId && _realtimeChannel != null) {
+      return; // Already subscribed for this program.
+    }
+    await unsubscribeFromRealtime();
+
+    final channel = client.channel('basecamp-realtime-$programId');
+
+    for (final spec in specs) {
+      channel.onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: spec.table,
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'program_id',
+          value: programId,
+        ),
+        callback: (payload) =>
+            unawaited(_applyRealtimeChange(client, spec, payload)),
+      );
+    }
+
+    channel.subscribe();
+    _realtimeChannel = channel;
+    _realtimeProgramId = programId;
+  }
+
+  /// Tears down the current realtime channel. Safe to call when no
+  /// channel is open. Invoked by sign-out and by every subscribe
+  /// call (so a program-switch transitions cleanly).
+  Future<void> unsubscribeFromRealtime() async {
+    final channel = _realtimeChannel;
+    _realtimeChannel = null;
+    _realtimeProgramId = null;
+    if (channel == null) return;
+    final client = _client;
+    if (client == null) return;
+    try {
+      await client.removeChannel(channel);
+    } on Object catch (e) {
+      debugPrint('Realtime unsubscribe failed: $e');
+    }
+  }
+
+  /// Applies a realtime payload to local Drift. Mirrors the pull
+  /// path's logic — checks `updated_at` against local state, skips
+  /// stale events, hard-deletes on tombstones (deleted_at), and
+  /// re-fetches cascades after a parent change so the local view
+  /// stays consistent.
+  Future<void> _applyRealtimeChange(
+    SupabaseClient client,
+    TableSpec spec,
+    PostgresChangePayload payload,
+  ) async {
+    try {
+      final eventType = payload.eventType;
+      if (eventType == PostgresChangeEvent.delete) {
+        // Realtime DELETEs are rare in our model (cloud uses soft
+        // delete via UPDATE deleted_at), but if a row gets hard-
+        // deleted out of band, mirror locally.
+        final id = payload.oldRecord['id'];
+        if (id is String) {
+          await _db.customUpdate(
+            'DELETE FROM "${spec.table}" WHERE id = ?',
+            variables: [Variable<String>(id)],
+          );
+        }
+        return;
+      }
+
+      final row = Map<String, dynamic>.from(payload.newRecord);
+      final id = row['id'];
+      if (id is! String) return;
+
+      // Tombstone: cloud row is soft-deleted, mirror locally.
+      if (row['deleted_at'] != null) {
+        await _db.customUpdate(
+          'DELETE FROM "${spec.table}" WHERE id = ?',
+          variables: [Variable<String>(id)],
+        );
+        return;
+      }
+
+      // Echo-skip: if the local row is at-or-newer than the
+      // incoming one, this is just our own push coming back to
+      // us. Nothing to do.
+      final remoteUpdatedAt =
+          DateTime.parse(row['updated_at'] as String).toUtc();
+      final localTs = await _localUpdatedAt(spec.table, id);
+      if (localTs != null && !remoteUpdatedAt.isAfter(localTs)) {
+        return;
+      }
+
+      // Apply parent + re-fetch cascades. One round-trip per
+      // cascade table; cheap because the parent event is rare
+      // relative to keystroke-rate events.
+      await _db.transaction(() async {
+        await _upsertLocalRow(spec.table, row, spec.dateColumns);
+        if (spec.cascades.isNotEmpty) {
+          await _replaceLocalCascades(client, spec.cascades, [id]);
+        }
+      });
+    } on Object catch (e, st) {
+      debugPrint(
+        'Realtime apply failed for ${spec.table}: $e\n$st',
+      );
+    }
+  }
+
+  /// Reads `updated_at` for one row (Drift returns it as int unix
+  /// seconds). Returns null when the row doesn't exist locally.
+  Future<DateTime?> _localUpdatedAt(String table, String id) async {
+    final result = await _db.customSelect(
+      'SELECT updated_at FROM "$table" WHERE id = ?',
+      variables: [Variable<String>(id)],
+    ).getSingleOrNull();
+    if (result == null) return null;
+    final ts = result.data['updated_at'];
+    if (ts is! int) return null;
+    return DateTime.fromMillisecondsSinceEpoch(ts * 1000, isUtc: true);
   }
 
   // -- Internals ---------------------------------------------------
