@@ -1,5 +1,6 @@
 import 'package:basecamp/features/programs/programs_repository.dart';
-import 'package:basecamp/features/sync/observations_sync_service.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
@@ -37,16 +38,25 @@ class _SyncCardState extends ConsumerState<SyncCard> {
       _lastResult = null;
     });
     try {
-      // force=true bypasses the 30-second debounce — the user
-      // explicitly asked for a refresh, don't tell them to wait.
-      final applied = await ref
-          .read(observationsSyncServiceProvider)
-          .pullObservations(programId: programId, force: true);
+      // Walk every spec in kAllSpecs. force=true bypasses the
+      // 30-second debounce on each — the user explicitly asked
+      // for a refresh, don't tell them to wait per-table.
+      final engine = ref.read(syncEngineProvider);
+      var total = 0;
+      for (final spec in kAllSpecs) {
+        final applied = await engine.pullTable(
+          spec: spec,
+          programId: programId,
+          force: true,
+        );
+        total += applied;
+      }
       if (!mounted) return;
       setState(() {
-        _lastResult = applied == 0
+        _lastResult = total == 0
             ? 'Already up to date.'
-            : 'Pulled $applied observation${applied == 1 ? '' : 's'}.';
+            : 'Pulled $total row${total == 1 ? '' : 's'} '
+                'across ${kAllSpecs.length} tables.';
       });
     } on Object catch (e) {
       if (!mounted) return;

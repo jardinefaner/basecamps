@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -18,6 +22,8 @@ class LessonSequencesRepository {
   /// See ObservationsRepository._programId for why we read this on
   /// every insert rather than caching at construction time.
   String? get _programId => _ref.read(activeProgramIdProvider);
+
+  SyncEngine get _sync => _ref.read(syncEngineProvider);
 
   // -------- Sequences --------
 
@@ -45,6 +51,7 @@ class LessonSequencesRepository {
             programId: Value(_programId),
           ),
         );
+    unawaited(_sync.pushRow(lessonSequencesSpec, id));
     return id;
   }
 
@@ -61,11 +68,25 @@ class LessonSequencesRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    unawaited(_sync.pushRow(lessonSequencesSpec, id));
   }
 
   Future<void> deleteSequence(String id) async {
+    final row = await (_db.select(_db.lessonSequences)
+          ..where((s) => s.id.equals(id)))
+        .getSingleOrNull();
+    final programId = row?.programId;
     await (_db.delete(_db.lessonSequences)..where((s) => s.id.equals(id)))
         .go();
+    if (programId != null) {
+      unawaited(
+        _sync.pushDelete(
+          spec: lessonSequencesSpec,
+          id: id,
+          programId: programId,
+        ),
+      );
+    }
   }
 
   // -------- Items --------
@@ -101,12 +122,22 @@ class LessonSequencesRepository {
             position: nextPosition,
           ),
         );
+    // Cascade write — push the parent sequence so the new
+    // lesson_sequence_items row is mirrored to cloud.
+    unawaited(_sync.pushRow(lessonSequencesSpec, sequenceId));
     return id;
   }
 
   Future<void> deleteItem(String id) async {
+    final row = await (_db.select(_db.lessonSequenceItems)
+          ..where((i) => i.id.equals(id)))
+        .getSingleOrNull();
     await (_db.delete(_db.lessonSequenceItems)..where((i) => i.id.equals(id)))
         .go();
+    final sequenceId = row?.sequenceId;
+    if (sequenceId != null) {
+      unawaited(_sync.pushRow(lessonSequencesSpec, sequenceId));
+    }
   }
 
   /// Fetch a single item by id — used by the undo path on remove.
@@ -139,6 +170,9 @@ class LessonSequencesRepository {
             .write(LessonSequenceItemsCompanion(position: Value(i)));
       }
     });
+    // Cascade rewrite — push the parent sequence so cloud's
+    // cascade table reflects the new ordering.
+    unawaited(_sync.pushRow(lessonSequencesSpec, sequenceId));
   }
 
   /// Stream every (item, libraryItem) pair for a sequence, ordered by

@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,6 +18,8 @@ class ActivityLibraryRepository {
   /// See ObservationsRepository._programId for why we read this on
   /// every insert rather than caching at construction time.
   String? get _programId => _ref.read(activeProgramIdProvider);
+
+  SyncEngine get _sync => _ref.read(syncEngineProvider);
 
   Stream<List<ActivityLibraryData>> watchAll() {
     // Newest first — the user's spec for the creation flow ends with
@@ -70,6 +76,7 @@ class ActivityLibraryRepository {
             programId: Value(_programId),
           ),
         );
+    unawaited(_sync.pushRow(activityLibrarySpec, id));
     return id;
   }
 
@@ -123,18 +130,47 @@ class ActivityLibraryRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    unawaited(_sync.pushRow(activityLibrarySpec, id));
   }
 
   Future<void> deleteItem(String id) async {
+    final row = await (_db.select(_db.activityLibrary)
+          ..where((a) => a.id.equals(id)))
+        .getSingleOrNull();
+    final programId = row?.programId;
     await (_db.delete(_db.activityLibrary)..where((a) => a.id.equals(id)))
         .go();
+    if (programId != null) {
+      unawaited(
+        _sync.pushDelete(
+          spec: activityLibrarySpec,
+          id: id,
+          programId: programId,
+        ),
+      );
+    }
   }
 
   Future<void> deleteItems(Iterable<String> ids) async {
     final list = ids.toList();
     if (list.isEmpty) return;
+    final rows = await (_db.select(_db.activityLibrary)
+          ..where((a) => a.id.isIn(list)))
+        .get();
     await (_db.delete(_db.activityLibrary)..where((a) => a.id.isIn(list)))
         .go();
+    for (final r in rows) {
+      final programId = r.programId;
+      if (programId != null) {
+        unawaited(
+          _sync.pushDelete(
+            spec: activityLibrarySpec,
+            id: r.id,
+            programId: programId,
+          ),
+        );
+      }
+    }
   }
 
   /// Restore helpers for the undo snackbar — re-insert with the
@@ -164,6 +200,7 @@ class ActivityLibraryRepository {
             domain: domain,
           ),
         );
+    unawaited(_sync.pushRow(activityLibrarySpec, libraryItemId));
   }
 
   Future<void> removeDomainTag(
@@ -175,6 +212,7 @@ class ActivityLibraryRepository {
               t.libraryItemId.equals(libraryItemId) &
               t.domain.equals(domain)))
         .go();
+    unawaited(_sync.pushRow(activityLibrarySpec, libraryItemId));
   }
 
   /// All domains attached to [libraryItemId], alphabetically. Streamed
@@ -286,6 +324,7 @@ class ActivityLibraryRepository {
             );
       }
     });
+    unawaited(_sync.pushRow(activityLibrarySpec, newIdValue));
     return newIdValue;
   }
 

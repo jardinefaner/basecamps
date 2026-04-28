@@ -4,6 +4,8 @@ import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -119,6 +121,8 @@ class ScheduleRepository {
   /// See ObservationsRepository._programId for why we read this on
   /// every insert rather than caching at construction time.
   String? get _programId => _ref.read(activeProgramIdProvider);
+
+  SyncEngine get _sync => _ref.read(syncEngineProvider);
 
   Stream<List<ScheduleTemplate>> watchTemplates() {
     final query = _db.select(_db.scheduleTemplates)
@@ -275,6 +279,7 @@ class ScheduleRepository {
             );
       }
     });
+    unawaited(_sync.pushRow(scheduleTemplatesSpec, id));
     return id;
   }
 
@@ -330,6 +335,7 @@ class ScheduleRepository {
             );
       }
     });
+    unawaited(_sync.pushRow(scheduleTemplatesSpec, id));
   }
 
   /// Wire an existing template row to a library card without touching
@@ -349,6 +355,7 @@ class ScheduleRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    unawaited(_sync.pushRow(scheduleTemplatesSpec, templateId));
   }
 
   /// Mirror of [setTemplateSourceLibraryItem] for one-off entries.
@@ -364,11 +371,25 @@ class ScheduleRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    unawaited(_sync.pushRow(scheduleEntriesSpec, entryId));
   }
 
   Future<void> deleteTemplate(String id) async {
+    final row = await (_db.select(_db.scheduleTemplates)
+          ..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    final programId = row?.programId;
     await (_db.delete(_db.scheduleTemplates)..where((t) => t.id.equals(id)))
         .go();
+    if (programId != null) {
+      unawaited(
+        _sync.pushDelete(
+          spec: scheduleTemplatesSpec,
+          id: id,
+          programId: programId,
+        ),
+      );
+    }
   }
 
   /// Deletes every template that represents the same activity as the
@@ -380,9 +401,22 @@ class ScheduleRepository {
   Future<int> deleteTemplateGroupFor(String id) async {
     final siblings = await _siblingTemplatesFor(id);
     if (siblings.isEmpty) return 0;
-    return (_db.delete(_db.scheduleTemplates)
+    final count = await (_db.delete(_db.scheduleTemplates)
           ..where((t) => t.id.isIn(siblings.map((r) => r.id))))
         .go();
+    for (final r in siblings) {
+      final programId = r.programId;
+      if (programId != null) {
+        unawaited(
+          _sync.pushDelete(
+            spec: scheduleTemplatesSpec,
+            id: r.id,
+            programId: programId,
+          ),
+        );
+      }
+    }
+    return count;
   }
 
   /// Count of templates the "delete every occurrence" confirmation
@@ -438,11 +472,13 @@ class ScheduleRepository {
     final sources = await templatesForDay(sourceDay);
     if (sources.isEmpty) return 0;
 
+    final newIds = <String>[];
     await _db.transaction(() async {
       for (final target in targetDays) {
         if (target == sourceDay) continue;
         for (final src in sources) {
           final newTemplateId = newId();
+          newIds.add(newTemplateId);
           await _db.into(_db.scheduleTemplates).insert(
                 ScheduleTemplatesCompanion.insert(
                   id: newTemplateId,
@@ -472,6 +508,9 @@ class ScheduleRepository {
         }
       }
     });
+    for (final newTemplateId in newIds) {
+      unawaited(_sync.pushRow(scheduleTemplatesSpec, newTemplateId));
+    }
     return sources.length;
   }
 
@@ -526,6 +565,7 @@ class ScheduleRepository {
             );
       }
     });
+    unawaited(_sync.pushRow(scheduleEntriesSpec, id));
     return id;
   }
 
@@ -550,6 +590,7 @@ class ScheduleRepository {
     final dayOnly = _dayOnly(date);
     final nextDay = dayOnly.add(const Duration(days: 1));
 
+    final overrideId = newId();
     await _db.transaction(() async {
       // Drop any prior override for this day so we don't stack rows.
       await (_db.delete(_db.scheduleEntries)
@@ -562,7 +603,6 @@ class ScheduleRepository {
             ))
           .go();
 
-      final overrideId = newId();
       await _db.into(_db.scheduleEntries).insert(
             ScheduleEntriesCompanion.insert(
               id: overrideId,
@@ -589,6 +629,7 @@ class ScheduleRepository {
             );
       }
     });
+    unawaited(_sync.pushRow(scheduleEntriesSpec, overrideId));
   }
 
   /// Move a weekly template to a different day-of-week. Affects all
@@ -607,6 +648,7 @@ class ScheduleRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    unawaited(_sync.pushRow(scheduleTemplatesSpec, templateId));
   }
 
   /// Clone an existing template onto another weekday. Group
@@ -659,6 +701,7 @@ class ScheduleRepository {
             );
       }
     });
+    unawaited(_sync.pushRow(scheduleTemplatesSpec, newTemplateId));
     return newTemplateId;
   }
 
@@ -713,6 +756,7 @@ class ScheduleRepository {
             );
       }
     });
+    unawaited(_sync.pushRow(scheduleEntriesSpec, newEntryId));
     return newEntryId;
   }
 
@@ -742,6 +786,7 @@ class ScheduleRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    unawaited(_sync.pushRow(scheduleEntriesSpec, entryId));
   }
 
   /// Updates the start/end times of a single one-off entry. Used by
@@ -760,6 +805,7 @@ class ScheduleRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    unawaited(_sync.pushRow(scheduleEntriesSpec, entryId));
   }
 
   Future<void> cancelTemplateForDate({
@@ -769,9 +815,10 @@ class ScheduleRepository {
     final template = await (_db.select(_db.scheduleTemplates)
           ..where((t) => t.id.equals(templateId)))
         .getSingle();
+    final cancellationId = newId();
     await _db.into(_db.scheduleEntries).insert(
           ScheduleEntriesCompanion.insert(
-            id: newId(),
+            id: cancellationId,
             date: _dayOnly(date),
             startTime: template.startTime,
             endTime: template.endTime,
@@ -783,11 +830,25 @@ class ScheduleRepository {
             programId: Value(_programId),
           ),
         );
+    unawaited(_sync.pushRow(scheduleEntriesSpec, cancellationId));
   }
 
   Future<void> deleteEntry(String id) async {
+    final row = await (_db.select(_db.scheduleEntries)
+          ..where((e) => e.id.equals(id)))
+        .getSingleOrNull();
+    final programId = row?.programId;
     await (_db.delete(_db.scheduleEntries)..where((e) => e.id.equals(id)))
         .go();
+    if (programId != null) {
+      unawaited(
+        _sync.pushDelete(
+          spec: scheduleEntriesSpec,
+          id: id,
+          programId: programId,
+        ),
+      );
+    }
   }
 
   /// Restore helper for the undo snackbar — re-insert the entry row
@@ -876,6 +937,7 @@ class ScheduleRepository {
             );
       }
     });
+    unawaited(_sync.pushRow(scheduleEntriesSpec, id));
   }
 
   /// Copy every one-off `addition` entry from the Mon..Fri span starting
@@ -913,9 +975,11 @@ class ScheduleRepository {
     if (sources.isEmpty) return 0;
 
     var copied = 0;
+    final newIds = <String>[];
     await _db.transaction(() async {
       for (final src in sources) {
         final newEntryId = newId();
+        newIds.add(newEntryId);
         final newDate = src.date.add(Duration(days: deltaDays));
         final newEndDate = src.endDate?.add(Duration(days: deltaDays));
         await _db.into(_db.scheduleEntries).insert(
@@ -950,6 +1014,9 @@ class ScheduleRepository {
         copied += 1;
       }
     });
+    for (final newEntryId in newIds) {
+      unawaited(_sync.pushRow(scheduleEntriesSpec, newEntryId));
+    }
     return copied;
   }
 

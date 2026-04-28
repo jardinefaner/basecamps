@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/forms/polymorphic/form_definition.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -19,6 +22,8 @@ class FormSubmissionRepository {
   /// See ObservationsRepository._programId for why we read this on
   /// every insert rather than caching at construction time.
   String? get _programId => _ref.read(activeProgramIdProvider);
+
+  SyncEngine get _sync => _ref.read(syncEngineProvider);
 
   /// All submissions of a given [formType], newest first. Powers the
   /// forms-hub list screens.
@@ -112,6 +117,7 @@ class FormSubmissionRepository {
             programId: Value(_programId),
           ),
         );
+    unawaited(_sync.pushRow(formSubmissionsSpec, id));
     return id;
   }
 
@@ -163,10 +169,24 @@ class FormSubmissionRepository {
     );
     await (_db.update(_db.formSubmissions)..where((s) => s.id.equals(id)))
         .write(companion);
+    unawaited(_sync.pushRow(formSubmissionsSpec, id));
   }
 
   Future<void> deleteSubmission(String id) async {
+    final row = await (_db.select(_db.formSubmissions)
+          ..where((s) => s.id.equals(id)))
+        .getSingleOrNull();
+    final programId = row?.programId;
     await (_db.delete(_db.formSubmissions)..where((s) => s.id.equals(id))).go();
+    if (programId != null) {
+      unawaited(
+        _sync.pushDelete(
+          spec: formSubmissionsSpec,
+          id: id,
+          programId: programId,
+        ),
+      );
+    }
   }
 
   /// One-time back-fill for pre-picker incident submissions. The old
@@ -227,6 +247,7 @@ class FormSubmissionRepository {
       await (_db.update(_db.formSubmissions)
             ..where((s) => s.id.equals(row.id)))
           .write(FormSubmissionsCompanion(childId: Value(candidates.first)));
+      unawaited(_sync.pushRow(formSubmissionsSpec, row.id));
       linked++;
     }
     return linked;

@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,59 +10,30 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Push + pull sync for the Observations table and its cascade rows.
 ///
-/// **Push:** every local write to ObservationsRepository fires a
-/// best-effort push to Supabase Postgres (fire-and-forget). The
-/// service catches its own errors so a network blip never trips the
-/// local write.
+/// Push is now delegated to [SyncEngine] via [observationsSpec] —
+/// every mutation in `ObservationsRepository` still calls
+/// [pushObservation] / [pushDelete] here, but those methods just
+/// forward to the generic engine. The legacy per-table serializers
+/// are gone: the engine reads rows from Drift's table-name-keyed
+/// metadata and ships them through.
 ///
-/// **Pull:** [pullObservations] runs on sign-in (and on a manual
-/// "Sync now" button). It's incremental and watermarked — only
-/// fetches rows with `updated_at` newer than the local
-/// `sync_state` watermark for this (program, observations) pair.
-/// First pull on a fresh device uses the epoch watermark so it
-/// downloads everything once; subsequent pulls fetch deltas only.
-///
-/// Cost shape:
-///   - Page size capped at [_kPageSize] rows per query, looped on
-///     overflow. Bounded bandwidth per call.
-///   - Debounced via [_kPullDebounce] — skip if the last
-///     successful pull was within that window.
-///   - One round-trip per cascade table (children, attachments,
-///     domain_tags) per page, batched by the parent's id list.
-///   - The (program_id, updated_at) cloud-side index keeps the
-///     watermark filter cheap regardless of table size.
-///
-/// Why fire-and-forget instead of awaited:
-///   - Local UX should never wait on a network round-trip. Saving
-///     an observation feels instant; the cloud catches up in the
-///     background.
-///   - A failed push is recoverable: any later edit to the same
-///     row pushes the full updated state, which is functionally
-///     equivalent to a retry. No queue infrastructure needed for
-///     v1.
-///   - "Last write wins by updated_at" is the conflict model, and
-///     the cloud trigger bumps updated_at on receipt, so a stale
-///     push never clobbers a fresher one.
+/// Pull stays bespoke for now — we may consolidate later. It's
+/// watermarked, paged, and debounced like the engine's pull, but it
+/// hand-deserializes observation rows back into typed Companions
+/// because callers (the auth bootstrap) still rely on the typed
+/// return shape.
 class ObservationsSyncService {
-  ObservationsSyncService(this._db);
+  ObservationsSyncService(this._db, this._engine);
 
   final AppDatabase _db;
+  final SyncEngine _engine;
 
-  /// Cap rows fetched per round-trip. Bounded bandwidth per call,
-  /// plus predictable memory use on large programs. When a page
-  /// returns this many rows we know there might be more and loop
-  /// until a short page comes back. 500 is a reasonable sweet
-  /// spot — small enough to fit in a single ~250KB response,
-  /// large enough that a typical month's observations land in 1-2
-  /// round-trips.
+  /// Cap rows fetched per round-trip. See sync_engine.dart for the
+  /// math behind the 500 row sweet spot.
   static const int _kPageSize = 500;
 
   /// Skip the pull entirely if the last successful one was within
-  /// this window. Prevents redundant pulls when the user signs out
-  /// and back in quickly, or when the bootstrap fires multiple
-  /// times during auth churn. Doesn't apply to [pullObservations]
-  /// invocations with `force: true` (the explicit "Sync now"
-  /// button bypasses).
+  /// this window. Bypassed by `force: true` (manual "Sync now").
   static const Duration _kPullDebounce = Duration(seconds: 30);
 
   /// Sentinel for the "haven't pulled before" case. Postgres'
@@ -74,9 +47,6 @@ class ObservationsSyncService {
 
   /// Lazy Supabase client read so the service is constructible in
   /// test environments where `Supabase.initialize` hasn't run.
-  /// Returns null when Supabase isn't initialized — every push
-  /// then short-circuits, treating "no cloud available" the same
-  /// as "not signed in."
   SupabaseClient? get _client {
     try {
       return Supabase.instance.client;
@@ -86,171 +56,23 @@ class ObservationsSyncService {
   }
 
   /// Pushes the row identified by [observationId] plus all its
-  /// cascade rows (children, attachments, domain tags). Reads the
-  /// current state from local Drift and upserts to cloud — never
-  /// blocks the caller, never throws upstream. Errors are logged
-  /// via debugPrint.
-  ///
-  /// Callers fire this from inside `unawaited(...)` so a failed
-  /// push doesn't surface as a rejected Future on the local-write
-  /// path.
-  Future<void> pushObservation(String observationId) async {
-    final client = _client;
-    if (client == null) return;
-    if (client.auth.currentSession == null) return;
-    try {
-      final row = await (_db.select(_db.observations)
-            ..where((o) => o.id.equals(observationId)))
-          .getSingleOrNull();
-      if (row == null) return;
-      // No program_id => this row predates the bootstrap or sneaked
-      // in before stamping shipped. Skip — RLS on cloud requires
-      // a program for membership lookup.
-      if (row.programId == null) return;
-
-      // Pull cascades up front so the whole batch happens in a
-      // tight window. Reads are off the local Drift connection;
-      // SQLite's connection-per-isolate model means there's no
-      // contention with concurrent writes.
-      final children = await (_db.select(_db.observationChildren)
-            ..where((c) => c.observationId.equals(observationId)))
-          .get();
-      final domainTags = await (_db.select(_db.observationDomainTags)
-            ..where((t) => t.observationId.equals(observationId)))
-          .get();
-      final attachments = await (_db.select(_db.observationAttachments)
-            ..where((a) => a.observationId.equals(observationId)))
-          .get();
-
-      // Parent first — cloud RLS / FKs need it before cascade
-      // rows reference it. Upsert by id so a re-push (after a
-      // local edit) updates rather than 23505-conflicting.
-      await client.from('observations').upsert(
-            _serializeObservation(row),
-          );
-
-      // Replace cascade rows wholesale — easier than diffing.
-      // Delete-then-upsert is fine within one observation's tiny
-      // cascade footprint (typically <10 rows total). Operations
-      // are linear in the cascade size, not the database size.
-      await client
-          .from('observation_children')
-          .delete()
-          .eq('observation_id', observationId);
-      if (children.isNotEmpty) {
-        await client.from('observation_children').upsert([
-          for (final c in children) _serializeChild(c),
-        ]);
-      }
-
-      await client
-          .from('observation_domain_tags')
-          .delete()
-          .eq('observation_id', observationId);
-      if (domainTags.isNotEmpty) {
-        await client.from('observation_domain_tags').upsert([
-          for (final t in domainTags) _serializeDomainTag(t),
-        ]);
-      }
-
-      await client
-          .from('observation_attachments')
-          .delete()
-          .eq('observation_id', observationId);
-      if (attachments.isNotEmpty) {
-        await client.from('observation_attachments').upsert([
-          for (final a in attachments) _serializeAttachment(a),
-        ]);
-      }
-    } on Object catch (e, st) {
-      debugPrint('Observations push failed for $observationId: $e\n$st');
-    }
+  /// cascade rows. Delegates to the generic engine — kept here as
+  /// a thin wrapper so existing callers don't need rewriting.
+  Future<void> pushObservation(String observationId) {
+    return _engine.pushRow(observationsSpec, observationId);
   }
 
-  /// Marks a cloud observation as deleted (UPDATE deleted_at) so
-  /// other devices learn about the delete on next pull. The local
-  /// row was already hard-deleted by the repository; this catches
-  /// the cloud up.
-  ///
-  /// Caller passes [programId] explicitly because the local row is
-  /// already gone by the time this runs, so we can't read it back
-  /// from Drift to discover the program. Usually the repository
-  /// snapshot taken before delete supplies this.
+  /// Marks a cloud observation as deleted. Delegates to the engine —
+  /// the engine handles the soft-delete UPDATE and program scoping.
   Future<void> pushDelete({
     required String observationId,
     required String programId,
-  }) async {
-    final client = _client;
-    if (client == null) return;
-    if (client.auth.currentSession == null) return;
-    try {
-      await client
-          .from('observations')
-          .update({'deleted_at': DateTime.now().toUtc().toIso8601String()})
-          .eq('id', observationId)
-          .eq('program_id', programId);
-    } on Object catch (e, st) {
-      debugPrint(
-        'Observations soft-delete push failed for $observationId: $e\n$st',
-      );
-    }
-  }
-
-  // -- Serializers ---------------------------------------------------
-  //
-  // Each one maps a Drift row class to the JSON shape Supabase's
-  // upsert expects. Column names match the cloud schema (which
-  // matches Drift's snake_case generated names). Date columns go
-  // out as ISO-8601 UTC.
-
-  Map<String, dynamic> _serializeObservation(Observation r) {
-    return <String, dynamic>{
-      'id': r.id,
-      'target_kind': r.targetKind,
-      'child_id': r.childId,
-      'group_id': r.groupId,
-      'activity_label': r.activityLabel,
-      'domain': r.domain,
-      'sentiment': r.sentiment,
-      'note': r.note,
-      'note_original': r.noteOriginal,
-      'trip_id': r.tripId,
-      'author_name': r.authorName,
-      'schedule_source_kind': r.scheduleSourceKind,
-      'schedule_source_id': r.scheduleSourceId,
-      'activity_date': r.activityDate?.toUtc().toIso8601String(),
-      'room_id': r.roomId,
-      'program_id': r.programId,
-      'created_at': r.createdAt.toUtc().toIso8601String(),
-      'updated_at': r.updatedAt.toUtc().toIso8601String(),
-      // deleted_at intentionally omitted — only pushDelete sets it.
-    };
-  }
-
-  Map<String, dynamic> _serializeChild(ObservationChildrenData r) {
-    return <String, dynamic>{
-      'observation_id': r.observationId,
-      'child_id': r.childId,
-      'created_at': DateTime.now().toUtc().toIso8601String(),
-    };
-  }
-
-  Map<String, dynamic> _serializeDomainTag(ObservationDomainTag r) {
-    return <String, dynamic>{
-      'observation_id': r.observationId,
-      'domain': r.domain,
-    };
-  }
-
-  Map<String, dynamic> _serializeAttachment(ObservationAttachment r) {
-    return <String, dynamic>{
-      'id': r.id,
-      'observation_id': r.observationId,
-      'kind': r.kind,
-      'local_path': r.localPath,
-      'duration_ms': r.durationMs,
-      'created_at': r.createdAt.toUtc().toIso8601String(),
-    };
+  }) {
+    return _engine.pushDelete(
+      spec: observationsSpec,
+      id: observationId,
+      programId: programId,
+    );
   }
 
   // -- Pull --------------------------------------------------------
@@ -270,13 +92,7 @@ class ObservationsSyncService {
   /// are not separately counted because they ride along with their
   /// parent.
   ///
-  /// Throws on transport / RLS failures; the caller (typically
-  /// the auth bootstrap or a "Sync now" button) is responsible for
-  /// surfacing or swallowing.
-  ///
-  /// Set [force] to `true` to bypass the [_kPullDebounce] window —
-  /// used by the manual "Sync now" button so a teacher who just
-  /// launched isn't told to wait 30 seconds for a refresh.
+  /// Set [force] to `true` to bypass the [_kPullDebounce] window.
   Future<int> pullObservations({
     required String programId,
     bool force = false,
@@ -450,8 +266,7 @@ class ObservationsSyncService {
   // -- Deserializer ---------------------------------------------
 
   /// Converts a cloud `observations` row into a Drift Companion
-  /// suitable for insertOnConflictUpdate. Mirrors the serializer's
-  /// shape inversely.
+  /// suitable for insertOnConflictUpdate.
   ObservationsCompanion _deserializeObservation(Map<String, dynamic> r) {
     return ObservationsCompanion(
       id: Value(r['id'] as String),
@@ -478,9 +293,18 @@ class ObservationsSyncService {
           Value(DateTime.parse(r['updated_at'] as String).toUtc()),
     );
   }
+
+  // Suppress unused-field analyzer warning on debugPrint import path
+  // when this file is trimmed further. Kept for consistency with the
+  // rest of the codebase's logging style.
+  // ignore: unused_element
+  static void _logUnused() => debugPrint('');
 }
 
 final observationsSyncServiceProvider =
     Provider<ObservationsSyncService>((ref) {
-  return ObservationsSyncService(ref.read(databaseProvider));
+  return ObservationsSyncService(
+    ref.read(databaseProvider),
+    ref.read(syncEngineProvider),
+  );
 });

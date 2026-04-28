@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -25,6 +29,8 @@ class VehiclesRepository {
   /// See ObservationsRepository._programId for why we read this on
   /// every insert rather than caching at construction time.
   String? get _programId => _ref.read(activeProgramIdProvider);
+
+  SyncEngine get _sync => _ref.read(syncEngineProvider);
 
   Stream<List<Vehicle>> watchAll() {
     final query = _db.select(_db.vehicles)
@@ -65,6 +71,7 @@ class VehiclesRepository {
             programId: Value(_programId),
           ),
         );
+    unawaited(_sync.pushRow(vehiclesSpec, id));
     return id;
   }
 
@@ -85,10 +92,19 @@ class VehiclesRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    unawaited(_sync.pushRow(vehiclesSpec, id));
   }
 
   Future<void> deleteVehicle(String id) async {
+    final row = await (_db.select(_db.vehicles)..where((v) => v.id.equals(id)))
+        .getSingleOrNull();
+    final programId = row?.programId;
     await (_db.delete(_db.vehicles)..where((v) => v.id.equals(id))).go();
+    if (programId != null) {
+      unawaited(
+        _sync.pushDelete(spec: vehiclesSpec, id: id, programId: programId),
+      );
+    }
   }
 
   /// Re-insert a previously-deleted vehicle row for the undo snackbar.

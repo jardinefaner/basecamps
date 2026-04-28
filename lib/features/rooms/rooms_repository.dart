@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -22,6 +26,8 @@ class RoomsRepository {
   /// See ObservationsRepository._programId for why we read this on
   /// every insert rather than caching at construction time.
   String? get _programId => _ref.read(activeProgramIdProvider);
+
+  SyncEngine get _sync => _ref.read(syncEngineProvider);
 
   Stream<List<Room>> watchAll() {
     final query = _db.select(_db.rooms)
@@ -72,6 +78,7 @@ class RoomsRepository {
             programId: Value(_programId),
           ),
         );
+    unawaited(_sync.pushRow(roomsSpec, id));
     return id;
   }
 
@@ -91,10 +98,19 @@ class RoomsRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    unawaited(_sync.pushRow(roomsSpec, id));
   }
 
   Future<void> deleteRoom(String id) async {
+    final row = await (_db.select(_db.rooms)..where((r) => r.id.equals(id)))
+        .getSingleOrNull();
+    final programId = row?.programId;
     await (_db.delete(_db.rooms)..where((r) => r.id.equals(id))).go();
+    if (programId != null) {
+      unawaited(
+        _sync.pushDelete(spec: roomsSpec, id: id, programId: programId),
+      );
+    }
   }
 
   /// Re-insert a previously-deleted room row for the undo snackbar.

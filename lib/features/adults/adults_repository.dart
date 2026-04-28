@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -38,6 +42,8 @@ class AdultsRepository {
 
   final Ref _ref;
   String? get _programId => _ref.read(activeProgramIdProvider);
+
+  SyncEngine get _sync => _ref.read(syncEngineProvider);
 
   final AppDatabase _db;
 
@@ -90,6 +96,7 @@ class AdultsRepository {
             programId: Value(_programId),
           ),
         );
+    unawaited(_sync.pushRow(adultsSpec, id));
     return id;
   }
 
@@ -137,6 +144,7 @@ class AdultsRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    unawaited(_sync.pushRow(adultsSpec, id));
   }
 
   /// v40: returns the (at-most-one) Adult linked to [parentId] via
@@ -152,13 +160,35 @@ class AdultsRepository {
   }
 
   Future<void> deleteAdult(String id) async {
+    final row = await (_db.select(_db.adults)..where((s) => s.id.equals(id)))
+        .getSingleOrNull();
+    final programId = row?.programId;
     await (_db.delete(_db.adults)..where((s) => s.id.equals(id))).go();
+    if (programId != null) {
+      unawaited(
+        _sync.pushDelete(spec: adultsSpec, id: id, programId: programId),
+      );
+    }
   }
 
   Future<void> deleteAdults(Iterable<String> ids) async {
     final list = ids.toList();
     if (list.isEmpty) return;
+    final rows = await (_db.select(_db.adults)..where((s) => s.id.isIn(list)))
+        .get();
     await (_db.delete(_db.adults)..where((s) => s.id.isIn(list))).go();
+    for (final r in rows) {
+      final programId = r.programId;
+      if (programId != null) {
+        unawaited(
+          _sync.pushDelete(
+            spec: adultsSpec,
+            id: r.id,
+            programId: programId,
+          ),
+        );
+      }
+    }
   }
 
   /// Re-insert a previously-deleted adult row. Used by the undo
@@ -246,13 +276,23 @@ class AdultsRepository {
             lunchEnd: Value(lunchEnd),
           ),
         );
+    // Cascade write — push the parent adult so the new
+    // adult_availability row rides along with it through sync.
+    unawaited(_sync.pushRow(adultsSpec, adultId));
     return id;
   }
 
   Future<void> deleteAvailability(String id) async {
+    final row = await (_db.select(_db.adultAvailability)
+          ..where((a) => a.id.equals(id)))
+        .getSingleOrNull();
     await (_db.delete(_db.adultAvailability)
           ..where((a) => a.id.equals(id)))
         .go();
+    final adultId = row?.adultId;
+    if (adultId != null) {
+      unawaited(_sync.pushRow(adultsSpec, adultId));
+    }
   }
 
   /// Replace the whole availability set for a adult in one atomic
@@ -286,6 +326,9 @@ class AdultsRepository {
             );
       }
     });
+    // Cascade rewrite — push the parent adult so the engine
+    // re-reads its full cascade footprint and mirrors to cloud.
+    unawaited(_sync.pushRow(adultsSpec, adultId));
   }
 }
 

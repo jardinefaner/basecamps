@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -23,6 +27,8 @@ class ParentsRepository {
   /// See ObservationsRepository._programId for why we read this on
   /// every insert rather than caching at construction time.
   String? get _programId => _ref.read(activeProgramIdProvider);
+
+  SyncEngine get _sync => _ref.read(syncEngineProvider);
 
   // ---- Reads ----
 
@@ -121,6 +127,7 @@ class ParentsRepository {
             programId: Value(_programId),
           ),
         );
+    unawaited(_sync.pushRow(parentsSpec, id));
     return id;
   }
 
@@ -145,13 +152,22 @@ class ParentsRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    unawaited(_sync.pushRow(parentsSpec, id));
   }
 
   Future<void> deleteParent(String id) async {
     // Cascade on parent_children removes the links; sibling rows for
     // other children of the same parent also go. Acceptable —
     // deleting a parent really does mean "forget them everywhere."
+    final row = await (_db.select(_db.parents)..where((p) => p.id.equals(id)))
+        .getSingleOrNull();
+    final programId = row?.programId;
     await (_db.delete(_db.parents)..where((p) => p.id.equals(id))).go();
+    if (programId != null) {
+      unawaited(
+        _sync.pushDelete(spec: parentsSpec, id: id, programId: programId),
+      );
+    }
   }
 
   /// Re-insert a previously-deleted parent row + its child links for
@@ -196,6 +212,9 @@ class ParentsRepository {
             ),
           );
     });
+    // Cascade write — push the parent so the new parent_children
+    // join row rides along with its parent through sync.
+    unawaited(_sync.pushRow(parentsSpec, parentId));
   }
 
   Future<void> unlinkParentFromChild({
@@ -206,12 +225,19 @@ class ParentsRepository {
           ..where((l) =>
               l.parentId.equals(parentId) & l.childId.equals(childId)))
         .go();
+    unawaited(_sync.pushRow(parentsSpec, parentId));
   }
 
   Future<void> setPrimary({
     required String parentId,
     required String childId,
   }) async {
+    // Snapshot every parent that had a row for this child up-front —
+    // setPrimary clears the old primary across all parents, so each
+    // affected parent's cascade rows need a fresh push too.
+    final affected = await (_db.select(_db.parentChildren)
+          ..where((l) => l.childId.equals(childId)))
+        .get();
     await _db.transaction(() async {
       await (_db.update(_db.parentChildren)
             ..where((l) => l.childId.equals(childId)))
@@ -221,6 +247,10 @@ class ParentsRepository {
                 l.parentId.equals(parentId) & l.childId.equals(childId)))
           .write(const ParentChildrenCompanion(isPrimary: Value(true)));
     });
+    final touched = <String>{parentId, for (final r in affected) r.parentId};
+    for (final pid in touched) {
+      unawaited(_sync.pushRow(parentsSpec, pid));
+    }
   }
 }
 

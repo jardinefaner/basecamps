@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,6 +17,8 @@ class TripsRepository {
   /// See ObservationsRepository._programId for why we read this on
   /// every insert rather than caching at construction time.
   String? get _programId => _ref.read(activeProgramIdProvider);
+
+  SyncEngine get _sync => _ref.read(syncEngineProvider);
 
   Stream<List<Trip>> watchAll() {
     final query = _db.select(_db.trips)
@@ -111,13 +117,26 @@ class TripsRepository {
       }
     });
 
+    // Push the trip + its mirrored schedule entry. Cascades
+    // (trip_groups, entry_groups) ride along with their parents.
+    unawaited(_sync.pushRow(tripsSpec, tripId));
+    unawaited(_sync.pushRow(scheduleEntriesSpec, entryId));
+
     return tripId;
   }
 
   /// Deletes a trip. FK cascade also removes the linked ScheduleEntry and
   /// all group link rows.
   Future<void> deleteTrip(String id) async {
+    final row = await (_db.select(_db.trips)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    final programId = row?.programId;
     await (_db.delete(_db.trips)..where((t) => t.id.equals(id))).go();
+    if (programId != null) {
+      unawaited(
+        _sync.pushDelete(spec: tripsSpec, id: id, programId: programId),
+      );
+    }
   }
 
   /// Batch version of [deleteTrip]. Same cascade semantics (linked
@@ -125,7 +144,21 @@ class TripsRepository {
   Future<void> deleteTrips(Iterable<String> ids) async {
     final list = ids.toList();
     if (list.isEmpty) return;
+    final rows = await (_db.select(_db.trips)..where((t) => t.id.isIn(list)))
+        .get();
     await (_db.delete(_db.trips)..where((t) => t.id.isIn(list))).go();
+    for (final r in rows) {
+      final programId = r.programId;
+      if (programId != null) {
+        unawaited(
+          _sync.pushDelete(
+            spec: tripsSpec,
+            id: r.id,
+            programId: programId,
+          ),
+        );
+      }
+    }
   }
 
   /// Re-insert a previously-deleted trip row for the undo snackbar.

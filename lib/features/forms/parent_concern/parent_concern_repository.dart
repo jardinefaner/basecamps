@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -121,6 +125,8 @@ class ParentConcernRepository {
   /// every insert rather than caching at construction time.
   String? get _programId => _ref.read(activeProgramIdProvider);
 
+  SyncEngine get _sync => _ref.read(syncEngineProvider);
+
   Stream<List<ParentConcernNote>> watchAll() {
     return (_db.select(_db.parentConcernNotes)
           ..orderBy([(n) => OrderingTerm.desc(n.updatedAt)]))
@@ -166,6 +172,7 @@ class ParentConcernRepository {
       await _db.into(_db.parentConcernNotes).insert(_companion(id, input));
       await _replaceKidLinks(id, input.childIds);
     });
+    unawaited(_sync.pushRow(parentConcernNotesSpec, id));
     return id;
   }
 
@@ -181,11 +188,25 @@ class ParentConcernRepository {
       );
       await _replaceKidLinks(id, input.childIds);
     });
+    unawaited(_sync.pushRow(parentConcernNotesSpec, id));
   }
 
   Future<void> delete(String id) async {
+    final row = await (_db.select(_db.parentConcernNotes)
+          ..where((n) => n.id.equals(id)))
+        .getSingleOrNull();
+    final programId = row?.programId;
     await (_db.delete(_db.parentConcernNotes)..where((n) => n.id.equals(id)))
         .go();
+    if (programId != null) {
+      unawaited(
+        _sync.pushDelete(
+          spec: parentConcernNotesSpec,
+          id: id,
+          programId: programId,
+        ),
+      );
+    }
   }
 
   /// Structured child ids linked to a concern. Used by the form to hydrate
@@ -239,8 +260,23 @@ class ParentConcernRepository {
   Future<void> deleteMany(Iterable<String> ids) async {
     final list = ids.toList();
     if (list.isEmpty) return;
+    final rows = await (_db.select(_db.parentConcernNotes)
+          ..where((n) => n.id.isIn(list)))
+        .get();
     await (_db.delete(_db.parentConcernNotes)..where((n) => n.id.isIn(list)))
         .go();
+    for (final r in rows) {
+      final programId = r.programId;
+      if (programId != null) {
+        unawaited(
+          _sync.pushDelete(
+            spec: parentConcernNotesSpec,
+            id: r.id,
+            programId: programId,
+          ),
+        );
+      }
+    }
   }
 
   /// Restore helpers for the undo snackbar — re-insert with original

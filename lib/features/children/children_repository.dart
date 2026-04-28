@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,6 +17,8 @@ class ChildrenRepository {
   /// See ObservationsRepository._programId for why we read this on
   /// every insert rather than caching at construction time.
   String? get _programId => _ref.read(activeProgramIdProvider);
+
+  SyncEngine get _sync => _ref.read(syncEngineProvider);
 
   Stream<List<Group>> watchGroups() {
     final query = _db.select(_db.groups)
@@ -67,6 +73,7 @@ class ChildrenRepository {
             programId: Value(_programId),
           ),
         );
+    unawaited(_sync.pushRow(groupsSpec, id));
     return id;
   }
 
@@ -88,6 +95,7 @@ class ChildrenRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    unawaited(_sync.pushRow(groupsSpec, id));
   }
 
   Future<String> addChild({
@@ -115,6 +123,7 @@ class ChildrenRepository {
             programId: Value(_programId),
           ),
         );
+    unawaited(_sync.pushRow(childrenSpec, id));
     return id;
   }
 
@@ -128,6 +137,7 @@ class ChildrenRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    unawaited(_sync.pushRow(childrenSpec, childId));
   }
 
   /// Partial child edit. Anything left `null` (or not passed) is
@@ -187,14 +197,31 @@ class ChildrenRepository {
       updatedAt: Value(DateTime.now()),
     );
     await (_db.update(_db.children)..where((k) => k.id.equals(id))).write(companion);
+    unawaited(_sync.pushRow(childrenSpec, id));
   }
 
   Future<void> deleteGroup(String id) async {
+    final row = await (_db.select(_db.groups)..where((p) => p.id.equals(id)))
+        .getSingleOrNull();
+    final programId = row?.programId;
     await (_db.delete(_db.groups)..where((p) => p.id.equals(id))).go();
+    if (programId != null) {
+      unawaited(
+        _sync.pushDelete(spec: groupsSpec, id: id, programId: programId),
+      );
+    }
   }
 
   Future<void> deleteChild(String id) async {
+    final row = await (_db.select(_db.children)..where((k) => k.id.equals(id)))
+        .getSingleOrNull();
+    final programId = row?.programId;
     await (_db.delete(_db.children)..where((k) => k.id.equals(id))).go();
+    if (programId != null) {
+      unawaited(
+        _sync.pushDelete(spec: childrenSpec, id: id, programId: programId),
+      );
+    }
   }
 
   /// Re-insert a previously-deleted group row. Used by the undo
