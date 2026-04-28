@@ -9,17 +9,21 @@ abstract final class Env {
     defaultValue: 'placeholder-anon-key',
   );
 
-  /// Deepgram API key for live voice-to-text in Observe. Currently read
-  /// client-side; long-term this belongs behind a Supabase edge function.
+  /// Deepgram API key for live voice-to-text in Observe. Still read
+  /// client-side because Deepgram's realtime API uses WebSockets
+  /// which Supabase Edge Functions can't proxy directly — moving
+  /// this behind an edge function needs a temp-token grant pattern,
+  /// which is a separate slice. Until then it stays out of public
+  /// web bundles (`Env.hasDeepgram` returns false when the value is
+  /// empty, which it always is on the GitHub Pages deploy).
   static const String deepgramApiKey =
       String.fromEnvironment('DEEPGRAM_API_KEY');
 
   static bool get hasDeepgram => deepgramApiKey.isNotEmpty;
 
-  /// OpenAI API key used to classify observations (domain + sentiment)
-  /// when the teacher saves. Client-side for now — will move behind a
-  /// Supabase edge function before any non-dev release.
-  static const String openaiApiKey = String.fromEnvironment('OPENAI_API_KEY');
-
-  static bool get hasOpenAi => openaiApiKey.isNotEmpty;
+  // OPENAI_API_KEY removed from the client. All OpenAI calls now
+  // route through the Supabase Edge Function `openai-chat` (see
+  // `lib/features/ai/openai_client.dart`). The key lives only in
+  // Supabase's secret store, never in any client bundle. Use
+  // `OpenAiClient.isAvailable` instead of the old `Env.hasOpenAi`.
 }

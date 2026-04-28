@@ -1,37 +1,31 @@
 import 'dart:convert';
 
-import 'package:basecamp/config/env.dart';
+import 'package:basecamp/features/ai/openai_client.dart';
 import 'package:basecamp/features/observations/classifier.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
-import 'package:http/http.dart' as http;
 
 /// OpenAI-backed version of [suggestTags]. Sends the note text to
 /// gpt-4o-mini with a strict JSON schema that constrains the response to
 /// our `ObservationDomain` and `ObservationSentiment` enums. Falls back
-/// to the local keyword classifier when the key is missing or the call
-/// fails — the composer works offline and without an API key.
+/// to the local keyword classifier when the call fails (not signed
+/// in, network down, edge function not deployed) — the composer works
+/// offline and without AI.
 ///
 /// Pricing is negligible for this use case (<$0.0003/observation at
 /// gpt-4o-mini rates for a ~100-token note).
 Future<Suggestion> classifyObservationWithAi(String note) async {
-  if (!Env.hasOpenAi) return suggestTags(note);
+  if (!OpenAiClient.isAvailable) return suggestTags(note);
   if (note.trim().isEmpty) return suggestTags(note);
 
   try {
-    final response = await http.post(
-      Uri.parse('https://api.openai.com/v1/chat/completions'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ${Env.openaiApiKey}',
-      },
-      body: jsonEncode({
-        'model': 'gpt-4o-mini',
-        'temperature': 0,
-        'messages': [
-          {'role': 'system', 'content': _systemPrompt},
-          {'role': 'user', 'content': note},
-        ],
-        'response_format': {
+    final body = await OpenAiClient.chat({
+      'model': 'gpt-4o-mini',
+      'temperature': 0,
+      'messages': [
+        {'role': 'system', 'content': _systemPrompt},
+        {'role': 'user', 'content': note},
+      ],
+      'response_format': {
           'type': 'json_schema',
           'json_schema': {
             'name': 'observation_tags',
@@ -75,14 +69,9 @@ Future<Suggestion> classifyObservationWithAi(String note) async {
             },
           },
         },
-      }),
-    ).timeout(const Duration(seconds: 12));
+      },
+    );
 
-    if (response.statusCode != 200) {
-      return suggestTags(note);
-    }
-
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
     final choices = body['choices'] as List<dynamic>?;
     if (choices == null || choices.isEmpty) return suggestTags(note);
     final message = (choices.first as Map<String, dynamic>)['message']

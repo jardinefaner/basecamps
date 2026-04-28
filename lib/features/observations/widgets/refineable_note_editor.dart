@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:basecamp/config/env.dart';
+import 'package:basecamp/features/ai/openai_client.dart';
 import 'package:basecamp/features/observations/ai_refine.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_text_field.dart';
@@ -229,7 +229,7 @@ class _RefineableNoteEditorState extends State<RefineableNoteEditor> {
           maxLines: widget.maxLines,
           onChanged: widget.onChanged,
         ),
-        if (Env.hasOpenAi)
+        if (OpenAiClient.isAvailable)
           Positioned(
             right: 6,
             bottom: 6,
@@ -285,7 +285,7 @@ class _RefineableNoteEditorState extends State<RefineableNoteEditor> {
                   _OriginalSlide(
                     controller: _originalController,
                     onChanged: _onOriginalChanged,
-                    sparkle: Env.hasOpenAi
+                    sparkle: OpenAiClient.isAvailable
                         ? _RefineButton(
                             loading: _loading,
                             enabled: !_loading &&

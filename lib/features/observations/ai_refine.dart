@@ -1,7 +1,4 @@
-import 'dart:convert';
-
-import 'package:basecamp/config/env.dart';
-import 'package:http/http.dart' as http;
+import 'package:basecamp/features/ai/openai_client.dart';
 
 /// Rewrites a teacher's quick observation note into a clear, readable
 /// version — fixing grammar, cutting filler, restructuring confusing
@@ -9,39 +6,27 @@ import 'package:http/http.dart' as http;
 /// colleague could read this and understand what happened," not
 /// "original but with commas".
 ///
-/// Returns `null` when the key is missing, the input is empty, the call
-/// fails, or the model returns nothing — the caller should treat null as
-/// "nothing to show" and leave the original untouched.
+/// Returns `null` when the input is empty, no signed-in session is
+/// available, the call fails, or the model returns nothing — the
+/// caller should treat null as "nothing to show" and leave the
+/// original untouched.
 ///
 /// Uses gpt-4o-mini for cost; a ~100-token note is well under $0.0005.
 Future<String?> refineObservationText(String note) async {
-  if (!Env.hasOpenAi) return null;
+  if (!OpenAiClient.isAvailable) return null;
   final trimmed = note.trim();
   if (trimmed.isEmpty) return null;
 
   try {
-    final response = await http
-        .post(
-          Uri.parse('https://api.openai.com/v1/chat/completions'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ${Env.openaiApiKey}',
-          },
-          body: jsonEncode({
-            'model': 'gpt-4o-mini',
-            'temperature': 0.2,
-            'max_tokens': 600,
-            'messages': [
-              {'role': 'system', 'content': _systemPrompt},
-              {'role': 'user', 'content': trimmed},
-            ],
-          }),
-        )
-        .timeout(const Duration(seconds: 15));
-
-    if (response.statusCode != 200) return null;
-
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final body = await OpenAiClient.chat({
+      'model': 'gpt-4o-mini',
+      'temperature': 0.2,
+      'max_tokens': 600,
+      'messages': [
+        {'role': 'system', 'content': _systemPrompt},
+        {'role': 'user', 'content': trimmed},
+      ],
+    });
     final choices = body['choices'] as List<dynamic>?;
     if (choices == null || choices.isEmpty) return null;
     final message = (choices.first as Map<String, dynamic>)['message']

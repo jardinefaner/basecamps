@@ -1,7 +1,6 @@
 import 'dart:convert';
 
-import 'package:basecamp/config/env.dart';
-import 'package:http/http.dart' as http;
+import 'package:basecamp/features/ai/openai_client.dart';
 
 /// A draft library card produced by the AI authoring helpers. Every
 /// field except [title] is nullable so the caller can distinguish
@@ -125,111 +124,73 @@ class LibraryDraftParseError extends LibraryDraftFailure {
 
 /// Generates a library-card draft from a URL alone. Matches the
 /// `ai_classifier.dart` pattern: chat-completions endpoint, JSON
-/// response_format, same timeout shape. Throws [LibraryDraftFailure]
-/// when the key is missing or the call fails, so the edit sheet can
-/// toast a clear message without crashing.
-Future<LibraryCardDraft> generateFromUrl(
-  String url, {
-  Duration timeout = const Duration(seconds: 30),
-  http.Client? client,
-}) async {
+/// response_format. Throws [LibraryDraftFailure] when the proxy is
+/// unavailable or the call fails, so the edit sheet can toast a clear
+/// message without crashing.
+Future<LibraryCardDraft> generateFromUrl(String url) async {
   final trimmed = url.trim();
   if (trimmed.isEmpty) {
     throw const LibraryDraftFailure('Paste a link first.');
   }
-  if (!Env.hasOpenAi) {
+  if (!OpenAiClient.isAvailable) {
     throw const LibraryDraftFailure(
-      'AI assist is off in this build — set OPENAI_API_KEY.',
+      'AI assist needs a signed-in session.',
     );
   }
-  final c = client ?? http.Client();
   try {
-    final response = await c
-        .post(
-          Uri.parse('https://api.openai.com/v1/chat/completions'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ${Env.openaiApiKey}',
-          },
-          body: jsonEncode({
-            'model': 'gpt-4o-mini',
-            'temperature': 0.4,
-            'response_format': {'type': 'json_object'},
-            'messages': [
-              {'role': 'system', 'content': _systemPromptUrl},
-              {'role': 'user', 'content': 'URL: $trimmed'},
-            ],
-          }),
-        )
-        .timeout(timeout);
-    final payload = _extractJsonObject(response);
+    final body = await OpenAiClient.chat({
+      'model': 'gpt-4o-mini',
+      'temperature': 0.4,
+      'response_format': {'type': 'json_object'},
+      'messages': [
+        {'role': 'system', 'content': _systemPromptUrl},
+        {'role': 'user', 'content': 'URL: $trimmed'},
+      ],
+    });
+    final payload = _extractJsonObject(body);
     return LibraryCardDraft.fromJson(payload, sourceUrlOverride: trimmed);
   } on LibraryDraftFailure {
     rethrow;
   } on Object catch (e) {
     throw LibraryDraftFailure("Couldn't fill from link: $e");
-  } finally {
-    if (client == null) c.close();
   }
 }
 
 /// Generates a library-card draft from a free-text description. No
 /// URL, no attribution — purely the teacher's own words polished into
 /// a card shape.
-Future<LibraryCardDraft> generateFromDescription(
-  String description, {
-  Duration timeout = const Duration(seconds: 30),
-  http.Client? client,
-}) async {
+Future<LibraryCardDraft> generateFromDescription(String description) async {
   final trimmed = description.trim();
   if (trimmed.length < 10) {
     throw const LibraryDraftFailure(
       'Give me a bit more to work with — a sentence or two is enough.',
     );
   }
-  if (!Env.hasOpenAi) {
+  if (!OpenAiClient.isAvailable) {
     throw const LibraryDraftFailure(
-      'AI assist is off in this build — set OPENAI_API_KEY.',
+      'AI assist needs a signed-in session.',
     );
   }
-  final c = client ?? http.Client();
   try {
-    final response = await c
-        .post(
-          Uri.parse('https://api.openai.com/v1/chat/completions'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ${Env.openaiApiKey}',
-          },
-          body: jsonEncode({
-            'model': 'gpt-4o-mini',
-            'temperature': 0.4,
-            'response_format': {'type': 'json_object'},
-            'messages': [
-              {'role': 'system', 'content': _systemPromptDescription},
-              {'role': 'user', 'content': trimmed},
-            ],
-          }),
-        )
-        .timeout(timeout);
-    final payload = _extractJsonObject(response);
+    final body = await OpenAiClient.chat({
+      'model': 'gpt-4o-mini',
+      'temperature': 0.4,
+      'response_format': {'type': 'json_object'},
+      'messages': [
+        {'role': 'system', 'content': _systemPromptDescription},
+        {'role': 'user', 'content': trimmed},
+      ],
+    });
+    final payload = _extractJsonObject(body);
     return LibraryCardDraft.fromJson(payload);
   } on LibraryDraftFailure {
     rethrow;
   } on Object catch (e) {
     throw LibraryDraftFailure("Couldn't fill from description: $e");
-  } finally {
-    if (client == null) c.close();
   }
 }
 
-Map<String, dynamic> _extractJsonObject(http.Response response) {
-  if (response.statusCode != 200) {
-    throw LibraryDraftFailure(
-      'The generator returned HTTP ${response.statusCode}.',
-    );
-  }
-  final body = jsonDecode(response.body) as Map<String, dynamic>;
+Map<String, dynamic> _extractJsonObject(Map<String, dynamic> body) {
   final choices = body['choices'] as List<dynamic>?;
   if (choices == null || choices.isEmpty) {
     throw const LibraryDraftFailure('The generator returned no content.');

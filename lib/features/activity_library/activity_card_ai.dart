@@ -1,7 +1,6 @@
 import 'dart:convert';
 
-import 'package:basecamp/config/env.dart';
-import 'package:http/http.dart' as http;
+import 'package:basecamp/features/ai/openai_client.dart';
 
 /// Structured payload returned by the AI generator. Mirrors the new
 /// activity-card columns on `activity_library`: every field the
@@ -56,52 +55,33 @@ Future<GeneratedCard> generateActivityCard({
   required int audienceMaxAge,
   String? sourceHost,
   String? sourceUrl,
-  Duration timeout = const Duration(seconds: 30),
-  http.Client? client,
 }) async {
-  if (!Env.hasOpenAi) {
+  if (!OpenAiClient.isAvailable) {
     throw const GenerateFailure(
-      'AI generation is off in this build — set OPENAI_API_KEY.',
+      'AI generation needs a signed-in session.',
     );
   }
   final audienceLabel = audienceLabelFor(audienceMinAge, audienceMaxAge);
 
-  final c = client ?? http.Client();
   try {
-    final response = await c
-        .post(
-          Uri.parse('https://api.openai.com/v1/chat/completions'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ${Env.openaiApiKey}',
-          },
-          body: jsonEncode({
-            'model': 'gpt-4o-mini',
-            'temperature': 0.4,
-            'response_format': {'type': 'json_object'},
-            'messages': [
-              {'role': 'system', 'content': _systemPrompt},
-              {
-                'role': 'user',
-                'content': _userPrompt(
-                  sourceTitle: sourceTitle,
-                  sourceText: sourceText,
-                  sourceUrl: sourceUrl,
-                  audienceLabel: audienceLabel,
-                ),
-              },
-            ],
-          }),
-        )
-        .timeout(timeout);
+    final body = await OpenAiClient.chat({
+      'model': 'gpt-4o-mini',
+      'temperature': 0.4,
+      'response_format': {'type': 'json_object'},
+      'messages': [
+        {'role': 'system', 'content': _systemPrompt},
+        {
+          'role': 'user',
+          'content': _userPrompt(
+            sourceTitle: sourceTitle,
+            sourceText: sourceText,
+            sourceUrl: sourceUrl,
+            audienceLabel: audienceLabel,
+          ),
+        },
+      ],
+    });
 
-    if (response.statusCode != 200) {
-      throw GenerateFailure(
-        'The generator returned HTTP ${response.statusCode}.',
-      );
-    }
-
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
     final choices = body['choices'] as List<dynamic>?;
     if (choices == null || choices.isEmpty) {
       throw const GenerateFailure('The generator returned no content.');
@@ -127,8 +107,6 @@ Future<GeneratedCard> generateActivityCard({
     rethrow;
   } on Object catch (e) {
     throw GenerateFailure("Couldn't generate a card: $e");
-  } finally {
-    if (client == null) c.close();
   }
 }
 
@@ -149,51 +127,33 @@ Future<GeneratedCard> generateActivityCardFromUrlOnly({
   required int audienceMinAge,
   required int audienceMaxAge,
   String? sourceHost,
-  Duration timeout = const Duration(seconds: 30),
-  http.Client? client,
 }) async {
-  if (!Env.hasOpenAi) {
+  if (!OpenAiClient.isAvailable) {
     throw const GenerateFailure(
-      'AI generation is off in this build — set OPENAI_API_KEY.',
+      'AI generation needs a signed-in session.',
     );
   }
   final audienceLabel = audienceLabelFor(audienceMinAge, audienceMaxAge);
-  final c = client ?? http.Client();
   try {
-    final response = await c
-        .post(
-          Uri.parse('https://api.openai.com/v1/chat/completions'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ${Env.openaiApiKey}',
-          },
-          body: jsonEncode({
-            'model': 'gpt-4o-mini',
-            'temperature': 0.4,
-            'response_format': {'type': 'json_object'},
-            'messages': [
-              {'role': 'system', 'content': _systemPromptUrlOnly},
-              {
-                'role': 'user',
-                'content': 'Audience: $audienceLabel\n'
-                    'Source URL: $url\n\n'
-                    "We couldn't scrape readable text from this page. "
-                    'Generate the card using whatever you know about '
-                    'this URL / host / topic. If you have too little '
-                    'signal, return the required fields with best-effort '
-                    'placeholders rather than refusing — the teacher '
-                    'will edit or discard if unsatisfied.',
-              },
-            ],
-          }),
-        )
-        .timeout(timeout);
-    if (response.statusCode != 200) {
-      throw GenerateFailure(
-        'The generator returned HTTP ${response.statusCode}.',
-      );
-    }
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final body = await OpenAiClient.chat({
+      'model': 'gpt-4o-mini',
+      'temperature': 0.4,
+      'response_format': {'type': 'json_object'},
+      'messages': [
+        {'role': 'system', 'content': _systemPromptUrlOnly},
+        {
+          'role': 'user',
+          'content': 'Audience: $audienceLabel\n'
+              'Source URL: $url\n\n'
+              "We couldn't scrape readable text from this page. "
+              'Generate the card using whatever you know about '
+              'this URL / host / topic. If you have too little '
+              'signal, return the required fields with best-effort '
+              'placeholders rather than refusing — the teacher '
+              'will edit or discard if unsatisfied.',
+        },
+      ],
+    });
     final choices = body['choices'] as List<dynamic>?;
     if (choices == null || choices.isEmpty) {
       throw const GenerateFailure('The generator returned no content.');
@@ -219,8 +179,6 @@ Future<GeneratedCard> generateActivityCardFromUrlOnly({
     rethrow;
   } on Object catch (e) {
     throw GenerateFailure("Couldn't generate a card: $e");
-  } finally {
-    if (client == null) c.close();
   }
 }
 
@@ -237,12 +195,10 @@ Future<GeneratedCard> generateActivityCardFromDescription({
   required String description,
   required int audienceMinAge,
   required int audienceMaxAge,
-  Duration timeout = const Duration(seconds: 30),
-  http.Client? client,
 }) async {
-  if (!Env.hasOpenAi) {
+  if (!OpenAiClient.isAvailable) {
     throw const GenerateFailure(
-      'AI generation is off in this build — set OPENAI_API_KEY.',
+      'AI generation needs a signed-in session.',
     );
   }
   final trimmed = description.trim();
@@ -253,36 +209,20 @@ Future<GeneratedCard> generateActivityCardFromDescription({
     );
   }
   final audienceLabel = audienceLabelFor(audienceMinAge, audienceMaxAge);
-  final c = client ?? http.Client();
   try {
-    final response = await c
-        .post(
-          Uri.parse('https://api.openai.com/v1/chat/completions'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ${Env.openaiApiKey}',
-          },
-          body: jsonEncode({
-            'model': 'gpt-4o-mini',
-            'temperature': 0.4,
-            'response_format': {'type': 'json_object'},
-            'messages': [
-              {'role': 'system', 'content': _systemPromptDescription},
-              {
-                'role': 'user',
-                'content':
-                    "Audience: $audienceLabel\n\nTeacher's description:\n$trimmed",
-              },
-            ],
-          }),
-        )
-        .timeout(timeout);
-    if (response.statusCode != 200) {
-      throw GenerateFailure(
-        'The generator returned HTTP ${response.statusCode}.',
-      );
-    }
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final body = await OpenAiClient.chat({
+      'model': 'gpt-4o-mini',
+      'temperature': 0.4,
+      'response_format': {'type': 'json_object'},
+      'messages': [
+        {'role': 'system', 'content': _systemPromptDescription},
+        {
+          'role': 'user',
+          'content':
+              "Audience: $audienceLabel\n\nTeacher's description:\n$trimmed",
+        },
+      ],
+    });
     final choices = body['choices'] as List<dynamic>?;
     if (choices == null || choices.isEmpty) {
       throw const GenerateFailure('The generator returned no content.');
@@ -307,8 +247,6 @@ Future<GeneratedCard> generateActivityCardFromDescription({
     rethrow;
   } on Object catch (e) {
     throw GenerateFailure("Couldn't generate a card: $e");
-  } finally {
-    if (client == null) c.close();
   }
 }
 
