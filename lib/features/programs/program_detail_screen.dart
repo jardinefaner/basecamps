@@ -164,7 +164,17 @@ class ProgramDetailScreen extends ConsumerWidget {
       await _moveOffAndDispose(ref, programIdToRemove: program.id, () {
         return ref.read(inviteRepositoryProvider).deleteProgram(program.id);
       });
-      if (context.mounted) context.pop();
+      // Defer the pop. _moveOffAndDispose just changed the active
+      // program (cleared or switched), which fires the router's
+      // refresh listenable. If we pop synchronously the program-
+      // detail route's Navigator is being torn down both by our
+      // pop AND by the router's redirect → `_debugLocked`
+      // assertion in finalizeTree. One frame of delay lets the
+      // router settle first.
+      if (!context.mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) context.pop();
+      });
     });
   }
 }
@@ -500,7 +510,15 @@ class _MemberRow extends ConsumerWidget {
               userId: member.userId,
             ),
           );
-          if (context.mounted) context.pop();
+          // Defer the pop — same race as the delete path:
+          // active-program change fires the router refresh,
+          // popping in the same tick collides with the router's
+          // own teardown and trips `_debugLocked` in
+          // finalizeTree.
+          if (!context.mounted) return;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) context.pop();
+          });
         });
     }
   }
