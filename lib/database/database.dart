@@ -79,6 +79,16 @@ class AppDatabase extends _$AppDatabase {
         // show up in the observation tag picker."
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
+          // Schema-heal: re-apply the v42 ALTER TABLE for any
+          // entity table that's still missing `program_id`. Some
+          // users' local DBs ended up with a partial v42 migration
+          // (web IndexedDB closed mid-upgrade, native app force-
+          // killed during launch), and any later insert that tries
+          // to stamp program_id on the gap-table fails silently.
+          // Running this every launch is cheap (the ALTER is a
+          // no-op when the column already exists, swallowed by
+          // _runSilent).
+          await _healProgramIdColumns();
         },
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
@@ -912,6 +922,46 @@ class AppDatabase extends _$AppDatabase {
   /// Runs `stmt` and swallows "duplicate column / no such column /
   /// already exists" errors so re-running the rename migration after
   /// a partial failure is safe. Anything else surfaces.
+  /// Idempotently re-applies the v42 program_id stamping migration.
+  /// Called from `beforeOpen` so it runs every launch — partial
+  /// migrations (mid-upgrade browser close, OOM kill on native) get
+  /// healed without requiring the user to wipe local data.
+  ///
+  /// All ALTER TABLE statements are wrapped in [_runSilent], which
+  /// swallows "duplicate column" / "no such table" — so a fully-
+  /// migrated DB sees this as a no-op series of failed-and-ignored
+  /// statements (cheap), and a partially-migrated DB gets the
+  /// missing columns filled in.
+  Future<void> _healProgramIdColumns() async {
+    const tables = [
+      'children',
+      'groups',
+      'vehicles',
+      'trips',
+      'adults',
+      'roles',
+      'parents',
+      'rooms',
+      'schedule_templates',
+      'schedule_entries',
+      'observations',
+      'activity_library',
+      'lesson_sequences',
+      'themes',
+      'parent_concern_notes',
+      'form_submissions',
+    ];
+    for (final t in tables) {
+      await _runSilent(
+        'ALTER TABLE "$t" ADD COLUMN "program_id" TEXT NULL',
+      );
+      await _runSilent(
+        'CREATE INDEX IF NOT EXISTS '
+        '"idx_${t}_program" ON "$t" ("program_id")',
+      );
+    }
+  }
+
   Future<void> _runSilent(String stmt) async {
     try {
       await customStatement(stmt);
