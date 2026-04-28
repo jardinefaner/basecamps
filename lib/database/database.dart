@@ -1303,6 +1303,71 @@ class AppDatabase extends _$AppDatabase {
       await customStatement('PRAGMA foreign_keys = ON');
     }
   }
+
+  /// Wipe every program-scoped row + cascades for [programId] from
+  /// the local DB. Used on sign-out, on leave-program, and on
+  /// delete-program so stale rows from a no-longer-active program
+  /// don't linger and surface in detail screens / search results.
+  ///
+  /// Drift's onDelete: CASCADE on the foreign keys handles the
+  /// child rows (parent_children, observation_children,
+  /// trip_groups, etc.) automatically when we delete the parent
+  /// entity rows. The few entity tables that have program_id
+  /// directly (the kSyncedTableNames list) are scrubbed first.
+  /// Programs + program_members rows for this id are also wiped
+  /// so the active-membership lookup doesn't keep finding them.
+  /// Finally we drop the sync_state watermark so a re-join
+  /// re-pulls cleanly instead of resuming a stale watermark.
+  Future<void> wipeProgramData(String programId) async {
+    await customStatement('PRAGMA foreign_keys = ON');
+    await transaction(() async {
+      for (final t in kSyncedTableNames) {
+        try {
+          await customUpdate(
+            'DELETE FROM "$t" WHERE "program_id" = ?',
+            variables: [Variable<String>(programId)],
+          );
+        } on Object {
+          // Schema drift / missing column — skip; another table
+          // will still be wiped.
+        }
+      }
+      try {
+        await customUpdate(
+          'DELETE FROM "program_members" WHERE "program_id" = ?',
+          variables: [Variable<String>(programId)],
+        );
+      } on Object {
+        // Membership table absent (shouldn't happen post-v41).
+      }
+      try {
+        await customUpdate(
+          'DELETE FROM "programs" WHERE "id" = ?',
+          variables: [Variable<String>(programId)],
+        );
+      } on Object {
+        // Programs table absent (shouldn't happen post-v41).
+      }
+      try {
+        await customUpdate(
+          'DELETE FROM "sync_state" WHERE "program_id" = ?',
+          variables: [Variable<String>(programId)],
+        );
+      } on Object {
+        // sync_state pre-v43 doesn't exist; harmless skip.
+      }
+    });
+  }
+
+  /// Wipe every program's data — used on full sign-out so the
+  /// next sign-in (potentially as a different user) doesn't
+  /// inherit the previous user's local rows.
+  Future<void> wipeAllProgramData() async {
+    final ids = await select(programs).get();
+    for (final p in ids) {
+      await wipeProgramData(p.id);
+    }
+  }
 }
 
 final databaseProvider = Provider<AppDatabase>((ref) {

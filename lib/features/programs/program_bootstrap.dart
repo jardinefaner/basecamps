@@ -45,6 +45,11 @@ class ProgramAuthBootstrap {
         // Tear down realtime — no point streaming changes for a
         // program no one's signed into.
         unawaited(_ref.read(syncEngineProvider).unsubscribeFromRealtime());
+        // Wipe every program's local data so a different user
+        // signing in next doesn't inherit our rows. The bootstrap
+        // re-hydrates from cloud on the new session anyway, so
+        // there's nothing to lose.
+        unawaited(_ref.read(databaseProvider).wipeAllProgramData());
         return;
       }
       unawaited(_onSessionChanged(session.user.id));
@@ -307,11 +312,12 @@ class ProgramAuthBootstrap {
     final program = await (db.select(db.programs)
           ..where((p) => p.id.equals(id)))
         .getSingleOrNull();
-    // Cloud push is best-effort. If the upsert 403s (transient
-    // RLS / network), the local row stays and the next launch's
-    // bootstrap will retry — without this catch, a single push
-    // failure would leave the user trapped on the create modal
-    // with a snackbar and no recovery path.
+    // Cloud push is REQUIRED for cross-device sync. If the upsert
+    // fails the local row exists but no other device can ever see
+    // this program — we'd silently end up with one program per
+    // device, all under the same email, none of them syncing.
+    // Surface the error so the user knows + can retry, and
+    // unwind the local row so a retry doesn't accumulate orphans.
     if (program != null) {
       try {
         await supabase.from('programs').upsert(<String, Object?>{
@@ -326,8 +332,13 @@ class ProgramAuthBootstrap {
           'user_id': effectiveUserId,
           'role': 'admin',
         });
-      } on Object catch (e) {
-        debugPrint('Cloud push of new program failed: $e');
+      } on Object catch (e, st) {
+        debugPrint('Cloud push of new program failed: $e\n$st');
+        // Roll back the local program so a retry doesn't leave
+        // an orphan in the user's "Programs" list. The cascade
+        // delete on `program_members` cleans the membership row.
+        await (db.delete(db.programs)..where((p) => p.id.equals(id))).go();
+        rethrow;
       }
     }
     // Fast switch — a fresh program has zero data on the cloud

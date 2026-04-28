@@ -585,8 +585,18 @@ class _InvitesCard extends ConsumerWidget {
           );
       ref.invalidate(programInvitesProvider(programId));
       if (!context.mounted) return;
-      // Show the code in a modal so the admin can copy it before
-      // they lose track of which one they just made.
+      // Auto-copy the code so the common path (generate → paste
+      // into a text/email to a teacher) is one tap. The dialog
+      // shows the code too in case clipboard access is denied
+      // (some Android keyboards strip clipboard contents).
+      await Clipboard.setData(ClipboardData(text: invite.code));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Code copied — share it with the teacher'),
+          duration: Duration(seconds: 2),
+        ),
+      );
       await showDialog<void>(
         context: context,
         builder: (ctx) => _NewCodeDialog(invite: invite),

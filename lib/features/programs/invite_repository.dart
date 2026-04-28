@@ -71,6 +71,17 @@ class InviteRepository {
         }).select().single();
         return InviteRow.fromJson(inserted);
       } on PostgrestException catch (e) {
+        // PGRST205 = "table not in schema cache" → migration not
+        // applied. Surface a developer-friendly message so a
+        // teacher hitting this on a half-deployed Supabase
+        // project knows it's a deploy issue, not a bug.
+        if (e.code == 'PGRST205' || e.code == '42P01') {
+          throw const InviteSetupError(
+            'Invites aren’t set up on the server yet. Apply '
+            'migration 0012_program_invites.sql in the Supabase '
+            'dashboard.',
+          );
+        }
         // 23505 = unique_violation. Retry up to 5 times before
         // giving up — a deterministic upper bound that should
         // never fire in practice.
@@ -85,15 +96,29 @@ class InviteRepository {
   /// cloud query; this isn't synced locally because the only
   /// caller is the program-detail admin sheet.
   Future<List<InviteRow>> listInvites(String programId) async {
-    final rows = await _client
-        .from('program_invites')
-        .select()
-        .eq('program_id', programId)
-        .order('created_at', ascending: false);
-    return [
-      for (final r in List<Map<String, dynamic>>.from(rows))
-        InviteRow.fromJson(r),
-    ];
+    try {
+      final rows = await _client
+          .from('program_invites')
+          .select()
+          .eq('program_id', programId)
+          .order('created_at', ascending: false);
+      return [
+        for (final r in List<Map<String, dynamic>>.from(rows))
+          InviteRow.fromJson(r),
+      ];
+    } on PostgrestException catch (e) {
+      // Same migration-not-applied case as createInvite. Return
+      // an empty list with the structured error wrapped — the UI
+      // shows a "set this up" affordance instead of a stack trace.
+      if (e.code == 'PGRST205' || e.code == '42P01') {
+        throw const InviteSetupError(
+          'Invites aren’t set up on the server yet. Apply '
+          'migration 0012_program_invites.sql in the Supabase '
+          'dashboard.',
+        );
+      }
+      rethrow;
+    }
   }
 
   /// Revoke an outstanding code. Admin-only on the cloud side;
@@ -114,10 +139,27 @@ class InviteRepository {
     if (cleaned.isEmpty) {
       throw const RedeemError('missing_code', 'Please enter a code.');
     }
-    final response = await _client.functions.invoke(
-      'accept-invite',
-      body: {'code': cleaned},
-    );
+    final FunctionResponse response;
+    try {
+      response = await _client.functions.invoke(
+        'accept-invite',
+        body: {'code': cleaned},
+      );
+    } on FunctionException catch (e) {
+      // 404 = function not deployed. Surface the deployment
+      // requirement explicitly instead of a generic "couldn't
+      // reach server" — matches the migration-not-applied case
+      // for invites.
+      if (e.status == 404) {
+        throw const RedeemError(
+          'function_not_deployed',
+          'Joining isn’t set up on the server yet. Deploy the '
+          '`accept-invite` edge function (supabase functions '
+          'deploy accept-invite).',
+        );
+      }
+      rethrow;
+    }
     final body = response.data;
     if (body is! Map) {
       throw const RedeemError(
@@ -189,6 +231,16 @@ class InviteRepository {
           ..where((m) =>
               m.programId.equals(programId) & m.userId.equals(userId)))
         .go();
+    // If the user is removing themselves (= "leave program"),
+    // wipe the program's local data so they don't keep seeing
+    // stale rooms / children / schedule entries from a program
+    // they no longer belong to. Removing OTHER members leaves
+    // local data intact — those rows still belong to *this*
+    // user's view of the program.
+    final me = _client.auth.currentUser?.id;
+    if (me != null && me == userId) {
+      await _db.wipeProgramData(programId);
+    }
   }
 
   /// Rename the program. Admin-only via RLS. Also pushes through
@@ -218,10 +270,14 @@ class InviteRepository {
   /// the cascade so the device is consistent immediately.
   Future<void> deleteProgram(String programId) async {
     await _client.from('programs').delete().eq('id', programId);
-    await (_db.delete(_db.programs)..where((p) => p.id.equals(programId)))
-        .go();
-    // Drift's FK cascade rules wipe membership + all program-scoped
-    // cascade rows on this device automatically.
+    // Wipe the program's local data wholesale — Drift's FK
+    // cascades on programs → program_members work, but the
+    // program-scoped data tables (children, rooms, etc.) don't
+    // FK to programs locally (program_id is plain text, not a
+    // FK), so we have to scrub them explicitly. Same code path
+    // used for "leave program" so the row footprint is
+    // consistent across both flows.
+    await _db.wipeProgramData(programId);
   }
 
   // -- Internals ----------------------------------------------------
@@ -242,9 +298,25 @@ class InviteRepository {
       'already_used'  => 'That code has already been used.',
       'unauthenticated' =>
           'You need to sign in before redeeming a code.',
+      'program_not_found' =>
+          'That program no longer exists. Ask the admin for a new code.',
       _ => 'Couldn’t join — try again in a moment.',
     };
   }
+}
+
+/// Thrown when an invite operation hits a "this isn't deployed
+/// yet" condition — the cloud table is missing or the edge
+/// function is missing. Different exception type from
+/// [RedeemError] so the UI can show a developer-actionable
+/// message instead of the standard recipient-facing one.
+class InviteSetupError implements Exception {
+  const InviteSetupError(this.message);
+
+  final String message;
+
+  @override
+  String toString() => 'InviteSetupError: $message';
 }
 
 /// One row from `program_invites`.
@@ -349,14 +421,33 @@ Future<RedeemResult> redeemAndSwitch({
   required String code,
 }) async {
   final result = await ref.read(inviteRepositoryProvider).redeemCode(code);
-  // Hydrate the joined program into local Drift before switching
-  // so the active-program lookup finds it.
+  // Hydrate the joined program into local Drift before switching.
+  // Without this, switchProgram has no local program row to find
+  // and the user lands on an "active id set but no row" state
+  // that surfaces as a blank screen until next launch.
   final user = Supabase.instance.client.auth.currentUser;
-  if (user != null) {
-    await ref.read(programsRepositoryProvider).hydrateCloudProgramsForUser(
-          userId: user.id,
-          supabase: Supabase.instance.client,
-        );
+  if (user == null) {
+    throw const RedeemError(
+      'unauthenticated',
+      'Sign in expired. Please sign in again and try the code.',
+    );
+  }
+  await ref.read(programsRepositoryProvider).hydrateCloudProgramsForUser(
+        userId: user.id,
+        supabase: Supabase.instance.client,
+      );
+  // Verify the membership actually landed locally — defensive
+  // against a partial hydrate (network blip mid-pull). Without
+  // this check, switchProgram would silently set active to a
+  // program that doesn't exist locally.
+  final memberships =
+      await ref.read(programsRepositoryProvider).programsForUser(user.id);
+  if (!memberships.any((p) => p.id == result.programId)) {
+    throw const RedeemError(
+      'server',
+      'Joined the program but the data didn’t finish syncing. '
+          'Try again in a moment.',
+    );
   }
   await ref.read(programAuthBootstrapProvider).switchProgram(result.programId);
   return result;

@@ -131,16 +131,25 @@ serve(async (req) => {
     })
     .eq("code", code);
 
-  // 4. Hydrate the program name for the success toast.
+  // 4. Hydrate the program name for the success toast — also
+  //    serves as a sanity check that the program still exists.
+  //    The membership FK we just inserted would have failed if
+  //    the program was deleted, but if the FK was deferred or
+  //    if we're hitting a partial state, we still want to
+  //    surface program_not_found rather than a generic server
+  //    error.
   const { data: program } = await supabase
     .from("programs")
     .select("name")
     .eq("id", invite.program_id)
     .maybeSingle();
+  if (!program) {
+    return json({ error: "program_not_found" }, 400);
+  }
 
   return json({
     program_id: invite.program_id,
-    program_name: program?.name ?? "Program",
+    program_name: program.name as string,
     role: existingMember?.role ?? invite.role,
   }, 200);
 });
