@@ -48,11 +48,15 @@ class ProgramsScreen extends ConsumerWidget {
             icon: const Icon(Icons.health_and_safety_outlined),
             onPressed: () => context.push('/more/programs/diagnostics'),
           ),
-          IconButton(
-            tooltip: 'Join with code',
-            icon: const Icon(Icons.login_outlined),
+          // Labeled action so "join" is discoverable. The previous
+          // icon-only login icon read as auth/sign-in to teachers,
+          // not as "join another program with a code."
+          TextButton.icon(
+            icon: const Icon(Icons.qr_code_2_outlined, size: 18),
+            label: const Text('Join'),
             onPressed: () => _openJoinSheet(context),
           ),
+          const SizedBox(width: AppSpacing.xs),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -67,6 +71,11 @@ class ProgramsScreen extends ConsumerWidget {
           if (programs.isEmpty) {
             return const _EmptyState();
           }
+          // Programs followed by a "join another with a code"
+          // affordance. The trailing card is the most discoverable
+          // path — the app-bar "Join" button is right there too,
+          // but a teacher scanning the list of programs they're
+          // already in expects "add another" hints at the bottom.
           return ListView.separated(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,
@@ -74,10 +83,15 @@ class ProgramsScreen extends ConsumerWidget {
               AppSpacing.lg,
               AppSpacing.xxxl * 2,
             ),
-            itemCount: programs.length,
+            itemCount: programs.length + 1,
             separatorBuilder: (_, _) =>
                 const SizedBox(height: AppSpacing.md),
             itemBuilder: (_, i) {
+              if (i == programs.length) {
+                return _JoinAnotherCard(
+                  onTap: () => _openJoinSheet(context),
+                );
+              }
               final p = programs[i];
               final isActive = p.id == activeId;
               return _ProgramTile(
@@ -250,6 +264,79 @@ class _ProgramTile extends StatelessWidget {
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Trailing card on the programs list that opens the
+/// JoinWithCodeSheet. Visually de-emphasized vs the program
+/// tiles above it (dashed border tint, no chevron) so it reads
+/// as an action rather than an existing membership.
+class _JoinAnotherCard extends StatelessWidget {
+  const _JoinAnotherCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: theme.colorScheme.outlineVariant,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  Icons.qr_code_2_outlined,
+                  size: 22,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Join another program',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Have an invite code from an admin? Tap to enter it.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.add,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
