@@ -127,6 +127,19 @@ final routerProvider = Provider<GoRouter>((ref) {
     observers: [_UnfocusOnTransition()],
     refreshListenable: refresh,
     redirect: (context, state) {
+      // Custom-scheme URIs (e.g. com.example.basecamps://login-
+      // callback/?code=...) are OAuth deep links that supabase-
+      // flutter handles directly via its own AppLinks listener.
+      // The router shouldn't try to match them as routes — they
+      // aren't routes, and matching throws "no routes for
+      // location ...". When we see one, deflect to /sign-in (a
+      // known route) and let supabase's session listener flip
+      // the auth state once the code exchange completes; the
+      // router will rebuild and route the user onward.
+      final scheme = state.uri.scheme;
+      if (scheme.isNotEmpty && scheme != 'http' && scheme != 'https') {
+        return '/sign-in';
+      }
       // Auth round-trip: if the URL still carries an auth callback
       // param, Supabase is mid-exchange and the session hasn't
       // landed yet. Don't push the user to /sign-in during that

@@ -1,10 +1,11 @@
+import 'dart:async';
+
 import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/programs/invite_repository.dart';
 import 'package:basecamp/features/programs/join_with_code_sheet.dart';
 import 'package:basecamp/features/programs/program_bootstrap.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
-import 'package:basecamp/ui/save_action.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -233,7 +234,7 @@ class _CreateProgramSheetState
     final name = _name.text.trim();
     if (name.isEmpty) return;
     setState(() => _saving = true);
-    await runWithErrorReport(context, () async {
+    try {
       final newId = await ref
           .read(programAuthBootstrapProvider)
           .createAndSwitchProgram(name: name, userId: widget.userId);
@@ -247,8 +248,17 @@ class _CreateProgramSheetState
       Navigator.of(context).pop();
       if (!context.mounted) return;
       context.go('/more/programs/$newId');
-    });
-    if (mounted) setState(() => _saving = false);
+    } on Object catch (e) {
+      debugPrint('Welcome create failed: $e');
+      if (!mounted) return;
+      // Close the modal first so the user isn't trapped behind
+      // it — the recovery dialog covers the failure path.
+      Navigator.of(context).pop();
+      if (!context.mounted) return;
+      await _showCreateFailureDialog(context, ref, error: e);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -319,4 +329,93 @@ class _CreateProgramSheetState
       ),
     );
   }
+}
+
+/// Surfaces a recoverable failure on the welcome → Create flow.
+/// Without this dialog, the modal sheet would just close on a
+/// silent error and the user would tap "Start a new program"
+/// again hitting the same wall — the symptom the user reported
+/// as "i create a program, and it keeps going back to the same
+/// create a program."
+///
+/// The dialog explains what happened, surfaces the raw server
+/// error so the user can paste it back, and gives two recovery
+/// affordances:
+///   * **Open diagnostics** → the existing sync diagnostics
+///     screen, which surfaces JWT vs auth.uid() mismatches +
+///     project URL etc.
+///   * **Sign out & start over** → forces a fresh PKCE handshake.
+///     Often resolves stale-session 42501s in one shot.
+Future<void> _showCreateFailureDialog(
+  BuildContext context,
+  WidgetRef ref, {
+  required Object error,
+}) async {
+  final theme = Theme.of(context);
+  final friendlyHint = _hintFor(error);
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) {
+      return AlertDialog(
+        title: const Text('Could not create program'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              friendlyHint,
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            SelectableText(
+              error.toString(),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              unawaited(ctx.push('/more/programs/diagnostics'));
+            },
+            child: const Text('Open diagnostics'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await ref.read(authRepositoryProvider).signOut();
+            },
+            child: const Text('Sign out & start over'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+/// Maps a thrown `createAndSwitchProgram` error to a human-
+/// readable explanation. The most common case is the persistent
+/// 42501 "row violates RLS" — explain it in terms a teacher can
+/// act on (sign out + sign in usually clears it).
+String _hintFor(Object error) {
+  final raw = error.toString();
+  if (raw.contains('42501') ||
+      raw.contains('row-level security')) {
+    return 'The cloud rejected the save. This usually means '
+        'your sign-in is stale — signing out and back in clears '
+        'the cached token. If that doesn’t help, open '
+        'diagnostics and paste the error back to support.';
+  }
+  if (raw.contains('Sign-in expired') ||
+      raw.contains('Could not verify sign-in')) {
+    return 'Your sign-in lapsed. Sign out and sign in again to '
+        'refresh the session.';
+  }
+  return 'Something went wrong while saving the program to the '
+      'cloud. Try signing out and back in. If the error keeps '
+      'happening, open diagnostics.';
 }
