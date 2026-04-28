@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:basecamp/features/observations/voice_service.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// A multiline text field with a mic button in the bottom-right that
@@ -163,12 +164,13 @@ class _VoiceDictationFieldState extends State<VoiceDictationField> {
           textCapitalization: TextCapitalization.sentences,
           decoration: InputDecoration(
             hintText: widget.hint,
-            // Pad the bottom so text never runs under the mic button.
+            // Pad the bottom so text never runs under the mic button —
+            // skipped on web since the mic isn't drawn there.
             contentPadding: const EdgeInsets.fromLTRB(
               AppSpacing.md,
               AppSpacing.md,
               AppSpacing.md,
-              AppSpacing.xxxl,
+              kIsWeb ? AppSpacing.md : AppSpacing.xxxl,
             ),
           ),
         ),
@@ -202,31 +204,37 @@ class _VoiceDictationFieldState extends State<VoiceDictationField> {
             ),
           ),
 
-        // Mic button, bottom-right.
-        Positioned(
-          right: AppSpacing.xs,
-          bottom: AppSpacing.xs,
-          child: Material(
-            color: _voiceActive
-                ? theme.colorScheme.error
-                : theme.colorScheme.primary,
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: _toggleVoice,
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                child: Icon(
-                  _voiceActive ? Icons.stop : Icons.mic,
-                  size: 20,
-                  color: _voiceActive
-                      ? theme.colorScheme.onError
-                      : theme.colorScheme.onPrimary,
+        // Mic button, bottom-right. Skipped on web — Deepgram
+        // depends on the native `record` plugin's PCM stream which
+        // isn't wired for the web build, so the button would only
+        // throw `VoiceUnsupportedError` on tap. Without the gate
+        // the field still works as a plain text input on web,
+        // just without dictation.
+        if (!kIsWeb)
+          Positioned(
+            right: AppSpacing.xs,
+            bottom: AppSpacing.xs,
+            child: Material(
+              color: _voiceActive
+                  ? theme.colorScheme.error
+                  : theme.colorScheme.primary,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: _toggleVoice,
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  child: Icon(
+                    _voiceActive ? Icons.stop : Icons.mic,
+                    size: 20,
+                    color: _voiceActive
+                        ? theme.colorScheme.onError
+                        : theme.colorScheme.onPrimary,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
       ],
     );
   }

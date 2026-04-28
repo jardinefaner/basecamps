@@ -92,7 +92,14 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
 
   /// Three-way mode for the bottom row. See build() for the layout each
   /// state produces.
+  ///
+  /// Web detail: Deepgram voice depends on the native `record` plugin's
+  /// PCM stream, which the web build doesn't ship. Forcing `send` mode
+  /// on web hides the "Speak" primary and the inline mic button so a
+  /// teacher on Chrome doesn't see UI affordances that would just
+  /// throw `VoiceUnsupportedError` on tap.
   _ComposerMode get _mode {
+    if (kIsWeb) return _ComposerMode.send;
     if (_voiceActive) return _ComposerMode.recording;
     // Once there's content, or the field has focus, commit to Send mode
     // so "Speak" doesn't flash back in mid-typing.
@@ -507,11 +514,17 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
           key: const ValueKey('send'),
           children: [
             camera,
-            IconButton(
-              onPressed: _onMicPressed,
-              icon: const Icon(Icons.mic_none_outlined),
-              tooltip: 'Voice input',
-            ),
+            // No voice input on web — Deepgram needs the native
+            // `record` PCM stream, which isn't wired for web. The
+            // `_mode` getter also forces send-mode on web so this
+            // arm is the only place mic could leak; gate again
+            // here to be unambiguous.
+            if (!kIsWeb)
+              IconButton(
+                onPressed: _onMicPressed,
+                icon: const Icon(Icons.mic_none_outlined),
+                tooltip: 'Voice input',
+              ),
             const Spacer(),
             FilledButton.icon(
               onPressed: _hasContent && !_submitting ? _submit : null,
