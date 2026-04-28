@@ -188,6 +188,81 @@ class ProgramAuthBootstrap {
     }
   }
 
+  /// Switch the active program to [newProgramId]. Public entry
+  /// point for the program switcher (Slice 2). The sequence:
+  ///
+  /// 1. **Flush pending pushes.** A row edited just before the
+  ///    switch is sitting in the engine's 250ms debounce queue;
+  ///    if we let it fire after the switch, the push happens with
+  ///    the new active program in scope. Force-flush now so old-
+  ///    program writes hit cloud before we move on.
+  /// 2. **Unsubscribe realtime.** Clean break — no stray events
+  ///    from the old program leaking into the new one's view.
+  /// 3. **Set active.** Persist the new id in SharedPreferences so
+  ///    a relaunch picks the same program.
+  /// 4. **Pull.** Walk the tier list and pull deltas for the new
+  ///    program. On first switch this is the full table set
+  ///    (since `sync_state` has no watermark for the new program).
+  /// 5. **Subscribe realtime.** Fresh channel filtered to the new
+  ///    program id.
+  ///
+  /// Idempotent — switching to the program already active no-ops
+  /// after the active-id check, but still flushes pending pushes
+  /// (cheap and gives the caller a sync point).
+  Future<void> switchProgram(String newProgramId) async {
+    final current = _ref.read(activeProgramIdProvider);
+    final engine = _ref.read(syncEngineProvider);
+    await engine.flushPendingPushes(kAllSpecs);
+    if (current == newProgramId) return;
+    await engine.unsubscribeFromRealtime();
+    await _ref.read(activeProgramIdProvider.notifier).set(newProgramId);
+    await _pullAllTables(programId: newProgramId);
+    await engine.subscribeToRealtime(
+      programId: newProgramId,
+      specs: kAllSpecs,
+    );
+  }
+
+  /// Create a new program owned by the current user, push it to
+  /// cloud, and switch to it. Used by the "New program" sheet on
+  /// the programs screen. Different from `_maybePushProgramToCloud`
+  /// because this path always pushes (no SharedPreferences flag —
+  /// the program was created seconds ago, no possible duplicate).
+  ///
+  /// Returns the new program id so the caller can pop the sheet
+  /// and surface a toast like "Switched to 'My after-school'".
+  Future<String> createAndSwitchProgram({
+    required String name,
+    required String userId,
+  }) async {
+    final repo = _ref.read(programsRepositoryProvider);
+    final id = await repo.createProgram(name: name, userId: userId);
+    final supabase = Supabase.instance.client;
+    // Same shape as `_maybePushProgramToCloud` minus the flag —
+    // we know this is a fresh create so the upsert is harmless if
+    // it somehow re-runs.
+    final db = _ref.read(databaseProvider);
+    final program = await (db.select(db.programs)
+          ..where((p) => p.id.equals(id)))
+        .getSingleOrNull();
+    if (program != null) {
+      await supabase.from('programs').upsert(<String, Object?>{
+        'id': program.id,
+        'name': program.name,
+        'created_by': program.createdBy,
+        'created_at': program.createdAt.toUtc().toIso8601String(),
+        'updated_at': program.updatedAt.toUtc().toIso8601String(),
+      });
+      await supabase.from('program_members').upsert(<String, Object?>{
+        'program_id': id,
+        'user_id': userId,
+        'role': 'admin',
+      });
+    }
+    await switchProgram(id);
+    return id;
+  }
+
   /// Slice C pull entry point. Walks the FK-ordered tier list
   /// from `kSpecTiers` — pulls every table in a tier in parallel
   /// (Future.wait), but waits for the tier to finish before

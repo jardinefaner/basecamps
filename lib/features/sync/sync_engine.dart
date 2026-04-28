@@ -769,6 +769,39 @@ class SyncEngine {
     return local.isAfter(watermark);
   }
 
+  /// Force-flush every pending debounced push immediately. Called
+  /// before switching active programs so the push queue (which
+  /// captured the OLD program's row state) lands in cloud before
+  /// the new program's pull fires. Without this, a row edited
+  /// 200ms before the switch would never make it to cloud — the
+  /// timer fires, but by then the active program has changed and
+  /// the upsert lands against the wrong program's filter.
+  ///
+  /// Caller passes `allSpecs` so the engine can map table names
+  /// (the keys in `_pendingPushes` are `"<table>/<id>"`) back to
+  /// `TableSpec`s without having to import `sync_specs.dart` (that
+  /// would create a circular import).
+  Future<void> flushPendingPushes(List<TableSpec> allSpecs) async {
+    if (_pendingPushes.isEmpty) return;
+    final byName = <String, TableSpec>{
+      for (final s in allSpecs) s.table: s,
+    };
+    final entries = _pendingPushes.entries.toList();
+    _pendingPushes.clear();
+    final futures = <Future<void>>[];
+    for (final e in entries) {
+      e.value.cancel();
+      final slash = e.key.indexOf('/');
+      if (slash <= 0) continue;
+      final tableName = e.key.substring(0, slash);
+      final id = e.key.substring(slash + 1);
+      final spec = byName[tableName];
+      if (spec == null) continue;
+      futures.add(_pushRowNow(spec, id));
+    }
+    await Future.wait(futures);
+  }
+
   /// Closes the conflict stream + tears down realtime. Called
   /// when the provider disposes (rare; mostly for tests).
   void dispose() {

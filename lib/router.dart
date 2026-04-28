@@ -18,6 +18,7 @@ import 'package:basecamp/features/observations/observations_screen.dart';
 import 'package:basecamp/features/parents/parent_detail_screen.dart';
 import 'package:basecamp/features/parents/parents_screen.dart';
 import 'package:basecamp/features/planning/week_plan_screen.dart';
+import 'package:basecamp/features/programs/programs_screen.dart';
 import 'package:basecamp/features/roles/roles_screen.dart';
 import 'package:basecamp/features/rooms/rooms_screen.dart';
 import 'package:basecamp/features/schedule/schedule_editor_screen.dart';
@@ -229,6 +230,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/more/settings',
         builder: (_, _) => const ProgramSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/more/programs',
+        builder: (_, _) => const ProgramsScreen(),
       ),
       GoRoute(
         path: '/week-plan',

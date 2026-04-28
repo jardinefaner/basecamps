@@ -1028,6 +1028,17 @@ class _AccountFooter extends ConsumerWidget {
               ),
             ),
             IconButton(
+              tooltip: 'Switch program',
+              icon: const Icon(Icons.swap_horiz, size: 20),
+              color: theme.colorScheme.onSurfaceVariant,
+              // Same Navigator-sibling caveat as everywhere else
+              // in the launcher — render-inside-sidebar on web
+              // means context.push silently no-ops. Use the
+              // _navigateTo helper which goes through the
+              // routerProvider directly.
+              onPressed: () => _navigateTo(context, '/more/programs'),
+            ),
+            IconButton(
               tooltip: 'Sign out',
               icon: const Icon(Icons.logout, size: 20),
               color: theme.colorScheme.onSurfaceVariant,
