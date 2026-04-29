@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/program_bootstrap.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -168,6 +169,70 @@ class _SyncAuditScreenState extends ConsumerState<SyncAuditScreen> {
     }
   }
 
+  /// Force-refresh: re-runs the bootstrap (hydrate cloud programs
+  /// into local Drift, decide an active program, push membership,
+  /// pull tables, subscribe realtime). Heals devices stuck without
+  /// an active program — the most common cause of an empty audit
+  /// is bootstrap raced the network on cold launch and never
+  /// retried.
+  Future<void> _rerunBootstrap() async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(programAuthBootstrapProvider).rerunBootstrap();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bootstrap re-ran. Re-running audit…'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      await _run();
+    } on Object catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Bootstrap failed: $e'),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Tap-to-activate on a non-active cloud membership row. Hydrates
+  /// the cloud program into local Drift if it's missing, then
+  /// switches the active program to it. This is the recovery path
+  /// for "phone shows my membership but no row counts because no
+  /// active program is set" — the user just taps the program they
+  /// want and we wire up the rest.
+  Future<void> _activate(String programId) async {
+    setState(() => _busy = true);
+    try {
+      await ref
+          .read(programAuthBootstrapProvider)
+          .setActiveFromCloud(programId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Active program switched. Re-running audit…'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      await _run();
+    } on Object catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed: $e'),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<int> _localCount(String table, String programId) async {
     try {
       final db = ref.read(databaseProvider);
@@ -191,9 +256,14 @@ class _SyncAuditScreenState extends ConsumerState<SyncAuditScreen> {
         title: const Text('Sync audit'),
         actions: [
           IconButton(
-            tooltip: 'Re-run',
+            tooltip: 'Re-run audit',
             icon: const Icon(Icons.refresh),
             onPressed: _busy ? null : _run,
+          ),
+          IconButton(
+            tooltip: 'Re-run bootstrap (re-hydrate cloud, re-pick active)',
+            icon: const Icon(Icons.restart_alt),
+            onPressed: _busy ? null : _rerunBootstrap,
           ),
         ],
       ),
@@ -279,48 +349,27 @@ class _SyncAuditScreenState extends ConsumerState<SyncAuditScreen> {
               )
             else
               for (final m in r.memberships)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: AppSpacing.xs,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        m.programId == r.activeProgramId
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_off,
-                        size: 16,
-                        color: m.programId == r.activeProgramId
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              m.programName,
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                            Text(
-                              '${m.role} · ${m.programId}',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                _MembershipTile(
+                  membership: m,
+                  isActive: m.programId == r.activeProgramId,
+                  busy: _busy,
+                  onActivate: () => _activate(m.programId),
                 ),
-            if (r.memberships.length > 1) ...[
+            if (r.activeProgramId == null && r.memberships.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.sm),
               Text(
-                "If your other device's data is in a different "
-                'program above, switch to that one from Settings → '
-                'Sync → Programs.',
+                'You have a cloud membership but no active program '
+                'set on this device — tap the program above to '
+                'activate it. (Most often happens when the bootstrap '
+                'raced the network on cold launch.)',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ] else if (r.memberships.length > 1) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'Tap a program above to switch to it.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                   fontStyle: FontStyle.italic,
@@ -476,6 +525,74 @@ class _AuditResult {
   final List<_MembershipInfo> memberships;
   final List<_TableCount> tables;
   final Map<String, DateTime> watermarks;
+}
+
+/// A row in the cloud-memberships section. Tappable when not the
+/// active program — fires [onActivate] to hydrate the program into
+/// local Drift and switch to it. Disabled while the audit is busy
+/// (re-running, switching, etc.) so the user can't double-tap.
+class _MembershipTile extends StatelessWidget {
+  const _MembershipTile({
+    required this.membership,
+    required this.isActive,
+    required this.busy,
+    required this.onActivate,
+  });
+
+  final _MembershipInfo membership;
+  final bool isActive;
+  final bool busy;
+  final VoidCallback onActivate;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: isActive || busy ? null : onActivate,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isActive
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_off,
+              size: 18,
+              color: isActive
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    membership.programName,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  Text(
+                    '${membership.role} · ${membership.programId}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (!isActive)
+              Icon(
+                Icons.touch_app_outlined,
+                size: 16,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _MembershipInfo {

@@ -196,6 +196,44 @@ class ProgramAuthBootstrap {
   // queries (every entity table carries program_id) is the
   // right correctness boundary.
 
+  /// Re-run the full bootstrap: hydrate cloud programs into local
+  /// Drift, decide an active program, push membership, pull
+  /// tables, subscribe realtime. Used by the audit screen's
+  /// "Re-run bootstrap" button when a device gets stuck without
+  /// an active program (typically: hydrate raced ahead of the
+  /// network on cold launch, no retry kicked in, user landed on
+  /// a no-active-program state forever).
+  ///
+  /// Resets `_lastProcessedUserId` so the listener-side guard
+  /// doesn't short-circuit when called from a UI surface where
+  /// the auth state didn't actually change.
+  Future<void> rerunBootstrap() async {
+    final session = _ref.read(currentSessionProvider);
+    if (session == null) {
+      throw StateError('Not signed in.');
+    }
+    _lastProcessedUserId = null; // force the listener to re-process
+    await _onSessionChanged(session.user.id);
+  }
+
+  /// Hydrate the user's cloud programs into local Drift, then
+  /// switch to [programId]. Used by the audit screen's tap-to-
+  /// activate path on a non-active membership row — the user has
+  /// a cloud membership but no local program row, so we need to
+  /// hydrate first before switchProgram has anything to switch to.
+  Future<void> setActiveFromCloud(String programId) async {
+    final session = _ref.read(currentSessionProvider);
+    if (session == null) {
+      throw StateError('Not signed in.');
+    }
+    final repo = _ref.read(programsRepositoryProvider);
+    await repo.hydrateCloudProgramsForUser(
+      userId: session.user.id,
+      supabase: Supabase.instance.client,
+    );
+    await switchProgram(programId);
+  }
+
   /// Public wrapper around [_ensureProgramAndMembershipInCloud]
   /// for UI-driven heal flows. Throws on failure so the calling
   /// surface (e.g. a "Reconnect membership" button on the Sync
