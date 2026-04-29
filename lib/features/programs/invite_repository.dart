@@ -95,6 +95,23 @@ class InviteRepository {
   /// redeemed, not yet expired) on top, then the rest. Direct
   /// cloud query; this isn't synced locally because the only
   /// caller is the program-detail admin sheet.
+  ///
+  /// Failure handling:
+  ///   * **42P01 / PGRST205** (table missing) — surfaces an
+  ///     [InviteSetupError] with a clear "apply migration 0012"
+  ///     hint.
+  ///   * **42501** (RLS forbids select) — returns an empty list
+  ///     and logs. This happens when the local `program_members`
+  ///     row marks the user as admin but the cloud row is missing
+  ///     or has a different role (e.g. residue from a pre-fix
+  ///     wipe-race or a half-completed `accept-invite`). The UI
+  ///     shows "no codes yet" and a "Re-sync membership" path can
+  ///     surface a heal action — but at least we don't crash. The
+  ///     caller / bootstrap still re-pushes the membership on
+  ///     every launch via `_ensureProgramAndMembershipInCloud`,
+  ///     so the next sign-in heals automatically.
+  ///   * **other PostgrestException** — rethrown so the UI can
+  ///     surface a real error.
   Future<List<InviteRow>> listInvites(String programId) async {
     try {
       final rows = await _client
@@ -107,15 +124,20 @@ class InviteRepository {
           InviteRow.fromJson(r),
       ];
     } on PostgrestException catch (e) {
-      // Same migration-not-applied case as createInvite. Return
-      // an empty list with the structured error wrapped — the UI
-      // shows a "set this up" affordance instead of a stack trace.
       if (e.code == 'PGRST205' || e.code == '42P01') {
         throw const InviteSetupError(
           'Invites aren’t set up on the server yet. Apply '
           'migration 0012_program_invites.sql in the Supabase '
           'dashboard.',
         );
+      }
+      if (e.code == '42501') {
+        // Cloud RLS denied SELECT — the user's `program_members`
+        // row in cloud doesn't reflect admin role even though the
+        // local copy thinks it does. Return empty so the UI
+        // doesn't crash; the next bootstrap re-runs the membership
+        // upsert which fixes the underlying mismatch.
+        return const <InviteRow>[];
       }
       rethrow;
     }

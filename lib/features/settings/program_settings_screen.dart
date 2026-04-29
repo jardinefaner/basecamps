@@ -1,5 +1,7 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/auth/auth_repository.dart';
+import 'package:basecamp/features/programs/program_bootstrap.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/settings/program_settings.dart';
 import 'package:basecamp/features/sync/sync_card.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -92,16 +94,18 @@ class _SettingsTab extends ConsumerWidget {
   }
 }
 
-class _SyncTab extends StatelessWidget {
+class _SyncTab extends ConsumerWidget {
   const _SyncTab();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
         const SyncCard(),
+        const SizedBox(height: AppSpacing.lg),
+        const _ReconnectMembershipCard(),
         const SizedBox(height: AppSpacing.lg),
         AppCard(
           child: Column(
@@ -159,6 +163,102 @@ class _SyncTab extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Heal action for the "I'm admin locally but cloud thinks I'm not"
+/// state — re-runs the bootstrap's program + membership upsert so
+/// the user's role + membership row in cloud matches what local
+/// has. Shows up on a 403 from program_invites or any other
+/// admin-gated read; users who never need it can ignore the card.
+class _ReconnectMembershipCard extends ConsumerStatefulWidget {
+  const _ReconnectMembershipCard();
+
+  @override
+  ConsumerState<_ReconnectMembershipCard> createState() =>
+      _ReconnectMembershipCardState();
+}
+
+class _ReconnectMembershipCardState
+    extends ConsumerState<_ReconnectMembershipCard> {
+  bool _busy = false;
+  String? _result;
+
+  Future<void> _run() async {
+    final activeId = ref.read(activeProgramIdProvider);
+    if (activeId == null) return;
+    setState(() {
+      _busy = true;
+      _result = null;
+    });
+    try {
+      await ref
+          .read(programAuthBootstrapProvider)
+          .reconnectMembership(activeId);
+      if (!mounted) return;
+      setState(() {
+        _result = '✓ Membership reconnected.';
+      });
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _result = '✗ Failed: $e';
+      });
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Reconnect membership',
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'If creating invites or admin actions are erroring with '
+            '403, your cloud membership row may be out of sync with '
+            'this device. Re-pushes the program + membership rows so '
+            'cloud RLS matches your local admin role.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: _busy ? null : _run,
+              icon: _busy
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.cloud_sync_outlined, size: 18),
+              label: Text(_busy ? 'Reconnecting…' : 'Reconnect now'),
+            ),
+          ),
+          if (_result != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              _result!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: _result!.startsWith('✗')
+                    ? theme.colorScheme.error
+                    : theme.colorScheme.primary,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

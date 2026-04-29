@@ -230,6 +230,23 @@ class ProgramAuthBootstrap {
     await prefs.setString(_kLastSignedInUserIdKey, userId);
   }
 
+  /// Public wrapper around [_ensureProgramAndMembershipInCloud]
+  /// for UI-driven heal flows. Throws on failure so the calling
+  /// surface (e.g. a "Reconnect membership" button on the Sync
+  /// tab) can show the actual server error to the user instead
+  /// of silently retrying on next launch.
+  Future<void> reconnectMembership(String programId) async {
+    final session = _ref.read(currentSessionProvider);
+    if (session == null) {
+      throw StateError('Not signed in.');
+    }
+    await _ensureProgramAndMembershipInCloud(
+      programId: programId,
+      userId: session.user.id,
+      rethrowOnError: true,
+    );
+  }
+
   /// Mirrors the active program + this user's membership row to
   /// Supabase on every launch. Idempotent: both writes are upserts
   /// against composite PKs, so re-running is a no-op when nothing
@@ -253,6 +270,7 @@ class ProgramAuthBootstrap {
   Future<void> _ensureProgramAndMembershipInCloud({
     required String programId,
     required String userId,
+    bool rethrowOnError = false,
   }) async {
     try {
       final db = _ref.read(databaseProvider);
@@ -319,6 +337,7 @@ class ProgramAuthBootstrap {
       // Network failure, RLS rejection, etc. The next launch retries
       // because we no longer guard with a SharedPreferences flag.
       debugPrint('Ensure program/membership in cloud failed: $e');
+      if (rethrowOnError) rethrow;
     }
   }
 
