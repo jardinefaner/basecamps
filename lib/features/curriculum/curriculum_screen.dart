@@ -1,6 +1,7 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/lesson_sequences/lesson_sequences_repository.dart';
+import 'package:basecamp/features/lesson_sequences/widgets/edit_lesson_sequence_sheet.dart';
 import 'package:basecamp/features/themes/themes_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
@@ -71,13 +72,23 @@ class _CurriculumScreenState extends ConsumerState<CurriculumScreen> {
           loading: () => const Text('Curriculum'),
           error: (_, _) => const Text('Curriculum'),
         ),
+        actions: [
+          // "+ Add week" — creates a new lesson sequence pre-
+          // attached to this theme. Lands the user back here
+          // after save with the new week selected.
+          IconButton(
+            tooltip: 'Add week',
+            icon: const Icon(Icons.add),
+            onPressed: () => _addWeek(context),
+          ),
+        ],
       ),
       body: sequencesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => Center(child: Text('Error: $err')),
         data: (sequences) {
           if (sequences.isEmpty) {
-            return const _EmptyState();
+            return _EmptyState(onAddWeek: () => _addWeek(context));
           }
           // Clamp the selected week — sequences may have shrunk
           // under us (delete from another screen).
@@ -117,6 +128,7 @@ class _CurriculumScreenState extends ConsumerState<CurriculumScreen> {
                   ageScalingOn: _ageScalingOn,
                   scaleAge: _scaleAge,
                   engineOn: _engineOn,
+                  onEditWeek: () => _editWeek(context, sequence),
                 ),
               ),
             ],
@@ -133,10 +145,40 @@ class _CurriculumScreenState extends ConsumerState<CurriculumScreen> {
     return _parseHex(theme?.colorHex) ??
         Theme.of(context).colorScheme.primary;
   }
+
+  /// Open the rich-sequence edit sheet pre-attached to this
+  /// theme. After save we reload via the stream — no manual
+  /// state poke needed.
+  Future<void> _addWeek(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => EditLessonSequenceSheet(
+        defaultThemeId: widget.themeId,
+      ),
+    );
+  }
+
+  /// Edit the currently-selected week's metadata. Same sheet,
+  /// passing `sequence:` so it reads as edit.
+  Future<void> _editWeek(
+    BuildContext context,
+    LessonSequence sequence,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => EditLessonSequenceSheet(sequence: sequence),
+    );
+  }
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  const _EmptyState({required this.onAddWeek});
+
+  final VoidCallback onAddWeek;
 
   @override
   Widget build(BuildContext context) {
@@ -154,17 +196,23 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.md),
             Text(
-              'No sequences yet',
+              'No weeks yet',
               style: theme.textTheme.titleMedium,
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Add lesson sequences and tag them with this theme '
-              'to see a multi-week arc here.',
+              'Add the first week of your curriculum, or import a '
+              'bundled template from the Curriculum screen.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            FilledButton.icon(
+              onPressed: onAddWeek,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Add a week'),
             ),
           ],
         ),
@@ -503,6 +551,7 @@ class _WeekDetail extends ConsumerWidget {
     required this.ageScalingOn,
     required this.scaleAge,
     required this.engineOn,
+    required this.onEditWeek,
   });
 
   final bool engineOn;
@@ -511,6 +560,7 @@ class _WeekDetail extends ConsumerWidget {
   final Color accent;
   final bool ageScalingOn;
   final int scaleAge;
+  final VoidCallback onEditWeek;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -529,14 +579,25 @@ class _WeekDetail extends ConsumerWidget {
             AppSpacing.xxxl,
           ),
           children: [
-            // Title strip: week number + sequence name.
-            Text(
-              'Week $weekNumber',
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: accent,
-                letterSpacing: 1.2,
-                fontWeight: FontWeight.w700,
-              ),
+            // Title strip: week number + sequence name + edit pen.
+            Row(
+              children: [
+                Text(
+                  'Week $weekNumber',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: accent,
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Edit week',
+                  iconSize: 18,
+                  onPressed: onEditWeek,
+                  icon: const Icon(Icons.edit_outlined),
+                ),
+              ],
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
