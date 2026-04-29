@@ -104,17 +104,25 @@ class _Body extends StatelessWidget {
     );
   }
 
-  /// Cards authored for [date]'s weekday (1..5 = Mon..Fri). Saturday
-  /// and Sunday return empty — the curriculum view doesn't author
-  /// weekend cards. Empty also when the sequence has no `dailyByWeekday`
-  /// for today (most weeks won't have all five days populated).
+  /// All of this week's daily rituals — not filtered by weekday.
+  /// Curriculum daily rituals are *parallel daily practices* (every
+  /// ritual happens every day of the week), so "today's curriculum"
+  /// is the full set, not a single day's slice. The `dayOfWeek` on
+  /// each item is now an ordinal position used to keep the order
+  /// stable; we sort by it but don't render it.
   static List<SequenceItemWithLibrary> _todayCards(
     CurriculumDay day,
     DateTime date,
   ) {
     final arc = day.arc;
     if (arc == null) return const [];
-    return arc.dailyByWeekday[date.weekday] ?? const [];
+    final out = <SequenceItemWithLibrary>[];
+    for (var d = 1; d <= 5; d++) {
+      final items = arc.dailyByWeekday[d];
+      if (items != null) out.addAll(items);
+    }
+    out.addAll(arc.dailyUnscheduled);
+    return out;
   }
 }
 
@@ -317,7 +325,7 @@ class _TodayCardsList extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.sm),
               Text(
-                "TODAY'S CURRICULUM",
+                'DAILY RITUALS',
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                   letterSpacing: 0.8,

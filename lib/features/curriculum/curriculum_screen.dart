@@ -658,36 +658,50 @@ class _WeekDetail extends ConsumerWidget {
             const SizedBox(height: AppSpacing.xl),
 
             // Daily section header.
+            //
+            // Daily rituals are *parallel practices* — all of them
+            // happen every day of the week. The previous Mon..Fri
+            // column layout implied weekday-pinning ("Smell Walk
+            // only on Mondays") which is the opposite of what
+            // curricula like Different World prescribe ("Smell Walk
+            // every day, naming a different smell each day"). The
+            // model commits to parallel-daily: `dayOfWeek` is now
+            // ordinal position (ritual #1, #2, …) used for stable
+            // ordering only. Day-specific scheduling lives in the
+            // Schedule, not here.
             Text(
               'Daily rituals',
               style: theme.textTheme.titleSmall,
             ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'All rituals run every day of the week. Tap to edit; '
+              'long-press for more.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: AppSpacing.sm),
-
-            // Mon..Fri columns. We always render the 5 weekday
-            // slots — even empty ones — so the teacher sees the
-            // full skeleton of the week and can spot a gap.
-            for (int day = 1; day <= 5; day++)
-              _DayBlock(
-                weekday: day,
-                items: arc.dailyByWeekday[day] ?? const [],
-                ageScalingOn: ageScalingOn,
-                scaleAge: scaleAge,
-                onAddRitual: () =>
-                    _addRitual(context, ref, sequence.id, day),
+            // Flat list — items pinned 1..5 sorted by their ordinal,
+            // then any unscheduled (no-position-yet) items appended.
+            _DailyRitualsList(arc: arc, ageScalingOn: ageScalingOn, scaleAge: scaleAge),
+            const SizedBox(height: AppSpacing.sm),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () =>
+                    _addRitual(context, ref, sequence.id, arc),
+                icon: const Icon(Icons.add, size: 14),
+                label: const Text('Add ritual'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
               ),
-
-            if (arc.dailyUnscheduled.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.md),
-              _DayBlock(
-                weekday: null,
-                items: arc.dailyUnscheduled,
-                ageScalingOn: ageScalingOn,
-                scaleAge: scaleAge,
-                onAddRitual: () =>
-                    _addRitual(context, ref, sequence.id, null),
-              ),
-            ],
+            ),
 
             const SizedBox(height: AppSpacing.xl),
 
@@ -709,13 +723,18 @@ class _WeekDetail extends ConsumerWidget {
   /// Two-step "add ritual" flow:
   ///   1. Open the rich library-card editor with empty state.
   ///   2. On save, the sheet returns the new library item id.
-  ///   3. Link the card into this sequence as a daily ritual on
-  ///      [weekday] (1..5; null bucket = "Anytime this week").
+  ///   3. Link the card into this sequence as a daily ritual at
+  ///      the next ordinal position (existing daily count + 1).
+  ///
+  /// Position is stored in `dayOfWeek` for backward compatibility —
+  /// the field used to mean "the weekday this happens" but now
+  /// means "this is the Nth ritual." That keeps the schema stable
+  /// while the UX shift lands.
   Future<void> _addRitual(
     BuildContext context,
     WidgetRef ref,
     String sequenceId,
-    int? weekday,
+    WeekArc arc,
   ) async {
     final newId = await showModalBottomSheet<String>(
       context: context,
@@ -724,10 +743,16 @@ class _WeekDetail extends ConsumerWidget {
       builder: (_) => const EditLibraryItemSheet(),
     );
     if (newId == null || !context.mounted) return;
+    final dailyCount = arc.dailyByWeekday.values
+            .fold<int>(0, (acc, list) => acc + list.length) +
+        arc.dailyUnscheduled.length;
     await ref.read(lessonSequencesRepositoryProvider).addItem(
           sequenceId: sequenceId,
           libraryItemId: newId,
-          dayOfWeek: weekday,
+          // Next ordinal position. Capped at 5 to fit the existing
+          // 1..5 schema range; rituals beyond five fall into the
+          // unscheduled bucket and still render in the flat list.
+          dayOfWeek: dailyCount < 5 ? dailyCount + 1 : null,
         );
   }
 
@@ -853,105 +878,63 @@ class _EngineNotesPanel extends StatelessWidget {
   }
 }
 
-class _DayBlock extends StatelessWidget {
-  const _DayBlock({
-    required this.weekday,
-    required this.items,
+/// Flat list of daily ritual cards — replaces the old per-weekday
+/// column layout. Items pinned 1..5 sort by their ordinal first;
+/// any items with no ordinal (the legacy "anytime" bucket) fall
+/// after them. Empty state renders a one-liner instead of a 5-row
+/// scaffold of dashes.
+class _DailyRitualsList extends StatelessWidget {
+  const _DailyRitualsList({
+    required this.arc,
     required this.ageScalingOn,
     required this.scaleAge,
-    required this.onAddRitual,
   });
 
-  /// 1..5 (Mon..Fri) or null for the "Anytime this week" bucket.
-  final int? weekday;
-  final List<SequenceItemWithLibrary> items;
+  final WeekArc arc;
   final bool ageScalingOn;
   final int scaleAge;
-
-  /// Tapping the trailing "+" on this day opens the new-card
-  /// flow with [weekday] pre-bound. Authoring entry point.
-  final VoidCallback onAddRitual;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final label = weekday == null ? 'Anytime' : _weekdayName(weekday!);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Fixed-width day label so the body cards line up.
-          SizedBox(
-            width: 64,
-            child: Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.md),
-              child: Text(
-                label.toUpperCase(),
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  letterSpacing: 1.2,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+    final ordered = <SequenceItemWithLibrary>[];
+    for (var d = 1; d <= 5; d++) {
+      final items = arc.dailyByWeekday[d];
+      if (items != null) ordered.addAll(items);
+    }
+    ordered.addAll(arc.dailyUnscheduled);
+    if (ordered.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        child: Text(
+          'No daily rituals yet.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final entry in ordered)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: _ActivityCardTile(
+              entry: entry,
+              ageScalingOn: ageScalingOn,
+              scaleAge: scaleAge,
             ),
           ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (items.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: AppSpacing.xs,
-                    ),
-                    child: Text(
-                      '—',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.outline,
-                      ),
-                    ),
-                  )
-                else
-                  for (final entry in items)
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        bottom: AppSpacing.sm,
-                      ),
-                      child: _ActivityCardTile(
-                        entry: entry,
-                        ageScalingOn: ageScalingOn,
-                        scaleAge: scaleAge,
-                      ),
-                    ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: onAddRitual,
-                    icon: const Icon(Icons.add, size: 14),
-                    label: const Text('Add ritual'),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm,
-                      ),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
-
-  static String _weekdayName(int day) {
-    const names = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return day >= 1 && day <= 7 ? names[day] : 'Day $day';
-  }
 }
+
+// _DayBlock + _weekdayName removed in the parallel-daily refactor —
+// daily rituals are no longer grouped by weekday in the authoring
+// view. _DailyRitualsList above is the replacement.
 
 class _MilestoneSection extends StatelessWidget {
   const _MilestoneSection({
@@ -1135,9 +1118,12 @@ class _ActivityCardTile extends ConsumerWidget {
     );
   }
 
-  /// Long-press menu — change weekday, convert daily↔milestone,
-  /// or unlink the card from this week (without deleting the
-  /// underlying library row, so it stays available for reuse).
+  /// Long-press menu — convert daily↔milestone, schedule the card
+  /// onto an actual day, or unlink it from this week. The earlier
+  /// "move to Mon/Tue/…/Fri/Anytime" options are gone since daily
+  /// rituals are now parallel practices (no per-weekday slot to
+  /// move to). `dayOfWeek` is still set internally as ordinal
+  /// position, just no longer surfaced as a UX concept here.
   Future<void> _openItemMenu(
     BuildContext context,
     WidgetRef ref,
@@ -1153,20 +1139,6 @@ class _ActivityCardTile extends ConsumerWidget {
     switch (action) {
       case _ItemAction.removeFromWeek:
         await repo.deleteItem(item.id);
-      case _ItemAction.toMon:
-      case _ItemAction.toTue:
-      case _ItemAction.toWed:
-      case _ItemAction.toThu:
-      case _ItemAction.toFri:
-        await repo.updateItemMetadata(
-          id: item.id,
-          dayOfWeek: Value(action.weekday),
-        );
-      case _ItemAction.toAnytime:
-        await repo.updateItemMetadata(
-          id: item.id,
-          dayOfWeek: const Value(null),
-        );
       case _ItemAction.toMilestone:
         await repo.updateItemMetadata(
           id: item.id,
@@ -1181,17 +1153,14 @@ class _ActivityCardTile extends ConsumerWidget {
       case _ItemAction.schedule:
         // Push the same wizard the activity-library "Schedule" button
         // pushes — pre-fills title, hook, default duration, etc. from
-        // the linked library card. Seeds the wizard's recurring
-        // weekday set from the curriculum item's `dayOfWeek` when set
-        // (a Monday ritual schedules every Monday by default; the
-        // teacher can narrow to a single day inside the wizard).
+        // the linked library card. No weekday seed: parallel-daily
+        // rituals run every day, so let the teacher pick the actual
+        // weekdays to schedule on inside the wizard.
         await Navigator.of(context).push<void>(
           MaterialPageRoute(
             fullscreenDialog: true,
             builder: (_) => NewActivityWizardScreen(
               initialLibraryItem: entry.library,
-              initialDays:
-                  item.dayOfWeek == null ? null : {item.dayOfWeek!},
             ),
           ),
         );
@@ -1202,12 +1171,6 @@ class _ActivityCardTile extends ConsumerWidget {
 /// Bottom-sheet picker for quick edits on a sequence item's
 /// timing without going through a full edit form.
 enum _ItemAction {
-  toMon,
-  toTue,
-  toWed,
-  toThu,
-  toFri,
-  toAnytime,
   toMilestone,
   toDaily,
   /// Schedule from curriculum — opens the activity wizard pre-filled
@@ -1218,28 +1181,7 @@ enum _ItemAction {
   /// doing it"; a teacher routinely tweaks one without meaning the
   /// other).
   schedule,
-  removeFromWeek;
-
-  int? get weekday {
-    switch (this) {
-      case _ItemAction.toMon:
-        return 1;
-      case _ItemAction.toTue:
-        return 2;
-      case _ItemAction.toWed:
-        return 3;
-      case _ItemAction.toThu:
-        return 4;
-      case _ItemAction.toFri:
-        return 5;
-      case _ItemAction.toAnytime:
-      case _ItemAction.toMilestone:
-      case _ItemAction.toDaily:
-      case _ItemAction.schedule:
-      case _ItemAction.removeFromWeek:
-        return null;
-    }
-  }
+  removeFromWeek,
 }
 
 class _ItemActionMenu extends StatelessWidget {
@@ -1261,36 +1203,11 @@ class _ItemActionMenu extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Move to weekday',
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Wrap(
-              spacing: AppSpacing.xs,
-              children: [
-                for (final entry in const [
-                  ('Mon', _ItemAction.toMon),
-                  ('Tue', _ItemAction.toTue),
-                  ('Wed', _ItemAction.toWed),
-                  ('Thu', _ItemAction.toThu),
-                  ('Fri', _ItemAction.toFri),
-                  ('Anytime', _ItemAction.toAnytime),
-                ])
-                  ChoiceChip(
-                    label: Text(entry.$1),
-                    selected: !isMilestone &&
-                        item.dayOfWeek == entry.$2.weekday &&
-                        (entry.$2 != _ItemAction.toAnytime ||
-                            item.dayOfWeek == null),
-                    onSelected: (_) =>
-                        Navigator.of(context).pop(entry.$2),
-                  ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.lg),
+            // Type toggle — daily ritual vs. weekly milestone. Daily
+            // rituals run every day of the week; the weekly
+            // milestone is the Friday share-out / capstone. (The
+            // earlier "move to Mon/Tue/…/Fri" chip row was retired
+            // when daily rituals stopped being weekday-pinned.)
             Text(
               'Type',
               style: theme.textTheme.titleSmall?.copyWith(
