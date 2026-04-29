@@ -96,6 +96,7 @@ class AppDatabase extends _$AppDatabase {
           await _healProgramIdColumns();
           await _healCurriculumArcColumns();
           await _healRoleBlockTables();
+          await _healScheduleTemplateColumns();
         },
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
@@ -1243,6 +1244,29 @@ class AppDatabase extends _$AppDatabase {
       'CREATE INDEX IF NOT EXISTS '
       '"idx_adult_role_block_overrides_adult_date" '
       'ON "adult_role_block_overrides" ("adult_id", "date")',
+    );
+  }
+
+  /// Re-apply additive ALTERs on `schedule_templates` every launch.
+  /// A teacher's phone hit:
+  ///
+  ///   SqliteException: table schedule_templates has no column
+  ///   named adult_name
+  ///
+  /// when the sync engine tried to upsert a cloud row carrying
+  /// `adult_name`. The column exists in the Drift @DataClass and
+  /// in cloud rows, but their device was created at a schema
+  /// version that didn't have it and no `onUpgrade` block ever
+  /// added it. The pull transaction rolled back; schedule_templates
+  /// stopped syncing entirely on that device.
+  ///
+  /// Same idiom as [_healProgramIdColumns] / [_healCurriculumArcColumns]:
+  /// idempotent ALTERs that no-op once the column exists. Cheap on
+  /// healthy DBs, lifesaver on partial-upgrade ones.
+  Future<void> _healScheduleTemplateColumns() async {
+    await _runSilent(
+      'ALTER TABLE "schedule_templates" '
+      'ADD COLUMN "adult_name" TEXT NULL',
     );
   }
 
