@@ -127,5 +127,36 @@ ThemeData _buildTheme(ColorScheme colorScheme) {
       ),
       elevation: 0,
     ),
+    // Floating snackbars across the app. The default
+    // SnackBarBehavior.fixed paints a full-width bar at the bottom
+    // of the screen that occludes whatever lives there — most
+    // notably the FAB on Today (the "Add" button) and the
+    // sticky-action-sheet save buttons on every modal editor. A
+    // teacher tapping save → snackbar → can't tap the same area
+    // again until the snackbar dismisses is a real productivity
+    // bite. With behavior: floating, Material 3 automatically
+    // nudges any visible FAB up to make room AND clips the bar
+    // to a margin so it doesn't span the full bottom edge.
+    //
+    // Margin leaves the bar inset from the screen edge so a
+    // dismissed snackbar doesn't scrub past underlying buttons on
+    // the swipe path. 16dp matches the FAB inset Material uses by
+    // default.
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      backgroundColor: colorScheme.inverseSurface,
+      contentTextStyle: textTheme.bodyMedium?.copyWith(
+        color: colorScheme.onInverseSurface,
+      ),
+      actionTextColor: colorScheme.inversePrimary,
+      // Inset so the floating bar doesn't span the full width on
+      // tablet — leaves room for the FAB on Today and any
+      // permanent sidebar to remain tappable beside it.
+      insetPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      elevation: 1,
+    ),
   );
 }
