@@ -1082,6 +1082,11 @@ class _DestinationData {
       path: '/more/themes',
     ),
     _DestinationData(
+      label: 'Curriculum',
+      icon: Icons.auto_stories_outlined,
+      path: '/more/themes/templates',
+    ),
+    _DestinationData(
       label: 'Observe',
       icon: Icons.visibility_outlined,
       path: '/observations',
