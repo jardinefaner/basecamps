@@ -244,6 +244,49 @@ class SyncEngine {
       // once the bootstrap-backfill stamps it.
       if (row['program_id'] == null) return;
 
+      // Pre-push freshness check. Without this, two devices
+      // editing the same row blindly upsert past each other —
+      // last writer wins and the earlier device's changes are
+      // silently lost. Fetch the cloud row's updated_at; if
+      // cloud is newer than our local copy, abort the push and
+      // pull instead so local catches up. Best-effort: if the
+      // freshness check itself errors (RLS, network blip, the
+      // row doesn't exist yet), fall through to the upsert
+      // rather than silently skipping every push.
+      final localUpdatedAt = _parseUpdatedAt(row['updated_at']);
+      if (localUpdatedAt != null) {
+        final cloudUpdatedAt = await _readCloudUpdatedAt(
+          client,
+          spec.table,
+          id,
+        );
+        if (cloudUpdatedAt != null &&
+            cloudUpdatedAt.isAfter(localUpdatedAt)) {
+          // Cloud has a newer version. Don't overwrite. Trigger
+          // a pull to bring local up to date, and emit a
+          // conflict event so the UI can surface the avoided
+          // overwrite.
+          if (!_conflictController.isClosed) {
+            _conflictController.add(SyncConflict(
+              table: spec.table,
+              rowId: id,
+              localUpdatedAt: localUpdatedAt,
+              remoteUpdatedAt: cloudUpdatedAt,
+              detectedVia: 'push-precheck',
+            ));
+          }
+          final pid = row['program_id'];
+          if (pid is String) {
+            unawaited(pullTable(
+              spec: spec,
+              programId: pid,
+              force: true,
+            ));
+          }
+          return;
+        }
+      }
+
       await client.from(spec.table).upsert(
             _toCloudShape(row, spec.dateColumns),
           );
@@ -255,19 +298,35 @@ class SyncEngine {
           id,
         );
 
-        // Skip the delete + insert pair entirely when the
-        // cascade payload hasn't changed since our last push.
-        // Real bandwidth save when the parent is being re-pushed
-        // for an unrelated reason (e.g. editing the parent
-        // observation's note while the same set of kids stays
-        // tagged). Fingerprint is a stable serialization of the
-        // cascade rows; memory cache empties on app restart, so
-        // a fresh launch's first push always pays the full cost
-        // once and caches from there.
         final fingerprintKey =
             '${cascade.table}/${cascade.parentColumn}/$id';
         final fingerprint = _fingerprintRows(cascadeRows);
         if (_lastCascadeFingerprint[fingerprintKey] == fingerprint) {
+          // Cascade payload unchanged since our last push — skip
+          // the delete+insert. Real bandwidth save on parent re-
+          // pushes that don't touch cascades.
+          continue;
+        }
+
+        // Cold-start safety: on the first push of this cascade
+        // since app launch (no fingerprint cached) AND local has
+        // zero cascade rows, refuse to wholesale-DELETE cloud's
+        // existing rows. The most likely interpretation of "I'm
+        // editing the parent + I have no cascades locally" is
+        // "I never pulled the cascades" — not "I deliberately
+        // emptied them." Wiping cloud's cascades in that case
+        // is silent data loss for the other device that *did*
+        // author them. The user can still legitimately empty a
+        // cascade by removing the rows on this device first
+        // (which sets the fingerprint to the empty hash); this
+        // guard only kicks in on the very first cold-start push.
+        if (_lastCascadeFingerprint[fingerprintKey] == null &&
+            cascadeRows.isEmpty) {
+          // Mark the fingerprint so subsequent pushes proceed
+          // normally — by then we've either pulled cloud's
+          // cascades into local or the user genuinely emptied
+          // them locally.
+          _lastCascadeFingerprint[fingerprintKey] = fingerprint;
           continue;
         }
 
@@ -647,6 +706,47 @@ class SyncEngine {
         'Realtime apply failed for ${spec.table}: $e\n$st',
       );
     }
+  }
+
+  /// Read `updated_at` from the cloud row for [id] in [table].
+  /// Returns null if the row doesn't exist in cloud (a brand-new
+  /// local row that's never been pushed) or the read fails (RLS,
+  /// network). Used by the pre-push freshness check to decide
+  /// whether to overwrite the cloud row or pull instead.
+  Future<DateTime?> _readCloudUpdatedAt(
+    SupabaseClient client,
+    String table,
+    String id,
+  ) async {
+    try {
+      final raw = await client
+          .from(table)
+          .select('updated_at')
+          .eq('id', id)
+          .maybeSingle();
+      if (raw == null) return null;
+      final ts = raw['updated_at'];
+      if (ts is String) return DateTime.parse(ts).toUtc();
+      return null;
+    } on Object catch (e) {
+      debugPrint('Cloud updated_at read failed for $table/$id: $e');
+      return null;
+    }
+  }
+
+  /// Coerce a row's `updated_at` into a UTC DateTime. Drift hands
+  /// back int unix-seconds for date columns; cloud rows arrive as
+  /// ISO strings. Both shapes flow through this helper.
+  DateTime? _parseUpdatedAt(Object? value) {
+    if (value == null) return null;
+    if (value is DateTime) return value.toUtc();
+    if (value is int) {
+      return DateTime.fromMillisecondsSinceEpoch(value * 1000, isUtc: true);
+    }
+    if (value is String) {
+      return DateTime.tryParse(value)?.toUtc();
+    }
+    return null;
   }
 
   /// Reads `updated_at` for one row (Drift returns it as int unix
