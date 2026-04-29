@@ -15,7 +15,6 @@ import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
-import 'package:basecamp/ui/responsive.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,20 +22,57 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Profile + schedule surface for a single adult. Header shows
-/// their avatar and contact info; below it sits a weekly list of the
-/// blocks they're available plus every activity they currently run.
-/// A "+ Add activity" button pre-fills this adult into the
-/// activity wizard so teachers can schedule them without leaving the
-/// context.
-class AdultDetailScreen extends ConsumerWidget {
+/// Profile + schedule surface for a single adult. Two tabs:
+///
+///   * **Profile** — avatar, contact info (tap-to-call / tap-to-email),
+///     "also a parent" bridge, and the free-form notes field. The
+///     "who is this person" half.
+///
+///   * **Schedule** — data-issue banners, today's blocks, the weekly
+///     availability grid, the per-weekday plan + date overrides, and
+///     "what they run". The "when do they work and on what" half. The
+///     FAB to add a new activity (pre-filled with this adult) lives
+///     here too.
+///
+/// Splitting these used to be one tall scroll — every section stacked
+/// in one ListView with a 40/60 column break on wide screens. The
+/// page kept growing (data issues, availability grid, day plan +
+/// overrides, assignments) until the profile fields at the top were
+/// half a screen away from anything actionable. Tabs cap the scroll at
+/// "one logical thing" each.
+class AdultDetailScreen extends ConsumerStatefulWidget {
   const AdultDetailScreen({required this.adultId, super.key});
 
   final String adultId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
+  ConsumerState<AdultDetailScreen> createState() =>
+      _AdultDetailScreenState();
+}
+
+class _AdultDetailScreenState extends ConsumerState<AdultDetailScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs = TabController(length: 2, vsync: this);
+
+  @override
+  void initState() {
+    super.initState();
+    // FAB is Schedule-only, so rebuild on tab change to show / hide it.
+    _tabs.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  String get adultId => widget.adultId;
+
+  @override
+  Widget build(BuildContext context) {
     final adultAsync = ref.watch(adultProvider(adultId));
 
     return Scaffold(
@@ -53,17 +89,26 @@ class AdultDetailScreen extends ConsumerWidget {
             orElse: () => const SizedBox.shrink(),
           ),
         ],
+        bottom: TabBar(
+          controller: _tabs,
+          tabs: const [
+            Tab(text: 'Profile'),
+            Tab(text: 'Schedule'),
+          ],
+        ),
       ),
-      floatingActionButton: adultAsync.maybeWhen(
-        data: (s) => s == null
-            ? null
-            : FloatingActionButton.extended(
-                onPressed: () => _openAddActivity(context, s),
-                icon: const Icon(Icons.add),
-                label: const Text('Add activity'),
-              ),
-        orElse: () => null,
-      ),
+      floatingActionButton: _tabs.index == 1
+          ? adultAsync.maybeWhen(
+              data: (s) => s == null
+                  ? null
+                  : FloatingActionButton.extended(
+                      onPressed: () => _openAddActivity(context, s),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add activity'),
+                    ),
+              orElse: () => null,
+            )
+          : null,
       body: adultAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => Center(child: Text('Error: $err')),
@@ -71,98 +116,18 @@ class AdultDetailScreen extends ConsumerWidget {
           if (s == null) {
             return const Center(child: Text('Adult not found'));
           }
-          // Identity column — header + contact rows + parent bridge.
-          // Left column on wide, leads the stack on narrow.
-          final identity = Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          return TabBarView(
+            controller: _tabs,
             children: [
-              _Header(adult: s, onEdit: () => _openEdit(context, s)),
-              // v40: tap-to-call / tap-to-email + "also a parent"
-              // badge. Each row is its own widget so the whole block
-              // collapses cleanly when a field is unset.
-              _ContactSection(adult: s),
-              _AlsoParentBadge(adult: s),
-            ],
-          );
-
-          // Body — the heavyweight half of this screen: data issues,
-          // today's blocks, availability grid, "what they run", notes.
-          final bodySections = <Widget>[
-            _DataIssuesCard(adult: s),
-            _TodayBlocksSection(adultId: adultId),
-            const SizedBox(height: AppSpacing.lg),
-            _AvailabilitySection(adultId: adultId),
-            const SizedBox(height: AppSpacing.lg),
-            _DayPlanSection(adultId: adultId),
-            const SizedBox(height: AppSpacing.lg),
-            _AssignedActivitiesSection(
-              adultId: adultId,
-              onItemTap: (item) => _openTemplate(context, ref, item),
-            ),
-            if ((s.notes ?? '').trim().isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.lg),
-              AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Notes', style: theme.textTheme.titleMedium),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(s.notes!, style: theme.textTheme.bodyMedium),
-                  ],
-                ),
+              _ProfileTab(
+                adult: s,
+                onEdit: () => _openEdit(context, s),
+              ),
+              _ScheduleTab(
+                adultId: adultId,
+                onItemTap: (item) => _openTemplate(context, ref, item),
               ),
             ],
-          ];
-
-          return BreakpointBuilder(
-            builder: (context, breakpoint) {
-              if (breakpoint.index < Breakpoint.expanded.index) {
-                return ListView(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.lg,
-                    AppSpacing.lg,
-                    AppSpacing.lg,
-                    AppSpacing.xxxl * 2,
-                  ),
-                  children: [
-                    identity,
-                    const SizedBox(height: AppSpacing.xl),
-                    ...bodySections,
-                  ],
-                );
-              }
-              // Wide: adult detail has a heavy "Today's blocks" +
-              // availability + assignments stack on the right. 40/60
-              // reserves enough for the time-grid rows without cramping
-              // the header.
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.lg,
-                  AppSpacing.lg,
-                  AppSpacing.lg,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 40,
-                      child: SingleChildScrollView(child: identity),
-                    ),
-                    const SizedBox(width: AppSpacing.xl),
-                    Expanded(
-                      flex: 60,
-                      child: ListView(
-                        padding: const EdgeInsets.only(
-                          bottom: AppSpacing.xxxl,
-                        ),
-                        children: bodySections,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
           );
         },
       ),
@@ -203,6 +168,98 @@ class AdultDetailScreen extends ConsumerWidget {
       showDragHandle: true,
       isDismissible: false,
       builder: (_) => EditTemplateSheet(template: template),
+    );
+  }
+}
+
+/// Profile tab body — identity + contact + parent bridge + notes.
+/// Notes used to live at the bottom of the schedule scroll; pulling
+/// them up here means a teacher reading "who is this person" sees the
+/// note next to the contact rows where it actually belongs.
+class _ProfileTab extends StatelessWidget {
+  const _ProfileTab({required this.adult, required this.onEdit});
+
+  final Adult adult;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final notes = (adult.notes ?? '').trim();
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.xxxl * 2,
+      ),
+      children: [
+        _Header(adult: adult, onEdit: onEdit),
+        _ContactSection(adult: adult),
+        _AlsoParentBadge(adult: adult),
+        if (notes.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.xl),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Notes', style: theme.textTheme.titleMedium),
+                const SizedBox(height: AppSpacing.sm),
+                Text(notes, style: theme.textTheme.bodyMedium),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Schedule tab body — every working / availability section in one
+/// scroll. A wide-screen 40/60 split was the old way of getting
+/// schedule + identity side-by-side; tabs make the split obsolete
+/// (each tab uses the full width on every breakpoint).
+class _ScheduleTab extends StatelessWidget {
+  const _ScheduleTab({
+    required this.adultId,
+    required this.onItemTap,
+  });
+
+  final String adultId;
+  final void Function(ScheduleItem item) onItemTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.xxxl * 2,
+      ),
+      children: [
+        // _DataIssuesCard renders an empty SizedBox when there are no
+        // issues, so it costs nothing in the common case but pops to
+        // the top the moment something needs attention.
+        Consumer(
+          builder: (_, ref, _) {
+            final adultAsync = ref.watch(adultProvider(adultId));
+            final s = adultAsync.asData?.value;
+            if (s == null) return const SizedBox.shrink();
+            return _DataIssuesCard(adult: s);
+          },
+        ),
+        _TodayBlocksSection(adultId: adultId),
+        const SizedBox(height: AppSpacing.lg),
+        _AvailabilitySection(adultId: adultId),
+        const SizedBox(height: AppSpacing.lg),
+        _DayPlanSection(adultId: adultId),
+        const SizedBox(height: AppSpacing.lg),
+        _AssignedActivitiesSection(
+          adultId: adultId,
+          onItemTap: onItemTap,
+        ),
+      ],
     );
   }
 }
