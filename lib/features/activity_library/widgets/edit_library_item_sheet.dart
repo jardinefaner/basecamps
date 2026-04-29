@@ -32,24 +32,43 @@ class _EditLibraryItemSheetState
       TextEditingController(text: widget.item?.notes ?? '');
   late final _materialsController =
       TextEditingController(text: widget.item?.materials ?? '');
+
+  // Visible rich-card editors (slice B). Curriculum daily-ritual
+  // and milestone descriptions live in `summary`; the AI fill path
+  // populates the rest. Without visible editors a teacher can't
+  // hand-author a card, so we surface summary directly and the
+  // others stay state-only (reachable via AI fill or kept from a
+  // previous edit). Age variants get their own dedicated editor
+  // below.
+  late final _summaryController =
+      TextEditingController(text: widget.item?.summary ?? '');
+  late final _hookController =
+      TextEditingController(text: widget.item?.hook ?? '');
+  late final _keyPointsController =
+      TextEditingController(text: widget.item?.keyPoints ?? '');
+  late final _learningGoalsController =
+      TextEditingController(text: widget.item?.learningGoals ?? '');
+
   late int? _durationMin = widget.item?.defaultDurationMin;
   late String? _adultId = widget.item?.adultId;
 
-  // Rich-card fields the sheet doesn't render editors for today but
-  // still carries through on save — the AI-fill path needs to be able
-  // to populate summary / hook / key points / learning goals /
-  // audience / engagement time / source, and a subsequent "Save"
-  // must persist them. On an edit sheet over an existing row these
-  // seed from the row so we don't null them out on save.
-  late String? _summary = widget.item?.summary;
-  late String? _hook = widget.item?.hook;
-  late String? _keyPoints = widget.item?.keyPoints;
-  late String? _learningGoals = widget.item?.learningGoals;
+  // Rich-card fields without visible editors — kept around so the
+  // AI-fill path's values survive a manual save.
   late int? _audienceMinAge = widget.item?.audienceMinAge;
   late int? _audienceMaxAge = widget.item?.audienceMaxAge;
   late int? _engagementTimeMin = widget.item?.engagementTimeMin;
   late String? _sourceUrl = widget.item?.sourceUrl;
   late String? _sourceAttribution = widget.item?.sourceAttribution;
+
+  /// Age variants editor state: age (3..12) → summary text. Loaded
+  /// from the row on edit; empty on create. Saved via the
+  /// repository's `ageVariants:` arg (a `Map<int, AgeVariant>`).
+  late Map<int, String> _ageVariants = {
+    if (widget.item != null)
+      ...ActivityLibraryRepository.decodeAgeVariants(
+              widget.item!.ageVariants)
+          .map((k, v) => MapEntry(k, v.summary ?? '')),
+  };
 
   /// Newly-filled rich-field names from the most recent AI run.
   /// Shown as a small "AI added: …" readout so the teacher knows
@@ -72,16 +91,34 @@ class _EditLibraryItemSheetState
     if (trimOrNull(_locationController.text) != item.location) return true;
     if (trimOrNull(_notesController.text) != item.notes) return true;
     if (trimOrNull(_materialsController.text) != item.materials) return true;
-    if (_summary != item.summary) return true;
-    if (_hook != item.hook) return true;
-    if (_keyPoints != item.keyPoints) return true;
-    if (_learningGoals != item.learningGoals) return true;
+    if (trimOrNull(_summaryController.text) != item.summary) return true;
+    if (trimOrNull(_hookController.text) != item.hook) return true;
+    if (trimOrNull(_keyPointsController.text) != item.keyPoints) {
+      return true;
+    }
+    if (trimOrNull(_learningGoalsController.text) != item.learningGoals) {
+      return true;
+    }
     if (_audienceMinAge != item.audienceMinAge) return true;
     if (_audienceMaxAge != item.audienceMaxAge) return true;
     if (_engagementTimeMin != item.engagementTimeMin) return true;
     if (_sourceUrl != item.sourceUrl) return true;
     if (_sourceAttribution != item.sourceAttribution) return true;
+    // Age variants — compare encoded shapes for structural
+    // equality. Cheap (small map of strings).
+    final original =
+        ActivityLibraryRepository.decodeAgeVariants(item.ageVariants)
+            .map((k, v) => MapEntry(k, v.summary ?? ''));
+    if (!_mapsEqual(original, _ageVariants)) return true;
     return false;
+  }
+
+  static bool _mapsEqual(Map<int, String> a, Map<int, String> b) {
+    if (a.length != b.length) return false;
+    for (final e in a.entries) {
+      if ((b[e.key] ?? '') != e.value) return false;
+    }
+    return true;
   }
 
   @override
@@ -90,6 +127,10 @@ class _EditLibraryItemSheetState
     _locationController.dispose();
     _notesController.dispose();
     _materialsController.dispose();
+    _summaryController.dispose();
+    _hookController.dispose();
+    _keyPointsController.dispose();
+    _learningGoalsController.dispose();
     super.dispose();
   }
 
@@ -122,22 +163,15 @@ class _EditLibraryItemSheetState
     // Title is special — the draft's title is required but we only
     // fill it when the field is blank, same rule as everything else.
     fillText(_titleController, draft.title, 'title');
-    fillText(_notesController, draft.summary, 'summary');
-    fillText(_materialsController, draft.materials, 'materials');
-    fillNullable(() => _summary, (v) => _summary = v, draft.summary, 'summary');
-    fillNullable(() => _hook, (v) => _hook = v, draft.hook, 'hook');
-    fillNullable(
-      () => _keyPoints,
-      (v) => _keyPoints = v,
-      draft.keyPoints,
-      'key points',
-    );
-    fillNullable(
-      () => _learningGoals,
-      (v) => _learningGoals = v,
+    fillText(_summaryController, draft.summary, 'summary');
+    fillText(_hookController, draft.hook, 'hook');
+    fillText(_keyPointsController, draft.keyPoints, 'key points');
+    fillText(
+      _learningGoalsController,
       draft.learningGoals,
       'learning goals',
     );
+    fillText(_materialsController, draft.materials, 'materials');
     fillNullable(
       () => _audienceMinAge,
       (v) => _audienceMinAge = v,
@@ -232,15 +266,26 @@ class _EditLibraryItemSheetState
     setState(() => _submitting = true);
     final repo = ref.read(activityLibraryRepositoryProvider);
     final title = _titleController.text.trim();
-    final location = _locationController.text.trim().isEmpty
-        ? null
-        : _locationController.text.trim();
-    final notes = _notesController.text.trim().isEmpty
-        ? null
-        : _notesController.text.trim();
-    final materials = _materialsController.text.trim().isEmpty
-        ? null
-        : _materialsController.text.trim();
+    String? trimOrNull(String s) => s.trim().isEmpty ? null : s.trim();
+    final location = trimOrNull(_locationController.text);
+    final notes = trimOrNull(_notesController.text);
+    final materials = trimOrNull(_materialsController.text);
+    final summary = trimOrNull(_summaryController.text);
+    final hook = trimOrNull(_hookController.text);
+    final keyPoints = trimOrNull(_keyPointsController.text);
+    final learningGoals = trimOrNull(_learningGoalsController.text);
+
+    // Convert the editor's `Map<int, String>` into the repo's
+    // `Map<int, AgeVariant>` shape. Empty / whitespace-only
+    // entries are dropped so the row's `age_variants` column
+    // doesn't carry phantom keys.
+    final ageVariantsMap = <int, AgeVariant>{
+      for (final e in _ageVariants.entries)
+        if (e.value.trim().isNotEmpty)
+          e.key: AgeVariant(summary: e.value.trim()),
+    };
+    final ageVariants =
+        ageVariantsMap.isEmpty ? null : ageVariantsMap;
 
     String? newItemId;
     if (_isEdit) {
@@ -257,15 +302,16 @@ class _EditLibraryItemSheetState
         location: Value(location),
         notes: Value(notes),
         materials: Value(materials),
-        summary: Value(_summary),
-        hook: Value(_hook),
-        keyPoints: Value(_keyPoints),
-        learningGoals: Value(_learningGoals),
+        summary: Value(summary),
+        hook: Value(hook),
+        keyPoints: Value(keyPoints),
+        learningGoals: Value(learningGoals),
         audienceMinAge: Value(_audienceMinAge),
         audienceMaxAge: Value(_audienceMaxAge),
         engagementTimeMin: Value(_engagementTimeMin),
         sourceUrl: Value(_sourceUrl),
         sourceAttribution: Value(_sourceAttribution),
+        ageVariants: Value(ageVariants),
       );
     } else {
       newItemId = await repo.addItem(
@@ -275,15 +321,16 @@ class _EditLibraryItemSheetState
         location: location,
         notes: notes,
         materials: materials,
-        summary: _summary,
-        hook: _hook,
-        keyPoints: _keyPoints,
-        learningGoals: _learningGoals,
+        summary: summary,
+        hook: hook,
+        keyPoints: keyPoints,
+        learningGoals: learningGoals,
         audienceMinAge: _audienceMinAge,
         audienceMaxAge: _audienceMaxAge,
         engagementTimeMin: _engagementTimeMin,
         sourceUrl: _sourceUrl,
         sourceAttribution: _sourceAttribution,
+        ageVariants: ageVariants,
       );
     }
     if (!mounted) return;
@@ -447,6 +494,59 @@ class _EditLibraryItemSheetState
             keyboardType: TextInputType.multiline,
             maxLines: 3,
             onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          // ── Activity-card content ─────────────────────────
+          // Summary is the primary description shown in the
+          // curriculum view's daily-ritual / milestone tile and
+          // in the library card detail. Visible editor lets a
+          // teacher hand-author cards without going through the
+          // AI fill flow.
+          Text('Card content', style: theme.textTheme.titleSmall),
+          const SizedBox(height: AppSpacing.sm),
+          AppTextField(
+            controller: _summaryController,
+            label: 'Summary',
+            hint: 'Short description shown on the activity tile.',
+            maxLines: 4,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _hookController,
+            label: 'Hook (optional)',
+            hint: 'One-line teaser, e.g. "What if everything was upside-down?"',
+            maxLines: 2,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _keyPointsController,
+            label: 'Key points (optional)',
+            hint: 'Bullets — newline-separated.',
+            maxLines: 4,
+            keyboardType: TextInputType.multiline,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            controller: _learningGoalsController,
+            label: 'Learning goals (optional)',
+            hint: 'Bullets — newline-separated.',
+            maxLines: 4,
+            keyboardType: TextInputType.multiline,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          // ── Age variants ──────────────────────────────────
+          // Per-age summary rewrites. The curriculum view's
+          // "show age scaling" toggle picks the closest match
+          // and renders this text instead of the canonical
+          // summary above.
+          _AgeVariantsEditor(
+            variants: _ageVariants,
+            onChanged: (next) =>
+                setState(() => _ageVariants = next),
           ),
           const SizedBox(height: AppSpacing.lg),
           Text(
@@ -714,6 +814,217 @@ class _DurationChoice extends StatelessWidget {
       label: Text(label),
       selected: selected,
       onSelected: (_) => onTap(),
+    );
+  }
+}
+
+/// Per-age summary rewrites editor.
+///
+/// Shape:
+///   * Header with title + ages currently set as chips.
+///   * "Add age" button reveals a row of age chips (3..12). Tap
+///     to add. Adding pops up an inline summary editor for that
+///     age.
+///   * Each existing age has a row: "Age N · summary…" with a
+///     remove (×) action and an inline multi-line text editor.
+///
+/// Why this shape: a teacher authoring a multi-age curriculum
+/// usually targets 2–3 age bands (e.g. 5, 7, 10), so the editor
+/// optimizes for "add a few specific ages" rather than "fill out
+/// all 10." Empty entries get filtered out at save time.
+class _AgeVariantsEditor extends StatefulWidget {
+  const _AgeVariantsEditor({
+    required this.variants,
+    required this.onChanged,
+  });
+
+  final Map<int, String> variants;
+  final ValueChanged<Map<int, String>> onChanged;
+
+  @override
+  State<_AgeVariantsEditor> createState() => _AgeVariantsEditorState();
+}
+
+class _AgeVariantsEditorState extends State<_AgeVariantsEditor> {
+  bool _showAddRow = false;
+
+  void _addAge(int age) {
+    final next = Map<int, String>.from(widget.variants)
+      ..putIfAbsent(age, () => '');
+    widget.onChanged(next);
+    setState(() => _showAddRow = false);
+  }
+
+  void _removeAge(int age) {
+    final next = Map<int, String>.from(widget.variants)..remove(age);
+    widget.onChanged(next);
+  }
+
+  void _updateText(int age, String text) {
+    final next = Map<int, String>.from(widget.variants);
+    next[age] = text;
+    widget.onChanged(next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ages = widget.variants.keys.toList()..sort();
+    final available = [
+      for (int a = 3; a <= 12; a++)
+        if (!widget.variants.containsKey(a)) a,
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Age variants',
+                style: theme.textTheme.titleSmall,
+              ),
+            ),
+            if (available.isNotEmpty)
+              TextButton.icon(
+                onPressed: () => setState(() => _showAddRow = !_showAddRow),
+                icon: Icon(
+                  _showAddRow ? Icons.close : Icons.add,
+                  size: 16,
+                ),
+                label: Text(_showAddRow ? 'Cancel' : 'Add age'),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Adjacent-age rewrites of the summary above. The '
+          'curriculum view picks the closest age match when the '
+          '"show age scaling" toggle is on.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        if (_showAddRow) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: AppSpacing.xs,
+            runSpacing: AppSpacing.xs,
+            children: [
+              for (final a in available)
+                ChoiceChip(
+                  label: Text('Age $a'),
+                  selected: false,
+                  onSelected: (_) => _addAge(a),
+                ),
+            ],
+          ),
+        ],
+        if (ages.isEmpty) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'No age variants — the canonical summary above will '
+            'be used at every age.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.outline,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+        for (final age in ages) ...[
+          const SizedBox(height: AppSpacing.md),
+          _AgeVariantEntry(
+            age: age,
+            text: widget.variants[age] ?? '',
+            onChanged: (t) => _updateText(age, t),
+            onRemove: () => _removeAge(age),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// One age's editor row.
+class _AgeVariantEntry extends StatefulWidget {
+  const _AgeVariantEntry({
+    required this.age,
+    required this.text,
+    required this.onChanged,
+    required this.onRemove,
+  });
+
+  final int age;
+  final String text;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onRemove;
+
+  @override
+  State<_AgeVariantEntry> createState() => _AgeVariantEntryState();
+}
+
+class _AgeVariantEntryState extends State<_AgeVariantEntry> {
+  late final _controller = TextEditingController(text: widget.text);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Age ${widget.age}',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onPrimaryContainer,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                tooltip: 'Remove',
+                iconSize: 18,
+                onPressed: widget.onRemove,
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          TextField(
+            controller: _controller,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              hintText: 'Summary rewritten for this age',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            onChanged: widget.onChanged,
+          ),
+        ],
+      ),
     );
   }
 }

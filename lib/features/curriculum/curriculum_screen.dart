@@ -1,9 +1,11 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
+import 'package:basecamp/features/activity_library/widgets/edit_library_item_sheet.dart';
 import 'package:basecamp/features/lesson_sequences/lesson_sequences_repository.dart';
 import 'package:basecamp/features/lesson_sequences/widgets/edit_lesson_sequence_sheet.dart';
 import 'package:basecamp/features/themes/themes_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -646,6 +648,8 @@ class _WeekDetail extends ConsumerWidget {
                 items: arc.dailyByWeekday[day] ?? const [],
                 ageScalingOn: ageScalingOn,
                 scaleAge: scaleAge,
+                onAddRitual: () =>
+                    _addRitual(context, ref, sequence.id, day),
               ),
 
             if (arc.dailyUnscheduled.isNotEmpty) ...[
@@ -655,6 +659,8 @@ class _WeekDetail extends ConsumerWidget {
                 items: arc.dailyUnscheduled,
                 ageScalingOn: ageScalingOn,
                 scaleAge: scaleAge,
+                onAddRitual: () =>
+                    _addRitual(context, ref, sequence.id, null),
               ),
             ],
 
@@ -666,11 +672,59 @@ class _WeekDetail extends ConsumerWidget {
               accent: accent,
               ageScalingOn: ageScalingOn,
               scaleAge: scaleAge,
+              onAddMilestone: () =>
+                  _addMilestone(context, ref, sequence.id),
             ),
           ],
         );
       },
     );
+  }
+
+  /// Two-step "add ritual" flow:
+  ///   1. Open the rich library-card editor with empty state.
+  ///   2. On save, the sheet returns the new library item id.
+  ///   3. Link the card into this sequence as a daily ritual on
+  ///      [weekday] (1..5; null bucket = "Anytime this week").
+  Future<void> _addRitual(
+    BuildContext context,
+    WidgetRef ref,
+    String sequenceId,
+    int? weekday,
+  ) async {
+    final newId = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => const EditLibraryItemSheet(),
+    );
+    if (newId == null || !context.mounted) return;
+    await ref.read(lessonSequencesRepositoryProvider).addItem(
+          sequenceId: sequenceId,
+          libraryItemId: newId,
+          dayOfWeek: weekday,
+        );
+  }
+
+  /// Same flow for the weekly milestone — `kind: 'milestone'`,
+  /// no day-of-week (milestones span the whole week).
+  Future<void> _addMilestone(
+    BuildContext context,
+    WidgetRef ref,
+    String sequenceId,
+  ) async {
+    final newId = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => const EditLibraryItemSheet(),
+    );
+    if (newId == null || !context.mounted) return;
+    await ref.read(lessonSequencesRepositoryProvider).addItem(
+          sequenceId: sequenceId,
+          libraryItemId: newId,
+          kind: 'milestone',
+        );
   }
 }
 
@@ -780,6 +834,7 @@ class _DayBlock extends StatelessWidget {
     required this.items,
     required this.ageScalingOn,
     required this.scaleAge,
+    required this.onAddRitual,
   });
 
   /// 1..5 (Mon..Fri) or null for the "Anytime this week" bucket.
@@ -787,6 +842,10 @@ class _DayBlock extends StatelessWidget {
   final List<SequenceItemWithLibrary> items;
   final bool ageScalingOn;
   final int scaleAge;
+
+  /// Tapping the trailing "+" on this day opens the new-card
+  /// flow with [weekday] pre-bound. Authoring entry point.
+  final VoidCallback onAddRitual;
 
   @override
   Widget build(BuildContext context) {
@@ -813,10 +872,13 @@ class _DayBlock extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: items.isEmpty
-                ? Padding(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (items.isEmpty)
+                  Padding(
                     padding: const EdgeInsets.symmetric(
-                      vertical: AppSpacing.md,
+                      vertical: AppSpacing.xs,
                     ),
                     child: Text(
                       '—',
@@ -825,21 +887,35 @@ class _DayBlock extends StatelessWidget {
                       ),
                     ),
                   )
-                : Column(
-                    children: [
-                      for (final entry in items)
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            bottom: AppSpacing.sm,
-                          ),
-                          child: _ActivityCardTile(
-                            entry: entry,
-                            ageScalingOn: ageScalingOn,
-                            scaleAge: scaleAge,
-                          ),
-                        ),
-                    ],
+                else
+                  for (final entry in items)
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        bottom: AppSpacing.sm,
+                      ),
+                      child: _ActivityCardTile(
+                        entry: entry,
+                        ageScalingOn: ageScalingOn,
+                        scaleAge: scaleAge,
+                      ),
+                    ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: onAddRitual,
+                    icon: const Icon(Icons.add, size: 14),
+                    label: const Text('Add ritual'),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                   ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -858,12 +934,14 @@ class _MilestoneSection extends StatelessWidget {
     required this.accent,
     required this.ageScalingOn,
     required this.scaleAge,
+    required this.onAddMilestone,
   });
 
   final List<SequenceItemWithLibrary> items;
   final Color accent;
   final bool ageScalingOn;
   final int scaleAge;
+  final VoidCallback onAddMilestone;
 
   @override
   Widget build(BuildContext context) {
@@ -875,9 +953,23 @@ class _MilestoneSection extends StatelessWidget {
           children: [
             Icon(Icons.star_rounded, size: 20, color: accent),
             const SizedBox(width: AppSpacing.xs),
-            Text(
-              'Weekly milestone',
-              style: theme.textTheme.titleSmall,
+            Expanded(
+              child: Text(
+                'Weekly milestone',
+                style: theme.textTheme.titleSmall,
+              ),
+            ),
+            TextButton.icon(
+              onPressed: onAddMilestone,
+              icon: const Icon(Icons.add, size: 14),
+              label: const Text('Add'),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                ),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
             ),
           ],
         ),
@@ -951,7 +1043,15 @@ class _ActivityCardTile extends ConsumerWidget {
           width: emphasized ? 1.5 : 0,
         ),
       ),
-      child: Padding(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        // Tap opens the library card editor for this item — full
+        // control over title / summary / age variants. Long-press
+        // surfaces the timing-and-removal menu (slice C: change
+        // weekday, swap to milestone, remove from week).
+        onTap: () => _openCardEditor(context, ref),
+        onLongPress: () => _openItemMenu(context, ref),
+        child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -988,6 +1088,200 @@ class _ActivityCardTile extends ConsumerWidget {
                 style: theme.textTheme.bodyMedium,
               ),
             ],
+          ],
+        ),
+      ),
+      ),
+    );
+  }
+
+  /// Open the rich library-card editor on the linked card.
+  /// Lets the user edit title / summary / age variants in
+  /// place from the curriculum view.
+  Future<void> _openCardEditor(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => EditLibraryItemSheet(item: entry.library),
+    );
+  }
+
+  /// Long-press menu — change weekday, convert daily↔milestone,
+  /// or unlink the card from this week (without deleting the
+  /// underlying library row, so it stays available for reuse).
+  Future<void> _openItemMenu(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final item = entry.item;
+    final action = await showModalBottomSheet<_ItemAction>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => _ItemActionMenu(item: item),
+    );
+    if (action == null || !context.mounted) return;
+    final repo = ref.read(lessonSequencesRepositoryProvider);
+    switch (action) {
+      case _ItemAction.removeFromWeek:
+        await repo.deleteItem(item.id);
+      case _ItemAction.toMon:
+      case _ItemAction.toTue:
+      case _ItemAction.toWed:
+      case _ItemAction.toThu:
+      case _ItemAction.toFri:
+        await repo.updateItemMetadata(
+          id: item.id,
+          dayOfWeek: Value(action.weekday),
+        );
+      case _ItemAction.toAnytime:
+        await repo.updateItemMetadata(
+          id: item.id,
+          dayOfWeek: const Value(null),
+        );
+      case _ItemAction.toMilestone:
+        await repo.updateItemMetadata(
+          id: item.id,
+          kind: const Value('milestone'),
+          dayOfWeek: const Value(null),
+        );
+      case _ItemAction.toDaily:
+        await repo.updateItemMetadata(
+          id: item.id,
+          kind: const Value('daily'),
+        );
+    }
+  }
+}
+
+/// Bottom-sheet picker for quick edits on a sequence item's
+/// timing without going through a full edit form.
+enum _ItemAction {
+  toMon,
+  toTue,
+  toWed,
+  toThu,
+  toFri,
+  toAnytime,
+  toMilestone,
+  toDaily,
+  removeFromWeek;
+
+  int? get weekday {
+    switch (this) {
+      case _ItemAction.toMon:
+        return 1;
+      case _ItemAction.toTue:
+        return 2;
+      case _ItemAction.toWed:
+        return 3;
+      case _ItemAction.toThu:
+        return 4;
+      case _ItemAction.toFri:
+        return 5;
+      case _ItemAction.toAnytime:
+      case _ItemAction.toMilestone:
+      case _ItemAction.toDaily:
+      case _ItemAction.removeFromWeek:
+        return null;
+    }
+  }
+}
+
+class _ItemActionMenu extends StatelessWidget {
+  const _ItemActionMenu({required this.item});
+
+  final LessonSequenceItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isMilestone = item.kind == 'milestone';
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.md,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Move to weekday',
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Wrap(
+              spacing: AppSpacing.xs,
+              children: [
+                for (final entry in const [
+                  ('Mon', _ItemAction.toMon),
+                  ('Tue', _ItemAction.toTue),
+                  ('Wed', _ItemAction.toWed),
+                  ('Thu', _ItemAction.toThu),
+                  ('Fri', _ItemAction.toFri),
+                  ('Anytime', _ItemAction.toAnytime),
+                ])
+                  ChoiceChip(
+                    label: Text(entry.$1),
+                    selected: !isMilestone &&
+                        item.dayOfWeek == entry.$2.weekday &&
+                        (entry.$2 != _ItemAction.toAnytime ||
+                            item.dayOfWeek == null),
+                    onSelected: (_) =>
+                        Navigator.of(context).pop(entry.$2),
+                  ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Text(
+              'Type',
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Wrap(
+              spacing: AppSpacing.xs,
+              children: [
+                ChoiceChip(
+                  label: const Text('Daily ritual'),
+                  selected: !isMilestone,
+                  onSelected: isMilestone
+                      ? (_) => Navigator.of(context).pop(_ItemAction.toDaily)
+                      : null,
+                ),
+                ChoiceChip(
+                  label: const Text('Weekly milestone'),
+                  selected: isMilestone,
+                  onSelected: !isMilestone
+                      ? (_) => Navigator.of(context)
+                          .pop(_ItemAction.toMilestone)
+                      : null,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            const Divider(height: 1),
+            const SizedBox(height: AppSpacing.sm),
+            ListTile(
+              leading: Icon(
+                Icons.link_off,
+                color: theme.colorScheme.error,
+              ),
+              title: const Text('Remove from this week'),
+              subtitle: const Text(
+                'Card stays in the library for reuse.',
+              ),
+              onTap: () =>
+                  Navigator.of(context).pop(_ItemAction.removeFromWeek),
+            ),
           ],
         ),
       ),
