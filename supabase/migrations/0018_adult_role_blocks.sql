@@ -106,11 +106,24 @@ create policy adult_role_block_overrides_all on public.adult_role_block_override
 -- =====================================================================
 -- Realtime + REPLICA IDENTITY (matches 0007 + 0017)
 -- =====================================================================
+--
+-- `alter publication ... add table` raises 42710 (duplicate_object)
+-- when the table is already a member. Wrap each in a do-block that
+-- swallows the duplicate so the migration is safely re-applied (the
+-- CLI re-runs the whole pending list and doesn't track partial-fail
+-- state per statement).
 
-alter publication supabase_realtime
-  add table public.adult_role_blocks;
-alter publication supabase_realtime
-  add table public.adult_role_block_overrides;
+do $$
+begin
+  alter publication supabase_realtime add table public.adult_role_blocks;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.adult_role_block_overrides;
+exception when duplicate_object then null;
+end $$;
 
 alter table public.adult_role_blocks
   replica identity full;
