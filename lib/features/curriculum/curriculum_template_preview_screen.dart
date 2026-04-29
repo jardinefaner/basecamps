@@ -384,8 +384,6 @@ class _RitualCard extends StatelessWidget {
               height: 1.4,
             ),
           ),
-          if (ritual.ageBands.isNotEmpty)
-            _AgeBandsRow(bands: ritual.ageBands),
         ],
       ),
     );
@@ -442,54 +440,6 @@ class _MilestoneCard extends StatelessWidget {
               height: 1.4,
             ),
           ),
-          if (milestone.ageBands.isNotEmpty)
-            _AgeBandsRow(bands: milestone.ageBands),
-        ],
-      ),
-    );
-  }
-}
-
-/// Age-band rewrites rendered as a list of "AGE N · text" rows below
-/// the canonical activity description. Surfaces the differentiation
-/// content the importer would otherwise hide behind a runtime toggle.
-class _AgeBandsRow extends StatelessWidget {
-  const _AgeBandsRow({required this.bands});
-
-  final List<AgeBand> bands;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final sorted = [...bands]..sort((a, b) => a.age.compareTo(b.age));
-    return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.sm),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final b in sorted)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: RichText(
-                text: TextSpan(
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    height: 1.4,
-                  ),
-                  children: [
-                    TextSpan(
-                      text: 'AGE ${b.age} · ',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.primary,
-                        letterSpacing: 0.6,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    TextSpan(text: b.summary),
-                  ],
-                ),
-              ),
-            ),
         ],
       ),
     );

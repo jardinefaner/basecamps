@@ -1,5 +1,4 @@
 import 'package:basecamp/database/database.dart';
-import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/lesson_sequences/lesson_sequences_repository.dart';
 import 'package:basecamp/features/themes/themes_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -377,25 +376,11 @@ class _RitualCard extends StatelessWidget {
     final theme = Theme.of(context);
     final lib = entry.library;
     final summary = (lib.summary ?? '').trim();
-    final hook = (lib.hook ?? '').trim();
-    final variants = ActivityLibraryRepository.decodeAgeVariants(
-      lib.ageVariants,
-    );
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(lib.title, style: theme.textTheme.titleSmall),
-          if (hook.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(
-              hook,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
           if (summary.isNotEmpty) ...[
             const SizedBox(height: 2),
             Text(
@@ -406,7 +391,6 @@ class _RitualCard extends StatelessWidget {
               ),
             ),
           ],
-          if (variants.isNotEmpty) _AgeBandsRow(variants: variants),
         ],
       ),
     );
@@ -424,9 +408,6 @@ class _MilestoneCard extends StatelessWidget {
     final theme = Theme.of(context);
     final lib = entry.library;
     final summary = (lib.summary ?? '').trim();
-    final variants = ActivityLibraryRepository.decodeAgeVariants(
-      lib.ageVariants,
-    );
     return Container(
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
@@ -466,50 +447,6 @@ class _MilestoneCard extends StatelessWidget {
               ),
             ),
           ],
-          if (variants.isNotEmpty) _AgeBandsRow(variants: variants),
-        ],
-      ),
-    );
-  }
-}
-
-class _AgeBandsRow extends StatelessWidget {
-  const _AgeBandsRow({required this.variants});
-
-  final Map<int, AgeVariant> variants;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final ages = variants.keys.toList()..sort();
-    return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.sm),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final age in ages)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: RichText(
-                text: TextSpan(
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    height: 1.4,
-                  ),
-                  children: [
-                    TextSpan(
-                      text: 'AGE $age · ',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.primary,
-                        letterSpacing: 0.6,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    TextSpan(text: variants[age]?.summary ?? ''),
-                  ],
-                ),
-              ),
-            ),
         ],
       ),
     );

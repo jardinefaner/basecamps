@@ -1,5 +1,4 @@
 import 'package:basecamp/database/database.dart';
-import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/activity_library/widgets/edit_library_item_sheet.dart';
 import 'package:basecamp/features/curriculum/user_curriculum_preview_screen.dart';
 import 'package:basecamp/features/lesson_sequences/lesson_sequences_repository.dart';
@@ -40,20 +39,9 @@ class _CurriculumScreenState extends ConsumerState<CurriculumScreen> {
   /// preserves which week the teacher was reading.
   int _selectedWeek = 0;
 
-  /// "Show age scaling" toggle. Off by default so the screen opens
-  /// with the canonical (unscaled) text — the teacher opts in when
-  /// they want to see how the activity reads for a different age.
-  bool _ageScalingOn = false;
-
   /// "Show engine notes" toggle. Off by default — the engine
   /// commentary is curriculum-author-facing, not learner-facing.
-  /// Surfaces the per-week pedagogical notes (`engine_notes`)
-  /// behind the same toggle row as age scaling.
   bool _engineOn = false;
-
-  /// Selected age for scaling. Defaults to 6 — middle of the
-  /// elementary band — and clamped to 3..12 by the chip row.
-  int _scaleAge = 6;
 
   @override
   Widget build(BuildContext context) {
@@ -127,11 +115,7 @@ class _CurriculumScreenState extends ConsumerState<CurriculumScreen> {
               ),
               const Divider(height: 1),
               _ToggleBar(
-                ageEnabled: _ageScalingOn,
-                age: _scaleAge,
                 engineEnabled: _engineOn,
-                onAgeToggle: (v) => setState(() => _ageScalingOn = v),
-                onAgeChanged: (a) => setState(() => _scaleAge = a),
                 onEngineToggle: (v) => setState(() => _engineOn = v),
               ),
               const Divider(height: 1),
@@ -140,8 +124,6 @@ class _CurriculumScreenState extends ConsumerState<CurriculumScreen> {
                   sequence: sequence,
                   weekNumber: selected + 1,
                   accent: accent,
-                  ageScalingOn: _ageScalingOn,
-                  scaleAge: _scaleAge,
                   engineOn: _engineOn,
                   onEditWeek: () => _editWeek(context, sequence),
                 ),
@@ -496,21 +478,15 @@ class _WeekStrip extends StatelessWidget {
 /// when on) and "Engine notes" — sit on a single row above the
 /// week body. Tapping a chip flips its state; the corresponding
 /// content slot below the toggle bar appears or disappears.
+/// Single-toggle bar — engine notes only, since the age-scaling
+/// feature was retired. Kept as a Row for layout consistency.
 class _ToggleBar extends StatelessWidget {
   const _ToggleBar({
-    required this.ageEnabled,
-    required this.age,
     required this.engineEnabled,
-    required this.onAgeToggle,
-    required this.onAgeChanged,
     required this.onEngineToggle,
   });
 
-  final bool ageEnabled;
-  final int age;
   final bool engineEnabled;
-  final ValueChanged<bool> onAgeToggle;
-  final ValueChanged<int> onAgeChanged;
   final ValueChanged<bool> onEngineToggle;
 
   @override
@@ -522,25 +498,6 @@ class _ToggleBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          FilterChip(
-            label: const Text('Age scaling'),
-            selected: ageEnabled,
-            onSelected: onAgeToggle,
-          ),
-          if (ageEnabled) ...[
-            const SizedBox(width: AppSpacing.sm),
-            DropdownButton<int>(
-              value: age,
-              underline: const SizedBox.shrink(),
-              items: [
-                for (int a = 3; a <= 12; a++)
-                  DropdownMenuItem(value: a, child: Text('Age $a')),
-              ],
-              onChanged: (v) {
-                if (v != null) onAgeChanged(v);
-              },
-            ),
-          ],
           const Spacer(),
           FilterChip(
             label: const Text('Engine notes'),
@@ -575,8 +532,6 @@ class _WeekDetail extends ConsumerWidget {
     required this.sequence,
     required this.weekNumber,
     required this.accent,
-    required this.ageScalingOn,
-    required this.scaleAge,
     required this.engineOn,
     required this.onEditWeek,
   });
@@ -585,8 +540,6 @@ class _WeekDetail extends ConsumerWidget {
   final LessonSequence sequence;
   final int weekNumber;
   final Color accent;
-  final bool ageScalingOn;
-  final int scaleAge;
   final VoidCallback onEditWeek;
 
   @override
@@ -684,7 +637,7 @@ class _WeekDetail extends ConsumerWidget {
             const SizedBox(height: AppSpacing.sm),
             // Flat list — items pinned 1..5 sorted by their ordinal,
             // then any unscheduled (no-position-yet) items appended.
-            _DailyRitualsList(arc: arc, ageScalingOn: ageScalingOn, scaleAge: scaleAge),
+            _DailyRitualsList(arc: arc),
             const SizedBox(height: AppSpacing.sm),
             Align(
               alignment: Alignment.centerLeft,
@@ -709,8 +662,6 @@ class _WeekDetail extends ConsumerWidget {
             _MilestoneSection(
               items: arc.milestones,
               accent: accent,
-              ageScalingOn: ageScalingOn,
-              scaleAge: scaleAge,
               onAddMilestone: () =>
                   _addMilestone(context, ref, sequence.id),
             ),
@@ -884,15 +835,9 @@ class _EngineNotesPanel extends StatelessWidget {
 /// after them. Empty state renders a one-liner instead of a 5-row
 /// scaffold of dashes.
 class _DailyRitualsList extends StatelessWidget {
-  const _DailyRitualsList({
-    required this.arc,
-    required this.ageScalingOn,
-    required this.scaleAge,
-  });
+  const _DailyRitualsList({required this.arc});
 
   final WeekArc arc;
-  final bool ageScalingOn;
-  final int scaleAge;
 
   @override
   Widget build(BuildContext context) {
@@ -921,11 +866,7 @@ class _DailyRitualsList extends StatelessWidget {
         for (final entry in ordered)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: _ActivityCardTile(
-              entry: entry,
-              ageScalingOn: ageScalingOn,
-              scaleAge: scaleAge,
-            ),
+            child: _ActivityCardTile(entry: entry),
           ),
       ],
     );
@@ -940,15 +881,11 @@ class _MilestoneSection extends StatelessWidget {
   const _MilestoneSection({
     required this.items,
     required this.accent,
-    required this.ageScalingOn,
-    required this.scaleAge,
     required this.onAddMilestone,
   });
 
   final List<SequenceItemWithLibrary> items;
   final Color accent;
-  final bool ageScalingOn;
-  final int scaleAge;
   final VoidCallback onAddMilestone;
 
   @override
@@ -995,8 +932,6 @@ class _MilestoneSection extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: AppSpacing.sm),
               child: _ActivityCardTile(
                 entry: entry,
-                ageScalingOn: ageScalingOn,
-                scaleAge: scaleAge,
                 emphasized: true,
                 accent: accent,
               ),
@@ -1006,20 +941,17 @@ class _MilestoneSection extends StatelessWidget {
   }
 }
 
-/// One card showing a library item — title, optional hook, and
-/// either the scaled or unscaled summary depending on the toggle.
+/// One card showing a library item — title + description (the old
+/// hook + age-scaling rendering came out alongside the broader
+/// curriculum-form simplification). Tap → editor; long-press → menu.
 class _ActivityCardTile extends ConsumerWidget {
   const _ActivityCardTile({
     required this.entry,
-    required this.ageScalingOn,
-    required this.scaleAge,
     this.emphasized = false,
     this.accent,
   });
 
   final SequenceItemWithLibrary entry;
-  final bool ageScalingOn;
-  final int scaleAge;
 
   /// Milestone tiles get a gentle accent border so the eye lands
   /// on them after scanning the daily strip.
@@ -1029,16 +961,8 @@ class _ActivityCardTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final repo = ref.watch(activityLibraryRepositoryProvider);
-    final scaled = ageScalingOn
-        ? repo.scaleForAge(entry.library, scaleAge)
-        : null;
-
     final title = entry.library.title;
-    final hook = scaled?.hook ?? entry.library.hook;
-    final summary = scaled?.summary ?? entry.library.summary;
-    final hasVariantForAge = scaled?.summary != null &&
-        entry.library.summary != scaled!.summary;
+    final summary = entry.library.summary;
 
     return Card(
       margin: EdgeInsets.zero,
@@ -1064,31 +988,7 @@ class _ActivityCardTile extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: theme.textTheme.titleSmall,
-                  ),
-                ),
-                if (ageScalingOn)
-                  _AgeScaledBadge(
-                    hasVariant: hasVariantForAge,
-                    age: scaleAge,
-                  ),
-              ],
-            ),
-            if (hook != null && hook.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                hook,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ],
+            Text(title, style: theme.textTheme.titleSmall),
             if (summary != null && summary.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.sm),
               Text(
@@ -1270,38 +1170,4 @@ class _ItemActionMenu extends StatelessWidget {
   }
 }
 
-class _AgeScaledBadge extends StatelessWidget {
-  const _AgeScaledBadge({required this.hasVariant, required this.age});
-
-  /// True when the card actually has a variant for [age] (vs falling
-  /// back to the canonical text). The styling differs so the
-  /// teacher can tell at a glance which cards are pre-authored vs
-  /// borrowed.
-  final bool hasVariant;
-  final int age;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final fill = hasVariant
-        ? theme.colorScheme.primaryContainer
-        : theme.colorScheme.surfaceContainerHighest;
-    final fg = hasVariant
-        ? theme.colorScheme.onPrimaryContainer
-        : theme.colorScheme.onSurfaceVariant;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        color: fill,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        hasVariant ? 'age $age' : 'age $age (default)',
-        style: theme.textTheme.labelSmall?.copyWith(color: fg),
-      ),
-    );
-  }
-}
+// _AgeScaledBadge removed — age scaling feature retired.

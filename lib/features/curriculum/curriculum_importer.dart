@@ -65,11 +65,14 @@ class CurriculumImporter {
       //    other sequences later), then linked into the
       //    sequence via `lesson_sequence_items` with the right
       //    day-of-week + kind.
+      // The template's `ageBands` field is skipped — age scaling
+      // was retired from the runtime, so importing variant text
+      // would be writing data nothing renders. Title + description
+      // is the full surface now.
       for (final daily in week.daily) {
         final libraryId = await library.addItem(
           title: daily.name,
           summary: daily.description,
-          ageVariants: _toAgeVariantMap(daily.ageBands),
         );
         await sequences.addItem(
           sequenceId: seqId,
@@ -81,7 +84,6 @@ class CurriculumImporter {
       final milestoneLibraryId = await library.addItem(
         title: week.milestone.name,
         summary: week.milestone.description,
-        ageVariants: _toAgeVariantMap(week.milestone.ageBands),
       );
       await sequences.addItem(
         sequenceId: seqId,
@@ -91,19 +93,6 @@ class CurriculumImporter {
     }
 
     return themeId;
-  }
-
-  /// Convert the template's `List<AgeBand>` into the runtime
-  /// `Map<int, AgeVariant>` shape the activity-library repo
-  /// accepts. Returns null when the band list is empty so the
-  /// `age_variants` JSON column stays null (cheaper than an
-  /// empty map for a card that doesn't have rewrites).
-  Map<int, AgeVariant>? _toAgeVariantMap(List<AgeBand> bands) {
-    if (bands.isEmpty) return null;
-    return {
-      for (final b in bands)
-        b.age: AgeVariant(summary: b.summary),
-    };
   }
 }
 
