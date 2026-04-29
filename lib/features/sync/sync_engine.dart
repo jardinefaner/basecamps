@@ -162,6 +162,36 @@ class SyncEngine {
   final StreamController<SyncPushError> _pushErrorController =
       StreamController<SyncPushError>.broadcast();
 
+  /// Realtime liveness signal. Emits a fresh [RealtimeStatus] each
+  /// time the realtime layer's state changes:
+  ///   * subscribe — channel opened ("subscribed" tone in the UI).
+  ///   * unsubscribe — channel torn down ("offline" tone).
+  ///   * each applied realtime change — bumps `lastEventAt` so the
+  ///     UI's "Live · 3s ago" indicator ticks fresh.
+  ///
+  /// Broadcast so multiple widgets can subscribe (the program-
+  /// detail screen, the today screen, etc.).
+  Stream<RealtimeStatus> get realtimeStatus =>
+      _realtimeStatusController.stream;
+  final StreamController<RealtimeStatus> _realtimeStatusController =
+      StreamController<RealtimeStatus>.broadcast();
+
+  /// Latest snapshot. Late-subscribers can read this synchronously
+  /// without waiting for the next event.
+  RealtimeStatus _currentStatus = const RealtimeStatus(
+    isSubscribed: false,
+    programId: null,
+    lastEventAt: null,
+  );
+  RealtimeStatus get currentRealtimeStatus => _currentStatus;
+
+  void _emitRealtimeStatus(RealtimeStatus next) {
+    _currentStatus = next;
+    if (!_realtimeStatusController.isClosed) {
+      _realtimeStatusController.add(next);
+    }
+  }
+
   SupabaseClient? get _client {
     try {
       return Supabase.instance.client;
@@ -470,6 +500,11 @@ class SyncEngine {
     channel.subscribe();
     _realtimeChannel = channel;
     _realtimeProgramId = programId;
+    _emitRealtimeStatus(RealtimeStatus(
+      isSubscribed: true,
+      programId: programId,
+      lastEventAt: _currentStatus.lastEventAt,
+    ));
   }
 
   /// Tears down the current realtime channel. Safe to call when no
@@ -479,7 +514,14 @@ class SyncEngine {
     final channel = _realtimeChannel;
     _realtimeChannel = null;
     _realtimeProgramId = null;
-    if (channel == null) return;
+    if (channel == null) {
+      _emitRealtimeStatus(RealtimeStatus(
+        isSubscribed: false,
+        programId: null,
+        lastEventAt: _currentStatus.lastEventAt,
+      ));
+      return;
+    }
     final client = _client;
     if (client == null) return;
     try {
@@ -487,6 +529,11 @@ class SyncEngine {
     } on Object catch (e) {
       debugPrint('Realtime unsubscribe failed: $e');
     }
+    _emitRealtimeStatus(RealtimeStatus(
+      isSubscribed: false,
+      programId: null,
+      lastEventAt: _currentStatus.lastEventAt,
+    ));
   }
 
   /// Applies a realtime payload to local Drift. Mirrors the pull
@@ -499,6 +546,15 @@ class SyncEngine {
     TableSpec spec,
     PostgresChangePayload payload,
   ) async {
+    // Tick the live indicator BEFORE the apply runs — even if
+    // the apply throws (echo-skip, FK conflict, etc.), the fact
+    // that we received an event is real liveness signal that
+    // belongs in the UI.
+    _emitRealtimeStatus(RealtimeStatus(
+      isSubscribed: _currentStatus.isSubscribed,
+      programId: _currentStatus.programId,
+      lastEventAt: DateTime.now(),
+    ));
     try {
       final eventType = payload.eventType;
       if (eventType == PostgresChangeEvent.delete) {
@@ -833,6 +889,7 @@ class SyncEngine {
     unawaited(unsubscribeFromRealtime());
     unawaited(_conflictController.close());
     unawaited(_pushErrorController.close());
+    unawaited(_realtimeStatusController.close());
   }
 }
 
@@ -913,4 +970,33 @@ class SyncPushError {
 
   @override
   String toString() => 'SyncPushError($table/$id: $error)';
+}
+
+/// Snapshot of the realtime layer for the live-indicator widget.
+///
+/// `isSubscribed` is the connection state — true between
+/// `subscribeToRealtime` and `unsubscribeFromRealtime`. False
+/// before the first sub or after sign-out.
+///
+/// `lastEventAt` ticks every time a postgres-change payload
+/// hits `_applyRealtimeChange`. The UI renders "Live · 3s ago"
+/// using `DateTime.now().difference(lastEventAt)`. Null means
+/// "no realtime event has happened in this session" — which can
+/// be either "just connected, nothing's changed yet" (fine) or
+/// "actually broken" (look at `isSubscribed` to disambiguate).
+@immutable
+class RealtimeStatus {
+  const RealtimeStatus({
+    required this.isSubscribed,
+    required this.programId,
+    required this.lastEventAt,
+  });
+
+  final bool isSubscribed;
+  final String? programId;
+  final DateTime? lastEventAt;
+
+  @override
+  String toString() => 'RealtimeStatus(sub=$isSubscribed, '
+      'program=$programId, lastEvent=$lastEventAt)';
 }

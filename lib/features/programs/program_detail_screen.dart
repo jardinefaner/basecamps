@@ -5,6 +5,7 @@ import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/programs/invite_repository.dart';
 import 'package:basecamp/features/programs/program_bootstrap.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/live_indicator.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/confirm_dialog.dart';
@@ -258,11 +259,18 @@ class _HeaderCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text(
-            'Created ${DateFormat.yMMMd().format(program.createdAt)}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Created ${DateFormat.yMMMd().format(program.createdAt)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              const LiveIndicator(),
+            ],
           ),
           if (canManage) ...[
             const SizedBox(height: AppSpacing.md),
