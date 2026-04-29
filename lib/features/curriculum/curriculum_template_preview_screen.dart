@@ -319,25 +319,28 @@ class _WeekHeader extends StatelessWidget {
   }
 }
 
-/// Mon–Fri rituals stacked one per day. Each row shows the day label
-/// + activity name + description; age-band variants render as a
-/// collapsible chip group below so the preview captures the full
-/// curriculum content (tags + age scaling are part of what the
-/// teacher's importing).
+/// Daily rituals rendered as a flat list of cards. Why not Mon-Fri:
+/// in curricula like Different World, "daily rituals" are *parallel
+/// daily practices* — all five happen every day of the week (Body
+/// Map gets a new label each day; Sense of the Day cycles through
+/// senses). The `dayOfWeek` field on each ritual is being used as
+/// an ordinal position (ritual #1, #2, …) rather than a weekday
+/// pinning. Labeling them Mon–Fri implied "this only happens on
+/// Monday" which is the opposite of what the curriculum prescribes.
+///
+/// Sorted by `dayOfWeek` so the order the author intended is
+/// preserved; the number itself is no longer rendered.
 class _DailyList extends StatelessWidget {
   const _DailyList({required this.week});
 
   final WeekTemplate week;
 
-  static const _dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final byDay = <int, DailyTemplate>{};
-    for (final d in week.daily) {
-      byDay[d.dayOfWeek] = d;
-    }
+    final ordered = [...week.daily]
+      ..sort((a, b) => a.dayOfWeek.compareTo(b.dayOfWeek));
+    if (ordered.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -350,72 +353,39 @@ class _DailyList extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
-        for (var day = 1; day <= 5; day++) ...[
-          _DayRow(
-            label: _dayLabels[day - 1],
-            ritual: byDay[day],
-          ),
-          if (day < 5) const SizedBox(height: AppSpacing.sm),
+        for (var i = 0; i < ordered.length; i++) ...[
+          _RitualCard(ritual: ordered[i]),
+          if (i < ordered.length - 1)
+            const SizedBox(height: AppSpacing.sm),
         ],
       ],
     );
   }
 }
 
-class _DayRow extends StatelessWidget {
-  const _DayRow({required this.label, required this.ritual});
+class _RitualCard extends StatelessWidget {
+  const _RitualCard({required this.ritual});
 
-  final String label;
-  final DailyTemplate? ritual;
+  final DailyTemplate ritual;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final empty = ritual == null;
     return AppCard(
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 36,
-            child: Text(
-              label,
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w700,
-              ),
+          Text(ritual.name, style: theme.textTheme.titleSmall),
+          const SizedBox(height: 2),
+          Text(
+            ritual.description,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.4,
             ),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: empty
-                ? Text(
-                    'No ritual for this day',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        ritual!.name,
-                        style: theme.textTheme.titleSmall,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        ritual!.description,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          height: 1.4,
-                        ),
-                      ),
-                      if (ritual!.ageBands.isNotEmpty)
-                        _AgeBandsRow(bands: ritual!.ageBands),
-                    ],
-                  ),
-          ),
+          if (ritual.ageBands.isNotEmpty)
+            _AgeBandsRow(bands: ritual.ageBands),
         ],
       ),
     );

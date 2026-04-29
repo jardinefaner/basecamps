@@ -1,6 +1,7 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/activity_library/widgets/edit_library_item_sheet.dart';
+import 'package:basecamp/features/curriculum/user_curriculum_preview_screen.dart';
 import 'package:basecamp/features/lesson_sequences/lesson_sequences_repository.dart';
 import 'package:basecamp/features/lesson_sequences/widgets/edit_lesson_sequence_sheet.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
@@ -76,6 +77,17 @@ class _CurriculumScreenState extends ConsumerState<CurriculumScreen> {
           error: (_, _) => const Text('Curriculum'),
         ),
         actions: [
+          // "Preview" — opens a read-only walk-through of this
+          // curriculum in the same shape as the bundled-template
+          // preview. The view above is for *authoring* (toggles,
+          // long-press menus, "+ Add" buttons everywhere); the
+          // preview is the reading view a teacher hands to a parent
+          // or a sub.
+          IconButton(
+            tooltip: 'Preview',
+            icon: const Icon(Icons.visibility_outlined),
+            onPressed: () => _openPreview(context),
+          ),
           // "+ Add week" — creates a new lesson sequence pre-
           // attached to this theme. Lands the user back here
           // after save with the new week selected.
@@ -147,6 +159,18 @@ class _CurriculumScreenState extends ConsumerState<CurriculumScreen> {
   Color _accentForTheme(BuildContext context, ProgramTheme? theme) {
     return _parseHex(theme?.colorHex) ??
         Theme.of(context).colorScheme.primary;
+  }
+
+  /// Push the read-only preview of this curriculum. Same shape as
+  /// the bundled-template preview; renders from Drift rather than
+  /// the const template structure.
+  Future<void> _openPreview(BuildContext context) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) =>
+            UserCurriculumPreviewScreen(themeId: widget.themeId),
+      ),
+    );
   }
 
   /// Open the rich-sequence edit sheet pre-attached to this
