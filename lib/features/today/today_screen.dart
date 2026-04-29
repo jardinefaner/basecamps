@@ -39,6 +39,7 @@ import 'package:basecamp/features/today/widgets/day_summary_strip.dart';
 import 'package:basecamp/features/today/widgets/earlier_today_group.dart';
 import 'package:basecamp/features/today/widgets/hero_now_card.dart';
 import 'package:basecamp/features/today/widgets/lateness_flags_strip.dart';
+import 'package:basecamp/features/today/widgets/right_now_strip.dart';
 import 'package:basecamp/features/today/widgets/schedule_item_card.dart';
 import 'package:basecamp/features/today/widgets/staff_today_strip.dart';
 import 'package:basecamp/features/today/widgets/today_agenda.dart';
@@ -1052,6 +1053,12 @@ class _Body extends ConsumerWidget {
           // overarching frame ("what arc are we in?") reads before
           // any operational signal.
           TodayCurriculumStrip(date: viewedDate),
+
+          // Proactive nudge — surfaces one actionable signal at a
+          // time (e.g. "no observations yet today"). Today-only;
+          // self-hides when nothing's actionable. No LLM, just
+          // derived rules over already-watched state.
+          if (isToday) RightNowStrip(now: now),
 
           // Loud-when-needed strip: self-hides when zero kids are
           // flagged and no reviews are due. Live-clock only — lateness
