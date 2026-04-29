@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/curriculum/curriculum_importer.dart';
+import 'package:basecamp/features/curriculum/curriculum_template_preview_screen.dart';
 import 'package:basecamp/features/curriculum/templates/curriculum_template.dart';
 import 'package:basecamp/features/curriculum/templates/different_world.dart';
 import 'package:basecamp/features/themes/themes_repository.dart';
@@ -301,7 +302,7 @@ class _TemplatesTab extends ConsumerWidget {
         for (final t in builtInCurriculumTemplates) ...[
           _TemplateCard(
             template: t,
-            onUse: () => _useTemplate(context, t),
+            onTap: () => _previewTemplate(context, t),
           ),
           const SizedBox(height: AppSpacing.md),
         ],
@@ -309,7 +310,26 @@ class _TemplatesTab extends ConsumerWidget {
     );
   }
 
-  Future<void> _useTemplate(
+  /// Tap a template card → push the read-only preview. The preview
+  /// owns the "Use this template" CTA at the bottom; it pops itself
+  /// and calls back to [_openImportSheet] so the import sheet ends
+  /// up parented to the templates tab (not stacked on top of the
+  /// preview screen).
+  Future<void> _previewTemplate(
+    BuildContext context,
+    CurriculumTemplate template,
+  ) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => CurriculumTemplatePreviewScreen(
+          template: template,
+          onUse: () => _openImportSheet(context, template),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openImportSheet(
     BuildContext context,
     CurriculumTemplate template,
   ) async {
@@ -322,11 +342,23 @@ class _TemplatesTab extends ConsumerWidget {
   }
 }
 
+/// One template's surface in the Templates tab. Tap-anywhere opens
+/// the read-only preview (week-by-week walk-through); the preview
+/// is where the actual "Use this template" import action lives. The
+/// previous flow had a "Use this template" button on this card that
+/// jumped straight to the import sheet — the teacher committed to a
+/// 10-week curriculum from a 4-line summary. Now the card's CTA is
+/// "Preview" and the import is one screen deeper, behind a sticky
+/// bottom button on the preview itself.
 class _TemplateCard extends StatelessWidget {
-  const _TemplateCard({required this.template, required this.onUse});
+  const _TemplateCard({required this.template, required this.onTap});
 
   final CurriculumTemplate template;
-  final VoidCallback onUse;
+
+  /// Fired on tap-anywhere and on the explicit "Preview" button.
+  /// Both routes go to the preview screen; the button is only there
+  /// for visual signaling that the card is tappable.
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -334,7 +366,7 @@ class _TemplateCard extends StatelessWidget {
     final accent = _parseHex(template.themeColorHex) ??
         theme.colorScheme.primary;
     return AppCard(
-      onTap: onUse,
+      onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -389,9 +421,10 @@ class _TemplateCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           Align(
             alignment: Alignment.centerRight,
-            child: FilledButton.tonal(
-              onPressed: onUse,
-              child: const Text('Use this template'),
+            child: FilledButton.tonalIcon(
+              onPressed: onTap,
+              icon: const Icon(Icons.visibility_outlined, size: 18),
+              label: const Text('Preview'),
             ),
           ),
         ],
