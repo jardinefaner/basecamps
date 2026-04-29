@@ -472,6 +472,13 @@ String _parentDisplayName(Parent p) =>
 /// stack ends up at most two deep — [/today, /destination] —
 /// and back from any launcher destination always returns to Today.
 ///
+/// **Frame timing.** popUntil + push run on the next frame via
+/// `addPostFrameCallback`. A synchronous pop during a launcher
+/// row's `onTap` can fire while the Navigator is still in its
+/// build / scroll lock, which trips the framework's `!_debugLocked`
+/// assertion when the disposed routes try to tear down. Deferring
+/// one frame (~16ms, imperceptible) lets the lock release first.
+///
 /// Default is `push` (stacks onto Today); pass `go: true` for
 /// horizontal moves that should clear any lower stack (rarely
 /// needed now that /today is the only root).
@@ -489,14 +496,24 @@ void _navigateTo(BuildContext context, String path, {bool go = false}) {
     router.go(path);
     return;
   }
-  // Pop back to /today (the initialLocation, always the first
-  // route on the navigator stack) before pushing the destination.
-  // Synchronous: no animation between the pops and the push.
   final navigator = rootNavigatorKey.currentState;
-  if (navigator != null) {
-    navigator.popUntil((route) => route.isFirst);
+  // Fast path: nothing to pop (we're already on /today). Push
+  // straight through with no frame delay.
+  if (navigator == null || !navigator.canPop()) {
+    unawaited(router.push(path));
+    return;
   }
-  unawaited(router.push(path));
+  // Slow path: stack is non-empty. Defer the pop+push to the next
+  // frame so any in-flight build / scroll lock on the launcher's
+  // ListView has settled before the previous route's Navigator
+  // gets disposed. Skips the `_debugLocked` assertion that fires
+  // when a Navigator is unmounted mid-frame.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    final nav = rootNavigatorKey.currentState;
+    if (nav == null) return;
+    nav.popUntil((route) => route.isFirst);
+    unawaited(router.push(path));
+  });
 }
 
 // ================================================================
