@@ -2,6 +2,7 @@ import 'package:basecamp/features/activity_library/activity_library_screen.dart'
 import 'package:basecamp/features/adults/adult_detail_screen.dart';
 import 'package:basecamp/features/adults/adults_screen.dart';
 import 'package:basecamp/features/adults/program_timeline_screen.dart';
+import 'package:basecamp/features/ask/ask_screen.dart';
 import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/auth/sign_in_screen.dart';
 import 'package:basecamp/features/children/child_detail_screen.dart';
@@ -208,6 +209,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (_, _) => const ScheduleEditorScreen(),
           ),
         ],
+      ),
+      GoRoute(
+        path: '/ask',
+        builder: (_, _) => const AskScreen(),
       ),
       GoRoute(
         path: '/observations',

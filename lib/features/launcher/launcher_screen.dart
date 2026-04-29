@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
+import 'package:basecamp/features/ask/ask_screen.dart';
 import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/parent_concern.dart';
@@ -768,6 +769,21 @@ class _QuickActionData {
   final Future<void> Function(BuildContext context, WidgetRef ref) onTap;
 
   static final List<_QuickActionData> all = [
+    _QuickActionData(
+      id: 'ask-basecamp',
+      label: 'Ask Basecamp',
+      icon: Icons.auto_awesome_outlined,
+      onTap: (ctx, _) async {
+        // Push via the root navigator key — the launcher renders as
+        // a sibling of the route's Navigator inside the responsive
+        // sidebar on web/desktop, so context-walking pushes silently
+        // no-op there. The key works in both the mobile drawer and
+        // the wide sidebar.
+        await rootNavigatorKey.currentState?.push<void>(
+          MaterialPageRoute(builder: (_) => const AskScreen()),
+        );
+      },
+    ),
     _QuickActionData(
       id: 'new-activity',
       label: 'New activity',
