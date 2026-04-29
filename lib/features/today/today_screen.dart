@@ -7,6 +7,7 @@ import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/attendance/widgets/attendance_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/coverage/coverage_strip.dart';
 import 'package:basecamp/features/export/export_actions.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/incident.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/parent_concern.dart';
@@ -1042,6 +1043,16 @@ class _Body extends ConsumerWidget {
           // is a "right now" signal, not useful when browsing another
           // day's schedule.
           if (isToday) LatenessFlagsStrip(now: now),
+
+          // Coverage right now (v48 slice 2). Shows per-classroom
+          // who's scheduled to be there per the role-block timeline.
+          // Informational only — no enforcement. Today-only because
+          // the resolver is "this minute"; browsing tomorrow's
+          // schedule shouldn't show stale coverage.
+          if (isToday) ...[
+            const CoverageStrip(),
+            const SizedBox(height: AppSpacing.md),
+          ],
 
           // All-day activities / notes float above the per-group view.
           // Program-wide context (field trip banners, whole-day notes)
