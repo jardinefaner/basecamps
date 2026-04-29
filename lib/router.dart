@@ -6,8 +6,8 @@ import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/auth/sign_in_screen.dart';
 import 'package:basecamp/features/children/child_detail_screen.dart';
 import 'package:basecamp/features/children/children_screen.dart';
+import 'package:basecamp/features/curriculum/curriculum_hub_screen.dart';
 import 'package:basecamp/features/curriculum/curriculum_screen.dart';
-import 'package:basecamp/features/curriculum/curriculum_templates_screen.dart';
 import 'package:basecamp/features/forms/forms_hub_screen.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/parent_concern.dart';
 import 'package:basecamp/features/forms/polymorphic/generic_form_list_screen.dart';
@@ -28,6 +28,7 @@ import 'package:basecamp/features/roles/roles_screen.dart';
 import 'package:basecamp/features/rooms/rooms_screen.dart';
 import 'package:basecamp/features/schedule/schedule_editor_screen.dart';
 import 'package:basecamp/features/settings/program_settings_screen.dart';
+import 'package:basecamp/features/setup/setup_hub_screen.dart';
 import 'package:basecamp/features/themes/themes_screen.dart';
 import 'package:basecamp/features/today/today_screen.dart';
 import 'package:basecamp/features/trips/trip_detail_screen.dart';
@@ -264,6 +265,24 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/more/library',
         builder: (_, _) => const ActivityLibraryScreen(),
       ),
+      // Curriculum hub — single tabbed surface that consolidates the
+      // previously-scattered Themes / Lesson sequences / Templates
+      // entry-points. The deeper detail routes (/more/themes,
+      // /more/sequences) are still resolvable for deep links and the
+      // existing detail screens keep working — this hub is a
+      // launcher-level streamlining, not a model change.
+      GoRoute(
+        path: '/more/curriculum',
+        builder: (_, _) => const CurriculumHubScreen(),
+      ),
+      // Setup hub — index page for the rarely-revisited program-config
+      // screens (Rooms, Vehicles, Roles, Forms, Trips). Like the
+      // curriculum hub, this is a launcher rollup; the underlying
+      // screens stay reachable directly.
+      GoRoute(
+        path: '/more/setup',
+        builder: (_, _) => const SetupHubScreen(),
+      ),
       GoRoute(
         path: '/more/roles',
         builder: (_, _) => const RolesScreen(),
@@ -328,12 +347,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/more/themes',
         builder: (_, _) => const ThemesScreen(),
         routes: [
-          // Built-in curriculum templates (v47). One-tap import
-          // path so a teacher can spin up a multi-week arc
-          // without typing every activity card by hand.
+          // Built-in curriculum templates. Now consolidated into the
+          // Curriculum hub's Templates tab — this route still resolves
+          // (deep links / old context.push references) but renders the
+          // hub directly so there's just one place to author / import
+          // curricula.
           GoRoute(
             path: 'templates',
-            builder: (_, _) => const CurriculumTemplatesScreen(),
+            builder: (_, _) => const CurriculumHubScreen(),
           ),
           // Curriculum-arc view (v46) — multi-week phase/week/day
           // arc rendered from the theme's LessonSequences. Lives

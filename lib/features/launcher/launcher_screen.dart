@@ -322,13 +322,25 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                             pinId: pinId(PinnedKinds.action, a.id),
                             child: _ActionRow(action: a, ref: ref),
                           ),
-                        if (destinations.isNotEmpty)
-                          const _SectionHeader(label: 'Sections'),
-                        for (final d in destinations)
-                          _PinnableTile(
-                            pinId: pinId(PinnedKinds.destination, d.path),
-                            child: _DestinationRow(destination: d),
-                          ),
+                        // Destinations rendered grouped by category —
+                        // one header per category that has at least
+                        // one (unpinned, unfiltered-out) destination.
+                        // Within a category, alphabetic. Categories
+                        // are declared in _DestCategory enum order
+                        // (Plan → People → Curriculum → Setup →
+                        // Program), which is the daily-use frequency
+                        // we want — not alphabetic.
+                        for (final cat in _DestCategory.values) ...[
+                          if (destinations.any((d) => d.category == cat))
+                            _SectionHeader(label: cat.label),
+                          for (final d in destinations
+                              .where((d) => d.category == cat))
+                            _PinnableTile(
+                              pinId:
+                                  pinId(PinnedKinds.destination, d.path),
+                              child: _DestinationRow(destination: d),
+                            ),
+                        ],
                         if (unpinnedKids.isNotEmpty)
                           _SectionHeader(
                             label: 'Children',
@@ -1054,102 +1066,108 @@ class _AccountFooter extends ConsumerWidget {
   }
 }
 
+/// Categorized launcher sections. Each destination belongs to exactly
+/// one category; the launcher renders one header per category and
+/// alphabetizes within. Categories ordered roughly by daily-use
+/// frequency: Plan (used most), People (next), Curriculum (weekly
+/// authoring), Setup + Program (rare).
+enum _DestCategory {
+  plan('Plan'),
+  people('People'),
+  curriculum('Curriculum'),
+  setup('Setup'),
+  program('Program');
+
+  const _DestCategory(this.label);
+  final String label;
+}
+
 class _DestinationData {
   const _DestinationData({
     required this.label,
     required this.icon,
     required this.path,
+    required this.category,
   });
 
   final String label;
   final IconData icon;
   final String path;
+  final _DestCategory category;
 
   static const List<_DestinationData> all = [
+    // Plan — surfaces a teacher reaches for every day.
     _DestinationData(
       label: 'Week plan',
       icon: Icons.view_week_outlined,
       path: '/week-plan',
-    ),
-    _DestinationData(
-      label: 'Lesson sequences',
-      icon: Icons.format_list_numbered_outlined,
-      path: '/more/sequences',
-    ),
-    _DestinationData(
-      label: 'Themes',
-      icon: Icons.palette_outlined,
-      path: '/more/themes',
-    ),
-    _DestinationData(
-      label: 'Curriculum',
-      icon: Icons.auto_stories_outlined,
-      path: '/more/themes/templates',
-    ),
-    _DestinationData(
-      label: 'Observe',
-      icon: Icons.visibility_outlined,
-      path: '/observations',
-    ),
-    _DestinationData(
-      label: 'Children & groups',
-      icon: Icons.people_outline,
-      path: '/children',
-    ),
-    _DestinationData(
-      label: 'Trips',
-      icon: Icons.map_outlined,
-      path: '/trips',
+      category: _DestCategory.plan,
     ),
     _DestinationData(
       label: 'Schedule',
       icon: Icons.calendar_month_outlined,
       path: '/today/schedule',
+      category: _DestCategory.plan,
     ),
     _DestinationData(
-      label: 'Forms',
-      icon: Icons.assignment_outlined,
-      path: '/more/forms',
+      label: 'Observe',
+      icon: Icons.visibility_outlined,
+      path: '/observations',
+      category: _DestCategory.plan,
+    ),
+    // People — the three rosters (children, adults, parents).
+    _DestinationData(
+      label: 'Children & groups',
+      icon: Icons.people_outline,
+      path: '/children',
+      category: _DestCategory.people,
     ),
     _DestinationData(
       label: 'Adults',
       icon: Icons.badge_outlined,
       path: '/more/adults',
-    ),
-    _DestinationData(
-      label: 'Activity library',
-      icon: Icons.bookmarks_outlined,
-      path: '/more/library',
-    ),
-    _DestinationData(
-      label: 'Roles',
-      icon: Icons.work_outline,
-      path: '/more/roles',
-    ),
-    _DestinationData(
-      label: 'Rooms',
-      icon: Icons.meeting_room_outlined,
-      path: '/more/rooms',
-    ),
-    _DestinationData(
-      label: 'Vehicles',
-      icon: Icons.directions_bus_outlined,
-      path: '/more/vehicles',
+      category: _DestCategory.people,
     ),
     _DestinationData(
       label: 'Parents',
       icon: Icons.family_restroom_outlined,
       path: '/more/parents',
+      category: _DestCategory.people,
+    ),
+    // Curriculum — the multi-week authoring stack lives behind one
+    // hub now (themes, lesson sequences, templates collapsed). The
+    // activity library remains separate because it's used outside
+    // curriculum (schedule, observations).
+    _DestinationData(
+      label: 'Curriculum',
+      icon: Icons.auto_stories_outlined,
+      path: '/more/curriculum',
+      category: _DestCategory.curriculum,
     ),
     _DestinationData(
-      label: 'Programs',
-      icon: Icons.workspaces_outline,
-      path: '/more/programs',
+      label: 'Activity library',
+      icon: Icons.bookmarks_outlined,
+      path: '/more/library',
+      category: _DestCategory.curriculum,
     ),
+    // Setup — rooms, vehicles, roles, forms, trips. All collapsed
+    // behind one Setup hub since they're configured rarely. Search
+    // (≥2 chars) still surfaces specific rooms / vehicles / trips by
+    // name without going through the hub.
     _DestinationData(
-      label: 'Program settings',
+      label: 'Setup',
+      icon: Icons.tune_outlined,
+      path: '/more/setup',
+      category: _DestCategory.setup,
+    ),
+    // Program — the active program's settings, sync, and danger zone.
+    // The "Switch program" footer button covers the multi-program
+    // switcher case directly; the standalone Programs row is gone.
+    _DestinationData(
+      label: 'Program',
       icon: Icons.settings_outlined,
       path: '/more/settings',
+      category: _DestCategory.program,
     ),
   ];
 }

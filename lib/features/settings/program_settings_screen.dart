@@ -7,59 +7,163 @@ import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Program-wide settings screen. Currently: late-arrival grace +
-/// overdue-pickup grace, plus a danger-zone "Clear all data" action.
-/// Small on purpose — more knobs earn a spot when they have a
-/// concrete teacher complaint driving them.
+/// Program-wide configuration screen — grace knobs, danger zone,
+/// account, and sync status — split across two tabs:
+///
+///   * **Settings** — late-arrival grace + pickup-overdue grace +
+///     the signed-in account + a danger-zone "Clear all data" action.
+///   * **Sync** — last-sync freshness card + a link out to the deep
+///     sync diagnostics screen for the persistent-RLS-debug case.
+///
+/// Before this consolidation, sync surfacing was split between the
+/// settings screen (SyncCard), `/more/programs` (per-program rows),
+/// and `/more/programs/diagnostics` (deep checks). Pulling the daily
+/// "is my data on the cloud?" signal next to the settings the
+/// teacher actually opens means they don't have to hunt for it.
 class ProgramSettingsScreen extends ConsumerWidget {
   const ProgramSettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(programSettingsProvider);
-    final notifier = ref.read(programSettingsProvider.notifier);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Program settings')),
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        children: [
-          _GraceCard(
-            title: 'Late-arrival grace',
-            subtitle: "Minutes past a child's expected drop-off "
-                'before the "Late" flag fires on Today. Tune up to '
-                'quiet traffic-jam noise; tune down if you want '
-                'earlier signal.',
-            value: settings.latenessGraceMinutes,
-            onChanged: notifier.setLatenessGrace,
+    final theme = Theme.of(context);
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: AppBar(
+          backgroundColor: theme.scaffoldBackgroundColor,
+          title: const Text('Program'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Settings'),
+              Tab(text: 'Sync'),
+            ],
           ),
-          const SizedBox(height: AppSpacing.md),
-          _GraceCard(
-            title: 'Pickup overdue grace',
-            subtitle: "Minutes past a child's expected pickup before "
-                'they appear in the overdue-pickups strip. Parents '
-                'running a few minutes late is routine; this knob '
-                'decides when it stops being routine.',
-            value: settings.pickupGraceMinutes,
-            onChanged: notifier.setPickupGrace,
-          ),
-          const SizedBox(height: AppSpacing.xxl),
-          const _AccountCard(),
-          const SizedBox(height: AppSpacing.md),
-          const SyncCard(),
-          const SizedBox(height: AppSpacing.xxl),
-          const _DangerZone(),
-        ],
+        ),
+        body: const TabBarView(
+          children: [
+            _SettingsTab(),
+            _SyncTab(),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// Shows the signed-in Google account and a sign-out button. The
-/// account is the only auth surface for the v1 cloud-backup story —
-/// no profile editing, no avatar upload. Sign-out wipes the local
-/// session; the router redirects to /sign-in on the next frame.
+class _SettingsTab extends ConsumerWidget {
+  const _SettingsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(programSettingsProvider);
+    final notifier = ref.read(programSettingsProvider.notifier);
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      children: [
+        _GraceCard(
+          title: 'Late-arrival grace',
+          subtitle: "Minutes past a child's expected drop-off "
+              'before the "Late" flag fires on Today. Tune up to '
+              'quiet traffic-jam noise; tune down if you want '
+              'earlier signal.',
+          value: settings.latenessGraceMinutes,
+          onChanged: notifier.setLatenessGrace,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _GraceCard(
+          title: 'Pickup overdue grace',
+          subtitle: "Minutes past a child's expected pickup before "
+              'they appear in the overdue-pickups strip. Parents '
+              'running a few minutes late is routine; this knob '
+              'decides when it stops being routine.',
+          value: settings.pickupGraceMinutes,
+          onChanged: notifier.setPickupGrace,
+        ),
+        const SizedBox(height: AppSpacing.xxl),
+        const _AccountCard(),
+        const SizedBox(height: AppSpacing.xxl),
+        const _DangerZone(),
+      ],
+    );
+  }
+}
+
+class _SyncTab extends StatelessWidget {
+  const _SyncTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      children: [
+        const SyncCard(),
+        const SizedBox(height: AppSpacing.lg),
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Diagnostics', style: theme.textTheme.titleMedium),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'If syncing looks wrong — rows missing, edits not '
+                'showing up on the other device — open diagnostics. '
+                'It surfaces the JWT, server identity, and runs a '
+                'live INSERT probe so the exact RLS error becomes '
+                'copyable.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: () =>
+                      context.push('/more/programs/diagnostics'),
+                  icon: const Icon(Icons.bug_report_outlined, size: 18),
+                  label: const Text('Open diagnostics'),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Switch program', style: theme.textTheme.titleMedium),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Manage memberships, switch which program is active, '
+                'or join another with an invite code.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: () => context.push('/more/programs'),
+                  icon: const Icon(Icons.swap_horiz, size: 18),
+                  label: const Text('Programs'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Shows the signed-in Google account and a sign-out button.
 class _AccountCard extends ConsumerWidget {
   const _AccountCard();
 
@@ -104,10 +208,7 @@ class _AccountCard extends ConsumerWidget {
   }
 }
 
-/// Standard card layout for a single grace-minutes setting. Slider
-/// snapped to 5-min increments so teachers don't have to fiddle for
-/// an exact value — 10, 15, 20 are the pragmatic options and the
-/// slider enforces that.
+/// Standard card layout for a single grace-minutes setting.
 class _GraceCard extends StatelessWidget {
   const _GraceCard({
     required this.title,
@@ -166,9 +267,6 @@ class _GraceCard extends StatelessWidget {
 
 /// "Clear all data" section — wipes every Drift row AND on-device
 /// UI state (SharedPreferences) behind a two-step confirmation.
-/// No undo — this one's intentional. Deliberately sits below
-/// everything else with error-tinted styling so a teacher doesn't
-/// brush it by accident.
 class _DangerZone extends ConsumerStatefulWidget {
   const _DangerZone();
 
@@ -302,9 +400,7 @@ class _DangerZoneState extends ConsumerState<_DangerZone> {
   }
 
   /// Second-step confirmation: teacher types CLEAR to enable the
-  /// destructive button. Short enough to not feel like theater,
-  /// long enough that autocomplete-accidental acceptance doesn't
-  /// get you through.
+  /// destructive button.
   Future<bool?> _confirmByTyping(BuildContext context) {
     final controller = TextEditingController();
     return showDialog<bool>(

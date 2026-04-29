@@ -43,7 +43,7 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
             // Bundled multi-week curricula (e.g. Different World)
             // that import in one tap — saves the typing pain of
             // hand-creating 50 activity cards for a 10-week arc.
-            onPressed: () => context.push('/more/themes/templates'),
+            onPressed: () => context.push('/more/curriculum'),
           ),
         ],
       ),
