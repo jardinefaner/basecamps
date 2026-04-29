@@ -20,6 +20,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Profile + schedule surface for a single adult. Header shows
@@ -612,6 +613,8 @@ class _DayPlanSectionState extends ConsumerState<_DayPlanSection> {
               );
             },
           ),
+          const SizedBox(height: AppSpacing.lg),
+          _OverridesSubsection(adultId: widget.adultId),
         ],
       ),
     );
@@ -1072,6 +1075,584 @@ String _fmtTime(int minutes) {
   if (m == 0) return '$h12 $ampm';
   return '$h12:${m.toString().padLeft(2, '0')} $ampm';
 }
+
+/// One-off / per-date overrides on top of the recurring pattern.
+/// Use cases:
+///   * "Marcus is subbing in Bears 9-12 today only"
+///     → add an override with `replaces=false` (additive).
+///   * "Sarah is out, replace her 9-12 anchor block today"
+///     → add an override with `replaces=true` covering that span.
+///
+/// Lists all overrides for the chosen date with a "+ Today only"
+/// button. Tap an existing override to edit/delete; the date can
+/// be changed via the date chip at the top.
+class _OverridesSubsection extends ConsumerStatefulWidget {
+  const _OverridesSubsection({required this.adultId});
+
+  final String adultId;
+
+  @override
+  ConsumerState<_OverridesSubsection> createState() =>
+      _OverridesSubsectionState();
+}
+
+class _OverridesSubsectionState
+    extends ConsumerState<_OverridesSubsection> {
+  late DateTime _date;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _date = DateTime(now.year, now.month, now.day);
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime.now().subtract(const Duration(days: 30)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() => _date = DateTime(
+            picked.year,
+            picked.month,
+            picked.day,
+          ));
+    }
+  }
+
+  Future<void> _addOverride() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _OverrideSheet(
+        adultId: widget.adultId,
+        date: _date,
+      ),
+    );
+  }
+
+  Future<void> _editOverride(AdultRoleBlockOverride o) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _OverrideSheet(
+        adultId: widget.adultId,
+        date: _date,
+        existing: o,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final overridesAsync = ref.watch(
+      _adultOverridesProvider((
+        adultId: widget.adultId,
+        date: _date,
+      )),
+    );
+    final dateLabel = DateFormat.yMMMEd().format(_date);
+    final isToday = _isSameDay(_date, DateTime.now());
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh
+            .withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.event_repeat_outlined,
+                size: 16,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  isToday ? 'Today only' : 'Date-only changes',
+                  style: theme.textTheme.titleSmall,
+                ),
+              ),
+              ActionChip(
+                avatar: const Icon(Icons.calendar_today_outlined,
+                    size: 14),
+                label: Text(dateLabel),
+                onPressed: _pickDate,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'One-off blocks just for this date — substitutes, '
+            "special events, anything that won't repeat.",
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          overridesAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (err, _) => Text('Error: $err'),
+            data: (list) {
+              if (list.isEmpty) {
+                return Text(
+                  'No overrides for this date.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontStyle: FontStyle.italic,
+                  ),
+                );
+              }
+              return Column(
+                children: [
+                  for (final o in list)
+                    _OverrideTile(
+                      row: o,
+                      onTap: () => _editOverride(o),
+                    ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _addOverride,
+              icon: const Icon(Icons.add, size: 16),
+              label: Text(isToday
+                  ? 'Add for today only'
+                  : 'Add for $dateLabel'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+class _OverrideTile extends ConsumerWidget {
+  const _OverrideTile({
+    required this.row,
+    required this.onTap,
+  });
+
+  final AdultRoleBlockOverride row;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final kind = RoleBlockKind.fromValue(row.kind);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: Material(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
+            ),
+            child: Row(
+              children: [
+                _OverrideKindBadge(replaces: row.replaces),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${kind.label}'
+                        '${row.subject != null ? ' · ${row.subject}' : ''}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        '${_fmtTime(row.startMinute)}–'
+                        '${_fmtTime(row.endMinute)}'
+                        '${_groupLabel(ref, row.groupId)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.edit_outlined,
+                  size: 16,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _groupLabel(WidgetRef ref, String? groupId) {
+    if (groupId == null) return '';
+    final groups = ref.read(groupsProvider).asData?.value ?? const [];
+    for (final g in groups) {
+      if (g.id == groupId) return ' · ${g.name}';
+    }
+    return ' · (group)';
+  }
+}
+
+class _OverrideKindBadge extends StatelessWidget {
+  const _OverrideKindBadge({required this.replaces});
+  final bool replaces;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = replaces
+        ? theme.colorScheme.error
+        : theme.colorScheme.tertiary;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 6,
+        vertical: 2,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        replaces ? 'replaces' : 'extra',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: color,
+          letterSpacing: 0.6,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+/// Modal sheet for one date-specific override. Same shape as the
+/// pattern-block sheet but writes to `adult_role_block_overrides`
+/// and surfaces the `replaces` toggle (default off → "extra
+/// block on top of the pattern" — the safer interpretation when
+/// the user just wants to add something).
+class _OverrideSheet extends ConsumerStatefulWidget {
+  const _OverrideSheet({
+    required this.adultId,
+    required this.date,
+    this.existing,
+  });
+
+  final String adultId;
+  final DateTime date;
+  final AdultRoleBlockOverride? existing;
+
+  @override
+  ConsumerState<_OverrideSheet> createState() => _OverrideSheetState();
+}
+
+class _OverrideSheetState extends ConsumerState<_OverrideSheet> {
+  late RoleBlockKind _kind;
+  late int _startMinute;
+  late int _endMinute;
+  String? _subject;
+  String? _groupId;
+  late bool _replaces;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    _kind = e == null
+        ? RoleBlockKind.sub
+        : RoleBlockKind.fromValue(e.kind);
+    _startMinute = e?.startMinute ?? 9 * 60;
+    _endMinute = e?.endMinute ?? 12 * 60;
+    _subject = e?.subject;
+    _groupId = e?.groupId;
+    _replaces = e?.replaces ?? false;
+  }
+
+  Future<void> _pickStart() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: _startMinute ~/ 60,
+        minute: _startMinute % 60,
+      ),
+    );
+    if (picked != null) {
+      setState(() => _startMinute = picked.hour * 60 + picked.minute);
+    }
+  }
+
+  Future<void> _pickEnd() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: _endMinute ~/ 60,
+        minute: _endMinute % 60,
+      ),
+    );
+    if (picked != null) {
+      setState(() => _endMinute = picked.hour * 60 + picked.minute);
+    }
+  }
+
+  Future<void> _save() async {
+    if (_endMinute <= _startMinute) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('End time must be after start time.'),
+        ),
+      );
+      return;
+    }
+    if (_kind.isInRoom && _groupId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${_kind.label} blocks need a classroom selected.',
+          ),
+        ),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final repo = ref.read(roleBlocksRepositoryProvider);
+      if (widget.existing == null) {
+        await repo.addOverride(
+          adultId: widget.adultId,
+          date: widget.date,
+          startMinute: _startMinute,
+          endMinute: _endMinute,
+          kind: _kind,
+          subject: _subject,
+          groupId: _kind.isInRoom ? _groupId : null,
+          replaces: _replaces,
+        );
+      } else {
+        // Drift doesn't have an updateOverride helper yet; emulate
+        // by deleting + adding so the row keeps a single source
+        // of truth. The realtime apply on other devices sees one
+        // delete + one insert which renders correctly.
+        await repo.deleteOverride(widget.existing!.id);
+        await repo.addOverride(
+          adultId: widget.adultId,
+          date: widget.date,
+          startMinute: _startMinute,
+          endMinute: _endMinute,
+          kind: _kind,
+          subject: _subject,
+          groupId: _kind.isInRoom ? _groupId : null,
+          replaces: _replaces,
+        );
+      }
+      if (mounted) Navigator.of(context).pop();
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _delete() async {
+    if (widget.existing == null) return;
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(roleBlocksRepositoryProvider)
+          .deleteOverride(widget.existing!.id);
+      if (mounted) Navigator.of(context).pop();
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final groups =
+        ref.watch(groupsProvider).asData?.value ?? const <Group>[];
+    final dateLabel = DateFormat.yMMMEd().format(widget.date);
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            AppSpacing.lg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                widget.existing == null
+                    ? 'New override · $dateLabel'
+                    : 'Edit override · $dateLabel',
+                style: theme.textTheme.titleLarge,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                "Just for this date — won't affect the recurring "
+                'pattern.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Wrap(
+                spacing: AppSpacing.xs,
+                children: [
+                  for (final k in RoleBlockKind.values)
+                    ChoiceChip(
+                      label: Text(k.label),
+                      selected: _kind == k,
+                      onSelected: (_) => setState(() => _kind = k),
+                    ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickStart,
+                      icon: const Icon(Icons.access_time, size: 16),
+                      label: Text('Start ${_fmtTime(_startMinute)}'),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickEnd,
+                      icon: const Icon(Icons.access_time, size: 16),
+                      label: Text('End ${_fmtTime(_endMinute)}'),
+                    ),
+                  ),
+                ],
+              ),
+              if (_kind == RoleBlockKind.specialist) ...[
+                const SizedBox(height: AppSpacing.md),
+                TextFormField(
+                  initialValue: _subject,
+                  decoration: const InputDecoration(
+                    labelText: 'Subject',
+                  ),
+                  onChanged: (v) =>
+                      setState(() => _subject = v.trim().isEmpty ? null : v.trim()),
+                ),
+              ],
+              if (_kind.isInRoom) ...[
+                const SizedBox(height: AppSpacing.md),
+                DropdownButtonFormField<String>(
+                  initialValue: _groupId,
+                  decoration: const InputDecoration(
+                    labelText: 'Classroom',
+                  ),
+                  items: [
+                    for (final g in groups)
+                      DropdownMenuItem(value: g.id, child: Text(g.name)),
+                  ],
+                  onChanged: (v) => setState(() => _groupId = v),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.md),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Replaces pattern'),
+                subtitle: Text(
+                  _replaces
+                      ? 'Cancels overlapping pattern blocks for this date'
+                      : 'Adds on top of the pattern (extra block)',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                value: _replaces,
+                onChanged: (v) => setState(() => _replaces = v),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  if (widget.existing != null)
+                    TextButton(
+                      onPressed: _saving ? null : _delete,
+                      style: TextButton.styleFrom(
+                        foregroundColor: theme.colorScheme.error,
+                      ),
+                      child: const Text('Delete'),
+                    ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed:
+                        _saving ? null : () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  FilledButton(
+                    onPressed: _saving ? null : _save,
+                    child: _saving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Save'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Stream of overrides for one (adult, date) pair. Family key
+/// is a record so two overrides for the same adult on different
+/// dates each have their own stream.
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final _adultOverridesProvider = StreamProvider.family<
+    List<AdultRoleBlockOverride>,
+    ({String adultId, DateTime date})>(
+  (ref, key) => ref
+      .watch(roleBlocksRepositoryProvider)
+      .watchOverridesFor(adultId: key.adultId, date: key.date),
+);
 
 class _AssignedActivitiesSection extends ConsumerWidget {
   const _AssignedActivitiesSection({

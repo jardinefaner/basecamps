@@ -210,3 +210,137 @@ final coverageNowProvider =
       .read(coverageRepositoryProvider)
       .coverageAt(date: now, minuteOfDay: minute);
 });
+
+// ────────────────────────────────────────────────────────────
+// Day-wide coverage timeline
+// ────────────────────────────────────────────────────────────
+
+extension CoverageTimeline on CoverageRepository {
+  /// Sample [coverageAt] across the whole day in [stepMinutes]-
+  /// minute increments and return a structure the timeline
+  /// widget can paint without further math: per-group, a list of
+  /// `(minuteOfDay → adultCount)` samples.
+  ///
+  /// Default sample interval = 30 min, default span 7am–6pm —
+  /// matches the program day. Caller can override both for a
+  /// shorter strip on a phone.
+  ///
+  /// Cost: one role-block read per sample. With 30-min steps over
+  /// 11 hours that's 22 reads per day. The role-block tables are
+  /// small; this is fine. Future optimization: query once for the
+  /// full day, walk in Dart.
+  Future<DayCoverage> dayCoverage({
+    required DateTime date,
+    int startMinute = 7 * 60,
+    int endMinute = 18 * 60,
+    int stepMinutes = 30,
+  }) async {
+    final samples = <int>[];
+    for (var m = startMinute; m <= endMinute; m += stepMinutes) {
+      samples.add(m);
+    }
+
+    // Pre-fetch group list so each sample doesn't re-load it.
+    // The CoverageRepository itself does that today; for a 22-
+    // sample sweep we'll just call it sequentially. The DB cost
+    // dominates the JS overhead.
+    final perSample = <List<GroupCoverage>>[];
+    for (final m in samples) {
+      perSample.add(await coverageAt(date: date, minuteOfDay: m));
+    }
+
+    // Pivot from sample-major to group-major.
+    final byGroup = <String, _GroupTimelineBuilder>{};
+    for (var i = 0; i < samples.length; i++) {
+      for (final g in perSample[i]) {
+        final builder = byGroup.putIfAbsent(
+          g.groupId,
+          () => _GroupTimelineBuilder(
+            groupId: g.groupId,
+            groupName: g.groupName,
+          ),
+        );
+        builder.samples.add(CoverageSample(
+          minuteOfDay: samples[i],
+          count: g.count,
+        ));
+      }
+    }
+
+    final groups = byGroup.values
+        .map((b) => GroupCoverageTimeline(
+              groupId: b.groupId,
+              groupName: b.groupName,
+              samples: b.samples,
+            ))
+        .toList()
+      ..sort((a, b) => a.groupName.compareTo(b.groupName));
+
+    return DayCoverage(
+      startMinute: startMinute,
+      endMinute: endMinute,
+      stepMinutes: stepMinutes,
+      groups: groups,
+    );
+  }
+}
+
+class _GroupTimelineBuilder {
+  _GroupTimelineBuilder({
+    required this.groupId,
+    required this.groupName,
+  });
+
+  final String groupId;
+  final String groupName;
+  final List<CoverageSample> samples = [];
+}
+
+class DayCoverage {
+  const DayCoverage({
+    required this.startMinute,
+    required this.endMinute,
+    required this.stepMinutes,
+    required this.groups,
+  });
+
+  final int startMinute;
+  final int endMinute;
+  final int stepMinutes;
+  final List<GroupCoverageTimeline> groups;
+}
+
+class GroupCoverageTimeline {
+  const GroupCoverageTimeline({
+    required this.groupId,
+    required this.groupName,
+    required this.samples,
+  });
+
+  final String groupId;
+  final String groupName;
+  final List<CoverageSample> samples;
+}
+
+class CoverageSample {
+  const CoverageSample({
+    required this.minuteOfDay,
+    required this.count,
+  });
+
+  final int minuteOfDay;
+  final int count;
+}
+
+/// Day-wide coverage for today. autoDispose so a quick swipe
+/// away tears it down — coverage data is point-in-time and
+/// shouldn't outlive the screen that asked for it.
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final coverageDayProvider =
+    FutureProvider.autoDispose<DayCoverage>((ref) async {
+  ref.watch(activeProgramIdProvider);
+  return ref.read(coverageRepositoryProvider).dayCoverage(
+        date: DateTime.now(),
+      );
+});
