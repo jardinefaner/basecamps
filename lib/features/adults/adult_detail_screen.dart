@@ -1,6 +1,7 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adult_timeline_repository.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
+import 'package:basecamp/features/adults/role_blocks_repository.dart';
 import 'package:basecamp/features/adults/widgets/adult_timeline_editor_sheet.dart';
 import 'package:basecamp/features/adults/widgets/edit_adult_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
@@ -15,6 +16,7 @@ import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:basecamp/ui/responsive.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -89,6 +91,8 @@ class AdultDetailScreen extends ConsumerWidget {
             _TodayBlocksSection(adultId: adultId),
             const SizedBox(height: AppSpacing.lg),
             _AvailabilitySection(adultId: adultId),
+            const SizedBox(height: AppSpacing.lg),
+            _DayPlanSection(adultId: adultId),
             const SizedBox(height: AppSpacing.lg),
             _AssignedActivitiesSection(
               adultId: adultId,
@@ -504,6 +508,569 @@ class _AvailabilityRow extends StatelessWidget {
     final period = h < 12 ? 'a' : 'p';
     return m == '00' ? '$hour12$period' : '$hour12:$m$period';
   }
+}
+
+/// Day-plan timeline (v48). Lists this adult's role-block
+/// pattern grouped by weekday. Tapping a block opens an editor;
+/// the FAB at the bottom of the section adds a new block to
+/// whichever weekday is currently selected.
+///
+/// Slice 1 ships read + add + delete. The drag-to-reschedule
+/// grid editor is slice 3. Per-date overrides are also slice
+/// 3 — for now the section shows the recurring pattern only.
+class _DayPlanSection extends ConsumerStatefulWidget {
+  const _DayPlanSection({required this.adultId});
+
+  final String adultId;
+
+  @override
+  ConsumerState<_DayPlanSection> createState() =>
+      _DayPlanSectionState();
+}
+
+class _DayPlanSectionState extends ConsumerState<_DayPlanSection> {
+  /// Selected weekday (1=Mon … 7=Sun). Defaults to today's
+  /// weekday so the most relevant blocks render first.
+  int _selectedDay = DateTime.now().weekday;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final blocksAsync = ref.watch(
+      adultRoleBlockPatternProvider(widget.adultId),
+    );
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Day plan',
+                  style: theme.textTheme.titleMedium,
+                ),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: () => _openAddSheet(context),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Block'),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Recurring weekly pattern: anchor / specialist / break / '
+            'lunch / admin / sub. Drag-edit comes in a future round.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          // Day-of-week strip — same convention as the
+          // availability section uses elsewhere on this screen.
+          _DayChipStrip(
+            selectedDay: _selectedDay,
+            onSelect: (d) => setState(() => _selectedDay = d),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          blocksAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (err, _) =>
+                Text('Couldn’t load day plan: $err'),
+            data: (all) {
+              final today = all
+                  .where((b) => b.weekday == _selectedDay)
+                  .toList()
+                ..sort((a, b) =>
+                    a.startMinute.compareTo(b.startMinute));
+              if (today.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: AppSpacing.md,
+                  ),
+                  child: Text(
+                    'No blocks for ${_dayName(_selectedDay)} yet. '
+                    'Tap "Block" to add one.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                );
+              }
+              return Column(
+                children: [
+                  for (final b in today)
+                    _RoleBlockTile(
+                      block: b,
+                      onTap: () => _openEditSheet(context, b),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openAddSheet(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _RoleBlockSheet(
+        adultId: widget.adultId,
+        defaultWeekday: _selectedDay,
+      ),
+    );
+  }
+
+  Future<void> _openEditSheet(
+    BuildContext context,
+    AdultRoleBlock block,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _RoleBlockSheet(
+        adultId: widget.adultId,
+        defaultWeekday: block.weekday,
+        existing: block,
+      ),
+    );
+  }
+
+  static String _dayName(int weekday) {
+    const names = ['', 'Monday', 'Tuesday', 'Wednesday',
+                   'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    return weekday >= 1 && weekday <= 7 ? names[weekday] : 'Day $weekday';
+  }
+}
+
+class _DayChipStrip extends StatelessWidget {
+  const _DayChipStrip({
+    required this.selectedDay,
+    required this.onSelect,
+  });
+
+  final int selectedDay;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (int d = 1; d <= 5; d++) ...[
+            ChoiceChip(
+              label: Text(_short(d)),
+              selected: selectedDay == d,
+              onSelected: (_) => onSelect(d),
+            ),
+            const SizedBox(width: AppSpacing.xs),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static String _short(int day) {
+    const labels = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    return day < labels.length ? labels[day] : 'D$day';
+  }
+}
+
+class _RoleBlockTile extends ConsumerWidget {
+  const _RoleBlockTile({required this.block, required this.onTap});
+
+  final AdultRoleBlock block;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final kind = RoleBlockKind.fromValue(block.kind);
+    final accent = _toneFor(theme, kind);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: Material(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            kind.label,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: accent,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          if (block.subject != null &&
+                              block.subject!.isNotEmpty) ...[
+                            const SizedBox(width: AppSpacing.xs),
+                            Text(
+                              '· ${block.subject}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${_fmtTime(block.startMinute)}–'
+                        '${_fmtTime(block.endMinute)}'
+                        '${_groupLabel(ref, block.groupId)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _groupLabel(WidgetRef ref, String? groupId) {
+    if (groupId == null) return '';
+    final groups = ref.read(groupsProvider).asData?.value ?? const [];
+    for (final g in groups) {
+      if (g.id == groupId) return ' · ${g.name}';
+    }
+    return ' · (group)';
+  }
+
+  Color _toneFor(ThemeData theme, RoleBlockKind kind) {
+    switch (kind) {
+      case RoleBlockKind.anchor:
+        return theme.colorScheme.primary;
+      case RoleBlockKind.specialist:
+        return theme.colorScheme.tertiary;
+      case RoleBlockKind.break_:
+      case RoleBlockKind.lunch:
+        return theme.colorScheme.outline;
+      case RoleBlockKind.admin:
+        return theme.colorScheme.secondary;
+      case RoleBlockKind.sub:
+        return theme.colorScheme.error;
+    }
+  }
+}
+
+/// Modal sheet for creating or editing one role block. Keyboard-
+/// aware shape (same canonical Padding(viewInsets) + scrollable
+/// pattern as every other sheet in the app).
+class _RoleBlockSheet extends ConsumerStatefulWidget {
+  const _RoleBlockSheet({
+    required this.adultId,
+    required this.defaultWeekday,
+    this.existing,
+  });
+
+  final String adultId;
+  final int defaultWeekday;
+  final AdultRoleBlock? existing;
+
+  @override
+  ConsumerState<_RoleBlockSheet> createState() => _RoleBlockSheetState();
+}
+
+class _RoleBlockSheetState extends ConsumerState<_RoleBlockSheet> {
+  late int _weekday;
+  late RoleBlockKind _kind;
+  late int _startMinute;
+  late int _endMinute;
+  String? _subject;
+  String? _groupId;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    _weekday = e?.weekday ?? widget.defaultWeekday;
+    _kind = e == null
+        ? RoleBlockKind.anchor
+        : RoleBlockKind.fromValue(e.kind);
+    _startMinute = e?.startMinute ?? 9 * 60;
+    _endMinute = e?.endMinute ?? 10 * 60;
+    _subject = e?.subject;
+    _groupId = e?.groupId;
+  }
+
+  Future<void> _pickStart() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: _startMinute ~/ 60,
+        minute: _startMinute % 60,
+      ),
+    );
+    if (picked != null) {
+      setState(() => _startMinute = picked.hour * 60 + picked.minute);
+    }
+  }
+
+  Future<void> _pickEnd() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: _endMinute ~/ 60,
+        minute: _endMinute % 60,
+      ),
+    );
+    if (picked != null) {
+      setState(() => _endMinute = picked.hour * 60 + picked.minute);
+    }
+  }
+
+  Future<void> _save() async {
+    if (_endMinute <= _startMinute) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('End time must be after start time.'),
+        ),
+      );
+      return;
+    }
+    if (_kind.isInRoom && _groupId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${_kind.label} blocks need a classroom selected.',
+          ),
+        ),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final repo = ref.read(roleBlocksRepositoryProvider);
+      if (widget.existing == null) {
+        await repo.addPatternBlock(
+          adultId: widget.adultId,
+          weekday: _weekday,
+          startMinute: _startMinute,
+          endMinute: _endMinute,
+          kind: _kind,
+          subject: _subject,
+          groupId: _kind.isInRoom ? _groupId : null,
+        );
+      } else {
+        await repo.updatePatternBlock(
+          id: widget.existing!.id,
+          weekday: _weekday,
+          startMinute: _startMinute,
+          endMinute: _endMinute,
+          kind: _kind,
+          subject: Value(_subject),
+          groupId: Value(_kind.isInRoom ? _groupId : null),
+        );
+      }
+      if (mounted) Navigator.of(context).pop();
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _delete() async {
+    if (widget.existing == null) return;
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(roleBlocksRepositoryProvider)
+          .deletePatternBlock(widget.existing!.id);
+      if (mounted) Navigator.of(context).pop();
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final groups =
+        ref.watch(groupsProvider).asData?.value ?? const <Group>[];
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            AppSpacing.lg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                widget.existing == null
+                    ? 'New role block'
+                    : 'Edit role block',
+                style: theme.textTheme.titleLarge,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              // Weekday
+              Wrap(
+                spacing: AppSpacing.xs,
+                children: [
+                  for (int d = 1; d <= 5; d++)
+                    ChoiceChip(
+                      label: Text(_dayShort(d)),
+                      selected: _weekday == d,
+                      onSelected: (_) => setState(() => _weekday = d),
+                    ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              // Kind
+              Wrap(
+                spacing: AppSpacing.xs,
+                children: [
+                  for (final k in RoleBlockKind.values)
+                    ChoiceChip(
+                      label: Text(k.label),
+                      selected: _kind == k,
+                      onSelected: (_) => setState(() => _kind = k),
+                    ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickStart,
+                      icon: const Icon(Icons.access_time, size: 16),
+                      label: Text('Start ${_fmtTime(_startMinute)}'),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickEnd,
+                      icon: const Icon(Icons.access_time, size: 16),
+                      label: Text('End ${_fmtTime(_endMinute)}'),
+                    ),
+                  ),
+                ],
+              ),
+              if (_kind == RoleBlockKind.specialist) ...[
+                const SizedBox(height: AppSpacing.md),
+                TextFormField(
+                  initialValue: _subject,
+                  decoration: const InputDecoration(
+                    labelText: 'Subject (e.g. Art, Music)',
+                  ),
+                  onChanged: (v) =>
+                      setState(() => _subject = v.trim().isEmpty ? null : v.trim()),
+                ),
+              ],
+              if (_kind.isInRoom) ...[
+                const SizedBox(height: AppSpacing.md),
+                DropdownButtonFormField<String>(
+                  initialValue: _groupId,
+                  decoration: const InputDecoration(
+                    labelText: 'Classroom',
+                  ),
+                  items: [
+                    for (final g in groups)
+                      DropdownMenuItem(value: g.id, child: Text(g.name)),
+                  ],
+                  onChanged: (v) => setState(() => _groupId = v),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.lg),
+              Row(
+                children: [
+                  if (widget.existing != null)
+                    TextButton(
+                      onPressed: _saving ? null : _delete,
+                      style: TextButton.styleFrom(
+                        foregroundColor: theme.colorScheme.error,
+                      ),
+                      child: const Text('Delete'),
+                    ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed:
+                        _saving ? null : () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  FilledButton(
+                    onPressed: _saving ? null : _save,
+                    child: _saving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Save'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _dayShort(int d) {
+    const labels = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    return d < labels.length ? labels[d] : 'D$d';
+  }
+}
+
+String _fmtTime(int minutes) {
+  final h = minutes ~/ 60;
+  final m = minutes % 60;
+  final h12 = h % 12 == 0 ? 12 : h % 12;
+  final ampm = h >= 12 ? 'pm' : 'am';
+  if (m == 0) return '$h12 $ampm';
+  return '$h12:${m.toString().padLeft(2, '0')} $ampm';
 }
 
 class _AssignedActivitiesSection extends ConsumerWidget {

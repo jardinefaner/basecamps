@@ -690,6 +690,132 @@ class AdultDayBlocks extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Per-weekday "what role am I in right now" timeline (v48).
+/// Models classroom-rotation patterns — the typical shape:
+///
+///   Mon 8:00-9:30   anchor      Lions
+///   Mon 9:30-10:30  specialist  Lions       (specialist warm-up)
+///   Mon 10:30-11:30 specialist  Bears       (rotation away)
+///   Mon 11:30-12:30 anchor      Lions
+///   Mon 12:30-13:00 break       null
+///
+/// Roles (stored as the `kind` text but typed via `RoleBlockKind`
+/// in Dart):
+///   - `anchor`     — anchored to a `groupId`. Two anchors per
+///                    classroom is the typical baseline.
+///   - `specialist` — teaching a subject across rooms. `subject`
+///                    set when known. `groupId` is the room
+///                    they're CURRENTLY in for this slot (which
+///                    may not be their home room).
+///   - `break`      — off-duty. `groupId` null.
+///   - `lunch`      — same as break, separately labeled for
+///                    payroll / scheduling clarity.
+///   - `admin`      — non-classroom work (planning, paperwork,
+///                    parent meetings). `groupId` null.
+///   - `sub`        — covering for an absent teacher. `groupId`
+///                    is the room they're subbing in.
+///
+/// One-off changes (Sarah's home from Lions but covering Bears
+/// today) live in [AdultRoleBlockOverrides]. The resolver layers
+/// pattern → overrides for a given date.
+@DataClassName('AdultRoleBlock')
+class AdultRoleBlocks extends Table {
+  TextColumn get id => text()();
+  TextColumn get adultId => text()
+      .references(Adults, #id, onDelete: KeyAction.cascade)();
+
+  /// 1 = Mon … 7 = Sun. Same convention as
+  /// `DateTime.weekday` and the rest of the app.
+  IntColumn get weekday => integer()();
+
+  /// Minutes from midnight. Half-open `[start, end)`. Storing as
+  /// minutes (not HH:mm strings) keeps overlap math straight in
+  /// the resolver — no parsing per comparison.
+  IntColumn get startMinute => integer()();
+  IntColumn get endMinute => integer()();
+
+  /// Stored as text. Validated client-side via the
+  /// `RoleBlockKind` enum in
+  /// `lib/features/adults/role_blocks_repository.dart`. Cloud
+  /// has a CHECK constraint enumerating the allowed values
+  /// (see migration 0018) so a typo in raw SQL doesn't sneak in.
+  TextColumn get kind => text()();
+
+  /// Specialist subject — "Art", "Music", "Movement". Set only
+  /// when `kind = 'specialist'` (and even then it's optional —
+  /// floor specialists exist who teach mixed content). Null
+  /// otherwise.
+  TextColumn get subject => text().nullable()();
+
+  /// Which classroom the adult is in during this block. Required
+  /// for `anchor` / `specialist` / `sub`; null for break/lunch/
+  /// admin (the adult isn't in any room).
+  TextColumn get groupId => text()
+      .nullable()
+      .references(Groups, #id, onDelete: KeyAction.setNull)();
+
+  /// Owning program. Same rule as everywhere else.
+  TextColumn get programId => text().nullable()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Date-specific override on the role-block timeline (v48). Two
+/// modes:
+///   - `replaces = true`  — wipes any pattern blocks that overlap
+///     this time on this date and substitutes this one. Use for
+///     "Sarah is out today, Marcus subs in 9-10."
+///   - `replaces = false` — adds a one-off block on top of the
+///     pattern. Use for "extra music session 3-4 today" without
+///     touching the regular pattern.
+///
+/// Resolver semantics: given a date D, the day plan = pattern
+/// blocks for `D.weekday` minus anything with a `replaces`
+/// override for D, plus all overrides for D. Layer order matters
+/// only when overrides and pattern collide; `replaces` wins.
+@DataClassName('AdultRoleBlockOverride')
+class AdultRoleBlockOverrides extends Table {
+  TextColumn get id => text()();
+  TextColumn get adultId => text()
+      .references(Adults, #id, onDelete: KeyAction.cascade)();
+
+  /// Calendar date the override applies to. Day-only granularity
+  /// (time component ignored) — matches `Trips.date` and other
+  /// date-only fields in the schema.
+  DateTimeColumn get date => dateTime()();
+
+  IntColumn get startMinute => integer()();
+  IntColumn get endMinute => integer()();
+  TextColumn get kind => text()();
+  TextColumn get subject => text().nullable()();
+  TextColumn get groupId => text()
+      .nullable()
+      .references(Groups, #id, onDelete: KeyAction.setNull)();
+
+  /// True when this override blocks any overlapping pattern row
+  /// for this date. False when it's additive (extra block on top
+  /// of the pattern). Default false — additive is the safer
+  /// guess if the author forgets to flip it.
+  BoolColumn get replaces =>
+      boolean().withDefault(const Constant(false))();
+
+  TextColumn get programId => text().nullable()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 /// Staff job titles / roles (v39). Promotes the free-text
 /// [Adults.role] blurb into a shared picklist so "Art teacher" is
 /// typed once, picked thereafter. Legacy string still lives on the

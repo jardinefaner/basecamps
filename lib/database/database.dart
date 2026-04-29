@@ -49,6 +49,8 @@ QueryExecutor _openConnection() {
     Attendance,
     ChildScheduleOverrides,
     AdultDayBlocks,
+    AdultRoleBlocks,
+    AdultRoleBlockOverrides,
     FormSubmissions,
     Vehicles,
     Parents,
@@ -70,7 +72,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 47;
+  int get schemaVersion => 48;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -93,6 +95,7 @@ class AppDatabase extends _$AppDatabase {
           // _runSilent).
           await _healProgramIdColumns();
           await _healCurriculumArcColumns();
+          await _healRoleBlockTables();
         },
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
@@ -110,6 +113,69 @@ class AppDatabase extends _$AppDatabase {
               'fresh at schema 25. This only affects devs who have '
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
+            );
+          }
+          if (from < 48) {
+            // v48: per-adult role timeline tables. Patterns
+            // (`adult_role_blocks`) plus date-specific overrides
+            // (`adult_role_block_overrides`) so a teacher's
+            // anchor → specialist → break flow is editable
+            // both as a recurring weekday plan and as one-off
+            // adjustments for substitutes / special days.
+            //
+            // No data migration — adds two empty tables. The
+            // existing `adult_day_blocks` table stays for its
+            // current callers (breaks/lunches feature). Future
+            // work can reconcile the two if needed; for now
+            // they coexist with non-overlapping semantics.
+            await _runSilent(
+              'CREATE TABLE IF NOT EXISTS "adult_role_blocks" ('
+              ' "id" TEXT NOT NULL PRIMARY KEY, '
+              ' "adult_id" TEXT NOT NULL '
+              '   REFERENCES "adults"("id") ON DELETE CASCADE, '
+              ' "weekday" INTEGER NOT NULL, '
+              ' "start_minute" INTEGER NOT NULL, '
+              ' "end_minute" INTEGER NOT NULL, '
+              ' "kind" TEXT NOT NULL, '
+              ' "subject" TEXT NULL, '
+              ' "group_id" TEXT NULL '
+              '   REFERENCES "groups"("id") ON DELETE SET NULL, '
+              ' "program_id" TEXT NULL, '
+              ' "created_at" INTEGER NOT NULL '
+              "   DEFAULT (strftime('%s', 'now')), "
+              ' "updated_at" INTEGER NOT NULL '
+              "   DEFAULT (strftime('%s', 'now'))"
+              ' )',
+            );
+            await _runSilent(
+              'CREATE INDEX IF NOT EXISTS '
+              '"idx_adult_role_blocks_adult" '
+              'ON "adult_role_blocks" ("adult_id", "weekday")',
+            );
+            await _runSilent(
+              'CREATE TABLE IF NOT EXISTS "adult_role_block_overrides" ('
+              ' "id" TEXT NOT NULL PRIMARY KEY, '
+              ' "adult_id" TEXT NOT NULL '
+              '   REFERENCES "adults"("id") ON DELETE CASCADE, '
+              ' "date" INTEGER NOT NULL, '
+              ' "start_minute" INTEGER NOT NULL, '
+              ' "end_minute" INTEGER NOT NULL, '
+              ' "kind" TEXT NOT NULL, '
+              ' "subject" TEXT NULL, '
+              ' "group_id" TEXT NULL '
+              '   REFERENCES "groups"("id") ON DELETE SET NULL, '
+              ' "replaces" INTEGER NOT NULL DEFAULT 0, '
+              ' "program_id" TEXT NULL, '
+              ' "created_at" INTEGER NOT NULL '
+              "   DEFAULT (strftime('%s', 'now')), "
+              ' "updated_at" INTEGER NOT NULL '
+              "   DEFAULT (strftime('%s', 'now'))"
+              ' )',
+            );
+            await _runSilent(
+              'CREATE INDEX IF NOT EXISTS '
+              '"idx_adult_role_block_overrides_adult_date" '
+              'ON "adult_role_block_overrides" ("adult_id", "date")',
             );
           }
           if (from < 47) {
@@ -1120,6 +1186,63 @@ class AppDatabase extends _$AppDatabase {
     await _runSilent(
       'ALTER TABLE "lesson_sequences" '
       'ADD COLUMN "engine_notes" TEXT NULL',
+    );
+  }
+
+  /// Re-apply the v48 role-block CREATE TABLE statements every
+  /// launch. Same logic as the other heal helpers: idempotent
+  /// (CREATE TABLE IF NOT EXISTS short-circuits cleanly), defends
+  /// against partial-upgrade IndexedDB states on web where the
+  /// migration could close mid-run.
+  Future<void> _healRoleBlockTables() async {
+    await _runSilent(
+      'CREATE TABLE IF NOT EXISTS "adult_role_blocks" ('
+      ' "id" TEXT NOT NULL PRIMARY KEY, '
+      ' "adult_id" TEXT NOT NULL '
+      '   REFERENCES "adults"("id") ON DELETE CASCADE, '
+      ' "weekday" INTEGER NOT NULL, '
+      ' "start_minute" INTEGER NOT NULL, '
+      ' "end_minute" INTEGER NOT NULL, '
+      ' "kind" TEXT NOT NULL, '
+      ' "subject" TEXT NULL, '
+      ' "group_id" TEXT NULL '
+      '   REFERENCES "groups"("id") ON DELETE SET NULL, '
+      ' "program_id" TEXT NULL, '
+      ' "created_at" INTEGER NOT NULL '
+      "   DEFAULT (strftime('%s', 'now')), "
+      ' "updated_at" INTEGER NOT NULL '
+      "   DEFAULT (strftime('%s', 'now'))"
+      ' )',
+    );
+    await _runSilent(
+      'CREATE INDEX IF NOT EXISTS '
+      '"idx_adult_role_blocks_adult" '
+      'ON "adult_role_blocks" ("adult_id", "weekday")',
+    );
+    await _runSilent(
+      'CREATE TABLE IF NOT EXISTS "adult_role_block_overrides" ('
+      ' "id" TEXT NOT NULL PRIMARY KEY, '
+      ' "adult_id" TEXT NOT NULL '
+      '   REFERENCES "adults"("id") ON DELETE CASCADE, '
+      ' "date" INTEGER NOT NULL, '
+      ' "start_minute" INTEGER NOT NULL, '
+      ' "end_minute" INTEGER NOT NULL, '
+      ' "kind" TEXT NOT NULL, '
+      ' "subject" TEXT NULL, '
+      ' "group_id" TEXT NULL '
+      '   REFERENCES "groups"("id") ON DELETE SET NULL, '
+      ' "replaces" INTEGER NOT NULL DEFAULT 0, '
+      ' "program_id" TEXT NULL, '
+      ' "created_at" INTEGER NOT NULL '
+      "   DEFAULT (strftime('%s', 'now')), "
+      ' "updated_at" INTEGER NOT NULL '
+      "   DEFAULT (strftime('%s', 'now'))"
+      ' )',
+    );
+    await _runSilent(
+      'CREATE INDEX IF NOT EXISTS '
+      '"idx_adult_role_block_overrides_adult_date" '
+      'ON "adult_role_block_overrides" ("adult_id", "date")',
     );
   }
 

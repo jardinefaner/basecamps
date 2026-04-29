@@ -14027,6 +14027,1416 @@ class AdultDayBlocksCompanion extends UpdateCompanion<AdultDayBlock> {
   }
 }
 
+class $AdultRoleBlocksTable extends AdultRoleBlocks
+    with TableInfo<$AdultRoleBlocksTable, AdultRoleBlock> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AdultRoleBlocksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _adultIdMeta = const VerificationMeta(
+    'adultId',
+  );
+  @override
+  late final GeneratedColumn<String> adultId = GeneratedColumn<String>(
+    'adult_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES adults (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _weekdayMeta = const VerificationMeta(
+    'weekday',
+  );
+  @override
+  late final GeneratedColumn<int> weekday = GeneratedColumn<int>(
+    'weekday',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startMinuteMeta = const VerificationMeta(
+    'startMinute',
+  );
+  @override
+  late final GeneratedColumn<int> startMinute = GeneratedColumn<int>(
+    'start_minute',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endMinuteMeta = const VerificationMeta(
+    'endMinute',
+  );
+  @override
+  late final GeneratedColumn<int> endMinute = GeneratedColumn<int>(
+    'end_minute',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _subjectMeta = const VerificationMeta(
+    'subject',
+  );
+  @override
+  late final GeneratedColumn<String> subject = GeneratedColumn<String>(
+    'subject',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _groupIdMeta = const VerificationMeta(
+    'groupId',
+  );
+  @override
+  late final GeneratedColumn<String> groupId = GeneratedColumn<String>(
+    'group_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES "groups" (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _programIdMeta = const VerificationMeta(
+    'programId',
+  );
+  @override
+  late final GeneratedColumn<String> programId = GeneratedColumn<String>(
+    'program_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    adultId,
+    weekday,
+    startMinute,
+    endMinute,
+    kind,
+    subject,
+    groupId,
+    programId,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'adult_role_blocks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AdultRoleBlock> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('adult_id')) {
+      context.handle(
+        _adultIdMeta,
+        adultId.isAcceptableOrUnknown(data['adult_id']!, _adultIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_adultIdMeta);
+    }
+    if (data.containsKey('weekday')) {
+      context.handle(
+        _weekdayMeta,
+        weekday.isAcceptableOrUnknown(data['weekday']!, _weekdayMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_weekdayMeta);
+    }
+    if (data.containsKey('start_minute')) {
+      context.handle(
+        _startMinuteMeta,
+        startMinute.isAcceptableOrUnknown(
+          data['start_minute']!,
+          _startMinuteMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_startMinuteMeta);
+    }
+    if (data.containsKey('end_minute')) {
+      context.handle(
+        _endMinuteMeta,
+        endMinute.isAcceptableOrUnknown(data['end_minute']!, _endMinuteMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endMinuteMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('subject')) {
+      context.handle(
+        _subjectMeta,
+        subject.isAcceptableOrUnknown(data['subject']!, _subjectMeta),
+      );
+    }
+    if (data.containsKey('group_id')) {
+      context.handle(
+        _groupIdMeta,
+        groupId.isAcceptableOrUnknown(data['group_id']!, _groupIdMeta),
+      );
+    }
+    if (data.containsKey('program_id')) {
+      context.handle(
+        _programIdMeta,
+        programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AdultRoleBlock map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AdultRoleBlock(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      adultId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}adult_id'],
+      )!,
+      weekday: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}weekday'],
+      )!,
+      startMinute: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_minute'],
+      )!,
+      endMinute: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_minute'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      subject: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subject'],
+      ),
+      groupId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}group_id'],
+      ),
+      programId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}program_id'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AdultRoleBlocksTable createAlias(String alias) {
+    return $AdultRoleBlocksTable(attachedDatabase, alias);
+  }
+}
+
+class AdultRoleBlock extends DataClass implements Insertable<AdultRoleBlock> {
+  final String id;
+  final String adultId;
+
+  /// 1 = Mon … 7 = Sun. Same convention as
+  /// `DateTime.weekday` and the rest of the app.
+  final int weekday;
+
+  /// Minutes from midnight. Half-open `[start, end)`. Storing as
+  /// minutes (not HH:mm strings) keeps overlap math straight in
+  /// the resolver — no parsing per comparison.
+  final int startMinute;
+  final int endMinute;
+
+  /// Stored as text. Validated client-side via [RoleBlockKind].
+  /// Cloud has a CHECK constraint enumerating the allowed values
+  /// (see migration 0018) so a typo in raw SQL doesn't sneak in.
+  final String kind;
+
+  /// Specialist subject — "Art", "Music", "Movement". Set only
+  /// when `kind = 'specialist'` (and even then it's optional —
+  /// floor specialists exist who teach mixed content). Null
+  /// otherwise.
+  final String? subject;
+
+  /// Which classroom the adult is in during this block. Required
+  /// for `anchor` / `specialist` / `sub`; null for break/lunch/
+  /// admin (the adult isn't in any room).
+  final String? groupId;
+
+  /// Owning program. Same rule as everywhere else.
+  final String? programId;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const AdultRoleBlock({
+    required this.id,
+    required this.adultId,
+    required this.weekday,
+    required this.startMinute,
+    required this.endMinute,
+    required this.kind,
+    this.subject,
+    this.groupId,
+    this.programId,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['adult_id'] = Variable<String>(adultId);
+    map['weekday'] = Variable<int>(weekday);
+    map['start_minute'] = Variable<int>(startMinute);
+    map['end_minute'] = Variable<int>(endMinute);
+    map['kind'] = Variable<String>(kind);
+    if (!nullToAbsent || subject != null) {
+      map['subject'] = Variable<String>(subject);
+    }
+    if (!nullToAbsent || groupId != null) {
+      map['group_id'] = Variable<String>(groupId);
+    }
+    if (!nullToAbsent || programId != null) {
+      map['program_id'] = Variable<String>(programId);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  AdultRoleBlocksCompanion toCompanion(bool nullToAbsent) {
+    return AdultRoleBlocksCompanion(
+      id: Value(id),
+      adultId: Value(adultId),
+      weekday: Value(weekday),
+      startMinute: Value(startMinute),
+      endMinute: Value(endMinute),
+      kind: Value(kind),
+      subject: subject == null && nullToAbsent
+          ? const Value.absent()
+          : Value(subject),
+      groupId: groupId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(groupId),
+      programId: programId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(programId),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory AdultRoleBlock.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AdultRoleBlock(
+      id: serializer.fromJson<String>(json['id']),
+      adultId: serializer.fromJson<String>(json['adultId']),
+      weekday: serializer.fromJson<int>(json['weekday']),
+      startMinute: serializer.fromJson<int>(json['startMinute']),
+      endMinute: serializer.fromJson<int>(json['endMinute']),
+      kind: serializer.fromJson<String>(json['kind']),
+      subject: serializer.fromJson<String?>(json['subject']),
+      groupId: serializer.fromJson<String?>(json['groupId']),
+      programId: serializer.fromJson<String?>(json['programId']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'adultId': serializer.toJson<String>(adultId),
+      'weekday': serializer.toJson<int>(weekday),
+      'startMinute': serializer.toJson<int>(startMinute),
+      'endMinute': serializer.toJson<int>(endMinute),
+      'kind': serializer.toJson<String>(kind),
+      'subject': serializer.toJson<String?>(subject),
+      'groupId': serializer.toJson<String?>(groupId),
+      'programId': serializer.toJson<String?>(programId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  AdultRoleBlock copyWith({
+    String? id,
+    String? adultId,
+    int? weekday,
+    int? startMinute,
+    int? endMinute,
+    String? kind,
+    Value<String?> subject = const Value.absent(),
+    Value<String?> groupId = const Value.absent(),
+    Value<String?> programId = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => AdultRoleBlock(
+    id: id ?? this.id,
+    adultId: adultId ?? this.adultId,
+    weekday: weekday ?? this.weekday,
+    startMinute: startMinute ?? this.startMinute,
+    endMinute: endMinute ?? this.endMinute,
+    kind: kind ?? this.kind,
+    subject: subject.present ? subject.value : this.subject,
+    groupId: groupId.present ? groupId.value : this.groupId,
+    programId: programId.present ? programId.value : this.programId,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  AdultRoleBlock copyWithCompanion(AdultRoleBlocksCompanion data) {
+    return AdultRoleBlock(
+      id: data.id.present ? data.id.value : this.id,
+      adultId: data.adultId.present ? data.adultId.value : this.adultId,
+      weekday: data.weekday.present ? data.weekday.value : this.weekday,
+      startMinute: data.startMinute.present
+          ? data.startMinute.value
+          : this.startMinute,
+      endMinute: data.endMinute.present ? data.endMinute.value : this.endMinute,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      subject: data.subject.present ? data.subject.value : this.subject,
+      groupId: data.groupId.present ? data.groupId.value : this.groupId,
+      programId: data.programId.present ? data.programId.value : this.programId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AdultRoleBlock(')
+          ..write('id: $id, ')
+          ..write('adultId: $adultId, ')
+          ..write('weekday: $weekday, ')
+          ..write('startMinute: $startMinute, ')
+          ..write('endMinute: $endMinute, ')
+          ..write('kind: $kind, ')
+          ..write('subject: $subject, ')
+          ..write('groupId: $groupId, ')
+          ..write('programId: $programId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    adultId,
+    weekday,
+    startMinute,
+    endMinute,
+    kind,
+    subject,
+    groupId,
+    programId,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AdultRoleBlock &&
+          other.id == this.id &&
+          other.adultId == this.adultId &&
+          other.weekday == this.weekday &&
+          other.startMinute == this.startMinute &&
+          other.endMinute == this.endMinute &&
+          other.kind == this.kind &&
+          other.subject == this.subject &&
+          other.groupId == this.groupId &&
+          other.programId == this.programId &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class AdultRoleBlocksCompanion extends UpdateCompanion<AdultRoleBlock> {
+  final Value<String> id;
+  final Value<String> adultId;
+  final Value<int> weekday;
+  final Value<int> startMinute;
+  final Value<int> endMinute;
+  final Value<String> kind;
+  final Value<String?> subject;
+  final Value<String?> groupId;
+  final Value<String?> programId;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const AdultRoleBlocksCompanion({
+    this.id = const Value.absent(),
+    this.adultId = const Value.absent(),
+    this.weekday = const Value.absent(),
+    this.startMinute = const Value.absent(),
+    this.endMinute = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.subject = const Value.absent(),
+    this.groupId = const Value.absent(),
+    this.programId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AdultRoleBlocksCompanion.insert({
+    required String id,
+    required String adultId,
+    required int weekday,
+    required int startMinute,
+    required int endMinute,
+    required String kind,
+    this.subject = const Value.absent(),
+    this.groupId = const Value.absent(),
+    this.programId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       adultId = Value(adultId),
+       weekday = Value(weekday),
+       startMinute = Value(startMinute),
+       endMinute = Value(endMinute),
+       kind = Value(kind);
+  static Insertable<AdultRoleBlock> custom({
+    Expression<String>? id,
+    Expression<String>? adultId,
+    Expression<int>? weekday,
+    Expression<int>? startMinute,
+    Expression<int>? endMinute,
+    Expression<String>? kind,
+    Expression<String>? subject,
+    Expression<String>? groupId,
+    Expression<String>? programId,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (adultId != null) 'adult_id': adultId,
+      if (weekday != null) 'weekday': weekday,
+      if (startMinute != null) 'start_minute': startMinute,
+      if (endMinute != null) 'end_minute': endMinute,
+      if (kind != null) 'kind': kind,
+      if (subject != null) 'subject': subject,
+      if (groupId != null) 'group_id': groupId,
+      if (programId != null) 'program_id': programId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AdultRoleBlocksCompanion copyWith({
+    Value<String>? id,
+    Value<String>? adultId,
+    Value<int>? weekday,
+    Value<int>? startMinute,
+    Value<int>? endMinute,
+    Value<String>? kind,
+    Value<String?>? subject,
+    Value<String?>? groupId,
+    Value<String?>? programId,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return AdultRoleBlocksCompanion(
+      id: id ?? this.id,
+      adultId: adultId ?? this.adultId,
+      weekday: weekday ?? this.weekday,
+      startMinute: startMinute ?? this.startMinute,
+      endMinute: endMinute ?? this.endMinute,
+      kind: kind ?? this.kind,
+      subject: subject ?? this.subject,
+      groupId: groupId ?? this.groupId,
+      programId: programId ?? this.programId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (adultId.present) {
+      map['adult_id'] = Variable<String>(adultId.value);
+    }
+    if (weekday.present) {
+      map['weekday'] = Variable<int>(weekday.value);
+    }
+    if (startMinute.present) {
+      map['start_minute'] = Variable<int>(startMinute.value);
+    }
+    if (endMinute.present) {
+      map['end_minute'] = Variable<int>(endMinute.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (subject.present) {
+      map['subject'] = Variable<String>(subject.value);
+    }
+    if (groupId.present) {
+      map['group_id'] = Variable<String>(groupId.value);
+    }
+    if (programId.present) {
+      map['program_id'] = Variable<String>(programId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AdultRoleBlocksCompanion(')
+          ..write('id: $id, ')
+          ..write('adultId: $adultId, ')
+          ..write('weekday: $weekday, ')
+          ..write('startMinute: $startMinute, ')
+          ..write('endMinute: $endMinute, ')
+          ..write('kind: $kind, ')
+          ..write('subject: $subject, ')
+          ..write('groupId: $groupId, ')
+          ..write('programId: $programId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AdultRoleBlockOverridesTable extends AdultRoleBlockOverrides
+    with TableInfo<$AdultRoleBlockOverridesTable, AdultRoleBlockOverride> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AdultRoleBlockOverridesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _adultIdMeta = const VerificationMeta(
+    'adultId',
+  );
+  @override
+  late final GeneratedColumn<String> adultId = GeneratedColumn<String>(
+    'adult_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES adults (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _dateMeta = const VerificationMeta('date');
+  @override
+  late final GeneratedColumn<DateTime> date = GeneratedColumn<DateTime>(
+    'date',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startMinuteMeta = const VerificationMeta(
+    'startMinute',
+  );
+  @override
+  late final GeneratedColumn<int> startMinute = GeneratedColumn<int>(
+    'start_minute',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endMinuteMeta = const VerificationMeta(
+    'endMinute',
+  );
+  @override
+  late final GeneratedColumn<int> endMinute = GeneratedColumn<int>(
+    'end_minute',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _subjectMeta = const VerificationMeta(
+    'subject',
+  );
+  @override
+  late final GeneratedColumn<String> subject = GeneratedColumn<String>(
+    'subject',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _groupIdMeta = const VerificationMeta(
+    'groupId',
+  );
+  @override
+  late final GeneratedColumn<String> groupId = GeneratedColumn<String>(
+    'group_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES "groups" (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _replacesMeta = const VerificationMeta(
+    'replaces',
+  );
+  @override
+  late final GeneratedColumn<bool> replaces = GeneratedColumn<bool>(
+    'replaces',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("replaces" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _programIdMeta = const VerificationMeta(
+    'programId',
+  );
+  @override
+  late final GeneratedColumn<String> programId = GeneratedColumn<String>(
+    'program_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    adultId,
+    date,
+    startMinute,
+    endMinute,
+    kind,
+    subject,
+    groupId,
+    replaces,
+    programId,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'adult_role_block_overrides';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AdultRoleBlockOverride> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('adult_id')) {
+      context.handle(
+        _adultIdMeta,
+        adultId.isAcceptableOrUnknown(data['adult_id']!, _adultIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_adultIdMeta);
+    }
+    if (data.containsKey('date')) {
+      context.handle(
+        _dateMeta,
+        date.isAcceptableOrUnknown(data['date']!, _dateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dateMeta);
+    }
+    if (data.containsKey('start_minute')) {
+      context.handle(
+        _startMinuteMeta,
+        startMinute.isAcceptableOrUnknown(
+          data['start_minute']!,
+          _startMinuteMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_startMinuteMeta);
+    }
+    if (data.containsKey('end_minute')) {
+      context.handle(
+        _endMinuteMeta,
+        endMinute.isAcceptableOrUnknown(data['end_minute']!, _endMinuteMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endMinuteMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('subject')) {
+      context.handle(
+        _subjectMeta,
+        subject.isAcceptableOrUnknown(data['subject']!, _subjectMeta),
+      );
+    }
+    if (data.containsKey('group_id')) {
+      context.handle(
+        _groupIdMeta,
+        groupId.isAcceptableOrUnknown(data['group_id']!, _groupIdMeta),
+      );
+    }
+    if (data.containsKey('replaces')) {
+      context.handle(
+        _replacesMeta,
+        replaces.isAcceptableOrUnknown(data['replaces']!, _replacesMeta),
+      );
+    }
+    if (data.containsKey('program_id')) {
+      context.handle(
+        _programIdMeta,
+        programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AdultRoleBlockOverride map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AdultRoleBlockOverride(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      adultId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}adult_id'],
+      )!,
+      date: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}date'],
+      )!,
+      startMinute: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_minute'],
+      )!,
+      endMinute: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_minute'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      subject: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subject'],
+      ),
+      groupId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}group_id'],
+      ),
+      replaces: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}replaces'],
+      )!,
+      programId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}program_id'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AdultRoleBlockOverridesTable createAlias(String alias) {
+    return $AdultRoleBlockOverridesTable(attachedDatabase, alias);
+  }
+}
+
+class AdultRoleBlockOverride extends DataClass
+    implements Insertable<AdultRoleBlockOverride> {
+  final String id;
+  final String adultId;
+
+  /// Calendar date the override applies to. Day-only granularity
+  /// (time component ignored) — matches `Trips.date` and other
+  /// date-only fields in the schema.
+  final DateTime date;
+  final int startMinute;
+  final int endMinute;
+  final String kind;
+  final String? subject;
+  final String? groupId;
+
+  /// True when this override blocks any overlapping pattern row
+  /// for this date. False when it's additive (extra block on top
+  /// of the pattern). Default false — additive is the safer
+  /// guess if the author forgets to flip it.
+  final bool replaces;
+  final String? programId;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const AdultRoleBlockOverride({
+    required this.id,
+    required this.adultId,
+    required this.date,
+    required this.startMinute,
+    required this.endMinute,
+    required this.kind,
+    this.subject,
+    this.groupId,
+    required this.replaces,
+    this.programId,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['adult_id'] = Variable<String>(adultId);
+    map['date'] = Variable<DateTime>(date);
+    map['start_minute'] = Variable<int>(startMinute);
+    map['end_minute'] = Variable<int>(endMinute);
+    map['kind'] = Variable<String>(kind);
+    if (!nullToAbsent || subject != null) {
+      map['subject'] = Variable<String>(subject);
+    }
+    if (!nullToAbsent || groupId != null) {
+      map['group_id'] = Variable<String>(groupId);
+    }
+    map['replaces'] = Variable<bool>(replaces);
+    if (!nullToAbsent || programId != null) {
+      map['program_id'] = Variable<String>(programId);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  AdultRoleBlockOverridesCompanion toCompanion(bool nullToAbsent) {
+    return AdultRoleBlockOverridesCompanion(
+      id: Value(id),
+      adultId: Value(adultId),
+      date: Value(date),
+      startMinute: Value(startMinute),
+      endMinute: Value(endMinute),
+      kind: Value(kind),
+      subject: subject == null && nullToAbsent
+          ? const Value.absent()
+          : Value(subject),
+      groupId: groupId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(groupId),
+      replaces: Value(replaces),
+      programId: programId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(programId),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory AdultRoleBlockOverride.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AdultRoleBlockOverride(
+      id: serializer.fromJson<String>(json['id']),
+      adultId: serializer.fromJson<String>(json['adultId']),
+      date: serializer.fromJson<DateTime>(json['date']),
+      startMinute: serializer.fromJson<int>(json['startMinute']),
+      endMinute: serializer.fromJson<int>(json['endMinute']),
+      kind: serializer.fromJson<String>(json['kind']),
+      subject: serializer.fromJson<String?>(json['subject']),
+      groupId: serializer.fromJson<String?>(json['groupId']),
+      replaces: serializer.fromJson<bool>(json['replaces']),
+      programId: serializer.fromJson<String?>(json['programId']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'adultId': serializer.toJson<String>(adultId),
+      'date': serializer.toJson<DateTime>(date),
+      'startMinute': serializer.toJson<int>(startMinute),
+      'endMinute': serializer.toJson<int>(endMinute),
+      'kind': serializer.toJson<String>(kind),
+      'subject': serializer.toJson<String?>(subject),
+      'groupId': serializer.toJson<String?>(groupId),
+      'replaces': serializer.toJson<bool>(replaces),
+      'programId': serializer.toJson<String?>(programId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  AdultRoleBlockOverride copyWith({
+    String? id,
+    String? adultId,
+    DateTime? date,
+    int? startMinute,
+    int? endMinute,
+    String? kind,
+    Value<String?> subject = const Value.absent(),
+    Value<String?> groupId = const Value.absent(),
+    bool? replaces,
+    Value<String?> programId = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => AdultRoleBlockOverride(
+    id: id ?? this.id,
+    adultId: adultId ?? this.adultId,
+    date: date ?? this.date,
+    startMinute: startMinute ?? this.startMinute,
+    endMinute: endMinute ?? this.endMinute,
+    kind: kind ?? this.kind,
+    subject: subject.present ? subject.value : this.subject,
+    groupId: groupId.present ? groupId.value : this.groupId,
+    replaces: replaces ?? this.replaces,
+    programId: programId.present ? programId.value : this.programId,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  AdultRoleBlockOverride copyWithCompanion(
+    AdultRoleBlockOverridesCompanion data,
+  ) {
+    return AdultRoleBlockOverride(
+      id: data.id.present ? data.id.value : this.id,
+      adultId: data.adultId.present ? data.adultId.value : this.adultId,
+      date: data.date.present ? data.date.value : this.date,
+      startMinute: data.startMinute.present
+          ? data.startMinute.value
+          : this.startMinute,
+      endMinute: data.endMinute.present ? data.endMinute.value : this.endMinute,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      subject: data.subject.present ? data.subject.value : this.subject,
+      groupId: data.groupId.present ? data.groupId.value : this.groupId,
+      replaces: data.replaces.present ? data.replaces.value : this.replaces,
+      programId: data.programId.present ? data.programId.value : this.programId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AdultRoleBlockOverride(')
+          ..write('id: $id, ')
+          ..write('adultId: $adultId, ')
+          ..write('date: $date, ')
+          ..write('startMinute: $startMinute, ')
+          ..write('endMinute: $endMinute, ')
+          ..write('kind: $kind, ')
+          ..write('subject: $subject, ')
+          ..write('groupId: $groupId, ')
+          ..write('replaces: $replaces, ')
+          ..write('programId: $programId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    adultId,
+    date,
+    startMinute,
+    endMinute,
+    kind,
+    subject,
+    groupId,
+    replaces,
+    programId,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AdultRoleBlockOverride &&
+          other.id == this.id &&
+          other.adultId == this.adultId &&
+          other.date == this.date &&
+          other.startMinute == this.startMinute &&
+          other.endMinute == this.endMinute &&
+          other.kind == this.kind &&
+          other.subject == this.subject &&
+          other.groupId == this.groupId &&
+          other.replaces == this.replaces &&
+          other.programId == this.programId &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class AdultRoleBlockOverridesCompanion
+    extends UpdateCompanion<AdultRoleBlockOverride> {
+  final Value<String> id;
+  final Value<String> adultId;
+  final Value<DateTime> date;
+  final Value<int> startMinute;
+  final Value<int> endMinute;
+  final Value<String> kind;
+  final Value<String?> subject;
+  final Value<String?> groupId;
+  final Value<bool> replaces;
+  final Value<String?> programId;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const AdultRoleBlockOverridesCompanion({
+    this.id = const Value.absent(),
+    this.adultId = const Value.absent(),
+    this.date = const Value.absent(),
+    this.startMinute = const Value.absent(),
+    this.endMinute = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.subject = const Value.absent(),
+    this.groupId = const Value.absent(),
+    this.replaces = const Value.absent(),
+    this.programId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AdultRoleBlockOverridesCompanion.insert({
+    required String id,
+    required String adultId,
+    required DateTime date,
+    required int startMinute,
+    required int endMinute,
+    required String kind,
+    this.subject = const Value.absent(),
+    this.groupId = const Value.absent(),
+    this.replaces = const Value.absent(),
+    this.programId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       adultId = Value(adultId),
+       date = Value(date),
+       startMinute = Value(startMinute),
+       endMinute = Value(endMinute),
+       kind = Value(kind);
+  static Insertable<AdultRoleBlockOverride> custom({
+    Expression<String>? id,
+    Expression<String>? adultId,
+    Expression<DateTime>? date,
+    Expression<int>? startMinute,
+    Expression<int>? endMinute,
+    Expression<String>? kind,
+    Expression<String>? subject,
+    Expression<String>? groupId,
+    Expression<bool>? replaces,
+    Expression<String>? programId,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (adultId != null) 'adult_id': adultId,
+      if (date != null) 'date': date,
+      if (startMinute != null) 'start_minute': startMinute,
+      if (endMinute != null) 'end_minute': endMinute,
+      if (kind != null) 'kind': kind,
+      if (subject != null) 'subject': subject,
+      if (groupId != null) 'group_id': groupId,
+      if (replaces != null) 'replaces': replaces,
+      if (programId != null) 'program_id': programId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AdultRoleBlockOverridesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? adultId,
+    Value<DateTime>? date,
+    Value<int>? startMinute,
+    Value<int>? endMinute,
+    Value<String>? kind,
+    Value<String?>? subject,
+    Value<String?>? groupId,
+    Value<bool>? replaces,
+    Value<String?>? programId,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return AdultRoleBlockOverridesCompanion(
+      id: id ?? this.id,
+      adultId: adultId ?? this.adultId,
+      date: date ?? this.date,
+      startMinute: startMinute ?? this.startMinute,
+      endMinute: endMinute ?? this.endMinute,
+      kind: kind ?? this.kind,
+      subject: subject ?? this.subject,
+      groupId: groupId ?? this.groupId,
+      replaces: replaces ?? this.replaces,
+      programId: programId ?? this.programId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (adultId.present) {
+      map['adult_id'] = Variable<String>(adultId.value);
+    }
+    if (date.present) {
+      map['date'] = Variable<DateTime>(date.value);
+    }
+    if (startMinute.present) {
+      map['start_minute'] = Variable<int>(startMinute.value);
+    }
+    if (endMinute.present) {
+      map['end_minute'] = Variable<int>(endMinute.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (subject.present) {
+      map['subject'] = Variable<String>(subject.value);
+    }
+    if (groupId.present) {
+      map['group_id'] = Variable<String>(groupId.value);
+    }
+    if (replaces.present) {
+      map['replaces'] = Variable<bool>(replaces.value);
+    }
+    if (programId.present) {
+      map['program_id'] = Variable<String>(programId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AdultRoleBlockOverridesCompanion(')
+          ..write('id: $id, ')
+          ..write('adultId: $adultId, ')
+          ..write('date: $date, ')
+          ..write('startMinute: $startMinute, ')
+          ..write('endMinute: $endMinute, ')
+          ..write('kind: $kind, ')
+          ..write('subject: $subject, ')
+          ..write('groupId: $groupId, ')
+          ..write('replaces: $replaces, ')
+          ..write('programId: $programId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $FormSubmissionsTable extends FormSubmissions
     with TableInfo<$FormSubmissionsTable, FormSubmission> {
   @override
@@ -19216,6 +20626,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ChildScheduleOverridesTable childScheduleOverrides =
       $ChildScheduleOverridesTable(this);
   late final $AdultDayBlocksTable adultDayBlocks = $AdultDayBlocksTable(this);
+  late final $AdultRoleBlocksTable adultRoleBlocks = $AdultRoleBlocksTable(
+    this,
+  );
+  late final $AdultRoleBlockOverridesTable adultRoleBlockOverrides =
+      $AdultRoleBlockOverridesTable(this);
   late final $FormSubmissionsTable formSubmissions = $FormSubmissionsTable(
     this,
   );
@@ -19262,6 +20677,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     attendance,
     childScheduleOverrides,
     adultDayBlocks,
+    adultRoleBlocks,
+    adultRoleBlockOverrides,
     formSubmissions,
     vehicles,
     parentChildren,
@@ -19543,6 +20960,38 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('adult_day_blocks', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'adults',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('adult_role_blocks', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'groups',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('adult_role_blocks', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'adults',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('adult_role_block_overrides', kind: UpdateKind.delete),
+      ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'groups',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('adult_role_block_overrides', kind: UpdateKind.update),
+      ],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -19861,6 +21310,54 @@ final class $$GroupsTableReferences
     );
   }
 
+  static MultiTypedResultKey<$AdultRoleBlocksTable, List<AdultRoleBlock>>
+  _adultRoleBlocksRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.adultRoleBlocks,
+    aliasName: $_aliasNameGenerator(db.groups.id, db.adultRoleBlocks.groupId),
+  );
+
+  $$AdultRoleBlocksTableProcessedTableManager get adultRoleBlocksRefs {
+    final manager = $$AdultRoleBlocksTableTableManager(
+      $_db,
+      $_db.adultRoleBlocks,
+    ).filter((f) => f.groupId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _adultRoleBlocksRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $AdultRoleBlockOverridesTable,
+    List<AdultRoleBlockOverride>
+  >
+  _adultRoleBlockOverridesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.adultRoleBlockOverrides,
+        aliasName: $_aliasNameGenerator(
+          db.groups.id,
+          db.adultRoleBlockOverrides.groupId,
+        ),
+      );
+
+  $$AdultRoleBlockOverridesTableProcessedTableManager
+  get adultRoleBlockOverridesRefs {
+    final manager = $$AdultRoleBlockOverridesTableTableManager(
+      $_db,
+      $_db.adultRoleBlockOverrides,
+    ).filter((f) => f.groupId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _adultRoleBlockOverridesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
   static MultiTypedResultKey<$FormSubmissionsTable, List<FormSubmission>>
   _formSubmissionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.formSubmissions,
@@ -20168,6 +21665,57 @@ class $$GroupsTableFilterComposer
                 $removeJoinBuilderFromRootComposer,
           ),
     );
+    return f(composer);
+  }
+
+  Expression<bool> adultRoleBlocksRefs(
+    Expression<bool> Function($$AdultRoleBlocksTableFilterComposer f) f,
+  ) {
+    final $$AdultRoleBlocksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.adultRoleBlocks,
+      getReferencedColumn: (t) => t.groupId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AdultRoleBlocksTableFilterComposer(
+            $db: $db,
+            $table: $db.adultRoleBlocks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> adultRoleBlockOverridesRefs(
+    Expression<bool> Function($$AdultRoleBlockOverridesTableFilterComposer f) f,
+  ) {
+    final $$AdultRoleBlockOverridesTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.adultRoleBlockOverrides,
+          getReferencedColumn: (t) => t.groupId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$AdultRoleBlockOverridesTableFilterComposer(
+                $db: $db,
+                $table: $db.adultRoleBlockOverrides,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 
@@ -20515,6 +22063,58 @@ class $$GroupsTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> adultRoleBlocksRefs<T extends Object>(
+    Expression<T> Function($$AdultRoleBlocksTableAnnotationComposer a) f,
+  ) {
+    final $$AdultRoleBlocksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.adultRoleBlocks,
+      getReferencedColumn: (t) => t.groupId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AdultRoleBlocksTableAnnotationComposer(
+            $db: $db,
+            $table: $db.adultRoleBlocks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> adultRoleBlockOverridesRefs<T extends Object>(
+    Expression<T> Function($$AdultRoleBlockOverridesTableAnnotationComposer a)
+    f,
+  ) {
+    final $$AdultRoleBlockOverridesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.adultRoleBlockOverrides,
+          getReferencedColumn: (t) => t.groupId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$AdultRoleBlockOverridesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.adultRoleBlockOverrides,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
   Expression<T> formSubmissionsRefs<T extends Object>(
     Expression<T> Function($$FormSubmissionsTableAnnotationComposer a) f,
   ) {
@@ -20565,6 +22165,8 @@ class $$GroupsTableTableManager
             bool templateGroupsRefs,
             bool entryGroupsRefs,
             bool adultDayBlocksRefs,
+            bool adultRoleBlocksRefs,
+            bool adultRoleBlockOverridesRefs,
             bool formSubmissionsRefs,
           })
         > {
@@ -20633,6 +22235,8 @@ class $$GroupsTableTableManager
                 templateGroupsRefs = false,
                 entryGroupsRefs = false,
                 adultDayBlocksRefs = false,
+                adultRoleBlocksRefs = false,
+                adultRoleBlockOverridesRefs = false,
                 formSubmissionsRefs = false,
               }) {
                 return PrefetchHooks(
@@ -20648,6 +22252,8 @@ class $$GroupsTableTableManager
                     if (templateGroupsRefs) db.templateGroups,
                     if (entryGroupsRefs) db.entryGroups,
                     if (adultDayBlocksRefs) db.adultDayBlocks,
+                    if (adultRoleBlocksRefs) db.adultRoleBlocks,
+                    if (adultRoleBlockOverridesRefs) db.adultRoleBlockOverrides,
                     if (formSubmissionsRefs) db.formSubmissions,
                   ],
                   addJoins: null,
@@ -20843,6 +22449,48 @@ class $$GroupsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (adultRoleBlocksRefs)
+                        await $_getPrefetchedData<
+                          Group,
+                          $GroupsTable,
+                          AdultRoleBlock
+                        >(
+                          currentTable: table,
+                          referencedTable: $$GroupsTableReferences
+                              ._adultRoleBlocksRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$GroupsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).adultRoleBlocksRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.groupId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (adultRoleBlockOverridesRefs)
+                        await $_getPrefetchedData<
+                          Group,
+                          $GroupsTable,
+                          AdultRoleBlockOverride
+                        >(
+                          currentTable: table,
+                          referencedTable: $$GroupsTableReferences
+                              ._adultRoleBlockOverridesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$GroupsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).adultRoleBlockOverridesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.groupId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                       if (formSubmissionsRefs)
                         await $_getPrefetchedData<
                           Group,
@@ -20895,6 +22543,8 @@ typedef $$GroupsTableProcessedTableManager =
         bool templateGroupsRefs,
         bool entryGroupsRefs,
         bool adultDayBlocksRefs,
+        bool adultRoleBlocksRefs,
+        bool adultRoleBlockOverridesRefs,
         bool formSubmissionsRefs,
       })
     >;
@@ -27993,6 +29643,54 @@ final class $$AdultsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$AdultRoleBlocksTable, List<AdultRoleBlock>>
+  _adultRoleBlocksRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.adultRoleBlocks,
+    aliasName: $_aliasNameGenerator(db.adults.id, db.adultRoleBlocks.adultId),
+  );
+
+  $$AdultRoleBlocksTableProcessedTableManager get adultRoleBlocksRefs {
+    final manager = $$AdultRoleBlocksTableTableManager(
+      $_db,
+      $_db.adultRoleBlocks,
+    ).filter((f) => f.adultId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _adultRoleBlocksRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $AdultRoleBlockOverridesTable,
+    List<AdultRoleBlockOverride>
+  >
+  _adultRoleBlockOverridesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.adultRoleBlockOverrides,
+        aliasName: $_aliasNameGenerator(
+          db.adults.id,
+          db.adultRoleBlockOverrides.adultId,
+        ),
+      );
+
+  $$AdultRoleBlockOverridesTableProcessedTableManager
+  get adultRoleBlockOverridesRefs {
+    final manager = $$AdultRoleBlockOverridesTableTableManager(
+      $_db,
+      $_db.adultRoleBlockOverrides,
+    ).filter((f) => f.adultId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _adultRoleBlockOverridesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$AdultsTableFilterComposer
@@ -28255,6 +29953,57 @@ class $$AdultsTableFilterComposer
                 $removeJoinBuilderFromRootComposer,
           ),
     );
+    return f(composer);
+  }
+
+  Expression<bool> adultRoleBlocksRefs(
+    Expression<bool> Function($$AdultRoleBlocksTableFilterComposer f) f,
+  ) {
+    final $$AdultRoleBlocksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.adultRoleBlocks,
+      getReferencedColumn: (t) => t.adultId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AdultRoleBlocksTableFilterComposer(
+            $db: $db,
+            $table: $db.adultRoleBlocks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> adultRoleBlockOverridesRefs(
+    Expression<bool> Function($$AdultRoleBlockOverridesTableFilterComposer f) f,
+  ) {
+    final $$AdultRoleBlockOverridesTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.adultRoleBlockOverrides,
+          getReferencedColumn: (t) => t.adultId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$AdultRoleBlockOverridesTableFilterComposer(
+                $db: $db,
+                $table: $db.adultRoleBlockOverrides,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 }
@@ -28642,6 +30391,58 @@ class $$AdultsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> adultRoleBlocksRefs<T extends Object>(
+    Expression<T> Function($$AdultRoleBlocksTableAnnotationComposer a) f,
+  ) {
+    final $$AdultRoleBlocksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.adultRoleBlocks,
+      getReferencedColumn: (t) => t.adultId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AdultRoleBlocksTableAnnotationComposer(
+            $db: $db,
+            $table: $db.adultRoleBlocks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> adultRoleBlockOverridesRefs<T extends Object>(
+    Expression<T> Function($$AdultRoleBlockOverridesTableAnnotationComposer a)
+    f,
+  ) {
+    final $$AdultRoleBlockOverridesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.adultRoleBlockOverrides,
+          getReferencedColumn: (t) => t.adultId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$AdultRoleBlockOverridesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.adultRoleBlockOverrides,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$AdultsTableTableManager
@@ -28666,6 +30467,8 @@ class $$AdultsTableTableManager
             bool scheduleTemplatesRefs,
             bool scheduleEntriesRefs,
             bool adultDayBlocksRefs,
+            bool adultRoleBlocksRefs,
+            bool adultRoleBlockOverridesRefs,
           })
         > {
   $$AdultsTableTableManager(_$AppDatabase db, $AdultsTable table)
@@ -28767,6 +30570,8 @@ class $$AdultsTableTableManager
                 scheduleTemplatesRefs = false,
                 scheduleEntriesRefs = false,
                 adultDayBlocksRefs = false,
+                adultRoleBlocksRefs = false,
+                adultRoleBlockOverridesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -28776,6 +30581,8 @@ class $$AdultsTableTableManager
                     if (scheduleTemplatesRefs) db.scheduleTemplates,
                     if (scheduleEntriesRefs) db.scheduleEntries,
                     if (adultDayBlocksRefs) db.adultDayBlocks,
+                    if (adultRoleBlocksRefs) db.adultRoleBlocks,
+                    if (adultRoleBlockOverridesRefs) db.adultRoleBlockOverrides,
                   ],
                   addJoins:
                       <
@@ -28942,6 +30749,48 @@ class $$AdultsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (adultRoleBlocksRefs)
+                        await $_getPrefetchedData<
+                          Adult,
+                          $AdultsTable,
+                          AdultRoleBlock
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AdultsTableReferences
+                              ._adultRoleBlocksRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AdultsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).adultRoleBlocksRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.adultId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (adultRoleBlockOverridesRefs)
+                        await $_getPrefetchedData<
+                          Adult,
+                          $AdultsTable,
+                          AdultRoleBlockOverride
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AdultsTableReferences
+                              ._adultRoleBlockOverridesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AdultsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).adultRoleBlockOverridesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.adultId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -28971,6 +30820,8 @@ typedef $$AdultsTableProcessedTableManager =
         bool scheduleTemplatesRefs,
         bool scheduleEntriesRefs,
         bool adultDayBlocksRefs,
+        bool adultRoleBlocksRefs,
+        bool adultRoleBlockOverridesRefs,
       })
     >;
 typedef $$AdultAvailabilityTableCreateCompanionBuilder =
@@ -35216,6 +37067,1102 @@ typedef $$AdultDayBlocksTableProcessedTableManager =
       AdultDayBlock,
       PrefetchHooks Function({bool adultId, bool groupId})
     >;
+typedef $$AdultRoleBlocksTableCreateCompanionBuilder =
+    AdultRoleBlocksCompanion Function({
+      required String id,
+      required String adultId,
+      required int weekday,
+      required int startMinute,
+      required int endMinute,
+      required String kind,
+      Value<String?> subject,
+      Value<String?> groupId,
+      Value<String?> programId,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$AdultRoleBlocksTableUpdateCompanionBuilder =
+    AdultRoleBlocksCompanion Function({
+      Value<String> id,
+      Value<String> adultId,
+      Value<int> weekday,
+      Value<int> startMinute,
+      Value<int> endMinute,
+      Value<String> kind,
+      Value<String?> subject,
+      Value<String?> groupId,
+      Value<String?> programId,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$AdultRoleBlocksTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $AdultRoleBlocksTable, AdultRoleBlock> {
+  $$AdultRoleBlocksTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AdultsTable _adultIdTable(_$AppDatabase db) => db.adults.createAlias(
+    $_aliasNameGenerator(db.adultRoleBlocks.adultId, db.adults.id),
+  );
+
+  $$AdultsTableProcessedTableManager get adultId {
+    final $_column = $_itemColumn<String>('adult_id')!;
+
+    final manager = $$AdultsTableTableManager(
+      $_db,
+      $_db.adults,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_adultIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $GroupsTable _groupIdTable(_$AppDatabase db) => db.groups.createAlias(
+    $_aliasNameGenerator(db.adultRoleBlocks.groupId, db.groups.id),
+  );
+
+  $$GroupsTableProcessedTableManager? get groupId {
+    final $_column = $_itemColumn<String>('group_id');
+    if ($_column == null) return null;
+    final manager = $$GroupsTableTableManager(
+      $_db,
+      $_db.groups,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_groupIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$AdultRoleBlocksTableFilterComposer
+    extends Composer<_$AppDatabase, $AdultRoleBlocksTable> {
+  $$AdultRoleBlocksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get weekday => $composableBuilder(
+    column: $table.weekday,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startMinute => $composableBuilder(
+    column: $table.startMinute,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endMinute => $composableBuilder(
+    column: $table.endMinute,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get subject => $composableBuilder(
+    column: $table.subject,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get programId => $composableBuilder(
+    column: $table.programId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AdultsTableFilterComposer get adultId {
+    final $$AdultsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AdultsTableFilterComposer(
+            $db: $db,
+            $table: $db.adults,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GroupsTableFilterComposer get groupId {
+    final $$GroupsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GroupsTableFilterComposer(
+            $db: $db,
+            $table: $db.groups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AdultRoleBlocksTableOrderingComposer
+    extends Composer<_$AppDatabase, $AdultRoleBlocksTable> {
+  $$AdultRoleBlocksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get weekday => $composableBuilder(
+    column: $table.weekday,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startMinute => $composableBuilder(
+    column: $table.startMinute,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endMinute => $composableBuilder(
+    column: $table.endMinute,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get subject => $composableBuilder(
+    column: $table.subject,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get programId => $composableBuilder(
+    column: $table.programId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AdultsTableOrderingComposer get adultId {
+    final $$AdultsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AdultsTableOrderingComposer(
+            $db: $db,
+            $table: $db.adults,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GroupsTableOrderingComposer get groupId {
+    final $$GroupsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GroupsTableOrderingComposer(
+            $db: $db,
+            $table: $db.groups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AdultRoleBlocksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AdultRoleBlocksTable> {
+  $$AdultRoleBlocksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get weekday =>
+      $composableBuilder(column: $table.weekday, builder: (column) => column);
+
+  GeneratedColumn<int> get startMinute => $composableBuilder(
+    column: $table.startMinute,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get endMinute =>
+      $composableBuilder(column: $table.endMinute, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get subject =>
+      $composableBuilder(column: $table.subject, builder: (column) => column);
+
+  GeneratedColumn<String> get programId =>
+      $composableBuilder(column: $table.programId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$AdultsTableAnnotationComposer get adultId {
+    final $$AdultsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AdultsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.adults,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GroupsTableAnnotationComposer get groupId {
+    final $$GroupsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GroupsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.groups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AdultRoleBlocksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AdultRoleBlocksTable,
+          AdultRoleBlock,
+          $$AdultRoleBlocksTableFilterComposer,
+          $$AdultRoleBlocksTableOrderingComposer,
+          $$AdultRoleBlocksTableAnnotationComposer,
+          $$AdultRoleBlocksTableCreateCompanionBuilder,
+          $$AdultRoleBlocksTableUpdateCompanionBuilder,
+          (AdultRoleBlock, $$AdultRoleBlocksTableReferences),
+          AdultRoleBlock,
+          PrefetchHooks Function({bool adultId, bool groupId})
+        > {
+  $$AdultRoleBlocksTableTableManager(
+    _$AppDatabase db,
+    $AdultRoleBlocksTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AdultRoleBlocksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AdultRoleBlocksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AdultRoleBlocksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> adultId = const Value.absent(),
+                Value<int> weekday = const Value.absent(),
+                Value<int> startMinute = const Value.absent(),
+                Value<int> endMinute = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String?> subject = const Value.absent(),
+                Value<String?> groupId = const Value.absent(),
+                Value<String?> programId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AdultRoleBlocksCompanion(
+                id: id,
+                adultId: adultId,
+                weekday: weekday,
+                startMinute: startMinute,
+                endMinute: endMinute,
+                kind: kind,
+                subject: subject,
+                groupId: groupId,
+                programId: programId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String adultId,
+                required int weekday,
+                required int startMinute,
+                required int endMinute,
+                required String kind,
+                Value<String?> subject = const Value.absent(),
+                Value<String?> groupId = const Value.absent(),
+                Value<String?> programId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AdultRoleBlocksCompanion.insert(
+                id: id,
+                adultId: adultId,
+                weekday: weekday,
+                startMinute: startMinute,
+                endMinute: endMinute,
+                kind: kind,
+                subject: subject,
+                groupId: groupId,
+                programId: programId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$AdultRoleBlocksTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({adultId = false, groupId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (adultId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.adultId,
+                                referencedTable:
+                                    $$AdultRoleBlocksTableReferences
+                                        ._adultIdTable(db),
+                                referencedColumn:
+                                    $$AdultRoleBlocksTableReferences
+                                        ._adultIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (groupId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.groupId,
+                                referencedTable:
+                                    $$AdultRoleBlocksTableReferences
+                                        ._groupIdTable(db),
+                                referencedColumn:
+                                    $$AdultRoleBlocksTableReferences
+                                        ._groupIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$AdultRoleBlocksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AdultRoleBlocksTable,
+      AdultRoleBlock,
+      $$AdultRoleBlocksTableFilterComposer,
+      $$AdultRoleBlocksTableOrderingComposer,
+      $$AdultRoleBlocksTableAnnotationComposer,
+      $$AdultRoleBlocksTableCreateCompanionBuilder,
+      $$AdultRoleBlocksTableUpdateCompanionBuilder,
+      (AdultRoleBlock, $$AdultRoleBlocksTableReferences),
+      AdultRoleBlock,
+      PrefetchHooks Function({bool adultId, bool groupId})
+    >;
+typedef $$AdultRoleBlockOverridesTableCreateCompanionBuilder =
+    AdultRoleBlockOverridesCompanion Function({
+      required String id,
+      required String adultId,
+      required DateTime date,
+      required int startMinute,
+      required int endMinute,
+      required String kind,
+      Value<String?> subject,
+      Value<String?> groupId,
+      Value<bool> replaces,
+      Value<String?> programId,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$AdultRoleBlockOverridesTableUpdateCompanionBuilder =
+    AdultRoleBlockOverridesCompanion Function({
+      Value<String> id,
+      Value<String> adultId,
+      Value<DateTime> date,
+      Value<int> startMinute,
+      Value<int> endMinute,
+      Value<String> kind,
+      Value<String?> subject,
+      Value<String?> groupId,
+      Value<bool> replaces,
+      Value<String?> programId,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$AdultRoleBlockOverridesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $AdultRoleBlockOverridesTable,
+          AdultRoleBlockOverride
+        > {
+  $$AdultRoleBlockOverridesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AdultsTable _adultIdTable(_$AppDatabase db) => db.adults.createAlias(
+    $_aliasNameGenerator(db.adultRoleBlockOverrides.adultId, db.adults.id),
+  );
+
+  $$AdultsTableProcessedTableManager get adultId {
+    final $_column = $_itemColumn<String>('adult_id')!;
+
+    final manager = $$AdultsTableTableManager(
+      $_db,
+      $_db.adults,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_adultIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $GroupsTable _groupIdTable(_$AppDatabase db) => db.groups.createAlias(
+    $_aliasNameGenerator(db.adultRoleBlockOverrides.groupId, db.groups.id),
+  );
+
+  $$GroupsTableProcessedTableManager? get groupId {
+    final $_column = $_itemColumn<String>('group_id');
+    if ($_column == null) return null;
+    final manager = $$GroupsTableTableManager(
+      $_db,
+      $_db.groups,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_groupIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$AdultRoleBlockOverridesTableFilterComposer
+    extends Composer<_$AppDatabase, $AdultRoleBlockOverridesTable> {
+  $$AdultRoleBlockOverridesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startMinute => $composableBuilder(
+    column: $table.startMinute,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endMinute => $composableBuilder(
+    column: $table.endMinute,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get subject => $composableBuilder(
+    column: $table.subject,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get replaces => $composableBuilder(
+    column: $table.replaces,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get programId => $composableBuilder(
+    column: $table.programId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AdultsTableFilterComposer get adultId {
+    final $$AdultsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AdultsTableFilterComposer(
+            $db: $db,
+            $table: $db.adults,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GroupsTableFilterComposer get groupId {
+    final $$GroupsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GroupsTableFilterComposer(
+            $db: $db,
+            $table: $db.groups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AdultRoleBlockOverridesTableOrderingComposer
+    extends Composer<_$AppDatabase, $AdultRoleBlockOverridesTable> {
+  $$AdultRoleBlockOverridesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startMinute => $composableBuilder(
+    column: $table.startMinute,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endMinute => $composableBuilder(
+    column: $table.endMinute,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get subject => $composableBuilder(
+    column: $table.subject,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get replaces => $composableBuilder(
+    column: $table.replaces,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get programId => $composableBuilder(
+    column: $table.programId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AdultsTableOrderingComposer get adultId {
+    final $$AdultsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AdultsTableOrderingComposer(
+            $db: $db,
+            $table: $db.adults,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GroupsTableOrderingComposer get groupId {
+    final $$GroupsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GroupsTableOrderingComposer(
+            $db: $db,
+            $table: $db.groups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AdultRoleBlockOverridesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AdultRoleBlockOverridesTable> {
+  $$AdultRoleBlockOverridesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get date =>
+      $composableBuilder(column: $table.date, builder: (column) => column);
+
+  GeneratedColumn<int> get startMinute => $composableBuilder(
+    column: $table.startMinute,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get endMinute =>
+      $composableBuilder(column: $table.endMinute, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get subject =>
+      $composableBuilder(column: $table.subject, builder: (column) => column);
+
+  GeneratedColumn<bool> get replaces =>
+      $composableBuilder(column: $table.replaces, builder: (column) => column);
+
+  GeneratedColumn<String> get programId =>
+      $composableBuilder(column: $table.programId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$AdultsTableAnnotationComposer get adultId {
+    final $$AdultsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.adultId,
+      referencedTable: $db.adults,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AdultsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.adults,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GroupsTableAnnotationComposer get groupId {
+    final $$GroupsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.groups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GroupsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.groups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AdultRoleBlockOverridesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AdultRoleBlockOverridesTable,
+          AdultRoleBlockOverride,
+          $$AdultRoleBlockOverridesTableFilterComposer,
+          $$AdultRoleBlockOverridesTableOrderingComposer,
+          $$AdultRoleBlockOverridesTableAnnotationComposer,
+          $$AdultRoleBlockOverridesTableCreateCompanionBuilder,
+          $$AdultRoleBlockOverridesTableUpdateCompanionBuilder,
+          (AdultRoleBlockOverride, $$AdultRoleBlockOverridesTableReferences),
+          AdultRoleBlockOverride,
+          PrefetchHooks Function({bool adultId, bool groupId})
+        > {
+  $$AdultRoleBlockOverridesTableTableManager(
+    _$AppDatabase db,
+    $AdultRoleBlockOverridesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AdultRoleBlockOverridesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$AdultRoleBlockOverridesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AdultRoleBlockOverridesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> adultId = const Value.absent(),
+                Value<DateTime> date = const Value.absent(),
+                Value<int> startMinute = const Value.absent(),
+                Value<int> endMinute = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String?> subject = const Value.absent(),
+                Value<String?> groupId = const Value.absent(),
+                Value<bool> replaces = const Value.absent(),
+                Value<String?> programId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AdultRoleBlockOverridesCompanion(
+                id: id,
+                adultId: adultId,
+                date: date,
+                startMinute: startMinute,
+                endMinute: endMinute,
+                kind: kind,
+                subject: subject,
+                groupId: groupId,
+                replaces: replaces,
+                programId: programId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String adultId,
+                required DateTime date,
+                required int startMinute,
+                required int endMinute,
+                required String kind,
+                Value<String?> subject = const Value.absent(),
+                Value<String?> groupId = const Value.absent(),
+                Value<bool> replaces = const Value.absent(),
+                Value<String?> programId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AdultRoleBlockOverridesCompanion.insert(
+                id: id,
+                adultId: adultId,
+                date: date,
+                startMinute: startMinute,
+                endMinute: endMinute,
+                kind: kind,
+                subject: subject,
+                groupId: groupId,
+                replaces: replaces,
+                programId: programId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$AdultRoleBlockOverridesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({adultId = false, groupId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (adultId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.adultId,
+                                referencedTable:
+                                    $$AdultRoleBlockOverridesTableReferences
+                                        ._adultIdTable(db),
+                                referencedColumn:
+                                    $$AdultRoleBlockOverridesTableReferences
+                                        ._adultIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (groupId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.groupId,
+                                referencedTable:
+                                    $$AdultRoleBlockOverridesTableReferences
+                                        ._groupIdTable(db),
+                                referencedColumn:
+                                    $$AdultRoleBlockOverridesTableReferences
+                                        ._groupIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$AdultRoleBlockOverridesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AdultRoleBlockOverridesTable,
+      AdultRoleBlockOverride,
+      $$AdultRoleBlockOverridesTableFilterComposer,
+      $$AdultRoleBlockOverridesTableOrderingComposer,
+      $$AdultRoleBlockOverridesTableAnnotationComposer,
+      $$AdultRoleBlockOverridesTableCreateCompanionBuilder,
+      $$AdultRoleBlockOverridesTableUpdateCompanionBuilder,
+      (AdultRoleBlockOverride, $$AdultRoleBlockOverridesTableReferences),
+      AdultRoleBlockOverride,
+      PrefetchHooks Function({bool adultId, bool groupId})
+    >;
 typedef $$FormSubmissionsTableCreateCompanionBuilder =
     FormSubmissionsCompanion Function({
       required String id,
@@ -39764,6 +42711,13 @@ class $AppDatabaseManager {
       );
   $$AdultDayBlocksTableTableManager get adultDayBlocks =>
       $$AdultDayBlocksTableTableManager(_db, _db.adultDayBlocks);
+  $$AdultRoleBlocksTableTableManager get adultRoleBlocks =>
+      $$AdultRoleBlocksTableTableManager(_db, _db.adultRoleBlocks);
+  $$AdultRoleBlockOverridesTableTableManager get adultRoleBlockOverrides =>
+      $$AdultRoleBlockOverridesTableTableManager(
+        _db,
+        _db.adultRoleBlockOverrides,
+      );
   $$FormSubmissionsTableTableManager get formSubmissions =>
       $$FormSubmissionsTableTableManager(_db, _db.formSubmissions);
   $$VehiclesTableTableManager get vehicles =>

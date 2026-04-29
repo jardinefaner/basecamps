@@ -75,6 +75,18 @@ const adultsSpec = TableSpec(
       parentColumn: 'adult_id',
       dateColumns: {'date', 'created_at', 'updated_at'},
     ),
+    // v48: classroom-rotation timeline. Pattern + per-date
+    // overrides ride along with the parent adult on every push.
+    CascadeSpec(
+      table: 'adult_role_blocks',
+      parentColumn: 'adult_id',
+      dateColumns: {'created_at', 'updated_at'},
+    ),
+    CascadeSpec(
+      table: 'adult_role_block_overrides',
+      parentColumn: 'adult_id',
+      dateColumns: {'date', 'created_at', 'updated_at'},
+    ),
   ],
 );
 
