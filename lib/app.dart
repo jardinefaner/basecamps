@@ -6,7 +6,9 @@ import 'package:basecamp/features/launcher/launcher_screen.dart';
 import 'package:basecamp/features/observations/observation_media_store.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/programs/program_bootstrap.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:basecamp/router.dart';
 import 'package:basecamp/theme/theme.dart';
 import 'package:basecamp/ui/responsive.dart';
@@ -29,15 +31,37 @@ class BasecampApp extends ConsumerStatefulWidget {
   ConsumerState<BasecampApp> createState() => _BasecampAppState();
 }
 
-class _BasecampAppState extends ConsumerState<BasecampApp> {
+class _BasecampAppState extends ConsumerState<BasecampApp>
+    with WidgetsBindingObserver {
   ProviderSubscription<Session?>? _programBootstrapSub;
   StreamSubscription<SyncConflict>? _conflictsSub;
   StreamSubscription<SyncPushError>? _pushErrorsSub;
   DateTime? _lastPushErrorToastAt;
 
+  /// Safety-net periodic pull. Realtime is the primary fast path
+  /// (postgres-changes events fire within ~50ms of an INSERT on
+  /// another device), but the channel can silently drop on flaky
+  /// networks, browser-tab-throttling, mobile-radio-sleep, etc.
+  /// without surfacing an error. The periodic pull catches every
+  /// missed event within at most one [_kPullInterval] window.
+  ///
+  /// 45s is a reasonable trade between freshness and bandwidth —
+  /// pull-with-watermark is cheap when nothing's changed (one
+  /// HEAD-shaped query per table that returns zero rows), so the
+  /// cost on a quiet program is negligible.
+  Timer? _periodicPullTimer;
+  static const _kPullInterval = Duration(seconds: 45);
+
+  /// Tracks whether we're foregrounded — when paused/inactive we
+  /// stop the timer to save battery and avoid background-task
+  /// throttling penalties on iOS / Android.
+  bool _foreground = true;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _startPeriodicPull();
     // Subscribe the program bootstrap to auth state. On every
     // sign-in this ensures the user has a default program and
     // pumps the active program id into Riverpod for the rest of
@@ -113,10 +137,85 @@ class _BasecampAppState extends ConsumerState<BasecampApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _periodicPullTimer?.cancel();
     _programBootstrapSub?.close();
     unawaited(_conflictsSub?.cancel());
     unawaited(_pushErrorsSub?.cancel());
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final wasForeground = _foreground;
+    _foreground = state == AppLifecycleState.resumed;
+    if (_foreground && !wasForeground) {
+      // Coming back from background — pull immediately and make
+      // sure realtime is healthy. Realtime channels can drop
+      // without notification while the tab/app was paused; this
+      // is the recovery path so the user doesn't miss a beat.
+      unawaited(_pullNow());
+      unawaited(_resubscribeRealtime());
+      _startPeriodicPull();
+    } else if (!_foreground && wasForeground) {
+      _periodicPullTimer?.cancel();
+      _periodicPullTimer = null;
+    }
+  }
+
+  void _startPeriodicPull() {
+    _periodicPullTimer?.cancel();
+    _periodicPullTimer = Timer.periodic(_kPullInterval, (_) {
+      unawaited(_pullNow());
+    });
+  }
+
+  /// Watermarked pull across every spec. Cheap when nothing's
+  /// changed (the watermark filters server-side, returns empty
+  /// pages), so 45s polling is fine even on a quiet program. Bails
+  /// silently when there's no signed-in user or no active program
+  /// — both are normal states (sign-in screen, program-create
+  /// flow) where the timer might still be running.
+  Future<void> _pullNow() async {
+    final activeId = ref.read(activeProgramIdProvider);
+    if (activeId == null) return;
+    final session = ref.read(currentSessionProvider);
+    if (session == null) return;
+    final engine = ref.read(syncEngineProvider);
+    for (final spec in kAllSpecs) {
+      try {
+        await engine.pullTable(spec: spec, programId: activeId);
+      } on Object catch (e) {
+        // Single-table failure shouldn't kill the rest of the
+        // sweep — RLS blip on one entity, transient network
+        // hiccup, etc. Log and continue.
+        debugPrint('Periodic pull of ${spec.table} failed: $e');
+      }
+    }
+  }
+
+  /// Force a realtime reconnect. The engine's normal subscribe is
+  /// idempotent — it bails early when the program matches and a
+  /// channel handle exists — but a silently-dead channel still
+  /// satisfies that check. Resume from background is the most
+  /// likely moment for a dropped channel (mobile radio sleep, web
+  /// tab throttle, network change), so always force a rebuild
+  /// here. The cost is ~100ms of handshake; the win is recovering
+  /// from a dead channel without user intervention.
+  Future<void> _resubscribeRealtime() async {
+    final activeId = ref.read(activeProgramIdProvider);
+    if (activeId == null) return;
+    final session = ref.read(currentSessionProvider);
+    if (session == null) return;
+    try {
+      await ref.read(syncEngineProvider).subscribeToRealtime(
+            programId: activeId,
+            specs: kAllSpecs,
+            force: true,
+          );
+    } on Object catch (e) {
+      debugPrint('Realtime resubscribe failed: $e');
+    }
   }
 
   Future<void> _sweepOrphans() async {

@@ -470,13 +470,26 @@ class SyncEngine {
   Future<void> subscribeToRealtime({
     required String programId,
     required List<TableSpec> specs,
+    bool force = false,
   }) async {
     final client = _client;
     if (client == null) return;
     if (client.auth.currentSession == null) return;
 
-    if (_realtimeProgramId == programId && _realtimeChannel != null) {
-      return; // Already subscribed for this program.
+    // Idempotency: same program + live channel handle → no-op.
+    // `force: true` bypasses this so callers (the app-resume
+    // recovery path) can tear down and rebuild even when the
+    // engine still thinks the channel is healthy. A realtime
+    // channel can be silently dead — mobile-radio sleep, browser
+    // tab throttling, network change — without the engine
+    // noticing, since the websocket close event isn't always
+    // delivered. Forcing the rebuild costs one channel handshake
+    // (~100ms); cheaper than the user wondering why edits from
+    // another device aren't showing up.
+    if (!force &&
+        _realtimeProgramId == programId &&
+        _realtimeChannel != null) {
+      return;
     }
     await unsubscribeFromRealtime();
 
