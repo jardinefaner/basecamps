@@ -31,6 +31,7 @@ import 'package:basecamp/features/rooms/rooms_screen.dart';
 import 'package:basecamp/features/schedule/schedule_editor_screen.dart';
 import 'package:basecamp/features/settings/program_settings_screen.dart';
 import 'package:basecamp/features/setup/setup_hub_screen.dart';
+import 'package:basecamp/features/sync/sync_audit_screen.dart';
 import 'package:basecamp/features/themes/themes_screen.dart';
 import 'package:basecamp/features/today/today_screen.dart';
 import 'package:basecamp/features/trips/trip_detail_screen.dart';
@@ -351,6 +352,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'diagnostics',
             builder: (_, _) => const SyncDiagnosticsScreen(),
+          ),
+          GoRoute(
+            path: 'audit',
+            builder: (_, _) => const SyncAuditScreen(),
           ),
           GoRoute(
             path: ':id',

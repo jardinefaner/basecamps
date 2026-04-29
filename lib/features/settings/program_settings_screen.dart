@@ -114,24 +114,37 @@ class _SyncTab extends ConsumerWidget {
               Text('Diagnostics', style: theme.textTheme.titleMedium),
               const SizedBox(height: AppSpacing.xs),
               Text(
-                'If syncing looks wrong — rows missing, edits not '
-                'showing up on the other device — open diagnostics. '
-                'It surfaces the JWT, server identity, and runs a '
-                'live INSERT probe so the exact RLS error becomes '
-                'copyable.',
+                'If syncing looks wrong — rows missing, "sync now" '
+                "says success but nothing appears, devices can't see "
+                "each other's edits — start with the Sync audit. It "
+                'compares cloud row counts vs local for the active '
+                "program, lists every program your account's a "
+                'member of, and surfaces watermark / pull state. The '
+                'most common cause of "sync said it worked but nothing '
+                'showed up" is two devices landing on different '
+                'programs — the audit shows that immediately.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: OutlinedButton.icon(
-                  onPressed: () =>
-                      context.push('/more/programs/diagnostics'),
-                  icon: const Icon(Icons.bug_report_outlined, size: 18),
-                  label: const Text('Open diagnostics'),
-                ),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  FilledButton.tonalIcon(
+                    onPressed: () =>
+                        context.push('/more/programs/audit'),
+                    icon: const Icon(Icons.fact_check_outlined, size: 18),
+                    label: const Text('Sync audit'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () =>
+                        context.push('/more/programs/diagnostics'),
+                    icon: const Icon(Icons.bug_report_outlined, size: 18),
+                    label: const Text('Identity diagnostics'),
+                  ),
+                ],
               ),
             ],
           ),

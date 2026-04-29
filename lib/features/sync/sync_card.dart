@@ -54,27 +54,38 @@ class _SyncCardState extends ConsumerState<SyncCard> {
       // the 30-second debounce on each spec so this is a real
       // pull, not a "show me the cached debounce result."
       final engine = ref.read(syncEngineProvider);
-      var total = 0;
+      final perTable = <String, int>{};
       for (final tier in kSpecTiers) {
         final results = await Future.wait([
           for (final spec in tier)
-            engine.pullTable(
-              spec: spec,
-              programId: programId,
-              force: true,
-            ),
+            engine
+                .pullTable(
+                  spec: spec,
+                  programId: programId,
+                  force: true,
+                )
+                .then((n) => MapEntry(spec.table, n)),
         ]);
-        for (final n in results) {
-          total += n;
+        for (final entry in results) {
+          perTable[entry.key] = entry.value;
         }
       }
       if (!mounted) return;
-      setState(() {
-        _lastResult = total == 0
-            ? 'Already up to date.'
-            : 'Pulled $total row${total == 1 ? '' : 's'} '
-                'across ${kAllSpecs.length} tables.';
-      });
+      final total = perTable.values.fold<int>(0, (a, b) => a + b);
+      // Honest reporting — list every table that pulled anything.
+      // Hides "Pulled 5 rows" when 4 of those were sequence/theme
+      // rows and the user expected to see rooms.
+      final hits = perTable.entries.where((e) => e.value > 0).toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      final summary = total == 0
+          ? 'Already up to date — no new rows in any of the '
+              '${kAllSpecs.length} tables for this program. If '
+              "you're expecting data from another device, check "
+              'Sync audit (Diagnostics card) — your devices may '
+              'be on different programs.'
+          : 'Pulled $total row${total == 1 ? '' : 's'}: '
+              '${hits.map((e) => '${e.value} ${e.key}').join(', ')}';
+      setState(() => _lastResult = summary);
     } on Object catch (e) {
       if (!mounted) return;
       setState(() => _error = 'Sync failed: $e');
