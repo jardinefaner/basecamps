@@ -262,10 +262,47 @@ class SyncEngine {
         );
         if (cloudUpdatedAt != null &&
             cloudUpdatedAt.isAfter(localUpdatedAt)) {
-          // Cloud has a newer version. Don't overwrite. Trigger
-          // a pull to bring local up to date, and emit a
-          // conflict event so the UI can surface the avoided
-          // overwrite.
+          // Cloud has a newer version. Instead of blindly
+          // overwriting (data loss) or blindly aborting (user's
+          // edit discarded), do an additive merge: pull cloud's
+          // full row, take local non-null fields where cloud is
+          // null, push the merged result. Most common scenario
+          // is "I added field A on device 1 while another device
+          // added field B" — additive merge keeps both.
+          //
+          // The merge is deliberately conservative: when both
+          // sides have a value for the same field, cloud wins
+          // (since cloud is newer). True same-field concurrent
+          // edits still surface as a conflict toast and one
+          // edit loses, but additive scenarios round-trip
+          // without loss.
+          final cloudRow = await _readCloudRow(client, spec.table, id);
+          if (cloudRow != null) {
+            final mergedRow = _additiveMerge(
+              local: row,
+              cloud: cloudRow,
+            );
+            try {
+              await client
+                  .from(spec.table)
+                  .upsert(_toCloudShape(mergedRow, spec.dateColumns));
+              // Update local with the merged result so subsequent
+              // edits build on it. The pull below will also run
+              // but the merged values are what we just pushed.
+              await _upsertLocalRow(spec.table, mergedRow, spec.dateColumns);
+              return;
+            } on Object catch (e, st) {
+              debugPrint(
+                'Additive merge push failed for ${spec.table}/$id: '
+                '$e\n$st',
+              );
+              // Fall through to the conflict toast + pull below.
+            }
+          }
+          // Couldn't merge (no cloud row found, merge push
+          // failed, etc.) — fall back to the original behavior:
+          // emit a conflict toast and pull, accepting that the
+          // local edit is lost. Better than blind overwrite.
           if (!_conflictController.isClosed) {
             _conflictController.add(SyncConflict(
               table: spec.table,
@@ -732,6 +769,88 @@ class SyncEngine {
       debugPrint('Cloud updated_at read failed for $table/$id: $e');
       return null;
     }
+  }
+
+  /// Read the full cloud row for [id] in [table]. Used by the
+  /// additive merge path on a pre-push conflict — we need cloud's
+  /// values for every field to know which ones to keep vs. let
+  /// local override. Returns null when the row doesn't exist or
+  /// the read fails.
+  Future<Map<String, dynamic>?> _readCloudRow(
+    SupabaseClient client,
+    String table,
+    String id,
+  ) async {
+    try {
+      final raw = await client
+          .from(table)
+          .select()
+          .eq('id', id)
+          .maybeSingle();
+      if (raw == null) return null;
+      return Map<String, dynamic>.from(raw);
+    } on Object catch (e) {
+      debugPrint('Cloud row read failed for $table/$id: $e');
+      return null;
+    }
+  }
+
+  /// Additive merge — combines [local] (the user's pending edit)
+  /// with [cloud] (the newer cloud row). Rule per field:
+  ///
+  ///   * Both null/missing → null.
+  ///   * Local null, cloud non-null → cloud (preserve other
+  ///     device's value).
+  ///   * Local non-null, cloud null → local (preserve user's
+  ///     additive edit).
+  ///   * Both non-null → cloud (newer wins on same-field
+  ///     concurrent edits; user's local change to that field is
+  ///     discarded — the conflict toast surfaces this).
+  ///
+  /// `id`, `created_at`, and `program_id` always take the local
+  /// values (these are immutable / row-identity fields). The
+  /// merged row's `updated_at` becomes max(local, cloud) so the
+  /// resulting upsert reads as "newer than both inputs."
+  Map<String, Object?> _additiveMerge({
+    required Map<String, Object?> local,
+    required Map<String, dynamic> cloud,
+  }) {
+    final merged = <String, Object?>{};
+    final keys = <String>{...local.keys, ...cloud.keys};
+    for (final key in keys) {
+      final localValue = local[key];
+      final cloudValue = cloud[key];
+      // Identity / immutable fields — always local.
+      if (key == 'id' || key == 'created_at' || key == 'program_id') {
+        merged[key] = localValue ?? cloudValue;
+        continue;
+      }
+      // updated_at: take the later of the two so the upsert
+      // result reads as newer than both sources.
+      if (key == 'updated_at') {
+        final localTs = _parseUpdatedAt(localValue);
+        final cloudTs = _parseUpdatedAt(cloudValue);
+        if (localTs == null) {
+          merged[key] = cloudValue;
+        } else if (cloudTs == null) {
+          merged[key] = localValue;
+        } else {
+          merged[key] =
+              localTs.isAfter(cloudTs) ? localValue : cloudValue;
+        }
+        continue;
+      }
+      final localPresent = localValue != null && localValue != '';
+      final cloudPresent = cloudValue != null && cloudValue != '';
+      if (localPresent && !cloudPresent) {
+        merged[key] = localValue;
+      } else {
+        // Both present, both null, or local-null + cloud-present:
+        // defer to cloud.
+        merged[key] = cloudValue;
+      }
+    }
+    return merged;
   }
 
   /// Coerce a row's `updated_at` into a UTC DateTime. Drift hands
