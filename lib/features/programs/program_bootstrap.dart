@@ -37,6 +37,13 @@ class ProgramAuthBootstrap {
   /// the user effectively got signed out.
   String? _lastProcessedUserId;
 
+  /// While [_onSessionChanged] is in flight, callers (specifically
+  /// the router redirect) need to know not to bounce the user to
+  /// /welcome — the active-program id is null because we haven't
+  /// finished hydrating yet, not because the user has no
+  /// memberships. Toggled via [programBootstrapInProgressProvider]
+  /// from inside [_onSessionChanged].
+
   /// Subscribes to [currentSessionProvider] and runs
   /// [_onSessionChanged] for every transition. Returns the
   /// subscription so the caller can close it from dispose().
@@ -75,6 +82,13 @@ class ProgramAuthBootstrap {
   }
 
   Future<void> _onSessionChanged(String userId) async {
+    // Flip the in-progress flag while we hydrate cloud + decide an
+    // active program. The router redirect reads this to suppress
+    // the /welcome bounce during the fresh-sign-in window when
+    // activeProgramIdProvider is transiently null. Always reset to
+    // false on exit (success or failure) so a stuck flag doesn't
+    // leave the redirect waiting forever.
+    _ref.read(programBootstrapInProgressProvider.notifier).set(true);
     try {
       final repo = _ref.read(programsRepositoryProvider);
       // Cross-device fix (2026-04-28): pull the user's existing
@@ -158,6 +172,12 @@ class ProgramAuthBootstrap {
       // attempt. Logging it lets a dev debug; a user-visible toast
       // would be more noise than signal for a transient DB hiccup.
       debugPrint('Program bootstrap failed: $e\n$st');
+    } finally {
+      // Clear the in-progress flag on every exit path (success,
+      // membership-not-found, or thrown). This re-fires the router's
+      // refreshListenable so the redirect re-evaluates with the now-
+      // settled active-program id.
+      _ref.read(programBootstrapInProgressProvider.notifier).set(false);
     }
   }
 
@@ -464,3 +484,27 @@ class ProgramAuthBootstrap {
 final programAuthBootstrapProvider = Provider<ProgramAuthBootstrap>((ref) {
   return ProgramAuthBootstrap(ref);
 });
+
+/// True while [ProgramAuthBootstrap._onSessionChanged] is hydrating
+/// cloud programs and deciding the active program for a fresh sign-
+/// in. The router redirect reads this so it doesn't bounce a freshly-
+/// authenticated user to /welcome during the few hundred ms while
+/// active-program-id is transiently null. Toggled inside the
+/// bootstrap; nobody else writes it.
+class _BootstrapInProgressNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  // Single-method imperative setter — easier to read at the
+  // callsite than `notifier.state = value` for a state with one
+  // semantic meaning.
+  // ignore: use_setters_to_change_properties, avoid_positional_boolean_parameters
+  void set(bool value) {
+    state = value;
+  }
+}
+
+final programBootstrapInProgressProvider =
+    NotifierProvider<_BootstrapInProgressNotifier, bool>(
+  _BootstrapInProgressNotifier.new,
+);

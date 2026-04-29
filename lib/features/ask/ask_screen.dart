@@ -164,7 +164,13 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
+    // SingleChildScrollView keeps the empty-state safe on short
+    // viewports — without it, narrow keyboards or short tablet
+    // landscapes overflow the Column by a few pixels. Center is
+    // wrapped *inside* the scroll view so the content still
+    // visually centers when there's headroom; the scroll only
+    // engages when the column genuinely doesn't fit.
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.xl),
       child: Center(
         child: Column(

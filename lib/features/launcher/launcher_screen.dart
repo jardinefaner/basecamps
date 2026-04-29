@@ -464,23 +464,39 @@ String _parentDisplayName(Parent p) =>
 /// open state — pressing back pops the pushed screen and the drawer
 /// is still there.
 ///
-/// Default is `push` (stacks onto Today); pass `go: true` for
-/// horizontal moves that should clear any lower stack (rarely needed
-/// now that /today is the only root).
+/// **Stack discipline.** Before pushing, we pop everything off the
+/// root navigator down to /today. Without that the back stack grew
+/// unboundedly: tapping Curriculum → Setup → People left three
+/// pushed routes, and back required three taps to land on Today.
+/// `popUntil(isFirst)` clears whatever was pushed previously so the
+/// stack ends up at most two deep — [/today, /destination] —
+/// and back from any launcher destination always returns to Today.
 ///
-/// Pulls the GoRouter through Riverpod's [routerProvider] rather than
-/// `GoRouter.of(context)`. The launcher renders both inside a Drawer
-/// (mobile, where the route's navigator is in scope) and inside a
-/// permanent sidebar Overlay (web/desktop, where it isn't). The
-/// provider lookup works in both — `ProviderScope` is at the root.
+/// Default is `push` (stacks onto Today); pass `go: true` for
+/// horizontal moves that should clear any lower stack (rarely
+/// needed now that /today is the only root).
+///
+/// Pulls the GoRouter through Riverpod's [routerProvider] rather
+/// than `GoRouter.of(context)`. The launcher renders both inside a
+/// Drawer (mobile, where the route's navigator is in scope) and
+/// inside a permanent sidebar Overlay (web/desktop, where it isn't).
+/// The provider lookup works in both — `ProviderScope` is at the
+/// root.
 void _navigateTo(BuildContext context, String path, {bool go = false}) {
   final router = ProviderScope.containerOf(context, listen: false)
       .read(routerProvider);
   if (go) {
     router.go(path);
-  } else {
-    unawaited(router.push(path));
+    return;
   }
+  // Pop back to /today (the initialLocation, always the first
+  // route on the navigator stack) before pushing the destination.
+  // Synchronous: no animation between the pops and the push.
+  final navigator = rootNavigatorKey.currentState;
+  if (navigator != null) {
+    navigator.popUntil((route) => route.isFirst);
+  }
+  unawaited(router.push(path));
 }
 
 // ================================================================

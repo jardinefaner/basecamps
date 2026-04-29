@@ -20,6 +20,7 @@ import 'package:basecamp/features/observations/observations_screen.dart';
 import 'package:basecamp/features/parents/parent_detail_screen.dart';
 import 'package:basecamp/features/parents/parents_screen.dart';
 import 'package:basecamp/features/planning/week_plan_screen.dart';
+import 'package:basecamp/features/programs/program_bootstrap.dart';
 import 'package:basecamp/features/programs/program_detail_screen.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/programs/programs_screen.dart';
@@ -87,15 +88,27 @@ class _AuthRefreshNotifier extends ChangeNotifier {
       activeProgramIdProvider,
       (_, _) => notifyListeners(),
     );
+    // Re-evaluate redirects when the bootstrap finishes — the
+    // user signs in, the auth state flips, but the active-program
+    // id stays null until we hydrate cloud + decide a default. The
+    // redirect needs to wake up at *both* edges (auth flip AND
+    // bootstrap settle) or it'll race the bootstrap and bounce the
+    // user to /welcome for the half-second hydrate window.
+    _bootstrapSub = ref.listen<bool>(
+      programBootstrapInProgressProvider,
+      (_, _) => notifyListeners(),
+    );
   }
 
   late final ProviderSubscription<AsyncValue<AuthState>> _authSub;
   late final ProviderSubscription<String?> _activeProgramSub;
+  late final ProviderSubscription<bool> _bootstrapSub;
 
   @override
   void dispose() {
     _authSub.close();
     _activeProgramSub.close();
+    _bootstrapSub.close();
     super.dispose();
   }
 }
@@ -175,12 +188,27 @@ final routerProvider = Provider<GoRouter>((ref) {
       // there (avoids a redirect loop), still on /sign-in (auth
       // callback flow), or in the diagnostics route (debugging
       // the no-program state itself).
+      //
+      // Also skip while the bootstrap is hydrating cloud programs.
+      // On a fresh sign-in the auth flip happens before
+      // ProgramAuthBootstrap finishes deciding a default program;
+      // checking activeProgramIdProvider during that window gives
+      // us null and bounces the user to /welcome, which then
+      // bounces back to /today the moment bootstrap settles. The
+      // visible result is a half-second flash of the welcome page
+      // every login. Holding the redirect open until bootstrap
+      // settles fixes it; refreshListenable wakes the redirect
+      // back up when the in-progress flag flips to false.
       if (session != null &&
           !goingToSignIn &&
           !goingToWelcome &&
           !goingToDiagnostics) {
-        final activeId = ref.read(activeProgramIdProvider);
-        if (activeId == null) return '/welcome';
+        final bootstrapping =
+            ref.read(programBootstrapInProgressProvider);
+        if (!bootstrapping) {
+          final activeId = ref.read(activeProgramIdProvider);
+          if (activeId == null) return '/welcome';
+        }
       }
       // And the inverse: if the user landed on /welcome but
       // they DO have an active program (e.g. they joined and the
