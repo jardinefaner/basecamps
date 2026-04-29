@@ -3,6 +3,7 @@ import 'package:basecamp/features/activity_library/activity_library_repository.d
 import 'package:basecamp/features/activity_library/widgets/edit_library_item_sheet.dart';
 import 'package:basecamp/features/lesson_sequences/lesson_sequences_repository.dart';
 import 'package:basecamp/features/lesson_sequences/widgets/edit_lesson_sequence_sheet.dart';
+import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
 import 'package:basecamp/features/themes/themes_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:drift/drift.dart' show Value;
@@ -1153,6 +1154,23 @@ class _ActivityCardTile extends ConsumerWidget {
           id: item.id,
           kind: const Value('daily'),
         );
+      case _ItemAction.schedule:
+        // Push the same wizard the activity-library "Schedule" button
+        // pushes — pre-fills title, hook, default duration, etc. from
+        // the linked library card. Seeds the wizard's recurring
+        // weekday set from the curriculum item's `dayOfWeek` when set
+        // (a Monday ritual schedules every Monday by default; the
+        // teacher can narrow to a single day inside the wizard).
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => NewActivityWizardScreen(
+              initialLibraryItem: entry.library,
+              initialDays:
+                  item.dayOfWeek == null ? null : {item.dayOfWeek!},
+            ),
+          ),
+        );
     }
   }
 }
@@ -1168,6 +1186,14 @@ enum _ItemAction {
   toAnytime,
   toMilestone,
   toDaily,
+  /// Schedule from curriculum — opens the activity wizard pre-filled
+  /// from this card. Mirror, not link: the curriculum item and the
+  /// resulting schedule template are independent rows. Edits to one
+  /// don't propagate to the other (intentional — curriculum is "what
+  /// we want to do this week," schedule is "when we're actually
+  /// doing it"; a teacher routinely tweaks one without meaning the
+  /// other).
+  schedule,
   removeFromWeek;
 
   int? get weekday {
@@ -1185,6 +1211,7 @@ enum _ItemAction {
       case _ItemAction.toAnytime:
       case _ItemAction.toMilestone:
       case _ItemAction.toDaily:
+      case _ItemAction.schedule:
       case _ItemAction.removeFromWeek:
         return null;
     }
@@ -1269,6 +1296,19 @@ class _ItemActionMenu extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.lg),
             const Divider(height: 1),
+            const SizedBox(height: AppSpacing.sm),
+            ListTile(
+              leading: Icon(
+                Icons.event_outlined,
+                color: theme.colorScheme.primary,
+              ),
+              title: const Text('Schedule this card'),
+              subtitle: const Text(
+                'Open the activity wizard pre-filled from this card.',
+              ),
+              onTap: () =>
+                  Navigator.of(context).pop(_ItemAction.schedule),
+            ),
             const SizedBox(height: AppSpacing.sm),
             ListTile(
               leading: Icon(

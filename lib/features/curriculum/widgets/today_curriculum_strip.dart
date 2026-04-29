@@ -1,6 +1,7 @@
 import 'package:basecamp/features/activity_library/widgets/edit_library_item_sheet.dart';
 import 'package:basecamp/features/curriculum/curriculum_today.dart';
 import 'package:basecamp/features/lesson_sequences/lesson_sequences_repository.dart';
+import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
@@ -92,7 +93,11 @@ class _Body extends StatelessWidget {
           ],
           if (todayCards.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
-            _TodayCardsList(cards: todayCards, accent: accent),
+            _TodayCardsList(
+              cards: todayCards,
+              accent: accent,
+              date: date,
+            ),
           ],
         ],
       ),
@@ -275,15 +280,26 @@ class _CoreQuestionCard extends StatelessWidget {
   }
 }
 
-/// Today's daily-ritual cards rendered as a thin list. Each row is
-/// tappable → opens the activity library editor for that card so a
-/// teacher who wants to read the full prompt or scale to a different
-/// age can do it without leaving Today.
+/// Today's daily-ritual cards rendered as a thin list. Each row has
+/// two affordances: tap the row → activity-library editor (read the
+/// full prompt or scale to a different age); tap the calendar
+/// "+" icon → activity wizard pre-filled with this card + today's
+/// weekday so the curriculum lands on the schedule in two taps.
 class _TodayCardsList extends StatelessWidget {
-  const _TodayCardsList({required this.cards, required this.accent});
+  const _TodayCardsList({
+    required this.cards,
+    required this.accent,
+    required this.date,
+  });
 
   final List<SequenceItemWithLibrary> cards;
   final Color accent;
+
+  /// The strip's anchor date — passed through to each card row so
+  /// the "+ Schedule" action seeds the activity wizard with the
+  /// right weekday (today's vs. the cycled date the teacher is
+  /// browsing).
+  final DateTime date;
 
   @override
   Widget build(BuildContext context) {
@@ -317,7 +333,7 @@ class _TodayCardsList extends StatelessWidget {
                 height: 1,
                 color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
               ),
-            _CardRow(entry: cards[i]),
+            _CardRow(entry: cards[i], date: date),
           ],
         ],
       ),
@@ -326,9 +342,13 @@ class _TodayCardsList extends StatelessWidget {
 }
 
 class _CardRow extends StatelessWidget {
-  const _CardRow({required this.entry});
+  const _CardRow({required this.entry, required this.date});
 
   final SequenceItemWithLibrary entry;
+
+  /// Anchor date — used to seed the activity wizard's weekday when
+  /// the teacher schedules from this row.
+  final DateTime date;
 
   Future<void> _open(BuildContext context) async {
     await showModalBottomSheet<void>(
@@ -336,6 +356,33 @@ class _CardRow extends StatelessWidget {
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => EditLibraryItemSheet(item: entry.library),
+    );
+  }
+
+  /// Open the activity wizard pre-filled from this curriculum card.
+  /// Mirror, not link — the resulting ScheduleTemplate is independent
+  /// of the curriculum item. Edits to the curriculum card don't
+  /// propagate, and edits to the schedule item don't write back. Two
+  /// reasons:
+  ///   1. Curriculum is "what we want to do this week"; schedule is
+  ///      "when we're actually doing it." A teacher routinely tweaks
+  ///      one without meaning the other.
+  ///   2. Tracking the link would require schema (a curriculum_item_id
+  ///      column on schedule_templates) and reverse-edit semantics
+  ///      we haven't designed yet. The mirror is shippable today.
+  Future<void> _schedule(BuildContext context) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => NewActivityWizardScreen(
+          initialLibraryItem: entry.library,
+          // Seeds the wizard's weekday set so the recurring pattern
+          // matches the curriculum (a Monday ritual schedules every
+          // Monday by default; the teacher can narrow the date range
+          // or add weekdays inside the wizard).
+          initialDays: {date.weekday},
+        ),
+      ),
     );
   }
 
@@ -373,10 +420,15 @@ class _CardRow extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right,
-              size: 18,
-              color: theme.colorScheme.onSurfaceVariant,
+            // "+ Schedule" — the materialization affordance. Sits
+            // before the chevron so the chevron still reads as
+            // "tap the row to open the card."
+            IconButton(
+              tooltip: 'Schedule',
+              icon: const Icon(Icons.event_outlined, size: 18),
+              color: theme.colorScheme.primary,
+              visualDensity: VisualDensity.compact,
+              onPressed: () => _schedule(context),
             ),
           ],
         ),
