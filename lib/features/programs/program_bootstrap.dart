@@ -58,21 +58,12 @@ class ProgramAuthBootstrap {
     return _ref.listen<Session?>(currentSessionProvider, (_, session) {
       if (session == null) {
         _lastProcessedUserId = null;
-        // Sign-out: clear the in-memory state only.
-        //
-        // We deliberately do NOT wipe the local DB here. The wipe
-        // used to live on this path (fire-and-forget), which raced
-        // with a fast sign-in: the user signs out, the wipe starts
-        // async, the user signs back in, the new bootstrap's pull
-        // writes adults / kids / etc., then the in-flight wipe
-        // finishes and *deletes the just-pulled rows*. Visible
-        // result: "I created an adult, signed out and back in,
-        // and now it's gone — but it's still in Supabase."
-        //
-        // The wipe still runs when it should — see _maybeWipeForUserChange
-        // at the start of _onSessionChanged. That path is awaited
-        // atomically inside the sign-in sequence so it can't race
-        // with the pull that follows it.
+        // Sign-out: clear in-memory state only. Local DB stays
+        // intact — see comment in _onSessionChanged on why we
+        // don't wipe on user-change either. The active-program
+        // notifier clears here so the router redirects to /sign-in
+        // immediately; realtime unsubscribes so we stop streaming
+        // for a no-one-signed-in state.
         unawaited(_ref.read(activeProgramIdProvider.notifier).clear());
         unawaited(_ref.read(syncEngineProvider).unsubscribeFromRealtime());
         return;
@@ -94,14 +85,18 @@ class ProgramAuthBootstrap {
     // leave the redirect waiting forever.
     _ref.read(programBootstrapInProgressProvider.notifier).set(true);
     try {
-      // First step: if the user on this device changed since the
-      // last sign-in, wipe the previous user's data so it doesn't
-      // bleed into this one's view. Awaited (synchronous within
-      // the bootstrap) so it can't race the pull that follows.
-      // No-op when the same user signs back in — preserves their
-      // local rows + watermarks.
-      await _maybeWipeForUserChange(userId);
-
+      // No wipe-on-anything any more. The previous design wiped
+      // local data on sign-out (and later on sign-in user-change)
+      // to "prevent leaking to a different user on the same
+      // device." That threat model doesn't justify the cost — the
+      // OS already isolates app storage between users, and same-
+      // user sign-out + sign-in (the common case) was destroying
+      // data via the wipe race. Local Drift rows are program-
+      // scoped via program_id; queries already filter on the
+      // active program, so a different user signing in just
+      // sees no overlap. The explicit "Clear all data" button on
+      // the Settings danger zone is still available for users
+      // who want to nuke everything.
       final repo = _ref.read(programsRepositoryProvider);
       // Cross-device fix (2026-04-28): pull the user's existing
       // cloud programs into the local DB *before* we decide
@@ -193,42 +188,13 @@ class ProgramAuthBootstrap {
     }
   }
 
-  /// SharedPreferences key for the last user.id who signed into
-  /// this device. Used to decide whether the bootstrap should wipe
-  /// existing local data on sign-in (different user → wipe;
-  /// same user → keep, even after a sign-out + sign-back-in
-  /// roundtrip).
-  static const _kLastSignedInUserIdKey = 'last_signed_in_user_id';
-
-  /// If the persisted last-user differs from the current one, wipe
-  /// every program's local data before the bootstrap continues.
-  /// Awaited so the wipe completes before any pull writes new
-  /// rows — the previous fire-and-forget wipe on sign-out raced
-  /// with a fast sign-in's pull and ate the just-pulled rows.
-  ///
-  /// Persists the current userId at the end so the next sign-in
-  /// has something to compare against. First-launch (no previous
-  /// id stored) doesn't wipe — the local DB is empty anyway.
-  Future<void> _maybeWipeForUserChange(String userId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final previous = prefs.getString(_kLastSignedInUserIdKey);
-    if (previous != null && previous != userId) {
-      debugPrint(
-        'User changed on this device ($previous → $userId); '
-        'wiping local program data before re-hydrate.',
-      );
-      try {
-        await _ref.read(databaseProvider).wipeAllProgramData();
-      } on Object catch (e, st) {
-        // A failed wipe is bad but not catastrophic — the new
-        // user's pull will write its own rows alongside the old
-        // user's. Surface in logs and keep going so the user
-        // isn't stuck on a blank app.
-        debugPrint('Wipe-on-user-change failed: $e\n$st');
-      }
-    }
-    await prefs.setString(_kLastSignedInUserIdKey, userId);
-  }
+  // _maybeWipeForUserChange and the SharedPreferences key for
+  // last-signed-in user removed — wiping local data was always
+  // the wrong move. Same-user round-trips lost work, and even
+  // for genuinely-different users on a shared device the OS
+  // already isolates app storage. Per-program filtering on
+  // queries (every entity table carries program_id) is the
+  // right correctness boundary.
 
   /// Public wrapper around [_ensureProgramAndMembershipInCloud]
   /// for UI-driven heal flows. Throws on failure so the calling
@@ -333,10 +299,19 @@ class ProgramAuthBootstrap {
         'user_id': userId,
         'role': 'admin',
       });
+      // Successful upsert clears any sticky "membership broken"
+      // banner the UI was showing.
+      _ref.read(membershipUpsertFailureProvider.notifier).clear();
     } on Object catch (e) {
       // Network failure, RLS rejection, etc. The next launch retries
       // because we no longer guard with a SharedPreferences flag.
       debugPrint('Ensure program/membership in cloud failed: $e');
+      // Surface to UI so the user has a visible "your cloud
+      // membership is out of sync" affordance + can hit the
+      // Reconnect button on the Sync tab. Without this hook the
+      // failure was completely silent: pushes 403'd silently,
+      // invites listed as empty, and the user had no idea why.
+      _ref.read(membershipUpsertFailureProvider.notifier).set('$e');
       if (rethrowOnError) rethrow;
     }
   }
@@ -575,4 +550,31 @@ class _BootstrapInProgressNotifier extends Notifier<bool> {
 final programBootstrapInProgressProvider =
     NotifierProvider<_BootstrapInProgressNotifier, bool>(
   _BootstrapInProgressNotifier.new,
+);
+
+/// Last error message from a failed cloud membership upsert.
+/// Non-null means the user's `program_members` row in cloud is
+/// out of sync — pushes will 403 silently and admin reads (e.g.
+/// invite codes) will return zero rows. The Today / Settings UI
+/// surfaces a "membership out of sync" banner on this state so
+/// the user can hit Reconnect instead of debugging blind.
+class _MembershipUpsertFailureNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  // Imperative setter is clearer at the call site than `state = …`
+  // for a single-purpose status notifier.
+  // ignore: use_setters_to_change_properties
+  void set(String message) {
+    state = message;
+  }
+
+  void clear() {
+    state = null;
+  }
+}
+
+final membershipUpsertFailureProvider =
+    NotifierProvider<_MembershipUpsertFailureNotifier, String?>(
+  _MembershipUpsertFailureNotifier.new,
 );

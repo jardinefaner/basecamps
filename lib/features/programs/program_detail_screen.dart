@@ -11,7 +11,6 @@ import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:basecamp/ui/save_action.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -612,15 +611,22 @@ class _InvitesCard extends ConsumerWidget {
       ref.invalidate(programInvitesProvider(programId));
       if (!context.mounted) return;
       // Auto-copy the code so the common path (generate → paste
-      // into a text/email to a teacher) is one tap. The dialog
-      // shows the code too in case clipboard access is denied
-      // (some Android keyboards strip clipboard contents).
-      await Clipboard.setData(ClipboardData(text: invite.code));
+      // into a text/email to a teacher) is one tap. tryCopyToClipboard
+      // returns false on platforms where clipboard access is denied
+      // (Safari without a recent user gesture, locked-down browsers,
+      // certain Android keyboards) — the dialog shows the code text
+      // either way, so the user can copy manually if the auto-copy
+      // skipped.
+      final copied = await tryCopyToClipboard(invite.code);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Code copied — share it with the teacher'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(
+            copied
+                ? 'Code copied — share it with the teacher'
+                : 'Code generated — copy it from the dialog',
+          ),
+          duration: const Duration(seconds: 2),
         ),
       );
       await showDialog<void>(
@@ -631,12 +637,12 @@ class _InvitesCard extends ConsumerWidget {
   }
 
   Future<void> _copy(BuildContext context, InviteRow invite) async {
-    await Clipboard.setData(ClipboardData(text: invite.code));
+    final copied = await tryCopyToClipboard(invite.code);
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Code copied'),
-        duration: Duration(seconds: 2),
+      SnackBar(
+        content: Text(copied ? 'Code copied' : "Couldn't copy — long-press to select"),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -786,7 +792,7 @@ class _NewCodeDialog extends StatelessWidget {
         ),
         FilledButton.icon(
           onPressed: () async {
-            await Clipboard.setData(ClipboardData(text: invite.code));
+            await tryCopyToClipboard(invite.code);
             if (context.mounted) Navigator.of(context).pop();
           },
           icon: const Icon(Icons.copy_outlined, size: 18),
