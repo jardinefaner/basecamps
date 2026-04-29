@@ -154,12 +154,34 @@ class _BasecampAppState extends ConsumerState<BasecampApp>
       // sure realtime is healthy. Realtime channels can drop
       // without notification while the tab/app was paused; this
       // is the recovery path so the user doesn't miss a beat.
+      //
+      // Plus: if we somehow have a session but no active program
+      // (the bootstrap raced the network on cold launch), re-run
+      // it now. The retry timer would also catch this, but
+      // foreground is the moment the user is most likely to
+      // notice — heal eagerly.
       unawaited(_pullNow());
       unawaited(_resubscribeRealtime());
+      unawaited(_maybeRerunBootstrap());
       _startPeriodicPull();
     } else if (!_foreground && wasForeground) {
       _periodicPullTimer?.cancel();
       _periodicPullTimer = null;
+    }
+  }
+
+  /// When the app foregrounds with a session but no active program,
+  /// the user is functionally stuck on /welcome despite having a
+  /// real cloud membership. Re-fire the bootstrap so the device
+  /// heals itself without forcing the user into the audit screen.
+  Future<void> _maybeRerunBootstrap() async {
+    final session = ref.read(currentSessionProvider);
+    if (session == null) return;
+    if (ref.read(activeProgramIdProvider) != null) return;
+    try {
+      await ref.read(programAuthBootstrapProvider).rerunBootstrap();
+    } on Object catch (e) {
+      debugPrint('Foreground bootstrap retry failed: $e');
     }
   }
 

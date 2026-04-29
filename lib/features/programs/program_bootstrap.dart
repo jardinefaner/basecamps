@@ -44,6 +44,17 @@ class ProgramAuthBootstrap {
   /// memberships. Toggled via [programBootstrapInProgressProvider]
   /// from inside [_onSessionChanged].
 
+  /// Auto-retry timer when the bootstrap finishes without an
+  /// active program. Network blips, JWT-not-yet-propagated, RLS
+  /// race on a fresh sign-in — any of these can leave the user
+  /// stuck on /welcome despite having a cloud membership. Rather
+  /// than make the user manually retry, the bootstrap schedules
+  /// itself again with backoff until either a membership shows
+  /// up in cloud or the user signs out.
+  Timer? _retryTimer;
+  int _retryCount = 0;
+  static const _retryBackoffSeconds = [5, 10, 20, 45, 90];
+
   /// Subscribes to [currentSessionProvider] and runs
   /// [_onSessionChanged] for every transition. Returns the
   /// subscription so the caller can close it from dispose().
@@ -58,6 +69,7 @@ class ProgramAuthBootstrap {
     return _ref.listen<Session?>(currentSessionProvider, (_, session) {
       if (session == null) {
         _lastProcessedUserId = null;
+        _resetRetry();
         // Sign-out: clear in-memory state only. Local DB stays
         // intact — see comment in _onSessionChanged on why we
         // don't wipe on user-change either. The active-program
@@ -147,8 +159,16 @@ class ProgramAuthBootstrap {
       }
       if (id == null) {
         await notifier.clear();
+        // Auto-retry. If we got here on a *fresh* sign-in with a
+        // network blip or a JWT-not-yet-propagated RLS race, the
+        // user has a cloud membership we just didn't see this
+        // attempt. Schedule a retry with exponential backoff so
+        // the device heals itself instead of stranding the user
+        // on /welcome forever. Reset by [_resetRetry] on success.
+        _scheduleRetry(userId);
         return;
       }
+      _resetRetry();
       await notifier.set(id);
       await _maybeBackfillUntaggedRows(repo, programId: id);
       // Always upsert the program + membership rows on every
@@ -199,10 +219,8 @@ class ProgramAuthBootstrap {
   /// Re-run the full bootstrap: hydrate cloud programs into local
   /// Drift, decide an active program, push membership, pull
   /// tables, subscribe realtime. Used by the audit screen's
-  /// "Re-run bootstrap" button when a device gets stuck without
-  /// an active program (typically: hydrate raced ahead of the
-  /// network on cold launch, no retry kicked in, user landed on
-  /// a no-active-program state forever).
+  /// "Re-run bootstrap" button + the app-foreground hook when a
+  /// device gets stuck without an active program.
   ///
   /// Resets `_lastProcessedUserId` so the listener-side guard
   /// doesn't short-circuit when called from a UI surface where
@@ -212,8 +230,50 @@ class ProgramAuthBootstrap {
     if (session == null) {
       throw StateError('Not signed in.');
     }
+    _resetRetry();
     _lastProcessedUserId = null; // force the listener to re-process
     await _onSessionChanged(session.user.id);
+  }
+
+  /// Schedule another bootstrap attempt with exponential backoff.
+  /// Cancelled when a sign-out fires, when an attempt succeeds
+  /// (active program resolved), or when [rerunBootstrap] is
+  /// invoked manually.
+  ///
+  /// Bounded sequence: 5s, 10s, 20s, 45s, 90s, then 90s forever.
+  /// Each attempt re-fires _onSessionChanged for the same userId
+  /// — which in turn schedules another retry if it still fails.
+  /// On success the chain self-cancels via [_resetRetry].
+  void _scheduleRetry(String userId) {
+    _retryTimer?.cancel();
+    final idx = _retryCount.clamp(0, _retryBackoffSeconds.length - 1);
+    final delay = _retryBackoffSeconds[idx];
+    _retryCount++;
+    debugPrint(
+      'Bootstrap stuck without active program; '
+      'retry #$_retryCount in ${delay}s.',
+    );
+    _retryTimer = Timer(Duration(seconds: delay), () {
+      // Re-check session — user may have signed out during the
+      // wait. And bail if an active program already showed up via
+      // some other path (manual switch, audit tap, etc.).
+      final session = _ref.read(currentSessionProvider);
+      if (session == null || session.user.id != userId) {
+        _resetRetry();
+        return;
+      }
+      if (_ref.read(activeProgramIdProvider) != null) {
+        _resetRetry();
+        return;
+      }
+      unawaited(_onSessionChanged(userId));
+    });
+  }
+
+  void _resetRetry() {
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    _retryCount = 0;
   }
 
   /// Hydrate the user's cloud programs into local Drift, then
