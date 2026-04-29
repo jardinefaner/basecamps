@@ -1,3 +1,4 @@
+import 'package:basecamp/features/curriculum/widgets/today_curriculum_strip.dart';
 import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
@@ -94,6 +95,20 @@ class _ScheduleEditorScreenState
             onNext: _nextWeek,
             onPick: _pickWeek,
             onThisWeek: _thisWeek,
+          ),
+          // Curriculum context for the week being authored. Compact
+          // mode skips the per-day "today's cards" list (this view
+          // shows seven days at once, so a single day's cards would
+          // be misleading). Self-hides when the week sits outside
+          // any active theme.
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+            ),
+            child: TodayCurriculumStrip(
+              date: _weekStart,
+              compact: true,
+            ),
           ),
           Expanded(
             child: scheduleAsync.when(

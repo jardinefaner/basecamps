@@ -8,6 +8,7 @@ import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/attendance/widgets/attendance_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/coverage/coverage_strip.dart';
+import 'package:basecamp/features/curriculum/widgets/today_curriculum_strip.dart';
 import 'package:basecamp/features/export/export_actions.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/incident.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/parent_concern.dart';
@@ -674,6 +675,12 @@ class _Body extends ConsumerWidget {
             // Keeps a populated-but-unscheduled day from seeing a
             // setup nudge it doesn't need.
             const BootstrapSetupCard(),
+            // Curriculum strip on the empty-state path too — a day
+            // with nothing scheduled still benefits from seeing
+            // "this week's curriculum is X" so the teacher can pull
+            // a card off the strip into Today instead of hunting it
+            // out of the curriculum view.
+            TodayCurriculumStrip(date: viewedDate),
             _EmptyState(
               isToday: isToday,
               onEdit: () => context.push('/today/schedule'),
@@ -1037,6 +1044,14 @@ class _Body extends ConsumerWidget {
           // bootstrap card on the Today screen even if someone
           // happened to schedule an activity first.
           const BootstrapSetupCard(),
+
+          // Curriculum context. Self-hides on programs without an
+          // active theme; otherwise renders a tappable "Bug week ·
+          // Week 2" chip + the sequence's core question + today's
+          // daily-ritual cards. Sits at the very top so the day's
+          // overarching frame ("what arc are we in?") reads before
+          // any operational signal.
+          TodayCurriculumStrip(date: viewedDate),
 
           // Loud-when-needed strip: self-hides when zero kids are
           // flagged and no reviews are due. Live-clock only — lateness
