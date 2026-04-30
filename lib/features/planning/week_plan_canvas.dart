@@ -45,11 +45,13 @@ class WeekPlanScale {
   });
 
   /// Computes a sensible day window from the items in this week.
-  /// Pads to round hours, clamps to a minimum 7am-5pm so an empty
-  /// week still shows a usable canvas.
+  /// Pads to round hours, clamps to a minimum 7am-6pm so an empty
+  /// week still shows a usable canvas. (6pm default mirrors a
+  /// typical full school day; earlier 5pm cut off pickup-time
+  /// activities.)
   factory WeekPlanScale.from(Iterable<ScheduleItem> items) {
     var earliest = 7 * 60;
-    var latest = 17 * 60;
+    var latest = 18 * 60;
     var seen = false;
     for (final item in items) {
       if (item.isFullDay) continue;
@@ -61,7 +63,7 @@ class WeekPlanScale {
       // Empty week — keep the friendly default.
       return const WeekPlanScale(
         dayStartMinutes: 7 * 60,
-        dayEndMinutes: 17 * 60,
+        dayEndMinutes: 18 * 60,
       );
     }
     // Round outward to whole hours so the hour rule lines line up
@@ -683,8 +685,6 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
     final item = widget.item;
     final tinyDuration =
         item.endMinutes - item.startMinutes < 30; // <30 min = "tiny"
-    final timeLabel = '${Hhmm.formatCompact(item.startTime)} – '
-        '${Hhmm.formatCompact(item.endTime)}';
 
     // Match the AppCard look used everywhere else in the app:
     //   * default — neutral card surface, transparent border (kept
@@ -759,17 +759,13 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
               onTap: _onRightZoneTap,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(4, 6, 8, 6),
-                child: tinyDuration
-                    ? _RightCompactBody(
-                        timeLabel: timeLabel,
-                        color: fg,
-                      )
-                    : _RightStackedBody(
-                        startLabel: Hhmm.formatCompact(item.startTime),
-                        endLabel: Hhmm.formatCompact(item.endTime),
-                        color: fg,
-                        location: item.location,
-                      ),
+                child: _DurationLabel(
+                  durationMinutes:
+                      item.endMinutes - item.startMinutes,
+                  color: fg,
+                  location:
+                      tinyDuration ? null : item.location,
+                ),
               ),
             ),
           ),
@@ -813,62 +809,55 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
   }
 }
 
-class _RightCompactBody extends StatelessWidget {
-  const _RightCompactBody({required this.timeLabel, required this.color});
-
-  final String timeLabel;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Text(
-        timeLabel,
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: color.withValues(alpha: 0.85),
-        ),
-        textAlign: TextAlign.right,
-      ),
-    );
-  }
-}
-
-class _RightStackedBody extends StatelessWidget {
-  const _RightStackedBody({
-    required this.startLabel,
-    required this.endLabel,
+/// Right-zone label: shows the activity's **duration** as a
+/// compact human label ("30 min", "1 hr", "1h 15m"). Replaces the
+/// previous start–end time pair — the start time is already
+/// implicit from the card's vertical position + the hour gutter
+/// on the left, so showing it again was redundant. Duration is
+/// the missing-info bit (the user can't infer "is this 30min or
+/// 90min?" from position alone if they don't measure pixels).
+///
+/// Optional [location] sits below the duration on stacked-body
+/// cards (≥30min). Tiny cards skip the location to avoid
+/// truncated overflow.
+class _DurationLabel extends StatelessWidget {
+  const _DurationLabel({
+    required this.durationMinutes,
     required this.color,
     this.location,
   });
 
-  final String startLabel;
-  final String endLabel;
+  final int durationMinutes;
   final Color color;
   final String? location;
+
+  static String formatDuration(int minutes) {
+    if (minutes < 60) return '$minutes min';
+    final hours = minutes ~/ 60;
+    final mins = minutes % 60;
+    if (mins == 0) return hours == 1 ? '1 hr' : '$hours hr';
+    return '${hours}h ${mins}m';
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final label = formatDuration(durationMinutes);
+    final hasLocation = location != null && location!.isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      mainAxisAlignment: hasLocation
+          ? MainAxisAlignment.spaceBetween
+          : MainAxisAlignment.center,
       children: [
         Text(
-          startLabel,
-          style: theme.textTheme.labelSmall?.copyWith(
+          label,
+          style: theme.textTheme.labelMedium?.copyWith(
             color: color.withValues(alpha: 0.85),
             fontWeight: FontWeight.w600,
           ),
         ),
-        Text(
-          endLabel,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: color.withValues(alpha: 0.6),
-          ),
-        ),
-        if (location != null && location!.isNotEmpty)
+        if (hasLocation)
           Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Text(

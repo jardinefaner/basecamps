@@ -4,11 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('WeekPlanScale.from', () {
-    test('empty week → 7am-5pm default window', () {
+    test('empty week → 7am-6pm default window', () {
       final scale = WeekPlanScale.from(const []);
       expect(scale.dayStartMinutes, 7 * 60);
-      expect(scale.dayEndMinutes, 17 * 60);
-      expect(scale.totalMinutes, 10 * 60);
+      expect(scale.dayEndMinutes, 18 * 60);
+      expect(scale.totalMinutes, 11 * 60);
     });
 
     test('items inside default window → window unchanged', () {
@@ -18,7 +18,7 @@ void main() {
       ];
       final scale = WeekPlanScale.from(items);
       expect(scale.dayStartMinutes, 7 * 60);
-      expect(scale.dayEndMinutes, 17 * 60);
+      expect(scale.dayEndMinutes, 18 * 60);
     });
 
     test('early-morning item → window expands left to round hour', () {
@@ -26,16 +26,16 @@ void main() {
       final scale = WeekPlanScale.from(items);
       // Earliest 6:30 → rounds DOWN to 6:00 (round outward).
       expect(scale.dayStartMinutes, 6 * 60);
-      // Latest 7:30 → keeps 17:00 default since 7:30 < 17:00.
-      expect(scale.dayEndMinutes, 17 * 60);
+      // Latest 7:30 stays at default 18:00 (window never shrinks).
+      expect(scale.dayEndMinutes, 18 * 60);
     });
 
     test('late-evening item → window expands right to round hour', () {
-      final items = [_item(startTime: '17:30', endTime: '18:45')];
+      final items = [_item(startTime: '18:30', endTime: '19:45')];
       final scale = WeekPlanScale.from(items);
-      // Latest 18:45 → rounds UP to 19:00 (round outward).
-      expect(scale.dayEndMinutes, 19 * 60);
-      // Earliest 17:30 stays at default 7:00 since the window
+      // Latest 19:45 → rounds UP to 20:00 (round outward).
+      expect(scale.dayEndMinutes, 20 * 60);
+      // Earliest 18:30 stays at default 7:00 since the window
       // never shrinks.
       expect(scale.dayStartMinutes, 7 * 60);
     });
@@ -53,14 +53,14 @@ void main() {
       ];
       final scale = WeekPlanScale.from(items);
       expect(scale.dayStartMinutes, 7 * 60);
-      expect(scale.dayEndMinutes, 17 * 60);
+      expect(scale.dayEndMinutes, 18 * 60);
     });
 
     test('end-time exactly on the hour does not over-pad', () {
-      // Latest 18:00 should round to 18:00 (no extra hour added).
-      final items = [_item(startTime: '17:00', endTime: '18:00')];
+      // Latest 19:00 should round to 19:00 (no extra hour added).
+      final items = [_item(startTime: '18:00', endTime: '19:00')];
       final scale = WeekPlanScale.from(items);
-      expect(scale.dayEndMinutes, 18 * 60);
+      expect(scale.dayEndMinutes, 19 * 60);
     });
   });
 
@@ -68,7 +68,7 @@ void main() {
     test('yFor / minutesAtY round-trip at hour boundaries', () {
       const scale = WeekPlanScale(
         dayStartMinutes: 7 * 60,
-        dayEndMinutes: 17 * 60,
+        dayEndMinutes: 18 * 60,
       );
       // 9:00 = 540 minutes. (540 - 420) * 2.5 = 300 px.
       expect(scale.yFor(9 * 60), 300);
@@ -87,10 +87,10 @@ void main() {
     test('totalHeight = totalMinutes × pxPerMinute', () {
       const scale = WeekPlanScale(
         dayStartMinutes: 7 * 60,
-        dayEndMinutes: 17 * 60,
+        dayEndMinutes: 18 * 60,
       );
-      // 10 hours × 60 min × 2.5 px/min = 1500 px.
-      expect(scale.totalHeight, 1500);
+      // 11 hours × 60 min × 2.5 px/min = 1650 px.
+      expect(scale.totalHeight, 1650);
     });
   });
 
