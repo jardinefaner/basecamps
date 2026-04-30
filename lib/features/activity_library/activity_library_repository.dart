@@ -139,6 +139,24 @@ class ActivityLibraryRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    await _db.markDirty('activity_library', id, [
+      if (title != null) 'title',
+      if (defaultDurationMin.present) 'default_duration_min',
+      if (adultId.present) 'adult_id',
+      if (location.present) 'location',
+      if (notes.present) 'notes',
+      if (audienceMinAge.present) 'audience_min_age',
+      if (audienceMaxAge.present) 'audience_max_age',
+      if (hook.present) 'hook',
+      if (summary.present) 'summary',
+      if (keyPoints.present) 'key_points',
+      if (learningGoals.present) 'learning_goals',
+      if (engagementTimeMin.present) 'engagement_time_min',
+      if (sourceUrl.present) 'source_url',
+      if (sourceAttribution.present) 'source_attribution',
+      if (materials.present) 'materials',
+      if (ageVariants.present) 'age_variants',
+    ]);
     unawaited(_sync.pushRow(activityLibrarySpec, id));
   }
 

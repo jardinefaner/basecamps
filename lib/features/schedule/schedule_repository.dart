@@ -353,6 +353,27 @@ class ScheduleRepository {
             );
       }
     });
+    // updateTemplate is a wholesale edit — the form sheet always
+    // passes every visible field — so mark them all dirty. The
+    // partial-UPDATE path still pushes only the marked columns
+    // (no surprise extra fields), and methods that set just one
+    // column (e.g. setTemplateSourceLibraryItem) get tighter
+    // partial pushes that don't disturb other fields.
+    await _db.markDirty('schedule_templates', id, [
+      'day_of_week',
+      'start_time',
+      'end_time',
+      'is_full_day',
+      'title',
+      'all_groups',
+      'adult_id',
+      'location',
+      'notes',
+      'start_date',
+      'end_date',
+      if (roomId.present) 'room_id',
+      if (sourceLibraryItemId.present) 'source_library_item_id',
+    ]);
     unawaited(_sync.pushRow(scheduleTemplatesSpec, id));
   }
 
@@ -373,6 +394,8 @@ class ScheduleRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    await _db.markDirty('schedule_templates', templateId,
+        ['source_library_item_id']);
     unawaited(_sync.pushRow(scheduleTemplatesSpec, templateId));
   }
 
@@ -389,6 +412,8 @@ class ScheduleRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    await _db.markDirty('schedule_entries', entryId,
+        ['source_library_item_id']);
     unawaited(_sync.pushRow(scheduleEntriesSpec, entryId));
   }
 
@@ -666,6 +691,7 @@ class ScheduleRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    await _db.markDirty('schedule_templates', templateId, ['day_of_week']);
     unawaited(_sync.pushRow(scheduleTemplatesSpec, templateId));
   }
 
@@ -804,6 +830,7 @@ class ScheduleRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    await _db.markDirty('schedule_entries', entryId, ['date', 'end_date']);
     unawaited(_sync.pushRow(scheduleEntriesSpec, entryId));
   }
 
@@ -823,6 +850,8 @@ class ScheduleRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    await _db.markDirty('schedule_entries', entryId,
+        ['start_time', 'end_time']);
     unawaited(_sync.pushRow(scheduleEntriesSpec, entryId));
   }
 
@@ -960,6 +989,24 @@ class ScheduleRepository {
             );
       }
     });
+    // Wholesale entry edit — every visible field on the form is
+    // re-set. Mark them all dirty so the partial-UPDATE path
+    // pushes the same set; cascade rows (entry_groups) are
+    // already replaced wholesale by _pushCascades.
+    await _db.markDirty('schedule_entries', id, [
+      'date',
+      'end_date',
+      'start_time',
+      'end_time',
+      'is_full_day',
+      'title',
+      'all_groups',
+      'adult_id',
+      'location',
+      'notes',
+      if (roomId.present) 'room_id',
+      if (sourceLibraryItemId.present) 'source_library_item_id',
+    ]);
     unawaited(_sync.pushRow(scheduleEntriesSpec, id));
   }
 

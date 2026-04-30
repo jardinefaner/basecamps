@@ -77,6 +77,9 @@ class RolesRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    await _db.markDirty('roles', id, [
+      if (name != null) 'name',
+    ]);
     unawaited(_sync.pushRow(rolesSpec, id));
   }
 

@@ -90,6 +90,15 @@ class LessonSequencesRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    await _db.markDirty('lesson_sequences', id, [
+      if (name != null) 'name',
+      if (description.present) 'description',
+      if (themeId.present) 'theme_id',
+      if (coreQuestion.present) 'core_question',
+      if (phase.present) 'phase',
+      if (colorHex.present) 'color_hex',
+      if (engineNotes.present) 'engine_notes',
+    ]);
     unawaited(_sync.pushRow(lessonSequencesSpec, id));
   }
 

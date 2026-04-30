@@ -175,6 +175,16 @@ class FormSubmissionRepository {
     );
     await (_db.update(_db.formSubmissions)..where((s) => s.id.equals(id)))
         .write(companion);
+    await _db.markDirty('form_submissions', id, [
+      if (data != null) 'data',
+      if (status != null) 'status',
+      if (markSubmittedAtNull || submittedAt != null) 'submitted_at',
+      if (clearChildId || childId != null) 'child_id',
+      if (clearGroupId || groupId != null) 'group_id',
+      if (clearTripId || tripId != null) 'trip_id',
+      if (clearReviewDueAt || reviewDueAt != null) 'review_due_at',
+      if (authorName != null) 'author_name',
+    ]);
     unawaited(_sync.pushRow(formSubmissionsSpec, id));
   }
 

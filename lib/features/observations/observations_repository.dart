@@ -569,6 +569,15 @@ class ObservationsRepository {
         }
       }
     });
+    await _db.markDirty('observations', id, [
+      if (note != null) 'note',
+      if (clearNoteOriginal || noteOriginal != null) 'note_original',
+      if (primaryDomain != null) 'domain',
+      if (sentiment != null) 'sentiment',
+      if (clearGroupId || groupId != null) 'group_id',
+      if (clearActivityLabel || activityLabel != null) 'activity_label',
+      if (childIds != null) 'target_kind',
+    ]);
     unawaited(_sync.pushObservation(id));
   }
 

@@ -95,6 +95,12 @@ class VehiclesRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    await _db.markDirty('vehicles', id, [
+      if (name != null) 'name',
+      if (makeModel != null) 'make_model',
+      if (licensePlate != null) 'license_plate',
+      if (notes.present) 'notes',
+    ]);
     unawaited(_sync.pushRow(vehiclesSpec, id));
   }
 

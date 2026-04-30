@@ -102,6 +102,10 @@ class ChildrenRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    await _db.markDirty('groups', id, [
+      if (name != null) 'name',
+      if (clearColor || colorHex != null) 'color_hex',
+    ]);
     unawaited(_sync.pushRow(groupsSpec, id));
   }
 
@@ -150,6 +154,7 @@ class ChildrenRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    await _db.markDirty('children', childId, ['group_id']);
     unawaited(_sync.pushRow(childrenSpec, childId));
   }
 
@@ -210,6 +215,18 @@ class ChildrenRepository {
       updatedAt: Value(DateTime.now()),
     );
     await (_db.update(_db.children)..where((k) => k.id.equals(id))).write(companion);
+    await _db.markDirty('children', id, [
+      if (firstName != null) 'first_name',
+      if (clearLastName || lastName != null) 'last_name',
+      if (clearGroupId || groupId != null) 'group_id',
+      if (clearNotes || notes != null) 'notes',
+      if (clearAvatarPath || avatarPath != null) 'avatar_path',
+      if (clearParentName || parentName != null) 'parent_name',
+      if (clearExpectedArrival || expectedArrival != null)
+        'expected_arrival',
+      if (clearExpectedPickup || expectedPickup != null)
+        'expected_pickup',
+    ]);
     unawaited(_sync.pushRow(childrenSpec, id));
     // If the avatar was set/changed in this update, kick a
     // (re-)upload. Idempotent — MediaService skips when the row

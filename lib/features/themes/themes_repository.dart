@@ -110,6 +110,13 @@ class ThemesRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    await _db.markDirty('themes', id, [
+      if (name != null) 'name',
+      if (startDate != null) 'start_date',
+      if (endDate != null) 'end_date',
+      if (colorHex.present) 'color_hex',
+      if (notes.present) 'notes',
+    ]);
     unawaited(_sync.pushRow(themesSpec, id));
   }
 

@@ -155,6 +155,14 @@ class ParentsRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    await _db.markDirty('parents', id, [
+      if (firstName != null) 'first_name',
+      if (lastName.present) 'last_name',
+      if (relationship.present) 'relationship',
+      if (phone.present) 'phone',
+      if (email.present) 'email',
+      if (notes.present) 'notes',
+    ]);
     unawaited(_sync.pushRow(parentsSpec, id));
   }
 
