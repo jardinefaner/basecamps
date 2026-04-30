@@ -116,12 +116,21 @@ const activityLibrarySpec = TableSpec(
       table: 'activity_library_domain_tags',
       parentColumn: 'library_item_id',
     ),
-    CascadeSpec(
-      table: 'activity_library_usages',
-      parentColumn: 'library_item_id',
-      dateColumns: {'used_on', 'created_at'},
-    ),
+    // `activity_library_usages` was here; promoted to its own
+    // top-level spec (`activityLibraryUsagesSpec`) below because
+    // it has FKs to `schedule_templates` and `schedule_entries`
+    // (tier 3). Pulling it as a tier-2 cascade meant the FK
+    // targets weren't loaded yet — every cycle the cascade
+    // failed and the rows never landed.
   ],
+);
+
+/// Standalone usages spec. Has FKs to both
+/// `schedule_templates.id` (nullable) and `schedule_entries.id`
+/// (nullable), so it must pull AFTER both — that's tier 4.
+const activityLibraryUsagesSpec = TableSpec(
+  table: 'activity_library_usages',
+  dateColumns: {'used_on', 'created_at'},
 );
 
 const lessonSequencesSpec = TableSpec(
@@ -199,20 +208,22 @@ const formSubmissionsSpec = TableSpec(
 /// Nothing else updates — the schema-heal, the backfill, and the
 /// pull bootstrap all read from this list.
 const List<List<TableSpec>> kSpecTiers = [
-  // Tier 1 — foundation. No FKs to other entity tables.
+  // Tier 1 — true foundation. No FKs to ANY other entity table.
   [
     groupsSpec,
-    roomsSpec,
     rolesSpec,
     vehiclesSpec,
     themesSpec,
   ],
-  // Tier 2 — people + library. Reference groups/roles. No
-  // dependents inside this tier.
+  // Tier 2 — references tier-1 entities. Rooms moved here from
+  // tier 1 because of its `default_for_group_id` FK to groups —
+  // pulling rooms in parallel with groups raced and dropped the
+  // room rows when groups hadn't landed yet.
   [
     parentsSpec,
     childrenSpec,
     adultsSpec,
+    roomsSpec,
     activityLibrarySpec,
     lessonSequencesSpec,
   ],
@@ -223,6 +234,13 @@ const List<List<TableSpec>> kSpecTiers = [
     scheduleEntriesSpec,
     observationsSpec,
     formSubmissionsSpec,
+  ],
+  // Tier 4 — references tier-3 entities. activity_library_usages
+  // has nullable FKs to both schedule_templates.id and
+  // schedule_entries.id, so it can only land after those have
+  // been pulled.
+  [
+    activityLibraryUsagesSpec,
   ],
 ];
 
