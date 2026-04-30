@@ -72,25 +72,39 @@ class MediaService {
 
   // -- Upload ------------------------------------------------------
 
-  /// Uploads the local file for [attachmentId] to the `media`
-  /// bucket and stamps the row's `storage_path` with the bucket
-  /// key. No-op if:
+  /// Uploads the bytes for [attachmentId] to the `media` bucket and
+  /// stamps the row's `storage_path` with the bucket key. Two paths:
+  ///
+  ///   * **Fresh capture:** pass [source] (the picker's [XFile]).
+  ///     Bytes come from `XFile.readAsBytes()`, which works on every
+  ///     platform — including web, where `dart:io.File` can't open
+  ///     the picker's `blob:` URL. Mirrors the avatar pipeline.
+  ///   * **Heal pass (no [source]):** native-only. Reads
+  ///     `row.localPath` from disk for any attachment that didn't
+  ///     get a `storage_path` stamped on first save (network was out,
+  ///     app crashed mid-upload, etc.). Skipped on web — there's no
+  ///     filesystem to recover from.
+  ///
+  /// No-op if:
   ///   - Supabase isn't initialized / signed in
   ///   - the row is gone (deleted between mutation and upload)
   ///   - the row already has a non-null `storage_path` (idempotent)
-  ///   - the local file no longer exists (e.g. user cleared cache)
-  ///   - the device is web (no filesystem to read from)
+  ///   - heal: the local file no longer exists, or it's web
   ///
   /// Fire-and-forget. Errors logged via debugPrint so they don't
   /// surface to the caller.
-  Future<void> uploadObservationAttachment(String attachmentId) async {
+  Future<void> uploadObservationAttachment(
+    String attachmentId, {
+    XFile? source,
+  }) async {
     final client = _client;
     if (client == null) return;
     if (client.auth.currentSession == null) return;
-    // Web has no filesystem — observation attachments stamped on
-    // a phone get pulled here as cloud rows; the upload pass is a
-    // no-op.
-    if (kIsWeb) return;
+    // Heal pass (no source) is native-only — web has no filesystem
+    // to recover from. With a source in hand, every platform can
+    // upload because `XFile.readAsBytes()` abstracts the
+    // file-vs-blob distinction.
+    if (source == null && kIsWeb) return;
 
     try {
       final row = await (_db.select(_db.observationAttachments)
@@ -108,28 +122,60 @@ class MediaService {
       final programId = obs?.programId;
       if (programId == null) return;
 
-      final file = File(row.localPath);
-      // existsSync — heal-path I/O is OK to be sync; tripping the
-      // slow-async-io lint matters less than avoiding a needless
-      // event-loop hop, and we already gated on kIsWeb above.
-      if (!file.existsSync()) {
-        debugPrint(
-          'Media upload skipped — local file missing for $attachmentId',
-        );
-        return;
+      // Resolve bytes + extension from whichever source is wired.
+      final Uint8List bytes;
+      final String ext;
+      if (source != null) {
+        bytes = await source.readAsBytes();
+        ext = _extensionFromXFile(source);
+      } else {
+        // Heal pass — read from disk. existsSync is fine here;
+        // we're already gated on !kIsWeb.
+        final file = File(row.localPath);
+        if (!file.existsSync()) {
+          debugPrint(
+            'Media upload skipped — local file missing for $attachmentId',
+          );
+          return;
+        }
+        bytes = await file.readAsBytes();
+        final fromPath = p.extension(row.localPath);
+        ext = fromPath.isEmpty ? '.jpg' : fromPath;
       }
 
-      final ext = p.extension(row.localPath);
+      final contentType = _contentTypeFor(ext, row.kind);
       final storagePath = '$programId/observation_attachments/'
           '$attachmentId$ext';
       await client.storage.from(_bucket).uploadBinary(
             storagePath,
-            await file.readAsBytes(),
+            bytes,
             fileOptions: FileOptions(
               upsert: true,
-              contentType: _contentTypeFor(ext, row.kind),
+              contentType: contentType,
             ),
           );
+
+      // Stamp the freshly-uploaded bytes into media_cache so the
+      // upload device renders from cache instead of bouncing
+      // through Storage on the next paint. Mirrors the avatar
+      // pipeline; pre-v52 this step was missing for observation
+      // attachments and the upload device re-downloaded its own
+      // bytes on first render.
+      try {
+        await _db.into(_db.mediaCache).insertOnConflictUpdate(
+              MediaCacheCompanion.insert(
+                storagePath: storagePath,
+                bytes: bytes,
+                contentType: Value(contentType),
+                cachedAt: Value(DateTime.now()),
+              ),
+            );
+      } on Object catch (e) {
+        debugPrint(
+          'Observation attachment cache stamp failed for '
+          '$storagePath: $e',
+        );
+      }
 
       await (_db.update(_db.observationAttachments)
             ..where((a) => a.id.equals(attachmentId)))

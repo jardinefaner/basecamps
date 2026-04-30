@@ -13,6 +13,7 @@ import 'package:basecamp/features/sync/observations_sync_service.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 
 /// Domains that align with the program's observation taxonomy.
 /// The SSD* values cover social & self-development; HLTH* cover health.
@@ -352,8 +353,15 @@ class ObservationsRepository {
             );
         // Fire-and-forget media upload. Stamps storage_path on
         // the row when complete, then the next push picks up the
-        // updated row and propagates to other devices.
-        unawaited(_media.uploadObservationAttachment(attachmentId));
+        // updated row and propagates to other devices. Passing the
+        // freshly-picked XFile lets the upload read bytes on web
+        // (where `dart:io.File` can't open the picker's blob URL).
+        unawaited(
+          _media.uploadObservationAttachment(
+            attachmentId,
+            source: att.source,
+          ),
+        );
       }
     });
     // Fire-and-forget cloud push. Failure logs but doesn't block —
@@ -448,8 +456,12 @@ class ObservationsRepository {
         );
     // Fire-and-forget media upload. The push that follows picks
     // up the row's eventual storage_path so other devices can
-    // resolve through the bucket.
-    unawaited(_media.uploadObservationAttachment(id));
+    // resolve through the bucket. Pass the freshly-picked XFile
+    // (when present) so web uploads read bytes through the picker
+    // handle rather than the unusable blob URL on disk.
+    unawaited(
+      _media.uploadObservationAttachment(id, source: input.source),
+    );
     // Push the parent observation so the new cascade row is
     // mirrored to cloud (the service replaces the cascade
     // wholesale, so this picks up the new attachment).
@@ -821,12 +833,25 @@ class ObservationAttachmentInput {
     required this.kind,
     required this.localPath,
     this.durationMs,
+    this.source,
   });
 
   /// 'photo' or 'video'.
   final String kind;
+
+  /// Path on the device's filesystem when one exists. Empty string
+  /// on web (no filesystem to own). The render pipeline ignores
+  /// localPath once `storage_path` is set, so an empty value is fine
+  /// for cross-device viewing.
   final String localPath;
   final int? durationMs;
+
+  /// Freshly-picked [XFile] from the camera or gallery. Held so the
+  /// upload step can read bytes via `XFile.readAsBytes()` — the only
+  /// way to upload from web (where `dart:io.File` throws on the
+  /// picker's `blob:` URL). Null on heal-pass paths that don't have
+  /// the original picker handle anymore.
+  final XFile? source;
 }
 
 final observationsRepositoryProvider =

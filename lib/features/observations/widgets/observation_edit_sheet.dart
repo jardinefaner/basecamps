@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/children/children_repository.dart';
@@ -178,13 +177,14 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
     // Copy new attachments into the app-owned media dir first so
     // the orphan sweeper recognizes them as ours when their row is
     // eventually deleted. Web skips the copy (no filesystem to
-    // own) and keeps the source path.
+    // own) — the picker's XFile rides through to the upload step
+    // for cloud storage.
     final mediaDir = await ref.read(observationMediaDirProvider.future);
     for (final a in _newAttachments) {
       final storedPath = mediaDir == null
-          ? a.path
+          ? '' // web: no on-device path; render goes through storage_path
           : await copyAttachmentToMediaDir(
-              source: File(a.path),
+              source: a.source,
               mediaDir: mediaDir,
             );
       await repo.addAttachment(
@@ -192,6 +192,7 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
         input: ObservationAttachmentInput(
           kind: a.kind,
           localPath: storedPath,
+          source: a.source,
         ),
       );
     }
@@ -226,7 +227,7 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
       setState(() {
         for (final m in items) {
           _newAttachments.add(
-            _PendingAttachment(kind: m.kind, path: m.path),
+            _PendingAttachment(kind: m.kind, source: XFile(m.path)),
           );
         }
       });
@@ -248,8 +249,8 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
         for (final f in files) {
           _newAttachments.add(
             _PendingAttachment(
-              kind: _isVideoPath(f.path) ? 'video' : 'photo',
-              path: f.path,
+              kind: _isVideoXFile(f) ? 'video' : 'photo',
+              source: f,
             ),
           );
         }
@@ -259,10 +260,23 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
     }
   }
 
-  bool _isVideoPath(String p) {
-    final l = p.toLowerCase();
-    return const ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv', '.3gp']
-        .any(l.endsWith);
+  bool _isVideoXFile(XFile f) {
+    final mime = f.mimeType?.toLowerCase();
+    if (mime != null && mime.startsWith('video/')) return true;
+    final candidates = [f.name.toLowerCase(), f.path.toLowerCase()];
+    const videoExt = [
+      '.mp4',
+      '.mov',
+      '.webm',
+      '.m4v',
+      '.avi',
+      '.mkv',
+      '.3gp',
+    ];
+    for (final c in candidates) {
+      if (videoExt.any(c.endsWith)) return true;
+    }
+    return false;
   }
 
   void _snack(String msg) {
@@ -498,9 +512,14 @@ class _ObservationEditSheetState extends ConsumerState<ObservationEditSheet> {
 }
 
 class _PendingAttachment {
-  _PendingAttachment({required this.kind, required this.path});
+  _PendingAttachment({required this.kind, required this.source});
   final String kind;
-  final String path;
+
+  /// The picker's [XFile]. Held so the preview can read bytes via
+  /// [XFile.readAsBytes] (works on every platform, including web
+  /// where the underlying path is a `blob:` URL) and so the upload
+  /// step has the same handle to stream into Storage.
+  final XFile source;
 }
 
 class _DomainSelector extends StatelessWidget {
@@ -597,13 +616,12 @@ class _EditableAttachmentStrip extends StatelessWidget {
           // For SAVED attachments (isExisting), route through the
           // shared MediaImage pipeline so cross-device sync works
           // — the same pattern every other observation surface
-          // uses. The previous Image.file(File(localPath)) pattern
-          // hit a broken-image icon on receive devices because
-          // localPath is per-device. PENDING (unsaved) attachments
-          // still render directly from the picker's local path
-          // since there's no storage_path yet.
-          final pendingPath =
-              isExisting ? null : pending[i - existing.length].path;
+          // uses. PENDING (unsaved) attachments render directly
+          // from the picker's [XFile] via [_PendingPhotoThumb] so
+          // web previews work too (Image.file can't open a `blob:`
+          // URL).
+          final pendingSource =
+              isExisting ? null : pending[i - existing.length].source;
 
           final thumb = Container(
             width: 80,
@@ -634,24 +652,7 @@ class _EditableAttachmentStrip extends StatelessWidget {
                           ),
                         ),
                       )
-                    : kIsWeb
-                        ? Center(
-                            child: Icon(
-                              Icons.image_outlined,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          )
-                        : Image.file(
-                            File(pendingPath!),
-                            fit: BoxFit.cover,
-                            cacheWidth: 160,
-                            errorBuilder: (_, _, _) => Center(
-                              child: Icon(
-                                Icons.image_outlined,
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
+                    : _PendingPhotoThumb(source: pendingSource!),
           );
 
           return Stack(
@@ -726,6 +727,66 @@ class _EditableAttachmentStrip extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// Renders a freshly-picked photo via `Image.memory`. Reads bytes
+/// from the [XFile] once on first build; the result is cached in
+/// state so a rebuild (e.g. removing a sibling) doesn't re-decode.
+/// Works on every platform — `XFile.readAsBytes()` abstracts the
+/// file-vs-blob distinction that breaks `Image.file` on web.
+class _PendingPhotoThumb extends StatefulWidget {
+  const _PendingPhotoThumb({required this.source});
+
+  final XFile source;
+
+  @override
+  State<_PendingPhotoThumb> createState() => _PendingPhotoThumbState();
+}
+
+class _PendingPhotoThumbState extends State<_PendingPhotoThumb> {
+  late final Future<Uint8List> _bytes = widget.source.readAsBytes();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return FutureBuilder<Uint8List>(
+      future: _bytes,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return Center(
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          );
+        }
+        final bytes = snap.data;
+        if (bytes == null || bytes.isEmpty || snap.hasError) {
+          return Center(
+            child: Icon(
+              Icons.image_outlined,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          );
+        }
+        return Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          cacheWidth: 160, // 80dp × 2 retina
+          errorBuilder: (_, _, _) => Center(
+            child: Icon(
+              Icons.image_outlined,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        );
+      },
     );
   }
 }

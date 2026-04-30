@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:basecamp/features/observations/ai_classifier.dart';
 import 'package:basecamp/features/observations/classifier.dart';
@@ -138,19 +137,24 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
     // Copy each attachment into the app-owned observation-media dir
     // before saving. That way the orphan-sweeper can recognize them
     // as ours and reap them when the attachment row is deleted. Web
-    // short-circuits (no filesystem to own); `mediaDir` is null and
-    // the original path is used as-is.
+    // has no filesystem — `mediaDir` is null and the row stores an
+    // empty `localPath`; the freshly-picked `XFile` rides through to
+    // the upload step so cloud storage still happens.
     final mediaDir = await ref.read(observationMediaDirProvider.future);
     final attachmentInputs = <ObservationAttachmentInput>[];
     for (final a in _attachments) {
       final storedPath = mediaDir == null
-          ? a.path
+          ? '' // web: no on-device path; render goes through storage_path
           : await copyAttachmentToMediaDir(
-              source: File(a.path),
+              source: a.source,
               mediaDir: mediaDir,
             );
       attachmentInputs.add(
-        ObservationAttachmentInput(kind: a.kind, localPath: storedPath),
+        ObservationAttachmentInput(
+          kind: a.kind,
+          localPath: storedPath,
+          source: a.source,
+        ),
       );
     }
 
@@ -388,7 +392,11 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
       if (items.isEmpty || !mounted) return;
       setState(() {
         for (final m in items) {
-          _attachments.add(_PendingAttachment(kind: m.kind, path: m.path));
+          // Native camera always yields a real file path; wrap in
+          // XFile so the rest of the pipeline is platform-agnostic.
+          _attachments.add(
+            _PendingAttachment(kind: m.kind, source: XFile(m.path)),
+          );
         }
       });
     } on Object catch (e) {
@@ -407,10 +415,14 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
       if (files.isEmpty || !mounted) return;
       setState(() {
         for (final f in files) {
+          // Use XFile.name when path is a `blob:` URL (web). On
+          // native, name carries the original filename; on web the
+          // browser sometimes drops the extension entirely so fall
+          // back to the mime type.
           _attachments.add(
             _PendingAttachment(
-              kind: _isVideoPath(f.path) ? 'video' : 'photo',
-              path: f.path,
+              kind: _isVideoXFile(f) ? 'video' : 'photo',
+              source: f,
             ),
           );
         }
@@ -420,10 +432,25 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
     }
   }
 
-  bool _isVideoPath(String p) {
-    final l = p.toLowerCase();
-    return const ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv', '.3gp']
-        .any(l.endsWith);
+  bool _isVideoXFile(XFile f) {
+    final mime = f.mimeType?.toLowerCase();
+    if (mime != null && mime.startsWith('video/')) return true;
+    // Fallback for platforms that don't surface mime — extension
+    // sniffing on whichever of name/path carries the suffix.
+    final candidates = [f.name.toLowerCase(), f.path.toLowerCase()];
+    const videoExt = [
+      '.mp4',
+      '.mov',
+      '.webm',
+      '.m4v',
+      '.avi',
+      '.mkv',
+      '.3gp',
+    ];
+    for (final c in candidates) {
+      if (videoExt.any(c.endsWith)) return true;
+    }
+    return false;
   }
 
   void _snack(String msg) {
@@ -656,9 +683,15 @@ class _ObservationComposerState extends ConsumerState<ObservationComposer> {
 enum _ComposerMode { speak, recording, send }
 
 class _PendingAttachment {
-  _PendingAttachment({required this.kind, required this.path});
+  _PendingAttachment({required this.kind, required this.source});
   final String kind;
-  final String path;
+
+  /// The picker's [XFile]. Held as-is so the preview can
+  /// `readAsBytes()` without a `dart:io.File` (which throws on web)
+  /// and the upload step can stream the same bytes straight to
+  /// Storage. One XFile per attachment, captured at pick time —
+  /// mirrors the avatar pipeline.
+  final XFile source;
 }
 
 class _AttachmentCarousel extends StatelessWidget {
@@ -691,19 +724,8 @@ class _AttachmentCarousel extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: att.kind == 'photo' && !kIsWeb
-                    ? Image.file(
-                        File(att.path),
-                        fit: BoxFit.cover,
-                        // 68dp thumbnail × 2 for retina.
-                        cacheWidth: 136,
-                        errorBuilder: (_, _, _) => Center(
-                          child: Icon(
-                            Icons.image_outlined,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      )
+                child: att.kind == 'photo'
+                    ? _PhotoThumb(source: att.source)
                     : Center(
                         child: Icon(
                           att.kind == 'video'
@@ -737,6 +759,68 @@ class _AttachmentCarousel extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// Renders a freshly-picked photo via `Image.memory`. Reads bytes from
+/// the [XFile] once on first build; the result is cached in this
+/// widget's state so a rebuild (e.g. removing a sibling attachment)
+/// doesn't re-decode. Works on every platform — `XFile.readAsBytes()`
+/// abstracts the file-vs-blob distinction that breaks `Image.file`
+/// on web.
+class _PhotoThumb extends StatefulWidget {
+  const _PhotoThumb({required this.source});
+
+  final XFile source;
+
+  @override
+  State<_PhotoThumb> createState() => _PhotoThumbState();
+}
+
+class _PhotoThumbState extends State<_PhotoThumb> {
+  late final Future<Uint8List> _bytes = widget.source.readAsBytes();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return FutureBuilder<Uint8List>(
+      future: _bytes,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return Center(
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          );
+        }
+        final bytes = snap.data;
+        if (bytes == null || bytes.isEmpty || snap.hasError) {
+          return Center(
+            child: Icon(
+              Icons.image_outlined,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          );
+        }
+        return Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          // 68dp thumbnail × 2 for retina.
+          cacheWidth: 136,
+          errorBuilder: (_, _, _) => Center(
+            child: Icon(
+              Icons.image_outlined,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        );
+      },
     );
   }
 }

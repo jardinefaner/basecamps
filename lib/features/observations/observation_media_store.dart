@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:basecamp/core/id.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -32,16 +33,26 @@ final observationMediaDirProvider =
 /// absolute path — store this on `ObservationAttachment.localPath`
 /// so the sweeper can recognize it as ours.
 ///
-/// No-op fallback on web (returns the source path unchanged) so
-/// callers don't have to branch.
+/// Reads bytes via [XFile.readAsBytes] (works on every platform
+/// including web) instead of `dart:io.File.copy` (native-only).
+/// Web-only callers should not invoke this — `mediaDir` is null
+/// there — but the kIsWeb guard is kept defensively.
 Future<String> copyAttachmentToMediaDir({
-  required File source,
+  required XFile source,
   required Directory mediaDir,
 }) async {
-  if (kIsWeb) return source.path;
-  final ext = p.extension(source.path);
+  if (kIsWeb) return '';
+  // Best-effort extension: name first (carries the real suffix on
+  // both platforms), then path (real on native), default `.jpg`.
+  final fromName = p.extension(source.name);
+  final fromPath = p.extension(source.path);
+  final ext = fromName.isNotEmpty
+      ? fromName
+      : fromPath.isNotEmpty
+          ? fromPath
+          : '.jpg';
   final filename = '${newId()}$ext';
   final dest = File(p.join(mediaDir.path, filename));
-  await source.copy(dest.path);
+  await dest.writeAsBytes(await source.readAsBytes());
   return dest.path;
 }
