@@ -212,8 +212,12 @@ Future<void> _moveOffAndDispose(
   if (remaining.isEmpty) {
     // True zero-program state — clear active and let the router's
     // welcome redirect fire. This is the only path that should
-    // land on /welcome after launch.
-    await ref.read(activeProgramIdProvider.notifier).clear();
+    // land on /welcome after launch. `clearAll` wipes both the
+    // in-memory state and the persisted SharedPreferences hint
+    // because the program the hint pointed to is genuinely gone
+    // for this user; sign-out uses `clearMemory` to keep the
+    // hint instead.
+    await ref.read(activeProgramIdProvider.notifier).clearAll();
     return;
   }
   // Land in the oldest remaining program. Switch (not just `set`)

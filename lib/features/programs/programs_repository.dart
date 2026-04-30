@@ -272,12 +272,21 @@ class ActiveProgramNotifier extends Notifier<String?> {
 
   @override
   String? build() {
-    // Listen to auth state — sign-out clears the active program
-    // since it belongs to a specific user's membership graph.
+    // Listen to auth state — sign-out clears the in-memory active
+    // program (the user's no longer scoped to anything) but
+    // preserves the SharedPreferences entry. On sign-back-in
+    // ProgramAuthBootstrap reads `readPersisted()` and lands on
+    // the same program the user was in last session — without
+    // this, every sign-in would dump them into the oldest
+    // membership instead of where they left off.
+    //
+    // Cross-user safety: persisted is just a UUID hint. Bootstrap
+    // validates membership before using it, so a different user
+    // signing in on the same device falls through to their own
+    // oldest program.
     ref.listen(currentSessionProvider, (_, session) {
       if (session == null) {
         state = null;
-        unawaited(_clearPersisted());
       }
     });
     // Note: we used to async-hydrate from SharedPreferences here,
@@ -307,11 +316,6 @@ class ActiveProgramNotifier extends Notifier<String?> {
     return stored;
   }
 
-  Future<void> _clearPersisted() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_kPrefKey);
-  }
-
   /// Writes [id] as the active program both in memory (state) and
   /// to SharedPreferences. Called by the bootstrap on sign-in /
   /// session change and by the program switcher screen.
@@ -321,9 +325,23 @@ class ActiveProgramNotifier extends Notifier<String?> {
     await prefs.setString(_kPrefKey, id);
   }
 
-  /// Clears the active program (sign-out, program deletion). Memory
-  /// + persisted both go null.
-  Future<void> clear() async {
+  /// Clears the in-memory active program but leaves the persisted
+  /// SharedPreferences hint intact. Used on sign-out so the next
+  /// sign-in lands the user back on the program they were in
+  /// before — bootstrap validates the persisted id against the
+  /// signed-in user's memberships before using it, so a different
+  /// user on the same device safely falls through to their own
+  /// oldest program.
+  void clearMemory() {
+    state = null;
+  }
+
+  /// Clears the active program everywhere — memory + persisted
+  /// SharedPreferences. Use only when the program is genuinely
+  /// gone for this user (last membership deleted, account wiped).
+  /// Sign-out should use [clearMemory] instead so the user's
+  /// last selection survives the auth round-trip.
+  Future<void> clearAll() async {
     state = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kPrefKey);

@@ -74,10 +74,13 @@ class ProgramAuthBootstrap {
         // Sign-out: clear in-memory state only. Local DB stays
         // intact — see comment in _onSessionChanged on why we
         // don't wipe on user-change either. The active-program
-        // notifier clears here so the router redirects to /sign-in
-        // immediately; realtime unsubscribes so we stop streaming
-        // for a no-one-signed-in state.
-        unawaited(_ref.read(activeProgramIdProvider.notifier).clear());
+        // notifier clears its in-memory value here so the router
+        // redirects to /sign-in immediately, but the persisted
+        // SharedPreferences hint stays put so the next sign-in
+        // re-lands on the same program the user was in. Realtime
+        // unsubscribes so we stop streaming for a no-one-signed-in
+        // state.
+        _ref.read(activeProgramIdProvider.notifier).clearMemory();
         unawaited(_ref.read(syncEngineProvider).unsubscribeFromRealtime());
         return;
       }
@@ -159,7 +162,15 @@ class ProgramAuthBootstrap {
         id = sorted.first.id;
       }
       if (id == null) {
-        await notifier.clear();
+        // No usable membership this attempt — clear the in-memory
+        // active program so the router lands on /welcome, but
+        // KEEP the persisted hint. If the user was temporarily
+        // dropped from a program (network blip, JWT-not-yet-
+        // propagated, or a brief admin remove-and-re-add), the
+        // hint lets the next successful bootstrap pop them right
+        // back where they were instead of dumping them in the
+        // oldest membership.
+        notifier.clearMemory();
         // Auto-retry. If we got here on a *fresh* sign-in with a
         // network blip or a JWT-not-yet-propagated RLS race, the
         // user has a cloud membership we just didn't see this
