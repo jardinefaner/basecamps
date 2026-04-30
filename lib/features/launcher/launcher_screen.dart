@@ -357,6 +357,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                             child: _PersonRow(
                               name: _displayName(k.firstName, k.lastName),
                               avatarPath: k.avatarPath,
+                              avatarStoragePath: k.avatarStoragePath,
                               fallbackInitial: k.firstName.isEmpty
                                   ? '?'
                                   : k.firstName.characters.first.toUpperCase(),
@@ -376,6 +377,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                             child: _PersonRow(
                               name: s.name,
                               avatarPath: s.avatarPath,
+                              avatarStoragePath: s.avatarStoragePath,
                               fallbackInitial: s.name.isEmpty
                                   ? '?'
                                   : s.name.characters.first.toUpperCase(),

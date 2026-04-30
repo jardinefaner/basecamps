@@ -17,6 +17,7 @@ import 'package:basecamp/features/schedule/widgets/new_full_day_event_wizard.dar
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/address_field.dart';
 import 'package:basecamp/ui/app_card.dart';
+import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
@@ -929,15 +930,14 @@ class _RosterTile extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          CircleAvatar(
+          SmallAvatar(
+            // Same drift-first pipeline every other roster tile
+            // uses — photo flows in via avatar_storage_path
+            // when the device hasn't captured the photo locally.
+            path: child.avatarPath,
+            storagePath: child.avatarStoragePath,
+            fallbackInitial: initial,
             radius: 16,
-            backgroundColor: theme.colorScheme.primaryContainer,
-            child: Text(
-              initial,
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: theme.colorScheme.onPrimaryContainer,
-              ),
-            ),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(

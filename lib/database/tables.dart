@@ -1428,3 +1428,56 @@ class ProgramMembers extends Table {
   @override
   Set<Column<Object>> get primaryKey => {programId, userId};
 }
+
+/// Local-only blob cache for Supabase Storage objects (avatar
+/// photos, observation thumbnails, etc.). Keyed by the bucket-
+/// relative `storage_path`, the same string the cloud row carries
+/// in its `avatar_storage_path` / `storage_path` column. Bytes
+/// are populated on first signed-URL fetch; later reads come
+/// straight from Drift without hitting the network.
+///
+/// Why a Drift blob instead of an FS-only cache:
+///   * Web has no filesystem — every cross-device avatar would
+///     re-mint a signed URL on every page reload + re-download
+///     bytes from Supabase. With Drift (IndexedDB on web), one
+///     download per device per photo, persistent across reloads.
+///   * Native still uses the file-system cache
+///     (`MediaService.ensureLocalFile`) for read-by-path APIs
+///     like `Image.file`; this table is the web equivalent. The
+///     two coexist — `ensureLocalFile` is a no-op on web; the
+///     blob cache is queried first on web only.
+///
+/// Local-only: `MediaCache` is **not** in `kSyncedTableNames`
+/// (the sync engine never pushes or pulls it). Each device
+/// downloads its own copy on demand. A wipe of local data clears
+/// the cache; the next render re-fetches from Supabase Storage.
+class MediaCache extends Table {
+  /// Bucket-relative key, e.g.
+  /// `<programId>/avatars/children/<id>.jpg`.
+  TextColumn get storagePath => text()();
+
+  /// Raw bytes from Supabase Storage. Photos are typically
+  /// 30–150 KB after the picker's 1000px / 85% JPEG re-encode,
+  /// so a program with 50 children + 20 adults caches well under
+  /// 10 MB total.
+  BlobColumn get bytes => blob()();
+
+  /// Optional MIME hint so the renderer can pick the right
+  /// decoder. We always store the bytes verbatim — Flutter's
+  /// image codecs sniff the magic bytes themselves — but having
+  /// the type written down helps debugging.
+  TextColumn get contentType => text().nullable()();
+
+  /// Stamped on every successful fetch / refresh. Used to drive
+  /// future TTL-based expiration if a photo is updated cloud-side
+  /// (today the row's `avatar_storage_path` includes a stable id;
+  /// when we eventually rotate keys, this column is the lever).
+  DateTimeColumn get cachedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {storagePath};
+
+  @override
+  String? get tableName => 'media_cache';
+}

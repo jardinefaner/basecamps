@@ -2,6 +2,7 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -517,16 +518,15 @@ class _ChildTile extends StatelessWidget {
             ),
             child: Row(
               children: [
-                CircleAvatar(
+                SmallAvatar(
+                  // Reuses the shared avatar pipeline so the
+                  // photo flows in from drift cache (web) or
+                  // local file (native), with cross-device
+                  // fallback through avatar_storage_path.
+                  path: child.avatarPath,
+                  storagePath: child.avatarStoragePath,
+                  fallbackInitial: initial,
                   radius: 16,
-                  backgroundColor:
-                      theme.colorScheme.primaryContainer,
-                  child: Text(
-                    initial,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: theme.colorScheme.onPrimaryContainer,
-                    ),
-                  ),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(

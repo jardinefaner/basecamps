@@ -8,6 +8,93 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+// ────────────────────────────────────────────────────────────────
+// Single source of truth for cross-device avatar resolution
+// ────────────────────────────────────────────────────────────────
+
+/// Identity key for [avatarImageProvider]. Combines an optional
+/// device-local file path (fast native render) with the cross-
+/// device Supabase Storage key. Two AvatarSources with the same
+/// (localPath, storagePath) pair resolve to the same family slot,
+/// so multiple widgets watching the same row share one fetch.
+@immutable
+class AvatarSource {
+  const AvatarSource({this.localPath, this.storagePath});
+
+  /// Filesystem path on the device that captured the photo.
+  /// Native-only; on web `XFile.path` is a `blob:` URL useless to
+  /// `dart:io.File`, so this stays null. Falls through to
+  /// [storagePath] when missing.
+  final String? localPath;
+
+  /// Bucket-relative key in Supabase Storage. The cross-device
+  /// source of truth — every device + platform can resolve to
+  /// bytes through it.
+  final String? storagePath;
+
+  bool get isEmpty => (localPath == null || localPath!.isEmpty) &&
+      (storagePath == null || storagePath!.isEmpty);
+
+  @override
+  bool operator ==(Object other) =>
+      other is AvatarSource &&
+      other.localPath == localPath &&
+      other.storagePath == storagePath;
+
+  @override
+  int get hashCode => Object.hash(localPath, storagePath);
+}
+
+/// Resolves an avatar to a renderable [ImageProvider]. One fetch
+/// per [AvatarSource] across the whole app — the family caches by
+/// value, so a hundred SmallAvatars rendering the same child
+/// share one resolution.
+///
+/// Resolution order:
+///   1. **Native + local file present** → [FileImage]. Instant,
+///      offline-friendly. Skipped on web (no FS).
+///   2. **storagePath set** → [MediaService.ensureBytes] hits the
+///      drift media-cache table; on miss, downloads from
+///      Supabase Storage, saves to drift, and returns the bytes.
+///      Result rendered as [MemoryImage]. Subsequent renders
+///      (anywhere in the app, this session or future sessions,
+///      even after a web page reload — drift persists to
+///      IndexedDB) read straight from drift, no Supabase
+///      round-trip.
+///   3. **Otherwise** → null. The widget renders the fallback
+///      initial.
+///
+/// `keepAlive: false` — the family entries auto-dispose when no
+/// listener is watching them. The drift cache survives the
+/// dispose, so re-mounting is as fast as the initial fetch.
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final avatarImageProvider = FutureProvider.autoDispose
+    .family<ImageProvider?, AvatarSource>((ref, source) async {
+  if (source.isEmpty) return null;
+
+  // 1) Native fast path: render the device-local file directly.
+  //    No drift hit, no signed URL, no Supabase round-trip.
+  if (!kIsWeb && source.localPath != null) {
+    final f = File(source.localPath!);
+    if (f.existsSync()) {
+      return FileImage(f);
+    }
+  }
+
+  // 2) Cross-device path: drift cache → on miss, Supabase
+  //    download → save to drift → render bytes.
+  final storagePath = source.storagePath;
+  if (storagePath == null || storagePath.isEmpty) return null;
+  final bytes = await ref.read(mediaServiceProvider).ensureBytes(storagePath);
+  if (bytes == null) return null;
+  return MemoryImage(bytes);
+});
+
+// ────────────────────────────────────────────────────────────────
+// Pickers + tiles
+// ────────────────────────────────────────────────────────────────
+
 /// Circular avatar picker used in the child and adult edit sheets.
 /// Shows the current photo (cross-device storage path, local path,
 /// or freshly-picked XFile) with a small camera badge. Tap to open
@@ -25,9 +112,9 @@ import 'package:image_picker/image_picker.dart';
 ///     readable via `XFile.readAsBytes()`, which the picker calls
 ///     once and caches in [_AvatarPickerState._pendingBytes] so
 ///     [MemoryImage] can render the preview.
-///   * Existing avatars on web resolve through a signed Supabase
-///     URL ([MediaService.signedUrlFor]); the local-file fast path
-///     is skipped.
+///   * Existing avatars on web go through the shared
+///     [avatarImageProvider] just like read-only [SmallAvatar]s
+///     do — drift cache → Supabase download on miss → reuse.
 class AvatarPicker extends ConsumerStatefulWidget {
   const AvatarPicker({
     required this.currentLocalPath,
@@ -39,22 +126,18 @@ class AvatarPicker extends ConsumerStatefulWidget {
     super.key,
   });
 
-  /// Existing local file on this device. Only valid on native and
-  /// only on the device that captured the photo. Falls through to
-  /// [currentStoragePath] when missing.
+  /// Existing local file on this device. Native-only fast path —
+  /// the underlying [avatarImageProvider] checks it before
+  /// touching the cache.
   final String? currentLocalPath;
 
-  /// Supabase Storage bucket key. Cross-device source of truth —
-  /// when set, the avatar is recoverable on every device + every
-  /// platform.
+  /// Supabase Storage bucket key. Drives the cross-device cache
+  /// fallback when the local file isn't present (web + native).
   final String? currentStoragePath;
 
   /// Freshly-picked file the teacher hasn't saved yet. Takes
   /// precedence over [currentLocalPath] / [currentStoragePath]
-  /// for preview rendering. Pass null when nothing's pending (the
-  /// caller can also use a `_cleared` flag to suppress the
-  /// existing avatar — pass `currentLocalPath: null,
-  /// currentStoragePath: null` in that case).
+  /// for preview rendering. Pass null when nothing's pending.
   final XFile? pendingFile;
 
   final String fallbackInitial;
@@ -72,99 +155,36 @@ class AvatarPicker extends ConsumerStatefulWidget {
 }
 
 class _AvatarPickerState extends ConsumerState<AvatarPicker> {
-  /// Decoded bytes of [AvatarPicker.pendingFile]. Only populated on
-  /// web (where `File(xfile.path)` throws); on native we render
-  /// FileImage(File(xfile.path)) directly without decoding ahead.
+  /// Decoded bytes of [AvatarPicker.pendingFile]. Only populated
+  /// on web (where `File(xfile.path)` throws); on native we render
+  /// FileImage(File(xfile.path)) directly.
   Uint8List? _pendingBytes;
-
-  /// Local file path resolved from [AvatarPicker.currentLocalPath]
-  /// (when the file is still on disk) or from
-  /// [MediaService.ensureLocalFile] downloading the cloud copy.
-  /// Native-only.
-  String? _resolvedFilePath;
-
-  /// Signed HTTPS URL resolved from
-  /// [MediaService.signedUrlFor] for [AvatarPicker.currentStoragePath].
-  /// Web-only.
-  String? _resolvedNetworkUrl;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_resolve());
+    unawaited(_loadPendingBytesIfNeeded());
   }
 
   @override
   void didUpdateWidget(covariant AvatarPicker oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final pendingChanged =
-        oldWidget.pendingFile?.path != widget.pendingFile?.path;
-    if (pendingChanged ||
-        oldWidget.currentLocalPath != widget.currentLocalPath ||
-        oldWidget.currentStoragePath != widget.currentStoragePath) {
+    if (oldWidget.pendingFile?.path != widget.pendingFile?.path) {
       _pendingBytes = null;
-      _resolvedFilePath = null;
-      _resolvedNetworkUrl = null;
-      unawaited(_resolve());
+      unawaited(_loadPendingBytesIfNeeded());
     }
   }
 
-  Future<void> _resolve() async {
+  Future<void> _loadPendingBytesIfNeeded() async {
     final pending = widget.pendingFile;
-    if (pending != null) {
-      if (kIsWeb) {
-        // The picker hands us bytes via XFile; cache them once
-        // for MemoryImage to render. blob: URLs in `path` won't
-        // round-trip through any image provider that hits the
-        // file system.
-        try {
-          final bytes = await pending.readAsBytes();
-          if (!mounted) return;
-          setState(() => _pendingBytes = bytes);
-        } on Object catch (e) {
-          debugPrint('AvatarPicker pending readAsBytes failed: $e');
-        }
-      }
-      // Native preview is rendered straight from the file path in
-      // build() — no async setup needed.
-      return;
-    }
-
-    // No pending pick — fall back to whatever's already saved.
-    final localPath = widget.currentLocalPath;
-    if (!kIsWeb && localPath != null && File(localPath).existsSync()) {
-      if (!mounted) return;
-      setState(() => _resolvedFilePath = localPath);
-      return;
-    }
-
-    final storagePath = widget.currentStoragePath;
-    if (storagePath == null || storagePath.isEmpty) return;
-
-    if (kIsWeb) {
-      try {
-        final url = await ref
-            .read(mediaServiceProvider)
-            .signedUrlFor(storagePath);
-        if (!mounted) return;
-        if (url != null) setState(() => _resolvedNetworkUrl = url);
-      } on Object catch (e) {
-        debugPrint('AvatarPicker signed URL failed for $storagePath: $e');
-      }
-      return;
-    }
-
-    // Native, no local file — pull from cloud cache. Survives app
-    // restarts; first hit on a fresh device shows the fallback
-    // initial briefly.
+    if (pending == null) return;
+    if (!kIsWeb) return; // native renders FileImage directly
     try {
-      final cached = await ref
-          .read(mediaServiceProvider)
-          .ensureLocalFile(storagePath);
+      final bytes = await pending.readAsBytes();
       if (!mounted) return;
-      setState(() => _resolvedFilePath = cached);
+      setState(() => _pendingBytes = bytes);
     } on Object catch (e) {
-      debugPrint('AvatarPicker download failed for $storagePath: $e');
+      debugPrint('AvatarPicker pending readAsBytes failed: $e');
     }
   }
 
@@ -231,6 +251,9 @@ class _AvatarPickerState extends ConsumerState<AvatarPicker> {
     );
   }
 
+  /// Pick the right [ImageProvider] for the preview. Pending
+  /// picks win over saved state; saved state goes through the
+  /// shared [avatarImageProvider].
   ImageProvider? _resolveImageProvider() {
     final diameter = widget.radius * 2;
     final decodeSize = (diameter * 2).round();
@@ -238,8 +261,6 @@ class _AvatarPickerState extends ConsumerState<AvatarPicker> {
     final pending = widget.pendingFile;
     if (pending != null) {
       if (kIsWeb) {
-        // Wait for the bytes resolve to land before handing
-        // MemoryImage a fake null. Resolves on the next frame.
         final bytes = _pendingBytes;
         if (bytes == null) return null;
         return ResizeImage(MemoryImage(bytes), width: decodeSize);
@@ -250,17 +271,16 @@ class _AvatarPickerState extends ConsumerState<AvatarPicker> {
       );
     }
 
-    final filePath = _resolvedFilePath;
-    if (filePath != null && !kIsWeb) {
-      return ResizeImage(FileImage(File(filePath)), width: decodeSize);
-    }
-
-    final networkUrl = _resolvedNetworkUrl;
-    if (networkUrl != null) {
-      return ResizeImage(NetworkImage(networkUrl), width: decodeSize);
-    }
-
-    return null;
+    // No pending pick — fall through to the saved-state resolver.
+    final source = AvatarSource(
+      localPath: widget.currentLocalPath,
+      storagePath: widget.currentStoragePath,
+    );
+    if (source.isEmpty) return null;
+    final resolved =
+        ref.watch(avatarImageProvider(source)).asData?.value;
+    if (resolved == null) return null;
+    return ResizeImage(resolved, width: decodeSize);
   }
 
   @override
@@ -320,36 +340,25 @@ class _AvatarPickerState extends ConsumerState<AvatarPicker> {
   }
 }
 
-/// Small read-only round avatar for tiles. Uses the same decode-size
-/// discipline as [AvatarPicker].
-/// Round avatar widget with cross-device + cross-platform-aware
-/// loading. Always shows the fallback initial when no image
-/// source is available — never a blank circle.
+/// Read-only round avatar for tiles, chips, list rows. Renders
+/// through the shared [avatarImageProvider] so every tile in the
+/// app uses the same resolution + caching pipeline (drift first,
+/// Supabase on miss, save to drift, reuse forever).
 ///
-/// Avatars store TWO paths:
-///   * `avatar_path` — local filesystem path on the device that
-///     captured the photo. Only valid on that device + only when
-///     the file actually exists (cache eviction on iOS / Android
-///     can wipe it).
-///   * `avatar_storage_path` — Supabase Storage bucket key.
-///     Deterministic per row id, valid on every device + platform.
-///
-/// Resolution order:
+/// Resolution order (delegated to [avatarImageProvider]):
 ///   1. **Native + local file present** → Image.file (instant,
-///      offline-friendly). Falls through if the file is gone.
-///   2. **Native + storagePath** → ensureLocalFile downloads to
-///      a persistent cache dir; render from there. First render
-///      shows the fallback initial during download; cache hits
-///      are instant after.
-///   3. **Web + storagePath** → signed URL via Supabase Storage,
-///      render NetworkImage. URL is cached in memory; rotating
-///      hourly transparently. First render shows the fallback
-///      initial during URL fetch.
-///   4. **Anything else** → fallback initial. The CircleAvatar
+///      offline).
+///   2. **storagePath set** → [MediaService.ensureBytes] returns
+///      drift-cached bytes, falling through to a Supabase
+///      download on miss. The bytes-to-drift store survives app
+///      restarts AND web page reloads (drift_flutter persists
+///      to IndexedDB), so each storage_path downloads once per
+///      device — ever.
+///   3. **Anything else** → fallback initial. The CircleAvatar
 ///      always renders the initial when no image is set, so a
 ///      failure of any kind still produces something readable
 ///      instead of a blank circle.
-class SmallAvatar extends ConsumerStatefulWidget {
+class SmallAvatar extends ConsumerWidget {
   const SmallAvatar({
     required this.path,
     required this.fallbackInitial,
@@ -376,118 +385,29 @@ class SmallAvatar extends ConsumerStatefulWidget {
   final Color? foregroundColor;
 
   @override
-  ConsumerState<SmallAvatar> createState() => _SmallAvatarState();
-}
-
-class _SmallAvatarState extends ConsumerState<SmallAvatar> {
-  /// Local file path on native — set when widget.path exists or
-  /// ensureLocalFile completes. Null on web (no FS) and when
-  /// nothing's resolved yet.
-  String? _resolvedFilePath;
-
-  /// Signed HTTPS URL on web — set when signedUrlFor completes.
-  /// Null on native (we use _resolvedFilePath there) and when
-  /// nothing's resolved yet.
-  String? _resolvedNetworkUrl;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_resolve());
-  }
-
-  @override
-  void didUpdateWidget(covariant SmallAvatar oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.path != widget.path ||
-        oldWidget.storagePath != widget.storagePath) {
-      _resolvedFilePath = null;
-      _resolvedNetworkUrl = null;
-      unawaited(_resolve());
-    }
-  }
-
-  Future<void> _resolve() async {
-    final localPath = widget.path;
-    final storagePath = widget.storagePath;
-
-    // Native: prefer the local-captured file when it exists. Fast,
-    // offline, no network round-trip. existsSync is fine here —
-    // a microsecond-level stat in init/didUpdate is cheaper than
-    // tripping the slow-async-io lint for await File.exists().
-    if (!kIsWeb && localPath != null && File(localPath).existsSync()) {
-      if (!mounted) return;
-      setState(() => _resolvedFilePath = localPath);
-      return;
-    }
-
-    // No usable local file — fall back to cloud storage. Two
-    // paths depending on platform:
-    if (storagePath == null || storagePath.isEmpty) return;
-
-    if (kIsWeb) {
-      // Web: signed URL → NetworkImage. Browser caches bytes.
-      // Memory cache on the URL itself (TTL ~55min) keeps re-
-      // render cheap.
-      try {
-        final url = await ref
-            .read(mediaServiceProvider)
-            .signedUrlFor(storagePath);
-        if (!mounted) return;
-        if (url != null) setState(() => _resolvedNetworkUrl = url);
-      } on Object catch (e) {
-        debugPrint('SmallAvatar signed URL failed for $storagePath: $e');
-      }
-      return;
-    }
-
-    // Native: download to persistent file cache. Cache survives
-    // app restarts so a re-render hits it instantly. First
-    // render on a fresh device shows the fallback initial during
-    // the download.
-    try {
-      final cached = await ref
-          .read(mediaServiceProvider)
-          .ensureLocalFile(storagePath);
-      if (!mounted) return;
-      setState(() => _resolvedFilePath = cached);
-    } on Object catch (e) {
-      debugPrint('SmallAvatar download failed for $storagePath: $e');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final decodeSize = (widget.radius * 4).round();
-    final bg = widget.backgroundColor ?? theme.colorScheme.primaryContainer;
-    final fg = widget.foregroundColor ?? theme.colorScheme.onPrimaryContainer;
-    // Pick the right ImageProvider based on what resolved. Both
-    // start null; only one ends up set per platform. ResizeImage
-    // wraps either to clamp decode width.
-    ImageProvider? source;
-    if (_resolvedFilePath != null && !kIsWeb) {
-      source = ResizeImage(
-        FileImage(File(_resolvedFilePath!)),
-        width: decodeSize,
-      );
-    } else if (_resolvedNetworkUrl != null) {
-      source = ResizeImage(
-        NetworkImage(_resolvedNetworkUrl!),
-        width: decodeSize,
-      );
-    }
+    final decodeSize = (radius * 4).round();
+    final bg = backgroundColor ?? theme.colorScheme.primaryContainer;
+    final fg = foregroundColor ?? theme.colorScheme.onPrimaryContainer;
+
+    final source = AvatarSource(localPath: path, storagePath: storagePath);
+    final resolved = source.isEmpty
+        ? null
+        : ref.watch(avatarImageProvider(source)).asData?.value;
+    final image =
+        resolved == null ? null : ResizeImage(resolved, width: decodeSize);
 
     return CircleAvatar(
-      radius: widget.radius,
+      radius: radius,
       backgroundColor: bg,
-      backgroundImage: source,
+      backgroundImage: image,
       // Always show the fallback initial when there's no image
       // source — no blank circles. The initial hides as soon as
       // an ImageProvider lands.
-      child: source == null
+      child: image == null
           ? Text(
-              widget.fallbackInitial,
+              fallbackInitial,
               style: theme.textTheme.titleMedium?.copyWith(color: fg),
             )
           : null,

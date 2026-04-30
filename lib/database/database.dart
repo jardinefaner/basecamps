@@ -64,6 +64,7 @@ QueryExecutor _openConnection() {
     Programs,
     ProgramMembers,
     SyncState,
+    MediaCache,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -72,7 +73,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 49;
+  int get schemaVersion => 50;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -115,6 +116,24 @@ class AppDatabase extends _$AppDatabase {
               'fresh at schema 25. This only affects devs who have '
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
+            );
+          }
+          if (from < 50) {
+            // v50: local-only `media_cache` blob table. Keyed by
+            // bucket-relative `storage_path`; bytes are downloaded
+            // once from Supabase Storage and reused thereafter.
+            // Web especially benefits — no filesystem means every
+            // signed-URL fetch was previously re-downloading bytes
+            // on every page reload. CREATE IF NOT EXISTS so a
+            // partial-migration recovery is harmless.
+            await _runSilent(
+              'CREATE TABLE IF NOT EXISTS "media_cache" ('
+              ' "storage_path" TEXT NOT NULL PRIMARY KEY, '
+              ' "bytes" BLOB NOT NULL, '
+              ' "content_type" TEXT NULL, '
+              ' "cached_at" INTEGER NOT NULL '
+              "   DEFAULT (strftime('%s', 'now'))"
+              ' )',
             );
           }
           if (from < 49) {

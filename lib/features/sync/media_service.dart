@@ -368,6 +368,21 @@ class MediaService {
             ),
           );
       await stampStoragePath(storagePath);
+      // Replace any stale bytes the drift cache may have for the
+      // same storage_path. The bucket key is stable per row id, so
+      // a re-upload (teacher picked a new photo for the same row)
+      // overwrites the cloud object — but our local cache would
+      // keep serving the old bytes until eviction. Stamp the new
+      // bytes directly so the next render is correct.
+      await _db.into(_db.mediaCache).insertOnConflictUpdate(
+            MediaCacheCompanion.insert(
+              storagePath: storagePath,
+              bytes: bytes,
+              contentType:
+                  Value(_contentTypeFor(ext, 'photo')),
+              cachedAt: Value(DateTime.now()),
+            ),
+          );
       // Mark the column dirty + nudge a push so the storage path
       // actually reaches cloud. Without these two lines the stamp
       // sits in local Drift forever and other devices can never
@@ -483,8 +498,106 @@ class MediaService {
 
   // -- Download ----------------------------------------------------
 
-  /// Signed download URL for [storagePath], used by web (which
-  /// can't use the local-file cache because there's no filesystem).
+  /// Drift-first byte fetch for [storagePath]. The media-cache
+  /// table (`media_cache`) acts as a content-addressed blob store
+  /// keyed by the bucket-relative path. Resolution order:
+  ///
+  ///   1. **Drift hit** → return cached bytes immediately. No
+  ///      network round-trip, no signed-URL mint, no Supabase
+  ///      transfer. Survives app restarts; on web survives page
+  ///      reloads (drift_flutter persists to IndexedDB).
+  ///   2. **Drift miss** → download bytes from Supabase Storage
+  ///      via the storage client's `download(...)`, stamp into
+  ///      Drift, return bytes.
+  ///
+  /// In-flight de-duplication: simultaneous requests for the same
+  /// path (e.g. two SmallAvatars rendering at once) share a single
+  /// Future via [_inFlightBytes] so we only hit Supabase once per
+  /// path per app session.
+  ///
+  /// Returns null when:
+  ///   * Supabase isn't initialized / signed in (cache miss has
+  ///     no recovery path)
+  ///   * Download throws (RLS deny, network, missing object) —
+  ///     error logged via debugPrint, caller renders the fallback
+  ///     initial.
+  Future<Uint8List?> ensureBytes(String storagePath) async {
+    if (storagePath.isEmpty) return null;
+    // Drift hit → done.
+    final cached = await (_db.select(_db.mediaCache)
+          ..where((c) => c.storagePath.equals(storagePath)))
+        .getSingleOrNull();
+    if (cached != null) return Uint8List.fromList(cached.bytes);
+
+    // Coalesce concurrent misses for the same path.
+    final inFlight = _inFlightBytes[storagePath];
+    if (inFlight != null) return inFlight;
+
+    final future = _downloadAndCache(storagePath);
+    _inFlightBytes[storagePath] = future;
+    try {
+      return await future;
+    } finally {
+      // Map.remove returns the removed value (a Future here),
+      // which the lint mistakes for an unawaited Future. We've
+      // already awaited it via `future` above.
+      // ignore: unawaited_futures
+      _inFlightBytes.remove(storagePath);
+    }
+  }
+
+  Future<Uint8List?> _downloadAndCache(String storagePath) async {
+    final client = _client;
+    if (client == null) return null;
+    if (client.auth.currentSession == null) return null;
+    try {
+      final bytes = await client.storage.from(_bucket).download(storagePath);
+      // Stamp the cache so the next read (this device, this or a
+      // later session) skips the download. INSERT … ON CONFLICT
+      // updates an existing row in case the bucket key was
+      // overwritten with new bytes for the same id.
+      await _db.into(_db.mediaCache).insertOnConflictUpdate(
+            MediaCacheCompanion.insert(
+              storagePath: storagePath,
+              bytes: bytes,
+              contentType: Value(_guessContentType(storagePath)),
+              cachedAt: Value(DateTime.now()),
+            ),
+          );
+      return bytes;
+    } on Object catch (e) {
+      debugPrint('Media download failed for $storagePath: $e');
+      return null;
+    }
+  }
+
+  /// Best-guess MIME from the storage_path extension. Used purely
+  /// for the cache row's metadata column; the actual decoder
+  /// sniffs magic bytes itself.
+  String? _guessContentType(String storagePath) {
+    final ext = p.extension(storagePath).toLowerCase();
+    if (ext.isEmpty) return null;
+    return _contentTypeFor(ext, 'photo');
+  }
+
+  /// Inflight de-duplication map. Keyed by storage_path.
+  final Map<String, Future<Uint8List?>> _inFlightBytes = {};
+
+  /// Drop the cached bytes for [storagePath] — used after the
+  /// teacher uploads a new photo for the same row id (the bucket
+  /// key is the same, but the bytes are new). Caller is the
+  /// upload pipeline, not UI.
+  Future<void> evictCachedBytes(String storagePath) async {
+    await (_db.delete(_db.mediaCache)
+          ..where((c) => c.storagePath.equals(storagePath)))
+        .go();
+  }
+
+  /// Signed download URL for [storagePath]. Kept for callers that
+  /// genuinely need a URL (e.g. legacy `<img src=...>` pipelines).
+  /// New code should prefer [ensureBytes] which goes through the
+  /// drift cache and returns ready-to-render bytes.
+  ///
   /// Cached in memory keyed by storage path; expires ~5 minutes
   /// before the actual signed-URL TTL so a long-render doesn't
   /// show a 401-ed image when the URL flips just-expired.
