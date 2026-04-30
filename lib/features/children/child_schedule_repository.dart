@@ -1,5 +1,7 @@
 import 'package:basecamp/core/id.dart';
+import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -126,10 +128,18 @@ final childScheduleRepositoryProvider = Provider<ChildScheduleRepository>(
 /// Today's overrides, keyed by child id for fast lookup during the
 /// flags pass. Zero rows is the common case — most days, no kid has
 /// an exception logged.
+///
+/// Watches `nowTickProvider` so midnight rollover advances "today",
+/// and `activeProgramIdProvider` so a program switch invalidates
+/// the stream — without the latter, the flags strip kept computing
+/// against the previous program's overrides until something else
+/// invalidated.
 final todayOverridesProvider =
     StreamProvider<Map<String, ChildScheduleOverride>>((ref) {
+  ref.watch(activeProgramIdProvider);
   final repo = ref.watch(childScheduleRepositoryProvider);
-  final today = DateTime.now();
+  final now = ref.watch(nowTickProvider).value ?? DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
   return repo.watchOverridesFor(today).map((rows) => {
         for (final r in rows) r.childId: r,
       });

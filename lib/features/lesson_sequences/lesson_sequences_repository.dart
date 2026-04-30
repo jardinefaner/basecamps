@@ -40,6 +40,13 @@ class LessonSequencesRepository {
         .getSingleOrNull();
   }
 
+  /// Stream a single sequence so the detail screen rebuilds when
+  /// a colleague edits the header on another device.
+  Stream<LessonSequence?> watchSequence(String id) {
+    return (_db.select(_db.lessonSequences)..where((s) => s.id.equals(id)))
+        .watchSingleOrNull();
+  }
+
   Future<String> addSequence({
     required String name,
     String? description,
@@ -384,12 +391,14 @@ final lessonSequenceItemsJoinedProvider =
   },
 );
 
-// Riverpod family return type is complex; inference is intentional.
+// Stream-backed so cross-device edits to a sequence's header
+// (name, description, color) re-paint the detail screen without a
+// manual refresh.
 // ignore: specify_nonobvious_property_types
 final lessonSequenceProvider =
-    FutureProvider.family<LessonSequence?, String>(
+    StreamProvider.family<LessonSequence?, String>(
   (ref, id) {
-    return ref.watch(lessonSequencesRepositoryProvider).getSequence(id);
+    return ref.watch(lessonSequencesRepositoryProvider).watchSequence(id);
   },
 );
 

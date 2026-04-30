@@ -1,21 +1,26 @@
 import 'dart:async';
-import 'dart:io';
+import 'dart:io' show Directory, File;
 
 import 'package:basecamp/theme/spacing.dart';
+import 'package:basecamp/ui/media_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:signature/signature.dart';
 
 /// A draw-on-canvas signature pad that expands inline underneath the
 /// "Sign now" row. Callers control when it's visible; tapping Save
-/// exports the strokes to a PNG on local disk and returns the path +
-/// a timestamp via [onSigned]. Clear wipes the canvas; Cancel closes
+/// exports the strokes to a PNG and returns it as an [XFile] +
+/// timestamp via [onSigned]. Clear wipes the canvas; Cancel closes
 /// without saving.
 ///
-/// No reliance on a persistent SignatureController in the parent — the
-/// controller lives inside the widget so open/close fully resets the
-/// drawing state.
+/// Web parity: on native we write the PNG to disk first (so the
+/// capture device can fast-render via the local path), then wrap
+/// the path as `XFile(path)`. On web there's no filesystem, so we
+/// return `XFile.fromData(bytes)` directly — the upstream upload
+/// reads bytes the same way either platform delivers them.
 class InlineSignaturePad extends StatefulWidget {
   const InlineSignaturePad({
     required this.onSigned,
@@ -23,9 +28,15 @@ class InlineSignaturePad extends StatefulWidget {
     super.key,
   });
 
-  /// Called with the PNG path on disk + the moment the teacher
-  /// committed the signature.
-  final void Function(String path, DateTime signedAt) onSigned;
+  /// Called with the freshly-saved signature as an [XFile] + the
+  /// moment the teacher committed it. The XFile carries:
+  ///   * native — a real disk path the capture device can render
+  ///     directly via `Image.file`. The path is also persisted in
+  ///     the form data blob for offline render.
+  ///   * web — a `blob:` URL (useless to dart:io.File but readable
+  ///     via `XFile.readAsBytes`); upload reads the bytes for
+  ///     Storage.
+  final void Function(XFile signature, DateTime signedAt) onSigned;
 
   /// Called when the teacher backs out without saving.
   final VoidCallback onCancel;
@@ -59,18 +70,32 @@ class _InlineSignaturePadState extends State<InlineSignaturePad> {
     try {
       final bytes = await _ctrl.toPngBytes();
       if (bytes == null) return;
-      final dir = await getApplicationDocumentsDirectory();
-      final sigDir = Directory(p.join(dir.path, 'signatures'));
-      if (!sigDir.existsSync()) {
-        await sigDir.create(recursive: true);
+      final filename = 'sig_${DateTime.now().millisecondsSinceEpoch}.png';
+      final XFile xfile;
+      if (kIsWeb) {
+        // Web: no filesystem. Wrap bytes directly — upload reads
+        // them via XFile.readAsBytes either way.
+        xfile = XFile.fromData(
+          bytes,
+          name: filename,
+          mimeType: 'image/png',
+          length: bytes.length,
+        );
+      } else {
+        // Native: write to disk first so the capture device can
+        // fast-render via the local path on the next form re-open
+        // (offline-friendly), then wrap the path as XFile.
+        final dir = await getApplicationDocumentsDirectory();
+        final sigDir = Directory(p.join(dir.path, 'signatures'));
+        if (!sigDir.existsSync()) {
+          await sigDir.create(recursive: true);
+        }
+        final path = p.join(sigDir.path, filename);
+        await File(path).writeAsBytes(bytes);
+        xfile = XFile(path, name: filename, mimeType: 'image/png');
       }
-      final path = p.join(
-        sigDir.path,
-        'sig_${DateTime.now().millisecondsSinceEpoch}.png',
-      );
-      await File(path).writeAsBytes(bytes);
       if (!mounted) return;
-      widget.onSigned(path, DateTime.now());
+      widget.onSigned(xfile, DateTime.now());
     } on Object catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -163,11 +188,29 @@ class _InlineSignaturePadState extends State<InlineSignaturePad> {
   }
 }
 
-/// Read-only preview of a saved signature PNG.
+/// Read-only preview of a saved signature PNG. Routes through the
+/// shared [MediaImage] pipeline (drift cache + Supabase fallback)
+/// so receive devices and web both render correctly.
 class SignaturePreview extends StatelessWidget {
-  const SignaturePreview({required this.path, super.key});
+  const SignaturePreview({
+    required this.localPath,
+    required this.storagePath,
+    required this.etag,
+    super.key,
+  });
 
-  final String path;
+  /// On-disk path for the capture device's fast offline render.
+  /// Null on web + on receive devices.
+  final String? localPath;
+
+  /// Cross-device source of truth — the bucket key the upload
+  /// stamped after the pad's bytes hit Storage.
+  final String? storagePath;
+
+  /// Per-upload content tag for cache invalidation when a
+  /// signature is replaced (rare for signatures, but uniform with
+  /// the rest of the media pipeline).
+  final String? etag;
 
   @override
   Widget build(BuildContext context) {
@@ -182,13 +225,16 @@ class SignaturePreview extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: AspectRatio(
         aspectRatio: 3,
-        child: Image.file(
-          File(path),
+        child: MediaImage(
+          source: MediaSource(
+            localPath: localPath,
+            storagePath: storagePath,
+            etag: etag,
+          ),
           fit: BoxFit.contain,
-          // Decode the strokes at a reasonable width — signatures are
-          // pen-thin so we don't need full resolution.
+          // Pen-thin strokes — full resolution isn't needed.
           cacheWidth: 600,
-          errorBuilder: (_, _, _) => Center(
+          errorPlaceholder: Center(
             child: Text(
               'Missing signature',
               style: theme.textTheme.bodySmall?.copyWith(

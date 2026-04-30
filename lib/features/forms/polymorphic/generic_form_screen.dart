@@ -1406,7 +1406,18 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
     final name = raw is Map ? (raw['name'] as String?) : null;
     final signaturePath =
         raw is Map ? (raw['signaturePath'] as String?) : null;
+    final signatureStoragePath =
+        raw is Map ? (raw['signatureStoragePath'] as String?) : null;
+    final signatureEtag =
+        raw is Map ? (raw['signatureEtag'] as String?) : null;
     final signedAt = raw is Map ? (raw['signedAt'] as String?) : null;
+    // The "are we signed?" check looks at any of three things —
+    // a local path, a cloud storage path, or a signed-at stamp.
+    // Receive devices land here with no path but a storage path,
+    // and we want them to render the signature thumbnail too.
+    final hasSignature = signaturePath != null ||
+        signatureStoragePath != null ||
+        signedAt != null;
 
     return _LabeledField(
       label: field.label,
@@ -1430,13 +1441,20 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
           OutlinedButton.icon(
             icon: const Icon(Icons.draw_outlined),
             label: Text(
-              signaturePath == null
-                  ? 'Add signature'
-                  : 'Re-sign',
+              hasSignature ? 'Re-sign' : 'Add signature',
             ),
             onPressed: () => _openSignaturePad(field),
           ),
-          if (signaturePath != null) ...[
+          if (hasSignature) ...[
+            // Cross-device signature preview. Routes through the
+            // shared MediaImage pipeline: native fast-path on the
+            // capture device, drift cache + Supabase fallback for
+            // every other device + every web session.
+            SignaturePreview(
+              localPath: signaturePath,
+              storagePath: signatureStoragePath,
+              etag: signatureEtag,
+            ),
             const SizedBox(height: AppSpacing.sm),
             Text(
               signedAt == null
@@ -1475,8 +1493,9 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
         child: SizedBox(
           height: 360,
           child: InlineSignaturePad(
-            onSigned: (path, when) =>
-                Navigator.of(sheetCtx).pop(_SignatureResult(path, when)),
+            onSigned: (signature, when) => Navigator.of(sheetCtx).pop(
+              _SignatureResult(signature, when),
+            ),
             onCancel: () => Navigator.of(sheetCtx).pop(),
           ),
         ),
@@ -1487,25 +1506,31 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
     setState(() {
       _values[field.key] = <String, dynamic>{
         if (current is Map) ...current.cast<String, dynamic>(),
-        'signaturePath': result.path,
+        // Native: real disk path for fast offline render. Web:
+        // null — the `blob:` URL doesn't survive a page reload
+        // and isn't useful to dart:io.File anyway.
+        if (!kIsWeb)
+          'signaturePath': result.signature.path
+        else
+          'signaturePath': null,
         'signedAt': result.signedAt.toIso8601String(),
       };
     });
     // Fire-and-forget cloud upload of the signature PNG so signed
     // forms travel between devices visibly. Mirrors the form-image
-    // path: stamps `storagePath` into the same composite map under
-    // the field's key. Other devices read storagePath when their
-    // local signaturePath file is missing.
-    unawaited(_uploadFormSignature(field, result.path));
+    // path: stamps `storagePath` + `etag` into the same composite
+    // map under the field's key. Other devices read storagePath
+    // when their local signaturePath file is missing.
+    unawaited(_uploadFormSignature(field, result.signature));
   }
 
-  /// Uploads the signature PNG at [localPath] to MediaService under
-  /// the same per-form bucket layout the image field uses. Reuses
+  /// Uploads the signature [source] to MediaService under the same
+  /// per-form bucket layout the image field uses. Reuses
   /// `MediaService.uploadFormImage` since signatures are just images
   /// from Storage's perspective — the bucket doesn't care.
   Future<void> _uploadFormSignature(
     fd.FormSignatureField field,
-    String localPath,
+    XFile source,
   ) async {
     try {
       final programId = ref.read(activeProgramIdProvider);
@@ -1516,15 +1541,14 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
       final submissionId = _resolvedSubmissionId;
       if (submissionId == null) return;
 
-      // Wrap the saved-on-disk PNG as an XFile so we go through
-      // the same XFile-based upload path as picker images.
-      // Signatures are only ever drawn on-device (no web-pad
-      // yet), so a real filesystem path is guaranteed.
+      // The pad already gave us an XFile (path on native, blob URL
+      // on web with bytes inline). Hand it straight to the
+      // form-image upload — same pipeline images use.
       final media = ref.read(mediaServiceProvider);
       final result = await media.uploadFormImage(
         submissionId: submissionId,
         fieldKey: field.key,
-        source: XFile(localPath),
+        source: source,
         programId: programId,
       );
       if (result == null) return;
@@ -1573,11 +1597,12 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
   }
 }
 
-/// Tuple returned by the signature pad sheet — the path of the
-/// PNG on disk plus the moment the signature was committed.
+/// Tuple returned by the signature pad sheet — the freshly-saved
+/// signature as an [XFile] (path on native, blob URL on web) plus
+/// the moment the signature was committed.
 class _SignatureResult {
-  const _SignatureResult(this.path, this.signedAt);
-  final String path;
+  const _SignatureResult(this.signature, this.signedAt);
+  final XFile signature;
   final DateTime signedAt;
 }
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:basecamp/core/id.dart';
+import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
@@ -840,15 +841,17 @@ final observationsProvider = StreamProvider<List<Observation>>((ref) {
 /// screen uses this to decide whether to show a "Log observations →"
 /// nudge on activities that have already ended.
 ///
-/// Deliberately snapshots `DateTime.now()` once at provider creation;
-/// the app is re-launched over midnight in practice so rollover is not
-/// a concern worth the extra wiring.
+/// Watches `nowTickProvider` so the day-of advances at midnight on
+/// long-running sessions. Within the same day every minute tick
+/// yields the same date, so the inner stream is reused.
 final todayActivityCountsProvider =
     StreamProvider<Map<String, int>>((ref) {
   ref.watch(activeProgramIdProvider);
+  final now = ref.watch(nowTickProvider).value ?? DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
   return ref
       .watch(observationsRepositoryProvider)
-      .watchActivityCountsForDay(DateTime.now());
+      .watchActivityCountsForDay(today);
 });
 
 // Riverpod family return type is complex; inference is intentional.

@@ -33,11 +33,28 @@ class TripsRepository {
         .getSingleOrNull();
   }
 
+  /// Stream a single trip so the trip detail screen rebuilds on
+  /// cross-device edits (a colleague flips the date or vehicle on
+  /// another device, realtime delivers, this watcher re-emits).
+  Stream<Trip?> watchTrip(String id) {
+    return (_db.select(_db.trips)..where((t) => t.id.equals(id)))
+        .watchSingleOrNull();
+  }
+
   Future<List<String>> groupsForTrip(String tripId) async {
     final rows = await (_db.select(_db.tripGroups)
           ..where((p) => p.tripId.equals(tripId)))
         .get();
     return rows.map((r) => r.groupId).toList();
+  }
+
+  /// Stream group ids attached to [tripId]. Lets the trip detail
+  /// chip row repaint on cross-device pivots.
+  Stream<List<String>> watchGroupsForTrip(String tripId) {
+    return (_db.select(_db.tripGroups)
+          ..where((p) => p.tripId.equals(tripId)))
+        .watch()
+        .map((rows) => rows.map((r) => r.groupId).toList());
   }
 
   /// Watch every trip-group link as a `{tripId: [groupId, …]}` map.
@@ -204,15 +221,17 @@ final tripsProvider = StreamProvider<List<Trip>>((ref) {
   return ref.watch(tripsRepositoryProvider).watchAll();
 });
 
-// Riverpod family return type is complex; inference is intentional.
+// Stream-backed so cross-device edits to a trip (date / vehicle /
+// notes) re-paint the detail screen without a manual refresh.
 // ignore: specify_nonobvious_property_types
-final tripProvider = FutureProvider.family<Trip?, String>((ref, id) {
-  return ref.watch(tripsRepositoryProvider).getTrip(id);
+final tripProvider = StreamProvider.family<Trip?, String>((ref, id) {
+  return ref.watch(tripsRepositoryProvider).watchTrip(id);
 });
 
-// Riverpod family return type is complex; inference is intentional.
+// Same — stream the group-id list so chip rows update on cross-
+// device add/remove.
 // ignore: specify_nonobvious_property_types
 final tripGroupsProvider =
-    FutureProvider.family<List<String>, String>((ref, id) {
-  return ref.watch(tripsRepositoryProvider).groupsForTrip(id);
+    StreamProvider.family<List<String>, String>((ref, id) {
+  return ref.watch(tripsRepositoryProvider).watchGroupsForTrip(id);
 });

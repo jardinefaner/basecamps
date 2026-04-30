@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:basecamp/core/id.dart';
+import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
@@ -1448,11 +1449,17 @@ final scheduleForWeekProvider =
   },
 );
 
+/// Watches `nowTickProvider` so a session left running past
+/// midnight advances to the new day automatically. Within the
+/// same day every minute tick yields the same anchor so the
+/// inner stream is reused.
 final todayScheduleProvider = StreamProvider<List<ScheduleItem>>((ref) {
   ref.watch(activeProgramIdProvider);
+  final now = ref.watch(nowTickProvider).value ?? DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
   return ref
       .watch(scheduleRepositoryProvider)
-      .watchScheduleForDate(DateTime.now());
+      .watchScheduleForDate(today);
 });
 
 /// Schedule rows (templates + one-offs) resolved against an arbitrary
