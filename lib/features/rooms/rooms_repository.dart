@@ -101,6 +101,20 @@ class RoomsRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    // Phase 4: field-level dirty tracking. Mark only the columns
+    // the caller actually intends to change. The sync engine reads
+    // this list and pushes a partial UPDATE (only those columns
+    // → cloud) instead of a full-row upsert — so a concurrent
+    // edit on a different field from another device survives.
+    // Identity / housekeeping columns (id, updated_at, program_id)
+    // are added by the engine automatically; no need to mark them.
+    final dirty = <String>[
+      if (name != null) 'name',
+      if (capacity.present) 'capacity',
+      if (notes.present) 'notes',
+      if (defaultForGroupId.present) 'default_for_group_id',
+    ];
+    await _db.markDirty('rooms', id, dirty);
     unawaited(_sync.pushRow(roomsSpec, id));
   }
 

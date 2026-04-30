@@ -151,6 +151,26 @@ class AdultsRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    // Phase 4: field-level dirty tracking. Mark every column the
+    // caller is actually changing. `name` is required (always set,
+    // always dirty). `role` and `notes` are positional `String?`
+    // params — null means "set to null" here (the existing
+    // companion uses `Value(role)` so null does write through), so
+    // they're always dirty when the call happens. The Value-wrapped
+    // params are dirty only when `.present`.
+    final dirty = <String>[
+      'name',
+      'role',
+      'notes',
+      if (clearAvatarPath || avatarPath != null) 'avatar_path',
+      if (roleId.present) 'role_id',
+      if (adultRole.present) 'adult_role',
+      if (anchoredGroupId.present) 'anchored_group_id',
+      if (phone.present) 'phone',
+      if (email.present) 'email',
+      if (parentId.present) 'parent_id',
+    ];
+    await _db.markDirty('adults', id, dirty);
     unawaited(_sync.pushRow(adultsSpec, id));
     if (avatarPath != null && !clearAvatarPath) {
       unawaited(_media.uploadAdultAvatar(id));
