@@ -4,6 +4,7 @@ import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -72,11 +73,12 @@ class WeekPlanScale {
       dayStartMinutes + (y / _kPxPerMinute).round();
 }
 
-class WeekPlanCanvas extends ConsumerWidget {
+class WeekPlanCanvas extends ConsumerStatefulWidget {
   const WeekPlanCanvas({
     required this.monday,
     required this.byDay,
     this.onTapCard,
+    this.onCardDrop,
     super.key,
   });
 
@@ -88,27 +90,53 @@ class WeekPlanCanvas extends ConsumerWidget {
   /// week-overlap upstream; this widget just renders.
   final Map<int, List<ScheduleItem>> byDay;
 
-  /// Step-3 hook. Static for now; tapping a card does nothing.
+  /// Tap callback for entry-backed cards (template cards select
+  /// in-place). Null = read-only mode.
   final ValueChanged<ScheduleItem>? onTapCard;
 
+  /// Drop callback fired when a long-press drag completes. Owner
+  /// (the screen) interprets the snapped target and calls the repo
+  /// — keeps drag-effect policy decisions (move vs duplicate, undo
+  /// affordance, snackbars) at the screen level instead of leaking
+  /// into the canvas widget.
+  final WeekPlanDropHandler? onCardDrop;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<WeekPlanCanvas> createState() => _WeekPlanCanvasState();
+}
+
+/// Drop callback shape. The canvas computes the snapped target
+/// (day + start time + alt-key state) and hands it to the screen
+/// to commit.
+typedef WeekPlanDropHandler = Future<void> Function({
+  required String templateId,
+  required int sourceDayOfWeek,
+  required int targetDayOfWeek,
+  required int snappedStartMinutes,
+  required int snappedEndMinutes,
+  required bool altHeld,
+});
+
+class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
+  // GlobalKey on the canvas body so the drop handler can convert
+  // global pointer coords → canvas-local for the snap math.
+  final GlobalKey _canvasBodyKey = GlobalKey();
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final groupFilter = ref.watch(weekPlanGroupFilterProvider);
     final selectedId = ref.watch(weekPlanSelectedTemplateProvider);
+    final dragState = ref.watch(weekPlanDragProvider);
     final visibleByDay = <int, List<ScheduleItem>>{
       for (var d = 1; d <= scheduleDayCount; d++)
-        d: _filterByGroup(byDay[d] ?? const [], groupFilter),
+        d: _filterByGroup(widget.byDay[d] ?? const [], groupFilter),
     };
     final scale = WeekPlanScale.from(
       visibleByDay.values.expand((items) => items),
     );
 
     return GestureDetector(
-      // Tap on the canvas background (anywhere outside a card)
-      // clears the selection. behavior: opaque so the gesture
-      // catches taps on the empty canvas area / hour gutter / day
-      // headers, not just on the visible Padding pixels.
       behavior: HitTestBehavior.opaque,
       onTap: () => ref
           .read(weekPlanSelectedTemplateProvider.notifier)
@@ -121,33 +149,144 @@ class WeekPlanCanvas extends ConsumerWidget {
           AppSpacing.lg,
         ),
         child: SingleChildScrollView(
-          // The whole canvas scrolls vertically — long days
-          // (early arrival to late pickup) stay browsable on
-          // small viewports.
-          child: SizedBox(
-            height:
-                _kColumnHeaderHeight + scale.totalHeight + AppSpacing.md,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _HourGutter(scale: scale, theme: theme),
-                for (var d = 1; d <= scheduleDayCount; d++) ...[
-                  Expanded(
-                    child: _DayColumn(
-                      date: monday.add(Duration(days: d - 1)),
-                      weekday: d,
-                      items: visibleByDay[d] ?? const [],
-                      scale: scale,
-                      selectedId: selectedId,
-                      onTapCard: onTapCard,
-                    ),
-                  ),
-                ],
-              ],
-            ),
+          child: Stack(
+            // Stack lets the ghost-overlay paint on top of the
+            // columns without affecting layout. Children: [body,
+            // optional ghost].
+            children: [
+              SizedBox(
+                key: _canvasBodyKey,
+                height: _kColumnHeaderHeight +
+                    scale.totalHeight +
+                    AppSpacing.md,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _HourGutter(scale: scale, theme: theme),
+                    for (var d = 1; d <= scheduleDayCount; d++) ...[
+                      Expanded(
+                        child: _DayColumn(
+                          date: widget.monday.add(Duration(days: d - 1)),
+                          weekday: d,
+                          items: visibleByDay[d] ?? const [],
+                          scale: scale,
+                          selectedId: selectedId,
+                          dragState: dragState,
+                          onTapCard: widget.onTapCard,
+                          onLongPressEnd: _onLongPressEnd,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              // Ghost overlay — only rendered while dragging.
+              if (dragState != null)
+                _DragGhost(
+                  state: dragState,
+                  scale: scale,
+                  canvasKey: _canvasBodyKey,
+                  theme: theme,
+                ),
+            ],
           ),
         ),
       ),
+    );
+  }
+
+  /// Convert a global pointer position to (day, snapped start
+  /// minutes) using the canvas's known geometry. Returns null when
+  /// the pointer is outside the canvas (e.g. user dragged into
+  /// the AppBar).
+  ({int dayOfWeek, int snappedStartMinutes})? _snapTarget({
+    required Offset pointerGlobal,
+    required Offset pickupLocal,
+    required WeekPlanScale scale,
+    required int durationMinutes,
+  }) {
+    final box =
+        _canvasBodyKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return null;
+    final canvasLocal = box.globalToLocal(pointerGlobal);
+    final canvasSize = box.size;
+    if (canvasLocal.dx < 0 ||
+        canvasLocal.dy < 0 ||
+        canvasLocal.dx > canvasSize.width ||
+        canvasLocal.dy > canvasSize.height) {
+      return null;
+    }
+
+    // Day-column math. Hour gutter takes a fixed `_kHourLabelWidth`
+    // off the left; the remaining width is split evenly across
+    // five columns.
+    final columnsWidth = canvasSize.width - _kHourLabelWidth;
+    if (columnsWidth <= 0) return null;
+    final colWidth = columnsWidth / scheduleDayCount;
+    final colIndex =
+        ((canvasLocal.dx - _kHourLabelWidth) / colWidth).floor();
+    final dayOfWeek = colIndex.clamp(0, scheduleDayCount - 1) + 1;
+
+    // Time math. The card's TOP should land at the snapped time —
+    // not where the finger is. So we subtract the pickup offset's
+    // dy from the pointer's y to get the new top, then convert
+    // top-y → minutes.
+    final cardTopLocalY = canvasLocal.dy - pickupLocal.dy;
+    // Subtract the column header so 0 lines up with the body's
+    // top, which is where `scale.minutesAtY(0)` returns
+    // `dayStartMinutes`.
+    final bodyY = cardTopLocalY - _kColumnHeaderHeight;
+    final rawMinutes = scale.minutesAtY(bodyY);
+    final snapped = ((rawMinutes / 15).round() * 15).clamp(
+      scale.dayStartMinutes,
+      scale.dayEndMinutes - durationMinutes,
+    );
+
+    return (
+      dayOfWeek: dayOfWeek,
+      snappedStartMinutes: snapped,
+    );
+  }
+
+  Future<void> _onLongPressEnd(LongPressEndDetails details) async {
+    final dragState = ref.read(weekPlanDragProvider);
+    final altHeld = HardwareKeyboard.instance.isAltPressed;
+    ref.read(weekPlanDragProvider.notifier).clear();
+    if (dragState == null) return;
+    final groupFilter = ref.read(weekPlanGroupFilterProvider);
+    final visibleByDay = <int, List<ScheduleItem>>{
+      for (var d = 1; d <= scheduleDayCount; d++)
+        d: _filterByGroup(
+          widget.byDay[d] ?? const [],
+          groupFilter,
+        ),
+    };
+    final scale = WeekPlanScale.from(
+      visibleByDay.values.expand((items) => items),
+    );
+    final target = _snapTarget(
+      pointerGlobal: dragState.pointerGlobal,
+      pickupLocal: dragState.pickupOffsetLocal,
+      scale: scale,
+      durationMinutes: dragState.durationMinutes,
+    );
+    if (target == null) return;
+    // No-op when the snapped target equals the source — saves a
+    // pointless write + push.
+    if (target.dayOfWeek == dragState.sourceDayOfWeek &&
+        target.snappedStartMinutes == dragState.sourceStartMinutes &&
+        !altHeld) {
+      return;
+    }
+    final snappedEnd =
+        target.snappedStartMinutes + dragState.durationMinutes;
+    await widget.onCardDrop?.call(
+      templateId: dragState.templateId,
+      sourceDayOfWeek: dragState.sourceDayOfWeek,
+      targetDayOfWeek: target.dayOfWeek,
+      snappedStartMinutes: target.snappedStartMinutes,
+      snappedEndMinutes: snappedEnd,
+      altHeld: altHeld,
     );
   }
 
@@ -155,11 +294,6 @@ class WeekPlanCanvas extends ConsumerWidget {
   ///   * null filter → show everything (every group + all-groups).
   ///   * specific groupId → show templates scoped to that group +
   ///     all-groups templates (which apply to every group anyway).
-  ///
-  /// Future enhancement: if a teacher wants to see *only* their
-  /// group's items (no all-groups noise), add a "strict" toggle.
-  /// Skip for v1 — most planning sessions want to see all-groups
-  /// in context.
   static List<ScheduleItem> _filterByGroup(
     List<ScheduleItem> items,
     String? groupFilter,
@@ -222,7 +356,9 @@ class _DayColumn extends StatelessWidget {
     required this.items,
     required this.scale,
     required this.selectedId,
+    required this.dragState,
     required this.onTapCard,
+    required this.onLongPressEnd,
   });
 
   final DateTime date;
@@ -230,7 +366,9 @@ class _DayColumn extends StatelessWidget {
   final List<ScheduleItem> items;
   final WeekPlanScale scale;
   final String? selectedId;
+  final WeekPlanDragState? dragState;
   final ValueChanged<ScheduleItem>? onTapCard;
+  final void Function(LongPressEndDetails) onLongPressEnd;
 
   @override
   Widget build(BuildContext context) {
@@ -312,7 +450,8 @@ class _DayColumn extends StatelessWidget {
                             .withValues(alpha: 0.18),
                       ),
                     ),
-                  // The cards.
+                  // The cards. Hidden when this card is the drag
+                  // source — the ghost overlay paints in its place.
                   for (final item in items)
                     if (!item.isFullDay)
                       Positioned(
@@ -322,11 +461,18 @@ class _DayColumn extends StatelessWidget {
                         height: (item.endMinutes - item.startMinutes) *
                                 _kPxPerMinute -
                             2,
-                        child: _PlanCard(
-                          item: item,
-                          isSelected: item.templateId != null &&
-                              item.templateId == selectedId,
-                          onTap: onTapCard,
+                        child: Opacity(
+                          opacity: dragState?.templateId == item.templateId
+                              ? 0.25
+                              : 1,
+                          child: _PlanCard(
+                            item: item,
+                            weekday: weekday,
+                            isSelected: item.templateId != null &&
+                                item.templateId == selectedId,
+                            onTap: onTapCard,
+                            onLongPressEnd: onLongPressEnd,
+                          ),
                         ),
                       ),
                 ],
@@ -350,17 +496,23 @@ class _DayColumn extends StatelessWidget {
 /// inline title edit; tap right half → time picker. Tapping an
 /// entry/override falls through to [onTap] (detail sheet) — entries
 /// don't get inline edit because their schema is one-off and the
-/// detail flow already covers them.
+/// detail flow already covers them. Step-5 layered on long-press
+/// drag (template-only) — the canvas owns the snap math via
+/// `onLongPressEnd`.
 class _PlanCard extends ConsumerStatefulWidget {
   const _PlanCard({
     required this.item,
+    required this.weekday,
     required this.isSelected,
     required this.onTap,
+    required this.onLongPressEnd,
   });
 
   final ScheduleItem item;
+  final int weekday;
   final bool isSelected;
   final ValueChanged<ScheduleItem>? onTap;
+  final void Function(LongPressEndDetails) onLongPressEnd;
 
   @override
   ConsumerState<_PlanCard> createState() => _PlanCardState();
@@ -513,7 +665,7 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
         : theme.colorScheme.primary.withValues(alpha: 0.18);
     const borderWidth = 1.5;
 
-    return Container(
+    final card = Container(
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(8),
@@ -587,6 +739,40 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
         ],
       ),
     );
+
+    // Long-press wraps the whole card; taps go to the inner two
+    // InkWells. Skip the gesture for non-template items — entries
+    // can't be moved through this surface (their date is the
+    // source of truth).
+    if (!_isTemplate) return card;
+    return GestureDetector(
+      onLongPressStart: _onLongPressStart,
+      onLongPressMoveUpdate: _onLongPressMoveUpdate,
+      onLongPressEnd: widget.onLongPressEnd,
+      onLongPressCancel: () =>
+          ref.read(weekPlanDragProvider.notifier).clear(),
+      child: card,
+    );
+  }
+
+  void _onLongPressStart(LongPressStartDetails details) {
+    if (!_isTemplate) return;
+    ref.read(weekPlanDragProvider.notifier).start(
+          WeekPlanDragState(
+            templateId: widget.item.templateId!,
+            sourceDayOfWeek: widget.weekday,
+            sourceStartMinutes: widget.item.startMinutes,
+            sourceEndMinutes: widget.item.endMinutes,
+            pointerGlobal: details.globalPosition,
+            pickupOffsetLocal: details.localPosition,
+          ),
+        );
+  }
+
+  void _onLongPressMoveUpdate(LongPressMoveUpdateDetails details) {
+    ref
+        .read(weekPlanDragProvider.notifier)
+        .updatePointer(details.globalPosition);
   }
 }
 
@@ -659,6 +845,98 @@ class _RightStackedBody extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Ghost card painted on top of the canvas while the user is mid-
+/// drag. Follows the pointer (offset by the original pickup
+/// position so the card "lifts from where the finger was"), and
+/// renders a duplicate icon overlay when Alt is held — that's the
+/// step-7 hint that release will copy rather than move.
+class _DragGhost extends StatelessWidget {
+  const _DragGhost({
+    required this.state,
+    required this.scale,
+    required this.canvasKey,
+    required this.theme,
+  });
+
+  final WeekPlanDragState state;
+  final WeekPlanScale scale;
+  final GlobalKey canvasKey;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final box = canvasKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return const SizedBox.shrink();
+    final canvasLocal = box.globalToLocal(state.pointerGlobal);
+    final ghostTop = canvasLocal.dy - state.pickupOffsetLocal.dy;
+
+    final canvasSize = box.size;
+    final columnsWidth = canvasSize.width - _kHourLabelWidth;
+    final colWidth = columnsWidth / scheduleDayCount;
+    final ghostLeft =
+        canvasLocal.dx - state.pickupOffsetLocal.dx;
+    final ghostHeight =
+        state.durationMinutes * _kPxPerMinute - 2;
+
+    final altHeld = HardwareKeyboard.instance.isAltPressed;
+
+    return Positioned(
+      left: ghostLeft.clamp(0, canvasSize.width - colWidth),
+      top: ghostTop,
+      width: colWidth - 8,
+      height: ghostHeight,
+      child: IgnorePointer(
+        child: Material(
+          color: Colors.transparent,
+          elevation: 8,
+          borderRadius: BorderRadius.circular(8),
+          shadowColor: theme.colorScheme.primary.withValues(alpha: 0.4),
+          child: Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: theme.colorScheme.primary,
+                width: 1.5,
+              ),
+            ),
+            child: Stack(
+              children: [
+                Center(
+                  child: Text(
+                    altHeld ? 'Drop to duplicate' : 'Move…',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (altHeld)
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.onPrimary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.add,
+                        size: 14,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

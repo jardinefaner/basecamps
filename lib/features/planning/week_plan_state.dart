@@ -1,4 +1,5 @@
 import 'package:basecamp/core/format/date.dart';
+import 'package:flutter/painting.dart' show Offset;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Tiny Riverpod state holders for the week plan canvas. All four
@@ -105,4 +106,72 @@ class WeekPlanGroupFilterNotifier extends Notifier<String?> {
 final weekPlanGroupFilterProvider =
     NotifierProvider<WeekPlanGroupFilterNotifier, String?>(
   WeekPlanGroupFilterNotifier.new,
+);
+
+/// Live drag state. Non-null only while the user is mid-long-press
+/// over a card. Used by the canvas to render a ghost card following
+/// the pointer, and by the drop handler to know the source row's
+/// duration etc. Cleared on drag end / cancel.
+class WeekPlanDragState {
+  const WeekPlanDragState({
+    required this.templateId,
+    required this.sourceDayOfWeek,
+    required this.sourceStartMinutes,
+    required this.sourceEndMinutes,
+    required this.pointerGlobal,
+    required this.pickupOffsetLocal,
+  });
+
+  final String templateId;
+  final int sourceDayOfWeek;
+  final int sourceStartMinutes;
+  final int sourceEndMinutes;
+
+  /// Global screen position of the pointer right now. Updated on
+  /// every long-press-move event.
+  final Offset pointerGlobal;
+
+  /// Where on the card the user pressed initially, in card-local
+  /// coordinates. The ghost preserves this offset so the card lifts
+  /// "from where the finger is" rather than snapping to the
+  /// pointer's tip.
+  final Offset pickupOffsetLocal;
+
+  int get durationMinutes => sourceEndMinutes - sourceStartMinutes;
+
+  WeekPlanDragState copyWithPointer(Offset pointer) => WeekPlanDragState(
+        templateId: templateId,
+        sourceDayOfWeek: sourceDayOfWeek,
+        sourceStartMinutes: sourceStartMinutes,
+        sourceEndMinutes: sourceEndMinutes,
+        pointerGlobal: pointer,
+        pickupOffsetLocal: pickupOffsetLocal,
+      );
+}
+
+class WeekPlanDragNotifier extends Notifier<WeekPlanDragState?> {
+  @override
+  WeekPlanDragState? build() => null;
+
+  // Method-not-setter for the same reason `select` above is —
+  // starting a drag is a user action, not a property write.
+  // ignore: use_setters_to_change_properties
+  void start(WeekPlanDragState dragState) {
+    state = dragState;
+  }
+
+  void updatePointer(Offset global) {
+    final current = state;
+    if (current == null) return;
+    state = current.copyWithPointer(global);
+  }
+
+  void clear() {
+    state = null;
+  }
+}
+
+final weekPlanDragProvider =
+    NotifierProvider<WeekPlanDragNotifier, WeekPlanDragState?>(
+  WeekPlanDragNotifier.new,
 );
