@@ -1,7 +1,4 @@
-import 'dart:io';
-
 import 'package:basecamp/features/sync/media_service.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -62,15 +59,28 @@ class MediaSource {
 /// value, so a hundred SmallAvatars rendering the same child
 /// share one resolution.
 ///
-/// Resolution order:
-///   1. **Native + local file present** → [FileImage]. Instant,
-///      offline-friendly. Skipped on web (no FS).
-///   2. **storagePath set** → [MediaService.ensureBytes] hits the
-///      drift media-cache table; on miss, downloads from Supabase
-///      Storage, saves to drift, and returns the bytes. Result
-///      rendered as [MemoryImage]. Subsequent renders read
-///      straight from drift, no Supabase round-trip.
-///   3. **Otherwise** → null. The widget renders its placeholder.
+/// Resolution: always through [MediaService.ensureBytes] which
+/// hits the drift media-cache table; on miss / etag mismatch,
+/// downloads from Supabase Storage, saves to drift with the new
+/// etag, and returns the bytes. Subsequent renders read straight
+/// from drift, no Supabase round-trip.
+///
+/// **Why no native local-file fast path:** `avatar_path` is a
+/// per-device handle that never crosses devices, so it can lag
+/// the canonical `avatar_storage_path` + `avatar_etag` on the
+/// row. Symptom: Device A uploads a new photo, Device B receives
+/// the row update, but Device B's `avatar_path` still points at
+/// a previous photo it took locally — the fast path would render
+/// that stale file forever, ignoring the new etag. Going through
+/// the cache on every platform means rendering is content-
+/// addressed by `(storage_path, etag)` and a fresh upload on any
+/// device invalidates correctly everywhere.
+///
+/// Native still gets persistence: drift_flutter stores the cache
+/// blob in SQLite locally, so offline rendering works the same
+/// as the FileImage fast path did. The only thing we lose is one
+/// SQLite blob read instead of one FS read on warm-cache hits —
+/// negligible.
 ///
 /// `autoDispose` — family entries clean up when no listener is
 /// watching. The drift cache survives the dispose, so re-mounting
@@ -80,19 +90,6 @@ class MediaSource {
 final mediaImageProvider = FutureProvider.autoDispose
     .family<ImageProvider?, MediaSource>((ref, source) async {
   if (source.isEmpty) return null;
-
-  // 1) Native fast path: render the device-local file directly.
-  //    No drift hit, no signed URL, no Supabase round-trip.
-  if (!kIsWeb && source.localPath != null) {
-    final f = File(source.localPath!);
-    if (f.existsSync()) {
-      return FileImage(f);
-    }
-  }
-
-  // 2) Cross-device path: drift cache → on miss / etag mismatch,
-  //    Supabase download → save to drift with the new etag →
-  //    render bytes.
   final storagePath = source.storagePath;
   if (storagePath == null || storagePath.isEmpty) return null;
   final bytes = await ref

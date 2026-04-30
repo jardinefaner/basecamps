@@ -345,10 +345,8 @@ class MediaService {
       //      web has no FS, so we'd never have a local file to
       //      recover from.
       final Uint8List bytes;
-      final String ext;
       if (source != null) {
         bytes = await source.readAsBytes();
-        ext = _extensionFromXFile(source);
       } else {
         if (kIsWeb) return; // web heal is a no-op, see comments above.
         if (row.storagePath != null) return; // already uploaded
@@ -357,10 +355,23 @@ class MediaService {
         final file = File(localPath);
         if (!file.existsSync()) return;
         bytes = await file.readAsBytes();
-        ext = p.extension(localPath).isEmpty
-            ? '.jpg'
-            : p.extension(localPath);
       }
+
+      // Stable extensionless bucket key per row id. Previously we
+      // appended the picker's reported extension (e.g. `.jpg` from
+      // web, `.heic` from a recent iPhone photo). When the same
+      // row was edited from two different platforms, the keys
+      // diverged and the bucket accumulated orphan files —
+      // exactly the behavior you reported ("another file was
+      // added to the bucket … the previous photo from before").
+      // Storage doesn't need the extension; Content-Type carries
+      // the format and decoders sniff magic bytes anyway. One
+      // file per row, period.
+      //
+      // `image_picker` re-encodes to JPEG when `imageQuality` is
+      // set (which our pickers do), so we can safely upload as
+      // image/jpeg even for HEIC sources.
+      const contentType = 'image/jpeg';
 
       // Fresh per-upload etag. Cheap UUID — bucket key stays
       // stable (so we keep one cloud object per row id, no orphan
@@ -369,28 +380,31 @@ class MediaService {
       // matches and forces a re-fetch. See `ensureBytes` for the
       // matching logic.
       final etag = newId();
-      final storagePath = '${bucketKey(programId)}$ext';
+      final storagePath = bucketKey(programId);
+
       await client.storage.from(_bucket).uploadBinary(
             storagePath,
             bytes,
-            fileOptions: FileOptions(
+            fileOptions: const FileOptions(
               upsert: true,
-              contentType: _contentTypeFor(ext, 'photo'),
+              contentType: contentType,
             ),
           );
-      await stampMedia(storagePath, etag);
-      // Replace any stale bytes the drift cache may have for the
-      // same storage_path. Stamp the new bytes + new etag — both
-      // matter: the next render uses (path, etag) as the cache
-      // key, and the etag flows out to other devices via
-      // realtime so their caches invalidate too.
+
+      // Stamp the drift cache BEFORE updating the row. The row
+      // update fires through Drift's stream and any SmallAvatar
+      // watching the new etag immediately calls
+      // `mediaImageProvider` → `ensureBytes(path, newEtag)`. If
+      // the cache hasn't been stamped yet, it'd hit a miss and
+      // re-download bytes we just uploaded — pointless round-
+      // trip + brief render flicker. Stamping first means the
+      // new etag's bytes are ready the instant the row signals.
       try {
         await _db.into(_db.mediaCache).insertOnConflictUpdate(
               MediaCacheCompanion.insert(
                 storagePath: storagePath,
                 bytes: bytes,
-                contentType:
-                    Value(_contentTypeFor(ext, 'photo')),
+                contentType: const Value(contentType),
                 etag: Value(etag),
                 cachedAt: Value(DateTime.now()),
               ),
@@ -400,6 +414,7 @@ class MediaService {
         // upload. Next render falls through to network.
         debugPrint('Media cache stamp failed for $storagePath: $e');
       }
+      await stampMedia(storagePath, etag);
       // Mark the columns dirty + nudge a push so both the storage
       // path and etag actually reach cloud. Without etag in the
       // dirty list, other devices would only ever see the path
