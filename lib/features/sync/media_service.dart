@@ -122,7 +122,15 @@ class MediaService {
         debugPrint('Obs upload: row $attachmentId vanished');
         return;
       }
-      if (row.storagePath != null) return; // already uploaded
+      // Idempotency for heal-pass calls (no source): if the row
+      // already has storage_path set, a previous attempt
+      // succeeded all the way through. Skip.
+      //
+      // For fresh-capture calls (source provided), DON'T skip —
+      // the local-first ordering below stamps storage_path before
+      // the cloud upload, so a row with a stamped path can still
+      // need its cloud upload retried.
+      if (source == null && row.storagePath != null) return;
 
       step = 'fetch parent observation';
       // Find the parent observation to discover the program_id —
@@ -171,22 +179,19 @@ class MediaService {
       final storagePath = '$programId/observation_attachments/'
           '$attachmentId$ext';
 
-      step = 'storage uploadBinary';
-      await client.storage.from(_bucket).uploadBinary(
-            storagePath,
-            bytes,
-            fileOptions: FileOptions(
-              upsert: true,
-              contentType: contentType,
-            ),
-          );
+      // Local-first ordering: stamp the cache + the row's
+      // storage_path BEFORE the cloud upload. This makes the
+      // upload device render the image immediately — even if the
+      // cloud upload throws (transient network, supabase storage
+      // bug, RLS hiccup, etc.). Without this ordering, a cloud
+      // upload failure left the row with `storage_path == null`
+      // forever and the saved card showed "broken image" on the
+      // very device that just captured the photo.
+      //
+      // Cross-device viewing still requires the cloud upload to
+      // succeed; that's what the heal pass is for. But the local
+      // experience is now disconnected from cloud reachability.
 
-      // Stamp the freshly-uploaded bytes into media_cache so the
-      // upload device renders from cache instead of bouncing
-      // through Storage on the next paint. Mirrors the avatar
-      // pipeline; pre-v52 this step was missing for observation
-      // attachments and the upload device re-downloaded its own
-      // bytes on first render.
       step = 'media_cache stamp';
       try {
         await _db.into(_db.mediaCache).insertOnConflictUpdate(
@@ -198,8 +203,8 @@ class MediaService {
               ),
             );
       } on Object catch (e) {
-        // Best-effort — a cache hiccup doesn't fail the upload.
-        // Next render re-downloads.
+        // Best-effort — without the cache the device falls back
+        // to network on next render.
         debugPrint(
           'Obs upload: media_cache stamp failed for $storagePath: $e',
         );
@@ -213,6 +218,29 @@ class MediaService {
           storagePath: Value(storagePath),
         ),
       );
+
+      step = 'storage uploadBinary';
+      try {
+        await client.storage.from(_bucket).uploadBinary(
+              storagePath,
+              bytes,
+              fileOptions: FileOptions(
+                upsert: true,
+                contentType: contentType,
+              ),
+            );
+      } on Object catch (e, st) {
+        // Cloud upload failed but the local row + cache are
+        // already stamped. The heal pass (or a manual retry from
+        // a future code path) will eventually push the bytes.
+        // Surface the error so the user knows cross-device sync
+        // is delayed; the local view is unaffected.
+        debugPrint(
+          'Obs upload: cloud uploadBinary failed for '
+          '$storagePath: $e\n$st',
+        );
+        return;
+      }
 
       // observation_attachments is a cascade of observations —
       // it travels to cloud via the parent's pushRow + cascade
