@@ -1277,12 +1277,12 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
       );
       if (result == null) return;
       if (!mounted) return;
+      // Stamp etag alongside the path. Other devices pull the
+      // form submission row through realtime; the etag change
+      // forces their MediaImage cache to re-fetch instead of
+      // serving stale bytes for the same storage_path.
       setState(() {
         final current = _values[field.key];
-        // Stamp etag alongside the path. Other devices pull the
-        // form submission row through realtime; the etag change
-        // forces their MediaImage cache to re-fetch instead of
-        // serving stale bytes for the same storage_path.
         _values[field.key] = <String, dynamic>{
           if (current is Map) ...current.cast<String, dynamic>(),
           // On native we keep the local path for fast offline
@@ -1293,6 +1293,22 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
           'etag': result.etag,
         };
       });
+      // **Persist** the data blob so the row's `data` JSON
+      // actually gets the new storagePath + etag. Without this
+      // call the upload happens, the bytes land in Storage, but
+      // the submission row's `data` never updates — so cross-
+      // device readers (and even the local device after pop +
+      // re-open) see an empty image slot. Without this line the
+      // user's bug repro is "I uploaded a photo, no one sees it."
+      try {
+        await ref.read(formSubmissionRepositoryProvider).updateSubmission(
+              id: submissionId,
+              data: Map<String, dynamic>.from(_values),
+              childId: _effectiveChildId(),
+            );
+      } on Object catch (e, st) {
+        debugPrint('Form image data-blob persist failed: $e\n$st');
+      }
     } on Object catch (e, st) {
       debugPrint('Form image upload failed: $e\n$st');
     }
@@ -1526,6 +1542,21 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
           'signatureEtag': result.etag,
         };
       });
+      // Persist the data blob so the storage_path actually
+      // travels to cloud. Same fix as the image-field path —
+      // without this, cross-device readers never see the
+      // signature exists.
+      try {
+        await ref.read(formSubmissionRepositoryProvider).updateSubmission(
+              id: submissionId,
+              data: Map<String, dynamic>.from(_values),
+              childId: _effectiveChildId(),
+            );
+      } on Object catch (e, st) {
+        debugPrint(
+          'Form signature data-blob persist failed: $e\n$st',
+        );
+      }
     } on Object catch (e, st) {
       debugPrint('Signature upload failed: $e\n$st');
     }

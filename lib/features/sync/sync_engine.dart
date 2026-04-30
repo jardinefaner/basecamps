@@ -262,7 +262,7 @@ class SyncEngine {
       );
       if (cloudUpdatedAt == null) {
         await client.from(spec.table).upsert(
-              _toCloudShape(row, spec.dateColumns),
+              _toCloudShape(spec.table, row, spec.dateColumns),
             );
         await _pushCascades(client, spec, id);
       } else {
@@ -320,13 +320,13 @@ class SyncEngine {
     if (cloudExists == null) {
       // No row in cloud — full upsert (insert path).
       await client.from(spec.table).upsert(
-            _toCloudShape(row, spec.dateColumns),
+            _toCloudShape(spec.table, row, spec.dateColumns),
           );
       await _db.clearDirtyFields(spec.table, id);
       return;
     }
     // Cloud has the row; partial UPDATE.
-    final shaped = _toCloudShape(row, spec.dateColumns);
+    final shaped = _toCloudShape(spec.table, row, spec.dateColumns);
     final payload = <String, Object?>{
       // Always include the row's identity + cloud-side housekeeping
       // fields. updated_at lets cloud's last-write-wins logic + our
@@ -395,7 +395,7 @@ class SyncEngine {
       if (cascadeRows.isNotEmpty) {
         await client.from(cascade.table).upsert([
           for (final r in cascadeRows)
-            _toCloudShape(r, cascade.dateColumns),
+            _toCloudShape(cascade.table, r, cascade.dateColumns),
         ]);
       }
       _lastCascadeFingerprint[fingerprintKey] = fingerprint;
@@ -845,56 +845,81 @@ class SyncEngine {
     return [for (final r in results) r.data];
   }
 
-  /// Columns the engine never reads from cloud or writes to cloud
-  /// — each device owns them locally. Filtered out of both push
-  /// payloads (`_toCloudShape`) and pull projections
-  /// (`_upsertLocalRow`) so a device never imports another
-  /// device's local-only column value over its own.
+  /// Columns filtered from cloud sync. Push and pull are different
+  /// because cloud has different rules for different per-device
+  /// columns:
   ///
-  ///   * `deleted_at` — cloud-only soft-delete tombstone; local
-  ///     hard-deletes the row, so cloud's deleted_at never has a
-  ///     local mirror.
-  ///   * `dirty_fields` — local-only sync state, see Phase 1.
-  ///   * `avatar_path` — local filesystem handle, only valid on
-  ///     the device that captured the photo. The cross-device
-  ///     handle is `avatar_storage_path` (the Supabase Storage
-  ///     key). Pre-fix the cloud row carried this useless string,
-  ///     polluting other devices' rendering.
-  ///   * `local_path` (on `observation_attachments`) — same shape
-  ///     as `avatar_path` for attachments.
-  ///   * `remote_url`, `thumbnail_path` (on
-  ///     `observation_attachments`) — dead pre-Storage placeholders
-  ///     in the local Drift schema. Cloud doesn't have either
-  ///     column, so a push that included them blew up with
-  ///     `PGRST204: Could not find the 'remote_url' column …`
-  ///     and the whole observation cascade silently failed —
-  ///     attachments never reached cloud. Filtering them on push
-  ///     unwedges the cascade. (We could also drop the columns
-  ///     from local Drift, but that's a separate cleanup; this
-  ///     fix is one line and zero migrations.)
-  static const _kLocalOnlyColumns = <String>{
+  ///   * **Universal drops** (both directions): columns that don't
+  ///     exist in any cloud table or are cloud-only.
+  ///       - `deleted_at` — cloud-only soft-delete tombstone; local
+  ///         hard-deletes the row.
+  ///       - `dirty_fields` — local-only sync state, never crosses
+  ///         the wire.
+  ///       - `remote_url`, `thumbnail_path` — dead pre-Storage
+  ///         placeholders in the Drift schema; cloud never had
+  ///         them. Pushing them surfaced as `PGRST204: Could not
+  ///         find the 'remote_url' column …` and silently killed
+  ///         every observation cascade.
+  ///
+  ///   * **Per-table push drops**: columns the cloud table doesn't
+  ///     have or doesn't want.
+  ///       - `adults.avatar_path`, `children.avatar_path` —
+  ///         per-device filesystem handles. The cross-device
+  ///         handle is `avatar_storage_path`; sending the local
+  ///         path polluted other devices' rendering.
+  ///       - `observation_attachments.local_path` is **NOT** in
+  ///         this set: the cloud column is `NOT NULL`, so a push
+  ///         without it triggers a Postgres constraint violation
+  ///         and the cascade fails just like the `remote_url`
+  ///         case did. We send the path; receive devices filter
+  ///         it on pull (see below).
+  ///
+  ///   * **Per-table pull drops**: columns we accept from cloud
+  ///     but ignore on import so we don't clobber this device's
+  ///     own value.
+  ///       - `adults.avatar_path`, `children.avatar_path` — same
+  ///         reason as push.
+  ///       - `observation_attachments.local_path` — receive
+  ///         device's value should reflect ITS local file (or
+  ///         empty if it hasn't downloaded yet), not the capture
+  ///         device's path which is meaningless here.
+  static const _kUniversalDropColumns = <String>{
     'deleted_at',
     'dirty_fields',
-    'avatar_path',
-    'local_path',
     'remote_url',
     'thumbnail_path',
   };
+  static const _kPushDropByTable = <String, Set<String>>{
+    'adults': {'avatar_path'},
+    'children': {'avatar_path'},
+  };
+  static const _kPullDropByTable = <String, Set<String>>{
+    'adults': {'avatar_path'},
+    'children': {'avatar_path'},
+    'observation_attachments': {'local_path'},
+  };
+
+  bool _shouldDropOnPush(String table, String column) =>
+      _kUniversalDropColumns.contains(column) ||
+      (_kPushDropByTable[table]?.contains(column) ?? false);
+
+  bool _shouldDropOnPull(String table, String column) =>
+      _kUniversalDropColumns.contains(column) ||
+      (_kPullDropByTable[table]?.contains(column) ?? false);
 
   /// Drift returns `int` for DateTime-typed columns (unix-seconds
   /// since drift's encoder). Postgres expects ISO strings. Convert
   /// every column the spec marked as date-typed.
   Map<String, Object?> _toCloudShape(
+    String table,
     Map<String, Object?> row,
     Set<String> dateColumns,
   ) {
     return <String, Object?>{
       for (final entry in row.entries)
-        // Local-only columns never make it onto the wire — invert
-        // the membership check so the collection-literal stays a
-        // simple if/else without `continue` (which Dart doesn't
-        // allow inside a collection literal).
-        if (!_kLocalOnlyColumns.contains(entry.key))
+        // Per-table push filters — collection literal stays simple
+        // by inverting the predicate.
+        if (!_shouldDropOnPush(table, entry.key))
           if (dateColumns.contains(entry.key) && entry.value != null)
             entry.key: DateTime.fromMillisecondsSinceEpoch(
               (entry.value! as int) * 1000,
@@ -915,15 +940,11 @@ class SyncEngine {
     Map<String, dynamic> row,
     Set<String> dateColumns,
   ) async {
-    // Filter out local-only columns when projecting cloud → local.
-    // `deleted_at` is cloud-only (we hard-delete locally). The
-    // per-device columns (`avatar_path`, `local_path`,
-    // `dirty_fields`) belong to whichever device is reading the
-    // pull, NOT the device that pushed the row. Importing them
-    // would clobber this device's own state.
+    // Per-table pull drops keep this device's own per-device
+    // columns intact when a cloud row arrives.
     final projected = <String, Object?>{};
     for (final entry in row.entries) {
-      if (_kLocalOnlyColumns.contains(entry.key)) continue;
+      if (_shouldDropOnPull(table, entry.key)) continue;
       if (dateColumns.contains(entry.key) && entry.value != null) {
         projected[entry.key] =
             DateTime.parse(entry.value as String).millisecondsSinceEpoch ~/
