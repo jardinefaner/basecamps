@@ -58,5 +58,8 @@ dart_defines.json
 # to source control.
 supabase/.temp/
 
-# Claude Code local state
-.claude/
+# Claude Code local state — local-only settings + scratch state.
+# Project-scoped agents (`.claude/agents/`) ARE tracked so the
+# audit definitions persist for the team / future sessions.
+.claude/*
+!.claude/agents/

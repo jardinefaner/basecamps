@@ -3,6 +3,7 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/themes/themes_repository.dart';
 import 'package:basecamp/features/themes/widgets/edit_theme_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:basecamp/ui/adaptive_sheet.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/responsive.dart';
 import 'package:flutter/material.dart';
@@ -22,10 +23,10 @@ class ThemesScreen extends ConsumerStatefulWidget {
 
 class _ThemesScreenState extends ConsumerState<ThemesScreen> {
   Future<void> _openSheet({ProgramTheme? theme}) async {
-    await showModalBottomSheet<void>(
+    // Adaptive: bottom sheet on phones, right side-panel on web/
+    // wide windows. Sheet body is unchanged.
+    await showAdaptiveSheet<void>(
       context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
       builder: (_) => EditThemeSheet(theme: theme),
     );
   }

@@ -2,6 +2,7 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/vehicles/vehicles_repository.dart';
 import 'package:basecamp/features/vehicles/widgets/edit_vehicle_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:basecamp/ui/adaptive_sheet.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/responsive.dart';
 import 'package:flutter/material.dart';
@@ -20,10 +21,8 @@ class VehiclesScreen extends ConsumerStatefulWidget {
 
 class _VehiclesScreenState extends ConsumerState<VehiclesScreen> {
   Future<void> _openSheet({Vehicle? vehicle}) async {
-    await showModalBottomSheet<void>(
+    await showAdaptiveSheet<void>(
       context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
       builder: (_) => EditVehicleSheet(vehicle: vehicle),
     );
   }
