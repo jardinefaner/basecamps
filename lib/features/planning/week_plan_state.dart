@@ -1,0 +1,108 @@
+import 'package:basecamp/core/format/date.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+/// Tiny Riverpod state holders for the week plan canvas. All four
+/// pieces of UI state live here so the canvas, the FAB, the header,
+/// and the group-filter chip rail can stay decoupled.
+///
+/// `Notifier<T>` everywhere instead of `StateProvider` so the
+/// callsites read intent (`.set(x)`, `.toggle()`) rather than
+/// opaque `state =` assignments.
+
+/// Monday of the visible week. Defaults to the current week's
+/// Monday on init; `WeekPlanWeekNotifier.shift(±n)` advances by
+/// whole weeks. Time component is always midnight local.
+class WeekPlanWeekNotifier extends Notifier<DateTime> {
+  @override
+  DateTime build() {
+    final now = DateTime.now().dayOnly;
+    return now.subtract(Duration(days: now.weekday - 1));
+  }
+
+  void shift(int weeks) {
+    state = state.add(Duration(days: 7 * weeks));
+  }
+
+  void thisWeek() {
+    final now = DateTime.now().dayOnly;
+    state = now.subtract(Duration(days: now.weekday - 1));
+  }
+
+  void set(DateTime monday) {
+    state = monday.dayOnly;
+  }
+}
+
+final weekPlanWeekProvider =
+    NotifierProvider<WeekPlanWeekNotifier, DateTime>(
+  WeekPlanWeekNotifier.new,
+);
+
+/// Convenience: which day-of-week the next FAB-tap "Add" lands in.
+/// Updates whenever the user taps a column or interacts with a
+/// card. Defaults to today's weekday when it's a weekday, Mon
+/// otherwise. Range: 1..5 (Mon..Fri — Sat/Sun aren't on the canvas).
+class WeekPlanFocusedDayNotifier extends Notifier<int> {
+  @override
+  int build() {
+    final today = DateTime.now().weekday;
+    return today >= 1 && today <= 5 ? today : 1;
+  }
+
+  void set(int dayOfWeek) {
+    if (dayOfWeek < 1 || dayOfWeek > 5) return;
+    state = dayOfWeek;
+  }
+}
+
+final weekPlanFocusedDayProvider =
+    NotifierProvider<WeekPlanFocusedDayNotifier, int>(
+  WeekPlanFocusedDayNotifier.new,
+);
+
+/// Currently-selected card's template id, or null when nothing's
+/// selected. Drives the FAB transform: null → `+` (add), non-null
+/// → `✏️` (open edit sheet).
+class WeekPlanSelectedNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  // Method, not a setter, because the call site reads better as
+  // `notifier.select(id)` than `notifier.selected = id` — a setter
+  // implies a passive write, but selection is a *user action*.
+  // ignore: use_setters_to_change_properties
+  void select(String templateId) {
+    state = templateId;
+  }
+
+  void clear() {
+    state = null;
+  }
+}
+
+final weekPlanSelectedTemplateProvider =
+    NotifierProvider<WeekPlanSelectedNotifier, String?>(
+  WeekPlanSelectedNotifier.new,
+);
+
+/// Active group filter. Null = "All groups" view (every template
+/// renders, including all-groups templates). Non-null = scope to
+/// one group (renders templates for that group + all-groups
+/// templates).
+class WeekPlanGroupFilterNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  // Method-not-setter for the same reason `select` above is — the
+  // group-filter chip is a user choice, the call site reading
+  // `.set(id)` makes that explicit.
+  // ignore: use_setters_to_change_properties
+  void set(String? groupId) {
+    state = groupId;
+  }
+}
+
+final weekPlanGroupFilterProvider =
+    NotifierProvider<WeekPlanGroupFilterNotifier, String?>(
+  WeekPlanGroupFilterNotifier.new,
+);
