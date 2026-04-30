@@ -644,6 +644,29 @@ class ProgramAuthBootstrap {
       debugPrint('Sync pull complete — $total rows applied across '
           '${kAllSpecs.length} tables.');
     }
+    // Re-hydrate programs + program_members alongside the
+    // entity pulls. These tables don't go through the engine
+    // (composite PK on members, no `updated_at`/`id` columns —
+    // doesn't fit the watermarked-pull pattern), so we re-run
+    // the cloud-membership query on every periodic pull and
+    // every foreground resume. It's a two-RPC round-trip; the
+    // result set is small (handful of programs, dozens of
+    // members) so the cost is negligible.
+    //
+    // Without this step, a new co-member who joined since
+    // sign-in only appeared after a full app restart — the
+    // user's "I don't see members" complaint.
+    final session = _ref.read(currentSessionProvider);
+    if (session != null) {
+      try {
+        await _ref.read(programsRepositoryProvider).hydrateCloudProgramsForUser(
+              userId: session.user.id,
+              supabase: Supabase.instance.client,
+            );
+      } on Object catch (e) {
+        debugPrint('Programs/members re-hydrate failed: $e');
+      }
+    }
   }
 }
 

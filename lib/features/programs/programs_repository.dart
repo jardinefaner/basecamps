@@ -138,31 +138,44 @@ class ProgramsRepository {
     required String userId,
     required SupabaseClient supabase,
   }) async {
-    // Step 1: which programs does the cloud think this user is in?
-    // RLS only returns rows where `user_id = auth.uid()`, so a
-    // simple `.select()` is enough — no extra filter needed for
-    // safety, only for clarity.
+    // Step 1: find the user's own membership rows. RLS keeps this
+    // narrow (a user can't see other users' rows in other
+    // programs they don't belong to). The result is the set of
+    // program ids we need to expand on.
+    final ownRowsRaw = await supabase
+        .from('program_members')
+        .select('program_id, role')
+        .eq('user_id', userId);
+    final ownRows = List<Map<String, dynamic>>.from(ownRowsRaw);
+    if (ownRows.isEmpty) return 0;
+    final programIds = [
+      for (final m in ownRows) m['program_id'] as String,
+    ];
+
+    // Step 2: pull every member of every program we belong to.
+    // RLS policy `program_members_visible_to_all_members` (0019)
+    // allows seeing peers, so this returns the full roster, not
+    // just our own row. **This is the fix for "I don't see
+    // members even though there's multiple"** — the previous
+    // version filtered to user_id = userId, which only ever
+    // returned the signed-in user's row.
     final memberRowsRaw = await supabase
         .from('program_members')
         .select('program_id, user_id, role, joined_at')
-        .eq('user_id', userId);
+        .inFilter('program_id', programIds);
     final memberRows = List<Map<String, dynamic>>.from(memberRowsRaw);
-    if (memberRows.isEmpty) return 0;
 
-    // Step 2: pull the corresponding programs rows. The select
-    // RLS policy on `programs` allows reading any program the
-    // user is a member of, so this returns one row per id we
-    // just discovered.
-    final programIds = [
-      for (final m in memberRows) m['program_id'] as String,
-    ];
+    // Step 3: pull the program rows. Same RLS shape — readable
+    // because we're a member.
     final programRowsRaw =
         await supabase.from('programs').select().inFilter('id', programIds);
     final programRows = List<Map<String, dynamic>>.from(programRowsRaw);
 
-    // Step 3: write everything into the local DB. Membership
-    // first would violate the FK from program_members → programs,
-    // so insert programs first, then memberships.
+    // Step 4: write everything into the local DB. Programs
+    // before memberships (FK ordering) and stale memberships
+    // get pruned per-program so a removed peer disappears
+    // locally too. Without the prune step we'd accumulate
+    // ghosts forever.
     var written = 0;
     await _db.transaction(() async {
       for (final row in programRows) {
@@ -176,6 +189,26 @@ class ProgramsRepository {
               ),
             );
         written++;
+      }
+      // Prune per-program: keep only the (program_id, user_id)
+      // pairs cloud just told us about. Drop everything else
+      // for those programs so a removed-cloud member stops
+      // showing up locally on the next render.
+      final cloudPairs = <String>{
+        for (final m in memberRows)
+          '${m['program_id']}|${m['user_id']}',
+      };
+      final localExisting = await (_db.select(_db.programMembers)
+            ..where((m) => m.programId.isIn(programIds)))
+          .get();
+      for (final local in localExisting) {
+        if (!cloudPairs.contains('${local.programId}|${local.userId}')) {
+          await (_db.delete(_db.programMembers)
+                ..where((m) =>
+                    m.programId.equals(local.programId) &
+                    m.userId.equals(local.userId)))
+              .go();
+        }
       }
       for (final m in memberRows) {
         await _db.into(_db.programMembers).insertOnConflictUpdate(
