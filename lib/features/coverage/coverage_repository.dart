@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/role_blocks_repository.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -54,7 +56,7 @@ class CoverageRepository {
     required DateTime date,
     required int minuteOfDay,
   }) async {
-    final dayStart = DateTime(date.year, date.month, date.day);
+    final dayStart = date.dayOnly;
 
     final patterns = await (_db.select(_db.adultRoleBlocks)
           ..where((b) =>
@@ -420,7 +422,7 @@ final coverageDayProvider =
   // re-reading nowTick keeps us aligned to the wall clock so
   // we re-create the stream automatically at midnight rollover.
   final now = ref.watch(nowTickProvider).value ?? DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
+  final today = now.dayOnly;
   return ref
       .read(coverageRepositoryProvider)
       .watchDayCoverage(date: today);

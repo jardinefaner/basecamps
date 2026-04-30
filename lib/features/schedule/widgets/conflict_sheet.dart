@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/time.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/rooms/rooms_repository.dart';
@@ -212,7 +213,7 @@ class _ConflictCard extends ConsumerWidget {
               Text(
                 other.isFullDay
                     ? 'All day'
-                    : '${_formatTime(other.startTime)} – ${_formatTime(other.endTime)}',
+                    : '${Hhmm.formatCompact(other.startTime)} – ${Hhmm.formatCompact(other.endTime)}',
                 style: theme.textTheme.labelMedium,
               ),
             ],
@@ -352,13 +353,4 @@ class _TripConflictCard extends StatelessWidget {
       ),
     );
   }
-}
-
-String _formatTime(String hhmm) {
-  final parts = hhmm.split(':');
-  final h = int.parse(parts[0]);
-  final m = parts[1];
-  final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-  final period = h < 12 ? 'a' : 'p';
-  return m == '00' ? '$hour12$period' : '$hour12:$m$period';
 }

@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/time.dart';
 import 'package:basecamp/features/calendar/calendar_event.dart';
 import 'package:basecamp/features/calendar/calendar_synthesizer.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
@@ -40,8 +41,7 @@ class TodayAgendaView extends ConsumerWidget {
     // selected group's anchor leads, if a group is selected. Join
     // their ids into a stable key so the family provider caches.
     final summariesAsync = ref.watch(groupSummariesProvider);
-    final summaries =
-        summariesAsync.asData?.value ?? const <GroupSummary>[];
+    final summaries = summariesAsync.asData?.value ?? const <GroupSummary>[];
     GroupSummary? selected;
     if (selectedGroupId != null) {
       for (final s in summaries) {
@@ -51,14 +51,14 @@ class TodayAgendaView extends ConsumerWidget {
         }
       }
     }
-    final adultIdsForBreaks = (selected == null ||
-            selected.anchorLeads.isEmpty)
+    final adultIdsForBreaks = (selected == null || selected.anchorLeads.isEmpty)
         ? const <String>[]
         : ([for (final s in selected.anchorLeads) s.id]..sort());
     final adultIdsKey = adultIdsForBreaks.join(',');
 
-    final eventsAsync =
-        ref.watch(calendarEventsWithBreaksTodayProvider(adultIdsKey));
+    final eventsAsync = ref.watch(
+      calendarEventsWithBreaksTodayProvider(adultIdsKey),
+    );
 
     return eventsAsync.when(
       loading: () => const Padding(
@@ -169,8 +169,7 @@ class TodayAgendaView extends ConsumerWidget {
           location: event.location,
           roomId: event.roomId,
           isFromTemplate: event.sourceKind == 'template',
-          templateId:
-              event.sourceKind == 'template' ? event.sourceId : null,
+          templateId: event.sourceKind == 'template' ? event.sourceId : null,
           entryId: event.sourceKind == 'entry' ? event.sourceId : null,
           date: DateTime(
             event.startAt.year,
@@ -283,8 +282,7 @@ class _AgendaRow extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (event.subtitle != null &&
-                    event.subtitle!.isNotEmpty)
+                if (event.subtitle != null && event.subtitle!.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
@@ -308,7 +306,7 @@ class _AgendaRow extends StatelessWidget {
   /// all-day spans. Always compact — "9:30a" not "09:30 AM."
   String _timeLabel(CalendarEvent e) {
     if (e.allDay) return 'All day';
-    return _fmt12h(e.startAt);
+    return Hhmm.formatLongDateTime(e.startAt);
   }
 
   /// Optional second line under the start time — "→ 10:30a" for a
@@ -320,15 +318,7 @@ class _AgendaRow extends StatelessWidget {
       if (dayCount > 1) return '$dayCount days';
       return null;
     }
-    return '→ ${_fmt12h(e.endAt)}';
-  }
-
-  String _fmt12h(DateTime d) {
-    final h = d.hour;
-    final m = d.minute;
-    final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-    final period = h >= 12 ? 'p' : 'a';
-    return m == 0 ? '$hour12$period' : '$hour12:${m.toString().padLeft(2, '0')}$period';
+    return '→ ${Hhmm.formatLongDateTime(e.endAt)}';
   }
 
   _KindStyle _styleFor(CalendarEvent e, ThemeData theme) {

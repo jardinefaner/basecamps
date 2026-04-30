@@ -174,9 +174,7 @@ bool isGroupStaffedToday({
   // Adults leading this group today via a per-day block.
   final leadsByBlockToday = <String>{
     for (final b in todayDayBlocks)
-      if (b.dayOfWeek == weekday &&
-          b.role == AdultBlockRole.lead.dbValue &&
-          b.groupId == groupId)
+      if (b.dayOfWeek == weekday && b.isLead && b.groupId == groupId)
         b.adultId,
   };
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:basecamp/core/format/color.dart';
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/curriculum/curriculum_importer.dart';
 import 'package:basecamp/features/curriculum/curriculum_template_preview_screen.dart';
@@ -180,8 +181,7 @@ class _ThemeRow extends StatelessWidget {
     final theme = Theme.of(context);
     final swatchColor = parseThemeColor(programTheme.colorHex);
     final rangeLabel =
-        '${DateFormat.MMMd().format(programTheme.startDate)} – '
-        '${DateFormat.MMMd().format(programTheme.endDate)}';
+        formatDateRange(programTheme.startDate, programTheme.endDate);
     return AppCard(
       onTap: () => context.push('/more/themes/${programTheme.id}/curriculum'),
       child: Row(
@@ -464,7 +464,7 @@ class _UseTemplateSheetState extends ConsumerState<_UseTemplateSheet> {
 
   static DateTime _nextMonday() {
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+    final today = now.dayOnly;
     final daysUntilMonday = (DateTime.monday - today.weekday + 7) % 7;
     final delta = daysUntilMonday == 0 ? 7 : daysUntilMonday;
     return today.add(Duration(days: delta));

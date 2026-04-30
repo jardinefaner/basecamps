@@ -1,3 +1,5 @@
+import 'package:basecamp/core/format/date.dart';
+import 'package:basecamp/core/format/time.dart';
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
@@ -13,6 +15,7 @@ import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/step_wizard.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -69,7 +72,8 @@ class _NewActivityWizardScreenState
   // card sourceUrl. Rendered tappably on the detail sheet when set.
   final _sourceUrl = TextEditingController();
 
-  late final Set<int> _selectedDays = widget.initialDays?.toSet() ??
+  late final Set<int> _selectedDays =
+      widget.initialDays?.toSet() ??
       <int>{clampToScheduleDay(DateTime.now().weekday)};
   // Default to the next full-hour slot — if it's 10:34 now, start at
   // 11:00; 11:00 + 1h = 12:00. Beats hardcoded 9–10 which was always
@@ -203,8 +207,13 @@ class _NewActivityWizardScreenState
       if (endMinutes <= startMinutes) {
         // Keep a positive-duration by default when the user pushes the
         // start past the end — nudge the end to +60 minutes.
-        final bumped = DateTime(2000, 1, 1, picked.hour, picked.minute)
-            .add(const Duration(hours: 1));
+        final bumped = DateTime(
+          2000,
+          1,
+          1,
+          picked.hour,
+          picked.minute,
+        ).add(const Duration(hours: 1));
         _end = TimeOfDay(hour: bumped.hour, minute: bumped.minute);
       }
     });
@@ -263,8 +272,8 @@ class _NewActivityWizardScreenState
     for (final day in _selectedDays) {
       final templateId = await repo.addTemplate(
         dayOfWeek: day,
-        startTime: _formatTime(_start),
-        endTime: _formatTime(_end),
+        startTime: Hhmm.formatLongTimeOfDay(_start),
+        endTime: Hhmm.formatLongTimeOfDay(_end),
         title: _title.text.trim(),
         groupIds: groupIds,
         allGroups: _allGroups,
@@ -331,7 +340,7 @@ class _NewActivityWizardScreenState
 
   (DateTime monday, DateTime friday) _currentProgramWeek() {
     final now = DateTime.now();
-    final todayOnly = DateTime(now.year, now.month, now.day);
+    final todayOnly = now.dayOnly;
     final monday = todayOnly.subtract(Duration(days: todayOnly.weekday - 1));
     final friday = monday.add(const Duration(days: 4));
     return (monday, friday);
@@ -354,7 +363,7 @@ class _NewActivityWizardScreenState
 
   static DateTime _today() {
     final n = DateTime.now();
-    return DateTime(n.year, n.month, n.day);
+    return n.dayOnly;
   }
 
   // ---- build ----
@@ -683,7 +692,9 @@ class _NewActivityWizardScreenState
                       label: Text(group.name),
                       selected: _groupIds.contains(group.id),
                       onSelected: (_) => setState(() {
-                        if (!_groupIds.add(group.id)) _groupIds.remove(group.id);
+                        if (!_groupIds.add(group.id)) {
+                          _groupIds.remove(group.id);
+                        }
                       }),
                     ),
                 ],
@@ -765,9 +776,6 @@ class _NewActivityWizardScreenState
   // ---- utils ----
 
   int _minutesFor(TimeOfDay t) => t.hour * 60 + t.minute;
-
-  String _formatTime(TimeOfDay t) =>
-      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
   String _formatClock(TimeOfDay t) {
     final hour12 = t.hour == 0 ? 12 : (t.hour > 12 ? t.hour - 12 : t.hour);
@@ -1010,13 +1018,11 @@ class _RangePreview extends StatelessWidget {
   /// Returns null when either bound is open-ended.
   int? _countOccurrences() {
     if (startDate == null || endDate == null || days.isEmpty) return null;
-    final start = DateTime(startDate!.year, startDate!.month, startDate!.day);
-    final end = DateTime(endDate!.year, endDate!.month, endDate!.day);
+    final start = startDate!.dayOnly;
+    final end = endDate!.dayOnly;
     if (end.isBefore(start)) return 0;
     var count = 0;
-    for (var d = start;
-        !d.isAfter(end);
-        d = d.add(const Duration(days: 1))) {
+    for (var d = start; !d.isAfter(end); d = d.add(const Duration(days: 1))) {
       if (days.contains(d.weekday)) count++;
     }
     return count;

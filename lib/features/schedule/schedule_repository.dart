@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
@@ -8,6 +9,7 @@ import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
+
 import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1415,7 +1417,7 @@ class ScheduleRepository {
     return (aParts[0] * 60 + aParts[1]).compareTo(bParts[0] * 60 + bParts[1]);
   }
 
-  DateTime _dayOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+  DateTime _dayOnly(DateTime d) => d.dayOnly;
 }
 
 final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
@@ -1456,7 +1458,7 @@ final scheduleForWeekProvider =
 final todayScheduleProvider = StreamProvider<List<ScheduleItem>>((ref) {
   ref.watch(activeProgramIdProvider);
   final now = ref.watch(nowTickProvider).value ?? DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
+  final today = now.dayOnly;
   return ref
       .watch(scheduleRepositoryProvider)
       .watchScheduleForDate(today);

@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/observations/widgets/observation_composer.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -107,7 +109,7 @@ _Signal? _resolveObservationGap({
   final hour = now.hour;
   if (hour < 9 || hour >= 15) return null;
 
-  final today = DateTime(now.year, now.month, now.day);
+  final today = now.dayOnly;
   final tomorrow = today.add(const Duration(days: 1));
 
   // Only consider observations created on today's calendar date —

@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/themes/themes_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -6,6 +7,7 @@ import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/save_action.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:basecamp/ui/undo_delete.dart';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -69,7 +71,7 @@ class _EditThemeSheetState extends ConsumerState<EditThemeSheet> {
   void initState() {
     super.initState();
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+    final today = now.dayOnly;
     _startDate = widget.theme?.startDate ?? today;
     _endDate =
         widget.theme?.endDate ?? today.add(const Duration(days: 4));

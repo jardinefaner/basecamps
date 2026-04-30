@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
+
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -192,7 +194,7 @@ class RoleBlocksRepository {
     required String adultId,
     required DateTime date,
   }) {
-    final dayStart = DateTime(date.year, date.month, date.day);
+    final dayStart = date.dayOnly;
     final query = _db.select(_db.adultRoleBlockOverrides)
       ..where((o) =>
           o.adultId.equals(adultId) &
@@ -212,7 +214,7 @@ class RoleBlocksRepository {
     bool replaces = false,
   }) async {
     final id = newId();
-    final dayStart = DateTime(date.year, date.month, date.day);
+    final dayStart = date.dayOnly;
     await _db.into(_db.adultRoleBlockOverrides).insert(
           AdultRoleBlockOverridesCompanion.insert(
             id: id,
@@ -263,7 +265,7 @@ class RoleBlocksRepository {
     required String adultId,
     required DateTime date,
   }) async {
-    final dayStart = DateTime(date.year, date.month, date.day);
+    final dayStart = date.dayOnly;
     final pattern = await (_db.select(_db.adultRoleBlocks)
           ..where((b) =>
               b.adultId.equals(adultId) & b.weekday.equals(date.weekday)))

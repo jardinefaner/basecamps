@@ -1,6 +1,8 @@
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -22,7 +24,7 @@ class TripCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final now = DateTime.now();
-    final isPast = trip.date.isBefore(DateTime(now.year, now.month, now.day));
+    final isPast = trip.date.isBefore(now.dayOnly);
     final dateLabel = DateFormat.MMMEd().format(trip.date);
 
     return AppCard(

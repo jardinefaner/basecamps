@@ -1,9 +1,11 @@
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/forms/polymorphic/form_submission_repository.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -230,7 +232,7 @@ RecapResult buildRecapText({
 
   // Observations linked to this child created today (the repository's
   // watchForKid is not day-scoped, so narrow here).
-  final start = DateTime(date.year, date.month, date.day);
+  final start = date.dayOnly;
   final end = start.add(const Duration(days: 1));
   final todaysObs = observations
       .where(

@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:basecamp/core/format/date.dart';
+import 'package:basecamp/core/format/time.dart';
 import 'package:basecamp/features/export/export_actions.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
@@ -7,6 +9,7 @@ import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/responsive.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,7 +46,7 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
   }
 
   static DateTime _mondayOf(DateTime d) {
-    final day = DateTime(d.year, d.month, d.day);
+    final day = d.dayOnly;
     // weekday 1 = Monday, 7 = Sunday. Subtract to land on Monday.
     return day.subtract(Duration(days: day.weekday - 1));
   }
@@ -61,8 +64,7 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
       return '${DateFormat.MMMMd().format(_monday)} – '
           '${DateFormat.d().format(friday)}';
     }
-    return '${DateFormat.MMMd().format(_monday)} – '
-        '${DateFormat.MMMd().format(friday)}';
+    return formatDateRange(_monday, friday);
   }
 
   Future<void> _duplicateLastWeek() async {
@@ -701,7 +703,7 @@ class _PlanCard extends StatelessWidget {
     final theme = Theme.of(context);
     final timeLabel = item.isFullDay
         ? 'All day'
-        : '${_formatTime(item.startTime)}–${_formatTime(item.endTime)}';
+        : '${Hhmm.formatLong(item.startTime)}–${Hhmm.formatLong(item.endTime)}';
     return AppCard(
       onTap: onTap,
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -739,15 +741,4 @@ class _PlanCard extends StatelessWidget {
     );
   }
 
-  static String _formatTime(String hhmm) {
-    final parts = hhmm.split(':');
-    final hour = int.parse(parts[0]);
-    final minute = int.parse(parts[1]);
-    final period = hour >= 12 ? 'PM' : 'AM';
-    final displayHour =
-        hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-    final minuteStr = minute.toString().padLeft(2, '0');
-    if (minute == 0) return '$displayHour$period';
-    return '$displayHour:$minuteStr$period';
-  }
 }

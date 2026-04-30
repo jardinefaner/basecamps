@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/time.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/attendance/widgets/attendance_sheet.dart';
@@ -33,11 +34,12 @@ class LatenessFlagsStrip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
-    final kids = ref.watch(childrenProvider).asData?.value ??
-        const <Child>[];
-    final attendance = ref.watch(todayAttendanceProvider).asData?.value ??
+    final kids = ref.watch(childrenProvider).asData?.value ?? const <Child>[];
+    final attendance =
+        ref.watch(todayAttendanceProvider).asData?.value ??
         const <String, AttendanceRecord>{};
-    final overrides = ref.watch(todayOverridesProvider).asData?.value ??
+    final overrides =
+        ref.watch(todayOverridesProvider).asData?.value ??
         const <String, ChildScheduleOverride>{};
     final settings = ref.watch(programSettingsProvider);
 
@@ -61,10 +63,8 @@ class LatenessFlagsStrip extends ConsumerWidget {
     // knowledge here.
     final reviewDue =
         ref.watch(todayReviewDueProvider).asData?.value ??
-            const <FormSubmission>[];
-    if (lateFlags.isEmpty &&
-        overdueFlags.isEmpty &&
-        reviewDue.isEmpty) {
+        const <FormSubmission>[];
+    if (lateFlags.isEmpty && overdueFlags.isEmpty && reviewDue.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -93,8 +93,9 @@ class LatenessFlagsStrip extends ConsumerWidget {
               if (i > 0) _sectionDivider(theme),
               _FlagRow(
                 title: _displayName(lateFlags[i].child),
-                detail: '${_lateLabel(lateFlags[i].minutesLate)} · '
-                    'expected ${_fmt12h(lateFlags[i].expectedArrival)}',
+                detail:
+                    '${_lateLabel(lateFlags[i].minutesLate)} · '
+                    'expected ${Hhmm.formatLong(lateFlags[i].expectedArrival)}',
                 note: lateFlags[i].note,
                 onTap: () =>
                     _openAttendanceForChild(context, lateFlags[i].child),
@@ -118,8 +119,9 @@ class LatenessFlagsStrip extends ConsumerWidget {
               if (i > 0) _sectionDivider(theme),
               _FlagRow(
                 title: _displayName(overdueFlags[i].child),
-                detail: '${_overdueLabel(overdueFlags[i].minutesOverdue)}'
-                    ' · expected ${_fmt12h(overdueFlags[i].expectedPickup)}',
+                detail:
+                    '${_overdueLabel(overdueFlags[i].minutesOverdue)}'
+                    ' · expected ${Hhmm.formatLong(overdueFlags[i].expectedPickup)}',
                 note: overdueFlags[i].note,
                 onTap: () => _openAttendanceForChild(
                   context,
@@ -173,10 +175,10 @@ class LatenessFlagsStrip extends ConsumerWidget {
   }
 
   Widget _sectionDivider(ThemeData theme) => Divider(
-        height: 1,
-        thickness: 0.5,
-        color: theme.colorScheme.onTertiaryContainer.withValues(alpha: 0.2),
-      );
+    height: 1,
+    thickness: 0.5,
+    color: theme.colorScheme.onTertiaryContainer.withValues(alpha: 0.2),
+  );
 
   String _displayName(Child c) {
     final last = c.lastName;
@@ -298,15 +300,6 @@ class _FlagRow extends StatelessWidget {
   }
 }
 
-String _fmt12h(String hhmm) {
-  final parts = hhmm.split(':');
-  final h = int.parse(parts[0]);
-  final m = int.parse(parts[1]);
-  final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-  final period = h >= 12 ? 'PM' : 'AM';
-  return '$hour12:${m.toString().padLeft(2, '0')} $period';
-}
-
 /// Row for a form submission whose review is due. Pulls the
 /// definition from the registry to know what to call it ("Behavior
 /// monitoring review") and opens the form on tap.
@@ -328,9 +321,7 @@ class _ReviewDueRow extends StatelessWidget {
     final def = formDefinitionFor(submission.formType);
     final title = def?.shortTitle ?? submission.formType;
     final due = submission.reviewDueAt;
-    final detail = due == null
-        ? 'review due'
-        : _formatDue(due);
+    final detail = due == null ? 'review due' : _formatDue(due);
     return InkWell(
       onTap: () async {
         if (def == null) return;

@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/export/export_actions.dart';
 import 'package:basecamp/features/lesson_sequences/lesson_sequences_repository.dart';
@@ -9,6 +10,7 @@ import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/responsive.dart';
 import 'package:basecamp/ui/undo_delete.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -260,7 +262,7 @@ class LessonSequenceDetailScreen extends ConsumerWidget {
   /// are always skipped.
   static List<DateTime> _consecutiveWeekdays(DateTime start, int count) {
     final result = <DateTime>[];
-    var cursor = DateTime(start.year, start.month, start.day);
+    var cursor = start.dayOnly;
     while (cursor.weekday > 5) {
       cursor = cursor.add(const Duration(days: 1));
     }

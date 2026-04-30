@@ -1,9 +1,11 @@
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/people/people_display.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -38,7 +40,7 @@ class AttendanceSheet extends ConsumerWidget {
     // Read attendance for the specific [date] passed in — not today.
     // Normalize to date-only so callers with a time component share
     // one provider instance, not one per millisecond.
-    final dayOnly = DateTime(date.year, date.month, date.day);
+    final dayOnly = date.dayOnly;
     final attendanceAsync = ref.watch(attendanceForDayProvider(dayOnly));
 
     return Padding(

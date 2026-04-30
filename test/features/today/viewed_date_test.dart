@@ -1,4 +1,4 @@
-import 'package:basecamp/features/today/today_screen.dart';
+import 'package:basecamp/core/format/date.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// `isSameCalendarDate` drives whether the Today screen shows its

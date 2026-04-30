@@ -1,4 +1,5 @@
 import 'package:basecamp/core/format/color.dart';
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/lesson_sequences/lesson_sequences_repository.dart';
 import 'package:basecamp/features/themes/themes_repository.dart';
@@ -6,7 +7,6 @@ import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 /// Read-only preview of a teacher's own curriculum, mirroring the
 /// shape of the bundled-template preview. The live curriculum view
@@ -125,9 +125,7 @@ class _Header extends StatelessWidget {
     final t = programTheme;
     if (t == null) return const SizedBox.shrink();
     final theme = Theme.of(context);
-    final range =
-        '${DateFormat.MMMd().format(t.startDate)} – '
-        '${DateFormat.MMMd().format(t.endDate)}';
+    final range = formatDateRange(t.startDate, t.endDate);
     final notes = (t.notes ?? '').trim();
     return Padding(
       padding: const EdgeInsets.fromLTRB(

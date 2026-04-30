@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/forms/polymorphic/form_definition.dart';
 import 'package:basecamp/features/forms/polymorphic/form_submission_repository.dart';
@@ -7,7 +8,6 @@ import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 /// List screen for all submissions of a given form type. Title +
 /// subtitle from the definition; FAB creates a new draft.
@@ -112,7 +112,7 @@ class _SubmissionTile extends ConsumerWidget {
               _StatusChip(status: status),
               const SizedBox(width: AppSpacing.sm),
               Text(
-                DateFormat.yMMMd().add_jm().format(stamp),
+                formatTimestamp(stamp),
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),

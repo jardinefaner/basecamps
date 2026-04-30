@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/time.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/schedule/adult_shift_conflicts.dart';
@@ -103,16 +104,14 @@ class ScheduleItemCard extends ConsumerWidget {
                     ? Text(
                         'All\nday',
                         style: theme.textTheme.labelMedium?.copyWith(
-                          color: isNow
-                              ? theme.colorScheme.primary
-                              : textColor,
+                          color: isNow ? theme.colorScheme.primary : textColor,
                         ),
                       )
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _formatTime(item.startTime),
+                            Hhmm.formatCompact(item.startTime),
                             style: theme.textTheme.titleMedium?.copyWith(
                               color: isNow
                                   ? theme.colorScheme.primary
@@ -121,7 +120,7 @@ class ScheduleItemCard extends ConsumerWidget {
                             ),
                           ),
                           Text(
-                            _formatTime(item.endTime),
+                            Hhmm.formatCompact(item.endTime),
                             style: theme.textTheme.labelMedium,
                           ),
                         ],
@@ -242,23 +241,13 @@ class ScheduleItemCard extends ConsumerWidget {
     }
     final adultId = item.adultId;
     if (adultId != null) {
-      final adult =
-          ref.watch(adultProvider(adultId)).asData?.value;
+      final adult = ref.watch(adultProvider(adultId)).asData?.value;
       if (adult != null) parts.add(adult.name);
     }
     if (item.location != null && item.location!.isNotEmpty) {
       parts.add(item.location!);
     }
     return parts.isEmpty ? null : parts.join(' · ');
-  }
-
-  String _formatTime(String hhmm) {
-    final parts = hhmm.split(':');
-    final h = int.parse(parts[0]);
-    final m = parts[1];
-    final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-    final period = h < 12 ? 'a' : 'p';
-    return m == '00' ? '$hour12$period' : '$hour12:$m$period';
   }
 }
 
@@ -431,8 +420,8 @@ class _AttendanceStrip extends StatelessWidget {
     final subtitle = summary.total == 0
         ? 'No children in this activity'
         : '${summary.present}/${summary.total} present'
-            '${summary.absent > 0 ? " · ${summary.absent} absent" : ""}'
-            '${summary.pending > 0 ? " · ${summary.pending} pending" : ""}';
+              '${summary.absent > 0 ? " · ${summary.absent} absent" : ""}'
+              '${summary.pending > 0 ? " · ${summary.pending} pending" : ""}';
 
     return InkWell(
       borderRadius: BorderRadius.circular(8),
@@ -449,9 +438,7 @@ class _AttendanceStrip extends StatelessWidget {
         child: Row(
           children: [
             Icon(
-              settled
-                  ? Icons.check_circle_outline
-                  : Icons.how_to_reg_outlined,
+              settled ? Icons.check_circle_outline : Icons.how_to_reg_outlined,
               size: 16,
               color: tint,
             ),

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
@@ -8,6 +9,7 @@ import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/sync/media_service.dart';
 import 'package:basecamp/features/sync/observations_sync_service.dart';
+
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -166,7 +168,7 @@ class ObservationsRepository {
   /// attached to any specific slot). Rebuilds when any observation for
   /// the given day changes.
   Stream<Map<String, int>> watchActivityCountsForDay(DateTime day) {
-    final start = DateTime(day.year, day.month, day.day);
+    final start = day.dayOnly;
     final end = start.add(const Duration(days: 1));
     final query = _db.select(_db.observations)
       ..where(
@@ -848,7 +850,7 @@ final todayActivityCountsProvider =
     StreamProvider<Map<String, int>>((ref) {
   ref.watch(activeProgramIdProvider);
   final now = ref.watch(nowTickProvider).value ?? DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
+  final today = now.dayOnly;
   return ref
       .watch(observationsRepositoryProvider)
       .watchActivityCountsForDay(today);

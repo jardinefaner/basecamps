@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
+
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -216,7 +218,7 @@ class AttendanceRepository {
     childIds.forEach(_pushParentChild);
   }
 
-  DateTime _dayOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+  DateTime _dayOnly(DateTime d) => d.dayOnly;
 }
 
 final attendanceRepositoryProvider =
@@ -248,6 +250,6 @@ final todayAttendanceProvider =
   // provider would keep emitting yesterday's attendance map until
   // the next route remount.
   final now = ref.watch(nowTickProvider).value ?? DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
+  final today = now.dayOnly;
   return ref.watch(attendanceRepositoryProvider).watchForDay(today);
 });

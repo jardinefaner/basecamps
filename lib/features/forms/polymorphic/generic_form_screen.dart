@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
@@ -662,7 +663,7 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
     final display = parsed == null
         ? 'Pick a date${field.includeTime ? " & time" : ""}'
         : field.includeTime
-            ? DateFormat.yMMMd().add_jm().format(parsed)
+            ? formatTimestamp(parsed)
             : DateFormat.yMMMd().format(parsed);
     return _LabeledField(
       label: field.label,

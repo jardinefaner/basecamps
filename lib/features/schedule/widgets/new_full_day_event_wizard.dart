@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
@@ -5,6 +6,7 @@ import 'package:basecamp/features/forms/widgets/adult_chip_picker.dart';
 import 'package:basecamp/features/rooms/widgets/room_picker.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart'
+
     show CreatedActivity;
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_text_field.dart';
@@ -333,8 +335,8 @@ class _NewFullDayEventWizardScreenState
 
   int _daysInRange() {
     if (_endDate == null) return 1;
-    final start = DateTime(_date.year, _date.month, _date.day);
-    final end = DateTime(_endDate!.year, _endDate!.month, _endDate!.day);
+    final start = _date.dayOnly;
+    final end = _endDate!.dayOnly;
     return end.difference(start).inDays + 1;
   }
 

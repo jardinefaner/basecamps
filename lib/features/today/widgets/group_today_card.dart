@@ -1,5 +1,6 @@
 import 'package:basecamp/core/format/color.dart';
 import 'package:basecamp/core/format/text.dart';
+import 'package:basecamp/core/format/time.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
@@ -219,8 +220,8 @@ class _Header extends StatelessWidget {
     final ends = minsLeft <= 1
         ? 'ending now'
         : minsLeft <= 30
-            ? 'ends in $minsLeft min'
-            : 'ends ${_short(c.endTime)}';
+        ? 'ends in $minsLeft min'
+        : 'ends ${_short(c.endTime)}';
     return '${c.title} · $ends';
   }
 
@@ -255,7 +256,6 @@ class _GroupDot extends StatelessWidget {
       ),
     );
   }
-
 }
 
 /// Compact "12/14" pill with color based on attendance completeness.
@@ -324,8 +324,7 @@ class _RatioChip extends StatelessWidget {
     final fg = underRatio
         ? theme.colorScheme.onErrorContainer
         : theme.colorScheme.onSecondaryContainer;
-    final label =
-        underRatio ? '${ratio.display} · UNDER RATIO' : ratio.display;
+    final label = underRatio ? '${ratio.display} · UNDER RATIO' : ratio.display;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
@@ -469,8 +468,8 @@ class _NowSlot extends StatelessWidget {
     final endLabel = minsLeft <= 1
         ? 'ending now'
         : minsLeft <= 30
-            ? 'ends in $minsLeft min'
-            : '${_fmt12h(item.endTime)} end';
+        ? 'ends in $minsLeft min'
+        : '${Hhmm.formatLong(item.endTime)} end';
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
@@ -498,8 +497,9 @@ class _NowSlot extends StatelessWidget {
                   child: Text(
                     endLabel,
                     style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onPrimaryContainer
-                          .withValues(alpha: 0.75),
+                      color: theme.colorScheme.onPrimaryContainer.withValues(
+                        alpha: 0.75,
+                      ),
                     ),
                   ),
                 ),
@@ -519,8 +519,9 @@ class _NowSlot extends StatelessWidget {
                 child: Text(
                   item.location!.trim(),
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onPrimaryContainer
-                        .withValues(alpha: 0.8),
+                    color: theme.colorScheme.onPrimaryContainer.withValues(
+                      alpha: 0.8,
+                    ),
                   ),
                 ),
               ),
@@ -551,15 +552,6 @@ class _NowSlot extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _fmt12h(String hhmm) {
-    final parts = hhmm.split(':');
-    final h = int.parse(parts[0]);
-    final m = int.parse(parts[1]);
-    final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-    final period = h >= 12 ? 'PM' : 'AM';
-    return '$hour12:${m.toString().padLeft(2, '0')} $period';
   }
 }
 
@@ -626,8 +618,8 @@ class _NextUpLine extends StatelessWidget {
     final awayLabel = minsAway <= 0
         ? 'starting now'
         : minsAway <= 60
-            ? 'in $minsAway min'
-            : '@ ${_fmt12h(item.startTime)}';
+        ? 'in $minsAway min'
+        : '@ ${Hhmm.formatLong(item.startTime)}';
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -660,15 +652,6 @@ class _NextUpLine extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _fmt12h(String hhmm) {
-    final parts = hhmm.split(':');
-    final h = int.parse(parts[0]);
-    final m = int.parse(parts[1]);
-    final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-    final period = h >= 12 ? 'PM' : 'AM';
-    return '$hour12:${m.toString().padLeft(2, '0')} $period';
   }
 }
 

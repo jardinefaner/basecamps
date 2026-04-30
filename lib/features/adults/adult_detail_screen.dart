@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/core/format/text.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adult_timeline_repository.dart';
@@ -16,6 +17,7 @@ import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1166,7 +1168,7 @@ class _OverridesSubsectionState
   void initState() {
     super.initState();
     final now = DateTime.now();
-    _date = DateTime(now.year, now.month, now.day);
+    _date = now.dayOnly;
   }
 
   Future<void> _pickDate() async {
@@ -2204,8 +2206,7 @@ bool leadWithoutAnchor(Adult adult) {
 List<int> leadBlocksMissingGroup(List<AdultDayBlock> blocks) {
   final days = <int>{
     for (final b in blocks)
-      if (b.role == AdultBlockRole.lead.dbValue && b.groupId == null)
-        b.dayOfWeek,
+      if (b.isLead && b.groupId == null) b.dayOfWeek,
   };
   final list = days.toList()..sort();
   return list;

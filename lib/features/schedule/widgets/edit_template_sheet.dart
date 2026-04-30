@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:basecamp/core/format/time.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/widgets/library_picker_sheet.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
@@ -13,6 +14,7 @@ import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/save_action.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:basecamp/ui/undo_delete.dart';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -98,8 +100,6 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     );
   }
 
-  static String _formatTime(TimeOfDay t) =>
-      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
   /// Number of sibling templates in the same series (including this
   /// row). Resolved async on init for edit mode; stays null until then,
@@ -187,8 +187,8 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
         _selectedDays.first != template.dayOfWeek) {
       return true;
     }
-    if (_formatTime(_start) != template.startTime) return true;
-    if (_formatTime(_end) != template.endTime) return true;
+    if (Hhmm.formatLongTimeOfDay(_start) != template.startTime) return true;
+    if (Hhmm.formatLongTimeOfDay(_end) != template.endTime) return true;
     if (_adultId != template.adultId) return true;
     if (_roomId != template.roomId) return true;
     if (trimOrNull(_locationController.text) != template.location) return true;
@@ -219,8 +219,8 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     final location = _locationController.text.trim().isEmpty
         ? null
         : _locationController.text.trim();
-    final startHhmm = _formatTime(_start);
-    final endHhmm = _formatTime(_end);
+    final startHhmm = Hhmm.formatLongTimeOfDay(_start);
+    final endHhmm = Hhmm.formatLongTimeOfDay(_end);
     final groupIds = _selectedGroupIds.toList();
 
     if (_isEdit) {

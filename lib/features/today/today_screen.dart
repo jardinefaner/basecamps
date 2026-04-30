@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:basecamp/core/format/color.dart';
+import 'package:basecamp/core/format/date.dart';
+import 'package:basecamp/core/format/time.dart';
 import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adult_timeline_repository.dart';
@@ -64,21 +66,21 @@ class ViewedDateNotifier extends Notifier<DateTime> {
   @override
   DateTime build() {
     final now = DateTime.now();
-    return DateTime(now.year, now.month, now.day);
+    return now.dayOnly;
   }
 
   void set(DateTime date) {
-    state = DateTime(date.year, date.month, date.day);
+    state = date.dayOnly;
   }
 
   void shift(int days) {
     final next = state.add(Duration(days: days));
-    state = DateTime(next.year, next.month, next.day);
+    state = next.dayOnly;
   }
 
   void reset() {
     final now = DateTime.now();
-    state = DateTime(now.year, now.month, now.day);
+    state = now.dayOnly;
   }
 }
 
@@ -93,10 +95,10 @@ class ViewedDateNotifier extends Notifier<DateTime> {
 final viewedDateProvider =
     NotifierProvider<ViewedDateNotifier, DateTime>(ViewedDateNotifier.new);
 
-/// Calendar-day equality — year/month/day only, ignoring wall-clock
-/// drift. Used to decide whether Today's live-clock widgets fire.
-bool isSameCalendarDate(DateTime a, DateTime b) =>
-    a.year == b.year && a.month == b.month && a.day == b.day;
+// Calendar-day equality lives in `lib/core/format/date.dart` as
+// `isSameCalendarDate`. The local copy was defined here originally
+// when only this file used it; the audit pulled the canonical
+// version up so other surfaces share the same null-safe rules.
 
 /// Today dashboard. Orchestrates the live clock, day-summary strip, a
 /// hero "right now" card for the current activity, an upcoming list
@@ -355,7 +357,7 @@ class TodayScreen extends ConsumerWidget {
     // day semantics even if the StateProvider hasn't been re-seeded).
     // For any other date we ask for that specific day's rows.
     final scheduleDate = isToday
-        ? DateTime(now.year, now.month, now.day)
+        ? now.dayOnly
         : viewedDate;
     final scheduleAsync = ref.watch(scheduleForDateProvider(scheduleDate));
     final theme = Theme.of(context);
@@ -728,7 +730,7 @@ class _Body extends ConsumerWidget {
       for (final g in allGroups) g.id: g,
     };
     final todayTrips = allTrips.where((t) {
-      final start = DateTime(t.date.year, t.date.month, t.date.day);
+      final start = t.date.dayOnly;
       final end = t.endDate == null
           ? start
           : DateTime(
@@ -736,7 +738,7 @@ class _Body extends ConsumerWidget {
               t.endDate!.month,
               t.endDate!.day,
             );
-      final day = DateTime(now.year, now.month, now.day);
+      final day = now.dayOnly;
       return !day.isBefore(start) && !day.isAfter(end);
     }).toList();
     final tripConflictResult = detectTripConflicts(
@@ -765,7 +767,7 @@ class _Body extends ConsumerWidget {
             .asData
             ?.value ??
         const <FormSubmission>[];
-    final dayStart = DateTime(now.year, now.month, now.day);
+    final dayStart = now.dayOnly;
     final dayEnd = dayStart.add(const Duration(days: 1));
     final concerns = <FormSubmission>[];
     final concernChildLinks = <String, Set<String>>{};
@@ -1987,7 +1989,7 @@ class _AlsoNowRow extends StatelessWidget {
         ? 'ending now'
         : minsLeft <= 30
         ? 'ends in $minsLeft min'
-        : 'ends ${_formatTime(item.endTime)}';
+        : 'ends ${Hhmm.formatLong(item.endTime)}';
     final meta = <String>[
       endLabel,
       if (item.location != null && item.location!.trim().isNotEmpty)
@@ -2053,14 +2055,6 @@ class _AlsoNowRow extends StatelessWidget {
   /// ("11:00 AM"). Intentionally tiny — the row only ever shows end
   /// times for the "Also now" strip, so a dedicated util isn't worth
   /// the import.
-  String _formatTime(String hhmm) {
-    final parts = hhmm.split(':');
-    final h = int.parse(parts[0]);
-    final m = int.parse(parts[1]);
-    final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-    final period = h >= 12 ? 'PM' : 'AM';
-    return '$hour12:${m.toString().padLeft(2, '0')} $period';
-  }
 }
 
 class _EmptyState extends StatelessWidget {

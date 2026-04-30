@@ -1,3 +1,5 @@
+import 'package:basecamp/core/format/date.dart';
+import 'package:basecamp/core/format/time.dart';
 import 'package:basecamp/features/curriculum/widgets/today_curriculum_strip.dart';
 import 'package:basecamp/features/schedule/conflicts.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
@@ -10,6 +12,7 @@ import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
 import 'package:basecamp/features/schedule/widgets/week_grid_view.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -20,7 +23,7 @@ const List<String> _dayShortLabels = scheduleDayShortLabels;
 enum _ViewMode { list, grid }
 
 DateTime _mondayOf(DateTime date) {
-  final day = DateTime(date.year, date.month, date.day);
+  final day = date.dayOnly;
   return day.subtract(Duration(days: day.weekday - 1));
 }
 
@@ -516,7 +519,7 @@ class _EditorItemCard extends StatelessWidget {
             child: Text(
               item.isFullDay
                   ? 'All day'
-                  : '${_formatTime(item.startTime)}–${_formatTime(item.endTime)}',
+                  : '${Hhmm.formatCompact(item.startTime)}–${Hhmm.formatCompact(item.endTime)}',
               style: theme.textTheme.labelMedium,
             ),
           ),
@@ -594,12 +597,4 @@ class _EditorItemCard extends StatelessWidget {
     );
   }
 
-  String _formatTime(String hhmm) {
-    final parts = hhmm.split(':');
-    final h = int.parse(parts[0]);
-    final m = parts[1];
-    final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-    final period = h < 12 ? 'a' : 'p';
-    return m == '00' ? '$hour12$period' : '$hour12:$m$period';
-  }
 }

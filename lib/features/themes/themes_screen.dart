@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/themes/themes_repository.dart';
 import 'package:basecamp/features/themes/widgets/edit_theme_sheet.dart';
@@ -7,7 +8,6 @@ import 'package:basecamp/ui/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 /// `/more/themes` — list + add + edit program themes. Each theme marks
 /// a date range ("Bug week") that later slices can use for tinting /
@@ -140,8 +140,7 @@ class _ThemeTile extends StatelessWidget {
     final theme = Theme.of(context);
     final swatchColor = parseThemeColor(programTheme.colorHex);
     final rangeLabel =
-        '${DateFormat.MMMd().format(programTheme.startDate)} – '
-        '${DateFormat.MMMd().format(programTheme.endDate)}';
+        formatDateRange(programTheme.startDate, programTheme.endDate);
     return AppCard(
       onTap: onTap,
       child: Row(

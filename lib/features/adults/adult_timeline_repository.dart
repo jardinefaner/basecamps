@@ -31,6 +31,15 @@ enum AdultBlockRole {
   }
 }
 
+/// Convenience predicate so callers don't have to choose between
+/// `b.role == AdultBlockRole.lead.dbValue` (raw string compare) and
+/// `AdultBlockRole.fromDb(b.role) == AdultBlockRole.lead` (parse +
+/// compare). Both forms were sprinkled across the codebase; this is
+/// the canonical spelling.
+extension AdultDayBlockRole on AdultDayBlock {
+  bool get isLead => role == AdultBlockRole.lead.dbValue;
+}
+
 /// In-memory block used by the editor + derivation logic. Thin
 /// wrapper over the Drift row with the role typed and the times
 /// kept as HH:mm strings.

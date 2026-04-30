@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/time.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
@@ -79,7 +80,8 @@ class HeroNowCard extends ConsumerWidget {
     final adult = adultId == null
         ? null
         : ref.watch(adultProvider(adultId)).asData?.value;
-    final allKids = ref.watch(childrenProvider).asData?.value ?? const <Child>[];
+    final allKids =
+        ref.watch(childrenProvider).asData?.value ?? const <Child>[];
     // Respect the new three-state audience: "all groups" (everyone),
     // specific groups (filter by those), or no groups (teacher explicitly
     // chose no children — show an empty list). Always returns a new
@@ -142,8 +144,8 @@ class HeroNowCard extends ConsumerWidget {
                 Text(
                   item.isFullDay
                       ? 'All day'
-                      : '${_formatTime(item.startTime)} – '
-                          '${_formatTime(item.endTime)}',
+                      : '${Hhmm.formatCompact(item.startTime)} – '
+                            '${Hhmm.formatCompact(item.endTime)}',
                   style: theme.textTheme.labelMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -167,8 +169,9 @@ class HeroNowCard extends ConsumerWidget {
                 child: LinearProgressIndicator(
                   value: progress,
                   minHeight: 4,
-                  backgroundColor:
-                      theme.colorScheme.primary.withValues(alpha: 0.15),
+                  backgroundColor: theme.colorScheme.primary.withValues(
+                    alpha: 0.15,
+                  ),
                   valueColor: AlwaysStoppedAnimation(
                     theme.colorScheme.primary,
                   ),
@@ -276,15 +279,6 @@ class HeroNowCard extends ConsumerWidget {
     return '${h}h ${m}m';
   }
 
-  String _formatTime(String hhmm) {
-    final parts = hhmm.split(':');
-    final h = int.parse(parts[0]);
-    final m = parts[1];
-    final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-    final period = h < 12 ? 'a' : 'p';
-    return m == '00' ? '$hour12$period' : '$hour12:$m$period';
-  }
-
   Future<void> _openConflictSheet(BuildContext context) {
     return showModalBottomSheet<void>(
       context: context,
@@ -387,7 +381,8 @@ class _HeroAttendanceStrip extends StatelessWidget {
     final tint = settled
         ? theme.colorScheme.primary
         : theme.colorScheme.onSurface;
-    final subtitle = '${summary.present}/${summary.total} checked in'
+    final subtitle =
+        '${summary.present}/${summary.total} checked in'
         '${summary.absent > 0 ? " · ${summary.absent} absent" : ""}'
         '${summary.pending > 0 ? " · ${summary.pending} pending" : ""}';
     return InkWell(
@@ -408,9 +403,7 @@ class _HeroAttendanceStrip extends StatelessWidget {
         child: Row(
           children: [
             Icon(
-              settled
-                  ? Icons.check_circle_outline
-                  : Icons.how_to_reg_outlined,
+              settled ? Icons.check_circle_outline : Icons.how_to_reg_outlined,
               size: 18,
               color: tint,
             ),

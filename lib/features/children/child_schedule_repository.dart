@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
+
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -55,7 +57,7 @@ class ChildScheduleRepository {
   /// both when writing (storing the override) and reading (matching
   /// today's row) so a teacher logging an override at 8:47 AM and
   /// the Today view at 10:15 AM both hit the same "date" key.
-  DateTime _dayKey(DateTime d) => DateTime(d.year, d.month, d.day);
+  DateTime _dayKey(DateTime d) => d.dayOnly;
 
   /// All overrides in effect for [day]. Streams so Today rebuilds live
   /// when the teacher logs an override from any surface.
@@ -158,7 +160,7 @@ final todayOverridesProvider =
   ref.watch(activeProgramIdProvider);
   final repo = ref.watch(childScheduleRepositoryProvider);
   final now = ref.watch(nowTickProvider).value ?? DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
+  final today = now.dayOnly;
   return repo.watchOverridesFor(today).map((rows) => {
         for (final r in rows) r.childId: r,
       });

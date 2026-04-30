@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:basecamp/core/format/time.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/activity_library/widgets/edit_library_item_sheet.dart';
@@ -21,6 +22,7 @@ import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:basecamp/ui/confirm_dialog.dart';
 import 'package:basecamp/ui/undo_delete.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -67,7 +69,7 @@ class ActivityDetailSheet extends ConsumerWidget {
             Text(
               item.isFullDay
                   ? 'All day'
-                  : '${_formatTime(item.startTime)} – ${_formatTime(item.endTime)}',
+                  : '${Hhmm.formatCompact(item.startTime)} – ${Hhmm.formatCompact(item.endTime)}',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -263,14 +265,6 @@ class ActivityDetailSheet extends ConsumerWidget {
     return true;
   }
 
-  String _formatTime(String hhmm) {
-    final parts = hhmm.split(':');
-    final h = int.parse(parts[0]);
-    final m = parts[1];
-    final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-    final period = h < 12 ? 'a' : 'p';
-    return m == '00' ? '$hour12$period' : '$hour12:$m$period';
-  }
 }
 
 /// Action strip at the bottom of the detail sheet: "just for today"

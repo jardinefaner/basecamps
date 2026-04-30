@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adult_timeline_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
@@ -114,7 +115,7 @@ CalendarEvent calendarEventFromScheduleItem(ScheduleItem item) {
   // Build absolute DateTimes by combining the item's date with its
   // HH:mm wire-format times. Full-day items span midnight-to-
   // midnight for sorting.
-  final day = DateTime(item.date.year, item.date.month, item.date.day);
+  final day = item.date.dayOnly;
   DateTime parse(String hhmm) {
     final parts = hhmm.split(':');
     return DateTime(
@@ -242,7 +243,7 @@ Iterable<CalendarEvent> calendarEventsFromAvailability({
   required Adult adult,
   required DateTime date,
 }) sync* {
-  final day = DateTime(date.year, date.month, date.day);
+  final day = date.dayOnly;
   DateTime parse(String hhmm) {
     final parts = hhmm.split(':');
     return DateTime(
@@ -319,7 +320,7 @@ Iterable<CalendarEvent> calendarEventsFromAdultBlocks({
   required String Function(String groupId) groupNameLookup,
   required DateTime date,
 }) sync* {
-  final day = DateTime(date.year, date.month, date.day);
+  final day = date.dayOnly;
   DateTime parse(String hhmm) {
     final parts = hhmm.split(':');
     return DateTime(

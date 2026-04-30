@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/trips/trips_repository.dart';
 import 'package:basecamp/features/trips/widgets/new_trip_wizard.dart';
@@ -5,6 +6,7 @@ import 'package:basecamp/features/trips/widgets/trip_card.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/bulk_selection.dart';
 import 'package:basecamp/ui/undo_delete.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -109,7 +111,7 @@ class _TripsScreenState extends ConsumerState<TripsScreen>
                   );
                 }
                 final now = DateTime.now();
-                final today = DateTime(now.year, now.month, now.day);
+                final today = now.dayOnly;
                 final upcoming =
                     trips.where((t) => !t.date.isBefore(today)).toList();
                 final past = trips

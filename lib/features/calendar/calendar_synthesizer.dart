@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adult_timeline_repository.dart';
@@ -8,6 +9,7 @@ import 'package:basecamp/features/calendar/calendar_event.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/trips/trips_repository.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Synthesizer over the day's events — activities, trips, and
@@ -36,7 +38,7 @@ final calendarEventsForDayProvider =
   // Normalize to date-only — the family key is the date, not an
   // instant, so two callers with different times-of-day share one
   // subscription.
-  final day = DateTime(date.year, date.month, date.day);
+  final day = date.dayOnly;
 
   // Upstream streams. Schedule is already date-scoped; trips come
   // as a flat list (and trip_groups as a flat id→ids map) — both
@@ -156,8 +158,8 @@ List<CalendarEvent> _combineDay({
 }
 
 bool _tripIntersects(Trip trip, DateTime date) {
-  final day = DateTime(date.year, date.month, date.day);
-  final start = DateTime(trip.date.year, trip.date.month, trip.date.day);
+  final day = date.dayOnly;
+  final start = trip.date.dayOnly;
   final end = trip.endDate == null
       ? start
       : DateTime(
@@ -193,7 +195,7 @@ final calendarEventsWithBreaksTodayProvider =
     // the same day every minute tick yields the same `today` so
     // the dependent provider's cache hit is free.
     final now = ref.watch(nowTickProvider).value ?? DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+    final today = now.dayOnly;
     final baseAsync = ref.watch(calendarEventsForDayProvider(today));
     if (adultIdsKey.isEmpty) return baseAsync;
 

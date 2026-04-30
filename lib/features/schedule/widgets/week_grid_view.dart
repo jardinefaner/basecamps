@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/time.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
@@ -304,8 +305,7 @@ class _HeaderRow extends StatelessWidget {
                               Text(
                                 '${weekStart.add(Duration(days: d)).day}',
                                 style: theme.textTheme.labelSmall?.copyWith(
-                                  color:
-                                      theme.colorScheme.onSurfaceVariant,
+                                  color: theme.colorScheme.onSurfaceVariant,
                                 ),
                               ),
                             ],
@@ -424,7 +424,7 @@ class _SlotRow extends StatelessWidget {
                 AppSpacing.sm,
               ),
               child: Text(
-                '${_formatTime(time.start)}\n${_formatTime(time.end)}',
+                '${Hhmm.formatCompact(time.start)}\n${Hhmm.formatCompact(time.end)}',
                 style: theme.textTheme.labelSmall,
               ),
             ),
@@ -580,8 +580,7 @@ class _GridBlockCard extends ConsumerWidget {
       if (names.isNotEmpty) subtitleParts.add(names.join(' + '));
     }
     if (first.adultId != null) {
-      final adult =
-          ref.watch(adultProvider(first.adultId!)).asData?.value;
+      final adult = ref.watch(adultProvider(first.adultId!)).asData?.value;
       if (adult != null) subtitleParts.add(adult.name);
     }
     if (first.location != null && first.location!.isNotEmpty) {
@@ -674,13 +673,4 @@ class _Block {
   final bool inConflict;
 
   ScheduleItem get first => items.first;
-}
-
-String _formatTime(String hhmm) {
-  final parts = hhmm.split(':');
-  final h = int.parse(parts[0]);
-  final m = parts[1];
-  final hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-  final period = h < 12 ? 'a' : 'p';
-  return m == '00' ? '$hour12$period' : '$hour12:$m$period';
 }

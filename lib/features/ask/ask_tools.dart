@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
@@ -7,6 +8,7 @@ import 'package:basecamp/features/curriculum/curriculum_today.dart';
 import 'package:basecamp/features/lesson_sequences/lesson_sequences_repository.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Tool catalog for the Ask Basecamp agent.
@@ -240,7 +242,7 @@ Future<AskToolResult> runAskTool({
 
 Future<Map<String, dynamic>> _todayOverview(Ref ref) async {
   final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
+  final today = now.dayOnly;
   final schedule =
       await ref.read(scheduleForDateProvider(today).future);
   // attendanceForDayProvider yields a Map<childId, AttendanceRecord>;
@@ -268,7 +270,7 @@ Future<Map<String, dynamic>> _todayOverview(Ref ref) async {
 
 Future<Map<String, dynamic>> _todaySchedule(Ref ref) async {
   final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
+  final today = now.dayOnly;
   final items = await ref.read(scheduleForDateProvider(today).future);
   // ScheduleItem carries adultId only — resolve to a name so the
   // LLM can present human-readable answers without a second call.
@@ -295,7 +297,7 @@ Future<Map<String, dynamic>> _todaySchedule(Ref ref) async {
 
 Future<Map<String, dynamic>> _todayCurriculum(Ref ref) async {
   final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
+  final today = now.dayOnly;
   final day =
       await ref.read(curriculumForDateProvider(today).future);
   if (day == null) {
