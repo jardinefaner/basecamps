@@ -106,13 +106,25 @@ class MediaService {
     // file-vs-blob distinction.
     if (source == null && kIsWeb) return;
 
+    // Step-by-step instrumentation: a previous web run failed with
+    // "Null check operator used on a null value" deep inside Drift,
+    // and a single outer try/catch couldn't tell us which call
+    // tripped. Each step now has its own narrow try/catch with a
+    // labeled debugPrint so the next failure log points at the
+    // exact culprit.
+
+    var step = 'fetch attachment row';
     try {
       final row = await (_db.select(_db.observationAttachments)
             ..where((a) => a.id.equals(attachmentId)))
           .getSingleOrNull();
-      if (row == null) return;
+      if (row == null) {
+        debugPrint('Obs upload: row $attachmentId vanished');
+        return;
+      }
       if (row.storagePath != null) return; // already uploaded
 
+      step = 'fetch parent observation';
       // Find the parent observation to discover the program_id —
       // bucket key uses program_id as the first segment for
       // RLS scoping.
@@ -120,8 +132,14 @@ class MediaService {
             ..where((o) => o.id.equals(row.observationId)))
           .getSingleOrNull();
       final programId = obs?.programId;
-      if (programId == null) return;
+      if (programId == null) {
+        debugPrint(
+          'Obs upload: parent observation has null programId, skipping',
+        );
+        return;
+      }
 
+      step = 'resolve bytes';
       // Resolve bytes + extension from whichever source is wired.
       final Uint8List bytes;
       final String ext;
@@ -142,10 +160,18 @@ class MediaService {
         final fromPath = p.extension(row.localPath);
         ext = fromPath.isEmpty ? '.jpg' : fromPath;
       }
+      if (bytes.isEmpty) {
+        debugPrint(
+          'Obs upload: empty bytes for $attachmentId, skipping',
+        );
+        return;
+      }
 
       final contentType = _contentTypeFor(ext, row.kind);
       final storagePath = '$programId/observation_attachments/'
           '$attachmentId$ext';
+
+      step = 'storage uploadBinary';
       await client.storage.from(_bucket).uploadBinary(
             storagePath,
             bytes,
@@ -161,6 +187,7 @@ class MediaService {
       // pipeline; pre-v52 this step was missing for observation
       // attachments and the upload device re-downloaded its own
       // bytes on first render.
+      step = 'media_cache stamp';
       try {
         await _db.into(_db.mediaCache).insertOnConflictUpdate(
               MediaCacheCompanion.insert(
@@ -171,12 +198,14 @@ class MediaService {
               ),
             );
       } on Object catch (e) {
+        // Best-effort — a cache hiccup doesn't fail the upload.
+        // Next render re-downloads.
         debugPrint(
-          'Observation attachment cache stamp failed for '
-          '$storagePath: $e',
+          'Obs upload: media_cache stamp failed for $storagePath: $e',
         );
       }
 
+      step = 'stamp row.storage_path';
       await (_db.update(_db.observationAttachments)
             ..where((a) => a.id.equals(attachmentId)))
           .write(
@@ -184,12 +213,14 @@ class MediaService {
           storagePath: Value(storagePath),
         ),
       );
+
       // observation_attachments is a cascade of observations —
       // it travels to cloud via the parent's pushRow + cascade
       // replace. Trigger a push of the parent observation so the
       // cascade rebuilds with the freshly-stamped storage_path
       // included; otherwise the storage_path lingers local-only
       // until the next observation edit happens to fire a push.
+      step = 'push parent observation';
       final ref = _ref;
       if (ref != null) {
         unawaited(
@@ -198,8 +229,12 @@ class MediaService {
               .pushRow(observationsSpec, row.observationId),
         );
       }
+      debugPrint(
+        'Obs upload: $attachmentId stamped at $storagePath '
+        '(${bytes.length} bytes)',
+      );
     } on Object catch (e, st) {
-      debugPrint('Observation attachment upload failed: $e\n$st');
+      debugPrint('Obs upload failed at step "$step": $e\n$st');
     }
   }
 
