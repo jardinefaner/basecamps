@@ -161,7 +161,7 @@ class ProgramsRepository {
     // returned the signed-in user's row.
     final memberRowsRaw = await supabase
         .from('program_members')
-        .select('program_id, user_id, role, joined_at')
+        .select('program_id, user_id, role, joined_at, display_name')
         .inFilter('program_id', programIds);
     final memberRows = List<Map<String, dynamic>>.from(memberRowsRaw);
 
@@ -216,6 +216,7 @@ class ProgramsRepository {
                 programId: m['program_id'] as String,
                 userId: m['user_id'] as String,
                 role: Value(m['role'] as String? ?? 'teacher'),
+                displayName: Value(m['display_name'] as String?),
                 joinedAt: Value(_parseTs(m['joined_at'])),
               ),
             );

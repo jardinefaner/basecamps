@@ -73,7 +73,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 51;
+  int get schemaVersion => 52;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -101,6 +101,7 @@ class AppDatabase extends _$AppDatabase {
           await _healDirtyFieldsColumns();
           await _healMediaCacheTable();
           await _healAvatarEtagColumns();
+          await _healV52QolColumns();
         },
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
@@ -118,6 +119,70 @@ class AppDatabase extends _$AppDatabase {
               'fresh at schema 25. This only affects devs who have '
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
+            );
+          }
+          if (from < 52) {
+            // v52: schema cleanup + QoL columns. All additive
+            // nullable — existing rows are unaffected.
+            //
+            // Cloud parity: cloud migrations 0027 + 0028 add the
+            // mirrors. Sync engine pushes/pulls these columns
+            // through the same generic path as everything else
+            // — the new columns travel with each row's
+            // upsert/UPDATE.
+            //
+            // archived_at: hide-but-keep on people / asset
+            // tables. Pickers will filter `archived_at IS NULL`
+            // once the UI ships.
+            //
+            // position: user-orderable lists. NULL falls back
+            // to alpha-by-name in repos that wire up the sort.
+            //
+            // created_by: audit "who logged this" — populated
+            // by repos from `currentSessionProvider.user.id`
+            // on insert; older rows keep the legacy free-text
+            // author_name fallback.
+            //
+            // display_name: members card pretty name. Bootstrap
+            // populates from auth.users metadata on every
+            // membership upsert.
+            for (final t in const [
+              'groups',
+              'rooms',
+              'roles',
+              'children',
+              'adults',
+              'parents',
+              'vehicles',
+            ]) {
+              await _runSilent(
+                'ALTER TABLE "$t" ADD COLUMN "archived_at" INTEGER NULL',
+              );
+            }
+            for (final t in const ['groups', 'rooms', 'roles', 'children']) {
+              await _runSilent(
+                'ALTER TABLE "$t" ADD COLUMN "position" INTEGER NULL',
+              );
+            }
+            await _runSilent(
+              'ALTER TABLE "observations" ADD COLUMN "created_by" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "form_submissions" ADD COLUMN "created_by" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "program_members" ADD COLUMN "display_name" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "parent_children" ADD COLUMN "updated_at" INTEGER NULL',
+            );
+            // adult_role normalization. Cloud already migrates
+            // 'adult' → 'specialist' in 0027; mirror locally so
+            // a device that hasn't pulled cloud yet doesn't
+            // round-trip the legacy value back.
+            await _runSilent(
+              "UPDATE \"adults\" SET \"adult_role\" = 'specialist' "
+              "WHERE \"adult_role\" = 'adult'",
             );
           }
           if (from < 51) {
@@ -1367,6 +1432,42 @@ class AppDatabase extends _$AppDatabase {
     );
     await _runSilent(
       'ALTER TABLE "media_cache" ADD COLUMN "etag" TEXT NULL',
+    );
+  }
+
+  /// Re-apply v52 QoL ALTERs every launch. Same defensive pattern
+  /// as the other heals — cheap, no-ops on the second run, and
+  /// rescues users whose v52 upgrade landed only partially.
+  Future<void> _healV52QolColumns() async {
+    for (final t in const [
+      'groups',
+      'rooms',
+      'roles',
+      'children',
+      'adults',
+      'parents',
+      'vehicles',
+    ]) {
+      await _runSilent(
+        'ALTER TABLE "$t" ADD COLUMN "archived_at" INTEGER NULL',
+      );
+    }
+    for (final t in const ['groups', 'rooms', 'roles', 'children']) {
+      await _runSilent(
+        'ALTER TABLE "$t" ADD COLUMN "position" INTEGER NULL',
+      );
+    }
+    await _runSilent(
+      'ALTER TABLE "observations" ADD COLUMN "created_by" TEXT NULL',
+    );
+    await _runSilent(
+      'ALTER TABLE "form_submissions" ADD COLUMN "created_by" TEXT NULL',
+    );
+    await _runSilent(
+      'ALTER TABLE "program_members" ADD COLUMN "display_name" TEXT NULL',
+    );
+    await _runSilent(
+      'ALTER TABLE "parent_children" ADD COLUMN "updated_at" INTEGER NULL',
     );
   }
 

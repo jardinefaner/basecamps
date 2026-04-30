@@ -48,6 +48,28 @@ class $GroupsTable extends Groups with TableInfo<$GroupsTable, Group> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _archivedAtMeta = const VerificationMeta(
+    'archivedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> archivedAt = GeneratedColumn<DateTime>(
+    'archived_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _positionMeta = const VerificationMeta(
+    'position',
+  );
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+    'position',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -78,6 +100,8 @@ class $GroupsTable extends Groups with TableInfo<$GroupsTable, Group> {
     name,
     colorHex,
     programId,
+    archivedAt,
+    position,
     createdAt,
     updatedAt,
   ];
@@ -118,6 +142,18 @@ class $GroupsTable extends Groups with TableInfo<$GroupsTable, Group> {
         programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
       );
     }
+    if (data.containsKey('archived_at')) {
+      context.handle(
+        _archivedAtMeta,
+        archivedAt.isAcceptableOrUnknown(data['archived_at']!, _archivedAtMeta),
+      );
+    }
+    if (data.containsKey('position')) {
+      context.handle(
+        _positionMeta,
+        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -155,6 +191,14 @@ class $GroupsTable extends Groups with TableInfo<$GroupsTable, Group> {
         DriftSqlType.string,
         data['${effectivePrefix}program_id'],
       ),
+      archivedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}archived_at'],
+      ),
+      position: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -182,6 +226,17 @@ class Group extends DataClass implements Insertable<Group> {
   /// existing rows with the user's default program. Repositories
   /// pass `activeProgramIdProvider` on every insert from then on.
   final String? programId;
+
+  /// v52: hide-but-keep. Pickers filter `archivedAt IS NULL`;
+  /// detail screens / historical observations still resolve a
+  /// reference. Toggle via the row-detail menu.
+  final DateTime? archivedAt;
+
+  /// v52: user-orderable display order on the launcher / Today.
+  /// Nullable so existing rows fall back to alpha-by-name; once
+  /// the teacher reorders, every group in the program gets a
+  /// stable integer.
+  final int? position;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Group({
@@ -189,6 +244,8 @@ class Group extends DataClass implements Insertable<Group> {
     required this.name,
     this.colorHex,
     this.programId,
+    this.archivedAt,
+    this.position,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -202,6 +259,12 @@ class Group extends DataClass implements Insertable<Group> {
     }
     if (!nullToAbsent || programId != null) {
       map['program_id'] = Variable<String>(programId);
+    }
+    if (!nullToAbsent || archivedAt != null) {
+      map['archived_at'] = Variable<DateTime>(archivedAt);
+    }
+    if (!nullToAbsent || position != null) {
+      map['position'] = Variable<int>(position);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -218,6 +281,12 @@ class Group extends DataClass implements Insertable<Group> {
       programId: programId == null && nullToAbsent
           ? const Value.absent()
           : Value(programId),
+      archivedAt: archivedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(archivedAt),
+      position: position == null && nullToAbsent
+          ? const Value.absent()
+          : Value(position),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -233,6 +302,8 @@ class Group extends DataClass implements Insertable<Group> {
       name: serializer.fromJson<String>(json['name']),
       colorHex: serializer.fromJson<String?>(json['colorHex']),
       programId: serializer.fromJson<String?>(json['programId']),
+      archivedAt: serializer.fromJson<DateTime?>(json['archivedAt']),
+      position: serializer.fromJson<int?>(json['position']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -245,6 +316,8 @@ class Group extends DataClass implements Insertable<Group> {
       'name': serializer.toJson<String>(name),
       'colorHex': serializer.toJson<String?>(colorHex),
       'programId': serializer.toJson<String?>(programId),
+      'archivedAt': serializer.toJson<DateTime?>(archivedAt),
+      'position': serializer.toJson<int?>(position),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -255,6 +328,8 @@ class Group extends DataClass implements Insertable<Group> {
     String? name,
     Value<String?> colorHex = const Value.absent(),
     Value<String?> programId = const Value.absent(),
+    Value<DateTime?> archivedAt = const Value.absent(),
+    Value<int?> position = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Group(
@@ -262,6 +337,8 @@ class Group extends DataClass implements Insertable<Group> {
     name: name ?? this.name,
     colorHex: colorHex.present ? colorHex.value : this.colorHex,
     programId: programId.present ? programId.value : this.programId,
+    archivedAt: archivedAt.present ? archivedAt.value : this.archivedAt,
+    position: position.present ? position.value : this.position,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -271,6 +348,10 @@ class Group extends DataClass implements Insertable<Group> {
       name: data.name.present ? data.name.value : this.name,
       colorHex: data.colorHex.present ? data.colorHex.value : this.colorHex,
       programId: data.programId.present ? data.programId.value : this.programId,
+      archivedAt: data.archivedAt.present
+          ? data.archivedAt.value
+          : this.archivedAt,
+      position: data.position.present ? data.position.value : this.position,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -283,6 +364,8 @@ class Group extends DataClass implements Insertable<Group> {
           ..write('name: $name, ')
           ..write('colorHex: $colorHex, ')
           ..write('programId: $programId, ')
+          ..write('archivedAt: $archivedAt, ')
+          ..write('position: $position, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -290,8 +373,16 @@ class Group extends DataClass implements Insertable<Group> {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, name, colorHex, programId, createdAt, updatedAt);
+  int get hashCode => Object.hash(
+    id,
+    name,
+    colorHex,
+    programId,
+    archivedAt,
+    position,
+    createdAt,
+    updatedAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -300,6 +391,8 @@ class Group extends DataClass implements Insertable<Group> {
           other.name == this.name &&
           other.colorHex == this.colorHex &&
           other.programId == this.programId &&
+          other.archivedAt == this.archivedAt &&
+          other.position == this.position &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -309,6 +402,8 @@ class GroupsCompanion extends UpdateCompanion<Group> {
   final Value<String> name;
   final Value<String?> colorHex;
   final Value<String?> programId;
+  final Value<DateTime?> archivedAt;
+  final Value<int?> position;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -317,6 +412,8 @@ class GroupsCompanion extends UpdateCompanion<Group> {
     this.name = const Value.absent(),
     this.colorHex = const Value.absent(),
     this.programId = const Value.absent(),
+    this.archivedAt = const Value.absent(),
+    this.position = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -326,6 +423,8 @@ class GroupsCompanion extends UpdateCompanion<Group> {
     required String name,
     this.colorHex = const Value.absent(),
     this.programId = const Value.absent(),
+    this.archivedAt = const Value.absent(),
+    this.position = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -336,6 +435,8 @@ class GroupsCompanion extends UpdateCompanion<Group> {
     Expression<String>? name,
     Expression<String>? colorHex,
     Expression<String>? programId,
+    Expression<DateTime>? archivedAt,
+    Expression<int>? position,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -345,6 +446,8 @@ class GroupsCompanion extends UpdateCompanion<Group> {
       if (name != null) 'name': name,
       if (colorHex != null) 'color_hex': colorHex,
       if (programId != null) 'program_id': programId,
+      if (archivedAt != null) 'archived_at': archivedAt,
+      if (position != null) 'position': position,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -356,6 +459,8 @@ class GroupsCompanion extends UpdateCompanion<Group> {
     Value<String>? name,
     Value<String?>? colorHex,
     Value<String?>? programId,
+    Value<DateTime?>? archivedAt,
+    Value<int?>? position,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -365,6 +470,8 @@ class GroupsCompanion extends UpdateCompanion<Group> {
       name: name ?? this.name,
       colorHex: colorHex ?? this.colorHex,
       programId: programId ?? this.programId,
+      archivedAt: archivedAt ?? this.archivedAt,
+      position: position ?? this.position,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -386,6 +493,12 @@ class GroupsCompanion extends UpdateCompanion<Group> {
     if (programId.present) {
       map['program_id'] = Variable<String>(programId.value);
     }
+    if (archivedAt.present) {
+      map['archived_at'] = Variable<DateTime>(archivedAt.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -405,6 +518,8 @@ class GroupsCompanion extends UpdateCompanion<Group> {
           ..write('name: $name, ')
           ..write('colorHex: $colorHex, ')
           ..write('programId: $programId, ')
+          ..write('archivedAt: $archivedAt, ')
+          ..write('position: $position, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -570,6 +685,28 @@ class $ChildrenTable extends Children with TableInfo<$ChildrenTable, Child> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _archivedAtMeta = const VerificationMeta(
+    'archivedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> archivedAt = GeneratedColumn<DateTime>(
+    'archived_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _positionMeta = const VerificationMeta(
+    'position',
+  );
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+    'position',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -610,6 +747,8 @@ class $ChildrenTable extends Children with TableInfo<$ChildrenTable, Child> {
     expectedArrival,
     expectedPickup,
     programId,
+    archivedAt,
+    position,
     createdAt,
     updatedAt,
   ];
@@ -719,6 +858,18 @@ class $ChildrenTable extends Children with TableInfo<$ChildrenTable, Child> {
         programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
       );
     }
+    if (data.containsKey('archived_at')) {
+      context.handle(
+        _archivedAtMeta,
+        archivedAt.isAcceptableOrUnknown(data['archived_at']!, _archivedAtMeta),
+      );
+    }
+    if (data.containsKey('position')) {
+      context.handle(
+        _positionMeta,
+        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -796,6 +947,14 @@ class $ChildrenTable extends Children with TableInfo<$ChildrenTable, Child> {
         DriftSqlType.string,
         data['${effectivePrefix}program_id'],
       ),
+      archivedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}archived_at'],
+      ),
+      position: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -846,6 +1005,13 @@ class Child extends DataClass implements Insertable<Child> {
   /// Owning program (v42). See [Groups.programId] for nullability
   /// rationale.
   final String? programId;
+
+  /// v52: hide-but-keep for alumni / withdrawn children. Same
+  /// pattern as [Groups.archivedAt].
+  final DateTime? archivedAt;
+
+  /// v52: user-orderable line-up order within a group.
+  final int? position;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Child({
@@ -863,6 +1029,8 @@ class Child extends DataClass implements Insertable<Child> {
     this.expectedArrival,
     this.expectedPickup,
     this.programId,
+    this.archivedAt,
+    this.position,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -907,6 +1075,12 @@ class Child extends DataClass implements Insertable<Child> {
     if (!nullToAbsent || programId != null) {
       map['program_id'] = Variable<String>(programId);
     }
+    if (!nullToAbsent || archivedAt != null) {
+      map['archived_at'] = Variable<DateTime>(archivedAt);
+    }
+    if (!nullToAbsent || position != null) {
+      map['position'] = Variable<int>(position);
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -950,6 +1124,12 @@ class Child extends DataClass implements Insertable<Child> {
       programId: programId == null && nullToAbsent
           ? const Value.absent()
           : Value(programId),
+      archivedAt: archivedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(archivedAt),
+      position: position == null && nullToAbsent
+          ? const Value.absent()
+          : Value(position),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -977,6 +1157,8 @@ class Child extends DataClass implements Insertable<Child> {
       expectedArrival: serializer.fromJson<String?>(json['expectedArrival']),
       expectedPickup: serializer.fromJson<String?>(json['expectedPickup']),
       programId: serializer.fromJson<String?>(json['programId']),
+      archivedAt: serializer.fromJson<DateTime?>(json['archivedAt']),
+      position: serializer.fromJson<int?>(json['position']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -999,6 +1181,8 @@ class Child extends DataClass implements Insertable<Child> {
       'expectedArrival': serializer.toJson<String?>(expectedArrival),
       'expectedPickup': serializer.toJson<String?>(expectedPickup),
       'programId': serializer.toJson<String?>(programId),
+      'archivedAt': serializer.toJson<DateTime?>(archivedAt),
+      'position': serializer.toJson<int?>(position),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -1019,6 +1203,8 @@ class Child extends DataClass implements Insertable<Child> {
     Value<String?> expectedArrival = const Value.absent(),
     Value<String?> expectedPickup = const Value.absent(),
     Value<String?> programId = const Value.absent(),
+    Value<DateTime?> archivedAt = const Value.absent(),
+    Value<int?> position = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Child(
@@ -1042,6 +1228,8 @@ class Child extends DataClass implements Insertable<Child> {
         ? expectedPickup.value
         : this.expectedPickup,
     programId: programId.present ? programId.value : this.programId,
+    archivedAt: archivedAt.present ? archivedAt.value : this.archivedAt,
+    position: position.present ? position.value : this.position,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -1073,6 +1261,10 @@ class Child extends DataClass implements Insertable<Child> {
           ? data.expectedPickup.value
           : this.expectedPickup,
       programId: data.programId.present ? data.programId.value : this.programId,
+      archivedAt: data.archivedAt.present
+          ? data.archivedAt.value
+          : this.archivedAt,
+      position: data.position.present ? data.position.value : this.position,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -1095,6 +1287,8 @@ class Child extends DataClass implements Insertable<Child> {
           ..write('expectedArrival: $expectedArrival, ')
           ..write('expectedPickup: $expectedPickup, ')
           ..write('programId: $programId, ')
+          ..write('archivedAt: $archivedAt, ')
+          ..write('position: $position, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -1117,6 +1311,8 @@ class Child extends DataClass implements Insertable<Child> {
     expectedArrival,
     expectedPickup,
     programId,
+    archivedAt,
+    position,
     createdAt,
     updatedAt,
   );
@@ -1138,6 +1334,8 @@ class Child extends DataClass implements Insertable<Child> {
           other.expectedArrival == this.expectedArrival &&
           other.expectedPickup == this.expectedPickup &&
           other.programId == this.programId &&
+          other.archivedAt == this.archivedAt &&
+          other.position == this.position &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -1157,6 +1355,8 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
   final Value<String?> expectedArrival;
   final Value<String?> expectedPickup;
   final Value<String?> programId;
+  final Value<DateTime?> archivedAt;
+  final Value<int?> position;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -1175,6 +1375,8 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     this.expectedArrival = const Value.absent(),
     this.expectedPickup = const Value.absent(),
     this.programId = const Value.absent(),
+    this.archivedAt = const Value.absent(),
+    this.position = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1194,6 +1396,8 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     this.expectedArrival = const Value.absent(),
     this.expectedPickup = const Value.absent(),
     this.programId = const Value.absent(),
+    this.archivedAt = const Value.absent(),
+    this.position = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1214,6 +1418,8 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     Expression<String>? expectedArrival,
     Expression<String>? expectedPickup,
     Expression<String>? programId,
+    Expression<DateTime>? archivedAt,
+    Expression<int>? position,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -1233,6 +1439,8 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
       if (expectedArrival != null) 'expected_arrival': expectedArrival,
       if (expectedPickup != null) 'expected_pickup': expectedPickup,
       if (programId != null) 'program_id': programId,
+      if (archivedAt != null) 'archived_at': archivedAt,
+      if (position != null) 'position': position,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -1254,6 +1462,8 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     Value<String?>? expectedArrival,
     Value<String?>? expectedPickup,
     Value<String?>? programId,
+    Value<DateTime?>? archivedAt,
+    Value<int?>? position,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -1273,6 +1483,8 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
       expectedArrival: expectedArrival ?? this.expectedArrival,
       expectedPickup: expectedPickup ?? this.expectedPickup,
       programId: programId ?? this.programId,
+      archivedAt: archivedAt ?? this.archivedAt,
+      position: position ?? this.position,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -1324,6 +1536,12 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     if (programId.present) {
       map['program_id'] = Variable<String>(programId.value);
     }
+    if (archivedAt.present) {
+      map['archived_at'] = Variable<DateTime>(archivedAt.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -1353,6 +1571,8 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
           ..write('expectedArrival: $expectedArrival, ')
           ..write('expectedPickup: $expectedPickup, ')
           ..write('programId: $programId, ')
+          ..write('archivedAt: $archivedAt, ')
+          ..write('position: $position, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -2994,6 +3214,28 @@ class $RoomsTable extends Rooms with TableInfo<$RoomsTable, Room> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _archivedAtMeta = const VerificationMeta(
+    'archivedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> archivedAt = GeneratedColumn<DateTime>(
+    'archived_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _positionMeta = const VerificationMeta(
+    'position',
+  );
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+    'position',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -3026,6 +3268,8 @@ class $RoomsTable extends Rooms with TableInfo<$RoomsTable, Room> {
     notes,
     defaultForGroupId,
     programId,
+    archivedAt,
+    position,
     createdAt,
     updatedAt,
   ];
@@ -3081,6 +3325,18 @@ class $RoomsTable extends Rooms with TableInfo<$RoomsTable, Room> {
         programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
       );
     }
+    if (data.containsKey('archived_at')) {
+      context.handle(
+        _archivedAtMeta,
+        archivedAt.isAcceptableOrUnknown(data['archived_at']!, _archivedAtMeta),
+      );
+    }
+    if (data.containsKey('position')) {
+      context.handle(
+        _positionMeta,
+        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -3126,6 +3382,14 @@ class $RoomsTable extends Rooms with TableInfo<$RoomsTable, Room> {
         DriftSqlType.string,
         data['${effectivePrefix}program_id'],
       ),
+      archivedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}archived_at'],
+      ),
+      position: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -3161,6 +3425,13 @@ class Room extends DataClass implements Insertable<Room> {
 
   /// Owning program (v42). See [Groups.programId] for the rule.
   final String? programId;
+
+  /// v52: archive renovated / closed rooms without breaking
+  /// historical schedule rows that reference them.
+  final DateTime? archivedAt;
+
+  /// v52: user-orderable display order in the room picker.
+  final int? position;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Room({
@@ -3170,6 +3441,8 @@ class Room extends DataClass implements Insertable<Room> {
     this.notes,
     this.defaultForGroupId,
     this.programId,
+    this.archivedAt,
+    this.position,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -3189,6 +3462,12 @@ class Room extends DataClass implements Insertable<Room> {
     }
     if (!nullToAbsent || programId != null) {
       map['program_id'] = Variable<String>(programId);
+    }
+    if (!nullToAbsent || archivedAt != null) {
+      map['archived_at'] = Variable<DateTime>(archivedAt);
+    }
+    if (!nullToAbsent || position != null) {
+      map['position'] = Variable<int>(position);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -3211,6 +3490,12 @@ class Room extends DataClass implements Insertable<Room> {
       programId: programId == null && nullToAbsent
           ? const Value.absent()
           : Value(programId),
+      archivedAt: archivedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(archivedAt),
+      position: position == null && nullToAbsent
+          ? const Value.absent()
+          : Value(position),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -3230,6 +3515,8 @@ class Room extends DataClass implements Insertable<Room> {
         json['defaultForGroupId'],
       ),
       programId: serializer.fromJson<String?>(json['programId']),
+      archivedAt: serializer.fromJson<DateTime?>(json['archivedAt']),
+      position: serializer.fromJson<int?>(json['position']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -3244,6 +3531,8 @@ class Room extends DataClass implements Insertable<Room> {
       'notes': serializer.toJson<String?>(notes),
       'defaultForGroupId': serializer.toJson<String?>(defaultForGroupId),
       'programId': serializer.toJson<String?>(programId),
+      'archivedAt': serializer.toJson<DateTime?>(archivedAt),
+      'position': serializer.toJson<int?>(position),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -3256,6 +3545,8 @@ class Room extends DataClass implements Insertable<Room> {
     Value<String?> notes = const Value.absent(),
     Value<String?> defaultForGroupId = const Value.absent(),
     Value<String?> programId = const Value.absent(),
+    Value<DateTime?> archivedAt = const Value.absent(),
+    Value<int?> position = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Room(
@@ -3267,6 +3558,8 @@ class Room extends DataClass implements Insertable<Room> {
         ? defaultForGroupId.value
         : this.defaultForGroupId,
     programId: programId.present ? programId.value : this.programId,
+    archivedAt: archivedAt.present ? archivedAt.value : this.archivedAt,
+    position: position.present ? position.value : this.position,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -3280,6 +3573,10 @@ class Room extends DataClass implements Insertable<Room> {
           ? data.defaultForGroupId.value
           : this.defaultForGroupId,
       programId: data.programId.present ? data.programId.value : this.programId,
+      archivedAt: data.archivedAt.present
+          ? data.archivedAt.value
+          : this.archivedAt,
+      position: data.position.present ? data.position.value : this.position,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -3294,6 +3591,8 @@ class Room extends DataClass implements Insertable<Room> {
           ..write('notes: $notes, ')
           ..write('defaultForGroupId: $defaultForGroupId, ')
           ..write('programId: $programId, ')
+          ..write('archivedAt: $archivedAt, ')
+          ..write('position: $position, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -3308,6 +3607,8 @@ class Room extends DataClass implements Insertable<Room> {
     notes,
     defaultForGroupId,
     programId,
+    archivedAt,
+    position,
     createdAt,
     updatedAt,
   );
@@ -3321,6 +3622,8 @@ class Room extends DataClass implements Insertable<Room> {
           other.notes == this.notes &&
           other.defaultForGroupId == this.defaultForGroupId &&
           other.programId == this.programId &&
+          other.archivedAt == this.archivedAt &&
+          other.position == this.position &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -3332,6 +3635,8 @@ class RoomsCompanion extends UpdateCompanion<Room> {
   final Value<String?> notes;
   final Value<String?> defaultForGroupId;
   final Value<String?> programId;
+  final Value<DateTime?> archivedAt;
+  final Value<int?> position;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -3342,6 +3647,8 @@ class RoomsCompanion extends UpdateCompanion<Room> {
     this.notes = const Value.absent(),
     this.defaultForGroupId = const Value.absent(),
     this.programId = const Value.absent(),
+    this.archivedAt = const Value.absent(),
+    this.position = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -3353,6 +3660,8 @@ class RoomsCompanion extends UpdateCompanion<Room> {
     this.notes = const Value.absent(),
     this.defaultForGroupId = const Value.absent(),
     this.programId = const Value.absent(),
+    this.archivedAt = const Value.absent(),
+    this.position = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -3365,6 +3674,8 @@ class RoomsCompanion extends UpdateCompanion<Room> {
     Expression<String>? notes,
     Expression<String>? defaultForGroupId,
     Expression<String>? programId,
+    Expression<DateTime>? archivedAt,
+    Expression<int>? position,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -3376,6 +3687,8 @@ class RoomsCompanion extends UpdateCompanion<Room> {
       if (notes != null) 'notes': notes,
       if (defaultForGroupId != null) 'default_for_group_id': defaultForGroupId,
       if (programId != null) 'program_id': programId,
+      if (archivedAt != null) 'archived_at': archivedAt,
+      if (position != null) 'position': position,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -3389,6 +3702,8 @@ class RoomsCompanion extends UpdateCompanion<Room> {
     Value<String?>? notes,
     Value<String?>? defaultForGroupId,
     Value<String?>? programId,
+    Value<DateTime?>? archivedAt,
+    Value<int?>? position,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -3400,6 +3715,8 @@ class RoomsCompanion extends UpdateCompanion<Room> {
       notes: notes ?? this.notes,
       defaultForGroupId: defaultForGroupId ?? this.defaultForGroupId,
       programId: programId ?? this.programId,
+      archivedAt: archivedAt ?? this.archivedAt,
+      position: position ?? this.position,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -3427,6 +3744,12 @@ class RoomsCompanion extends UpdateCompanion<Room> {
     if (programId.present) {
       map['program_id'] = Variable<String>(programId.value);
     }
+    if (archivedAt.present) {
+      map['archived_at'] = Variable<DateTime>(archivedAt.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -3448,6 +3771,8 @@ class RoomsCompanion extends UpdateCompanion<Room> {
           ..write('notes: $notes, ')
           ..write('defaultForGroupId: $defaultForGroupId, ')
           ..write('programId: $programId, ')
+          ..write('archivedAt: $archivedAt, ')
+          ..write('position: $position, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -3640,6 +3965,17 @@ class $ObservationsTable extends Observations
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _createdByMeta = const VerificationMeta(
+    'createdBy',
+  );
+  @override
+  late final GeneratedColumn<String> createdBy = GeneratedColumn<String>(
+    'created_by',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -3682,6 +4018,7 @@ class $ObservationsTable extends Observations
     activityDate,
     roomId,
     programId,
+    createdBy,
     createdAt,
     updatedAt,
   ];
@@ -3815,6 +4152,12 @@ class $ObservationsTable extends Observations
         programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
       );
     }
+    if (data.containsKey('created_by')) {
+      context.handle(
+        _createdByMeta,
+        createdBy.isAcceptableOrUnknown(data['created_by']!, _createdByMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -3900,6 +4243,10 @@ class $ObservationsTable extends Observations
         DriftSqlType.string,
         data['${effectivePrefix}program_id'],
       ),
+      createdBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_by'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -3951,6 +4298,14 @@ class Observation extends DataClass implements Insertable<Observation> {
 
   /// Owning program (v42). See [Groups.programId] for the rule.
   final String? programId;
+
+  /// v52: auth user id of whoever logged the observation. Lets
+  /// the UI render "Logged by Sarah" with a real link to the
+  /// member instead of relying on the free-text [authorName]
+  /// (which stays as a fallback for legacy rows). Repos
+  /// populate from `currentSessionProvider.user.id` on insert;
+  /// nullable for pre-v52 rows.
+  final String? createdBy;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Observation({
@@ -3970,6 +4325,7 @@ class Observation extends DataClass implements Insertable<Observation> {
     this.activityDate,
     this.roomId,
     this.programId,
+    this.createdBy,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -4013,6 +4369,9 @@ class Observation extends DataClass implements Insertable<Observation> {
     }
     if (!nullToAbsent || programId != null) {
       map['program_id'] = Variable<String>(programId);
+    }
+    if (!nullToAbsent || createdBy != null) {
+      map['created_by'] = Variable<String>(createdBy);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -4059,6 +4418,9 @@ class Observation extends DataClass implements Insertable<Observation> {
       programId: programId == null && nullToAbsent
           ? const Value.absent()
           : Value(programId),
+      createdBy: createdBy == null && nullToAbsent
+          ? const Value.absent()
+          : Value(createdBy),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -4088,6 +4450,7 @@ class Observation extends DataClass implements Insertable<Observation> {
       activityDate: serializer.fromJson<DateTime?>(json['activityDate']),
       roomId: serializer.fromJson<String?>(json['roomId']),
       programId: serializer.fromJson<String?>(json['programId']),
+      createdBy: serializer.fromJson<String?>(json['createdBy']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -4112,6 +4475,7 @@ class Observation extends DataClass implements Insertable<Observation> {
       'activityDate': serializer.toJson<DateTime?>(activityDate),
       'roomId': serializer.toJson<String?>(roomId),
       'programId': serializer.toJson<String?>(programId),
+      'createdBy': serializer.toJson<String?>(createdBy),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -4134,6 +4498,7 @@ class Observation extends DataClass implements Insertable<Observation> {
     Value<DateTime?> activityDate = const Value.absent(),
     Value<String?> roomId = const Value.absent(),
     Value<String?> programId = const Value.absent(),
+    Value<String?> createdBy = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Observation(
@@ -4159,6 +4524,7 @@ class Observation extends DataClass implements Insertable<Observation> {
     activityDate: activityDate.present ? activityDate.value : this.activityDate,
     roomId: roomId.present ? roomId.value : this.roomId,
     programId: programId.present ? programId.value : this.programId,
+    createdBy: createdBy.present ? createdBy.value : this.createdBy,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -4194,6 +4560,7 @@ class Observation extends DataClass implements Insertable<Observation> {
           : this.activityDate,
       roomId: data.roomId.present ? data.roomId.value : this.roomId,
       programId: data.programId.present ? data.programId.value : this.programId,
+      createdBy: data.createdBy.present ? data.createdBy.value : this.createdBy,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -4218,6 +4585,7 @@ class Observation extends DataClass implements Insertable<Observation> {
           ..write('activityDate: $activityDate, ')
           ..write('roomId: $roomId, ')
           ..write('programId: $programId, ')
+          ..write('createdBy: $createdBy, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -4242,6 +4610,7 @@ class Observation extends DataClass implements Insertable<Observation> {
     activityDate,
     roomId,
     programId,
+    createdBy,
     createdAt,
     updatedAt,
   );
@@ -4265,6 +4634,7 @@ class Observation extends DataClass implements Insertable<Observation> {
           other.activityDate == this.activityDate &&
           other.roomId == this.roomId &&
           other.programId == this.programId &&
+          other.createdBy == this.createdBy &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -4286,6 +4656,7 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
   final Value<DateTime?> activityDate;
   final Value<String?> roomId;
   final Value<String?> programId;
+  final Value<String?> createdBy;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -4306,6 +4677,7 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
     this.activityDate = const Value.absent(),
     this.roomId = const Value.absent(),
     this.programId = const Value.absent(),
+    this.createdBy = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -4327,6 +4699,7 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
     this.activityDate = const Value.absent(),
     this.roomId = const Value.absent(),
     this.programId = const Value.absent(),
+    this.createdBy = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -4352,6 +4725,7 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
     Expression<DateTime>? activityDate,
     Expression<String>? roomId,
     Expression<String>? programId,
+    Expression<String>? createdBy,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -4374,6 +4748,7 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
       if (activityDate != null) 'activity_date': activityDate,
       if (roomId != null) 'room_id': roomId,
       if (programId != null) 'program_id': programId,
+      if (createdBy != null) 'created_by': createdBy,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -4397,6 +4772,7 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
     Value<DateTime?>? activityDate,
     Value<String?>? roomId,
     Value<String?>? programId,
+    Value<String?>? createdBy,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -4418,6 +4794,7 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
       activityDate: activityDate ?? this.activityDate,
       roomId: roomId ?? this.roomId,
       programId: programId ?? this.programId,
+      createdBy: createdBy ?? this.createdBy,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -4475,6 +4852,9 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
     if (programId.present) {
       map['program_id'] = Variable<String>(programId.value);
     }
+    if (createdBy.present) {
+      map['created_by'] = Variable<String>(createdBy.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -4506,6 +4886,7 @@ class ObservationsCompanion extends UpdateCompanion<Observation> {
           ..write('activityDate: $activityDate, ')
           ..write('roomId: $roomId, ')
           ..write('programId: $programId, ')
+          ..write('createdBy: $createdBy, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -5607,6 +5988,28 @@ class $RolesTable extends Roles with TableInfo<$RolesTable, Role> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _archivedAtMeta = const VerificationMeta(
+    'archivedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> archivedAt = GeneratedColumn<DateTime>(
+    'archived_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _positionMeta = const VerificationMeta(
+    'position',
+  );
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+    'position',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -5636,6 +6039,8 @@ class $RolesTable extends Roles with TableInfo<$RolesTable, Role> {
     id,
     name,
     programId,
+    archivedAt,
+    position,
     createdAt,
     updatedAt,
   ];
@@ -5668,6 +6073,18 @@ class $RolesTable extends Roles with TableInfo<$RolesTable, Role> {
       context.handle(
         _programIdMeta,
         programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
+      );
+    }
+    if (data.containsKey('archived_at')) {
+      context.handle(
+        _archivedAtMeta,
+        archivedAt.isAcceptableOrUnknown(data['archived_at']!, _archivedAtMeta),
+      );
+    }
+    if (data.containsKey('position')) {
+      context.handle(
+        _positionMeta,
+        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
       );
     }
     if (data.containsKey('created_at')) {
@@ -5703,6 +6120,14 @@ class $RolesTable extends Roles with TableInfo<$RolesTable, Role> {
         DriftSqlType.string,
         data['${effectivePrefix}program_id'],
       ),
+      archivedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}archived_at'],
+      ),
+      position: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -5726,12 +6151,22 @@ class Role extends DataClass implements Insertable<Role> {
 
   /// Owning program (v42). See [Groups.programId] for the rule.
   final String? programId;
+
+  /// v52: archive without losing historical attribution. A role
+  /// used last year stays on past observations / staff records
+  /// even after the program rotates curriculum.
+  final DateTime? archivedAt;
+
+  /// v52: user-orderable display order in the role picker.
+  final int? position;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Role({
     required this.id,
     required this.name,
     this.programId,
+    this.archivedAt,
+    this.position,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -5742,6 +6177,12 @@ class Role extends DataClass implements Insertable<Role> {
     map['name'] = Variable<String>(name);
     if (!nullToAbsent || programId != null) {
       map['program_id'] = Variable<String>(programId);
+    }
+    if (!nullToAbsent || archivedAt != null) {
+      map['archived_at'] = Variable<DateTime>(archivedAt);
+    }
+    if (!nullToAbsent || position != null) {
+      map['position'] = Variable<int>(position);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -5755,6 +6196,12 @@ class Role extends DataClass implements Insertable<Role> {
       programId: programId == null && nullToAbsent
           ? const Value.absent()
           : Value(programId),
+      archivedAt: archivedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(archivedAt),
+      position: position == null && nullToAbsent
+          ? const Value.absent()
+          : Value(position),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -5769,6 +6216,8 @@ class Role extends DataClass implements Insertable<Role> {
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       programId: serializer.fromJson<String?>(json['programId']),
+      archivedAt: serializer.fromJson<DateTime?>(json['archivedAt']),
+      position: serializer.fromJson<int?>(json['position']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -5780,6 +6229,8 @@ class Role extends DataClass implements Insertable<Role> {
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'programId': serializer.toJson<String?>(programId),
+      'archivedAt': serializer.toJson<DateTime?>(archivedAt),
+      'position': serializer.toJson<int?>(position),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -5789,12 +6240,16 @@ class Role extends DataClass implements Insertable<Role> {
     String? id,
     String? name,
     Value<String?> programId = const Value.absent(),
+    Value<DateTime?> archivedAt = const Value.absent(),
+    Value<int?> position = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Role(
     id: id ?? this.id,
     name: name ?? this.name,
     programId: programId.present ? programId.value : this.programId,
+    archivedAt: archivedAt.present ? archivedAt.value : this.archivedAt,
+    position: position.present ? position.value : this.position,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -5803,6 +6258,10 @@ class Role extends DataClass implements Insertable<Role> {
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
       programId: data.programId.present ? data.programId.value : this.programId,
+      archivedAt: data.archivedAt.present
+          ? data.archivedAt.value
+          : this.archivedAt,
+      position: data.position.present ? data.position.value : this.position,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -5814,6 +6273,8 @@ class Role extends DataClass implements Insertable<Role> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('programId: $programId, ')
+          ..write('archivedAt: $archivedAt, ')
+          ..write('position: $position, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -5821,7 +6282,15 @@ class Role extends DataClass implements Insertable<Role> {
   }
 
   @override
-  int get hashCode => Object.hash(id, name, programId, createdAt, updatedAt);
+  int get hashCode => Object.hash(
+    id,
+    name,
+    programId,
+    archivedAt,
+    position,
+    createdAt,
+    updatedAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -5829,6 +6298,8 @@ class Role extends DataClass implements Insertable<Role> {
           other.id == this.id &&
           other.name == this.name &&
           other.programId == this.programId &&
+          other.archivedAt == this.archivedAt &&
+          other.position == this.position &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -5837,6 +6308,8 @@ class RolesCompanion extends UpdateCompanion<Role> {
   final Value<String> id;
   final Value<String> name;
   final Value<String?> programId;
+  final Value<DateTime?> archivedAt;
+  final Value<int?> position;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -5844,6 +6317,8 @@ class RolesCompanion extends UpdateCompanion<Role> {
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.programId = const Value.absent(),
+    this.archivedAt = const Value.absent(),
+    this.position = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -5852,6 +6327,8 @@ class RolesCompanion extends UpdateCompanion<Role> {
     required String id,
     required String name,
     this.programId = const Value.absent(),
+    this.archivedAt = const Value.absent(),
+    this.position = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -5861,6 +6338,8 @@ class RolesCompanion extends UpdateCompanion<Role> {
     Expression<String>? id,
     Expression<String>? name,
     Expression<String>? programId,
+    Expression<DateTime>? archivedAt,
+    Expression<int>? position,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -5869,6 +6348,8 @@ class RolesCompanion extends UpdateCompanion<Role> {
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (programId != null) 'program_id': programId,
+      if (archivedAt != null) 'archived_at': archivedAt,
+      if (position != null) 'position': position,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -5879,6 +6360,8 @@ class RolesCompanion extends UpdateCompanion<Role> {
     Value<String>? id,
     Value<String>? name,
     Value<String?>? programId,
+    Value<DateTime?>? archivedAt,
+    Value<int?>? position,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -5887,6 +6370,8 @@ class RolesCompanion extends UpdateCompanion<Role> {
       id: id ?? this.id,
       name: name ?? this.name,
       programId: programId ?? this.programId,
+      archivedAt: archivedAt ?? this.archivedAt,
+      position: position ?? this.position,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -5904,6 +6389,12 @@ class RolesCompanion extends UpdateCompanion<Role> {
     }
     if (programId.present) {
       map['program_id'] = Variable<String>(programId.value);
+    }
+    if (archivedAt.present) {
+      map['archived_at'] = Variable<DateTime>(archivedAt.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
     }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
@@ -5923,6 +6414,8 @@ class RolesCompanion extends UpdateCompanion<Role> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('programId: $programId, ')
+          ..write('archivedAt: $archivedAt, ')
+          ..write('position: $position, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -6016,6 +6509,17 @@ class $ParentsTable extends Parents with TableInfo<$ParentsTable, Parent> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _archivedAtMeta = const VerificationMeta(
+    'archivedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> archivedAt = GeneratedColumn<DateTime>(
+    'archived_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -6050,6 +6554,7 @@ class $ParentsTable extends Parents with TableInfo<$ParentsTable, Parent> {
     email,
     notes,
     programId,
+    archivedAt,
     createdAt,
     updatedAt,
   ];
@@ -6117,6 +6622,12 @@ class $ParentsTable extends Parents with TableInfo<$ParentsTable, Parent> {
         programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
       );
     }
+    if (data.containsKey('archived_at')) {
+      context.handle(
+        _archivedAtMeta,
+        archivedAt.isAcceptableOrUnknown(data['archived_at']!, _archivedAtMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -6170,6 +6681,10 @@ class $ParentsTable extends Parents with TableInfo<$ParentsTable, Parent> {
         DriftSqlType.string,
         data['${effectivePrefix}program_id'],
       ),
+      archivedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}archived_at'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -6202,6 +6717,10 @@ class Parent extends DataClass implements Insertable<Parent> {
 
   /// Owning program (v42). See [Groups.programId] for the rule.
   final String? programId;
+
+  /// v52: archive former families without losing the link to
+  /// historical observations / attendance.
+  final DateTime? archivedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Parent({
@@ -6213,6 +6732,7 @@ class Parent extends DataClass implements Insertable<Parent> {
     this.email,
     this.notes,
     this.programId,
+    this.archivedAt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -6238,6 +6758,9 @@ class Parent extends DataClass implements Insertable<Parent> {
     }
     if (!nullToAbsent || programId != null) {
       map['program_id'] = Variable<String>(programId);
+    }
+    if (!nullToAbsent || archivedAt != null) {
+      map['archived_at'] = Variable<DateTime>(archivedAt);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -6266,6 +6789,9 @@ class Parent extends DataClass implements Insertable<Parent> {
       programId: programId == null && nullToAbsent
           ? const Value.absent()
           : Value(programId),
+      archivedAt: archivedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(archivedAt),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -6285,6 +6811,7 @@ class Parent extends DataClass implements Insertable<Parent> {
       email: serializer.fromJson<String?>(json['email']),
       notes: serializer.fromJson<String?>(json['notes']),
       programId: serializer.fromJson<String?>(json['programId']),
+      archivedAt: serializer.fromJson<DateTime?>(json['archivedAt']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -6301,6 +6828,7 @@ class Parent extends DataClass implements Insertable<Parent> {
       'email': serializer.toJson<String?>(email),
       'notes': serializer.toJson<String?>(notes),
       'programId': serializer.toJson<String?>(programId),
+      'archivedAt': serializer.toJson<DateTime?>(archivedAt),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -6315,6 +6843,7 @@ class Parent extends DataClass implements Insertable<Parent> {
     Value<String?> email = const Value.absent(),
     Value<String?> notes = const Value.absent(),
     Value<String?> programId = const Value.absent(),
+    Value<DateTime?> archivedAt = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Parent(
@@ -6326,6 +6855,7 @@ class Parent extends DataClass implements Insertable<Parent> {
     email: email.present ? email.value : this.email,
     notes: notes.present ? notes.value : this.notes,
     programId: programId.present ? programId.value : this.programId,
+    archivedAt: archivedAt.present ? archivedAt.value : this.archivedAt,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -6341,6 +6871,9 @@ class Parent extends DataClass implements Insertable<Parent> {
       email: data.email.present ? data.email.value : this.email,
       notes: data.notes.present ? data.notes.value : this.notes,
       programId: data.programId.present ? data.programId.value : this.programId,
+      archivedAt: data.archivedAt.present
+          ? data.archivedAt.value
+          : this.archivedAt,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -6357,6 +6890,7 @@ class Parent extends DataClass implements Insertable<Parent> {
           ..write('email: $email, ')
           ..write('notes: $notes, ')
           ..write('programId: $programId, ')
+          ..write('archivedAt: $archivedAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -6373,6 +6907,7 @@ class Parent extends DataClass implements Insertable<Parent> {
     email,
     notes,
     programId,
+    archivedAt,
     createdAt,
     updatedAt,
   );
@@ -6388,6 +6923,7 @@ class Parent extends DataClass implements Insertable<Parent> {
           other.email == this.email &&
           other.notes == this.notes &&
           other.programId == this.programId &&
+          other.archivedAt == this.archivedAt &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -6401,6 +6937,7 @@ class ParentsCompanion extends UpdateCompanion<Parent> {
   final Value<String?> email;
   final Value<String?> notes;
   final Value<String?> programId;
+  final Value<DateTime?> archivedAt;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -6413,6 +6950,7 @@ class ParentsCompanion extends UpdateCompanion<Parent> {
     this.email = const Value.absent(),
     this.notes = const Value.absent(),
     this.programId = const Value.absent(),
+    this.archivedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -6426,6 +6964,7 @@ class ParentsCompanion extends UpdateCompanion<Parent> {
     this.email = const Value.absent(),
     this.notes = const Value.absent(),
     this.programId = const Value.absent(),
+    this.archivedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -6440,6 +6979,7 @@ class ParentsCompanion extends UpdateCompanion<Parent> {
     Expression<String>? email,
     Expression<String>? notes,
     Expression<String>? programId,
+    Expression<DateTime>? archivedAt,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -6453,6 +6993,7 @@ class ParentsCompanion extends UpdateCompanion<Parent> {
       if (email != null) 'email': email,
       if (notes != null) 'notes': notes,
       if (programId != null) 'program_id': programId,
+      if (archivedAt != null) 'archived_at': archivedAt,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -6468,6 +7009,7 @@ class ParentsCompanion extends UpdateCompanion<Parent> {
     Value<String?>? email,
     Value<String?>? notes,
     Value<String?>? programId,
+    Value<DateTime?>? archivedAt,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -6481,6 +7023,7 @@ class ParentsCompanion extends UpdateCompanion<Parent> {
       email: email ?? this.email,
       notes: notes ?? this.notes,
       programId: programId ?? this.programId,
+      archivedAt: archivedAt ?? this.archivedAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -6514,6 +7057,9 @@ class ParentsCompanion extends UpdateCompanion<Parent> {
     if (programId.present) {
       map['program_id'] = Variable<String>(programId.value);
     }
+    if (archivedAt.present) {
+      map['archived_at'] = Variable<DateTime>(archivedAt.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -6537,6 +7083,7 @@ class ParentsCompanion extends UpdateCompanion<Parent> {
           ..write('email: $email, ')
           ..write('notes: $notes, ')
           ..write('programId: $programId, ')
+          ..write('archivedAt: $archivedAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -6674,7 +7221,7 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    defaultValue: const Constant('adult'),
+    defaultValue: const Constant('specialist'),
   );
   static const VerificationMeta _anchoredGroupIdMeta = const VerificationMeta(
     'anchoredGroupId',
@@ -6699,6 +7246,17 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
     aliasedName,
     true,
     type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _archivedAtMeta = const VerificationMeta(
+    'archivedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> archivedAt = GeneratedColumn<DateTime>(
+    'archived_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
@@ -6741,6 +7299,7 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
     adultRole,
     anchoredGroupId,
     programId,
+    archivedAt,
     createdAt,
     updatedAt,
   ];
@@ -6847,6 +7406,12 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
         programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
       );
     }
+    if (data.containsKey('archived_at')) {
+      context.handle(
+        _archivedAtMeta,
+        archivedAt.isAcceptableOrUnknown(data['archived_at']!, _archivedAtMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -6924,6 +7489,10 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
         DriftSqlType.string,
         data['${effectivePrefix}program_id'],
       ),
+      archivedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}archived_at'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -6975,9 +7544,11 @@ class Adult extends DataClass implements Insertable<Adult> {
   /// Both can be true simultaneously.
   final String? parentId;
 
-  /// 'lead' | 'adult' | 'ambient'. Null-defaults to 'adult'
-  /// on existing rows (matches current behavior — every adult was
-  /// treated as a rover).
+  /// 'lead' | 'specialist' | 'ambient'. v52 normalizes the
+  /// historical 'adult' default to 'specialist' (cloud migration
+  /// 0027 + Drift v52 onUpgrade do the in-place UPDATE) to match
+  /// the AdultRole enum's dbValues. New rows default to
+  /// 'specialist'; legacy 'adult' rows are migrated.
   final String adultRole;
 
   /// For leads: the single group they're anchored to all day. For
@@ -6987,6 +7558,10 @@ class Adult extends DataClass implements Insertable<Adult> {
 
   /// Owning program (v42). See [Groups.programId] for the rule.
   final String? programId;
+
+  /// v52: archive ex-staff without losing observation/audit
+  /// attribution.
+  final DateTime? archivedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Adult({
@@ -7004,6 +7579,7 @@ class Adult extends DataClass implements Insertable<Adult> {
     required this.adultRole,
     this.anchoredGroupId,
     this.programId,
+    this.archivedAt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -7046,6 +7622,9 @@ class Adult extends DataClass implements Insertable<Adult> {
     if (!nullToAbsent || programId != null) {
       map['program_id'] = Variable<String>(programId);
     }
+    if (!nullToAbsent || archivedAt != null) {
+      map['archived_at'] = Variable<DateTime>(archivedAt);
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -7087,6 +7666,9 @@ class Adult extends DataClass implements Insertable<Adult> {
       programId: programId == null && nullToAbsent
           ? const Value.absent()
           : Value(programId),
+      archivedAt: archivedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(archivedAt),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -7114,6 +7696,7 @@ class Adult extends DataClass implements Insertable<Adult> {
       adultRole: serializer.fromJson<String>(json['adultRole']),
       anchoredGroupId: serializer.fromJson<String?>(json['anchoredGroupId']),
       programId: serializer.fromJson<String?>(json['programId']),
+      archivedAt: serializer.fromJson<DateTime?>(json['archivedAt']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -7136,6 +7719,7 @@ class Adult extends DataClass implements Insertable<Adult> {
       'adultRole': serializer.toJson<String>(adultRole),
       'anchoredGroupId': serializer.toJson<String?>(anchoredGroupId),
       'programId': serializer.toJson<String?>(programId),
+      'archivedAt': serializer.toJson<DateTime?>(archivedAt),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -7156,6 +7740,7 @@ class Adult extends DataClass implements Insertable<Adult> {
     String? adultRole,
     Value<String?> anchoredGroupId = const Value.absent(),
     Value<String?> programId = const Value.absent(),
+    Value<DateTime?> archivedAt = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Adult(
@@ -7177,6 +7762,7 @@ class Adult extends DataClass implements Insertable<Adult> {
         ? anchoredGroupId.value
         : this.anchoredGroupId,
     programId: programId.present ? programId.value : this.programId,
+    archivedAt: archivedAt.present ? archivedAt.value : this.archivedAt,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -7204,6 +7790,9 @@ class Adult extends DataClass implements Insertable<Adult> {
           ? data.anchoredGroupId.value
           : this.anchoredGroupId,
       programId: data.programId.present ? data.programId.value : this.programId,
+      archivedAt: data.archivedAt.present
+          ? data.archivedAt.value
+          : this.archivedAt,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -7226,6 +7815,7 @@ class Adult extends DataClass implements Insertable<Adult> {
           ..write('adultRole: $adultRole, ')
           ..write('anchoredGroupId: $anchoredGroupId, ')
           ..write('programId: $programId, ')
+          ..write('archivedAt: $archivedAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -7248,6 +7838,7 @@ class Adult extends DataClass implements Insertable<Adult> {
     adultRole,
     anchoredGroupId,
     programId,
+    archivedAt,
     createdAt,
     updatedAt,
   );
@@ -7269,6 +7860,7 @@ class Adult extends DataClass implements Insertable<Adult> {
           other.adultRole == this.adultRole &&
           other.anchoredGroupId == this.anchoredGroupId &&
           other.programId == this.programId &&
+          other.archivedAt == this.archivedAt &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -7288,6 +7880,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
   final Value<String> adultRole;
   final Value<String?> anchoredGroupId;
   final Value<String?> programId;
+  final Value<DateTime?> archivedAt;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -7306,6 +7899,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     this.adultRole = const Value.absent(),
     this.anchoredGroupId = const Value.absent(),
     this.programId = const Value.absent(),
+    this.archivedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -7325,6 +7919,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     this.adultRole = const Value.absent(),
     this.anchoredGroupId = const Value.absent(),
     this.programId = const Value.absent(),
+    this.archivedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -7345,6 +7940,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     Expression<String>? adultRole,
     Expression<String>? anchoredGroupId,
     Expression<String>? programId,
+    Expression<DateTime>? archivedAt,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -7364,6 +7960,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
       if (adultRole != null) 'adult_role': adultRole,
       if (anchoredGroupId != null) 'anchored_group_id': anchoredGroupId,
       if (programId != null) 'program_id': programId,
+      if (archivedAt != null) 'archived_at': archivedAt,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -7385,6 +7982,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     Value<String>? adultRole,
     Value<String?>? anchoredGroupId,
     Value<String?>? programId,
+    Value<DateTime?>? archivedAt,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -7404,6 +8002,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
       adultRole: adultRole ?? this.adultRole,
       anchoredGroupId: anchoredGroupId ?? this.anchoredGroupId,
       programId: programId ?? this.programId,
+      archivedAt: archivedAt ?? this.archivedAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -7455,6 +8054,9 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     if (programId.present) {
       map['program_id'] = Variable<String>(programId.value);
     }
+    if (archivedAt.present) {
+      map['archived_at'] = Variable<DateTime>(archivedAt.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -7484,6 +8086,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
           ..write('adultRole: $adultRole, ')
           ..write('anchoredGroupId: $anchoredGroupId, ')
           ..write('programId: $programId, ')
+          ..write('archivedAt: $archivedAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -15698,6 +16301,17 @@ class $FormSubmissionsTable extends FormSubmissions
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _createdByMeta = const VerificationMeta(
+    'createdBy',
+  );
+  @override
+  late final GeneratedColumn<String> createdBy = GeneratedColumn<String>(
+    'created_by',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -15736,6 +16350,7 @@ class $FormSubmissionsTable extends FormSubmissions
     reviewDueAt,
     data,
     programId,
+    createdBy,
     createdAt,
     updatedAt,
   ];
@@ -15833,6 +16448,12 @@ class $FormSubmissionsTable extends FormSubmissions
         programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
       );
     }
+    if (data.containsKey('created_by')) {
+      context.handle(
+        _createdByMeta,
+        createdBy.isAcceptableOrUnknown(data['created_by']!, _createdByMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -15902,6 +16523,10 @@ class $FormSubmissionsTable extends FormSubmissions
         DriftSqlType.string,
         data['${effectivePrefix}program_id'],
       ),
+      createdBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_by'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -15962,6 +16587,13 @@ class FormSubmission extends DataClass implements Insertable<FormSubmission> {
 
   /// Owning program (v42). See [Groups.programId] for the rule.
   final String? programId;
+
+  /// v52: auth user id of whoever submitted the form. Same role
+  /// as [Observations.createdBy] — lets the UI render "Vehicle
+  /// check completed by Marcus" with a stable link to the
+  /// member, while [authorName] stays as a fallback for legacy
+  /// rows.
+  final String? createdBy;
   final DateTime createdAt;
   final DateTime updatedAt;
   const FormSubmission({
@@ -15977,6 +16609,7 @@ class FormSubmission extends DataClass implements Insertable<FormSubmission> {
     this.reviewDueAt,
     required this.data,
     this.programId,
+    this.createdBy,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -16010,6 +16643,9 @@ class FormSubmission extends DataClass implements Insertable<FormSubmission> {
     map['data'] = Variable<String>(data);
     if (!nullToAbsent || programId != null) {
       map['program_id'] = Variable<String>(programId);
+    }
+    if (!nullToAbsent || createdBy != null) {
+      map['created_by'] = Variable<String>(createdBy);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -16046,6 +16682,9 @@ class FormSubmission extends DataClass implements Insertable<FormSubmission> {
       programId: programId == null && nullToAbsent
           ? const Value.absent()
           : Value(programId),
+      createdBy: createdBy == null && nullToAbsent
+          ? const Value.absent()
+          : Value(createdBy),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -16071,6 +16710,7 @@ class FormSubmission extends DataClass implements Insertable<FormSubmission> {
       reviewDueAt: serializer.fromJson<DateTime?>(json['reviewDueAt']),
       data: serializer.fromJson<String>(json['data']),
       programId: serializer.fromJson<String?>(json['programId']),
+      createdBy: serializer.fromJson<String?>(json['createdBy']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -16091,6 +16731,7 @@ class FormSubmission extends DataClass implements Insertable<FormSubmission> {
       'reviewDueAt': serializer.toJson<DateTime?>(reviewDueAt),
       'data': serializer.toJson<String>(data),
       'programId': serializer.toJson<String?>(programId),
+      'createdBy': serializer.toJson<String?>(createdBy),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -16109,6 +16750,7 @@ class FormSubmission extends DataClass implements Insertable<FormSubmission> {
     Value<DateTime?> reviewDueAt = const Value.absent(),
     String? data,
     Value<String?> programId = const Value.absent(),
+    Value<String?> createdBy = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => FormSubmission(
@@ -16126,6 +16768,7 @@ class FormSubmission extends DataClass implements Insertable<FormSubmission> {
     reviewDueAt: reviewDueAt.present ? reviewDueAt.value : this.reviewDueAt,
     data: data ?? this.data,
     programId: programId.present ? programId.value : this.programId,
+    createdBy: createdBy.present ? createdBy.value : this.createdBy,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -16151,6 +16794,7 @@ class FormSubmission extends DataClass implements Insertable<FormSubmission> {
           : this.reviewDueAt,
       data: data.data.present ? data.data.value : this.data,
       programId: data.programId.present ? data.programId.value : this.programId,
+      createdBy: data.createdBy.present ? data.createdBy.value : this.createdBy,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -16171,6 +16815,7 @@ class FormSubmission extends DataClass implements Insertable<FormSubmission> {
           ..write('reviewDueAt: $reviewDueAt, ')
           ..write('data: $data, ')
           ..write('programId: $programId, ')
+          ..write('createdBy: $createdBy, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -16191,6 +16836,7 @@ class FormSubmission extends DataClass implements Insertable<FormSubmission> {
     reviewDueAt,
     data,
     programId,
+    createdBy,
     createdAt,
     updatedAt,
   );
@@ -16210,6 +16856,7 @@ class FormSubmission extends DataClass implements Insertable<FormSubmission> {
           other.reviewDueAt == this.reviewDueAt &&
           other.data == this.data &&
           other.programId == this.programId &&
+          other.createdBy == this.createdBy &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -16227,6 +16874,7 @@ class FormSubmissionsCompanion extends UpdateCompanion<FormSubmission> {
   final Value<DateTime?> reviewDueAt;
   final Value<String> data;
   final Value<String?> programId;
+  final Value<String?> createdBy;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -16243,6 +16891,7 @@ class FormSubmissionsCompanion extends UpdateCompanion<FormSubmission> {
     this.reviewDueAt = const Value.absent(),
     this.data = const Value.absent(),
     this.programId = const Value.absent(),
+    this.createdBy = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -16260,6 +16909,7 @@ class FormSubmissionsCompanion extends UpdateCompanion<FormSubmission> {
     this.reviewDueAt = const Value.absent(),
     this.data = const Value.absent(),
     this.programId = const Value.absent(),
+    this.createdBy = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -16278,6 +16928,7 @@ class FormSubmissionsCompanion extends UpdateCompanion<FormSubmission> {
     Expression<DateTime>? reviewDueAt,
     Expression<String>? data,
     Expression<String>? programId,
+    Expression<String>? createdBy,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -16296,6 +16947,7 @@ class FormSubmissionsCompanion extends UpdateCompanion<FormSubmission> {
       if (reviewDueAt != null) 'review_due_at': reviewDueAt,
       if (data != null) 'data': data,
       if (programId != null) 'program_id': programId,
+      if (createdBy != null) 'created_by': createdBy,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -16315,6 +16967,7 @@ class FormSubmissionsCompanion extends UpdateCompanion<FormSubmission> {
     Value<DateTime?>? reviewDueAt,
     Value<String>? data,
     Value<String?>? programId,
+    Value<String?>? createdBy,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -16332,6 +16985,7 @@ class FormSubmissionsCompanion extends UpdateCompanion<FormSubmission> {
       reviewDueAt: reviewDueAt ?? this.reviewDueAt,
       data: data ?? this.data,
       programId: programId ?? this.programId,
+      createdBy: createdBy ?? this.createdBy,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -16377,6 +17031,9 @@ class FormSubmissionsCompanion extends UpdateCompanion<FormSubmission> {
     if (programId.present) {
       map['program_id'] = Variable<String>(programId.value);
     }
+    if (createdBy.present) {
+      map['created_by'] = Variable<String>(createdBy.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -16404,6 +17061,7 @@ class FormSubmissionsCompanion extends UpdateCompanion<FormSubmission> {
           ..write('reviewDueAt: $reviewDueAt, ')
           ..write('data: $data, ')
           ..write('programId: $programId, ')
+          ..write('createdBy: $createdBy, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -16479,6 +17137,17 @@ class $VehiclesTable extends Vehicles with TableInfo<$VehiclesTable, Vehicle> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _archivedAtMeta = const VerificationMeta(
+    'archivedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> archivedAt = GeneratedColumn<DateTime>(
+    'archived_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -16511,6 +17180,7 @@ class $VehiclesTable extends Vehicles with TableInfo<$VehiclesTable, Vehicle> {
     licensePlate,
     notes,
     programId,
+    archivedAt,
     createdAt,
     updatedAt,
   ];
@@ -16566,6 +17236,12 @@ class $VehiclesTable extends Vehicles with TableInfo<$VehiclesTable, Vehicle> {
         programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
       );
     }
+    if (data.containsKey('archived_at')) {
+      context.handle(
+        _archivedAtMeta,
+        archivedAt.isAcceptableOrUnknown(data['archived_at']!, _archivedAtMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -16611,6 +17287,10 @@ class $VehiclesTable extends Vehicles with TableInfo<$VehiclesTable, Vehicle> {
         DriftSqlType.string,
         data['${effectivePrefix}program_id'],
       ),
+      archivedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}archived_at'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -16650,6 +17330,10 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
 
   /// Owning program (v42). See [Groups.programId] for the rule.
   final String? programId;
+
+  /// v52: archive retired vehicles without losing their trip
+  /// history. Pickers filter `archivedAt IS NULL`.
+  final DateTime? archivedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Vehicle({
@@ -16659,6 +17343,7 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
     required this.licensePlate,
     this.notes,
     this.programId,
+    this.archivedAt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -16674,6 +17359,9 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
     }
     if (!nullToAbsent || programId != null) {
       map['program_id'] = Variable<String>(programId);
+    }
+    if (!nullToAbsent || archivedAt != null) {
+      map['archived_at'] = Variable<DateTime>(archivedAt);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -16692,6 +17380,9 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
       programId: programId == null && nullToAbsent
           ? const Value.absent()
           : Value(programId),
+      archivedAt: archivedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(archivedAt),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -16709,6 +17400,7 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
       licensePlate: serializer.fromJson<String>(json['licensePlate']),
       notes: serializer.fromJson<String?>(json['notes']),
       programId: serializer.fromJson<String?>(json['programId']),
+      archivedAt: serializer.fromJson<DateTime?>(json['archivedAt']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -16723,6 +17415,7 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
       'licensePlate': serializer.toJson<String>(licensePlate),
       'notes': serializer.toJson<String?>(notes),
       'programId': serializer.toJson<String?>(programId),
+      'archivedAt': serializer.toJson<DateTime?>(archivedAt),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -16735,6 +17428,7 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
     String? licensePlate,
     Value<String?> notes = const Value.absent(),
     Value<String?> programId = const Value.absent(),
+    Value<DateTime?> archivedAt = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Vehicle(
@@ -16744,6 +17438,7 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
     licensePlate: licensePlate ?? this.licensePlate,
     notes: notes.present ? notes.value : this.notes,
     programId: programId.present ? programId.value : this.programId,
+    archivedAt: archivedAt.present ? archivedAt.value : this.archivedAt,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -16757,6 +17452,9 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
           : this.licensePlate,
       notes: data.notes.present ? data.notes.value : this.notes,
       programId: data.programId.present ? data.programId.value : this.programId,
+      archivedAt: data.archivedAt.present
+          ? data.archivedAt.value
+          : this.archivedAt,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -16771,6 +17469,7 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
           ..write('licensePlate: $licensePlate, ')
           ..write('notes: $notes, ')
           ..write('programId: $programId, ')
+          ..write('archivedAt: $archivedAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -16785,6 +17484,7 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
     licensePlate,
     notes,
     programId,
+    archivedAt,
     createdAt,
     updatedAt,
   );
@@ -16798,6 +17498,7 @@ class Vehicle extends DataClass implements Insertable<Vehicle> {
           other.licensePlate == this.licensePlate &&
           other.notes == this.notes &&
           other.programId == this.programId &&
+          other.archivedAt == this.archivedAt &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -16809,6 +17510,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
   final Value<String> licensePlate;
   final Value<String?> notes;
   final Value<String?> programId;
+  final Value<DateTime?> archivedAt;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -16819,6 +17521,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
     this.licensePlate = const Value.absent(),
     this.notes = const Value.absent(),
     this.programId = const Value.absent(),
+    this.archivedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -16830,6 +17533,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
     this.licensePlate = const Value.absent(),
     this.notes = const Value.absent(),
     this.programId = const Value.absent(),
+    this.archivedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -16842,6 +17546,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
     Expression<String>? licensePlate,
     Expression<String>? notes,
     Expression<String>? programId,
+    Expression<DateTime>? archivedAt,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -16853,6 +17558,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
       if (licensePlate != null) 'license_plate': licensePlate,
       if (notes != null) 'notes': notes,
       if (programId != null) 'program_id': programId,
+      if (archivedAt != null) 'archived_at': archivedAt,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -16866,6 +17572,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
     Value<String>? licensePlate,
     Value<String?>? notes,
     Value<String?>? programId,
+    Value<DateTime?>? archivedAt,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -16877,6 +17584,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
       licensePlate: licensePlate ?? this.licensePlate,
       notes: notes ?? this.notes,
       programId: programId ?? this.programId,
+      archivedAt: archivedAt ?? this.archivedAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -16904,6 +17612,9 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
     if (programId.present) {
       map['program_id'] = Variable<String>(programId.value);
     }
+    if (archivedAt.present) {
+      map['archived_at'] = Variable<DateTime>(archivedAt.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -16925,6 +17636,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehicle> {
           ..write('licensePlate: $licensePlate, ')
           ..write('notes: $notes, ')
           ..write('programId: $programId, ')
+          ..write('archivedAt: $archivedAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -16994,12 +17706,24 @@ class $ParentChildrenTable extends ParentChildren
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     parentId,
     childId,
     isPrimary,
     createdAt,
+    updatedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -17041,6 +17765,12 @@ class $ParentChildrenTable extends ParentChildren
         createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
       );
     }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -17066,6 +17796,10 @@ class $ParentChildrenTable extends ParentChildren
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      ),
     );
   }
 
@@ -17084,11 +17818,19 @@ class ParentChildrenData extends DataClass
   /// per child (repository-enforced, not FK-enforced).
   final bool isPrimary;
   final DateTime createdAt;
+
+  /// v52: stamped on every UPDATE (cloud-side touch trigger,
+  /// local-side via repo writes) so the watermarked pull picks
+  /// up isPrimary toggles. Without this column the pull never
+  /// noticed primary-flag flips since the row's natural-PK was
+  /// stable.
+  final DateTime? updatedAt;
   const ParentChildrenData({
     required this.parentId,
     required this.childId,
     required this.isPrimary,
     required this.createdAt,
+    this.updatedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -17097,6 +17839,9 @@ class ParentChildrenData extends DataClass
     map['child_id'] = Variable<String>(childId);
     map['is_primary'] = Variable<bool>(isPrimary);
     map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<DateTime>(updatedAt);
+    }
     return map;
   }
 
@@ -17106,6 +17851,9 @@ class ParentChildrenData extends DataClass
       childId: Value(childId),
       isPrimary: Value(isPrimary),
       createdAt: Value(createdAt),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
     );
   }
 
@@ -17119,6 +17867,7 @@ class ParentChildrenData extends DataClass
       childId: serializer.fromJson<String>(json['childId']),
       isPrimary: serializer.fromJson<bool>(json['isPrimary']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
     );
   }
   @override
@@ -17129,6 +17878,7 @@ class ParentChildrenData extends DataClass
       'childId': serializer.toJson<String>(childId),
       'isPrimary': serializer.toJson<bool>(isPrimary),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime?>(updatedAt),
     };
   }
 
@@ -17137,11 +17887,13 @@ class ParentChildrenData extends DataClass
     String? childId,
     bool? isPrimary,
     DateTime? createdAt,
+    Value<DateTime?> updatedAt = const Value.absent(),
   }) => ParentChildrenData(
     parentId: parentId ?? this.parentId,
     childId: childId ?? this.childId,
     isPrimary: isPrimary ?? this.isPrimary,
     createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
   );
   ParentChildrenData copyWithCompanion(ParentChildrenCompanion data) {
     return ParentChildrenData(
@@ -17149,6 +17901,7 @@ class ParentChildrenData extends DataClass
       childId: data.childId.present ? data.childId.value : this.childId,
       isPrimary: data.isPrimary.present ? data.isPrimary.value : this.isPrimary,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
 
@@ -17158,13 +17911,15 @@ class ParentChildrenData extends DataClass
           ..write('parentId: $parentId, ')
           ..write('childId: $childId, ')
           ..write('isPrimary: $isPrimary, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(parentId, childId, isPrimary, createdAt);
+  int get hashCode =>
+      Object.hash(parentId, childId, isPrimary, createdAt, updatedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -17172,7 +17927,8 @@ class ParentChildrenData extends DataClass
           other.parentId == this.parentId &&
           other.childId == this.childId &&
           other.isPrimary == this.isPrimary &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
 }
 
 class ParentChildrenCompanion extends UpdateCompanion<ParentChildrenData> {
@@ -17180,12 +17936,14 @@ class ParentChildrenCompanion extends UpdateCompanion<ParentChildrenData> {
   final Value<String> childId;
   final Value<bool> isPrimary;
   final Value<DateTime> createdAt;
+  final Value<DateTime?> updatedAt;
   final Value<int> rowid;
   const ParentChildrenCompanion({
     this.parentId = const Value.absent(),
     this.childId = const Value.absent(),
     this.isPrimary = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ParentChildrenCompanion.insert({
@@ -17193,6 +17951,7 @@ class ParentChildrenCompanion extends UpdateCompanion<ParentChildrenData> {
     required String childId,
     this.isPrimary = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : parentId = Value(parentId),
        childId = Value(childId);
@@ -17201,6 +17960,7 @@ class ParentChildrenCompanion extends UpdateCompanion<ParentChildrenData> {
     Expression<String>? childId,
     Expression<bool>? isPrimary,
     Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -17208,6 +17968,7 @@ class ParentChildrenCompanion extends UpdateCompanion<ParentChildrenData> {
       if (childId != null) 'child_id': childId,
       if (isPrimary != null) 'is_primary': isPrimary,
       if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -17217,6 +17978,7 @@ class ParentChildrenCompanion extends UpdateCompanion<ParentChildrenData> {
     Value<String>? childId,
     Value<bool>? isPrimary,
     Value<DateTime>? createdAt,
+    Value<DateTime?>? updatedAt,
     Value<int>? rowid,
   }) {
     return ParentChildrenCompanion(
@@ -17224,6 +17986,7 @@ class ParentChildrenCompanion extends UpdateCompanion<ParentChildrenData> {
       childId: childId ?? this.childId,
       isPrimary: isPrimary ?? this.isPrimary,
       createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -17243,6 +18006,9 @@ class ParentChildrenCompanion extends UpdateCompanion<ParentChildrenData> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -17256,6 +18022,7 @@ class ParentChildrenCompanion extends UpdateCompanion<ParentChildrenData> {
           ..write('childId: $childId, ')
           ..write('isPrimary: $isPrimary, ')
           ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -20085,6 +20852,17 @@ class $ProgramMembersTable extends ProgramMembers
     requiredDuringInsert: false,
     defaultValue: const Constant('teacher'),
   );
+  static const VerificationMeta _displayNameMeta = const VerificationMeta(
+    'displayName',
+  );
+  @override
+  late final GeneratedColumn<String> displayName = GeneratedColumn<String>(
+    'display_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _joinedAtMeta = const VerificationMeta(
     'joinedAt',
   );
@@ -20098,7 +20876,13 @@ class $ProgramMembersTable extends ProgramMembers
     defaultValue: currentDateAndTime,
   );
   @override
-  List<GeneratedColumn> get $columns => [programId, userId, role, joinedAt];
+  List<GeneratedColumn> get $columns => [
+    programId,
+    userId,
+    role,
+    displayName,
+    joinedAt,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -20133,6 +20917,15 @@ class $ProgramMembersTable extends ProgramMembers
         role.isAcceptableOrUnknown(data['role']!, _roleMeta),
       );
     }
+    if (data.containsKey('display_name')) {
+      context.handle(
+        _displayNameMeta,
+        displayName.isAcceptableOrUnknown(
+          data['display_name']!,
+          _displayNameMeta,
+        ),
+      );
+    }
     if (data.containsKey('joined_at')) {
       context.handle(
         _joinedAtMeta,
@@ -20160,6 +20953,10 @@ class $ProgramMembersTable extends ProgramMembers
         DriftSqlType.string,
         data['${effectivePrefix}role'],
       )!,
+      displayName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}display_name'],
+      ),
       joinedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}joined_at'],
@@ -20184,11 +20981,19 @@ class ProgramMember extends DataClass implements Insertable<ProgramMember> {
   /// `teacher`. Surfaced in the (future) member-list UI. Defaulted
   /// to `teacher` so manual inserts don't leave it null.
   final String role;
+
+  /// v52: human-readable display name for the members card.
+  /// Populated by the bootstrap from `auth.users.raw_user_meta_data`
+  /// on every membership upsert. Falls back to a UUID prefix when
+  /// null. Editable later (a "what should everyone call you"
+  /// settings flow can swap it).
+  final String? displayName;
   final DateTime joinedAt;
   const ProgramMember({
     required this.programId,
     required this.userId,
     required this.role,
+    this.displayName,
     required this.joinedAt,
   });
   @override
@@ -20197,6 +21002,9 @@ class ProgramMember extends DataClass implements Insertable<ProgramMember> {
     map['program_id'] = Variable<String>(programId);
     map['user_id'] = Variable<String>(userId);
     map['role'] = Variable<String>(role);
+    if (!nullToAbsent || displayName != null) {
+      map['display_name'] = Variable<String>(displayName);
+    }
     map['joined_at'] = Variable<DateTime>(joinedAt);
     return map;
   }
@@ -20206,6 +21014,9 @@ class ProgramMember extends DataClass implements Insertable<ProgramMember> {
       programId: Value(programId),
       userId: Value(userId),
       role: Value(role),
+      displayName: displayName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(displayName),
       joinedAt: Value(joinedAt),
     );
   }
@@ -20219,6 +21030,7 @@ class ProgramMember extends DataClass implements Insertable<ProgramMember> {
       programId: serializer.fromJson<String>(json['programId']),
       userId: serializer.fromJson<String>(json['userId']),
       role: serializer.fromJson<String>(json['role']),
+      displayName: serializer.fromJson<String?>(json['displayName']),
       joinedAt: serializer.fromJson<DateTime>(json['joinedAt']),
     );
   }
@@ -20229,6 +21041,7 @@ class ProgramMember extends DataClass implements Insertable<ProgramMember> {
       'programId': serializer.toJson<String>(programId),
       'userId': serializer.toJson<String>(userId),
       'role': serializer.toJson<String>(role),
+      'displayName': serializer.toJson<String?>(displayName),
       'joinedAt': serializer.toJson<DateTime>(joinedAt),
     };
   }
@@ -20237,11 +21050,13 @@ class ProgramMember extends DataClass implements Insertable<ProgramMember> {
     String? programId,
     String? userId,
     String? role,
+    Value<String?> displayName = const Value.absent(),
     DateTime? joinedAt,
   }) => ProgramMember(
     programId: programId ?? this.programId,
     userId: userId ?? this.userId,
     role: role ?? this.role,
+    displayName: displayName.present ? displayName.value : this.displayName,
     joinedAt: joinedAt ?? this.joinedAt,
   );
   ProgramMember copyWithCompanion(ProgramMembersCompanion data) {
@@ -20249,6 +21064,9 @@ class ProgramMember extends DataClass implements Insertable<ProgramMember> {
       programId: data.programId.present ? data.programId.value : this.programId,
       userId: data.userId.present ? data.userId.value : this.userId,
       role: data.role.present ? data.role.value : this.role,
+      displayName: data.displayName.present
+          ? data.displayName.value
+          : this.displayName,
       joinedAt: data.joinedAt.present ? data.joinedAt.value : this.joinedAt,
     );
   }
@@ -20259,13 +21077,15 @@ class ProgramMember extends DataClass implements Insertable<ProgramMember> {
           ..write('programId: $programId, ')
           ..write('userId: $userId, ')
           ..write('role: $role, ')
+          ..write('displayName: $displayName, ')
           ..write('joinedAt: $joinedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(programId, userId, role, joinedAt);
+  int get hashCode =>
+      Object.hash(programId, userId, role, displayName, joinedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -20273,6 +21093,7 @@ class ProgramMember extends DataClass implements Insertable<ProgramMember> {
           other.programId == this.programId &&
           other.userId == this.userId &&
           other.role == this.role &&
+          other.displayName == this.displayName &&
           other.joinedAt == this.joinedAt);
 }
 
@@ -20280,12 +21101,14 @@ class ProgramMembersCompanion extends UpdateCompanion<ProgramMember> {
   final Value<String> programId;
   final Value<String> userId;
   final Value<String> role;
+  final Value<String?> displayName;
   final Value<DateTime> joinedAt;
   final Value<int> rowid;
   const ProgramMembersCompanion({
     this.programId = const Value.absent(),
     this.userId = const Value.absent(),
     this.role = const Value.absent(),
+    this.displayName = const Value.absent(),
     this.joinedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -20293,6 +21116,7 @@ class ProgramMembersCompanion extends UpdateCompanion<ProgramMember> {
     required String programId,
     required String userId,
     this.role = const Value.absent(),
+    this.displayName = const Value.absent(),
     this.joinedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : programId = Value(programId),
@@ -20301,6 +21125,7 @@ class ProgramMembersCompanion extends UpdateCompanion<ProgramMember> {
     Expression<String>? programId,
     Expression<String>? userId,
     Expression<String>? role,
+    Expression<String>? displayName,
     Expression<DateTime>? joinedAt,
     Expression<int>? rowid,
   }) {
@@ -20308,6 +21133,7 @@ class ProgramMembersCompanion extends UpdateCompanion<ProgramMember> {
       if (programId != null) 'program_id': programId,
       if (userId != null) 'user_id': userId,
       if (role != null) 'role': role,
+      if (displayName != null) 'display_name': displayName,
       if (joinedAt != null) 'joined_at': joinedAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -20317,6 +21143,7 @@ class ProgramMembersCompanion extends UpdateCompanion<ProgramMember> {
     Value<String>? programId,
     Value<String>? userId,
     Value<String>? role,
+    Value<String?>? displayName,
     Value<DateTime>? joinedAt,
     Value<int>? rowid,
   }) {
@@ -20324,6 +21151,7 @@ class ProgramMembersCompanion extends UpdateCompanion<ProgramMember> {
       programId: programId ?? this.programId,
       userId: userId ?? this.userId,
       role: role ?? this.role,
+      displayName: displayName ?? this.displayName,
       joinedAt: joinedAt ?? this.joinedAt,
       rowid: rowid ?? this.rowid,
     );
@@ -20341,6 +21169,9 @@ class ProgramMembersCompanion extends UpdateCompanion<ProgramMember> {
     if (role.present) {
       map['role'] = Variable<String>(role.value);
     }
+    if (displayName.present) {
+      map['display_name'] = Variable<String>(displayName.value);
+    }
     if (joinedAt.present) {
       map['joined_at'] = Variable<DateTime>(joinedAt.value);
     }
@@ -20356,6 +21187,7 @@ class ProgramMembersCompanion extends UpdateCompanion<ProgramMember> {
           ..write('programId: $programId, ')
           ..write('userId: $userId, ')
           ..write('role: $role, ')
+          ..write('displayName: $displayName, ')
           ..write('joinedAt: $joinedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -21623,6 +22455,8 @@ typedef $$GroupsTableCreateCompanionBuilder =
       required String name,
       Value<String?> colorHex,
       Value<String?> programId,
+      Value<DateTime?> archivedAt,
+      Value<int?> position,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -21633,6 +22467,8 @@ typedef $$GroupsTableUpdateCompanionBuilder =
       Value<String> name,
       Value<String?> colorHex,
       Value<String?> programId,
+      Value<DateTime?> archivedAt,
+      Value<int?> position,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -21926,6 +22762,16 @@ class $$GroupsTableFilterComposer
 
   ColumnFilters<String> get programId => $composableBuilder(
     column: $table.programId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get position => $composableBuilder(
+    column: $table.position,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -22295,6 +23141,16 @@ class $$GroupsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -22326,6 +23182,14 @@ class $$GroupsTableAnnotationComposer
 
   GeneratedColumn<String> get programId =>
       $composableBuilder(column: $table.programId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -22708,6 +23572,8 @@ class $$GroupsTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<String?> colorHex = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
+                Value<DateTime?> archivedAt = const Value.absent(),
+                Value<int?> position = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -22716,6 +23582,8 @@ class $$GroupsTableTableManager
                 name: name,
                 colorHex: colorHex,
                 programId: programId,
+                archivedAt: archivedAt,
+                position: position,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -22726,6 +23594,8 @@ class $$GroupsTableTableManager
                 required String name,
                 Value<String?> colorHex = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
+                Value<DateTime?> archivedAt = const Value.absent(),
+                Value<int?> position = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -22734,6 +23604,8 @@ class $$GroupsTableTableManager
                 name: name,
                 colorHex: colorHex,
                 programId: programId,
+                archivedAt: archivedAt,
+                position: position,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -23085,6 +23957,8 @@ typedef $$ChildrenTableCreateCompanionBuilder =
       Value<String?> expectedArrival,
       Value<String?> expectedPickup,
       Value<String?> programId,
+      Value<DateTime?> archivedAt,
+      Value<int?> position,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -23105,6 +23979,8 @@ typedef $$ChildrenTableUpdateCompanionBuilder =
       Value<String?> expectedArrival,
       Value<String?> expectedPickup,
       Value<String?> programId,
+      Value<DateTime?> archivedAt,
+      Value<int?> position,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -23353,6 +24229,16 @@ class $$ChildrenTableFilterComposer
 
   ColumnFilters<String> get programId => $composableBuilder(
     column: $table.programId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get position => $composableBuilder(
+    column: $table.position,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -23640,6 +24526,16 @@ class $$ChildrenTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -23733,6 +24629,14 @@ class $$ChildrenTableAnnotationComposer
 
   GeneratedColumn<String> get programId =>
       $composableBuilder(column: $table.programId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -23992,6 +24896,8 @@ class $$ChildrenTableTableManager
                 Value<String?> expectedArrival = const Value.absent(),
                 Value<String?> expectedPickup = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
+                Value<DateTime?> archivedAt = const Value.absent(),
+                Value<int?> position = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -24010,6 +24916,8 @@ class $$ChildrenTableTableManager
                 expectedArrival: expectedArrival,
                 expectedPickup: expectedPickup,
                 programId: programId,
+                archivedAt: archivedAt,
+                position: position,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -24030,6 +24938,8 @@ class $$ChildrenTableTableManager
                 Value<String?> expectedArrival = const Value.absent(),
                 Value<String?> expectedPickup = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
+                Value<DateTime?> archivedAt = const Value.absent(),
+                Value<int?> position = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -24048,6 +24958,8 @@ class $$ChildrenTableTableManager
                 expectedArrival: expectedArrival,
                 expectedPickup: expectedPickup,
                 programId: programId,
+                archivedAt: archivedAt,
+                position: position,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -26270,6 +27182,8 @@ typedef $$RoomsTableCreateCompanionBuilder =
       Value<String?> notes,
       Value<String?> defaultForGroupId,
       Value<String?> programId,
+      Value<DateTime?> archivedAt,
+      Value<int?> position,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -26282,6 +27196,8 @@ typedef $$RoomsTableUpdateCompanionBuilder =
       Value<String?> notes,
       Value<String?> defaultForGroupId,
       Value<String?> programId,
+      Value<DateTime?> archivedAt,
+      Value<int?> position,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -26403,6 +27319,16 @@ class $$RoomsTableFilterComposer extends Composer<_$AppDatabase, $RoomsTable> {
 
   ColumnFilters<String> get programId => $composableBuilder(
     column: $table.programId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get position => $composableBuilder(
+    column: $table.position,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -26549,6 +27475,16 @@ class $$RoomsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -26606,6 +27542,14 @@ class $$RoomsTableAnnotationComposer
 
   GeneratedColumn<String> get programId =>
       $composableBuilder(column: $table.programId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -26752,6 +27696,8 @@ class $$RoomsTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<String?> defaultForGroupId = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
+                Value<DateTime?> archivedAt = const Value.absent(),
+                Value<int?> position = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -26762,6 +27708,8 @@ class $$RoomsTableTableManager
                 notes: notes,
                 defaultForGroupId: defaultForGroupId,
                 programId: programId,
+                archivedAt: archivedAt,
+                position: position,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -26774,6 +27722,8 @@ class $$RoomsTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<String?> defaultForGroupId = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
+                Value<DateTime?> archivedAt = const Value.absent(),
+                Value<int?> position = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -26784,6 +27734,8 @@ class $$RoomsTableTableManager
                 notes: notes,
                 defaultForGroupId: defaultForGroupId,
                 programId: programId,
+                archivedAt: archivedAt,
+                position: position,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -26950,6 +27902,7 @@ typedef $$ObservationsTableCreateCompanionBuilder =
       Value<DateTime?> activityDate,
       Value<String?> roomId,
       Value<String?> programId,
+      Value<String?> createdBy,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -26972,6 +27925,7 @@ typedef $$ObservationsTableUpdateCompanionBuilder =
       Value<DateTime?> activityDate,
       Value<String?> roomId,
       Value<String?> programId,
+      Value<String?> createdBy,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -27204,6 +28158,11 @@ class $$ObservationsTableFilterComposer
 
   ColumnFilters<String> get programId => $composableBuilder(
     column: $table.programId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get createdBy => $composableBuilder(
+    column: $table.createdBy,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -27456,6 +28415,11 @@ class $$ObservationsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get createdBy => $composableBuilder(
+    column: $table.createdBy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -27617,6 +28581,9 @@ class $$ObservationsTableAnnotationComposer
 
   GeneratedColumn<String> get programId =>
       $composableBuilder(column: $table.programId, builder: (column) => column);
+
+  GeneratedColumn<String> get createdBy =>
+      $composableBuilder(column: $table.createdBy, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -27847,6 +28814,7 @@ class $$ObservationsTableTableManager
                 Value<DateTime?> activityDate = const Value.absent(),
                 Value<String?> roomId = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
+                Value<String?> createdBy = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -27867,6 +28835,7 @@ class $$ObservationsTableTableManager
                 activityDate: activityDate,
                 roomId: roomId,
                 programId: programId,
+                createdBy: createdBy,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -27889,6 +28858,7 @@ class $$ObservationsTableTableManager
                 Value<DateTime?> activityDate = const Value.absent(),
                 Value<String?> roomId = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
+                Value<String?> createdBy = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -27909,6 +28879,7 @@ class $$ObservationsTableTableManager
                 activityDate: activityDate,
                 roomId: roomId,
                 programId: programId,
+                createdBy: createdBy,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -29204,6 +30175,8 @@ typedef $$RolesTableCreateCompanionBuilder =
       required String id,
       required String name,
       Value<String?> programId,
+      Value<DateTime?> archivedAt,
+      Value<int?> position,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -29213,6 +30186,8 @@ typedef $$RolesTableUpdateCompanionBuilder =
       Value<String> id,
       Value<String> name,
       Value<String?> programId,
+      Value<DateTime?> archivedAt,
+      Value<int?> position,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -29262,6 +30237,16 @@ class $$RolesTableFilterComposer extends Composer<_$AppDatabase, $RolesTable> {
 
   ColumnFilters<String> get programId => $composableBuilder(
     column: $table.programId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get position => $composableBuilder(
+    column: $table.position,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -29325,6 +30310,16 @@ class $$RolesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -29353,6 +30348,14 @@ class $$RolesTableAnnotationComposer
 
   GeneratedColumn<String> get programId =>
       $composableBuilder(column: $table.programId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -29417,6 +30420,8 @@ class $$RolesTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
+                Value<DateTime?> archivedAt = const Value.absent(),
+                Value<int?> position = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -29424,6 +30429,8 @@ class $$RolesTableTableManager
                 id: id,
                 name: name,
                 programId: programId,
+                archivedAt: archivedAt,
+                position: position,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -29433,6 +30440,8 @@ class $$RolesTableTableManager
                 required String id,
                 required String name,
                 Value<String?> programId = const Value.absent(),
+                Value<DateTime?> archivedAt = const Value.absent(),
+                Value<int?> position = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -29440,6 +30449,8 @@ class $$RolesTableTableManager
                 id: id,
                 name: name,
                 programId: programId,
+                archivedAt: archivedAt,
+                position: position,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -29501,6 +30512,7 @@ typedef $$ParentsTableCreateCompanionBuilder =
       Value<String?> email,
       Value<String?> notes,
       Value<String?> programId,
+      Value<DateTime?> archivedAt,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -29515,6 +30527,7 @@ typedef $$ParentsTableUpdateCompanionBuilder =
       Value<String?> email,
       Value<String?> notes,
       Value<String?> programId,
+      Value<DateTime?> archivedAt,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -29608,6 +30621,11 @@ class $$ParentsTableFilterComposer
 
   ColumnFilters<String> get programId => $composableBuilder(
     column: $table.programId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -29721,6 +30739,11 @@ class $$ParentsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -29766,6 +30789,11 @@ class $$ParentsTableAnnotationComposer
 
   GeneratedColumn<String> get programId =>
       $composableBuilder(column: $table.programId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -29860,6 +30888,7 @@ class $$ParentsTableTableManager
                 Value<String?> email = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
+                Value<DateTime?> archivedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -29872,6 +30901,7 @@ class $$ParentsTableTableManager
                 email: email,
                 notes: notes,
                 programId: programId,
+                archivedAt: archivedAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -29886,6 +30916,7 @@ class $$ParentsTableTableManager
                 Value<String?> email = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
+                Value<DateTime?> archivedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -29898,6 +30929,7 @@ class $$ParentsTableTableManager
                 email: email,
                 notes: notes,
                 programId: programId,
+                archivedAt: archivedAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -29997,6 +31029,7 @@ typedef $$AdultsTableCreateCompanionBuilder =
       Value<String> adultRole,
       Value<String?> anchoredGroupId,
       Value<String?> programId,
+      Value<DateTime?> archivedAt,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -30017,6 +31050,7 @@ typedef $$AdultsTableUpdateCompanionBuilder =
       Value<String> adultRole,
       Value<String?> anchoredGroupId,
       Value<String?> programId,
+      Value<DateTime?> archivedAt,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -30298,6 +31332,11 @@ class $$AdultsTableFilterComposer
 
   ColumnFilters<String> get programId => $composableBuilder(
     column: $table.programId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -30621,6 +31660,11 @@ class $$AdultsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -30748,6 +31792,11 @@ class $$AdultsTableAnnotationComposer
 
   GeneratedColumn<String> get programId =>
       $composableBuilder(column: $table.programId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -31057,6 +32106,7 @@ class $$AdultsTableTableManager
                 Value<String> adultRole = const Value.absent(),
                 Value<String?> anchoredGroupId = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
+                Value<DateTime?> archivedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -31075,6 +32125,7 @@ class $$AdultsTableTableManager
                 adultRole: adultRole,
                 anchoredGroupId: anchoredGroupId,
                 programId: programId,
+                archivedAt: archivedAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -31095,6 +32146,7 @@ class $$AdultsTableTableManager
                 Value<String> adultRole = const Value.absent(),
                 Value<String?> anchoredGroupId = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
+                Value<DateTime?> archivedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -31113,6 +32165,7 @@ class $$AdultsTableTableManager
                 adultRole: adultRole,
                 anchoredGroupId: anchoredGroupId,
                 programId: programId,
+                archivedAt: archivedAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -38740,6 +39793,7 @@ typedef $$FormSubmissionsTableCreateCompanionBuilder =
       Value<DateTime?> reviewDueAt,
       Value<String> data,
       Value<String?> programId,
+      Value<String?> createdBy,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -38758,6 +39812,7 @@ typedef $$FormSubmissionsTableUpdateCompanionBuilder =
       Value<DateTime?> reviewDueAt,
       Value<String> data,
       Value<String?> programId,
+      Value<String?> createdBy,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -38896,6 +39951,11 @@ class $$FormSubmissionsTableFilterComposer
 
   ColumnFilters<String> get programId => $composableBuilder(
     column: $table.programId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get createdBy => $composableBuilder(
+    column: $table.createdBy,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -39051,6 +40111,11 @@ class $$FormSubmissionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get createdBy => $composableBuilder(
+    column: $table.createdBy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -39192,6 +40257,9 @@ class $$FormSubmissionsTableAnnotationComposer
 
   GeneratedColumn<String> get programId =>
       $composableBuilder(column: $table.programId, builder: (column) => column);
+
+  GeneratedColumn<String> get createdBy =>
+      $composableBuilder(column: $table.createdBy, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -39339,6 +40407,7 @@ class $$FormSubmissionsTableTableManager
                 Value<DateTime?> reviewDueAt = const Value.absent(),
                 Value<String> data = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
+                Value<String?> createdBy = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -39355,6 +40424,7 @@ class $$FormSubmissionsTableTableManager
                 reviewDueAt: reviewDueAt,
                 data: data,
                 programId: programId,
+                createdBy: createdBy,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -39373,6 +40443,7 @@ class $$FormSubmissionsTableTableManager
                 Value<DateTime?> reviewDueAt = const Value.absent(),
                 Value<String> data = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
+                Value<String?> createdBy = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -39389,6 +40460,7 @@ class $$FormSubmissionsTableTableManager
                 reviewDueAt: reviewDueAt,
                 data: data,
                 programId: programId,
+                createdBy: createdBy,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -39526,6 +40598,7 @@ typedef $$VehiclesTableCreateCompanionBuilder =
       Value<String> licensePlate,
       Value<String?> notes,
       Value<String?> programId,
+      Value<DateTime?> archivedAt,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -39538,6 +40611,7 @@ typedef $$VehiclesTableUpdateCompanionBuilder =
       Value<String> licensePlate,
       Value<String?> notes,
       Value<String?> programId,
+      Value<DateTime?> archivedAt,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -39579,6 +40653,11 @@ class $$VehiclesTableFilterComposer
 
   ColumnFilters<String> get programId => $composableBuilder(
     column: $table.programId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -39632,6 +40711,11 @@ class $$VehiclesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -39671,6 +40755,11 @@ class $$VehiclesTableAnnotationComposer
 
   GeneratedColumn<String> get programId =>
       $composableBuilder(column: $table.programId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -39713,6 +40802,7 @@ class $$VehiclesTableTableManager
                 Value<String> licensePlate = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
+                Value<DateTime?> archivedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -39723,6 +40813,7 @@ class $$VehiclesTableTableManager
                 licensePlate: licensePlate,
                 notes: notes,
                 programId: programId,
+                archivedAt: archivedAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -39735,6 +40826,7 @@ class $$VehiclesTableTableManager
                 Value<String> licensePlate = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
+                Value<DateTime?> archivedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -39745,6 +40837,7 @@ class $$VehiclesTableTableManager
                 licensePlate: licensePlate,
                 notes: notes,
                 programId: programId,
+                archivedAt: archivedAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -39777,6 +40870,7 @@ typedef $$ParentChildrenTableCreateCompanionBuilder =
       required String childId,
       Value<bool> isPrimary,
       Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
       Value<int> rowid,
     });
 typedef $$ParentChildrenTableUpdateCompanionBuilder =
@@ -39785,6 +40879,7 @@ typedef $$ParentChildrenTableUpdateCompanionBuilder =
       Value<String> childId,
       Value<bool> isPrimary,
       Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
       Value<int> rowid,
     });
 
@@ -39859,6 +40954,11 @@ class $$ParentChildrenTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$ParentsTableFilterComposer get parentId {
     final $$ParentsTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -39925,6 +41025,11 @@ class $$ParentChildrenTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ParentsTableOrderingComposer get parentId {
     final $$ParentsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -39986,6 +41091,9 @@ class $$ParentChildrenTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
   $$ParentsTableAnnotationComposer get parentId {
     final $$ParentsTableAnnotationComposer composer = $composerBuilder(
@@ -40068,12 +41176,14 @@ class $$ParentChildrenTableTableManager
                 Value<String> childId = const Value.absent(),
                 Value<bool> isPrimary = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ParentChildrenCompanion(
                 parentId: parentId,
                 childId: childId,
                 isPrimary: isPrimary,
                 createdAt: createdAt,
+                updatedAt: updatedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -40082,12 +41192,14 @@ class $$ParentChildrenTableTableManager
                 required String childId,
                 Value<bool> isPrimary = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ParentChildrenCompanion.insert(
                 parentId: parentId,
                 childId: childId,
                 isPrimary: isPrimary,
                 createdAt: createdAt,
+                updatedAt: updatedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -42731,6 +43843,7 @@ typedef $$ProgramMembersTableCreateCompanionBuilder =
       required String programId,
       required String userId,
       Value<String> role,
+      Value<String?> displayName,
       Value<DateTime> joinedAt,
       Value<int> rowid,
     });
@@ -42739,6 +43852,7 @@ typedef $$ProgramMembersTableUpdateCompanionBuilder =
       Value<String> programId,
       Value<String> userId,
       Value<String> role,
+      Value<String?> displayName,
       Value<DateTime> joinedAt,
       Value<int> rowid,
     });
@@ -42790,6 +43904,11 @@ class $$ProgramMembersTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<DateTime> get joinedAt => $composableBuilder(
     column: $table.joinedAt,
     builder: (column) => ColumnFilters(column),
@@ -42838,6 +43957,11 @@ class $$ProgramMembersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get joinedAt => $composableBuilder(
     column: $table.joinedAt,
     builder: (column) => ColumnOrderings(column),
@@ -42881,6 +44005,11 @@ class $$ProgramMembersTableAnnotationComposer
 
   GeneratedColumn<String> get role =>
       $composableBuilder(column: $table.role, builder: (column) => column);
+
+  GeneratedColumn<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get joinedAt =>
       $composableBuilder(column: $table.joinedAt, builder: (column) => column);
@@ -42942,12 +44071,14 @@ class $$ProgramMembersTableTableManager
                 Value<String> programId = const Value.absent(),
                 Value<String> userId = const Value.absent(),
                 Value<String> role = const Value.absent(),
+                Value<String?> displayName = const Value.absent(),
                 Value<DateTime> joinedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ProgramMembersCompanion(
                 programId: programId,
                 userId: userId,
                 role: role,
+                displayName: displayName,
                 joinedAt: joinedAt,
                 rowid: rowid,
               ),
@@ -42956,12 +44087,14 @@ class $$ProgramMembersTableTableManager
                 required String programId,
                 required String userId,
                 Value<String> role = const Value.absent(),
+                Value<String?> displayName = const Value.absent(),
                 Value<DateTime> joinedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ProgramMembersCompanion.insert(
                 programId: programId,
                 userId: userId,
                 role: role,
+                displayName: displayName,
                 joinedAt: joinedAt,
                 rowid: rowid,
               ),

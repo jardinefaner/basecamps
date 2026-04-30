@@ -376,11 +376,17 @@ class _MemberRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    // We have user_id but no email/display name yet — auth
-    // metadata isn't synced. Show a short id label as a stand-in.
-    // (Future: optional `program_members.display_name` or join
-    // through a `profiles` table.)
-    final label = isMe ? 'You' : 'Teacher · ${member.userId.substring(0, 8)}';
+    // v52: render the human-readable display_name. Bootstrap
+    // populates it from auth.users metadata on every membership
+    // upsert. Falls back to a UUID-prefix label for legacy
+    // (pre-v52) rows that haven't been re-pushed yet.
+    final displayName = member.displayName?.trim();
+    final hasName = displayName != null && displayName.isNotEmpty;
+    final label = isMe
+        ? 'You${hasName ? ' · $displayName' : ''}'
+        : (hasName
+            ? displayName
+            : 'Teacher · ${member.userId.substring(0, 8)}');
     return Row(
       children: [
         CircleAvatar(

@@ -417,11 +417,24 @@ class ProgramAuthBootstrap {
       // self-insert when the user is the program's `created_by`.
       // Bootstrap created the program with `created_by = auth.uid()`
       // so this passes on first launch and on every subsequent one.
-      await supabase.from('program_members').upsert(<String, Object?>{
+      //
+      // v52: stamp display_name from auth.users metadata so the
+      // members card has a real name to render instead of the
+      // UUID-prefix fallback. Source priority: `full_name`
+      // (Google identity provider) → `name` (other providers) →
+      // email local-part → null. Re-runs on every launch so a
+      // change in the user's Google profile flows through.
+      final session = _ref.read(currentSessionProvider);
+      final displayName = _displayNameFromSession(session);
+      final upsertPayload = <String, Object?>{
         'program_id': programId,
         'user_id': userId,
         'role': 'admin',
-      });
+      };
+      if (displayName != null) {
+        upsertPayload['display_name'] = displayName;
+      }
+      await supabase.from('program_members').upsert(upsertPayload);
       // Successful upsert clears any sticky "membership broken"
       // banner the UI was showing.
       _ref.read(membershipUpsertFailureProvider.notifier).clear();
@@ -437,6 +450,25 @@ class ProgramAuthBootstrap {
       _ref.read(membershipUpsertFailureProvider.notifier).set('$e');
       if (rethrowOnError) rethrow;
     }
+  }
+
+  /// Best-effort display name for the members card. Reads from
+  /// the OAuth provider's metadata first (`full_name` for Google,
+  /// `name` for fallbacks), falls through to the email local-part
+  /// when nothing else is set. Returns null only when no email
+  /// either — a shape we shouldn't see for an authenticated user.
+  String? _displayNameFromSession(Session? session) {
+    if (session == null) return null;
+    final user = session.user;
+    final meta = user.userMetadata ?? const <String, dynamic>{};
+    final fromMeta = (meta['full_name'] ?? meta['name']) as String?;
+    if (fromMeta != null && fromMeta.trim().isNotEmpty) {
+      return fromMeta.trim();
+    }
+    final email = user.email;
+    if (email == null || email.isEmpty) return null;
+    final at = email.indexOf('@');
+    return at > 0 ? email.substring(0, at) : email;
   }
 
   /// Stamps any pre-program-model rows with [programId] the first

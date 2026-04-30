@@ -12,6 +12,17 @@ class Groups extends Table {
   /// pass `activeProgramIdProvider` on every insert from then on.
   TextColumn get programId => text().nullable()();
 
+  /// v52: hide-but-keep. Pickers filter `archivedAt IS NULL`;
+  /// detail screens / historical observations still resolve a
+  /// reference. Toggle via the row-detail menu.
+  DateTimeColumn get archivedAt => dateTime().nullable()();
+
+  /// v52: user-orderable display order on the launcher / Today.
+  /// Nullable so existing rows fall back to alpha-by-name; once
+  /// the teacher reorders, every group in the program gets a
+  /// stable integer.
+  IntColumn get position => integer().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -73,6 +84,13 @@ class Children extends Table {
   /// Owning program (v42). See [Groups.programId] for nullability
   /// rationale.
   TextColumn get programId => text().nullable()();
+
+  /// v52: hide-but-keep for alumni / withdrawn children. Same
+  /// pattern as [Groups.archivedAt].
+  DateTimeColumn get archivedAt => dateTime().nullable()();
+
+  /// v52: user-orderable line-up order within a group.
+  IntColumn get position => integer().nullable()();
 
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
@@ -151,6 +169,10 @@ class Vehicles extends Table {
 
   /// Owning program (v42). See [Groups.programId] for the rule.
   TextColumn get programId => text().nullable()();
+
+  /// v52: archive retired vehicles without losing their trip
+  /// history. Pickers filter `archivedAt IS NULL`.
+  DateTimeColumn get archivedAt => dateTime().nullable()();
 
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
@@ -325,6 +347,14 @@ class Observations extends Table {
 
   /// Owning program (v42). See [Groups.programId] for the rule.
   TextColumn get programId => text().nullable()();
+
+  /// v52: auth user id of whoever logged the observation. Lets
+  /// the UI render "Logged by Sarah" with a real link to the
+  /// member instead of relying on the free-text [authorName]
+  /// (which stays as a fallback for legacy rows). Repos
+  /// populate from `currentSessionProvider.user.id` on insert;
+  /// nullable for pre-v52 rows.
+  TextColumn get createdBy => text().nullable()();
 
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
@@ -839,6 +869,14 @@ class Roles extends Table {
   /// Owning program (v42). See [Groups.programId] for the rule.
   TextColumn get programId => text().nullable()();
 
+  /// v52: archive without losing historical attribution. A role
+  /// used last year stays on past observations / staff records
+  /// even after the program rotates curriculum.
+  DateTimeColumn get archivedAt => dateTime().nullable()();
+
+  /// v52: user-orderable display order in the role picker.
+  IntColumn get position => integer().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -902,11 +940,13 @@ class Adults extends Table {
 
   // -- v28: adult roles --
 
-  /// 'lead' | 'adult' | 'ambient'. Null-defaults to 'adult'
-  /// on existing rows (matches current behavior — every adult was
-  /// treated as a rover).
+  /// 'lead' | 'specialist' | 'ambient'. v52 normalizes the
+  /// historical 'adult' default to 'specialist' (cloud migration
+  /// 0027 + Drift v52 onUpgrade do the in-place UPDATE) to match
+  /// the AdultRole enum's dbValues. New rows default to
+  /// 'specialist'; legacy 'adult' rows are migrated.
   TextColumn get adultRole =>
-      text().withDefault(const Constant('adult'))();
+      text().withDefault(const Constant('specialist'))();
 
   /// For leads: the single group they're anchored to all day. For
   /// adults and ambient staff: null. FK setNull on delete so
@@ -917,6 +957,10 @@ class Adults extends Table {
 
   /// Owning program (v42). See [Groups.programId] for the rule.
   TextColumn get programId => text().nullable()();
+
+  /// v52: archive ex-staff without losing observation/audit
+  /// attribution.
+  DateTimeColumn get archivedAt => dateTime().nullable()();
 
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
@@ -956,6 +1000,13 @@ class Rooms extends Table {
 
   /// Owning program (v42). See [Groups.programId] for the rule.
   TextColumn get programId => text().nullable()();
+
+  /// v52: archive renovated / closed rooms without breaking
+  /// historical schedule rows that reference them.
+  DateTimeColumn get archivedAt => dateTime().nullable()();
+
+  /// v52: user-orderable display order in the room picker.
+  IntColumn get position => integer().nullable()();
 
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
@@ -1206,6 +1257,13 @@ class FormSubmissions extends Table {
   /// Owning program (v42). See [Groups.programId] for the rule.
   TextColumn get programId => text().nullable()();
 
+  /// v52: auth user id of whoever submitted the form. Same role
+  /// as [Observations.createdBy] — lets the UI render "Vehicle
+  /// check completed by Marcus" with a stable link to the
+  /// member, while [authorName] stays as a fallback for legacy
+  /// rows.
+  TextColumn get createdBy => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -1313,6 +1371,10 @@ class Parents extends Table {
   /// Owning program (v42). See [Groups.programId] for the rule.
   TextColumn get programId => text().nullable()();
 
+  /// v52: archive former families without losing the link to
+  /// historical observations / attendance.
+  DateTimeColumn get archivedAt => dateTime().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -1376,6 +1438,13 @@ class ParentChildren extends Table {
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
 
+  /// v52: stamped on every UPDATE (cloud-side touch trigger,
+  /// local-side via repo writes) so the watermarked pull picks
+  /// up isPrimary toggles. Without this column the pull never
+  /// noticed primary-flag flips since the row's natural-PK was
+  /// stable.
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+
   @override
   Set<Column<Object>> get primaryKey => {parentId, childId};
 }
@@ -1436,6 +1505,13 @@ class ProgramMembers extends Table {
   /// `teacher`. Surfaced in the (future) member-list UI. Defaulted
   /// to `teacher` so manual inserts don't leave it null.
   TextColumn get role => text().withDefault(const Constant('teacher'))();
+
+  /// v52: human-readable display name for the members card.
+  /// Populated by the bootstrap from `auth.users.raw_user_meta_data`
+  /// on every membership upsert. Falls back to a UUID prefix when
+  /// null. Editable later (a "what should everyone call you"
+  /// settings flow can swap it).
+  TextColumn get displayName => text().nullable()();
 
   DateTimeColumn get joinedAt =>
       dateTime().withDefault(currentDateAndTime)();
