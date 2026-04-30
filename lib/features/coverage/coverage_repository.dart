@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/role_blocks_repository.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
@@ -140,6 +141,69 @@ class CoverageRepository {
     return out;
   }
 
+  /// Stream of [coverageAt] that re-fires whenever any of the
+  /// underlying tables change. The Tier-2 conversion lets the
+  /// Today screen pick up cloud-pushed updates (a colleague edits
+  /// a role block on another device) without polling.
+  ///
+  /// Composes naturally with `nowTickProvider`: the consumer
+  /// re-watches the stream every minute by re-creating it with a
+  /// fresh ([date], [minuteOfDay]) — the existing subscription is
+  /// canceled and a fresh initial result lands immediately.
+  Stream<List<GroupCoverage>> watchCoverageAt({
+    required DateTime date,
+    required int minuteOfDay,
+  }) async* {
+    yield await coverageAt(date: date, minuteOfDay: minuteOfDay);
+    // Re-emit on any change to a table that feeds the
+    // computation. `groups` + `adults` matter for display rather
+    // than membership, but a rename should still flow through.
+    final updates = _db.tableUpdates(
+      TableUpdateQuery.onAllTables([
+        _db.adultRoleBlocks,
+        _db.adultRoleBlockOverrides,
+        _db.groups,
+        _db.adults,
+      ]),
+    );
+    await for (final _ in updates) {
+      yield await coverageAt(date: date, minuteOfDay: minuteOfDay);
+    }
+  }
+
+  /// Stream of [dayCoverage] backed by the same table-update
+  /// fan-in as [watchCoverageAt]. Tied to a specific [date] so a
+  /// midnight rollover requires the consumer to re-watch.
+  Stream<DayCoverage> watchDayCoverage({
+    required DateTime date,
+    int startMinute = 7 * 60,
+    int endMinute = 18 * 60,
+    int stepMinutes = 30,
+  }) async* {
+    yield await dayCoverage(
+      date: date,
+      startMinute: startMinute,
+      endMinute: endMinute,
+      stepMinutes: stepMinutes,
+    );
+    final updates = _db.tableUpdates(
+      TableUpdateQuery.onAllTables([
+        _db.adultRoleBlocks,
+        _db.adultRoleBlockOverrides,
+        _db.groups,
+        _db.adults,
+      ]),
+    );
+    await for (final _ in updates) {
+      yield await dayCoverage(
+        date: date,
+        startMinute: startMinute,
+        endMinute: endMinute,
+        stepMinutes: stepMinutes,
+      );
+    }
+  }
+
   static String _displayName(Adult? a) {
     if (a == null) return '(unknown)';
     final raw = a.name.trim();
@@ -196,19 +260,25 @@ final coverageRepositoryProvider = Provider<CoverageRepository>((ref) {
   return CoverageRepository(ref.watch(databaseProvider), ref);
 });
 
-/// "Coverage right now." Watches the active program so changes
-/// to membership / role blocks invalidate the result. Used by
-/// the coverage strip on the Today screen.
+/// "Coverage right now." Stream-backed (T2.1) so cross-device
+/// edits to role blocks / adults / groups pushed in via realtime
+/// re-emit without polling. Composes with `nowTickProvider` so
+/// the displayed minute advances at wall-clock minute boundaries.
+///
+/// On every minute tick the stream is re-created with a fresh
+/// `now`. The previous subscription cancels; the new one yields
+/// an immediate first result followed by source-table-driven
+/// updates until the next tick.
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types
 final coverageNowProvider =
-    FutureProvider.autoDispose<List<GroupCoverage>>((ref) async {
+    StreamProvider.autoDispose<List<GroupCoverage>>((ref) {
   ref.watch(activeProgramIdProvider);
-  final now = DateTime.now();
+  final now = ref.watch(nowTickProvider).value ?? DateTime.now();
   final minute = now.hour * 60 + now.minute;
   return ref
       .read(coverageRepositoryProvider)
-      .coverageAt(date: now, minuteOfDay: minute);
+      .watchCoverageAt(date: now, minuteOfDay: minute);
 });
 
 // ────────────────────────────────────────────────────────────
@@ -332,15 +402,26 @@ class CoverageSample {
   final int count;
 }
 
-/// Day-wide coverage for today. autoDispose so a quick swipe
-/// away tears it down — coverage data is point-in-time and
+/// Day-wide coverage for today. Stream-backed (T2.1) so a
+/// colleague editing a role block on another device re-paints
+/// the timeline without manual refresh. autoDispose so a quick
+/// swipe away tears it down — coverage data is point-in-time and
 /// shouldn't outlive the screen that asked for it.
+///
+/// Day rollover handled by re-watching `nowTickProvider` at the
+/// `(year, month, day)` level — minute-by-minute ticks within the
+/// same day are equality-equal and skip the re-create.
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types
 final coverageDayProvider =
-    FutureProvider.autoDispose<DayCoverage>((ref) async {
+    StreamProvider.autoDispose<DayCoverage>((ref) {
   ref.watch(activeProgramIdProvider);
-  return ref.read(coverageRepositoryProvider).dayCoverage(
-        date: DateTime.now(),
-      );
+  // We only care about the date here, not the minute — but
+  // re-reading nowTick keeps us aligned to the wall clock so
+  // we re-create the stream automatically at midnight rollover.
+  final now = ref.watch(nowTickProvider).value ?? DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  return ref
+      .read(coverageRepositoryProvider)
+      .watchDayCoverage(date: today);
 });

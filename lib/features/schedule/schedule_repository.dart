@@ -225,6 +225,17 @@ class ScheduleRepository {
     return rows.map((r) => r.groupId).toList();
   }
 
+  /// Stream of [groupsForTemplate] for [templateId]. Lets the
+  /// schedule editor and any group-chip rendering refresh on
+  /// cross-device pivots without polling. Equivalent to the old
+  /// FutureProvider but driven by Drift's table-watch.
+  Stream<List<String>> watchGroupsForTemplate(String templateId) {
+    return (_db.select(_db.templateGroups)
+          ..where((p) => p.templateId.equals(templateId)))
+        .watch()
+        .map((rows) => rows.map((r) => r.groupId).toList());
+  }
+
   Future<List<String>> groupsForEntry(String entryId) async {
     final rows = await (_db.select(_db.entryGroups)
           ..where((p) => p.entryId.equals(entryId)))
@@ -1470,9 +1481,15 @@ final templatesByAdultProvider =
   },
 );
 
+/// Stream-backed (T2.2) so a colleague pivoting a template's
+/// group set on another device re-paints group chips without a
+/// manual refresh. Was a FutureProvider — every consumer would
+/// stick on the first read until the route remounted.
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types
 final templateGroupsProvider =
-    FutureProvider.family<List<String>, String>((ref, templateId) {
-  return ref.watch(scheduleRepositoryProvider).groupsForTemplate(templateId);
+    StreamProvider.family<List<String>, String>((ref, templateId) {
+  return ref
+      .watch(scheduleRepositoryProvider)
+      .watchGroupsForTemplate(templateId);
 });

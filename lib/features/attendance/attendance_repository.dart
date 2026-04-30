@@ -1,3 +1,4 @@
+import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -220,7 +221,11 @@ final attendanceForDayProvider = StreamProvider.family<
 /// or care about date normalization.
 final todayAttendanceProvider =
     StreamProvider<Map<String, AttendanceRecord>>((ref) {
-  final now = DateTime.now();
+  // Watch the wall clock so a session left running over midnight
+  // advances to the new day automatically — without the tick the
+  // provider would keep emitting yesterday's attendance map until
+  // the next route remount.
+  final now = ref.watch(nowTickProvider).value ?? DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
   return ref.watch(attendanceRepositoryProvider).watchForDay(today);
 });

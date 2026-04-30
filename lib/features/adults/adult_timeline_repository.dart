@@ -1,4 +1,5 @@
 import 'package:basecamp/core/id.dart';
+import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -129,10 +130,15 @@ final adultTimelineRepositoryProvider =
 /// Today's blocks for every adult (all role types), as raw rows.
 /// Derivation / filtering happens in `features/today/adult_staffing.dart`
 /// so the pure pass can be unit-tested without Drift.
+///
+/// Watches `nowTickProvider` so the day-of-week recomputes at
+/// midnight rollover — without this a session left running over
+/// midnight would keep showing yesterday's blocks until the next
+/// route remount.
 final todayAdultBlocksProvider =
     StreamProvider<List<AdultDayBlock>>((ref) {
   final repo = ref.watch(adultTimelineRepositoryProvider);
   // ISO: 1 = Mon. Dart's DateTime.weekday is already ISO so no remap.
-  final dayOfWeek = DateTime.now().weekday;
-  return repo.watchBlocksForDay(dayOfWeek);
+  final now = ref.watch(nowTickProvider).value ?? DateTime.now();
+  return repo.watchBlocksForDay(now.weekday);
 });

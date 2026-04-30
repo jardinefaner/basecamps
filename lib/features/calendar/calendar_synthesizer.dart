@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adult_timeline_repository.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
@@ -187,7 +188,11 @@ bool _tripIntersects(Trip trip, DateTime date) {
 final calendarEventsWithBreaksTodayProvider =
     Provider.family<AsyncValue<List<CalendarEvent>>, String>(
   (ref, adultIdsKey) {
-    final now = DateTime.now();
+    // Watch the wall clock so a midnight rollover advances "today"
+    // without leaving the agenda showing yesterday's events. Within
+    // the same day every minute tick yields the same `today` so
+    // the dependent provider's cache hit is free.
+    final now = ref.watch(nowTickProvider).value ?? DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final baseAsync = ref.watch(calendarEventsForDayProvider(today));
     if (adultIdsKey.isEmpty) return baseAsync;

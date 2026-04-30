@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:basecamp/core/id.dart';
+import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/forms/polymorphic/form_definition.dart';
 import 'package:basecamp/features/programs/program_scope.dart';
@@ -329,10 +330,16 @@ final formSubmissionsByStatusProvider =
 /// form types. Drives Today's "review due" flag entry — one query
 /// answers "is anything overdue right now?" for the whole polymorphic
 /// forms system.
+///
+/// Watches `nowTickProvider` so a midnight rollover advances the
+/// "today" window without leaving the consumer staring at the
+/// previous day's deadline. Within the same day the tick rebuilds
+/// re-yield the same `endOfToday` and the inner stream's dedup
+/// keeps the rebuild cheap.
 final todayReviewDueProvider =
     StreamProvider<List<FormSubmission>>((ref) {
   ref.watch(activeProgramIdProvider);
-  final now = DateTime.now();
+  final now = ref.watch(nowTickProvider).value ?? DateTime.now();
   final endOfToday = DateTime(now.year, now.month, now.day, 23, 59, 59);
   return ref
       .watch(formSubmissionRepositoryProvider)
