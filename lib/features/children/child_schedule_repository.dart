@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -31,7 +35,19 @@ class ChildExpectations {
 }
 
 class ChildScheduleRepository {
-  ChildScheduleRepository(this._db);
+  ChildScheduleRepository(this._db, this._ref);
+
+  final Ref _ref;
+
+  /// `child_schedule_overrides` is a cascade of `children` —
+  /// pushing the parent rebuilds the cascade and the override
+  /// row rides along. Without this nudge every "mom texted,
+  /// running late" entry stayed local-only.
+  void _pushParentChild(String childId) {
+    unawaited(
+      _ref.read(syncEngineProvider).pushRow(childrenSpec, childId),
+    );
+  }
 
   final AppDatabase _db;
 
@@ -94,6 +110,7 @@ class ChildScheduleRepository {
               note: Value(note),
             ),
           );
+      _pushParentChild(childId);
       return;
     }
     await (_db.update(_db.childScheduleOverrides)
@@ -106,6 +123,7 @@ class ChildScheduleRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    _pushParentChild(childId);
   }
 
   /// Drop today's override for a child — "they're back on the normal
@@ -118,11 +136,12 @@ class ChildScheduleRepository {
     await (_db.delete(_db.childScheduleOverrides)
           ..where((r) => r.childId.equals(childId) & r.date.equals(key)))
         .go();
+    _pushParentChild(childId);
   }
 }
 
 final childScheduleRepositoryProvider = Provider<ChildScheduleRepository>(
-  (ref) => ChildScheduleRepository(ref.watch(databaseProvider)),
+  (ref) => ChildScheduleRepository(ref.watch(databaseProvider), ref),
 );
 
 /// Today's overrides, keyed by child id for fast lookup during the

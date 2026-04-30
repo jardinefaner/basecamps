@@ -9,6 +9,7 @@ import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
 import 'package:basecamp/features/observations/widgets/observation_composer.dart';
 import 'package:basecamp/features/parents/parents_repository.dart';
 import 'package:basecamp/features/parents/widgets/edit_parent_sheet.dart';
+import 'package:basecamp/features/people/people_display.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -811,17 +812,9 @@ class _ParentPickerSheet extends StatelessWidget {
                       theme.colorScheme.secondaryContainer,
                   foregroundColor:
                       theme.colorScheme.onSecondaryContainer,
-                  child: Text(
-                    p.firstName.isEmpty
-                        ? '?'
-                        : p.firstName[0].toUpperCase(),
-                  ),
+                  child: Text(p.displayInitial),
                 ),
-                title: Text(
-                  p.lastName == null || p.lastName!.isEmpty
-                      ? p.firstName
-                      : '${p.firstName} ${p.lastName}',
-                ),
+                title: Text(p.fullName),
                 subtitle: p.relationship == null ||
                         p.relationship!.isEmpty
                     ? null

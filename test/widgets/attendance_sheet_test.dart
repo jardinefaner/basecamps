@@ -22,7 +22,7 @@ void main() {
     container = createTestContainer(database: db);
     addTearDown(container.dispose);
     kids = ChildrenRepository(db, fakeRef(container));
-    att = AttendanceRepository(db);
+    att = AttendanceRepository(db, fakeRef(container));
     groupId = await kids.addGroup(name: 'Seedlings');
     maya = await kids.addChild(firstName: 'Maya', groupId: groupId);
     leo = await kids.addChild(firstName: 'Leo', groupId: groupId);

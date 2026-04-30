@@ -681,8 +681,10 @@ class _KidsSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    // ref.watch so a cross-device group rename / archive
+    // re-paints the "Add kid" picker that this list seeds.
     final groups =
-        ref.read(groupsProvider).asData?.value ?? const <Group>[];
+        ref.watch(groupsProvider).asData?.value ?? const <Group>[];
     return _SectionCard(
       title: 'KIDS (${kids.length})',
       actions: [

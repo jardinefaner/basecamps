@@ -831,7 +831,11 @@ class _RoleBlockTile extends ConsumerWidget {
 
   String _groupLabel(WidgetRef ref, String? groupId) {
     if (groupId == null) return '';
-    final groups = ref.read(groupsProvider).asData?.value ?? const [];
+    // ref.watch so a cross-device group rename re-paints this
+    // tile. ref.read here meant a colleague renaming the group
+    // on another device left this label stale until the parent
+    // rebuilt for unrelated reasons.
+    final groups = ref.watch(groupsProvider).asData?.value ?? const [];
     for (final g in groups) {
       if (g.id == groupId) return ' · ${g.name}';
     }
@@ -1376,7 +1380,11 @@ class _OverrideTile extends ConsumerWidget {
 
   String _groupLabel(WidgetRef ref, String? groupId) {
     if (groupId == null) return '';
-    final groups = ref.read(groupsProvider).asData?.value ?? const [];
+    // ref.watch so a cross-device group rename re-paints this
+    // tile. ref.read here meant a colleague renaming the group
+    // on another device left this label stale until the parent
+    // rebuilt for unrelated reasons.
+    final groups = ref.watch(groupsProvider).asData?.value ?? const [];
     for (final g in groups) {
       if (g.id == groupId) return ' · ${g.name}';
     }

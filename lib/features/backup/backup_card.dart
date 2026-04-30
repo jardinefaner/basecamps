@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:basecamp/features/backup/backup_repository.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -44,6 +46,13 @@ class _BackupCardState extends ConsumerState<BackupCard> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+    // Re-refresh whenever the active program switches — without
+    // this listen the "Last backed up" line stays stale (showing
+    // the previous program's snapshot) until the user navigates
+    // away and back.
+    ref.listenManual<String?>(activeProgramIdProvider, (_, _) {
+      if (mounted) unawaited(_refresh());
+    });
   }
 
   Future<void> _refresh() async {

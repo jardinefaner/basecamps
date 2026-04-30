@@ -1,6 +1,7 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/parents/parents_repository.dart';
 import 'package:basecamp/features/parents/widgets/edit_parent_sheet.dart';
+import 'package:basecamp/features/people/people_display.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/responsive.dart';
@@ -158,16 +159,9 @@ class _ParentTile extends ConsumerWidget {
     );
   }
 
-  String _formatName(Parent p) {
-    final last = p.lastName;
-    return last == null || last.isEmpty
-        ? p.firstName
-        : '${p.firstName} $last';
-  }
+  String _formatName(Parent p) => p.fullName;
 
-  String _initial(Parent p) {
-    return p.firstName.isEmpty ? '?' : p.firstName[0].toUpperCase();
-  }
+  String _initial(Parent p) => p.displayInitial;
 }
 
 class _EmptyState extends StatelessWidget {

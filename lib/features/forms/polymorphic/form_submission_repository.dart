@@ -264,6 +264,10 @@ class FormSubmissionRepository {
       await (_db.update(_db.formSubmissions)
             ..where((s) => s.id.equals(row.id)))
           .write(FormSubmissionsCompanion(childId: Value(candidates.first)));
+      // Without this markDirty, the partial-UPDATE push only
+      // sends identity/housekeeping columns — the new child_id
+      // never reached cloud and the backfill stayed local.
+      await _db.markDirty('form_submissions', row.id, ['child_id']);
       unawaited(_sync.pushRow(formSubmissionsSpec, row.id));
       linked++;
     }

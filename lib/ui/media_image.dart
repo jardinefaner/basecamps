@@ -2,12 +2,10 @@ import 'package:basecamp/features/sync/media_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Identity key for [mediaImageProvider]. Combines an optional
-/// device-local file path (fast native render) with the cross-
-/// device Supabase Storage key + per-upload content tag. Two
-/// MediaSources with the same (localPath, storagePath, etag)
-/// triple resolve to the same family slot, so multiple widgets
-/// watching the same row share one fetch.
+/// Identity key for [mediaImageProvider]. Two MediaSources with
+/// the same (storagePath, etag) pair resolve to the same family
+/// slot, so multiple widgets watching the same row share one
+/// fetch.
 ///
 /// Why etag: the bucket key is stable per logical id (avatars are
 /// keyed by row id, form images are keyed by submission+field),
@@ -22,14 +20,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// Null etag is a wildcard match — observation attachments and
 /// other write-once media don't carry one, and the cache
 /// gracefully accepts that.
+///
+/// `localPath` is accepted in the constructor for callsite
+/// ergonomics (every callsite passes whatever the row carries —
+/// `child.avatarPath`, `attachment.localPath`, etc.) but is **NOT**
+/// part of the equality / cache key. The render path always
+/// resolves through `storagePath` + `etag` after the v52 cleanup
+/// — see [mediaImageProvider]. Including localPath in equality
+/// would create separate family slots for web (localPath null)
+/// vs native (localPath set) for the same row, wasting a fetch.
 @immutable
 class MediaSource {
   const MediaSource({this.localPath, this.storagePath, this.etag});
 
-  /// Filesystem path on the device that captured the file.
-  /// Native-only; on web `XFile.path` is a `blob:` URL useless to
-  /// `dart:io.File`, so this stays null. Falls through to
-  /// [storagePath] when missing.
+  /// Per-device filesystem path. Kept for callsite ergonomics
+  /// (and as a future heal-pass hook), but not consulted by the
+  /// resolver — see class doc.
   final String? localPath;
 
   /// Bucket-relative key in Supabase Storage. The cross-device
@@ -40,18 +46,16 @@ class MediaSource {
   /// Per-upload content tag. Null on legacy / write-once media.
   final String? etag;
 
-  bool get isEmpty => (localPath == null || localPath!.isEmpty) &&
-      (storagePath == null || storagePath!.isEmpty);
+  bool get isEmpty => storagePath == null || storagePath!.isEmpty;
 
   @override
   bool operator ==(Object other) =>
       other is MediaSource &&
-      other.localPath == localPath &&
       other.storagePath == storagePath &&
       other.etag == etag;
 
   @override
-  int get hashCode => Object.hash(localPath, storagePath, etag);
+  int get hashCode => Object.hash(storagePath, etag);
 }
 
 /// Resolves a [MediaSource] to a renderable [ImageProvider]. One

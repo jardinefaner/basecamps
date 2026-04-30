@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -64,9 +68,10 @@ int _parseHHmm(String hhmm) {
 }
 
 class AdultTimelineRepository {
-  AdultTimelineRepository(this._db);
+  AdultTimelineRepository(this._db, this._ref);
 
   final AppDatabase _db;
+  final Ref _ref;
 
   /// All timeline blocks for [adultId], across every day of the
   /// week. Ordered by (day, start time) for stable editor rendering.
@@ -119,12 +124,19 @@ class AdultTimelineRepository {
             );
       }
     });
+    // adult_day_blocks is a cascade of adults — pushing the
+    // parent rebuilds the cascade and the new timeline rides
+    // along. Without this every device's day timeline diverged
+    // from every other.
+    unawaited(
+      _ref.read(syncEngineProvider).pushRow(adultsSpec, adultId),
+    );
   }
 }
 
 final adultTimelineRepositoryProvider =
     Provider<AdultTimelineRepository>((ref) {
-  return AdultTimelineRepository(ref.watch(databaseProvider));
+  return AdultTimelineRepository(ref.watch(databaseProvider), ref);
 });
 
 /// Today's blocks for every adult (all role types), as raw rows.

@@ -2,6 +2,7 @@ import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/observations/widgets/attachment_viewer.dart';
+import 'package:basecamp/features/people/people_display.dart';
 import 'package:basecamp/features/rooms/rooms_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -535,11 +536,7 @@ class _TargetLabel extends ConsumerWidget {
     );
   }
 
-  String _singleKidLabel(Child child) {
-    final last = child.lastName;
-    if (last == null || last.isEmpty) return child.firstName;
-    return '${child.firstName} ${last[0]}.';
-  }
+  String _singleKidLabel(Child child) => child.shortName;
 
   String _formatKidList(List<Child> children) {
     if (children.length == 1) return _singleKidLabel(children.first);

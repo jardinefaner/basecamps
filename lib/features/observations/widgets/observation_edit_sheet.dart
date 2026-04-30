@@ -10,6 +10,7 @@ import 'package:basecamp/features/observations/widgets/multi_capture_camera.dart
 import 'package:basecamp/features/observations/widgets/refineable_note_editor.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_button.dart';
+import 'package:basecamp/ui/media_image.dart';
 import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/foundation.dart';
@@ -592,10 +593,17 @@ class _EditableAttachmentStrip extends StatelessWidget {
           final kind = isExisting
               ? existing[i].kind
               : pending[i - existing.length].kind;
-          final path = isExisting
-              ? existing[i].localPath
-              : pending[i - existing.length].path;
           final isPhoto = kind == 'photo';
+          // For SAVED attachments (isExisting), route through the
+          // shared MediaImage pipeline so cross-device sync works
+          // — the same pattern every other observation surface
+          // uses. The previous Image.file(File(localPath)) pattern
+          // hit a broken-image icon on receive devices because
+          // localPath is per-device. PENDING (unsaved) attachments
+          // still render directly from the picker's local path
+          // since there's no storage_path yet.
+          final pendingPath =
+              isExisting ? null : pending[i - existing.length].path;
 
           final thumb = Container(
             width: 80,
@@ -605,27 +613,45 @@ class _EditableAttachmentStrip extends StatelessWidget {
               color: theme.colorScheme.surfaceContainerHigh,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: isPhoto && !kIsWeb
-                ? Image.file(
-                    File(path),
-                    fit: BoxFit.cover,
-                    // 80dp thumb × 2 for retina.
-                    cacheWidth: 160,
-                    errorBuilder: (_, _, _) => Center(
-                      child: Icon(
-                        Icons.image_outlined,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  )
-                : Center(
+            child: !isPhoto
+                ? Center(
                     child: Icon(
-                      isPhoto
-                          ? Icons.image_outlined
-                          : Icons.play_circle_outline,
+                      Icons.play_circle_outline,
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
-                  ),
+                  )
+                : isExisting
+                    ? MediaImage(
+                        source: MediaSource(
+                          localPath: existing[i].localPath,
+                          storagePath: existing[i].storagePath,
+                        ),
+                        cacheWidth: 160, // 80dp × 2 retina
+                        errorPlaceholder: Center(
+                          child: Icon(
+                            Icons.image_outlined,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      )
+                    : kIsWeb
+                        ? Center(
+                            child: Icon(
+                              Icons.image_outlined,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          )
+                        : Image.file(
+                            File(pendingPath!),
+                            fit: BoxFit.cover,
+                            cacheWidth: 160,
+                            errorBuilder: (_, _, _) => Center(
+                              child: Icon(
+                                Icons.image_outlined,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
           );
 
           return Stack(

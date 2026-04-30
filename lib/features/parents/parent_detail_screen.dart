@@ -7,6 +7,7 @@ import 'package:basecamp/features/forms/polymorphic/form_submission_repository.d
 import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
 import 'package:basecamp/features/parents/parents_repository.dart';
 import 'package:basecamp/features/parents/widgets/edit_parent_sheet.dart';
+import 'package:basecamp/features/people/people_display.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/responsive.dart';
@@ -69,9 +70,7 @@ class _Body extends ConsumerWidget {
                 foregroundColor:
                     theme.colorScheme.onSecondaryContainer,
                 child: Text(
-                  parent.firstName.isEmpty
-                      ? '?'
-                      : parent.firstName[0].toUpperCase(),
+                  parent.displayInitial,
                   style: theme.textTheme.titleLarge,
                 ),
               ),

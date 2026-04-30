@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -53,9 +57,22 @@ class AttendanceRecord {
 }
 
 class AttendanceRepository {
-  AttendanceRepository(this._db);
+  AttendanceRepository(this._db, this._ref);
 
   final AppDatabase _db;
+  final Ref _ref;
+
+  /// `attendance` is declared as a cascade of `children` in
+  /// `sync_specs.dart` — pushing the parent child rebuilds the
+  /// cascade and the new attendance row rides along. Without
+  /// this nudge every check-in / pickup / "Mark all present"
+  /// stayed local-only and never reached cloud, so each
+  /// teacher's device showed its own attendance log.
+  void _pushParentChild(String childId) {
+    unawaited(
+      _ref.read(syncEngineProvider).pushRow(childrenSpec, childId),
+    );
+  }
 
   /// Map of child id → record for a specific day. Children without a row are
   /// *not* present in the map — the caller renders them as pending.
@@ -108,6 +125,7 @@ class AttendanceRepository {
             updatedAt: Value(now),
           ),
         );
+    _pushParentChild(childId);
   }
 
   /// Record a pickup on an existing attendance row. The child must
@@ -135,6 +153,7 @@ class AttendanceRepository {
         updatedAt: Value(now),
       ),
     );
+    _pushParentChild(childId);
   }
 
   /// Undoes a pickup — "wait, she's still here, I marked that by
@@ -155,6 +174,7 @@ class AttendanceRepository {
         updatedAt: Value(now),
       ),
     );
+    _pushParentChild(childId);
   }
 
   /// Drops the row entirely — used when the teacher wants to revert
@@ -167,6 +187,7 @@ class AttendanceRepository {
     await (_db.delete(_db.attendance)
           ..where((a) => a.childId.equals(childId) & a.date.equals(day)))
         .go();
+    _pushParentChild(childId);
   }
 
   /// Batch helper — "Mark everyone present" on a roster. One
@@ -192,6 +213,7 @@ class AttendanceRepository {
             );
       }
     });
+    childIds.forEach(_pushParentChild);
   }
 
   DateTime _dayOnly(DateTime d) => DateTime(d.year, d.month, d.day);
@@ -199,7 +221,7 @@ class AttendanceRepository {
 
 final attendanceRepositoryProvider =
     Provider<AttendanceRepository>((ref) {
-  return AttendanceRepository(ref.watch(databaseProvider));
+  return AttendanceRepository(ref.watch(databaseProvider), ref);
 });
 
 /// Live map of attendance for the given calendar day. The family is
