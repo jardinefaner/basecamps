@@ -8,7 +8,9 @@ import 'package:basecamp/features/planning/week_plan_canvas.dart';
 import 'package:basecamp/features/planning/week_plan_state.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/activity_detail_sheet.dart';
+import 'package:basecamp/features/schedule/widgets/edit_template_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:basecamp/ui/adaptive_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -90,11 +92,35 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
     );
   }
 
-  /// Handle a drop: reject overrides, otherwise pick an action
-  /// (move or copy) and execute. The chooser is skipped when Alt /
-  /// Option is held at drop time — pressing the modifier fast-paths
-  /// straight to copy, the way Finder/Explorer's drag-with-Option
-  /// gesture works. Touch users always get the chooser.
+  /// FAB tap when a card is selected → open the full edit sheet
+  /// for that template (groups, room, notes, date range — the
+  /// metadata the inline left/right zones don't expose).
+  Future<void> _openEditForSelected(String templateId) async {
+    final repo = ref.read(scheduleRepositoryProvider);
+    final template = await repo.getTemplate(templateId);
+    if (template == null || !mounted) return;
+    await showAdaptiveSheet<void>(
+      context: context,
+      builder: (_) => EditTemplateSheet(template: template),
+    );
+  }
+
+  /// FAB tap when nothing is selected → add a new card to the
+  /// focused day. Step-3 stub; the real next-open-slot logic lands
+  /// in step 6.
+  void _addCardPlaceholder() {
+    final messenger = ScaffoldMessenger.of(context);
+    final focusedDay = ref.read(weekPlanFocusedDayProvider);
+    messenger
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            'Add-card lands in step 6. (Would add to weekday $focusedDay.)',
+          ),
+        ),
+      );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -102,6 +128,8 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
     // Read the visible week through Riverpod so back/forward
     // navigation rebuilds the canvas via provider invalidation.
     final monday = ref.watch(weekPlanWeekProvider);
+    final selectedTemplateId =
+        ref.watch(weekPlanSelectedTemplateProvider);
     final scheduleAsync = ref.watch(scheduleForWeekProvider(monday));
 
     return Scaffold(
@@ -120,6 +148,28 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
           ),
           const SizedBox(width: AppSpacing.sm),
         ],
+      ),
+      // FAB transforms with selection state. `+` (add to focused
+      // day) when nothing's selected; `✏️` (open edit sheet for
+      // the selected template's metadata) when one is. Animated
+      // crossfade so the swap doesn't feel like the FAB jumped.
+      floatingActionButton: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 180),
+        transitionBuilder: (child, animation) =>
+            ScaleTransition(scale: animation, child: child),
+        child: selectedTemplateId == null
+            ? FloatingActionButton.extended(
+                key: const ValueKey('add'),
+                onPressed: _addCardPlaceholder,
+                icon: const Icon(Icons.add),
+                label: const Text('Add'),
+              )
+            : FloatingActionButton.extended(
+                key: const ValueKey('edit-more'),
+                onPressed: () => _openEditForSelected(selectedTemplateId),
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Edit details'),
+              ),
       ),
       body: Column(
         children: [

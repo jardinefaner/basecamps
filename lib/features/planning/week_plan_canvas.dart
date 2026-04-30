@@ -95,6 +95,7 @@ class WeekPlanCanvas extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final groupFilter = ref.watch(weekPlanGroupFilterProvider);
+    final selectedId = ref.watch(weekPlanSelectedTemplateProvider);
     final visibleByDay = <int, List<ScheduleItem>>{
       for (var d = 1; d <= scheduleDayCount; d++)
         d: _filterByGroup(byDay[d] ?? const [], groupFilter),
@@ -103,34 +104,47 @@ class WeekPlanCanvas extends ConsumerWidget {
       visibleByDay.values.expand((items) => items),
     );
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.sm,
-        AppSpacing.lg,
-        AppSpacing.lg,
-      ),
-      child: SingleChildScrollView(
-        // The whole canvas scrolls vertically — long days (early
-        // arrival to late pickup) stay browsable on small viewports.
-        child: SizedBox(
-          height: _kColumnHeaderHeight + scale.totalHeight + AppSpacing.md,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _HourGutter(scale: scale, theme: theme),
-              for (var d = 1; d <= scheduleDayCount; d++) ...[
-                Expanded(
-                  child: _DayColumn(
-                    date: monday.add(Duration(days: d - 1)),
-                    weekday: d,
-                    items: visibleByDay[d] ?? const [],
-                    scale: scale,
-                    onTapCard: onTapCard,
+    return GestureDetector(
+      // Tap on the canvas background (anywhere outside a card)
+      // clears the selection. behavior: opaque so the gesture
+      // catches taps on the empty canvas area / hour gutter / day
+      // headers, not just on the visible Padding pixels.
+      behavior: HitTestBehavior.opaque,
+      onTap: () => ref
+          .read(weekPlanSelectedTemplateProvider.notifier)
+          .clear(),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.sm,
+          AppSpacing.lg,
+          AppSpacing.lg,
+        ),
+        child: SingleChildScrollView(
+          // The whole canvas scrolls vertically — long days
+          // (early arrival to late pickup) stay browsable on
+          // small viewports.
+          child: SizedBox(
+            height:
+                _kColumnHeaderHeight + scale.totalHeight + AppSpacing.md,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _HourGutter(scale: scale, theme: theme),
+                for (var d = 1; d <= scheduleDayCount; d++) ...[
+                  Expanded(
+                    child: _DayColumn(
+                      date: monday.add(Duration(days: d - 1)),
+                      weekday: d,
+                      items: visibleByDay[d] ?? const [],
+                      scale: scale,
+                      selectedId: selectedId,
+                      onTapCard: onTapCard,
+                    ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -207,6 +221,7 @@ class _DayColumn extends StatelessWidget {
     required this.weekday,
     required this.items,
     required this.scale,
+    required this.selectedId,
     required this.onTapCard,
   });
 
@@ -214,6 +229,7 @@ class _DayColumn extends StatelessWidget {
   final int weekday;
   final List<ScheduleItem> items;
   final WeekPlanScale scale;
+  final String? selectedId;
   final ValueChanged<ScheduleItem>? onTapCard;
 
   @override
@@ -306,8 +322,10 @@ class _DayColumn extends StatelessWidget {
                         height: (item.endMinutes - item.startMinutes) *
                                 _kPxPerMinute -
                             2,
-                        child: _StaticCard(
+                        child: _PlanCard(
                           item: item,
+                          isSelected: item.templateId != null &&
+                              item.templateId == selectedId,
                           onTap: onTapCard,
                         ),
                       ),
@@ -328,45 +346,76 @@ class _DayColumn extends StatelessWidget {
   }
 }
 
-/// Step-2 card: read-only, two-tap-zone hint. Step 3 wires
-/// selection; step 4 wires inline editing.
-class _StaticCard extends StatelessWidget {
-  const _StaticCard({required this.item, required this.onTap});
+/// Step-3 card: tap selects template-backed cards (drives the FAB
+/// transform on the screen). Tapping an entry/override falls through
+/// to [onTap] which still opens the activity detail sheet — entries
+/// don't get inline edit because their schema is one-off and the
+/// detail flow already covers them. Steps 4–5 add inline edit and
+/// drag.
+class _PlanCard extends ConsumerWidget {
+  const _PlanCard({
+    required this.item,
+    required this.isSelected,
+    required this.onTap,
+  });
 
   final ScheduleItem item;
+  final bool isSelected;
   final ValueChanged<ScheduleItem>? onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final tinyDuration =
         item.endMinutes - item.startMinutes < 30; // <30 min = "tiny"
     final timeLabel = '${Hhmm.formatCompact(item.startTime)} – '
         '${Hhmm.formatCompact(item.endTime)}';
+
+    final isTemplate = item.templateId != null;
+    final bg = isSelected
+        ? theme.colorScheme.primary.withValues(alpha: 0.95)
+        : theme.colorScheme.primaryContainer.withValues(alpha: 0.85);
+    final fg = isSelected
+        ? theme.colorScheme.onPrimary
+        : theme.colorScheme.onPrimaryContainer;
+    final borderColor = isSelected
+        ? theme.colorScheme.primary
+        : theme.colorScheme.primary.withValues(alpha: 0.25);
+    final borderWidth = isSelected ? 1.5 : 0.5;
+
     return InkWell(
-      onTap: onTap == null ? null : () => onTap!(item),
+      onTap: () {
+        if (isTemplate) {
+          // Tap template card → select it (drives FAB → ✏️).
+          // Selection stops the gesture from propagating up to the
+          // canvas's deselect-on-tap-outside detector.
+          ref
+              .read(weekPlanSelectedTemplateProvider.notifier)
+              .select(item.templateId!);
+        } else {
+          // Entry / override / one-off — selection isn't the right
+          // affordance, just open the detail sheet directly.
+          onTap?.call(item);
+        }
+      },
       borderRadius: BorderRadius.circular(8),
       child: Container(
         decoration: BoxDecoration(
-          color: theme.colorScheme.primaryContainer
-              .withValues(alpha: 0.85),
+          color: bg,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: theme.colorScheme.primary.withValues(alpha: 0.25),
-            width: 0.5,
-          ),
+          border: Border.all(color: borderColor, width: borderWidth),
         ),
         padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
         child: tinyDuration
             ? _CompactBody(
                 title: item.title,
                 timeLabel: timeLabel,
-                color: theme.colorScheme.onPrimaryContainer,
+                color: fg,
               )
             : _StackedBody(
                 title: item.title,
                 timeLabel: timeLabel,
-                color: theme.colorScheme.onPrimaryContainer,
+                color: fg,
                 location: item.location,
               ),
       ),
