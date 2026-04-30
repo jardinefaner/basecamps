@@ -16,7 +16,16 @@ import 'package:intl/intl.dart';
 /// Layout math is centralized in [WeekPlanScale] so the FAB add /
 /// drag-to-snap math in later steps reads off the same axis.
 
-const double _kPxPerMinute = 0.8;
+/// Vertical scale: 2.5 px per minute. Tuned so a 30-min activity
+/// (the typical kindergarten block size) renders at ~75dp tall,
+/// which against a 220dp column width gives the **3:1 horizontal
+/// aspect ratio** the user wanted for cards.
+///
+/// Duration still maps proportionally — a 15-min card is half the
+/// height of a 30-min, a 60-min is twice — but the typical card
+/// lands at 3:1 so titles + time read cleanly without feeling
+/// cramped vertically.
+const double _kPxPerMinute = 2.5;
 const double _kHourLabelWidth = 56;
 const double _kColumnHeaderHeight = 40;
 
@@ -25,8 +34,8 @@ const double _kColumnHeaderHeight = 40;
 /// wanted real estate for each card to read like the rest of the
 /// app's cards. With a fixed column width the canvas can grow
 /// wider than the viewport and the outer wraps it in horizontal
-/// scroll. 220dp leaves room for two-line titles without ellipsis
-/// at typical font sizes.
+/// scroll. 220dp paired with `_kPxPerMinute = 2.5` gives a 30-min
+/// card a 3:1 aspect ratio.
 const double _kDayColumnWidth = 220;
 
 class WeekPlanScale {

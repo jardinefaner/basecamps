@@ -70,10 +70,10 @@ void main() {
         dayStartMinutes: 7 * 60,
         dayEndMinutes: 17 * 60,
       );
-      // 9:00 = 540 minutes. 540 - 420 = 120 → 120 * 0.8 = 96 px.
-      expect(scale.yFor(9 * 60), 96);
-      // Round-trip: 96 px → minute 540.
-      expect(scale.minutesAtY(96), 9 * 60);
+      // 9:00 = 540 minutes. (540 - 420) * 2.5 = 300 px.
+      expect(scale.yFor(9 * 60), 300);
+      // Round-trip: 300 px → minute 540.
+      expect(scale.minutesAtY(300), 9 * 60);
     });
 
     test('minutesAtY at y=0 returns dayStartMinutes', () {
@@ -89,8 +89,8 @@ void main() {
         dayStartMinutes: 7 * 60,
         dayEndMinutes: 17 * 60,
       );
-      // 10 hours × 60 min × 0.8 px/min = 480 px.
-      expect(scale.totalHeight, 480);
+      // 10 hours × 60 min × 2.5 px/min = 1500 px.
+      expect(scale.totalHeight, 1500);
     });
   });
 
