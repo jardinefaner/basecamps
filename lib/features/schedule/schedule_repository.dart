@@ -820,6 +820,51 @@ class ScheduleRepository {
     unawaited(_sync.pushRow(scheduleTemplatesSpec, templateId));
   }
 
+  /// Narrow update: just the title. Used by the week plan canvas
+  /// inline title edit so a one-character title fix doesn't
+  /// disturb the row's groups, room, or notes (which the wholesale
+  /// `updateTemplate` rewrites).
+  Future<void> renameTemplate({
+    required String templateId,
+    required String newTitle,
+  }) async {
+    await (_db.update(_db.scheduleTemplates)
+          ..where((t) => t.id.equals(templateId)))
+        .write(
+      ScheduleTemplatesCompanion(
+        title: Value(newTitle),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+    await _db.markDirty('schedule_templates', templateId, ['title']);
+    unawaited(_sync.pushRow(scheduleTemplatesSpec, templateId));
+  }
+
+  /// Narrow update: shift start + end (duration-preserving move
+  /// within the same day, or a fresh start time picked via the
+  /// inline time-zone tap). Both columns marked dirty so a
+  /// concurrent partial push from another column survives.
+  Future<void> shiftTemplateStart({
+    required String templateId,
+    required String newStartTime,
+    required String newEndTime,
+  }) async {
+    await (_db.update(_db.scheduleTemplates)
+          ..where((t) => t.id.equals(templateId)))
+        .write(
+      ScheduleTemplatesCompanion(
+        startTime: Value(newStartTime),
+        endTime: Value(newEndTime),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+    await _db.markDirty('schedule_templates', templateId, [
+      'start_time',
+      'end_time',
+    ]);
+    unawaited(_sync.pushRow(scheduleTemplatesSpec, templateId));
+  }
+
   /// Clone an existing template onto another weekday. Group
   /// assignments come along. The new row gets a fresh id and is
   /// treated as independent — no `seriesId` is propagated, so the

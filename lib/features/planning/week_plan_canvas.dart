@@ -346,13 +346,12 @@ class _DayColumn extends StatelessWidget {
   }
 }
 
-/// Step-3 card: tap selects template-backed cards (drives the FAB
-/// transform on the screen). Tapping an entry/override falls through
-/// to [onTap] which still opens the activity detail sheet — entries
+/// Step-4 card: tap to select; tap selected card's left half →
+/// inline title edit; tap right half → time picker. Tapping an
+/// entry/override falls through to [onTap] (detail sheet) — entries
 /// don't get inline edit because their schema is one-off and the
-/// detail flow already covers them. Steps 4–5 add inline edit and
-/// drag.
-class _PlanCard extends ConsumerWidget {
+/// detail flow already covers them.
+class _PlanCard extends ConsumerStatefulWidget {
   const _PlanCard({
     required this.item,
     required this.isSelected,
@@ -364,115 +363,265 @@ class _PlanCard extends ConsumerWidget {
   final ValueChanged<ScheduleItem>? onTap;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_PlanCard> createState() => _PlanCardState();
+}
+
+class _PlanCardState extends ConsumerState<_PlanCard> {
+  // Local state for inline title editing. Only enters this mode
+  // when the card is already selected and the user taps the left
+  // zone again — gives a clear two-step path (select, then edit)
+  // that prevents accidental edits.
+  bool _editingTitle = false;
+  late final TextEditingController _titleController =
+      TextEditingController(text: widget.item.title);
+  final FocusNode _titleFocus = FocusNode();
+
+  @override
+  void didUpdateWidget(covariant _PlanCard old) {
+    super.didUpdateWidget(old);
+    // Card got deselected (selection moved elsewhere) → exit edit
+    // mode without committing. The user can re-select and re-edit
+    // if they meant to.
+    if (old.isSelected && !widget.isSelected && _editingTitle) {
+      _editingTitle = false;
+    }
+    // Source title changed (cloud sync, edit elsewhere) — refresh
+    // the controller so the field reflects truth, but not while
+    // the user is mid-edit (don't yank text out from under them).
+    if (!_editingTitle && widget.item.title != _titleController.text) {
+      _titleController.text = widget.item.title;
+    }
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _titleFocus.dispose();
+    super.dispose();
+  }
+
+  bool get _isTemplate => widget.item.templateId != null;
+
+  /// Tap on the LEFT half (title zone). State machine:
+  ///   1. unselected → select
+  ///   2. selected, not editing → enter edit mode (focus the
+  ///      TextField)
+  ///   3. selected, editing → no-op (the TextField has focus)
+  void _onLeftZoneTap() {
+    if (!_isTemplate) {
+      widget.onTap?.call(widget.item);
+      return;
+    }
+    if (!widget.isSelected) {
+      ref
+          .read(weekPlanSelectedTemplateProvider.notifier)
+          .select(widget.item.templateId!);
+      return;
+    }
+    // Already selected — enter title edit.
+    setState(() => _editingTitle = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _titleFocus.requestFocus();
+      _titleController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _titleController.text.length,
+      );
+    });
+  }
+
+  /// Tap on the RIGHT half (time zone). Same first-tap-selects
+  /// pattern as the left zone, then a second tap pops the time
+  /// picker.
+  Future<void> _onRightZoneTap() async {
+    if (!_isTemplate) {
+      widget.onTap?.call(widget.item);
+      return;
+    }
+    if (!widget.isSelected) {
+      ref
+          .read(weekPlanSelectedTemplateProvider.notifier)
+          .select(widget.item.templateId!);
+      return;
+    }
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: widget.item.startTimeOfDay,
+      // We pick start time here; the new end time is start +
+      // current duration so the user doesn't have to set both.
+      // The full edit sheet (FAB → ✏️) lets them decouple.
+      helpText: 'New start time',
+    );
+    if (picked == null || !mounted) return;
+    final newStartMinutes = picked.minutesSinceMidnight;
+    final duration = widget.item.endMinutes - widget.item.startMinutes;
+    final newEndMinutes = newStartMinutes + duration;
+    if (newEndMinutes >= 24 * 60) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text("That'd push the end past midnight."),
+          ),
+        );
+      return;
+    }
+    final repo = ref.read(scheduleRepositoryProvider);
+    await repo.shiftTemplateStart(
+      templateId: widget.item.templateId!,
+      newStartTime: Hhmm.fromMinutes(newStartMinutes),
+      newEndTime: Hhmm.fromMinutes(newEndMinutes),
+    );
+  }
+
+  /// Commit the title edit. Called on enter, on blur, or when
+  /// selection moves away. Idempotent — no-op when the value
+  /// hasn't changed.
+  Future<void> _commitTitle() async {
+    if (!_editingTitle) return;
+    final trimmed = _titleController.text.trim();
+    setState(() => _editingTitle = false);
+    if (trimmed.isEmpty || trimmed == widget.item.title) {
+      // Empty title is silently discarded (revert to what was
+      // there). Same-as-before is a no-op write.
+      _titleController.text = widget.item.title;
+      return;
+    }
+    final repo = ref.read(scheduleRepositoryProvider);
+    await repo.renameTemplate(
+      templateId: widget.item.templateId!,
+      newTitle: trimmed,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final item = widget.item;
     final tinyDuration =
         item.endMinutes - item.startMinutes < 30; // <30 min = "tiny"
     final timeLabel = '${Hhmm.formatCompact(item.startTime)} – '
         '${Hhmm.formatCompact(item.endTime)}';
 
-    final isTemplate = item.templateId != null;
-    final bg = isSelected
+    final bg = widget.isSelected
         ? theme.colorScheme.primary.withValues(alpha: 0.95)
         : theme.colorScheme.primaryContainer.withValues(alpha: 0.85);
-    final fg = isSelected
+    final fg = widget.isSelected
         ? theme.colorScheme.onPrimary
         : theme.colorScheme.onPrimaryContainer;
-    // Constant-width border (1.5px) so the inner content area
-    // doesn't shift when selection toggles. The unselected state
-    // uses a faint transparent-ish color; selection ramps the same
-    // border to the primary color. Visual emphasis without layout
-    // jump.
-    final borderColor = isSelected
+    final borderColor = widget.isSelected
         ? theme.colorScheme.primary
         : theme.colorScheme.primary.withValues(alpha: 0.18);
     const borderWidth = 1.5;
 
-    return InkWell(
-      onTap: () {
-        if (isTemplate) {
-          // Tap template card → select it (drives FAB → ✏️).
-          // Selection stops the gesture from propagating up to the
-          // canvas's deselect-on-tap-outside detector.
-          ref
-              .read(weekPlanSelectedTemplateProvider.notifier)
-              .select(item.templateId!);
-        } else {
-          // Entry / override / one-off — selection isn't the right
-          // affordance, just open the detail sheet directly.
-          onTap?.call(item);
-        }
-      },
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: borderColor, width: borderWidth),
-        ),
-        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-        child: tinyDuration
-            ? _CompactBody(
-                title: item.title,
-                timeLabel: timeLabel,
-                color: fg,
-              )
-            : _StackedBody(
-                title: item.title,
-                timeLabel: timeLabel,
-                color: fg,
-                location: item.location,
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: borderColor, width: borderWidth),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: InkWell(
+              onTap: _onLeftZoneTap,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 6, 4, 6),
+                child: _editingTitle
+                    ? TextField(
+                        controller: _titleController,
+                        focusNode: _titleFocus,
+                        autofocus: true,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: fg,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        cursorColor: fg,
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                          border: InputBorder.none,
+                        ),
+                        onSubmitted: (_) => _commitTitle(),
+                        onTapOutside: (_) => _commitTitle(),
+                      )
+                    : Text(
+                        item.title,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: fg,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: tinyDuration ? 1 : 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
               ),
+            ),
+          ),
+          // Hairline divider so the two tap zones read as distinct.
+          Container(
+            width: 0.5,
+            height: double.infinity,
+            color: fg.withValues(alpha: 0.2),
+          ),
+          Expanded(
+            flex: 2,
+            child: InkWell(
+              onTap: _onRightZoneTap,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(4, 6, 8, 6),
+                child: tinyDuration
+                    ? _RightCompactBody(
+                        timeLabel: timeLabel,
+                        color: fg,
+                      )
+                    : _RightStackedBody(
+                        startLabel: Hhmm.formatCompact(item.startTime),
+                        endLabel: Hhmm.formatCompact(item.endTime),
+                        color: fg,
+                        location: item.location,
+                      ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _CompactBody extends StatelessWidget {
-  const _CompactBody({
-    required this.title,
-    required this.timeLabel,
-    required this.color,
-  });
+class _RightCompactBody extends StatelessWidget {
+  const _RightCompactBody({required this.timeLabel, required this.color});
 
-  final String title;
   final String timeLabel;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            title,
-            style: theme.textTheme.labelMedium?.copyWith(color: color),
-            overflow: TextOverflow.ellipsis,
-          ),
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Text(
+        timeLabel,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: color.withValues(alpha: 0.85),
         ),
-        const SizedBox(width: 4),
-        Text(
-          timeLabel,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: color.withValues(alpha: 0.75),
-          ),
-        ),
-      ],
+        textAlign: TextAlign.right,
+      ),
     );
   }
 }
 
-class _StackedBody extends StatelessWidget {
-  const _StackedBody({
-    required this.title,
-    required this.timeLabel,
+class _RightStackedBody extends StatelessWidget {
+  const _RightStackedBody({
+    required this.startLabel,
+    required this.endLabel,
     required this.color,
     this.location,
   });
 
-  final String title;
-  final String timeLabel;
+  final String startLabel;
+  final String endLabel;
   final Color color;
   final String? location;
 
@@ -480,22 +629,20 @@ class _StackedBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
-          title,
-          style: theme.textTheme.labelMedium?.copyWith(
-            color: color,
+          startLabel,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: color.withValues(alpha: 0.85),
             fontWeight: FontWeight.w600,
           ),
-          overflow: TextOverflow.ellipsis,
-          maxLines: 2,
         ),
-        const SizedBox(height: 2),
         Text(
-          timeLabel,
+          endLabel,
           style: theme.textTheme.labelSmall?.copyWith(
-            color: color.withValues(alpha: 0.75),
+            color: color.withValues(alpha: 0.6),
           ),
         ),
         if (location != null && location!.isNotEmpty)
@@ -504,10 +651,11 @@ class _StackedBody extends StatelessWidget {
             child: Text(
               location!,
               style: theme.textTheme.labelSmall?.copyWith(
-                color: color.withValues(alpha: 0.65),
+                color: color.withValues(alpha: 0.6),
                 fontStyle: FontStyle.italic,
               ),
               overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
             ),
           ),
       ],
