@@ -72,7 +72,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 48;
+  int get schemaVersion => 49;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -97,6 +97,7 @@ class AppDatabase extends _$AppDatabase {
           await _healCurriculumArcColumns();
           await _healRoleBlockTables();
           await _healScheduleTemplateColumns();
+          await _healDirtyFieldsColumns();
         },
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
@@ -115,6 +116,22 @@ class AppDatabase extends _$AppDatabase {
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
             );
+          }
+          if (from < 49) {
+            // v49: field-level dirty tracking. Each entity table
+            // gets a `dirty_fields` TEXT column (a JSON array of
+            // column names that have un-pushed local edits). The
+            // sync engine uses this to do partial UPDATEs (only
+            // dirty fields go to cloud) instead of full-row
+            // upserts — eliminating the "two devices edit
+            // different fields, last writer overwrites" data
+            // loss. Local-only column; never pushed, never
+            // pulled. See [_healDirtyFieldsColumns] for details.
+            for (final t in kSyncedTableNames) {
+              await _runSilent(
+                'ALTER TABLE "$t" ADD COLUMN "dirty_fields" TEXT NULL',
+              );
+            }
           }
           if (from < 48) {
             // v48: per-adult role timeline tables. Patterns
@@ -1244,6 +1261,101 @@ class AppDatabase extends _$AppDatabase {
       'CREATE INDEX IF NOT EXISTS '
       '"idx_adult_role_block_overrides_adult_date" '
       'ON "adult_role_block_overrides" ("adult_id", "date")',
+    );
+  }
+
+  /// Re-apply the v49 `dirty_fields` ALTER for every entity table
+  /// every launch. Same pattern as the other heal helpers — cheap
+  /// (the ALTER no-ops once the column exists, swallowed by
+  /// _runSilent), defends against partial-upgrade DBs.
+  ///
+  /// `dirty_fields` is a JSON-encoded `List<String>` of column
+  /// names that have un-pushed local edits. Local-only column;
+  /// never pushed to cloud, never read from cloud. The sync
+  /// engine reads it on push to construct partial UPDATEs (only
+  /// the dirty fields go to cloud), and on pull to preserve
+  /// dirty fields across cloud-row merges.
+  Future<void> _healDirtyFieldsColumns() async {
+    for (final t in kSyncedTableNames) {
+      await _runSilent(
+        'ALTER TABLE "$t" ADD COLUMN "dirty_fields" TEXT NULL',
+      );
+    }
+  }
+
+  /// Mark [fields] as dirty on the row [id] in [table]. Merges
+  /// with any existing dirty list (so consecutive edits before a
+  /// push accumulate). Called by repository update methods after
+  /// they write the row's column changes.
+  ///
+  /// JSON-encoded `List<String>`; null means clean. Cheap: one
+  /// SELECT + one UPDATE per call. The sync engine's push reads
+  /// this to construct a partial UPDATE; the engine's pull merge
+  /// reads it to know which fields to preserve.
+  Future<void> markDirty(
+    String table,
+    String id,
+    List<String> fields,
+  ) async {
+    if (fields.isEmpty) return;
+    final existing = await customSelect(
+      'SELECT "dirty_fields" FROM "$table" WHERE id = ?',
+      variables: [Variable<String>(id)],
+    ).getSingleOrNull();
+    final current = <String>{};
+    final raw = existing?.data['dirty_fields'];
+    if (raw is String && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          for (final v in decoded) {
+            if (v is String) current.add(v);
+          }
+        }
+      } on FormatException {
+        // Tolerate corrupt JSON — start fresh.
+      }
+    }
+    current.addAll(fields);
+    final encoded = jsonEncode(current.toList()..sort());
+    await customUpdate(
+      'UPDATE "$table" SET "dirty_fields" = ? WHERE id = ?',
+      variables: [Variable<String>(encoded), Variable<String>(id)],
+      updates: {},
+      updateKind: UpdateKind.update,
+    );
+  }
+
+  /// Read the current dirty-field list for a row. Returns an
+  /// empty list when the row is clean (column null or empty
+  /// JSON). Used by the sync engine's push path to construct
+  /// the partial UPDATE.
+  Future<List<String>> readDirtyFields(String table, String id) async {
+    final row = await customSelect(
+      'SELECT "dirty_fields" FROM "$table" WHERE id = ?',
+      variables: [Variable<String>(id)],
+    ).getSingleOrNull();
+    if (row == null) return const [];
+    final raw = row.data['dirty_fields'];
+    if (raw is! String || raw.isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      return [for (final v in decoded) if (v is String) v];
+    } on FormatException {
+      return const [];
+    }
+  }
+
+  /// Clear the dirty-field list after a successful push. Sets
+  /// the column back to NULL. Called by the sync engine on
+  /// successful upsert / partial-update completion.
+  Future<void> clearDirtyFields(String table, String id) async {
+    await customUpdate(
+      'UPDATE "$table" SET "dirty_fields" = NULL WHERE id = ?',
+      variables: [Variable<String>(id)],
+      updates: {},
+      updateKind: UpdateKind.update,
     );
   }
 
