@@ -107,20 +107,56 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
   }
 
   /// FAB tap when nothing is selected → add a new card to the
-  /// focused day. Step-3 stub; the real next-open-slot logic lands
-  /// in step 6.
-  void _addCardPlaceholder() {
-    final messenger = ScaffoldMessenger.of(context);
+  /// focused day, at the next open 15-min slot, with sensible
+  /// defaults. Scoped to the visible week (startDate=Mon,
+  /// endDate=Fri) so it doesn't accidentally become a forever-
+  /// recurring template — the user said "schedule ahead" → we
+  /// default to one-week scope. Promote-to-recurring lives in the
+  /// edit sheet (FAB→✏️).
+  Future<void> _addCardForFocusedDay() async {
+    final repo = ref.read(scheduleRepositoryProvider);
+    final monday = ref.read(weekPlanWeekProvider);
     final focusedDay = ref.read(weekPlanFocusedDayProvider);
-    messenger
-      ..clearSnackBars()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            'Add-card lands in step 6. (Would add to weekday $focusedDay.)',
-          ),
-        ),
-      );
+    final groupFilter = ref.read(weekPlanGroupFilterProvider);
+    final friday = monday.add(const Duration(days: 4));
+
+    // Compute the next open 15-min slot. "Open" = the latest
+    // endTime across the day's existing items, snapped up to the
+    // next quarter-hour. Empty day defaults to 9:00 AM.
+    final dayItems = await repo.templatesForDay(focusedDay);
+    var earliestStart = 9 * 60; // 9:00 fallback
+    for (final t in dayItems) {
+      final endMin = Hhmm.tryToMinutes(t.endTime) ?? 0;
+      if (endMin > earliestStart) earliestStart = endMin;
+    }
+    // Snap up to the next 15-min boundary so a 10:42 endTime
+    // produces a 10:45 next-slot (cleaner reads).
+    earliestStart = ((earliestStart + 14) ~/ 15) * 15;
+    if (earliestStart >= 23 * 60) {
+      // Day is full — just default to 16:00 (4pm) and let the
+      // user adjust. Better than refusing the click.
+      earliestStart = 16 * 60;
+    }
+
+    final newId = await repo.addTemplate(
+      dayOfWeek: focusedDay,
+      startTime: Hhmm.fromMinutes(earliestStart),
+      endTime: Hhmm.fromMinutes(earliestStart + 30),
+      title: 'New activity',
+      // Group scoping mirrors the active filter:
+      //   * "All" view → all-groups card (visible to every group)
+      //   * specific group view → scope to that group
+      groupIds: groupFilter == null ? const [] : [groupFilter],
+      allGroups: groupFilter == null,
+      startDate: monday,
+      endDate: friday,
+    );
+
+    // Auto-select the new card so the user can immediately tap
+    // its left zone for title or right zone for time. The
+    // sensible defaults are usually fine but the title is just
+    // "New activity" and almost always wants editing.
+    ref.read(weekPlanSelectedTemplateProvider.notifier).select(newId);
   }
 
   /// Drop handler — fires when a long-press drag ends. Two paths:
@@ -259,7 +295,7 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
         child: selectedTemplateId == null
             ? FloatingActionButton.extended(
                 key: const ValueKey('add'),
-                onPressed: _addCardPlaceholder,
+                onPressed: _addCardForFocusedDay,
                 icon: const Icon(Icons.add),
                 label: const Text('Add'),
               )
