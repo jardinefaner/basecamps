@@ -457,10 +457,13 @@ class TodayScreen extends ConsumerWidget {
                 child: _DateCycleBar(
                   dateLabel: dateLabel,
                   isToday: isToday,
+                  viewedDate: viewedDate,
                   onPrev: () =>
                       ref.read(viewedDateProvider.notifier).shift(-1),
                   onNext: () =>
                       ref.read(viewedDateProvider.notifier).shift(1),
+                  onPickDate: (picked) =>
+                      ref.read(viewedDateProvider.notifier).set(picked),
                 ),
               ),
               actions: [
@@ -563,18 +566,42 @@ Widget _maybeClampToReadingColumn(BuildContext context, Widget child) {
 /// the title row so the date label has full width to breathe.
 /// "Reset to today" lives on the AppBar title's tap — tap "Today"
 /// at the top to come back from any cycled date.
+///
+/// Tapping the **date label itself** opens a date picker so the
+/// teacher can jump to any day without spamming the chevrons.
+/// Reviewing last week's Tuesday is one tap, not five.
 class _DateCycleBar extends StatelessWidget {
   const _DateCycleBar({
     required this.dateLabel,
     required this.isToday,
+    required this.viewedDate,
     required this.onPrev,
     required this.onNext,
+    required this.onPickDate,
   });
 
   final String dateLabel;
   final bool isToday;
+  final DateTime viewedDate;
   final VoidCallback onPrev;
   final VoidCallback onNext;
+  final ValueChanged<DateTime> onPickDate;
+
+  Future<void> _pickDate(BuildContext context) async {
+    final today = DateTime.now();
+    // Bound the picker generously: ~5 years back (for reviewing
+    // archives) and 2 years forward (for planning ahead). The
+    // tighter program-life bounds aren't worth wiring up here —
+    // out-of-program dates are harmless (just empty schedules).
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: viewedDate,
+      firstDate: today.subtract(const Duration(days: 365 * 5)),
+      lastDate: today.add(const Duration(days: 365 * 2)),
+      helpText: 'Jump to date',
+    );
+    if (picked != null) onPickDate(picked);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -600,13 +627,39 @@ class _DateCycleBar extends StatelessWidget {
             ),
             Expanded(
               child: Center(
-                child: Text(
-                  dateLabel,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: dateColor,
-                    fontWeight: FontWeight.w600,
+                child: InkWell(
+                  // Stretchy tap target — fills the height of the
+                  // bar so a teacher with a chunky finger doesn't
+                  // miss the text.
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => _pickDate(context),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.xs,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            dateLabel,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: dateColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Icon(
+                          Icons.calendar_month_outlined,
+                          size: 16,
+                          color: dateColor.withValues(alpha: 0.7),
+                        ),
+                      ],
+                    ),
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ),
