@@ -862,11 +862,23 @@ class SyncEngine {
   ///     polluting other devices' rendering.
   ///   * `local_path` (on `observation_attachments`) — same shape
   ///     as `avatar_path` for attachments.
+  ///   * `remote_url`, `thumbnail_path` (on
+  ///     `observation_attachments`) — dead pre-Storage placeholders
+  ///     in the local Drift schema. Cloud doesn't have either
+  ///     column, so a push that included them blew up with
+  ///     `PGRST204: Could not find the 'remote_url' column …`
+  ///     and the whole observation cascade silently failed —
+  ///     attachments never reached cloud. Filtering them on push
+  ///     unwedges the cascade. (We could also drop the columns
+  ///     from local Drift, but that's a separate cleanup; this
+  ///     fix is one line and zero migrations.)
   static const _kLocalOnlyColumns = <String>{
     'deleted_at',
     'dirty_fields',
     'avatar_path',
     'local_path',
+    'remote_url',
+    'thumbnail_path',
   };
 
   /// Drift returns `int` for DateTime-typed columns (unix-seconds
