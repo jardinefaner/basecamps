@@ -304,6 +304,13 @@ class ObservationsRepository {
     final uniqueDomains = <ObservationDomain>{...domains}.toList();
     final primary = uniqueDomains.first;
 
+    // Collected during the transaction; uploads kick off after the
+    // transaction commits to avoid a race between the parent's
+    // commit and the upload's own Drift writes (specifically on
+    // web, where the drift worker can interleave operations across
+    // the same connection).
+    final pendingUploads = <(String attachmentId, XFile? source)>[];
+
     await _db.transaction(() async {
       await _db.into(_db.observations).insert(
             ObservationsCompanion.insert(
@@ -351,19 +358,30 @@ class ObservationsRepository {
                 durationMs: Value(att.durationMs),
               ),
             );
-        // Fire-and-forget media upload. Stamps storage_path on
-        // the row when complete, then the next push picks up the
-        // updated row and propagates to other devices. Passing the
-        // freshly-picked XFile lets the upload read bytes on web
-        // (where `dart:io.File` can't open the picker's blob URL).
-        unawaited(
-          _media.uploadObservationAttachment(
-            attachmentId,
-            source: att.source,
-          ),
-        );
+        // Defer the upload kickoff until after the transaction
+        // closes (see below) — firing `unawaited(...)` from inside
+        // the transaction lets the upload's own Drift writes race
+        // the parent transaction's commit on web, where the worker
+        // can interleave operations across the same connection.
+        pendingUploads.add((attachmentId, att.source));
       }
     });
+    // Fire-and-forget media upload. Stamps storage_path on the row
+    // when complete, then the next push picks up the updated row
+    // and propagates to other devices. Passing the freshly-picked
+    // XFile lets the upload read bytes on web (where
+    // `dart:io.File` can't open the picker's blob URL). Kicked off
+    // *after* the transaction commits so the upload's own
+    // media_cache + storage_path writes don't fight with the
+    // parent transaction's still-pending state.
+    for (final (attachmentId, source) in pendingUploads) {
+      unawaited(
+        _media.uploadObservationAttachment(
+          attachmentId,
+          source: source,
+        ),
+      );
+    }
     // Fire-and-forget cloud push. Failure logs but doesn't block —
     // the local insert already succeeded.
     unawaited(_sync.pushObservation(id));

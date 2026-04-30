@@ -149,10 +149,23 @@ class MediaService {
 
       step = 'resolve bytes';
       // Resolve bytes + extension from whichever source is wired.
+      // **Why we copy via `Uint8List.fromList(...)`:** on web,
+      // `XFile.readAsBytes()` returns a sliced typed-list view —
+      // a Uint8List backed by a larger ArrayBuffer with a non-zero
+      // `offsetInBytes`. Drift-on-web's BLOB-bind path through
+      // sqlite3.wasm in the worker has a known failure mode on
+      // non-canonical views: the bind asserts a null, surfacing
+      // as "Null check operator used on a null value" deep in
+      // drift_worker.js. supabase storage_client's multipart upload
+      // can hit a similar issue. The `Uint8List.fromList(...)`
+      // copy canonicalizes the buffer (offset 0, length matches
+      // buffer length, byte-for-byte identical content). Cheap on
+      // a typical 30-150KB photo and a no-op on native (where
+      // readAsBytes already returns a canonical Uint8List).
       final Uint8List bytes;
       final String ext;
       if (source != null) {
-        bytes = await source.readAsBytes();
+        bytes = Uint8List.fromList(await source.readAsBytes());
         ext = _extensionFromXFile(source);
       } else {
         // Heal pass — read from disk. existsSync is fine here;
@@ -164,7 +177,7 @@ class MediaService {
           );
           return;
         }
-        bytes = await file.readAsBytes();
+        bytes = Uint8List.fromList(await file.readAsBytes());
         final fromPath = p.extension(row.localPath);
         ext = fromPath.isEmpty ? '.jpg' : fromPath;
       }
@@ -453,9 +466,13 @@ class MediaService {
       //   2. Heal: read from the row's local path. Native-only;
       //      web has no FS, so we'd never have a local file to
       //      recover from.
+      // See `uploadObservationAttachment` for why we canonicalize
+      // the buffer with `Uint8List.fromList(...)` — same
+      // drift_worker.js BLOB-bind null-bang on web with sliced
+      // typed-list views from `XFile.readAsBytes()`.
       final Uint8List bytes;
       if (source != null) {
-        bytes = await source.readAsBytes();
+        bytes = Uint8List.fromList(await source.readAsBytes());
       } else {
         if (kIsWeb) return; // web heal is a no-op, see comments above.
         if (row.storagePath != null) return; // already uploaded
@@ -463,7 +480,7 @@ class MediaService {
         if (localPath == null) return;
         final file = File(localPath);
         if (!file.existsSync()) return;
-        bytes = await file.readAsBytes();
+        bytes = Uint8List.fromList(await file.readAsBytes());
       }
 
       // Stable extensionless bucket key per row id. Previously we
@@ -624,7 +641,10 @@ class MediaService {
     if (client.auth.currentSession == null) return null;
 
     try {
-      final bytes = await source.readAsBytes();
+      // See `uploadObservationAttachment` for why we copy via
+      // `Uint8List.fromList` — defensive canonicalization for
+      // web's sliced typed-list views.
+      final bytes = Uint8List.fromList(await source.readAsBytes());
       final ext = _extensionFromXFile(source);
       final storagePath = '$programId/forms/$submissionId/$fieldKey$ext';
       final etag = newId();
