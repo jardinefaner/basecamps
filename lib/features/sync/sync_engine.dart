@@ -565,7 +565,28 @@ class SyncEngine {
           );
         }
         for (final row in liveRows) {
-          await _upsertLocalRow(spec.table, row, spec.dateColumns);
+          // Phase 3: dirty-field-preserving merge. Read local's
+          // dirty_fields list for this id; strip those keys from
+          // the cloud payload before upserting. The "ON CONFLICT
+          // DO UPDATE SET col = excluded.col" SQL only touches
+          // columns it's given, so omitting dirty columns means
+          // local's un-pushed edits survive the pull. New local
+          // rows (no row yet → dirty_fields is null) get the full
+          // cloud payload. Edge case: row exists locally but has
+          // no dirty_fields → behaves identically to the old
+          // wholesale upsert (cloud overwrites every column).
+          final dirty = await _db.readDirtyFields(
+            spec.table,
+            row['id'] as String,
+          );
+          final payload = dirty.isEmpty
+              ? row
+              : <String, dynamic>{
+                  for (final entry in row.entries)
+                    if (!dirty.contains(entry.key))
+                      entry.key: entry.value,
+                };
+          await _upsertLocalRow(spec.table, payload, spec.dateColumns);
         }
         if (liveRows.isNotEmpty) {
           await _replaceLocalCascades(
@@ -799,8 +820,20 @@ class SyncEngine {
       // Apply parent + re-fetch cascades. One round-trip per
       // cascade table; cheap because the parent event is rare
       // relative to keystroke-rate events.
+      //
+      // Phase 3: dirty-field-preserving merge — strip any locally-
+      // dirty columns from the realtime row so an in-flight local
+      // edit (not yet pushed) isn't clobbered by an event from
+      // another device.
+      final dirty = await _db.readDirtyFields(spec.table, id);
+      final mergedRow = dirty.isEmpty
+          ? row
+          : <String, dynamic>{
+              for (final entry in row.entries)
+                if (!dirty.contains(entry.key)) entry.key: entry.value,
+            };
       await _db.transaction(() async {
-        await _upsertLocalRow(spec.table, row, spec.dateColumns);
+        await _upsertLocalRow(spec.table, mergedRow, spec.dateColumns);
         if (spec.cascades.isNotEmpty) {
           await _replaceLocalCascades(client, spec.cascades, [id]);
         }
