@@ -20,6 +20,15 @@ const double _kPxPerMinute = 0.8;
 const double _kHourLabelWidth = 56;
 const double _kColumnHeaderHeight = 40;
 
+/// Fixed per-day column width. Earlier the canvas used `Expanded`
+/// per column so 5 days squeezed into the viewport, but the user
+/// wanted real estate for each card to read like the rest of the
+/// app's cards. With a fixed column width the canvas can grow
+/// wider than the viewport and the outer wraps it in horizontal
+/// scroll. 220dp leaves room for two-line titles without ellipsis
+/// at typical font sizes.
+const double _kDayColumnWidth = 220;
+
 class WeekPlanScale {
   const WeekPlanScale({
     required this.dayStartMinutes,
@@ -136,6 +145,11 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
       visibleByDay.values.expand((items) => items),
     );
 
+    const canvasWidth =
+        _kHourLabelWidth + _kDayColumnWidth * scheduleDayCount;
+    final canvasHeight =
+        _kColumnHeaderHeight + scale.totalHeight + AppSpacing.md;
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => ref
@@ -148,47 +162,57 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
           AppSpacing.lg,
           AppSpacing.lg,
         ),
+        // Outer = horizontal scroll. Inner = vertical scroll.
+        // Both axes scroll independently. Each column is a fixed
+        // width so cards have enough room to render in the standard
+        // app-card look; the canvas can grow wider than the
+        // viewport on narrow screens.
         child: SingleChildScrollView(
-          child: Stack(
-            // Stack lets the ghost-overlay paint on top of the
-            // columns without affecting layout. Children: [body,
-            // optional ghost].
-            children: [
-              SizedBox(
-                key: _canvasBodyKey,
-                height: _kColumnHeaderHeight +
-                    scale.totalHeight +
-                    AppSpacing.md,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _HourGutter(scale: scale, theme: theme),
-                    for (var d = 1; d <= scheduleDayCount; d++) ...[
-                      Expanded(
-                        child: _DayColumn(
-                          date: widget.monday.add(Duration(days: d - 1)),
-                          weekday: d,
-                          items: visibleByDay[d] ?? const [],
-                          scale: scale,
-                          selectedId: selectedId,
-                          dragState: dragState,
-                          onTapCard: widget.onTapCard,
-                          onLongPressEnd: _onLongPressEnd,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: canvasWidth,
+            child: SingleChildScrollView(
+              child: Stack(
+                // Stack lets the ghost-overlay paint on top of the
+                // columns without affecting layout.
+                children: [
+                  SizedBox(
+                    key: _canvasBodyKey,
+                    width: canvasWidth,
+                    height: canvasHeight,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _HourGutter(scale: scale, theme: theme),
+                        for (var d = 1; d <= scheduleDayCount; d++)
+                          SizedBox(
+                            width: _kDayColumnWidth,
+                            child: _DayColumn(
+                              date: widget.monday
+                                  .add(Duration(days: d - 1)),
+                              weekday: d,
+                              items: visibleByDay[d] ?? const [],
+                              scale: scale,
+                              selectedId: selectedId,
+                              dragState: dragState,
+                              onTapCard: widget.onTapCard,
+                              onLongPressEnd: _onLongPressEnd,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  // Ghost overlay — only rendered while dragging.
+                  if (dragState != null)
+                    _DragGhost(
+                      state: dragState,
+                      scale: scale,
+                      canvasKey: _canvasBodyKey,
+                      theme: theme,
+                    ),
+                ],
               ),
-              // Ghost overlay — only rendered while dragging.
-              if (dragState != null)
-                _DragGhost(
-                  state: dragState,
-                  scale: scale,
-                  canvasKey: _canvasBodyKey,
-                  theme: theme,
-                ),
-            ],
+            ),
           ),
         ),
       ),
@@ -218,13 +242,12 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
     }
 
     // Day-column math. Hour gutter takes a fixed `_kHourLabelWidth`
-    // off the left; the remaining width is split evenly across
-    // five columns.
-    final columnsWidth = canvasSize.width - _kHourLabelWidth;
-    if (columnsWidth <= 0) return null;
-    final colWidth = columnsWidth / scheduleDayCount;
+    // off the left; each column is `_kDayColumnWidth` wide. Index
+    // clamps to [0..4] so a drop on the gutter or past Friday
+    // still lands on a real column.
     final colIndex =
-        ((canvasLocal.dx - _kHourLabelWidth) / colWidth).floor();
+        ((canvasLocal.dx - _kHourLabelWidth) / _kDayColumnWidth)
+            .floor();
     final dayOfWeek = colIndex.clamp(0, scheduleDayCount - 1) + 1;
 
     // Time math. The card's TOP should land at the snapped time —
@@ -654,22 +677,27 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
     final timeLabel = '${Hhmm.formatCompact(item.startTime)} – '
         '${Hhmm.formatCompact(item.endTime)}';
 
-    final bg = widget.isSelected
-        ? theme.colorScheme.primary.withValues(alpha: 0.95)
-        : theme.colorScheme.primaryContainer.withValues(alpha: 0.85);
-    final fg = widget.isSelected
-        ? theme.colorScheme.onPrimary
-        : theme.colorScheme.onPrimaryContainer;
-    final borderColor = widget.isSelected
-        ? theme.colorScheme.primary
-        : theme.colorScheme.primary.withValues(alpha: 0.18);
+    // Match the AppCard look used everywhere else in the app:
+    //   * default — neutral card surface, transparent border (kept
+    //     at 1.5px so selection doesn't shift layout)
+    //   * selected — `primaryContainer.withValues(alpha: 0.55)` fill
+    //     + 1.5px primary outline
+    final isSelected = widget.isSelected;
+    final cardColor = isSelected
+        ? theme.colorScheme.primaryContainer.withValues(alpha: 0.55)
+        : theme.colorScheme.surfaceContainerHigh;
+    final fg = isSelected
+        ? theme.colorScheme.onPrimaryContainer
+        : theme.colorScheme.onSurface;
+    final borderColor =
+        isSelected ? theme.colorScheme.primary : Colors.transparent;
     const borderWidth = 1.5;
 
-    final card = Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: borderColor, width: borderWidth),
+    final card = Material(
+      color: cardColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: borderColor, width: borderWidth),
       ),
       clipBehavior: Clip.antiAlias,
       child: Row(
@@ -714,7 +742,7 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
           Container(
             width: 0.5,
             height: double.infinity,
-            color: fg.withValues(alpha: 0.2),
+            color: theme.colorScheme.outlineVariant,
           ),
           Expanded(
             flex: 2,
@@ -875,8 +903,6 @@ class _DragGhost extends StatelessWidget {
     final ghostTop = canvasLocal.dy - state.pickupOffsetLocal.dy;
 
     final canvasSize = box.size;
-    final columnsWidth = canvasSize.width - _kHourLabelWidth;
-    final colWidth = columnsWidth / scheduleDayCount;
     final ghostLeft =
         canvasLocal.dx - state.pickupOffsetLocal.dx;
     final ghostHeight =
@@ -885,9 +911,9 @@ class _DragGhost extends StatelessWidget {
     final altHeld = HardwareKeyboard.instance.isAltPressed;
 
     return Positioned(
-      left: ghostLeft.clamp(0, canvasSize.width - colWidth),
+      left: ghostLeft.clamp(0, canvasSize.width - _kDayColumnWidth),
       top: ghostTop,
-      width: colWidth - 8,
+      width: _kDayColumnWidth - 8,
       height: ghostHeight,
       child: IgnorePointer(
         child: Material(
