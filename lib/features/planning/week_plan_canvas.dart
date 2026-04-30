@@ -142,6 +142,46 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
   // global pointer coords → canvas-local for the snap math.
   final GlobalKey _canvasBodyKey = GlobalKey();
 
+  // Vertical scroll controller — used to auto-scroll to "now" when
+  // the canvas first mounts so the teacher lands looking at the
+  // current time slot with prior + upcoming activities flanking it.
+  final ScrollController _vScroll = ScrollController();
+  bool _didCenterOnNow = false;
+
+  @override
+  void dispose() {
+    _vScroll.dispose();
+    super.dispose();
+  }
+
+  /// Schedule a one-shot scroll-to-now after the first layout pass.
+  /// Centers the current time vertically in the visible viewport so
+  /// the user sees what just happened + what's coming up next.
+  void _scheduleCenterOnNow(WeekPlanScale scale) {
+    if (_didCenterOnNow) return;
+    _didCenterOnNow = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_vScroll.hasClients) return;
+      final now = DateTime.now();
+      final nowMinutes = now.hour * 60 + now.minute;
+      // Bail if "now" sits outside the day window — teacher's
+      // working at 11pm? Don't yank them somewhere weird; let
+      // them start at the top.
+      if (nowMinutes < scale.dayStartMinutes ||
+          nowMinutes > scale.dayEndMinutes) {
+        return;
+      }
+      final nowY = scale.yFor(nowMinutes) + _kColumnHeaderHeight;
+      final viewport = _vScroll.position.viewportDimension;
+      final maxScroll = _vScroll.position.maxScrollExtent;
+      // Aim for "now" to land at viewport-center. Clamp to the
+      // valid scroll range so a short window doesn't try to
+      // scroll past the end.
+      final desired = (nowY - viewport / 2).clamp(0.0, maxScroll);
+      _vScroll.jumpTo(desired);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -155,87 +195,126 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
     final scale = WeekPlanScale.from(
       visibleByDay.values.expand((items) => items),
     );
+    _scheduleCenterOnNow(scale);
 
     const canvasWidth =
         _kHourLabelWidth + _kDayColumnWidth * scheduleDayCount;
     final canvasHeight =
         _kColumnHeaderHeight + scale.totalHeight + AppSpacing.md;
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => ref
-          .read(weekPlanSelectedTemplateProvider.notifier)
-          .clear(),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.sm,
-          AppSpacing.lg,
-          AppSpacing.lg,
-        ),
-        // Outer = horizontal scroll. Inner = vertical scroll.
-        // Both axes scroll independently. Each column is a fixed
-        // width so cards have enough room to render in the standard
-        // app-card look; the canvas can grow wider than the
-        // viewport on narrow screens.
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: canvasWidth,
+    return Stack(
+      // Outer Stack lets the tentative-mode toolbar pin to the
+      // bottom of the canvas viewport without affecting the
+      // scroll-area layout.
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            // Tap during tentative is a no-op so the user can
+            // poke around (cancelling requires the explicit
+            // toolbar button). Otherwise it clears selection.
+            if (dragState?.tentative ?? false) return;
+            ref
+                .read(weekPlanSelectedTemplateProvider.notifier)
+                .clear();
+          },
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.sm,
+              AppSpacing.lg,
+              AppSpacing.lg,
+            ),
+            // Outer = horizontal scroll. Inner = vertical scroll.
+            // Both axes scroll independently. Each column is a fixed
+            // width so cards have enough room to render in the
+            // standard app-card look; the canvas can grow wider
+            // than the viewport on narrow screens.
             child: SingleChildScrollView(
-              child: Stack(
-                // Stack lets the ghost-overlay paint on top of the
-                // columns without affecting layout.
-                children: [
-                  SizedBox(
-                    key: _canvasBodyKey,
-                    width: canvasWidth,
-                    height: canvasHeight,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _HourGutter(scale: scale, theme: theme),
-                        for (var d = 1; d <= scheduleDayCount; d++)
-                          SizedBox(
-                            width: _kDayColumnWidth,
-                            child: _DayColumn(
-                              date: widget.monday
-                                  .add(Duration(days: d - 1)),
-                              weekday: d,
-                              items: visibleByDay[d] ?? const [],
-                              scale: scale,
-                              selectedId: selectedId,
-                              dragState: dragState,
-                              onTapCard: widget.onTapCard,
-                              onLongPressEnd: _onLongPressEnd,
-                            ),
-                          ),
-                      ],
-                    ),
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: canvasWidth,
+                child: SingleChildScrollView(
+                  controller: _vScroll,
+                  child: Stack(
+                    // Stack lets the ghost-overlay paint on top of
+                    // the columns without affecting layout.
+                    children: [
+                      SizedBox(
+                        key: _canvasBodyKey,
+                        width: canvasWidth,
+                        height: canvasHeight,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _HourGutter(scale: scale, theme: theme),
+                            for (var d = 1;
+                                d <= scheduleDayCount;
+                                d++)
+                              SizedBox(
+                                width: _kDayColumnWidth,
+                                child: _DayColumn(
+                                  date: widget.monday
+                                      .add(Duration(days: d - 1)),
+                                  weekday: d,
+                                  items: visibleByDay[d] ?? const [],
+                                  scale: scale,
+                                  selectedId: selectedId,
+                                  dragState: dragState,
+                                  onTapCard: widget.onTapCard,
+                                  onLongPressEnd: _onLongPressEnd,
+                                ),
+                              ),
+                          ],
+                        ),
                   ),
-                  // Ghost overlay — only rendered while dragging.
-                  if (dragState != null)
-                    _DragGhost(
-                      state: dragState,
-                      scale: scale,
-                      canvasKey: _canvasBodyKey,
-                      theme: theme,
-                    ),
-                ],
+                      // Ghost overlay — rendered during active drag
+                      // AND during tentative mode. Source of position
+                      // differs: live pointer for active, pinned
+                      // canvas-local for tentative.
+                      if (dragState != null)
+                        _DragGhost(
+                          state: dragState,
+                          scale: scale,
+                          canvasKey: _canvasBodyKey,
+                          theme: theme,
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
         ),
-      ),
+        // Floating tentative-mode toolbar. Pinned to the bottom of
+        // the canvas's viewport (NOT the scroll content) via the
+        // outer Stack, so it stays in reach as the user scrolls
+        // looking for the right slot.
+        if (dragState?.tentative ?? false)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: AppSpacing.md,
+            child: Center(
+              child: _TentativeToolbar(
+                onMove: () => _commitTentative(duplicate: false),
+                onDuplicate: () =>
+                    _commitTentative(duplicate: true),
+                onCancel: _cancelTentative,
+              ),
+            ),
+          ),
+      ],
     );
   }
 
-  /// Convert a global pointer position to (day, snapped start
-  /// minutes) using the canvas's known geometry. Returns null when
-  /// the pointer is outside the canvas (e.g. user dragged into
-  /// the AppBar).
-  ({int dayOfWeek, int snappedStartMinutes})? _snapTarget({
-    required Offset pointerGlobal,
+  /// Convert a canvas-local position to (day, snapped start
+  /// minutes). Used by the tentative-mode commit — the canvas
+  /// captures `globalToLocal(pointer)` once at release time and
+  /// stores the result in `pinnedCanvasLocal`, so a later scroll
+  /// doesn't slide the pin off its time slot.
+  ({int dayOfWeek, int snappedStartMinutes})? _snapTargetFromCanvasLocal({
+    required Offset canvasLocal,
     required Offset pickupLocal,
     required WeekPlanScale scale,
     required int durationMinutes,
@@ -243,7 +322,6 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
     final box =
         _canvasBodyKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return null;
-    final canvasLocal = box.globalToLocal(pointerGlobal);
     final canvasSize = box.size;
     if (canvasLocal.dx < 0 ||
         canvasLocal.dy < 0 ||
@@ -262,8 +340,8 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
     final dayOfWeek = colIndex.clamp(0, scheduleDayCount - 1) + 1;
 
     // Time math. The card's TOP should land at the snapped time —
-    // not where the finger is. So we subtract the pickup offset's
-    // dy from the pointer's y to get the new top, then convert
+    // not where the finger was. So we subtract the pickup offset's
+    // dy from the canvas-local y to get the new top, then convert
     // top-y → minutes.
     final cardTopLocalY = canvasLocal.dy - pickupLocal.dy;
     // Subtract the column header so 0 lines up with the body's
@@ -282,11 +360,37 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
     );
   }
 
-  Future<void> _onLongPressEnd(LongPressEndDetails details) async {
+  /// Drag-end handler. Instead of committing immediately, captures
+  /// the canvas-local drop position and flips the drag state into
+  /// "tentative" — the ghost stays pinned at that exact time slot
+  /// (a scroll won't slide it onto another row) and the canvas
+  /// paints a Move/Duplicate/Cancel toolbar at the bottom. The
+  /// user can scroll freely between source and target and only
+  /// commit when they hit a button.
+  void _onLongPressEnd(LongPressEndDetails details) {
     final dragState = ref.read(weekPlanDragProvider);
-    final altHeld = HardwareKeyboard.instance.isAltPressed;
+    if (dragState == null) return;
+    final box =
+        _canvasBodyKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) {
+      ref.read(weekPlanDragProvider.notifier).clear();
+      return;
+    }
+    final canvasLocal = box.globalToLocal(dragState.pointerGlobal);
+    ref
+        .read(weekPlanDragProvider.notifier)
+        .markTentative(canvasLocal);
+  }
+
+  /// User picked Move (move=false / duplicate=true) on the
+  /// tentative toolbar. Compute the snap target from the pinned
+  /// canvas-local position and fire the drop handler.
+  Future<void> _commitTentative({required bool duplicate}) async {
+    final dragState = ref.read(weekPlanDragProvider);
     ref.read(weekPlanDragProvider.notifier).clear();
     if (dragState == null) return;
+    final pinned = dragState.pinnedCanvasLocal;
+    if (pinned == null) return;
     final groupFilter = ref.read(weekPlanGroupFilterProvider);
     final visibleByDay = <int, List<ScheduleItem>>{
       for (var d = 1; d <= scheduleDayCount; d++)
@@ -298,18 +402,18 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
     final scale = WeekPlanScale.from(
       visibleByDay.values.expand((items) => items),
     );
-    final target = _snapTarget(
-      pointerGlobal: dragState.pointerGlobal,
+    final target = _snapTargetFromCanvasLocal(
+      canvasLocal: pinned,
       pickupLocal: dragState.pickupOffsetLocal,
       scale: scale,
       durationMinutes: dragState.durationMinutes,
     );
     if (target == null) return;
-    // No-op when the snapped target equals the source — saves a
-    // pointless write + push.
-    if (target.dayOfWeek == dragState.sourceDayOfWeek &&
-        target.snappedStartMinutes == dragState.sourceStartMinutes &&
-        !altHeld) {
+    // No-op when target equals source AND it's a move (duplicates
+    // intentionally land at the same slot).
+    if (!duplicate &&
+        target.dayOfWeek == dragState.sourceDayOfWeek &&
+        target.snappedStartMinutes == dragState.sourceStartMinutes) {
       return;
     }
     final snappedEnd =
@@ -320,8 +424,12 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
       targetDayOfWeek: target.dayOfWeek,
       snappedStartMinutes: target.snappedStartMinutes,
       snappedEndMinutes: snappedEnd,
-      altHeld: altHeld,
+      altHeld: duplicate,
     );
+  }
+
+  void _cancelTentative() {
+    ref.read(weekPlanDragProvider.notifier).clear();
   }
 
   /// Filter visible templates by the active group filter.
@@ -956,7 +1064,12 @@ class _DragGhost extends StatelessWidget {
   Widget build(BuildContext context) {
     final box = canvasKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return const SizedBox.shrink();
-    final canvasLocal = box.globalToLocal(state.pointerGlobal);
+    // Two position sources: tentative mode uses the canvas-local
+    // pin (so a scroll doesn't slide it off the time slot); active
+    // drag converts live pointer-global to canvas-local each frame.
+    final canvasLocal = state.tentative && state.pinnedCanvasLocal != null
+        ? state.pinnedCanvasLocal!
+        : box.globalToLocal(state.pointerGlobal);
     final ghostTop = canvasLocal.dy - state.pickupOffsetLocal.dy;
 
     final canvasSize = box.size;
@@ -991,11 +1104,14 @@ class _DragGhost extends StatelessWidget {
               children: [
                 Center(
                   child: Text(
-                    altHeld ? 'Drop to duplicate' : 'Move…',
+                    state.tentative
+                        ? 'Tap Move or Duplicate to confirm'
+                        : (altHeld ? 'Drop to duplicate' : 'Move…'),
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: theme.colorScheme.onPrimary,
                       fontWeight: FontWeight.w600,
                     ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
                 if (altHeld)
@@ -1018,6 +1134,77 @@ class _DragGhost extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Floating toolbar shown while the user is in tentative drag-drop
+/// mode. Three explicit choices: Move, Duplicate, Cancel. Pinned to
+/// the bottom of the canvas viewport via a parent Stack so it
+/// stays in reach as the user scrolls between source and target.
+class _TentativeToolbar extends StatelessWidget {
+  const _TentativeToolbar({
+    required this.onMove,
+    required this.onDuplicate,
+    required this.onCancel,
+  });
+
+  final VoidCallback onMove;
+  final VoidCallback onDuplicate;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surfaceContainerHighest,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(28),
+        side: BorderSide(
+          color: theme.colorScheme.outlineVariant,
+          width: 0.5,
+        ),
+      ),
+      elevation: 6,
+      shadowColor: theme.colorScheme.shadow.withValues(alpha: 0.3),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xs,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextButton.icon(
+              onPressed: onCancel,
+              icon: const Icon(Icons.close, size: 18),
+              label: const Text('Cancel'),
+              style: TextButton.styleFrom(
+                foregroundColor: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            Container(
+              width: 0.5,
+              height: 24,
+              color: theme.colorScheme.outlineVariant,
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+            ),
+            TextButton.icon(
+              onPressed: onDuplicate,
+              icon: const Icon(Icons.content_copy_outlined, size: 18),
+              label: const Text('Duplicate'),
+              style: TextButton.styleFrom(
+                foregroundColor: theme.colorScheme.tertiary,
+              ),
+            ),
+            FilledButton.icon(
+              onPressed: onMove,
+              icon: const Icon(Icons.check, size: 18),
+              label: const Text('Move here'),
+            ),
+          ],
         ),
       ),
     );
