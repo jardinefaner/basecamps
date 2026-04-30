@@ -472,44 +472,64 @@ class MediaService {
   /// re-opening the form on another device).
   ///
   /// Same fire-and-forget shape as [uploadObservationAttachment]:
-  /// no-ops (returns null) when Supabase isn't ready, the local file
-  /// is gone, or the upload throws — never re-raises.
-  Future<String?> uploadFormImage({
+  /// returns null when Supabase isn't ready, the source can't be
+  /// read, or the upload throws — never re-raises.
+  ///
+  /// On success returns `(storagePath, etag)`:
+  ///   * `storagePath` is deterministic per (submission, field),
+  ///     so re-picks overwrite the same bucket key — no orphan
+  ///     blobs.
+  ///   * `etag` is a fresh UUID stamped per upload. Caller stores
+  ///     it next to the path in the form data blob; other devices
+  ///     receive the change via the form submission row's normal
+  ///     pull/realtime path and the avatar resolver invalidates
+  ///     stale bytes the same way it does for avatars.
+  ///
+  /// Accepts an [XFile] (works on every platform — web reads
+  /// bytes via the picker's blob URL, no `dart:io.File`). The
+  /// previous string-path signature failed silently on web
+  /// because `File()` threw on the blob URL.
+  Future<({String storagePath, String etag})?> uploadFormImage({
     required String submissionId,
     required String fieldKey,
-    required String localPath,
+    required XFile source,
     required String programId,
   }) async {
     final client = _client;
     if (client == null) return null;
     if (client.auth.currentSession == null) return null;
-    // Form images come from the same image_picker plumbing as
-    // avatars — but this entry point still takes a string path,
-    // which on web is a `blob:` URL that File() can't open. The
-    // forms surface should migrate to XFile too; until it does,
-    // skip the upload on web rather than throw.
-    if (kIsWeb) return null;
 
     try {
-      final file = File(localPath);
-      if (!file.existsSync()) {
-        debugPrint(
-          'Form image upload skipped — local file missing for '
-          '$submissionId/$fieldKey',
-        );
-        return null;
-      }
-      final ext = p.extension(localPath);
+      final bytes = await source.readAsBytes();
+      final ext = _extensionFromXFile(source);
       final storagePath = '$programId/forms/$submissionId/$fieldKey$ext';
+      final etag = newId();
       await client.storage.from(_bucket).uploadBinary(
             storagePath,
-            await file.readAsBytes(),
+            bytes,
             fileOptions: FileOptions(
               upsert: true,
               contentType: _contentTypeFor(ext, 'photo'),
             ),
           );
-      return storagePath;
+      // Mirror the avatar pipeline: stamp the freshly-uploaded
+      // bytes into the drift cache directly. Other devices pull
+      // the path+etag through the form submission row's data
+      // blob and re-fetch on etag mismatch.
+      try {
+        await _db.into(_db.mediaCache).insertOnConflictUpdate(
+              MediaCacheCompanion.insert(
+                storagePath: storagePath,
+                bytes: bytes,
+                contentType: Value(_contentTypeFor(ext, 'photo')),
+                etag: Value(etag),
+                cachedAt: Value(DateTime.now()),
+              ),
+            );
+      } on Object catch (e) {
+        debugPrint('Form image cache stamp failed for $storagePath: $e');
+      }
+      return (storagePath: storagePath, etag: etag);
     } on Object catch (e, st) {
       debugPrint('Form image upload failed: $e\n$st');
       return null;

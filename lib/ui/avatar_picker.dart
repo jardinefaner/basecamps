@@ -1,119 +1,16 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:basecamp/features/sync/media_service.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:basecamp/ui/media_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
-// ────────────────────────────────────────────────────────────────
-// Single source of truth for cross-device avatar resolution
-// ────────────────────────────────────────────────────────────────
-
-/// Identity key for [avatarImageProvider]. Combines an optional
-/// device-local file path (fast native render) with the cross-
-/// device Supabase Storage key + per-upload content tag. Two
-/// AvatarSources with the same (localPath, storagePath, etag)
-/// triple resolve to the same family slot, so multiple widgets
-/// watching the same row share one fetch.
-///
-/// Why etag: the bucket key is stable per row id, so a re-uploaded
-/// photo lands at the same path. Without etag in the equality, a
-/// row that pulled in a fresh etag from realtime would still hit
-/// the same family slot and serve stale bytes. With etag included,
-/// any change creates a new family entry and forces re-resolution
-/// through the cache (which itself checks etag and re-fetches on
-/// mismatch). End-to-end invalidation in one tuple flip.
-@immutable
-class AvatarSource {
-  const AvatarSource({this.localPath, this.storagePath, this.etag});
-
-  /// Filesystem path on the device that captured the photo.
-  /// Native-only; on web `XFile.path` is a `blob:` URL useless to
-  /// `dart:io.File`, so this stays null. Falls through to
-  /// [storagePath] when missing.
-  final String? localPath;
-
-  /// Bucket-relative key in Supabase Storage. The cross-device
-  /// source of truth — every device + platform can resolve to
-  /// bytes through it.
-  final String? storagePath;
-
-  /// Per-upload content tag (mirrors `adults.avatar_etag` /
-  /// `children.avatar_etag`). Null on legacy rows uploaded before
-  /// v51 — treated as a wildcard match by the cache, so existing
-  /// avatars keep rendering until the next re-pick stamps a real
-  /// etag and turns invalidation on for that row.
-  final String? etag;
-
-  bool get isEmpty => (localPath == null || localPath!.isEmpty) &&
-      (storagePath == null || storagePath!.isEmpty);
-
-  @override
-  bool operator ==(Object other) =>
-      other is AvatarSource &&
-      other.localPath == localPath &&
-      other.storagePath == storagePath &&
-      other.etag == etag;
-
-  @override
-  int get hashCode => Object.hash(localPath, storagePath, etag);
-}
-
-/// Resolves an avatar to a renderable [ImageProvider]. One fetch
-/// per [AvatarSource] across the whole app — the family caches by
-/// value, so a hundred SmallAvatars rendering the same child
-/// share one resolution.
-///
-/// Resolution order:
-///   1. **Native + local file present** → [FileImage]. Instant,
-///      offline-friendly. Skipped on web (no FS).
-///   2. **storagePath set** → [MediaService.ensureBytes] hits the
-///      drift media-cache table; on miss, downloads from
-///      Supabase Storage, saves to drift, and returns the bytes.
-///      Result rendered as [MemoryImage]. Subsequent renders
-///      (anywhere in the app, this session or future sessions,
-///      even after a web page reload — drift persists to
-///      IndexedDB) read straight from drift, no Supabase
-///      round-trip.
-///   3. **Otherwise** → null. The widget renders the fallback
-///      initial.
-///
-/// `keepAlive: false` — the family entries auto-dispose when no
-/// listener is watching them. The drift cache survives the
-/// dispose, so re-mounting is as fast as the initial fetch.
-// Riverpod family return type is complex; inference is intentional.
-// ignore: specify_nonobvious_property_types
-final avatarImageProvider = FutureProvider.autoDispose
-    .family<ImageProvider?, AvatarSource>((ref, source) async {
-  if (source.isEmpty) return null;
-
-  // 1) Native fast path: render the device-local file directly.
-  //    No drift hit, no signed URL, no Supabase round-trip.
-  if (!kIsWeb && source.localPath != null) {
-    final f = File(source.localPath!);
-    if (f.existsSync()) {
-      return FileImage(f);
-    }
-  }
-
-  // 2) Cross-device path: drift cache → on miss / etag mismatch,
-  //    Supabase download → save to drift with the new etag →
-  //    render bytes.
-  final storagePath = source.storagePath;
-  if (storagePath == null || storagePath.isEmpty) return null;
-  final bytes = await ref
-      .read(mediaServiceProvider)
-      .ensureBytes(storagePath, etag: source.etag);
-  if (bytes == null) return null;
-  return MemoryImage(bytes);
-});
-
-// ────────────────────────────────────────────────────────────────
-// Pickers + tiles
-// ────────────────────────────────────────────────────────────────
+// MediaSource + mediaImageProvider live in `media_image.dart` —
+// shared with the rectangular media renderer (observation
+// attachments, form images, etc).
 
 /// Circular avatar picker used in the child and adult edit sheets.
 /// Shows the current photo (cross-device storage path, local path,
@@ -133,7 +30,7 @@ final avatarImageProvider = FutureProvider.autoDispose
 ///     once and caches in [_AvatarPickerState._pendingBytes] so
 ///     [MemoryImage] can render the preview.
 ///   * Existing avatars on web go through the shared
-///     [avatarImageProvider] just like read-only [SmallAvatar]s
+///     [mediaImageProvider] just like read-only [SmallAvatar]s
 ///     do — drift cache → Supabase download on miss → reuse.
 class AvatarPicker extends ConsumerStatefulWidget {
   const AvatarPicker({
@@ -148,7 +45,7 @@ class AvatarPicker extends ConsumerStatefulWidget {
   });
 
   /// Existing local file on this device. Native-only fast path —
-  /// the underlying [avatarImageProvider] checks it before
+  /// the underlying [mediaImageProvider] checks it before
   /// touching the cache.
   final String? currentLocalPath;
 
@@ -158,7 +55,7 @@ class AvatarPicker extends ConsumerStatefulWidget {
 
   /// Per-upload content tag from the row's `avatar_etag` column.
   /// When this changes (realtime delivers another device's
-  /// upload), the underlying [avatarImageProvider] family creates
+  /// upload), the underlying [mediaImageProvider] family creates
   /// a new entry and pulls fresh bytes.
   final String? currentEtag;
 
@@ -280,7 +177,7 @@ class _AvatarPickerState extends ConsumerState<AvatarPicker> {
 
   /// Pick the right [ImageProvider] for the preview. Pending
   /// picks win over saved state; saved state goes through the
-  /// shared [avatarImageProvider].
+  /// shared [mediaImageProvider].
   ImageProvider? _resolveImageProvider() {
     final diameter = widget.radius * 2;
     final decodeSize = (diameter * 2).round();
@@ -299,14 +196,13 @@ class _AvatarPickerState extends ConsumerState<AvatarPicker> {
     }
 
     // No pending pick — fall through to the saved-state resolver.
-    final source = AvatarSource(
+    final source = MediaSource(
       localPath: widget.currentLocalPath,
       storagePath: widget.currentStoragePath,
       etag: widget.currentEtag,
     );
     if (source.isEmpty) return null;
-    final resolved =
-        ref.watch(avatarImageProvider(source)).asData?.value;
+    final resolved = ref.watch(mediaImageProvider(source)).asData?.value;
     if (resolved == null) return null;
     return ResizeImage(resolved, width: decodeSize);
   }
@@ -369,14 +265,14 @@ class _AvatarPickerState extends ConsumerState<AvatarPicker> {
 }
 
 /// Read-only round avatar for tiles, chips, list rows. Renders
-/// through the shared [avatarImageProvider] so every tile in the
+/// through the shared [mediaImageProvider] so every tile in the
 /// app uses the same resolution + caching pipeline (drift first,
 /// Supabase on miss, save to drift, reuse forever).
 ///
-/// Resolution order (delegated to [avatarImageProvider]):
+/// Resolution order (delegated to [mediaImageProvider]):
 ///   1. **Native + local file present** → Image.file (instant,
 ///      offline).
-///   2. **storagePath set** → [MediaService.ensureBytes] returns
+///   2. **storagePath set** → `MediaService.ensureBytes` returns
 ///      drift-cached bytes, falling through to a Supabase
 ///      download on miss. The bytes-to-drift store survives app
 ///      restarts AND web page reloads (drift_flutter persists
@@ -426,14 +322,14 @@ class SmallAvatar extends ConsumerWidget {
     final bg = backgroundColor ?? theme.colorScheme.primaryContainer;
     final fg = foregroundColor ?? theme.colorScheme.onPrimaryContainer;
 
-    final source = AvatarSource(
+    final source = MediaSource(
       localPath: path,
       storagePath: storagePath,
       etag: etag,
     );
     final resolved = source.isEmpty
         ? null
-        : ref.watch(avatarImageProvider(source)).asData?.value;
+        : ref.watch(mediaImageProvider(source)).asData?.value;
     final image =
         resolved == null ? null : ResizeImage(resolved, width: decodeSize);
 

@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
@@ -7,7 +5,7 @@ import 'package:basecamp/features/observations/widgets/attachment_viewer.dart';
 import 'package:basecamp/features/rooms/rooms_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
-import 'package:flutter/foundation.dart';
+import 'package:basecamp/ui/media_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -303,22 +301,21 @@ class _AttachmentThumb extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (isPhoto && !kIsWeb)
-            Image.file(
-              File(attachment.localPath),
-              fit: BoxFit.cover,
-              // Decode at ~thumbnail resolution (card thumb is 84px;
-              // 2x for retina). Saves hundreds of MB per feed when a
-              // teacher has been snapping 12MP photos.
-              cacheWidth: 168,
-              errorBuilder: (_, _, _) =>
-                  _placeholder(theme, Icons.image_outlined),
+          if (isPhoto)
+            // MediaImage handles the native fast-path (FileImage)
+            // + the cross-device fallback (drift cache → Supabase
+            // download → MemoryImage) — same pipeline as
+            // SmallAvatar, so attachments now render on web too.
+            MediaImage(
+              source: MediaSource(
+                localPath: attachment.localPath,
+                storagePath: attachment.storagePath,
+              ),
+              cacheWidth: 168, // 84px × 2 retina
+              errorPlaceholder: _placeholder(theme, Icons.image_outlined),
             )
           else
-            _placeholder(
-              theme,
-              isPhoto ? Icons.image_outlined : Icons.play_circle_outline,
-            ),
+            _placeholder(theme, Icons.play_circle_outline),
           if (!isPhoto)
             Positioned(
               right: 4,

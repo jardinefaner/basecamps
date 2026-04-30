@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
@@ -18,6 +17,7 @@ import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/app_text_field.dart';
 import 'package:basecamp/ui/confirm_dialog.dart';
+import 'package:basecamp/ui/media_image.dart';
 import 'package:basecamp/ui/step_wizard.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -1120,33 +1120,23 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
     final map = raw is Map ? raw.cast<String, dynamic>() : null;
     final localPath = map?['localPath'] as String?;
     final storagePath = map?['storagePath'] as String?;
+    final etag = map?['etag'] as String?;
 
     Widget thumbnail() {
-      if (localPath != null && File(localPath).existsSync() && !kIsWeb) {
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.file(
-            File(localPath),
-            width: 80,
-            height: 80,
-            fit: BoxFit.cover,
-          ),
-        );
-      }
-      if (storagePath != null) {
-        // Lazy-resolve the storage path through MediaService when only
-        // the remote path is available (other-device case). FutureBuilder
-        // keeps the resolution off the build phase.
-        return _RemoteImageThumb(storagePath: storagePath);
-      }
-      return Container(
+      // MediaImage handles all the branching — native fast path
+      // via FileImage when a local file exists, drift-cache
+      // fallback (downloads from Supabase on first miss, reuses
+      // forever after) for the cross-device case. Etag in the
+      // source key forces re-fetch when another device re-picks.
+      return MediaImage(
+        source: MediaSource(
+          localPath: localPath,
+          storagePath: storagePath,
+          etag: etag,
+        ),
         width: 80,
         height: 80,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Icon(Icons.broken_image_outlined),
+        borderRadius: BorderRadius.circular(8),
       );
     }
 
@@ -1199,14 +1189,19 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
         if (file == null) return;
         if (!mounted) return;
         setState(() {
+          // Optimistic local state. Native gets the picker's
+          // filesystem path so the thumbnail renders instantly;
+          // web has no usable path until upload stamps the
+          // storage_path + etag back in.
           _values[field.key] = <String, dynamic>{
-            'localPath': file.path,
+            if (!kIsWeb) 'localPath': file.path else 'localPath': null,
           };
         });
         // Make sure the row exists so the storage path can scope to
-        // its id; if there's no submission row yet we save a draft to
-        // mint one. Then fire-and-forget the upload.
-        unawaited(_uploadFormImage(field, file.path));
+        // its id; if there's no submission row yet we save a draft
+        // to mint one. Then fire-and-forget the upload — XFile so
+        // the upload works on web too.
+        unawaited(_uploadFormImage(field, file));
       } on Object catch (e) {
         messenger.showSnackBar(
           SnackBar(content: Text("Couldn't capture photo: $e")),
@@ -1255,13 +1250,13 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
   }
 
   /// Resolves a submission id (creating a draft if needed) and kicks
-  /// the MediaService upload. On success, the storagePath is merged
-  /// back into _values so cross-device readers can pull the bytes.
-  /// Errors are logged via debugPrint — same fire-and-forget shape
-  /// as observation attachments.
+  /// the MediaService upload. On success, the storagePath + etag
+  /// are merged back into _values so cross-device readers can pull
+  /// the right bytes. Errors are logged via debugPrint — same
+  /// fire-and-forget shape as observation attachments.
   Future<void> _uploadFormImage(
     fd.FormImageField field,
-    String localPath,
+    XFile source,
   ) async {
     try {
       // Need a submission id and a programId to scope the bucket key.
@@ -1274,20 +1269,28 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
       if (submissionId == null) return;
 
       final media = ref.read(mediaServiceProvider);
-      final storagePath = await media.uploadFormImage(
+      final result = await media.uploadFormImage(
         submissionId: submissionId,
         fieldKey: field.key,
-        localPath: localPath,
+        source: source,
         programId: programId,
       );
-      if (storagePath == null) return;
+      if (result == null) return;
       if (!mounted) return;
       setState(() {
         final current = _values[field.key];
+        // Stamp etag alongside the path. Other devices pull the
+        // form submission row through realtime; the etag change
+        // forces their MediaImage cache to re-fetch instead of
+        // serving stale bytes for the same storage_path.
         _values[field.key] = <String, dynamic>{
           if (current is Map) ...current.cast<String, dynamic>(),
-          'localPath': localPath,
-          'storagePath': storagePath,
+          // On native we keep the local path for fast offline
+          // render. On web `XFile.path` is a blob URL useless
+          // outside the current page session, so skip it.
+          if (!kIsWeb) 'localPath': source.path else 'localPath': null,
+          'storagePath': result.storagePath,
+          'etag': result.etag,
         };
       });
     } on Object catch (e, st) {
@@ -1497,20 +1500,30 @@ class _GenericFormScreenState extends ConsumerState<GenericFormScreen> {
       final submissionId = _resolvedSubmissionId;
       if (submissionId == null) return;
 
+      // Wrap the saved-on-disk PNG as an XFile so we go through
+      // the same XFile-based upload path as picker images.
+      // Signatures are only ever drawn on-device (no web-pad
+      // yet), so a real filesystem path is guaranteed.
       final media = ref.read(mediaServiceProvider);
-      final storagePath = await media.uploadFormImage(
+      final result = await media.uploadFormImage(
         submissionId: submissionId,
         fieldKey: field.key,
-        localPath: localPath,
+        source: XFile(localPath),
         programId: programId,
       );
-      if (storagePath == null) return;
+      if (result == null) return;
       if (!mounted) return;
       setState(() {
         final current = _values[field.key];
         _values[field.key] = <String, dynamic>{
           if (current is Map) ...current.cast<String, dynamic>(),
-          'signatureStoragePath': storagePath,
+          'signatureStoragePath': result.storagePath,
+          // Etag isn't strictly necessary for signatures (they're
+          // append-once per submission today) but threading it
+          // through keeps the data shape uniform with image
+          // fields and lets the cache invalidate correctly if a
+          // signature ever gets re-drawn.
+          'signatureEtag': result.etag,
         };
       });
     } on Object catch (e, st) {
@@ -1838,81 +1851,6 @@ class _AdultPickerSheet extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// Lazy-loading thumbnail for an image field whose local file isn't
-/// present on this device (other-device sync case). Resolves the
-/// storage path through MediaService once and caches the result for
-/// subsequent rebuilds.
-class _RemoteImageThumb extends ConsumerStatefulWidget {
-  const _RemoteImageThumb({required this.storagePath});
-  final String storagePath;
-
-  @override
-  ConsumerState<_RemoteImageThumb> createState() =>
-      _RemoteImageThumbState();
-}
-
-class _RemoteImageThumbState extends ConsumerState<_RemoteImageThumb> {
-  String? _localPath;
-  Object? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_resolve());
-  }
-
-  Future<void> _resolve() async {
-    try {
-      final path = await ref
-          .read(mediaServiceProvider)
-          .ensureLocalFile(widget.storagePath);
-      if (!mounted) return;
-      setState(() => _localPath = path);
-    } on Object catch (e) {
-      if (!mounted) return;
-      setState(() => _error = e);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_error != null || kIsWeb) {
-      return Container(
-        width: 80,
-        height: 80,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Icon(Icons.image_outlined),
-      );
-    }
-    final path = _localPath;
-    if (path == null) {
-      return const SizedBox(
-        width: 80,
-        height: 80,
-        child: Center(
-          child: SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      );
-    }
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: Image.file(
-        File(path),
-        width: 80,
-        height: 80,
-        fit: BoxFit.cover,
       ),
     );
   }

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
@@ -8,8 +7,8 @@ import 'package:basecamp/features/observations/widgets/observation_card.dart';
 import 'package:basecamp/features/observations/widgets/observation_composer.dart';
 import 'package:basecamp/features/observations/widgets/observation_edit_sheet.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:basecamp/ui/media_image.dart';
 import 'package:basecamp/ui/undo_delete.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -669,15 +668,16 @@ class _GalleryTile extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (isPhoto && !kIsWeb)
-              Image.file(
-                File(attachment.localPath),
-                fit: BoxFit.cover,
-                // 3-col grid tiles render around ~130dp on phones; 2x
-                // for retina. Decodes at thumbnail size so a hundred
-                // photos don't blow up memory.
+            if (isPhoto)
+              MediaImage(
+                source: MediaSource(
+                  localPath: attachment.localPath,
+                  storagePath: attachment.storagePath,
+                ),
+                // 3-col grid tiles render around ~130dp on phones;
+                // 2x for retina.
                 cacheWidth: 260,
-                errorBuilder: (_, _, _) => Center(
+                errorPlaceholder: Center(
                   child: Icon(
                     Icons.broken_image_outlined,
                     color: theme.colorScheme.onSurfaceVariant,
@@ -687,7 +687,7 @@ class _GalleryTile extends StatelessWidget {
             else
               Center(
                 child: Icon(
-                  isPhoto ? Icons.image_outlined : Icons.play_circle_outline,
+                  Icons.play_circle_outline,
                   size: 40,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/confirm_dialog.dart';
+import 'package:basecamp/ui/media_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
@@ -130,7 +131,12 @@ class _AttachmentViewerState extends State<AttachmentViewer> {
                   path: att.localPath,
                 );
               }
-              return _PhotoPage(path: att.localPath);
+              return _PhotoPage(
+                source: MediaSource(
+                  localPath: att.localPath,
+                  storagePath: att.storagePath,
+                ),
+              );
             },
           ),
           // Top bar
@@ -203,9 +209,9 @@ class _AttachmentViewerState extends State<AttachmentViewer> {
 }
 
 class _PhotoPage extends StatelessWidget {
-  const _PhotoPage({required this.path});
+  const _PhotoPage({required this.source});
 
-  final String path;
+  final MediaSource source;
 
   @override
   Widget build(BuildContext context) {
@@ -213,16 +219,20 @@ class _PhotoPage extends StatelessWidget {
       child: InteractiveViewer(
         minScale: 1,
         maxScale: 5,
-        child: kIsWeb
-            ? const _WebUnsupported(icon: Icons.image_outlined)
-            : Image.file(
-                File(path),
-                fit: BoxFit.contain,
-                errorBuilder: (_, _, _) => const _ErrorBlock(
-                  icon: Icons.broken_image_outlined,
-                  message: 'Could not load image',
-                ),
-              ),
+        // Full-screen — no cacheWidth clamp; we want full
+        // resolution for pinch-to-zoom. Falls through to drift
+        // cache → Supabase download on web.
+        child: MediaImage(
+          source: source,
+          fit: BoxFit.contain,
+          errorPlaceholder: const _ErrorBlock(
+            icon: Icons.broken_image_outlined,
+            message: 'Could not load image',
+          ),
+          placeholder: const Center(
+            child: CircularProgressIndicator(color: Colors.white),
+          ),
+        ),
       ),
     );
   }
@@ -357,27 +367,6 @@ class _VideoPageState extends State<_VideoPage> {
           ],
         ],
       ),
-    );
-  }
-}
-
-class _WebUnsupported extends StatelessWidget {
-  const _WebUnsupported({required this.icon});
-
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icon, color: Colors.white70, size: 64),
-        const SizedBox(height: AppSpacing.md),
-        const Text(
-          'Photo viewing is mobile-only for now.',
-          style: TextStyle(color: Colors.white70),
-        ),
-      ],
     );
   }
 }
