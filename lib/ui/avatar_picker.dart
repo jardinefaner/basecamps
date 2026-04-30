@@ -211,25 +211,54 @@ class _AvatarPickerState extends ConsumerState<AvatarPicker> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final source = _resolveImageProvider();
+    final diameter = widget.radius * 2;
 
-    final avatar = CircleAvatar(
-      radius: widget.radius,
-      backgroundColor: theme.colorScheme.primaryContainer,
-      // Cap the decode size (2× display for retina) but don't
-      // pin both axes — ResizeImage with both width AND height
-      // resizes to that exact box and squishes the source's
-      // native aspect ratio. We only clamp the width; the
-      // height scales proportionally, then CircleAvatar's
-      // BoxFit.cover crops to the circle cleanly.
-      backgroundImage: source,
+    // ClipOval + Image with explicit width/height + BoxFit.cover
+    // for the same reason SmallAvatar does it: CircleAvatar's
+    // backgroundImage was rendering skewed on web (likely an
+    // interaction between MemoryImage, ResizeImage's width-only
+    // clamp, and Flutter web's renderer). Forcing the image
+    // through a square box with BoxFit.cover crops cleanly on
+    // every platform.
+    final avatar = SizedBox.square(
+      dimension: diameter,
       child: source == null
-          ? Text(
-              widget.fallbackInitial,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                color: theme.colorScheme.onPrimaryContainer,
+          ? DecoratedBox(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  widget.fallbackInitial,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
               ),
             )
-          : null,
+          : ClipOval(
+              child: Image(
+                image: source,
+                width: diameter,
+                height: diameter,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      widget.fallbackInitial,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
     );
 
     return GestureDetector(
@@ -318,6 +347,7 @@ class SmallAvatar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final diameter = radius * 2;
     final decodeSize = (radius * 4).round();
     final bg = backgroundColor ?? theme.colorScheme.primaryContainer;
     final fg = foregroundColor ?? theme.colorScheme.onPrimaryContainer;
@@ -333,19 +363,67 @@ class SmallAvatar extends ConsumerWidget {
     final image =
         resolved == null ? null : ResizeImage(resolved, width: decodeSize);
 
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor: bg,
-      backgroundImage: image,
-      // Always show the fallback initial when there's no image
-      // source — no blank circles. The initial hides as soon as
-      // an ImageProvider lands.
+    // Render via ClipOval + Image instead of CircleAvatar's
+    // backgroundImage. CircleAvatar nominally uses BoxFit.cover,
+    // but on web the rendered image was coming out skewed for
+    // some teachers — likely an interaction between MemoryImage,
+    // ResizeImage's width-only clamp, and Flutter web's
+    // CanvasKit/HTML renderer. ClipOval + Image with an explicit
+    // width=height=diameter and fit:BoxFit.cover takes the
+    // ambiguity out: the image is rendered to a square box, the
+    // shorter axis fills the box, the longer axis is cropped,
+    // then ClipOval makes it round. Same result on every
+    // platform.
+    return SizedBox.square(
+      dimension: diameter,
       child: image == null
-          ? Text(
-              fallbackInitial,
-              style: theme.textTheme.titleMedium?.copyWith(color: fg),
+          ? DecoratedBox(
+              decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+              child: Center(
+                child: Text(
+                  fallbackInitial,
+                  style: theme.textTheme.titleMedium?.copyWith(color: fg),
+                ),
+              ),
             )
-          : null,
+          : ClipOval(
+              child: Image(
+                image: image,
+                width: diameter,
+                height: diameter,
+                fit: BoxFit.cover,
+                // Keep the fallback shell while bytes are loading
+                // so we never show a blank circle.
+                loadingBuilder: (ctx, child, progress) =>
+                    progress == null
+                        ? child
+                        : DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: bg,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: Text(
+                                fallbackInitial,
+                                style: theme.textTheme.titleMedium
+                                    ?.copyWith(color: fg),
+                              ),
+                            ),
+                          ),
+                errorBuilder: (_, _, _) => DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: bg,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      fallbackInitial,
+                      style: theme.textTheme.titleMedium?.copyWith(color: fg),
+                    ),
+                  ),
+                ),
+              ),
+            ),
     );
   }
 }

@@ -319,9 +319,13 @@ class SyncEngine {
     );
     if (cloudExists == null) {
       // No row in cloud — full upsert (insert path).
-      await client.from(spec.table).upsert(
-            _toCloudShape(spec.table, row, spec.dateColumns),
-          );
+      final shaped = _toCloudShape(spec.table, row, spec.dateColumns);
+      await _runWithSchemaRetry(
+        () => client.from(spec.table).upsert(shaped),
+        payload: shaped,
+        retry: (filtered) =>
+            client.from(spec.table).upsert(filtered),
+      );
       await _db.clearDirtyFields(spec.table, id);
       return;
     }
@@ -341,11 +345,58 @@ class SyncEngine {
       for (final field in dirtyFields)
         if (shaped.containsKey(field)) field: shaped[field],
     };
-    await client
-        .from(spec.table)
-        .update(payload)
-        .eq('id', id);
+    await _runWithSchemaRetry(
+      () => client.from(spec.table).update(payload).eq('id', id),
+      payload: payload,
+      retry: (filtered) =>
+          client.from(spec.table).update(filtered).eq('id', id),
+    );
     await _db.clearDirtyFields(spec.table, id);
+  }
+
+  /// Execute a Supabase write, but if cloud rejects with PGRST204
+  /// ("Could not find the 'X' column …"), strip that column from
+  /// the payload and retry once. Surfaced after the user hit
+  /// `avatar_etag` PGRST204 on adults during a window where their
+  /// cloud schema lagged the app build — the entire row push was
+  /// then wedged because the engine kept retrying the same dead
+  /// payload.
+  ///
+  /// Last-resort defense: cloud SHOULD always be in sync with the
+  /// app build, but a deployment race shouldn't take saves down.
+  /// Logs the dropped column so a developer notices.
+  Future<void> _runWithSchemaRetry(
+    Future<dynamic> Function() initial, {
+    required Map<String, Object?> payload,
+    required Future<dynamic> Function(Map<String, Object?> filtered)
+        retry,
+  }) async {
+    try {
+      await initial();
+    } on PostgrestException catch (e) {
+      if (e.code != 'PGRST204') rethrow;
+      final missing = _extractMissingColumn(e.message);
+      if (missing == null || !payload.containsKey(missing)) rethrow;
+      debugPrint(
+        'Sync push: cloud schema is missing column "$missing"; '
+        'dropping it from this push and retrying. Apply the '
+        'pending Supabase migrations to silence this.',
+      );
+      final filtered = <String, Object?>{
+        for (final entry in payload.entries)
+          if (entry.key != missing) entry.key: entry.value,
+      };
+      await retry(filtered);
+    }
+  }
+
+  /// PGRST204 messages are formatted like:
+  ///   `Could not find the 'avatar_etag' column of 'adults' in the schema cache`
+  /// Extract the column name. Returns null if the format changes
+  /// (let the caller rethrow the original exception).
+  String? _extractMissingColumn(String message) {
+    final match = RegExp("the '([^']+)' column").firstMatch(message);
+    return match?.group(1);
   }
 
   /// Push the cascade rows (parent_children, attendance, etc.)
