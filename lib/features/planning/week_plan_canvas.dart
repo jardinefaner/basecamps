@@ -615,9 +615,27 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
     });
   }
 
-  /// Tap on the RIGHT half (time zone). Same first-tap-selects
-  /// pattern as the left zone, then a second tap pops the time
-  /// picker.
+  /// Common durations exposed in the right-zone popup. Stops at
+  /// 3 hours — anything longer is a "block" or "trip" the user
+  /// is better off building through the full edit sheet.
+  static const List<int> _kDurationChoices = [
+    15,
+    30,
+    45,
+    60,
+    75,
+    90,
+    105,
+    120,
+    150,
+    180,
+  ];
+
+  /// Tap on the RIGHT half (duration zone). Same first-tap-selects
+  /// pattern as the left zone, then a second tap pops a popup menu
+  /// of common durations. Picking one shifts the end time (start
+  /// stays put). For a fully custom duration the user goes through
+  /// the FAB → ✏️ edit details sheet.
   Future<void> _onRightZoneTap() async {
     if (!_isTemplate) {
       widget.onTap?.call(widget.item);
@@ -629,18 +647,58 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
           .select(widget.item.templateId!);
       return;
     }
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: widget.item.startTimeOfDay,
-      // We pick start time here; the new end time is start +
-      // current duration so the user doesn't have to set both.
-      // The full edit sheet (FAB → ✏️) lets them decouple.
-      helpText: 'New start time',
+
+    final box = context.findRenderObject() as RenderBox?;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (box == null || overlay == null) return;
+    // Anchor the menu just below the right zone so it doesn't cover
+    // the card itself. `position` is relative to the overlay (the
+    // root navigator's overlay) — we project the card's
+    // bottom-right corner into overlay-local coordinates.
+    final cardBottomRight = box.localToGlobal(
+      box.size.bottomRight(Offset.zero),
+      ancestor: overlay,
     );
-    if (picked == null || !mounted) return;
-    final newStartMinutes = picked.minutesSinceMidnight;
-    final duration = widget.item.endMinutes - widget.item.startMinutes;
-    final newEndMinutes = newStartMinutes + duration;
+    final position = RelativeRect.fromLTRB(
+      cardBottomRight.dx,
+      cardBottomRight.dy,
+      overlay.size.width - cardBottomRight.dx,
+      overlay.size.height - cardBottomRight.dy,
+    );
+
+    final currentDuration =
+        widget.item.endMinutes - widget.item.startMinutes;
+    final newDuration = await showMenu<int>(
+      context: context,
+      position: position,
+      items: [
+        for (final mins in _kDurationChoices)
+          PopupMenuItem<int>(
+            value: mins,
+            // Highlight the current duration so the user sees
+            // the menu opened in the right state.
+            child: Row(
+              children: [
+                Icon(
+                  mins == currentDuration ? Icons.check : null,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(_DurationLabel.formatDuration(mins)),
+              ],
+            ),
+          ),
+      ],
+    );
+
+    if (newDuration == null ||
+        newDuration == currentDuration ||
+        !mounted) {
+      return;
+    }
+    final newEndMinutes = widget.item.startMinutes + newDuration;
     if (newEndMinutes >= 24 * 60) {
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
@@ -652,9 +710,10 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
       return;
     }
     final repo = ref.read(scheduleRepositoryProvider);
+    // Start stays put; only the end shifts.
     await repo.shiftTemplateStart(
       templateId: widget.item.templateId!,
-      newStartTime: Hhmm.fromMinutes(newStartMinutes),
+      newStartTime: widget.item.startTime,
       newEndTime: Hhmm.fromMinutes(newEndMinutes),
     );
   }
