@@ -575,6 +575,23 @@ class SyncEngine {
       // the case where the local was edited between the watermark
       // and now (i.e., we're about to overwrite an unsynced
       await _db.transaction(() async {
+        // Cross-tier FK dance:
+        //   `activity_library_usages` is a cascade of
+        //   `activity_library` (tier 2) but has FKs to
+        //   `schedule_templates` (tier 3). With strict per-INSERT
+        //   FK checking, the tier-2 pull would fail every cycle
+        //   because the tier-3 schedule_template hasn't landed yet.
+        //   `defer_foreign_keys = ON` defers the FK check to the
+        //   COMMIT, so as long as the final state is consistent
+        //   (after all tiers pull) we're fine. SQLite resets the
+        //   pragma at end-of-transaction automatically.
+        //
+        // Also lets us recover from genuinely-orphaned rows
+        // (cloud has a schedule_template pointing at a deleted
+        // adult): the per-row catch around `_upsertLocalRow`
+        // skips that row and keeps pulling the rest, instead of
+        // wedging the whole table on one bad apple.
+        await _db.customStatement('PRAGMA defer_foreign_keys = ON');
         if (deletedIds.isNotEmpty) {
           await _db.customUpdate(
             'DELETE FROM "${spec.table}" WHERE id IN (${_placeholders(deletedIds.length)})',
@@ -603,14 +620,33 @@ class SyncEngine {
                     if (!dirty.contains(entry.key))
                       entry.key: entry.value,
                 };
-          await _upsertLocalRow(spec.table, payload, spec.dateColumns);
+          try {
+            await _upsertLocalRow(spec.table, payload, spec.dateColumns);
+          } on Object catch (e) {
+            // Skip the bad row and keep pulling. A row whose
+            // FK target is permanently missing in cloud (deleted
+            // adult, deleted room, etc.) would otherwise wedge
+            // the whole pull cycle indefinitely.
+            debugPrint(
+              'Pull skipped corrupt row in ${spec.table} '
+              'id=${row['id']}: $e',
+            );
+          }
         }
         if (liveRows.isNotEmpty) {
-          await _replaceLocalCascades(
-            client,
-            spec.cascades,
-            liveRows.map((r) => r['id'] as String).toList(),
-          );
+          try {
+            await _replaceLocalCascades(
+              client,
+              spec.cascades,
+              liveRows.map((r) => r['id'] as String).toList(),
+            );
+          } on Object catch (e) {
+            // Same logic for cascade rows — one orphaned cascade
+            // row shouldn't block the parent table from pulling.
+            debugPrint(
+              'Pull cascade for ${spec.table} hit a corrupt row: $e',
+            );
+          }
         }
       });
 
