@@ -198,6 +198,7 @@ class _AdultTile extends StatelessWidget {
         children: [
           SmallAvatar(
             path: adult.avatarPath,
+            storagePath: adult.avatarStoragePath,
             fallbackInitial: initial,
             backgroundColor: theme.colorScheme.secondaryContainer,
             foregroundColor: theme.colorScheme.onSecondaryContainer,

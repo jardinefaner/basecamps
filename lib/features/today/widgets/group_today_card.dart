@@ -699,6 +699,7 @@ class _LeadsRow extends StatelessWidget {
             children: [
               SmallAvatar(
                 path: s.avatarPath,
+                storagePath: s.avatarStoragePath,
                 fallbackInitial: s.name.isNotEmpty
                     ? s.name.characters.first.toUpperCase()
                     : '?',

@@ -120,6 +120,7 @@ class _ChildChip extends StatelessWidget {
                   ),
                   child: SmallAvatar(
                     path: child.avatarPath,
+                    storagePath: child.avatarStoragePath,
                     fallbackInitial: initial,
                     radius: 24,
                   ),

@@ -150,6 +150,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
             child: _PersonRow(
               name: _displayName(k.firstName, k.lastName),
               avatarPath: k.avatarPath,
+              avatarStoragePath: k.avatarStoragePath,
               fallbackInitial: k.firstName.isEmpty
                   ? '?'
                   : k.firstName.characters.first.toUpperCase(),
@@ -167,6 +168,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
             child: _PersonRow(
               name: s.name,
               avatarPath: s.avatarPath,
+              avatarStoragePath: s.avatarStoragePath,
               fallbackInitial: s.name.isEmpty
                   ? '?'
                   : s.name.characters.first.toUpperCase(),
@@ -948,11 +950,13 @@ class _PersonRow extends StatelessWidget {
     required this.fallbackInitial,
     required this.route,
     this.avatarPath,
+    this.avatarStoragePath,
     this.useSecondaryFallback = false,
   });
 
   final String name;
   final String? avatarPath;
+  final String? avatarStoragePath;
   final String fallbackInitial;
   final String route;
 
@@ -970,6 +974,7 @@ class _PersonRow extends StatelessWidget {
       ),
       leading: SmallAvatar(
         path: avatarPath,
+        storagePath: avatarStoragePath,
         fallbackInitial: fallbackInitial,
         // 24dp icon → 12dp radius circle fits a ListTile leading slot.
         radius: 12,

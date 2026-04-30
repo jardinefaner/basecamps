@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:basecamp/features/sync/media_service.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 /// Circular avatar picker used in the child and adult edit sheets.
@@ -152,42 +154,137 @@ class AvatarPicker extends StatelessWidget {
 
 /// Small read-only round avatar for tiles. Uses the same decode-size
 /// discipline as [AvatarPicker].
-class SmallAvatar extends StatelessWidget {
+/// Round avatar widget with cross-device-aware loading.
+///
+/// Avatars store TWO paths:
+///   * `avatar_path` — local filesystem path on the device that
+///     captured the photo. Only valid on that device.
+///   * `avatar_storage_path` — Supabase Storage bucket key.
+///     Deterministic per row id, valid on every device.
+///
+/// SmallAvatar resolves them in order:
+///   1. If `path` exists on disk → render Image.file (fast, offline).
+///   2. Else if `storagePath` is set → ensureLocalFile downloads
+///      to a persistent cache dir, render from there. First render
+///      shows the fallback initial; subsequent renders hit the
+///      cache instantly.
+///   3. Else → fallback initial.
+///
+/// Without this fallback, syncing a row from another device
+/// brought down the `avatar_path` text but the file didn't exist
+/// on the receiving filesystem; FileImage failed silently and the
+/// avatar appeared blank.
+class SmallAvatar extends ConsumerStatefulWidget {
   const SmallAvatar({
     required this.path,
     required this.fallbackInitial,
+    this.storagePath,
     this.radius = 20,
     this.backgroundColor,
     this.foregroundColor,
     super.key,
   });
 
+  /// Local filesystem path. Valid only on the device that captured
+  /// the photo. Falls through to [storagePath] when the file isn't
+  /// present locally.
   final String? path;
+
+  /// Supabase Storage bucket key (e.g.
+  /// `<programId>/avatars/adults/<id>.jpg`). When set, used as the
+  /// cross-device source of truth for the avatar image.
+  final String? storagePath;
+
   final String fallbackInitial;
   final double radius;
   final Color? backgroundColor;
   final Color? foregroundColor;
 
   @override
+  ConsumerState<SmallAvatar> createState() => _SmallAvatarState();
+}
+
+class _SmallAvatarState extends ConsumerState<SmallAvatar> {
+  /// Resolved local path to render — either widget.path when
+  /// it exists on disk, or the cache path returned by
+  /// `ensureLocalFile(widget.storagePath)`. Null until we've
+  /// either confirmed a local file or downloaded one.
+  String? _resolvedPath;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_resolvePath());
+  }
+
+  @override
+  void didUpdateWidget(covariant SmallAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.path != widget.path ||
+        oldWidget.storagePath != widget.storagePath) {
+      _resolvedPath = null;
+      unawaited(_resolvePath());
+    }
+  }
+
+  Future<void> _resolvePath() async {
+    if (kIsWeb) return; // Web has no local FS; would need a different render path.
+    final localPath = widget.path;
+    final storagePath = widget.storagePath;
+
+    // Fast path: the local-captured file is right here on disk.
+    // existsSync is fine here — initState/didUpdateWidget can
+    // afford the synchronous stat (microsecond-level), and the
+    // alternative (await File.exists()) trips the lint about
+    // slow async IO without a real benefit.
+    if (localPath != null && File(localPath).existsSync()) {
+      if (!mounted) return;
+      setState(() => _resolvedPath = localPath);
+      return;
+    }
+
+    // Cross-device path: download from cloud storage to a
+    // persistent cache dir. ensureLocalFile is idempotent — the
+    // cache survives app restarts, so a re-render hits it
+    // instantly. First render on a fresh device shows the
+    // fallback initial during the download.
+    if (storagePath != null && storagePath.isNotEmpty) {
+      try {
+        final cached = await ref
+            .read(mediaServiceProvider)
+            .ensureLocalFile(storagePath);
+        if (!mounted) return;
+        setState(() => _resolvedPath = cached);
+      } on Object catch (e) {
+        debugPrint('SmallAvatar download failed for $storagePath: $e');
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final decodeSize = (radius * 4).round();
-    final bg = backgroundColor ?? theme.colorScheme.primaryContainer;
-    final fg = foregroundColor ?? theme.colorScheme.onPrimaryContainer;
+    final decodeSize = (widget.radius * 4).round();
+    final bg = widget.backgroundColor ?? theme.colorScheme.primaryContainer;
+    final fg = widget.foregroundColor ?? theme.colorScheme.onPrimaryContainer;
+    final resolved = _resolvedPath;
 
     return CircleAvatar(
-      radius: radius,
+      radius: widget.radius,
       backgroundColor: bg,
-      backgroundImage: (path != null && !kIsWeb)
+      backgroundImage: (resolved != null && !kIsWeb)
           ? ResizeImage(
-              FileImage(File(path!)),
+              FileImage(File(resolved)),
               // Clamp width only — see note in AvatarPicker for why.
               width: decodeSize,
             )
           : null,
-      child: path == null
+      // Show the fallback initial when no image source resolved
+      // (no local path, no storage path, or download still
+      // pending). Hides automatically once `_resolvedPath` is set.
+      child: resolved == null
           ? Text(
-              fallbackInitial,
+              widget.fallbackInitial,
               style: theme.textTheme.titleMedium?.copyWith(color: fg),
             )
           : null,
