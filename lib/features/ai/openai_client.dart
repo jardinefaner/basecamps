@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:basecamp/config/env.dart';
@@ -38,6 +39,15 @@ class OpenAiClient {
     }
   }
 
+  /// Hard ceiling on a single chat-completions round-trip. Includes
+  /// DNS lookup + TCP connect + TLS + OpenAI processing + body
+  /// download. Typical responses come back in 1–5s; 30s is "the
+  /// network is genuinely broken or OpenAI is hung." Without this,
+  /// an offline device sits on `http.post` forever (the OS DNS
+  /// timeout is much longer than this and Ask Basecamp's "Thinking…"
+  /// spinner never resolves).
+  static const _chatTimeout = Duration(seconds: 30);
+
   /// Posts [payload] to the openai-chat Edge Function. Payload
   /// shape mirrors OpenAI's `/v1/chat/completions` request body
   /// exactly — model, messages, temperature, response_format, etc.
@@ -46,6 +56,9 @@ class OpenAiClient {
   /// Throws [OpenAiClientException] for non-2xx responses with the
   /// status code + response body so callsites can decide how to
   /// degrade (fall back to a local classifier, surface to user, etc).
+  /// A request that exceeds [_chatTimeout] surfaces as a 408 so the
+  /// caller can render "timed out — try again" instead of spinning
+  /// indefinitely.
   static Future<Map<String, dynamic>> chat(
     Map<String, dynamic> payload,
   ) async {
@@ -57,16 +70,28 @@ class OpenAiClient {
       );
     }
     final url = Uri.parse('${Env.supabaseUrl}/functions/v1/openai-chat');
-    final response = await http.post(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-        // The user's JWT — Supabase Edge Functions verify it
-        // before the function body runs (verify_jwt is the default).
-        'Authorization': 'Bearer ${session.accessToken}',
-      },
-      body: jsonEncode(payload),
-    );
+    final http.Response response;
+    try {
+      response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              // The user's JWT — Supabase Edge Functions verify it
+              // before the function body runs (verify_jwt is the
+              // default).
+              'Authorization': 'Bearer ${session.accessToken}',
+            },
+            body: jsonEncode(payload),
+          )
+          .timeout(_chatTimeout);
+    } on TimeoutException {
+      throw const OpenAiClientException(
+        statusCode: 408,
+        message:
+            'OpenAI proxy timed out. Check your connection and try again.',
+      );
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw OpenAiClientException(
         statusCode: response.statusCode,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:basecamp/features/ai/openai_client.dart';
@@ -76,6 +77,15 @@ class AskController extends Notifier<AskState> {
   static const _maxIterations = 5;
   static const _historyCap = 16;
 
+  /// Hard ceiling on a single tool dispatch. Tool handlers read
+  /// Riverpod futures (children, observations, schedule, …); a
+  /// stream provider that errored silently before the user opened
+  /// Ask can leave `ref.read(...future)` waiting forever. Surfacing
+  /// "tool timed out" back to the model lets it either retry with
+  /// different args or give up cleanly — much better than the whole
+  /// conversation hanging.
+  static const _toolTimeout = Duration(seconds: 10);
+
   /// Full LLM-side message history including tool calls + results.
   /// The visible state.messages is a filtered projection of this.
   final List<Map<String, dynamic>> _history = [
@@ -153,11 +163,28 @@ class AskController extends Notifier<AskState> {
             } on FormatException {
               args = const {};
             }
-            final result = await runAskTool(
-              ref: ref,
-              name: name,
-              args: args,
-            );
+            final AskToolResult result;
+            try {
+              result = await runAskTool(
+                ref: ref,
+                name: name,
+                args: args,
+              ).timeout(_toolTimeout);
+            } on TimeoutException {
+              // Don't crash the whole turn — feed the timeout back
+              // to the model as a tool error and let it decide
+              // what to do (usually it'll either retry or give up
+              // gracefully and tell the user).
+              _history.add({
+                'role': 'tool',
+                'tool_call_id': id,
+                'content': encodeToolResult({
+                  'error': 'tool timed out after '
+                      '${_toolTimeout.inSeconds}s: $name',
+                }),
+              });
+              continue;
+            }
             if (result.navIntent != null) {
               navIntents.add(result.navIntent!);
             }
