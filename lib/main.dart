@@ -44,17 +44,27 @@ void main() async {
     ),
   );
 
-  // PKCE web round-trip: if a stale `?code=<uuid>` URL ever lands
-  // here (e.g. legacy bookmarked link from before the implicit-flow
-  // switch, or a future re-enable of PKCE on web), try to exchange
-  // it for a session BEFORE the router runs its first redirect.
+  // Web auth round-trip cleanup. Two flavors of OAuth callback can
+  // land us back here, both of which need to be consumed AND wiped
+  // from the URL BEFORE GoRouter starts — otherwise GoRouter sees
+  // the OAuth fragment as a route path and throws "no routes for
+  // location."
   //
-  // On failure (the common case post-implicit-flow switch), wipe
-  // the `?code=` param from the address bar so the next refresh
-  // doesn't re-trigger the same failure and the user can retry
-  // sign-in cleanly. Without this cleanup the URL stays
-  // `https://.../?code=<dead>` indefinitely and every reload bricks
-  // auth.
+  //   1. PKCE / `?code=<uuid>` (query). Legacy / future re-enable
+  //      of PKCE on web. We attempt `exchangeCodeForSession`; on
+  //      failure we still clean the URL so a stale code doesn't
+  //      re-fire on every refresh.
+  //   2. Implicit / `#access_token=...&refresh_token=...` (fragment).
+  //      The current default for Google OAuth on web (see
+  //      `authFlowType: AuthFlowType.implicit` above). supabase-
+  //      flutter is supposed to consume the fragment automatically
+  //      during initialize() when `detectSessionInUri` is on (its
+  //      default), but the URL fragment can survive that call —
+  //      and GoRouter, which uses fragment-based routing on web,
+  //      then trips trying to interpret `access_token=...` as a
+  //      route. We belt-and-suspenders it: re-extract via
+  //      `getSessionFromUrl` if the session didn't land, then
+  //      always wipe the fragment so the router boots clean.
   if (kIsWeb) {
     final code = Uri.base.queryParameters['code'];
     if (code != null && code.isNotEmpty) {
@@ -62,26 +72,50 @@ void main() async {
         await Supabase.instance.client.auth.exchangeCodeForSession(code);
       } on Object catch (e) {
         debugPrint('OAuth code exchange failed: $e');
-        // Strip `?code=...` from the address bar so we don't loop
-        // on the same dead code on every refresh. The actual call
-        // lives in `url_cleanup_web.dart` (web) /
-        // `url_cleanup_stub.dart` (everything else, no-op).
-        try {
-          final base = Uri.base;
-          final cleaned = Uri(
-            scheme: base.scheme,
-            host: base.host,
-            port: base.hasPort ? base.port : null,
-            path: base.path,
-            fragment: base.fragment.isEmpty ? null : base.fragment,
-          ).toString();
-          url_cleanup.replaceUrl(cleaned);
-        } on Object catch (e) {
-          debugPrint('Failed to clean stale code from URL: $e');
-        }
       }
+      _cleanWebUrl();
+    }
+
+    // Implicit-flow callback. The fragment carries `access_token=...`
+    // along with `refresh_token`, `expires_at`, etc. Even if Supabase
+    // has already consumed it, we wipe the URL — having the fragment
+    // still in the address bar would crash the first GoRouter redirect.
+    final fragment = Uri.base.fragment;
+    if (fragment.contains('access_token=')) {
+      try {
+        // No-op when Supabase already pulled the session during
+        // initialize(); reapplies otherwise. We only call this when
+        // the fragment is present, so a normal cold launch never
+        // hits it.
+        if (Supabase.instance.client.auth.currentSession == null) {
+          await Supabase.instance.client.auth.getSessionFromUrl(Uri.base);
+        }
+      } on Object catch (e) {
+        debugPrint('Implicit-flow session recovery failed: $e');
+      }
+      _cleanWebUrl();
     }
   }
 
   runApp(const ProviderScope(child: BasecampApp()));
+}
+
+/// Strip query + fragment off the address bar without reloading.
+/// Used after a successful (or failed) auth round-trip so the
+/// router doesn't try to interpret `?code=...` or `#access_token=...`
+/// as a route. No-op on every native build (the conditional import
+/// resolves to `url_cleanup_stub.dart` there).
+void _cleanWebUrl() {
+  try {
+    final base = Uri.base;
+    final cleaned = Uri(
+      scheme: base.scheme,
+      host: base.host,
+      port: base.hasPort ? base.port : null,
+      path: base.path,
+    ).toString();
+    url_cleanup.replaceUrl(cleaned);
+  } on Object catch (e) {
+    debugPrint('Failed to clean URL: $e');
+  }
 }
