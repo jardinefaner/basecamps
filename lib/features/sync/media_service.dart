@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Directory, File;
 
+import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
@@ -194,11 +195,12 @@ class MediaService {
                   localPath: row.avatarPath,
                   storagePath: row.avatarStoragePath,
                 )),
-      stampStoragePath: (path) async {
+      stampMedia: (path, etag) async {
         await (_db.update(_db.children)
               ..where((c) => c.id.equals(childId)))
             .write(ChildrenCompanion(
           avatarStoragePath: Value(path),
+          avatarEtag: Value(etag),
         ));
       },
       bucketKey: (programId) =>
@@ -226,11 +228,12 @@ class MediaService {
                   localPath: row.avatarPath,
                   storagePath: row.avatarStoragePath,
                 )),
-      stampStoragePath: (path) async {
+      stampMedia: (path, etag) async {
         await (_db.update(_db.adults)
               ..where((a) => a.id.equals(adultId)))
             .write(AdultsCompanion(
           avatarStoragePath: Value(path),
+          avatarEtag: Value(etag),
         ));
       },
       bucketKey: (programId) =>
@@ -319,7 +322,8 @@ class MediaService {
     required String table,
     required String rowId,
     required Future<_AvatarPullback?> Function() tableSelect,
-    required Future<void> Function(String storagePath) stampStoragePath,
+    required Future<void> Function(String storagePath, String etag)
+        stampMedia,
     required String Function(String programId) bucketKey,
     XFile? source,
   }) async {
@@ -358,6 +362,13 @@ class MediaService {
             : p.extension(localPath);
       }
 
+      // Fresh per-upload etag. Cheap UUID — bucket key stays
+      // stable (so we keep one cloud object per row id, no orphan
+      // cleanup), but the etag travels via realtime to other
+      // devices' rows, where the cache key tuple no longer
+      // matches and forces a re-fetch. See `ensureBytes` for the
+      // matching logic.
+      final etag = newId();
       final storagePath = '${bucketKey(programId)}$ext';
       await client.storage.from(_bucket).uploadBinary(
             storagePath,
@@ -367,29 +378,38 @@ class MediaService {
               contentType: _contentTypeFor(ext, 'photo'),
             ),
           );
-      await stampStoragePath(storagePath);
+      await stampMedia(storagePath, etag);
       // Replace any stale bytes the drift cache may have for the
-      // same storage_path. The bucket key is stable per row id, so
-      // a re-upload (teacher picked a new photo for the same row)
-      // overwrites the cloud object — but our local cache would
-      // keep serving the old bytes until eviction. Stamp the new
-      // bytes directly so the next render is correct.
-      await _db.into(_db.mediaCache).insertOnConflictUpdate(
-            MediaCacheCompanion.insert(
-              storagePath: storagePath,
-              bytes: bytes,
-              contentType:
-                  Value(_contentTypeFor(ext, 'photo')),
-              cachedAt: Value(DateTime.now()),
-            ),
-          );
-      // Mark the column dirty + nudge a push so the storage path
-      // actually reaches cloud. Without these two lines the stamp
-      // sits in local Drift forever and other devices can never
-      // download the file. The pushRow goes through the standard
-      // 250ms debounce + Phase-2 partial-UPDATE path, so the row's
-      // other fields aren't disturbed.
-      await _db.markDirty(table, rowId, ['avatar_storage_path']);
+      // same storage_path. Stamp the new bytes + new etag — both
+      // matter: the next render uses (path, etag) as the cache
+      // key, and the etag flows out to other devices via
+      // realtime so their caches invalidate too.
+      try {
+        await _db.into(_db.mediaCache).insertOnConflictUpdate(
+              MediaCacheCompanion.insert(
+                storagePath: storagePath,
+                bytes: bytes,
+                contentType:
+                    Value(_contentTypeFor(ext, 'photo')),
+                etag: Value(etag),
+                cachedAt: Value(DateTime.now()),
+              ),
+            );
+      } on Object catch (e) {
+        // Best-effort — a drift hiccup here doesn't unwind the
+        // upload. Next render falls through to network.
+        debugPrint('Media cache stamp failed for $storagePath: $e');
+      }
+      // Mark the columns dirty + nudge a push so both the storage
+      // path and etag actually reach cloud. Without etag in the
+      // dirty list, other devices would only ever see the path
+      // (which doesn't change on re-upload) and their caches
+      // would stay stale.
+      await _db.markDirty(
+        table,
+        rowId,
+        ['avatar_storage_path', 'avatar_etag'],
+      );
       // syncEngineProvider is read lazily because MediaService is
       // constructed before the sync engine is wired up at app
       // startup; reading it eagerly in the constructor would
@@ -502,38 +522,60 @@ class MediaService {
   /// table (`media_cache`) acts as a content-addressed blob store
   /// keyed by the bucket-relative path. Resolution order:
   ///
-  ///   1. **Drift hit** → return cached bytes immediately. No
-  ///      network round-trip, no signed-URL mint, no Supabase
-  ///      transfer. Survives app restarts; on web survives page
-  ///      reloads (drift_flutter persists to IndexedDB).
-  ///   2. **Drift miss** → download bytes from Supabase Storage
-  ///      via the storage client's `download(...)`, stamp into
-  ///      Drift, return bytes.
+  ///   1. **Drift hit + etag matches** → return cached bytes
+  ///      immediately. No network round-trip, no signed-URL mint,
+  ///      no Supabase transfer. Survives app restarts; on web
+  ///      survives page reloads (drift_flutter persists to
+  ///      IndexedDB). Etag comparison: null requested + null
+  ///      cached is a match (legacy / non-versioned media);
+  ///      mismatched non-null etags evict and re-fetch.
+  ///   2. **Drift miss / etag mismatch** → download bytes from
+  ///      Supabase Storage via the storage client's `download()`,
+  ///      stamp into Drift with the requested etag, return bytes.
   ///
   /// In-flight de-duplication: simultaneous requests for the same
   /// path (e.g. two SmallAvatars rendering at once) share a single
   /// Future via [_inFlightBytes] so we only hit Supabase once per
   /// path per app session.
   ///
+  /// **Resilient to a broken cache.** Any drift error (table
+  /// missing, schema mismatch, IO) falls through to a direct
+  /// download — bytes still render, the cache write is best-
+  /// effort. Avoids the silent "no photos at all" failure mode
+  /// where a half-applied migration takes the cache down and
+  /// every render with it.
+  ///
   /// Returns null when:
-  ///   * Supabase isn't initialized / signed in (cache miss has
-  ///     no recovery path)
+  ///   * Supabase isn't initialized / signed in.
   ///   * Download throws (RLS deny, network, missing object) —
   ///     error logged via debugPrint, caller renders the fallback
   ///     initial.
-  Future<Uint8List?> ensureBytes(String storagePath) async {
+  Future<Uint8List?> ensureBytes(
+    String storagePath, {
+    String? etag,
+  }) async {
     if (storagePath.isEmpty) return null;
-    // Drift hit → done.
-    final cached = await (_db.select(_db.mediaCache)
-          ..where((c) => c.storagePath.equals(storagePath)))
-        .getSingleOrNull();
-    if (cached != null) return Uint8List.fromList(cached.bytes);
+
+    // Drift hit (resilient). A missing `media_cache` table or any
+    // other drift hiccup falls through to a direct download
+    // rather than wedging the render.
+    try {
+      final cached = await (_db.select(_db.mediaCache)
+            ..where((c) => c.storagePath.equals(storagePath)))
+          .getSingleOrNull();
+      if (cached != null && _etagsMatch(cached.etag, etag)) {
+        return Uint8List.fromList(cached.bytes);
+      }
+    } on Object catch (e) {
+      // Cache is best-effort — keep going to network.
+      debugPrint('Media cache read failed for $storagePath: $e');
+    }
 
     // Coalesce concurrent misses for the same path.
     final inFlight = _inFlightBytes[storagePath];
     if (inFlight != null) return inFlight;
 
-    final future = _downloadAndCache(storagePath);
+    final future = _downloadAndCache(storagePath, etag: etag);
     _inFlightBytes[storagePath] = future;
     try {
       return await future;
@@ -546,29 +588,55 @@ class MediaService {
     }
   }
 
-  Future<Uint8List?> _downloadAndCache(String storagePath) async {
+  /// Etag comparison rules:
+  ///   * null cached + null requested → match (legacy / non-
+  ///     versioned media; pre-v51 rows + observation attachments).
+  ///   * non-null cached == non-null requested → match.
+  ///   * any other combination → mismatch (eviction + re-fetch).
+  ///
+  /// The asymmetric "null requested matches anything cached" case
+  /// is **not** allowed — if the caller knows there's an etag
+  /// (post-v51 rows do), it should pass the row's etag so the
+  /// cache enforces freshness. Callers who genuinely don't track
+  /// versions (legacy attachments) pass null and accept the
+  /// "any cache hit wins" semantics.
+  bool _etagsMatch(String? cached, String? requested) {
+    if (cached == null && requested == null) return true;
+    if (cached == null || requested == null) return false;
+    return cached == requested;
+  }
+
+  Future<Uint8List?> _downloadAndCache(
+    String storagePath, {
+    String? etag,
+  }) async {
     final client = _client;
     if (client == null) return null;
     if (client.auth.currentSession == null) return null;
+    Uint8List bytes;
     try {
-      final bytes = await client.storage.from(_bucket).download(storagePath);
-      // Stamp the cache so the next read (this device, this or a
-      // later session) skips the download. INSERT … ON CONFLICT
-      // updates an existing row in case the bucket key was
-      // overwritten with new bytes for the same id.
+      bytes = await client.storage.from(_bucket).download(storagePath);
+    } on Object catch (e) {
+      debugPrint('Media download failed for $storagePath: $e');
+      return null;
+    }
+    // Cache write is best-effort — a drift failure here doesn't
+    // block returning the bytes we already have. Worst case the
+    // next render re-downloads. Better than wedging the photo.
+    try {
       await _db.into(_db.mediaCache).insertOnConflictUpdate(
             MediaCacheCompanion.insert(
               storagePath: storagePath,
               bytes: bytes,
               contentType: Value(_guessContentType(storagePath)),
+              etag: Value(etag),
               cachedAt: Value(DateTime.now()),
             ),
           );
-      return bytes;
     } on Object catch (e) {
-      debugPrint('Media download failed for $storagePath: $e');
-      return null;
+      debugPrint('Media cache write failed for $storagePath: $e');
     }
+    return bytes;
   }
 
   /// Best-guess MIME from the storage_path extension. Used purely
@@ -583,10 +651,10 @@ class MediaService {
   /// Inflight de-duplication map. Keyed by storage_path.
   final Map<String, Future<Uint8List?>> _inFlightBytes = {};
 
-  /// Drop the cached bytes for [storagePath] — used after the
-  /// teacher uploads a new photo for the same row id (the bucket
-  /// key is the same, but the bytes are new). Caller is the
-  /// upload pipeline, not UI.
+  /// Drop the cached bytes for [storagePath] — used by callers
+  /// that know the cache is stale outside the etag pipeline. Most
+  /// invalidation should happen automatically through etag
+  /// mismatch, so this is rarely needed; kept for completeness.
   Future<void> evictCachedBytes(String storagePath) async {
     await (_db.delete(_db.mediaCache)
           ..where((c) => c.storagePath.equals(storagePath)))

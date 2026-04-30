@@ -323,6 +323,7 @@ class _AdultRow extends StatelessWidget {
                     SmallAvatar(
                       path: adult.avatarPath,
                       storagePath: adult.avatarStoragePath,
+                      etag: adult.avatarEtag,
                       fallbackInitial: adult.name.isNotEmpty
                           ? adult.name.characters.first.toUpperCase()
                           : '?',

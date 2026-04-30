@@ -73,7 +73,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 50;
+  int get schemaVersion => 51;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -99,6 +99,8 @@ class AppDatabase extends _$AppDatabase {
           await _healRoleBlockTables();
           await _healScheduleTemplateColumns();
           await _healDirtyFieldsColumns();
+          await _healMediaCacheTable();
+          await _healAvatarEtagColumns();
         },
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
@@ -116,6 +118,31 @@ class AppDatabase extends _$AppDatabase {
               'fresh at schema 25. This only affects devs who have '
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
+            );
+          }
+          if (from < 51) {
+            // v51: per-upload content tag for avatars. The bucket
+            // key is stable per row id, so without an etag a
+            // re-uploaded photo is invisible to other devices'
+            // caches — they'd serve stale bytes forever. Adding
+            // a nullable column is additive; existing rows have
+            // null etag and the resolver treats null-vs-null as
+            // a match, so legacy avatars stay valid until the
+            // owner re-picks (at which point the etag pops in
+            // and invalidation kicks in everywhere).
+            //
+            // Three columns total — both entity tables get an
+            // `avatar_etag`, plus `media_cache.etag` so the
+            // cache row remembers which version of bytes it
+            // holds.
+            await _runSilent(
+              'ALTER TABLE "adults" ADD COLUMN "avatar_etag" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "children" ADD COLUMN "avatar_etag" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "media_cache" ADD COLUMN "etag" TEXT NULL',
             );
           }
           if (from < 50) {
@@ -1300,6 +1327,47 @@ class AppDatabase extends _$AppDatabase {
         'ALTER TABLE "$t" ADD COLUMN "dirty_fields" TEXT NULL',
       );
     }
+  }
+
+  /// Re-apply the v50 `media_cache` CREATE TABLE every launch.
+  /// Web IndexedDB has historically been the worst offender for
+  /// half-applied schema upgrades (tab closed mid-migration, app
+  /// killed during launch), and a missing `media_cache` table
+  /// silently breaks every avatar render — `ensureBytes` throws
+  /// on the cache lookup, the FutureProvider emits AsyncError,
+  /// and the widget shows the fallback initial with no diagnostic.
+  /// CREATE TABLE IF NOT EXISTS is a cheap no-op when the table
+  /// already exists, so we run it on every launch like the
+  /// column heals.
+  Future<void> _healMediaCacheTable() async {
+    await _runSilent(
+      'CREATE TABLE IF NOT EXISTS "media_cache" ('
+      ' "storage_path" TEXT NOT NULL PRIMARY KEY, '
+      ' "bytes" BLOB NOT NULL, '
+      ' "content_type" TEXT NULL, '
+      ' "etag" TEXT NULL, '
+      ' "cached_at" INTEGER NOT NULL '
+      "   DEFAULT (strftime('%s', 'now'))"
+      ' )',
+    );
+  }
+
+  /// Re-apply the v51 `avatar_etag` ALTER on the two avatar-bearing
+  /// entity tables + the `etag` column on `media_cache` every
+  /// launch. Same defensive pattern as [_healDirtyFieldsColumns]:
+  /// cheap, no-ops once the columns exist, and rescues users
+  /// whose initial v51 upgrade landed only partially (web
+  /// IndexedDB closed mid-write, app killed during launch).
+  Future<void> _healAvatarEtagColumns() async {
+    await _runSilent(
+      'ALTER TABLE "adults" ADD COLUMN "avatar_etag" TEXT NULL',
+    );
+    await _runSilent(
+      'ALTER TABLE "children" ADD COLUMN "avatar_etag" TEXT NULL',
+    );
+    await _runSilent(
+      'ALTER TABLE "media_cache" ADD COLUMN "etag" TEXT NULL',
+    );
   }
 
   /// Mark [fields] as dirty on the row [id] in [table]. Merges

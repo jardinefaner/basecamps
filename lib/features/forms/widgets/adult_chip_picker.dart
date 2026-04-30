@@ -106,6 +106,7 @@ class _AdultChip extends StatelessWidget {
               child: SmallAvatar(
                 path: adult.avatarPath,
                 storagePath: adult.avatarStoragePath,
+                etag: adult.avatarEtag,
                 fallbackInitial: initial,
                 radius: 24,
                 backgroundColor: theme.colorScheme.secondaryContainer,

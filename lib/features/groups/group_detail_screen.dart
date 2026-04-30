@@ -556,6 +556,7 @@ class _LeadTile extends StatelessWidget {
             SmallAvatar(
               path: adult.avatarPath,
               storagePath: adult.avatarStoragePath,
+              etag: adult.avatarEtag,
               fallbackInitial: adult.name.isNotEmpty
                   ? adult.name.characters.first.toUpperCase()
                   : '?',
@@ -635,6 +636,7 @@ class _LeadPickerSheet extends StatelessWidget {
                       leading: SmallAvatar(
                         path: s.avatarPath,
                         storagePath: s.avatarStoragePath,
+                        etag: s.avatarEtag,
                         fallbackInitial: s.name.isNotEmpty
                             ? s.name.characters.first.toUpperCase()
                             : '?',
@@ -770,6 +772,7 @@ class _KidTile extends StatelessWidget {
             SmallAvatar(
               path: kid.avatarPath,
               storagePath: kid.avatarStoragePath,
+              etag: kid.avatarEtag,
               fallbackInitial: kid.firstName.isNotEmpty
                   ? kid.firstName.characters.first.toUpperCase()
                   : '?',
@@ -997,6 +1000,7 @@ class _VisitorRow extends ConsumerWidget {
             SmallAvatar(
               path: s.avatarPath,
               storagePath: s.avatarStoragePath,
+              etag: s.avatarEtag,
               fallbackInitial: s.name.isNotEmpty
                   ? s.name.characters.first.toUpperCase()
                   : '?',

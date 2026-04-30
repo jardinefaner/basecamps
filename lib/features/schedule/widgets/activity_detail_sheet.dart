@@ -936,6 +936,7 @@ class _RosterTile extends ConsumerWidget {
             // when the device hasn't captured the photo locally.
             path: child.avatarPath,
             storagePath: child.avatarStoragePath,
+            etag: child.avatarEtag,
             fallbackInitial: initial,
             radius: 16,
           ),

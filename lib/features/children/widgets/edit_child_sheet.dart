@@ -209,6 +209,8 @@ class _EditChildSheetState extends ConsumerState<EditChildSheet> {
                   _avatarCleared ? null : widget.child?.avatarPath,
               currentStoragePath:
                   _avatarCleared ? null : widget.child?.avatarStoragePath,
+              currentEtag:
+                  _avatarCleared ? null : widget.child?.avatarEtag,
               pendingFile: _pendingAvatar,
               fallbackInitial: fallbackInitial,
               onChanged: (file) => setState(() {

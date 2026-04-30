@@ -295,6 +295,7 @@ class _Header extends ConsumerWidget {
             SmallAvatar(
               path: adult.avatarPath,
               storagePath: adult.avatarStoragePath,
+              etag: adult.avatarEtag,
               fallbackInitial: initial,
               radius: 32,
               backgroundColor: theme.colorScheme.secondaryContainer,

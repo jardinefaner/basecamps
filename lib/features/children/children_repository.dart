@@ -210,6 +210,15 @@ class ChildrenRepository {
           : (avatarFile == null
               ? const Value.absent()
               : Value(!kIsWeb ? avatarFile.path : null)),
+      // Clear-avatar nukes the cross-device handle too — without
+      // these, removing a photo only hid it on the local device
+      // and other devices kept rendering the cloud bytes.
+      avatarStoragePath: clearAvatarPath
+          ? const Value<String?>(null)
+          : const Value.absent(),
+      avatarEtag: clearAvatarPath
+          ? const Value<String?>(null)
+          : const Value.absent(),
       parentName: clearParentName
           ? const Value<String?>(null)
           : (parentName == null
@@ -230,13 +239,16 @@ class ChildrenRepository {
     await (_db.update(_db.children)..where((k) => k.id.equals(id))).write(companion);
     // `avatar_path` deliberately omitted from dirty fields — it's
     // local-only (T1.1) and the sync engine filters it out on push.
-    // The cross-device avatar handle is `avatar_storage_path`,
-    // stamped + dirty-marked by the upload below.
+    // `avatar_storage_path` + `avatar_etag` are dirty only on a
+    // clear-avatar — fresh-upload paths route through MediaService
+    // which marks them itself.
     await _db.markDirty('children', id, [
       if (firstName != null) 'first_name',
       if (clearLastName || lastName != null) 'last_name',
       if (clearGroupId || groupId != null) 'group_id',
       if (clearNotes || notes != null) 'notes',
+      if (clearAvatarPath) 'avatar_storage_path',
+      if (clearAvatarPath) 'avatar_etag',
       if (clearParentName || parentName != null) 'parent_name',
       if (clearExpectedArrival || expectedArrival != null)
         'expected_arrival',

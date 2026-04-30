@@ -316,6 +316,8 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
               currentStoragePath: _avatarCleared
                   ? null
                   : widget.adult?.avatarStoragePath,
+              currentEtag:
+                  _avatarCleared ? null : widget.adult?.avatarEtag,
               pendingFile: _pendingAvatar,
               fallbackInitial: _nameController.text.trim().isNotEmpty
                   ? _nameController.text.trim().characters.first.toUpperCase()

@@ -29,6 +29,7 @@ class ChildTile extends StatelessWidget {
           SmallAvatar(
             path: child.avatarPath,
             storagePath: child.avatarStoragePath,
+            etag: child.avatarEtag,
             fallbackInitial: initial,
           ),
           const SizedBox(width: AppSpacing.md),

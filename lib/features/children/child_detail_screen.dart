@@ -95,6 +95,7 @@ class ChildDetailScreen extends ConsumerWidget {
                   SmallAvatar(
                     path: child.avatarPath,
                     storagePath: child.avatarStoragePath,
+                    etag: child.avatarEtag,
                     fallbackInitial: initial,
                     radius: 32,
                   ),

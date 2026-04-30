@@ -526,6 +526,17 @@ class $ChildrenTable extends Children with TableInfo<$ChildrenTable, Child> {
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _avatarEtagMeta = const VerificationMeta(
+    'avatarEtag',
+  );
+  @override
+  late final GeneratedColumn<String> avatarEtag = GeneratedColumn<String>(
+    'avatar_etag',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _expectedArrivalMeta = const VerificationMeta(
     'expectedArrival',
   );
@@ -595,6 +606,7 @@ class $ChildrenTable extends Children with TableInfo<$ChildrenTable, Child> {
     parentName,
     avatarPath,
     avatarStoragePath,
+    avatarEtag,
     expectedArrival,
     expectedPickup,
     programId,
@@ -675,6 +687,12 @@ class $ChildrenTable extends Children with TableInfo<$ChildrenTable, Child> {
           data['avatar_storage_path']!,
           _avatarStoragePathMeta,
         ),
+      );
+    }
+    if (data.containsKey('avatar_etag')) {
+      context.handle(
+        _avatarEtagMeta,
+        avatarEtag.isAcceptableOrUnknown(data['avatar_etag']!, _avatarEtagMeta),
       );
     }
     if (data.containsKey('expected_arrival')) {
@@ -762,6 +780,10 @@ class $ChildrenTable extends Children with TableInfo<$ChildrenTable, Child> {
         DriftSqlType.string,
         data['${effectivePrefix}avatar_storage_path'],
       ),
+      avatarEtag: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}avatar_etag'],
+      ),
       expectedArrival: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}expected_arrival'],
@@ -807,6 +829,17 @@ class Child extends DataClass implements Insertable<Child> {
   /// uploaded to cloud. Other devices use this to lazy-download
   /// the avatar when the child first appears in their UI.
   final String? avatarStoragePath;
+
+  /// v51: per-upload content tag. The bucket key
+  /// (`avatarStoragePath`) is stable per row id, so re-picking a
+  /// photo overwrites bytes at the same key — invisible to other
+  /// devices' caches without a signal. Each upload stamps a fresh
+  /// random etag; the avatar resolver uses
+  /// `(storage_path, etag)` as its cache key, so any change here
+  /// flows through realtime and forces a re-fetch on every other
+  /// device. Null on rows uploaded before v51 — the resolver
+  /// treats null-etag-vs-null-etag as a match (backwards-compat).
+  final String? avatarEtag;
   final String? expectedArrival;
   final String? expectedPickup;
 
@@ -826,6 +859,7 @@ class Child extends DataClass implements Insertable<Child> {
     this.parentName,
     this.avatarPath,
     this.avatarStoragePath,
+    this.avatarEtag,
     this.expectedArrival,
     this.expectedPickup,
     this.programId,
@@ -860,6 +894,9 @@ class Child extends DataClass implements Insertable<Child> {
     }
     if (!nullToAbsent || avatarStoragePath != null) {
       map['avatar_storage_path'] = Variable<String>(avatarStoragePath);
+    }
+    if (!nullToAbsent || avatarEtag != null) {
+      map['avatar_etag'] = Variable<String>(avatarEtag);
     }
     if (!nullToAbsent || expectedArrival != null) {
       map['expected_arrival'] = Variable<String>(expectedArrival);
@@ -901,6 +938,9 @@ class Child extends DataClass implements Insertable<Child> {
       avatarStoragePath: avatarStoragePath == null && nullToAbsent
           ? const Value.absent()
           : Value(avatarStoragePath),
+      avatarEtag: avatarEtag == null && nullToAbsent
+          ? const Value.absent()
+          : Value(avatarEtag),
       expectedArrival: expectedArrival == null && nullToAbsent
           ? const Value.absent()
           : Value(expectedArrival),
@@ -933,6 +973,7 @@ class Child extends DataClass implements Insertable<Child> {
       avatarStoragePath: serializer.fromJson<String?>(
         json['avatarStoragePath'],
       ),
+      avatarEtag: serializer.fromJson<String?>(json['avatarEtag']),
       expectedArrival: serializer.fromJson<String?>(json['expectedArrival']),
       expectedPickup: serializer.fromJson<String?>(json['expectedPickup']),
       programId: serializer.fromJson<String?>(json['programId']),
@@ -954,6 +995,7 @@ class Child extends DataClass implements Insertable<Child> {
       'parentName': serializer.toJson<String?>(parentName),
       'avatarPath': serializer.toJson<String?>(avatarPath),
       'avatarStoragePath': serializer.toJson<String?>(avatarStoragePath),
+      'avatarEtag': serializer.toJson<String?>(avatarEtag),
       'expectedArrival': serializer.toJson<String?>(expectedArrival),
       'expectedPickup': serializer.toJson<String?>(expectedPickup),
       'programId': serializer.toJson<String?>(programId),
@@ -973,6 +1015,7 @@ class Child extends DataClass implements Insertable<Child> {
     Value<String?> parentName = const Value.absent(),
     Value<String?> avatarPath = const Value.absent(),
     Value<String?> avatarStoragePath = const Value.absent(),
+    Value<String?> avatarEtag = const Value.absent(),
     Value<String?> expectedArrival = const Value.absent(),
     Value<String?> expectedPickup = const Value.absent(),
     Value<String?> programId = const Value.absent(),
@@ -991,6 +1034,7 @@ class Child extends DataClass implements Insertable<Child> {
     avatarStoragePath: avatarStoragePath.present
         ? avatarStoragePath.value
         : this.avatarStoragePath,
+    avatarEtag: avatarEtag.present ? avatarEtag.value : this.avatarEtag,
     expectedArrival: expectedArrival.present
         ? expectedArrival.value
         : this.expectedArrival,
@@ -1019,6 +1063,9 @@ class Child extends DataClass implements Insertable<Child> {
       avatarStoragePath: data.avatarStoragePath.present
           ? data.avatarStoragePath.value
           : this.avatarStoragePath,
+      avatarEtag: data.avatarEtag.present
+          ? data.avatarEtag.value
+          : this.avatarEtag,
       expectedArrival: data.expectedArrival.present
           ? data.expectedArrival.value
           : this.expectedArrival,
@@ -1044,6 +1091,7 @@ class Child extends DataClass implements Insertable<Child> {
           ..write('parentName: $parentName, ')
           ..write('avatarPath: $avatarPath, ')
           ..write('avatarStoragePath: $avatarStoragePath, ')
+          ..write('avatarEtag: $avatarEtag, ')
           ..write('expectedArrival: $expectedArrival, ')
           ..write('expectedPickup: $expectedPickup, ')
           ..write('programId: $programId, ')
@@ -1065,6 +1113,7 @@ class Child extends DataClass implements Insertable<Child> {
     parentName,
     avatarPath,
     avatarStoragePath,
+    avatarEtag,
     expectedArrival,
     expectedPickup,
     programId,
@@ -1085,6 +1134,7 @@ class Child extends DataClass implements Insertable<Child> {
           other.parentName == this.parentName &&
           other.avatarPath == this.avatarPath &&
           other.avatarStoragePath == this.avatarStoragePath &&
+          other.avatarEtag == this.avatarEtag &&
           other.expectedArrival == this.expectedArrival &&
           other.expectedPickup == this.expectedPickup &&
           other.programId == this.programId &&
@@ -1103,6 +1153,7 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
   final Value<String?> parentName;
   final Value<String?> avatarPath;
   final Value<String?> avatarStoragePath;
+  final Value<String?> avatarEtag;
   final Value<String?> expectedArrival;
   final Value<String?> expectedPickup;
   final Value<String?> programId;
@@ -1120,6 +1171,7 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     this.parentName = const Value.absent(),
     this.avatarPath = const Value.absent(),
     this.avatarStoragePath = const Value.absent(),
+    this.avatarEtag = const Value.absent(),
     this.expectedArrival = const Value.absent(),
     this.expectedPickup = const Value.absent(),
     this.programId = const Value.absent(),
@@ -1138,6 +1190,7 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     this.parentName = const Value.absent(),
     this.avatarPath = const Value.absent(),
     this.avatarStoragePath = const Value.absent(),
+    this.avatarEtag = const Value.absent(),
     this.expectedArrival = const Value.absent(),
     this.expectedPickup = const Value.absent(),
     this.programId = const Value.absent(),
@@ -1157,6 +1210,7 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     Expression<String>? parentName,
     Expression<String>? avatarPath,
     Expression<String>? avatarStoragePath,
+    Expression<String>? avatarEtag,
     Expression<String>? expectedArrival,
     Expression<String>? expectedPickup,
     Expression<String>? programId,
@@ -1175,6 +1229,7 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
       if (parentName != null) 'parent_name': parentName,
       if (avatarPath != null) 'avatar_path': avatarPath,
       if (avatarStoragePath != null) 'avatar_storage_path': avatarStoragePath,
+      if (avatarEtag != null) 'avatar_etag': avatarEtag,
       if (expectedArrival != null) 'expected_arrival': expectedArrival,
       if (expectedPickup != null) 'expected_pickup': expectedPickup,
       if (programId != null) 'program_id': programId,
@@ -1195,6 +1250,7 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     Value<String?>? parentName,
     Value<String?>? avatarPath,
     Value<String?>? avatarStoragePath,
+    Value<String?>? avatarEtag,
     Value<String?>? expectedArrival,
     Value<String?>? expectedPickup,
     Value<String?>? programId,
@@ -1213,6 +1269,7 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
       parentName: parentName ?? this.parentName,
       avatarPath: avatarPath ?? this.avatarPath,
       avatarStoragePath: avatarStoragePath ?? this.avatarStoragePath,
+      avatarEtag: avatarEtag ?? this.avatarEtag,
       expectedArrival: expectedArrival ?? this.expectedArrival,
       expectedPickup: expectedPickup ?? this.expectedPickup,
       programId: programId ?? this.programId,
@@ -1255,6 +1312,9 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
     if (avatarStoragePath.present) {
       map['avatar_storage_path'] = Variable<String>(avatarStoragePath.value);
     }
+    if (avatarEtag.present) {
+      map['avatar_etag'] = Variable<String>(avatarEtag.value);
+    }
     if (expectedArrival.present) {
       map['expected_arrival'] = Variable<String>(expectedArrival.value);
     }
@@ -1289,6 +1349,7 @@ class ChildrenCompanion extends UpdateCompanion<Child> {
           ..write('parentName: $parentName, ')
           ..write('avatarPath: $avatarPath, ')
           ..write('avatarStoragePath: $avatarStoragePath, ')
+          ..write('avatarEtag: $avatarEtag, ')
           ..write('expectedArrival: $expectedArrival, ')
           ..write('expectedPickup: $expectedPickup, ')
           ..write('programId: $programId, ')
@@ -6560,6 +6621,17 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _avatarEtagMeta = const VerificationMeta(
+    'avatarEtag',
+  );
+  @override
+  late final GeneratedColumn<String> avatarEtag = GeneratedColumn<String>(
+    'avatar_etag',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _phoneMeta = const VerificationMeta('phone');
   @override
   late final GeneratedColumn<String> phone = GeneratedColumn<String>(
@@ -6662,6 +6734,7 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
     notes,
     avatarPath,
     avatarStoragePath,
+    avatarEtag,
     phone,
     email,
     parentId,
@@ -6727,6 +6800,12 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
           data['avatar_storage_path']!,
           _avatarStoragePathMeta,
         ),
+      );
+    }
+    if (data.containsKey('avatar_etag')) {
+      context.handle(
+        _avatarEtagMeta,
+        avatarEtag.isAcceptableOrUnknown(data['avatar_etag']!, _avatarEtagMeta),
       );
     }
     if (data.containsKey('phone')) {
@@ -6817,6 +6896,10 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
         DriftSqlType.string,
         data['${effectivePrefix}avatar_storage_path'],
       ),
+      avatarEtag: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}avatar_etag'],
+      ),
       phone: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}phone'],
@@ -6874,6 +6957,10 @@ class Adult extends DataClass implements Insertable<Adult> {
   /// bucket. See Children.avatarStoragePath for the same role.
   final String? avatarStoragePath;
 
+  /// v51: per-upload content tag. See Children.avatarEtag for the
+  /// rationale — same fix for the same staleness gap.
+  final String? avatarEtag;
+
   /// v40: direct contact columns on the adult row itself. Both
   /// nullable — programs that don't capture staff phone/email yet
   /// leave them blank. Validation is lenient (match Parents' shape),
@@ -6910,6 +6997,7 @@ class Adult extends DataClass implements Insertable<Adult> {
     this.notes,
     this.avatarPath,
     this.avatarStoragePath,
+    this.avatarEtag,
     this.phone,
     this.email,
     this.parentId,
@@ -6938,6 +7026,9 @@ class Adult extends DataClass implements Insertable<Adult> {
     }
     if (!nullToAbsent || avatarStoragePath != null) {
       map['avatar_storage_path'] = Variable<String>(avatarStoragePath);
+    }
+    if (!nullToAbsent || avatarEtag != null) {
+      map['avatar_etag'] = Variable<String>(avatarEtag);
     }
     if (!nullToAbsent || phone != null) {
       map['phone'] = Variable<String>(phone);
@@ -6977,6 +7068,9 @@ class Adult extends DataClass implements Insertable<Adult> {
       avatarStoragePath: avatarStoragePath == null && nullToAbsent
           ? const Value.absent()
           : Value(avatarStoragePath),
+      avatarEtag: avatarEtag == null && nullToAbsent
+          ? const Value.absent()
+          : Value(avatarEtag),
       phone: phone == null && nullToAbsent
           ? const Value.absent()
           : Value(phone),
@@ -7013,6 +7107,7 @@ class Adult extends DataClass implements Insertable<Adult> {
       avatarStoragePath: serializer.fromJson<String?>(
         json['avatarStoragePath'],
       ),
+      avatarEtag: serializer.fromJson<String?>(json['avatarEtag']),
       phone: serializer.fromJson<String?>(json['phone']),
       email: serializer.fromJson<String?>(json['email']),
       parentId: serializer.fromJson<String?>(json['parentId']),
@@ -7034,6 +7129,7 @@ class Adult extends DataClass implements Insertable<Adult> {
       'notes': serializer.toJson<String?>(notes),
       'avatarPath': serializer.toJson<String?>(avatarPath),
       'avatarStoragePath': serializer.toJson<String?>(avatarStoragePath),
+      'avatarEtag': serializer.toJson<String?>(avatarEtag),
       'phone': serializer.toJson<String?>(phone),
       'email': serializer.toJson<String?>(email),
       'parentId': serializer.toJson<String?>(parentId),
@@ -7053,6 +7149,7 @@ class Adult extends DataClass implements Insertable<Adult> {
     Value<String?> notes = const Value.absent(),
     Value<String?> avatarPath = const Value.absent(),
     Value<String?> avatarStoragePath = const Value.absent(),
+    Value<String?> avatarEtag = const Value.absent(),
     Value<String?> phone = const Value.absent(),
     Value<String?> email = const Value.absent(),
     Value<String?> parentId = const Value.absent(),
@@ -7071,6 +7168,7 @@ class Adult extends DataClass implements Insertable<Adult> {
     avatarStoragePath: avatarStoragePath.present
         ? avatarStoragePath.value
         : this.avatarStoragePath,
+    avatarEtag: avatarEtag.present ? avatarEtag.value : this.avatarEtag,
     phone: phone.present ? phone.value : this.phone,
     email: email.present ? email.value : this.email,
     parentId: parentId.present ? parentId.value : this.parentId,
@@ -7095,6 +7193,9 @@ class Adult extends DataClass implements Insertable<Adult> {
       avatarStoragePath: data.avatarStoragePath.present
           ? data.avatarStoragePath.value
           : this.avatarStoragePath,
+      avatarEtag: data.avatarEtag.present
+          ? data.avatarEtag.value
+          : this.avatarEtag,
       phone: data.phone.present ? data.phone.value : this.phone,
       email: data.email.present ? data.email.value : this.email,
       parentId: data.parentId.present ? data.parentId.value : this.parentId,
@@ -7118,6 +7219,7 @@ class Adult extends DataClass implements Insertable<Adult> {
           ..write('notes: $notes, ')
           ..write('avatarPath: $avatarPath, ')
           ..write('avatarStoragePath: $avatarStoragePath, ')
+          ..write('avatarEtag: $avatarEtag, ')
           ..write('phone: $phone, ')
           ..write('email: $email, ')
           ..write('parentId: $parentId, ')
@@ -7139,6 +7241,7 @@ class Adult extends DataClass implements Insertable<Adult> {
     notes,
     avatarPath,
     avatarStoragePath,
+    avatarEtag,
     phone,
     email,
     parentId,
@@ -7159,6 +7262,7 @@ class Adult extends DataClass implements Insertable<Adult> {
           other.notes == this.notes &&
           other.avatarPath == this.avatarPath &&
           other.avatarStoragePath == this.avatarStoragePath &&
+          other.avatarEtag == this.avatarEtag &&
           other.phone == this.phone &&
           other.email == this.email &&
           other.parentId == this.parentId &&
@@ -7177,6 +7281,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
   final Value<String?> notes;
   final Value<String?> avatarPath;
   final Value<String?> avatarStoragePath;
+  final Value<String?> avatarEtag;
   final Value<String?> phone;
   final Value<String?> email;
   final Value<String?> parentId;
@@ -7194,6 +7299,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     this.notes = const Value.absent(),
     this.avatarPath = const Value.absent(),
     this.avatarStoragePath = const Value.absent(),
+    this.avatarEtag = const Value.absent(),
     this.phone = const Value.absent(),
     this.email = const Value.absent(),
     this.parentId = const Value.absent(),
@@ -7212,6 +7318,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     this.notes = const Value.absent(),
     this.avatarPath = const Value.absent(),
     this.avatarStoragePath = const Value.absent(),
+    this.avatarEtag = const Value.absent(),
     this.phone = const Value.absent(),
     this.email = const Value.absent(),
     this.parentId = const Value.absent(),
@@ -7231,6 +7338,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     Expression<String>? notes,
     Expression<String>? avatarPath,
     Expression<String>? avatarStoragePath,
+    Expression<String>? avatarEtag,
     Expression<String>? phone,
     Expression<String>? email,
     Expression<String>? parentId,
@@ -7249,6 +7357,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
       if (notes != null) 'notes': notes,
       if (avatarPath != null) 'avatar_path': avatarPath,
       if (avatarStoragePath != null) 'avatar_storage_path': avatarStoragePath,
+      if (avatarEtag != null) 'avatar_etag': avatarEtag,
       if (phone != null) 'phone': phone,
       if (email != null) 'email': email,
       if (parentId != null) 'parent_id': parentId,
@@ -7269,6 +7378,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     Value<String?>? notes,
     Value<String?>? avatarPath,
     Value<String?>? avatarStoragePath,
+    Value<String?>? avatarEtag,
     Value<String?>? phone,
     Value<String?>? email,
     Value<String?>? parentId,
@@ -7287,6 +7397,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
       notes: notes ?? this.notes,
       avatarPath: avatarPath ?? this.avatarPath,
       avatarStoragePath: avatarStoragePath ?? this.avatarStoragePath,
+      avatarEtag: avatarEtag ?? this.avatarEtag,
       phone: phone ?? this.phone,
       email: email ?? this.email,
       parentId: parentId ?? this.parentId,
@@ -7322,6 +7433,9 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     }
     if (avatarStoragePath.present) {
       map['avatar_storage_path'] = Variable<String>(avatarStoragePath.value);
+    }
+    if (avatarEtag.present) {
+      map['avatar_etag'] = Variable<String>(avatarEtag.value);
     }
     if (phone.present) {
       map['phone'] = Variable<String>(phone.value);
@@ -7363,6 +7477,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
           ..write('notes: $notes, ')
           ..write('avatarPath: $avatarPath, ')
           ..write('avatarStoragePath: $avatarStoragePath, ')
+          ..write('avatarEtag: $avatarEtag, ')
           ..write('phone: $phone, ')
           ..write('email: $email, ')
           ..write('parentId: $parentId, ')
@@ -20627,6 +20742,15 @@ class $MediaCacheTable extends MediaCache
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _etagMeta = const VerificationMeta('etag');
+  @override
+  late final GeneratedColumn<String> etag = GeneratedColumn<String>(
+    'etag',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _cachedAtMeta = const VerificationMeta(
     'cachedAt',
   );
@@ -20644,6 +20768,7 @@ class $MediaCacheTable extends MediaCache
     storagePath,
     bytes,
     contentType,
+    etag,
     cachedAt,
   ];
   @override
@@ -20686,6 +20811,12 @@ class $MediaCacheTable extends MediaCache
         ),
       );
     }
+    if (data.containsKey('etag')) {
+      context.handle(
+        _etagMeta,
+        etag.isAcceptableOrUnknown(data['etag']!, _etagMeta),
+      );
+    }
     if (data.containsKey('cached_at')) {
       context.handle(
         _cachedAtMeta,
@@ -20712,6 +20843,10 @@ class $MediaCacheTable extends MediaCache
       contentType: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}content_type'],
+      ),
+      etag: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}etag'],
       ),
       cachedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -20743,6 +20878,15 @@ class MediaCacheData extends DataClass implements Insertable<MediaCacheData> {
   /// the type written down helps debugging.
   final String? contentType;
 
+  /// v51: which content version these bytes are. Mirrors the
+  /// owning row's `avatar_etag` (or other etag-bearing column).
+  /// Reads compare the cache row's etag against the requested
+  /// etag — any mismatch evicts and re-fetches. Null is treated
+  /// as a wildcard match for backwards compatibility with rows
+  /// that don't carry an etag yet (legacy or non-versioned media
+  /// like observation attachments).
+  final String? etag;
+
   /// Stamped on every successful fetch / refresh. Used to drive
   /// future TTL-based expiration if a photo is updated cloud-side
   /// (today the row's `avatar_storage_path` includes a stable id;
@@ -20752,6 +20896,7 @@ class MediaCacheData extends DataClass implements Insertable<MediaCacheData> {
     required this.storagePath,
     required this.bytes,
     this.contentType,
+    this.etag,
     required this.cachedAt,
   });
   @override
@@ -20761,6 +20906,9 @@ class MediaCacheData extends DataClass implements Insertable<MediaCacheData> {
     map['bytes'] = Variable<Uint8List>(bytes);
     if (!nullToAbsent || contentType != null) {
       map['content_type'] = Variable<String>(contentType);
+    }
+    if (!nullToAbsent || etag != null) {
+      map['etag'] = Variable<String>(etag);
     }
     map['cached_at'] = Variable<DateTime>(cachedAt);
     return map;
@@ -20773,6 +20921,7 @@ class MediaCacheData extends DataClass implements Insertable<MediaCacheData> {
       contentType: contentType == null && nullToAbsent
           ? const Value.absent()
           : Value(contentType),
+      etag: etag == null && nullToAbsent ? const Value.absent() : Value(etag),
       cachedAt: Value(cachedAt),
     );
   }
@@ -20786,6 +20935,7 @@ class MediaCacheData extends DataClass implements Insertable<MediaCacheData> {
       storagePath: serializer.fromJson<String>(json['storagePath']),
       bytes: serializer.fromJson<Uint8List>(json['bytes']),
       contentType: serializer.fromJson<String?>(json['contentType']),
+      etag: serializer.fromJson<String?>(json['etag']),
       cachedAt: serializer.fromJson<DateTime>(json['cachedAt']),
     );
   }
@@ -20796,6 +20946,7 @@ class MediaCacheData extends DataClass implements Insertable<MediaCacheData> {
       'storagePath': serializer.toJson<String>(storagePath),
       'bytes': serializer.toJson<Uint8List>(bytes),
       'contentType': serializer.toJson<String?>(contentType),
+      'etag': serializer.toJson<String?>(etag),
       'cachedAt': serializer.toJson<DateTime>(cachedAt),
     };
   }
@@ -20804,11 +20955,13 @@ class MediaCacheData extends DataClass implements Insertable<MediaCacheData> {
     String? storagePath,
     Uint8List? bytes,
     Value<String?> contentType = const Value.absent(),
+    Value<String?> etag = const Value.absent(),
     DateTime? cachedAt,
   }) => MediaCacheData(
     storagePath: storagePath ?? this.storagePath,
     bytes: bytes ?? this.bytes,
     contentType: contentType.present ? contentType.value : this.contentType,
+    etag: etag.present ? etag.value : this.etag,
     cachedAt: cachedAt ?? this.cachedAt,
   );
   MediaCacheData copyWithCompanion(MediaCacheCompanion data) {
@@ -20820,6 +20973,7 @@ class MediaCacheData extends DataClass implements Insertable<MediaCacheData> {
       contentType: data.contentType.present
           ? data.contentType.value
           : this.contentType,
+      etag: data.etag.present ? data.etag.value : this.etag,
       cachedAt: data.cachedAt.present ? data.cachedAt.value : this.cachedAt,
     );
   }
@@ -20830,6 +20984,7 @@ class MediaCacheData extends DataClass implements Insertable<MediaCacheData> {
           ..write('storagePath: $storagePath, ')
           ..write('bytes: $bytes, ')
           ..write('contentType: $contentType, ')
+          ..write('etag: $etag, ')
           ..write('cachedAt: $cachedAt')
           ..write(')'))
         .toString();
@@ -20840,6 +20995,7 @@ class MediaCacheData extends DataClass implements Insertable<MediaCacheData> {
     storagePath,
     $driftBlobEquality.hash(bytes),
     contentType,
+    etag,
     cachedAt,
   );
   @override
@@ -20849,6 +21005,7 @@ class MediaCacheData extends DataClass implements Insertable<MediaCacheData> {
           other.storagePath == this.storagePath &&
           $driftBlobEquality.equals(other.bytes, this.bytes) &&
           other.contentType == this.contentType &&
+          other.etag == this.etag &&
           other.cachedAt == this.cachedAt);
 }
 
@@ -20856,12 +21013,14 @@ class MediaCacheCompanion extends UpdateCompanion<MediaCacheData> {
   final Value<String> storagePath;
   final Value<Uint8List> bytes;
   final Value<String?> contentType;
+  final Value<String?> etag;
   final Value<DateTime> cachedAt;
   final Value<int> rowid;
   const MediaCacheCompanion({
     this.storagePath = const Value.absent(),
     this.bytes = const Value.absent(),
     this.contentType = const Value.absent(),
+    this.etag = const Value.absent(),
     this.cachedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -20869,6 +21028,7 @@ class MediaCacheCompanion extends UpdateCompanion<MediaCacheData> {
     required String storagePath,
     required Uint8List bytes,
     this.contentType = const Value.absent(),
+    this.etag = const Value.absent(),
     this.cachedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : storagePath = Value(storagePath),
@@ -20877,6 +21037,7 @@ class MediaCacheCompanion extends UpdateCompanion<MediaCacheData> {
     Expression<String>? storagePath,
     Expression<Uint8List>? bytes,
     Expression<String>? contentType,
+    Expression<String>? etag,
     Expression<DateTime>? cachedAt,
     Expression<int>? rowid,
   }) {
@@ -20884,6 +21045,7 @@ class MediaCacheCompanion extends UpdateCompanion<MediaCacheData> {
       if (storagePath != null) 'storage_path': storagePath,
       if (bytes != null) 'bytes': bytes,
       if (contentType != null) 'content_type': contentType,
+      if (etag != null) 'etag': etag,
       if (cachedAt != null) 'cached_at': cachedAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -20893,6 +21055,7 @@ class MediaCacheCompanion extends UpdateCompanion<MediaCacheData> {
     Value<String>? storagePath,
     Value<Uint8List>? bytes,
     Value<String?>? contentType,
+    Value<String?>? etag,
     Value<DateTime>? cachedAt,
     Value<int>? rowid,
   }) {
@@ -20900,6 +21063,7 @@ class MediaCacheCompanion extends UpdateCompanion<MediaCacheData> {
       storagePath: storagePath ?? this.storagePath,
       bytes: bytes ?? this.bytes,
       contentType: contentType ?? this.contentType,
+      etag: etag ?? this.etag,
       cachedAt: cachedAt ?? this.cachedAt,
       rowid: rowid ?? this.rowid,
     );
@@ -20917,6 +21081,9 @@ class MediaCacheCompanion extends UpdateCompanion<MediaCacheData> {
     if (contentType.present) {
       map['content_type'] = Variable<String>(contentType.value);
     }
+    if (etag.present) {
+      map['etag'] = Variable<String>(etag.value);
+    }
     if (cachedAt.present) {
       map['cached_at'] = Variable<DateTime>(cachedAt.value);
     }
@@ -20932,6 +21099,7 @@ class MediaCacheCompanion extends UpdateCompanion<MediaCacheData> {
           ..write('storagePath: $storagePath, ')
           ..write('bytes: $bytes, ')
           ..write('contentType: $contentType, ')
+          ..write('etag: $etag, ')
           ..write('cachedAt: $cachedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -22913,6 +23081,7 @@ typedef $$ChildrenTableCreateCompanionBuilder =
       Value<String?> parentName,
       Value<String?> avatarPath,
       Value<String?> avatarStoragePath,
+      Value<String?> avatarEtag,
       Value<String?> expectedArrival,
       Value<String?> expectedPickup,
       Value<String?> programId,
@@ -22932,6 +23101,7 @@ typedef $$ChildrenTableUpdateCompanionBuilder =
       Value<String?> parentName,
       Value<String?> avatarPath,
       Value<String?> avatarStoragePath,
+      Value<String?> avatarEtag,
       Value<String?> expectedArrival,
       Value<String?> expectedPickup,
       Value<String?> programId,
@@ -23163,6 +23333,11 @@ class $$ChildrenTableFilterComposer
 
   ColumnFilters<String> get avatarStoragePath => $composableBuilder(
     column: $table.avatarStoragePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get avatarEtag => $composableBuilder(
+    column: $table.avatarEtag,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -23445,6 +23620,11 @@ class $$ChildrenTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get avatarEtag => $composableBuilder(
+    column: $table.avatarEtag,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get expectedArrival => $composableBuilder(
     column: $table.expectedArrival,
     builder: (column) => ColumnOrderings(column),
@@ -23533,6 +23713,11 @@ class $$ChildrenTableAnnotationComposer
 
   GeneratedColumn<String> get avatarStoragePath => $composableBuilder(
     column: $table.avatarStoragePath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get avatarEtag => $composableBuilder(
+    column: $table.avatarEtag,
     builder: (column) => column,
   );
 
@@ -23803,6 +23988,7 @@ class $$ChildrenTableTableManager
                 Value<String?> parentName = const Value.absent(),
                 Value<String?> avatarPath = const Value.absent(),
                 Value<String?> avatarStoragePath = const Value.absent(),
+                Value<String?> avatarEtag = const Value.absent(),
                 Value<String?> expectedArrival = const Value.absent(),
                 Value<String?> expectedPickup = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
@@ -23820,6 +24006,7 @@ class $$ChildrenTableTableManager
                 parentName: parentName,
                 avatarPath: avatarPath,
                 avatarStoragePath: avatarStoragePath,
+                avatarEtag: avatarEtag,
                 expectedArrival: expectedArrival,
                 expectedPickup: expectedPickup,
                 programId: programId,
@@ -23839,6 +24026,7 @@ class $$ChildrenTableTableManager
                 Value<String?> parentName = const Value.absent(),
                 Value<String?> avatarPath = const Value.absent(),
                 Value<String?> avatarStoragePath = const Value.absent(),
+                Value<String?> avatarEtag = const Value.absent(),
                 Value<String?> expectedArrival = const Value.absent(),
                 Value<String?> expectedPickup = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
@@ -23856,6 +24044,7 @@ class $$ChildrenTableTableManager
                 parentName: parentName,
                 avatarPath: avatarPath,
                 avatarStoragePath: avatarStoragePath,
+                avatarEtag: avatarEtag,
                 expectedArrival: expectedArrival,
                 expectedPickup: expectedPickup,
                 programId: programId,
@@ -29801,6 +29990,7 @@ typedef $$AdultsTableCreateCompanionBuilder =
       Value<String?> notes,
       Value<String?> avatarPath,
       Value<String?> avatarStoragePath,
+      Value<String?> avatarEtag,
       Value<String?> phone,
       Value<String?> email,
       Value<String?> parentId,
@@ -29820,6 +30010,7 @@ typedef $$AdultsTableUpdateCompanionBuilder =
       Value<String?> notes,
       Value<String?> avatarPath,
       Value<String?> avatarStoragePath,
+      Value<String?> avatarEtag,
       Value<String?> phone,
       Value<String?> email,
       Value<String?> parentId,
@@ -30082,6 +30273,11 @@ class $$AdultsTableFilterComposer
 
   ColumnFilters<String> get avatarStoragePath => $composableBuilder(
     column: $table.avatarStoragePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get avatarEtag => $composableBuilder(
+    column: $table.avatarEtag,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -30400,6 +30596,11 @@ class $$AdultsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get avatarEtag => $composableBuilder(
+    column: $table.avatarEtag,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get phone => $composableBuilder(
     column: $table.phone,
     builder: (column) => ColumnOrderings(column),
@@ -30528,6 +30729,11 @@ class $$AdultsTableAnnotationComposer
 
   GeneratedColumn<String> get avatarStoragePath => $composableBuilder(
     column: $table.avatarStoragePath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get avatarEtag => $composableBuilder(
+    column: $table.avatarEtag,
     builder: (column) => column,
   );
 
@@ -30844,6 +31050,7 @@ class $$AdultsTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<String?> avatarPath = const Value.absent(),
                 Value<String?> avatarStoragePath = const Value.absent(),
+                Value<String?> avatarEtag = const Value.absent(),
                 Value<String?> phone = const Value.absent(),
                 Value<String?> email = const Value.absent(),
                 Value<String?> parentId = const Value.absent(),
@@ -30861,6 +31068,7 @@ class $$AdultsTableTableManager
                 notes: notes,
                 avatarPath: avatarPath,
                 avatarStoragePath: avatarStoragePath,
+                avatarEtag: avatarEtag,
                 phone: phone,
                 email: email,
                 parentId: parentId,
@@ -30880,6 +31088,7 @@ class $$AdultsTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<String?> avatarPath = const Value.absent(),
                 Value<String?> avatarStoragePath = const Value.absent(),
+                Value<String?> avatarEtag = const Value.absent(),
                 Value<String?> phone = const Value.absent(),
                 Value<String?> email = const Value.absent(),
                 Value<String?> parentId = const Value.absent(),
@@ -30897,6 +31106,7 @@ class $$AdultsTableTableManager
                 notes: notes,
                 avatarPath: avatarPath,
                 avatarStoragePath: avatarStoragePath,
+                avatarEtag: avatarEtag,
                 phone: phone,
                 email: email,
                 parentId: parentId,
@@ -43013,6 +43223,7 @@ typedef $$MediaCacheTableCreateCompanionBuilder =
       required String storagePath,
       required Uint8List bytes,
       Value<String?> contentType,
+      Value<String?> etag,
       Value<DateTime> cachedAt,
       Value<int> rowid,
     });
@@ -43021,6 +43232,7 @@ typedef $$MediaCacheTableUpdateCompanionBuilder =
       Value<String> storagePath,
       Value<Uint8List> bytes,
       Value<String?> contentType,
+      Value<String?> etag,
       Value<DateTime> cachedAt,
       Value<int> rowid,
     });
@@ -43046,6 +43258,11 @@ class $$MediaCacheTableFilterComposer
 
   ColumnFilters<String> get contentType => $composableBuilder(
     column: $table.contentType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get etag => $composableBuilder(
+    column: $table.etag,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -43079,6 +43296,11 @@ class $$MediaCacheTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get etag => $composableBuilder(
+    column: $table.etag,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get cachedAt => $composableBuilder(
     column: $table.cachedAt,
     builder: (column) => ColumnOrderings(column),
@@ -43106,6 +43328,9 @@ class $$MediaCacheTableAnnotationComposer
     column: $table.contentType,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get etag =>
+      $composableBuilder(column: $table.etag, builder: (column) => column);
 
   GeneratedColumn<DateTime> get cachedAt =>
       $composableBuilder(column: $table.cachedAt, builder: (column) => column);
@@ -43145,12 +43370,14 @@ class $$MediaCacheTableTableManager
                 Value<String> storagePath = const Value.absent(),
                 Value<Uint8List> bytes = const Value.absent(),
                 Value<String?> contentType = const Value.absent(),
+                Value<String?> etag = const Value.absent(),
                 Value<DateTime> cachedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MediaCacheCompanion(
                 storagePath: storagePath,
                 bytes: bytes,
                 contentType: contentType,
+                etag: etag,
                 cachedAt: cachedAt,
                 rowid: rowid,
               ),
@@ -43159,12 +43386,14 @@ class $$MediaCacheTableTableManager
                 required String storagePath,
                 required Uint8List bytes,
                 Value<String?> contentType = const Value.absent(),
+                Value<String?> etag = const Value.absent(),
                 Value<DateTime> cachedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MediaCacheCompanion.insert(
                 storagePath: storagePath,
                 bytes: bytes,
                 contentType: contentType,
+                etag: etag,
                 cachedAt: cachedAt,
                 rowid: rowid,
               ),

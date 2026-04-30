@@ -215,6 +215,7 @@ class _StaffRow extends ConsumerWidget {
                   SmallAvatar(
                     path: adult.avatarPath,
                     storagePath: adult.avatarStoragePath,
+                    etag: adult.avatarEtag,
                     fallbackInitial: initial,
                     radius: 16,
                     backgroundColor: theme.colorScheme.secondaryContainer,

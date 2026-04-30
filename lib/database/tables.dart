@@ -50,6 +50,17 @@ class Children extends Table {
   /// the avatar when the child first appears in their UI.
   TextColumn get avatarStoragePath => text().nullable()();
 
+  /// v51: per-upload content tag. The bucket key
+  /// (`avatarStoragePath`) is stable per row id, so re-picking a
+  /// photo overwrites bytes at the same key — invisible to other
+  /// devices' caches without a signal. Each upload stamps a fresh
+  /// random etag; the avatar resolver uses
+  /// `(storage_path, etag)` as its cache key, so any change here
+  /// flows through realtime and forces a re-fetch on every other
+  /// device. Null on rows uploaded before v51 — the resolver
+  /// treats null-etag-vs-null-etag as a match (backwards-compat).
+  TextColumn get avatarEtag => text().nullable()();
+
   // Standing expected drop-off / pickup time for this child, stored
   // as "HH:mm" strings (matches how schedule times are stored in
   // ScheduleTemplates). Nullable — a child with no expected time
@@ -869,6 +880,10 @@ class Adults extends Table {
   /// bucket. See Children.avatarStoragePath for the same role.
   TextColumn get avatarStoragePath => text().nullable()();
 
+  /// v51: per-upload content tag. See Children.avatarEtag for the
+  /// rationale — same fix for the same staleness gap.
+  TextColumn get avatarEtag => text().nullable()();
+
   /// v40: direct contact columns on the adult row itself. Both
   /// nullable — programs that don't capture staff phone/email yet
   /// leave them blank. Validation is lenient (match Parents' shape),
@@ -1467,6 +1482,15 @@ class MediaCache extends Table {
   /// image codecs sniff the magic bytes themselves — but having
   /// the type written down helps debugging.
   TextColumn get contentType => text().nullable()();
+
+  /// v51: which content version these bytes are. Mirrors the
+  /// owning row's `avatar_etag` (or other etag-bearing column).
+  /// Reads compare the cache row's etag against the requested
+  /// etag — any mismatch evicts and re-fetches. Null is treated
+  /// as a wildcard match for backwards compatibility with rows
+  /// that don't carry an etag yet (legacy or non-versioned media
+  /// like observation attachments).
+  TextColumn get etag => text().nullable()();
 
   /// Stamped on every successful fetch / refresh. Used to drive
   /// future TTL-based expiration if a photo is updated cloud-side

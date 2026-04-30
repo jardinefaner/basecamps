@@ -525,6 +525,7 @@ class _ChildTile extends StatelessWidget {
                   // fallback through avatar_storage_path.
                   path: child.avatarPath,
                   storagePath: child.avatarStoragePath,
+                  etag: child.avatarEtag,
                   fallbackInitial: initial,
                   radius: 16,
                 ),

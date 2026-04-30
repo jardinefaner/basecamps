@@ -225,10 +225,12 @@ class _NewAdultWizardScreenState
         Center(
           child: AvatarPicker(
             // Wizard is create-only — there's no existing
-            // avatar_path / storage_path to render. Picker shows
-            // the pending pick (if any) or the fallback initial.
+            // avatar_path / storage_path / etag to render. Picker
+            // shows the pending pick (if any) or the fallback
+            // initial.
             currentLocalPath: null,
             currentStoragePath: null,
+            currentEtag: null,
             pendingFile: _avatarFile,
             fallbackInitial: initial,
             onChanged: (file) => setState(() => _avatarFile = file),

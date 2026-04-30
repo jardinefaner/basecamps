@@ -130,6 +130,7 @@ class _NewChildWizardScreenState extends ConsumerState<NewChildWizardScreen> {
             // Wizard is create-only — no existing row to render.
             currentLocalPath: null,
             currentStoragePath: null,
+            currentEtag: null,
             pendingFile: _avatarFile,
             fallbackInitial: initial,
             onChanged: (file) => setState(() => _avatarFile = file),

@@ -14,12 +14,21 @@ import 'package:image_picker/image_picker.dart';
 
 /// Identity key for [avatarImageProvider]. Combines an optional
 /// device-local file path (fast native render) with the cross-
-/// device Supabase Storage key. Two AvatarSources with the same
-/// (localPath, storagePath) pair resolve to the same family slot,
-/// so multiple widgets watching the same row share one fetch.
+/// device Supabase Storage key + per-upload content tag. Two
+/// AvatarSources with the same (localPath, storagePath, etag)
+/// triple resolve to the same family slot, so multiple widgets
+/// watching the same row share one fetch.
+///
+/// Why etag: the bucket key is stable per row id, so a re-uploaded
+/// photo lands at the same path. Without etag in the equality, a
+/// row that pulled in a fresh etag from realtime would still hit
+/// the same family slot and serve stale bytes. With etag included,
+/// any change creates a new family entry and forces re-resolution
+/// through the cache (which itself checks etag and re-fetches on
+/// mismatch). End-to-end invalidation in one tuple flip.
 @immutable
 class AvatarSource {
-  const AvatarSource({this.localPath, this.storagePath});
+  const AvatarSource({this.localPath, this.storagePath, this.etag});
 
   /// Filesystem path on the device that captured the photo.
   /// Native-only; on web `XFile.path` is a `blob:` URL useless to
@@ -32,6 +41,13 @@ class AvatarSource {
   /// bytes through it.
   final String? storagePath;
 
+  /// Per-upload content tag (mirrors `adults.avatar_etag` /
+  /// `children.avatar_etag`). Null on legacy rows uploaded before
+  /// v51 — treated as a wildcard match by the cache, so existing
+  /// avatars keep rendering until the next re-pick stamps a real
+  /// etag and turns invalidation on for that row.
+  final String? etag;
+
   bool get isEmpty => (localPath == null || localPath!.isEmpty) &&
       (storagePath == null || storagePath!.isEmpty);
 
@@ -39,10 +55,11 @@ class AvatarSource {
   bool operator ==(Object other) =>
       other is AvatarSource &&
       other.localPath == localPath &&
-      other.storagePath == storagePath;
+      other.storagePath == storagePath &&
+      other.etag == etag;
 
   @override
-  int get hashCode => Object.hash(localPath, storagePath);
+  int get hashCode => Object.hash(localPath, storagePath, etag);
 }
 
 /// Resolves an avatar to a renderable [ImageProvider]. One fetch
@@ -82,11 +99,14 @@ final avatarImageProvider = FutureProvider.autoDispose
     }
   }
 
-  // 2) Cross-device path: drift cache → on miss, Supabase
-  //    download → save to drift → render bytes.
+  // 2) Cross-device path: drift cache → on miss / etag mismatch,
+  //    Supabase download → save to drift with the new etag →
+  //    render bytes.
   final storagePath = source.storagePath;
   if (storagePath == null || storagePath.isEmpty) return null;
-  final bytes = await ref.read(mediaServiceProvider).ensureBytes(storagePath);
+  final bytes = await ref
+      .read(mediaServiceProvider)
+      .ensureBytes(storagePath, etag: source.etag);
   if (bytes == null) return null;
   return MemoryImage(bytes);
 });
@@ -119,6 +139,7 @@ class AvatarPicker extends ConsumerStatefulWidget {
   const AvatarPicker({
     required this.currentLocalPath,
     required this.currentStoragePath,
+    required this.currentEtag,
     required this.pendingFile,
     required this.fallbackInitial,
     required this.onChanged,
@@ -134,6 +155,12 @@ class AvatarPicker extends ConsumerStatefulWidget {
   /// Supabase Storage bucket key. Drives the cross-device cache
   /// fallback when the local file isn't present (web + native).
   final String? currentStoragePath;
+
+  /// Per-upload content tag from the row's `avatar_etag` column.
+  /// When this changes (realtime delivers another device's
+  /// upload), the underlying [avatarImageProvider] family creates
+  /// a new entry and pulls fresh bytes.
+  final String? currentEtag;
 
   /// Freshly-picked file the teacher hasn't saved yet. Takes
   /// precedence over [currentLocalPath] / [currentStoragePath]
@@ -275,6 +302,7 @@ class _AvatarPickerState extends ConsumerState<AvatarPicker> {
     final source = AvatarSource(
       localPath: widget.currentLocalPath,
       storagePath: widget.currentStoragePath,
+      etag: widget.currentEtag,
     );
     if (source.isEmpty) return null;
     final resolved =
@@ -363,6 +391,7 @@ class SmallAvatar extends ConsumerWidget {
     required this.path,
     required this.fallbackInitial,
     this.storagePath,
+    this.etag,
     this.radius = 20,
     this.backgroundColor,
     this.foregroundColor,
@@ -379,6 +408,12 @@ class SmallAvatar extends ConsumerWidget {
   /// cross-device source of truth for the avatar image.
   final String? storagePath;
 
+  /// Per-upload content tag (from the row's `avatar_etag` column).
+  /// Composed into the cache key so realtime-delivered etag
+  /// changes force a fresh fetch instead of serving stale bytes.
+  /// Null on legacy rows pre-v51.
+  final String? etag;
+
   final String fallbackInitial;
   final double radius;
   final Color? backgroundColor;
@@ -391,7 +426,11 @@ class SmallAvatar extends ConsumerWidget {
     final bg = backgroundColor ?? theme.colorScheme.primaryContainer;
     final fg = foregroundColor ?? theme.colorScheme.onPrimaryContainer;
 
-    final source = AvatarSource(localPath: path, storagePath: storagePath);
+    final source = AvatarSource(
+      localPath: path,
+      storagePath: storagePath,
+      etag: etag,
+    );
     final resolved = source.isEmpty
         ? null
         : ref.watch(avatarImageProvider(source)).asData?.value;

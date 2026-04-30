@@ -164,6 +164,17 @@ class AdultsRepository {
             : (avatarFile == null
                 ? const Value.absent()
                 : Value(localAvatarPath)),
+        // Clear-avatar nukes the cross-device handle too. Without
+        // this, other devices kept seeing the photo because their
+        // pulls only saw avatar_path (local-only) change to null —
+        // the cloud row's avatar_storage_path was still set, so
+        // the avatar resolver kept downloading the bytes.
+        avatarStoragePath: clearAvatarPath
+            ? const Value<String?>(null)
+            : const Value.absent(),
+        avatarEtag: clearAvatarPath
+            ? const Value<String?>(null)
+            : const Value.absent(),
         adultRole: adultRole,
         anchoredGroupId: anchoredGroupId,
         phone: phone,
@@ -180,15 +191,16 @@ class AdultsRepository {
     // they're always dirty when the call happens. The Value-wrapped
     // params are dirty only when `.present`.
     //
-    // `avatar_path` deliberately omitted: it's local-only (T1.1),
-    // so the sync engine filters it out of every push; marking it
-    // dirty would have no cloud effect. The cross-device avatar
-    // handle is `avatar_storage_path`, which the media-service
-    // upload below stamps and dirty-marks on its own.
+    // `avatar_path` is local-only and deliberately omitted from
+    // dirty tracking. `avatar_storage_path` + `avatar_etag` are
+    // dirty only on a clear-avatar — fresh-upload paths route
+    // through MediaService which marks them itself.
     final dirty = <String>[
       'name',
       'role',
       'notes',
+      if (clearAvatarPath) 'avatar_storage_path',
+      if (clearAvatarPath) 'avatar_etag',
       if (roleId.present) 'role_id',
       if (adultRole.present) 'adult_role',
       if (anchoredGroupId.present) 'anchored_group_id',
