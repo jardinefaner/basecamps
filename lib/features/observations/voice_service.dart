@@ -195,10 +195,30 @@ class DeepgramVoiceSession {
       },
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw VoiceConfigError(
-        'Deepgram token grant failed (${response.statusCode}): '
-        '${response.body}',
-      );
+      // Try to surface the edge function's `hint` when present —
+      // much friendlier than the full JSON body in a SnackBar.
+      // Falls back to the raw body so we never lose information
+      // when the failure is something the function didn't anticipate.
+      String message;
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          final hint = decoded['hint'] as String?;
+          if (hint != null && hint.isNotEmpty) {
+            message = hint;
+          } else {
+            message = 'Deepgram token grant failed '
+                '(${response.statusCode}): ${response.body}';
+          }
+        } else {
+          message = 'Deepgram token grant failed '
+              '(${response.statusCode}): ${response.body}';
+        }
+      } on FormatException {
+        message = 'Deepgram token grant failed '
+            '(${response.statusCode}): ${response.body}';
+      }
+      throw VoiceConfigError(message);
     }
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     final token = body['access_token'] as String?;

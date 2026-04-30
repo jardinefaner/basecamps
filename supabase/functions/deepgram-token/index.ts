@@ -81,8 +81,29 @@ serve(async (req) => {
 
   if (!upstream.ok) {
     const text = await upstream.text();
+    // 403 "insufficient permissions" almost always means the
+    // configured DEEPGRAM_API_KEY doesn't carry the role required
+    // to mint short-lived JWTs via /v1/auth/grant. Standard
+    // transcription-only keys CAN'T grant child tokens — the key
+    // has to be a Member/Admin/Owner key (or one scoped with
+    // `member:write`). Surface a hint so the next operator doesn't
+    // have to triage from a raw 502.
+    const isPermissionFail =
+      upstream.status === 403 ||
+      (upstream.status === 401 && /permission/i.test(text));
+    const hint = isPermissionFail
+      ? "DEEPGRAM_API_KEY lacks the role to mint short-lived " +
+        "tokens. Rotate the secret to a Member/Admin key from the " +
+        "Deepgram console (Settings → API Keys), then re-run " +
+        "`supabase secrets set DEEPGRAM_API_KEY=<new-key>`."
+      : undefined;
     return json(
-      { error: "deepgram grant failed", status: upstream.status, body: text },
+      {
+        error: "deepgram grant failed",
+        status: upstream.status,
+        body: text,
+        ...(hint ? { hint } : {}),
+      },
       502,
     );
   }
