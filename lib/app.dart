@@ -214,6 +214,12 @@ class _BasecampAppState extends ConsumerState<BasecampApp>
         debugPrint('Periodic pull of ${spec.table} failed: $e');
       }
     }
+    // Drain any rows whose previous push errored — dirty_fields
+    // is the source of truth for "this row has un-pushed local
+    // edits." The sweep is cheap when nothing's pending and
+    // self-heals when something is. Goes after the pulls so the
+    // freshly-merged local state is what gets re-pushed.
+    await engine.drainPendingPushes(kAllSpecs);
   }
 
   /// Force a realtime reconnect. The engine's normal subscribe is

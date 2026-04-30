@@ -193,6 +193,13 @@ class ProgramAuthBootstrap {
               specs: kAllSpecs,
             ),
       );
+      // Drain any rows that had un-pushed local edits when the
+      // app last closed (network blip, app killed during the
+      // 250ms push debounce, etc.). dirty_fields is the source
+      // of truth — this sweep re-fires pushRow for anything
+      // still flagged. Cheap at steady state (zero rows on a
+      // synced device).
+      unawaited(_ref.read(syncEngineProvider).drainPendingPushes(kAllSpecs));
     } on Object catch (e, st) {
       // Bootstrap failure is recoverable — the user's still signed
       // in, just sitting on a no-program state until the next

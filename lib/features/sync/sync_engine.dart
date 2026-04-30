@@ -473,6 +473,52 @@ class SyncEngine {
     }
   }
 
+  /// Sweep every entity table for rows whose `dirty_fields` is
+  /// non-empty and re-fire pushRow for them. The "agent" that
+  /// keeps sync invisible — when an earlier push errored (network
+  /// blip, RLS race, app killed mid-debounce, etc.) the dirty
+  /// flags stay set on local; this sweep picks them up and tries
+  /// again. Called on app foreground, sign-in completion, and
+  /// after the bootstrap pull settles.
+  ///
+  /// Cheap on the steady state (one indexed scan per table; zero
+  /// rows on a synced device). Does not block the caller — each
+  /// pushRow goes through the existing debounced path.
+  Future<int> drainPendingPushes(List<TableSpec> specs) async {
+    final client = _client;
+    if (client == null) return 0;
+    if (client.auth.currentSession == null) return 0;
+    var queued = 0;
+    for (final spec in specs) {
+      try {
+        final dirtyRows = await _db.customSelect(
+          'SELECT "id" FROM "${spec.table}" '
+          'WHERE "dirty_fields" IS NOT NULL '
+          "AND \"dirty_fields\" != '' "
+          "AND \"dirty_fields\" != '[]'",
+        ).get();
+        for (final row in dirtyRows) {
+          final id = row.data['id'];
+          if (id is String) {
+            unawaited(pushRow(spec, id));
+            queued++;
+          }
+        }
+      } on Object catch (e) {
+        // Likely cause: the dirty_fields column doesn't exist
+        // yet on a partial-migration DB. The heal helper adds it
+        // on the next launch; until then, skip this table.
+        debugPrint(
+          'drainPendingPushes skipped ${spec.table}: $e',
+        );
+      }
+    }
+    if (queued > 0) {
+      debugPrint('drainPendingPushes queued $queued row(s).');
+    }
+    return queued;
+  }
+
   /// Soft-delete on cloud. Local row is already hard-deleted by
   /// the repository.
   Future<void> pushDelete({
