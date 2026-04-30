@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:basecamp/core/format/text.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
@@ -11,6 +12,7 @@ import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
 import 'package:basecamp/features/forms/polymorphic/registry.dart';
 import 'package:basecamp/features/launcher/pinned_actions_repository.dart';
 import 'package:basecamp/features/parents/parents_repository.dart';
+import 'package:basecamp/features/people/people_display.dart';
 import 'package:basecamp/features/rooms/rooms_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
@@ -99,7 +101,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
 
     final filteredKids = [
       for (final k in sortedKids)
-        if (_matches(_displayName(k.firstName, k.lastName))) k,
+        if (_matches(k.shortName)) k,
     ];
     final filteredAdults = [
       for (final s in sortedAdults)
@@ -107,7 +109,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
     ];
     final filteredParents = [
       for (final p in sortedParents)
-        if (_matches(_parentDisplayName(p)) ||
+        if (_matches(p.shortName) ||
             _matches(p.relationship ?? ''))
           p,
     ];
@@ -142,19 +144,17 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
         case PinnedKinds.child:
           final k = children.where((x) => x.id == parsed.id).firstOrNull;
           if (k == null ||
-              !_matches(_displayName(k.firstName, k.lastName))) {
+              !_matches(k.shortName)) {
             return null;
           }
           return _PinnableTile(
             pinId: storedId,
             child: _PersonRow(
-              name: _displayName(k.firstName, k.lastName),
+              name: k.shortName,
               avatarPath: k.avatarPath,
               avatarStoragePath: k.avatarStoragePath,
               avatarEtag: k.avatarEtag,
-              fallbackInitial: k.firstName.isEmpty
-                  ? '?'
-                  : k.firstName.characters.first.toUpperCase(),
+              fallbackInitial: k.firstName.initial,
               route: '/children/${k.id}',
             ),
           );
@@ -171,26 +171,22 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
               avatarPath: s.avatarPath,
               avatarStoragePath: s.avatarStoragePath,
               avatarEtag: s.avatarEtag,
-              fallbackInitial: s.name.isEmpty
-                  ? '?'
-                  : s.name.characters.first.toUpperCase(),
+              fallbackInitial: s.name.initial,
               route: '/more/adults/${s.id}',
             ),
           );
         case PinnedKinds.parent:
           final p = parents.where((x) => x.id == parsed.id).firstOrNull;
           if (p == null ||
-              !(_matches(_parentDisplayName(p)) ||
+              !(_matches(p.shortName) ||
                   _matches(p.relationship ?? ''))) {
             return null;
           }
           return _PinnableTile(
             pinId: storedId,
             child: _PersonRow(
-              name: _parentDisplayName(p),
-              fallbackInitial: p.firstName.isEmpty
-                  ? '?'
-                  : p.firstName.characters.first.toUpperCase(),
+              name: p.shortName,
+              fallbackInitial: p.firstName.initial,
               route: '/more/parents/${p.id}',
               // Parents don't carry an avatar path — secondaryContainer
               // fallback keeps them visually distinct from kids/adults.
@@ -357,12 +353,10 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                           _PinnableTile(
                             pinId: pinId(PinnedKinds.child, k.id),
                             child: _PersonRow(
-                              name: _displayName(k.firstName, k.lastName),
+                              name: k.shortName,
                               avatarPath: k.avatarPath,
                               avatarStoragePath: k.avatarStoragePath,
-                              fallbackInitial: k.firstName.isEmpty
-                                  ? '?'
-                                  : k.firstName.characters.first.toUpperCase(),
+                              fallbackInitial: k.firstName.initial,
                               route: '/children/${k.id}',
                             ),
                           ),
@@ -380,9 +374,7 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                               name: s.name,
                               avatarPath: s.avatarPath,
                               avatarStoragePath: s.avatarStoragePath,
-                              fallbackInitial: s.name.isEmpty
-                                  ? '?'
-                                  : s.name.characters.first.toUpperCase(),
+                              fallbackInitial: s.name.initial,
                               route: '/more/adults/${s.id}',
                             ),
                           ),
@@ -397,10 +389,8 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                           _PinnableTile(
                             pinId: pinId(PinnedKinds.parent, p.id),
                             child: _PersonRow(
-                              name: _parentDisplayName(p),
-                              fallbackInitial: p.firstName.isEmpty
-                                  ? '?'
-                                  : p.firstName.characters.first.toUpperCase(),
+                              name: p.shortName,
+                              fallbackInitial: p.firstName.initial,
                               route: '/more/parents/${p.id}',
                               // Parents don't carry an avatar path yet —
                               // leaving it null triggers the initial-on-
@@ -454,16 +444,11 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
   }
 }
 
-String _displayName(String first, String? last) {
-  if (last == null || last.trim().isEmpty) return first;
-  return '$first ${last.trim()[0]}.';
-}
-
-/// Launcher's display name for a parent — firstName + last-initial.
-/// Matches the Child / Adult conventions so the three people lists
-/// read the same at a glance.
-String _parentDisplayName(Parent p) =>
-    _displayName(p.firstName, p.lastName);
+// Display-name composition lives in `lib/features/people/people_display.dart`
+// as Child / Adult / Parent extensions. The local _displayName /
+// _parentDisplayName helpers used to live here with their own
+// "Firstname L." rules and a `last[0]` indexing pattern that
+// crashed on emoji / composed glyphs.
 
 /// Route without closing the drawer. The pushed screen covers Today
 /// (and the drawer visually), but the Scaffold preserves the drawer's
@@ -1059,9 +1044,7 @@ class _AccountFooter extends ConsumerWidget {
     // raw payload). Prefer the explicit one, fall back to the raw.
     final meta = user.userMetadata ?? const <String, dynamic>{};
     final avatarUrl = (meta['avatar_url'] ?? meta['picture']) as String?;
-    final fallbackInitial = email.isEmpty
-        ? '?'
-        : email.characters.first.toUpperCase();
+    final fallbackInitial = email.initial;
 
     return Material(
       color: theme.colorScheme.surfaceContainerLow,

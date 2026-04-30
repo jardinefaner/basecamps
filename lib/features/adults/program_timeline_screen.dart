@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/text.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adult_timeline_repository.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
@@ -324,9 +325,7 @@ class _AdultRow extends StatelessWidget {
                       path: adult.avatarPath,
                       storagePath: adult.avatarStoragePath,
                       etag: adult.avatarEtag,
-                      fallbackInitial: adult.name.isNotEmpty
-                          ? adult.name.characters.first.toUpperCase()
-                          : '?',
+                      fallbackInitial: adult.name.initial,
                       radius: 12,
                     ),
                     const SizedBox(width: AppSpacing.xs),

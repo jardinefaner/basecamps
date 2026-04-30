@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/color.dart';
 import 'package:basecamp/features/curriculum/templates/curriculum_template.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -53,7 +54,7 @@ class _CurriculumTemplatePreviewScreenState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accent = _parseHex(template.themeColorHex) ??
+    final accent = parseHex(template.themeColorHex) ??
         theme.colorScheme.primary;
     final weeks = [...template.weeks]..sort((a, b) => a.week.compareTo(b.week));
     final selected = _selectedWeek.clamp(0, weeks.length - 1);
@@ -221,7 +222,7 @@ class _WeekStrip extends StatelessWidget {
         itemBuilder: (_, i) {
           final isSelected = i == selectedIndex;
           final week = weeks[i];
-          final tint = _parseHex(week.colorHex) ?? accent;
+          final tint = parseHex(week.colorHex) ?? accent;
           return Padding(
             padding: const EdgeInsets.only(right: AppSpacing.xs),
             child: ChoiceChip(
@@ -257,7 +258,7 @@ class _WeekHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tint = _parseHex(week.colorHex) ?? accent;
+    final tint = parseHex(week.colorHex) ?? accent;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -487,16 +488,5 @@ class _EngineNotesCard extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-Color? _parseHex(String? hex) {
-  if (hex == null) return null;
-  try {
-    var clean = hex.replaceFirst('#', '');
-    if (clean.length == 6) clean = 'FF$clean';
-    return Color(int.parse(clean, radix: 16));
-  } on FormatException {
-    return null;
   }
 }

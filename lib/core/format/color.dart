@@ -6,9 +6,12 @@ library;
 
 import 'package:flutter/material.dart';
 
-/// Parse `#RRGGBB` (or `RRGGBB`) into a [Color]. Returns null when
-/// the string is empty, not 6 hex digits, or contains non-hex
-/// characters. Always opaque (alpha forced to FF).
+/// Parse `#RRGGBB` / `#AARRGGBB` (with or without leading `#`)
+/// into a [Color]. Returns null when the string is empty, the
+/// wrong length, or contains non-hex characters.
+///
+/// 6-digit values are treated as opaque (alpha forced to FF).
+/// 8-digit values use the explicit alpha channel.
 ///
 /// Drift stores hex as plain text. Every UI surface that tints
 /// from a row's `colorHex` should pipe through this so a
@@ -19,8 +22,8 @@ Color? parseHex(String? hex) {
   final trimmed = hex.trim();
   if (trimmed.isEmpty) return null;
   final clean = trimmed.startsWith('#') ? trimmed.substring(1) : trimmed;
-  if (clean.length != 6) return null;
+  if (clean.length != 6 && clean.length != 8) return null;
   final n = int.tryParse(clean, radix: 16);
   if (n == null) return null;
-  return Color(0xFF000000 | n);
+  return Color(clean.length == 6 ? 0xFF000000 | n : n);
 }

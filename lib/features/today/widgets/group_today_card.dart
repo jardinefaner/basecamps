@@ -1,3 +1,5 @@
+import 'package:basecamp/core/format/color.dart';
+import 'package:basecamp/core/format/text.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
@@ -243,7 +245,7 @@ class _GroupDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = _parseHex(colorHex) ?? theme.colorScheme.primary;
+    final color = parseHex(colorHex) ?? theme.colorScheme.primary;
     return Container(
       width: 12,
       height: 12,
@@ -254,14 +256,6 @@ class _GroupDot extends StatelessWidget {
     );
   }
 
-  Color? _parseHex(String? hex) {
-    if (hex == null) return null;
-    final h = hex.startsWith('#') ? hex.substring(1) : hex;
-    if (h.length != 6 && h.length != 8) return null;
-    final intVal = int.tryParse(h, radix: 16);
-    if (intVal == null) return null;
-    return Color(h.length == 6 ? 0xFF000000 | intVal : intVal);
-  }
 }
 
 /// Compact "12/14" pill with color based on attendance completeness.
@@ -701,9 +695,7 @@ class _LeadsRow extends StatelessWidget {
                 path: s.avatarPath,
                 storagePath: s.avatarStoragePath,
                 etag: s.avatarEtag,
-                fallbackInitial: s.name.isNotEmpty
-                    ? s.name.characters.first.toUpperCase()
-                    : '?',
+                fallbackInitial: s.name.initial,
                 radius: 14,
                 backgroundColor: theme.colorScheme.secondaryContainer,
                 foregroundColor: theme.colorScheme.onSecondaryContainer,

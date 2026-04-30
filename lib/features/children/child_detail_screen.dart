@@ -80,9 +80,8 @@ class ChildDetailScreen extends ConsumerWidget {
           if (child == null) {
             return const Center(child: Text('Child not found'));
           }
-          final fullName =
-              [child.firstName, child.lastName].whereType<String>().join(' ');
-          final initial = child.firstName.characters.first.toUpperCase();
+          final fullName = child.fullName;
+          final initial = child.displayInitial;
 
           // Header — avatar + name + group label. Becomes the left
           // column on wide; leads the stack otherwise.

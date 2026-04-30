@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:basecamp/core/format/text.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/programs/invite_repository.dart';
+import 'package:basecamp/features/programs/member_role.dart';
 import 'package:basecamp/features/programs/program_bootstrap.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/sync/live_indicator.dart';
@@ -71,9 +73,8 @@ class ProgramDetailScreen extends ConsumerWidget {
                   joinedAt: DateTime.now(),
                 ),
               );
-              final iAmAdmin = myRow.role == 'admin';
-              final adminCount =
-                  members.where((m) => m.role == 'admin').length;
+              final iAmAdmin = myRow.isAdmin;
+              final adminCount = members.where((m) => m.isAdmin).length;
               return ListView(
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 children: [
@@ -348,7 +349,7 @@ class _MembersCard extends ConsumerWidget {
               member: m,
               iAmAdmin: iAmAdmin,
               isMe: m.userId == myUserId,
-              isLastAdmin: m.role == 'admin' && adminCount <= 1,
+              isLastAdmin: m.isAdmin && adminCount <= 1,
             ),
             if (m != members.last) const Divider(height: 16),
           ],
@@ -393,7 +394,7 @@ class _MemberRow extends ConsumerWidget {
           radius: 16,
           backgroundColor: theme.colorScheme.primaryContainer,
           child: Text(
-            label.characters.first.toUpperCase(),
+            label.initial,
             style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onPrimaryContainer,
             ),
@@ -431,11 +432,11 @@ class _MemberRow extends ConsumerWidget {
                 items
                   ..add(
                     PopupMenuItem(
-                      value: member.role == 'admin'
+                      value: member.isAdmin
                           ? _MemberAction.demoteToTeacher
                           : _MemberAction.promoteToAdmin,
                       child: Text(
-                        member.role == 'admin'
+                        member.isAdmin
                             ? 'Demote to teacher'
                             : 'Promote to admin',
                       ),

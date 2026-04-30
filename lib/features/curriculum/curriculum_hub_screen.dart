@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:basecamp/core/format/color.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/curriculum/curriculum_importer.dart';
 import 'package:basecamp/features/curriculum/curriculum_template_preview_screen.dart';
@@ -363,7 +364,7 @@ class _TemplateCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accent = _parseHex(template.themeColorHex) ??
+    final accent = parseHex(template.themeColorHex) ??
         theme.colorScheme.primary;
     return AppCard(
       onTap: onTap,
@@ -623,15 +624,5 @@ class _UseTemplateSheetState extends ConsumerState<_UseTemplateSheet> {
         ),
       ),
     );
-  }
-}
-
-Color? _parseHex(String hex) {
-  try {
-    var clean = hex.replaceFirst('#', '');
-    if (clean.length == 6) clean = 'FF$clean';
-    return Color(int.parse(clean, radix: 16));
-  } on FormatException {
-    return null;
   }
 }

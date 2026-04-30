@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/text.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/adults/widgets/availability_editor.dart';
 import 'package:basecamp/features/children/children_repository.dart';
@@ -216,9 +217,7 @@ class _NewAdultWizardScreenState
   // ---- page builders ----
 
   Widget _buildNamePage() {
-    final initial = _name.text.trim().isNotEmpty
-        ? _name.text.trim().characters.first.toUpperCase()
-        : '?';
+    final initial = _name.text.initial;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

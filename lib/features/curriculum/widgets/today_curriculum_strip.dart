@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/color.dart';
 import 'package:basecamp/features/activity_library/widgets/edit_library_item_sheet.dart';
 import 'package:basecamp/features/curriculum/curriculum_today.dart';
 import 'package:basecamp/features/lesson_sequences/lesson_sequences_repository.dart';
@@ -75,8 +76,8 @@ class _Body extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accent = _parseHex(day.sequence?.colorHex) ??
-        _parseHex(day.theme.colorHex) ??
+    final accent = parseHex(day.sequence?.colorHex) ??
+        parseHex(day.theme.colorHex) ??
         theme.colorScheme.primary;
     final coreQuestion = (day.sequence?.coreQuestion ?? '').trim();
     final todayCards = compact ? const <SequenceItemWithLibrary>[] : _todayCards(day, date);
@@ -454,15 +455,4 @@ String _stripWeekPrefix(String name) {
           .firstMatch(name);
   if (match == null) return name;
   return name.substring(match.end);
-}
-
-Color? _parseHex(String? hex) {
-  if (hex == null) return null;
-  try {
-    var clean = hex.replaceFirst('#', '');
-    if (clean.length == 6) clean = 'FF$clean';
-    return Color(int.parse(clean, radix: 16));
-  } on FormatException {
-    return null;
-  }
 }

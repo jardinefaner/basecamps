@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/text.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
@@ -185,9 +186,7 @@ class _StaffRow extends ConsumerWidget {
     final adult = entry.adult;
     final role = AdultRole.fromDb(adult.adultRole);
     final status = _status();
-    final initial = adult.name.isEmpty
-        ? '?'
-        : adult.name.characters.first.toUpperCase();
+    final initial = adult.name.initial;
 
     // For leads, pull their anchor group's name so the row reads
     // "Ms. Park (Seedlings)" at a glance.

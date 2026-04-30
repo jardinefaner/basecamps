@@ -10,6 +10,7 @@ import 'package:basecamp/features/forms/polymorphic/definitions/incident.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/parent_concern.dart';
 import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
 import 'package:basecamp/features/observations/widgets/observation_composer.dart';
+import 'package:basecamp/features/people/people_display.dart';
 import 'package:basecamp/features/rooms/rooms_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/widgets/edit_template_sheet.dart';
@@ -913,11 +914,8 @@ class _RosterTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final fullName =
-        [child.firstName, child.lastName].whereType<String>().join(' ');
-    final initial = child.firstName.isNotEmpty
-        ? child.firstName.characters.first.toUpperCase()
-        : '?';
+    final fullName = child.fullName;
+    final initial = child.displayInitial;
     final groupId = child.groupId;
     final group =
         groupId == null ? null : ref.watch(groupProvider(groupId)).asData?.value;

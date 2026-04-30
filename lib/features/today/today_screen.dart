@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:basecamp/core/format/color.dart';
 import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adult_timeline_repository.dart';
@@ -1649,7 +1650,7 @@ class _GroupChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color =
-        _parseHex(summary.group.colorHex) ?? theme.colorScheme.primary;
+        parseHex(summary.group.colorHex) ?? theme.colorScheme.primary;
     // Two warning paths collapse into one visual state: an unstaffed
     // group (no lead on shift) or a ratio violation (too many kids per
     // adult). Unstaffed wins the label copy because "no lead" is the
@@ -1725,14 +1726,6 @@ class _GroupChip extends StatelessWidget {
     );
   }
 
-  Color? _parseHex(String? hex) {
-    if (hex == null) return null;
-    final h = hex.startsWith('#') ? hex.substring(1) : hex;
-    if (h.length != 6 && h.length != 8) return null;
-    final intVal = int.tryParse(h, radix: 16);
-    if (intVal == null) return null;
-    return Color(h.length == 6 ? 0xFF000000 | intVal : intVal);
-  }
 }
 
 /// Two-span chip label for the "OK" case: group name in the default

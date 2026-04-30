@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/text.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -174,9 +175,7 @@ class _EditChildSheetState extends ConsumerState<EditChildSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final first = _firstNameController.text.trim();
-    final fallbackInitial =
-        first.isNotEmpty ? first.characters.first.toUpperCase() : '?';
+    final fallbackInitial = _firstNameController.text.initial;
 
     return StickyActionSheet(
       title: _isEdit ? 'Edit child' : 'New child',

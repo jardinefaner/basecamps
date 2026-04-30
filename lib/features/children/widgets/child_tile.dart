@@ -1,4 +1,5 @@
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/people/people_display.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
@@ -13,10 +14,8 @@ class ChildTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final fullName = [child.firstName, child.lastName].whereType<String>().join(' ');
-    final initial = child.firstName.isNotEmpty
-        ? child.firstName.characters.first.toUpperCase()
-        : '?';
+    final fullName = child.fullName;
+    final initial = child.displayInitial;
 
     return AppCard(
       onTap: onTap,

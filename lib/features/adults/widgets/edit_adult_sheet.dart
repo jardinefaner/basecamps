@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:basecamp/core/format/text.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adult_timeline_repository.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
@@ -319,9 +320,7 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
               currentEtag:
                   _avatarCleared ? null : widget.adult?.avatarEtag,
               pendingFile: _pendingAvatar,
-              fallbackInitial: _nameController.text.trim().isNotEmpty
-                  ? _nameController.text.trim().characters.first.toUpperCase()
-                  : '?',
+              fallbackInitial: _nameController.text.initial,
               onChanged: (file) => setState(() {
                 if (file == null) {
                   _pendingAvatar = null;

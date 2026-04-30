@@ -1,6 +1,7 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/people/people_display.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:flutter/material.dart';
@@ -494,11 +495,8 @@ class _ChildTile extends StatelessWidget {
         ),
     };
 
-    final initial = child.firstName.isEmpty
-        ? '?'
-        : child.firstName.characters.first.toUpperCase();
-    final fullName =
-        [child.firstName, child.lastName].whereType<String>().join(' ');
+    final initial = child.displayInitial;
+    final fullName = child.fullName;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),

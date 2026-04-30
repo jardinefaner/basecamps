@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/text.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adult_timeline_repository.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
@@ -273,9 +274,7 @@ class _Header extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final initial = adult.name.isNotEmpty
-        ? adult.name.characters.first.toUpperCase()
-        : '?';
+    final initial = adult.name.initial;
     final role = AdultRole.fromDb(adult.adultRole);
     // Anchor group name is only meaningful for leads. Safe-default
     // to a null watcher when the adult has no anchor so we don't

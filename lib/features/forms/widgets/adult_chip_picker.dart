@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/text.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -81,9 +82,7 @@ class _AdultChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final initial = adult.name.isNotEmpty
-        ? adult.name.characters.first.toUpperCase()
-        : '?';
+    final initial = adult.name.initial;
     return SizedBox(
       width: 68,
       child: InkWell(

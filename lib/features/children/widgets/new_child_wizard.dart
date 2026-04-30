@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/text.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -119,9 +120,7 @@ class _NewChildWizardScreenState extends ConsumerState<NewChildWizardScreen> {
   }
 
   Widget _buildNamePage() {
-    final initial = _firstName.text.trim().isNotEmpty
-        ? _firstName.text.trim().characters.first.toUpperCase()
-        : '?';
+    final initial = _firstName.text.initial;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/text.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/adults/widgets/new_adult_wizard.dart';
@@ -185,9 +186,7 @@ class _AdultTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final initial = adult.name.isNotEmpty
-        ? adult.name.characters.first.toUpperCase()
-        : '?';
+    final initial = adult.name.initial;
 
     final adultRole = AdultRole.fromDb(adult.adultRole);
     return AppCard(

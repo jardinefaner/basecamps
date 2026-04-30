@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/color.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/lesson_sequences/lesson_sequences_repository.dart';
 import 'package:basecamp/features/themes/themes_repository.dart';
@@ -68,10 +69,10 @@ class _UserCurriculumPreviewScreenState
           final ordered = _orderByWeekNumber(sequences);
           final selected = _selectedWeek.clamp(0, ordered.length - 1);
           final activeSequence = ordered[selected];
-          final accent = _parseHex(themeAsync.value?.colorHex) ??
+          final accent = parseHex(themeAsync.value?.colorHex) ??
               theme.colorScheme.primary;
           final weekAccent =
-              _parseHex(activeSequence.colorHex) ?? accent;
+              parseHex(activeSequence.colorHex) ?? accent;
           return SafeArea(
             top: false,
             child: Column(
@@ -199,7 +200,7 @@ class _WeekStrip extends StatelessWidget {
         itemBuilder: (_, i) {
           final isSelected = i == selectedIndex;
           final tint =
-              _parseHex(sequences[i].colorHex) ?? fallbackAccent;
+              parseHex(sequences[i].colorHex) ?? fallbackAccent;
           return Padding(
             padding: const EdgeInsets.only(right: AppSpacing.xs),
             child: ChoiceChip(
@@ -565,15 +566,4 @@ String _stripWeekPrefix(String name) {
           .firstMatch(name);
   if (match == null) return name;
   return name.substring(match.end);
-}
-
-Color? _parseHex(String? hex) {
-  if (hex == null) return null;
-  try {
-    var clean = hex.replaceFirst('#', '');
-    if (clean.length == 6) clean = 'FF$clean';
-    return Color(int.parse(clean, radix: 16));
-  } on FormatException {
-    return null;
-  }
 }

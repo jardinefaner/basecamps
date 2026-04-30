@@ -1,3 +1,5 @@
+import 'package:basecamp/core/format/color.dart';
+import 'package:basecamp/core/format/text.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adult_timeline_repository.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
@@ -220,7 +222,7 @@ class _HeroHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = _parseHex(summary.group.colorHex) ??
+    final color = parseHex(summary.group.colorHex) ??
         theme.colorScheme.primary;
     return Row(
       children: [
@@ -259,14 +261,6 @@ class _HeroHeader extends StatelessWidget {
     );
   }
 
-  Color? _parseHex(String? hex) {
-    if (hex == null) return null;
-    final h = hex.startsWith('#') ? hex.substring(1) : hex;
-    if (h.length != 6 && h.length != 8) return null;
-    final intVal = int.tryParse(h, radix: 16);
-    if (intVal == null) return null;
-    return Color(h.length == 6 ? 0xFF000000 | intVal : intVal);
-  }
 }
 
 /// "Default room" card — shows the current room (if any) with a tap
@@ -557,9 +551,7 @@ class _LeadTile extends StatelessWidget {
               path: adult.avatarPath,
               storagePath: adult.avatarStoragePath,
               etag: adult.avatarEtag,
-              fallbackInitial: adult.name.isNotEmpty
-                  ? adult.name.characters.first.toUpperCase()
-                  : '?',
+              fallbackInitial: adult.name.initial,
               radius: 18,
               backgroundColor: theme.colorScheme.secondaryContainer,
               foregroundColor: theme.colorScheme.onSecondaryContainer,
@@ -637,9 +629,7 @@ class _LeadPickerSheet extends StatelessWidget {
                         path: s.avatarPath,
                         storagePath: s.avatarStoragePath,
                         etag: s.avatarEtag,
-                        fallbackInitial: s.name.isNotEmpty
-                            ? s.name.characters.first.toUpperCase()
-                            : '?',
+                        fallbackInitial: s.name.initial,
                         radius: 16,
                       ),
                       title: Text(s.name),
@@ -775,9 +765,7 @@ class _KidTile extends StatelessWidget {
               path: kid.avatarPath,
               storagePath: kid.avatarStoragePath,
               etag: kid.avatarEtag,
-              fallbackInitial: kid.firstName.isNotEmpty
-                  ? kid.firstName.characters.first.toUpperCase()
-                  : '?',
+              fallbackInitial: kid.firstName.initial,
               radius: 16,
             ),
             const SizedBox(width: AppSpacing.md),
@@ -1003,9 +991,7 @@ class _VisitorRow extends ConsumerWidget {
               path: s.avatarPath,
               storagePath: s.avatarStoragePath,
               etag: s.avatarEtag,
-              fallbackInitial: s.name.isNotEmpty
-                  ? s.name.characters.first.toUpperCase()
-                  : '?',
+              fallbackInitial: s.name.initial,
               radius: 18,
               backgroundColor: theme.colorScheme.tertiaryContainer,
               foregroundColor: theme.colorScheme.onTertiaryContainer,

@@ -1,3 +1,4 @@
+import 'package:basecamp/core/format/color.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/activity_library/widgets/edit_library_item_sheet.dart';
 import 'package:basecamp/features/curriculum/user_curriculum_preview_screen.dart';
@@ -102,7 +103,7 @@ class _CurriculumScreenState extends ConsumerState<CurriculumScreen> {
           // Lets a 10-week arc tint each week individually
           // (e.g. red for week 1, orange-red for week 2) without
           // mutating the theme's accent.
-          final accent = _parseHex(sequence.colorHex) ??
+          final accent = parseHex(sequence.colorHex) ??
               _accentForTheme(context, theme);
           return Column(
             children: [
@@ -136,10 +137,10 @@ class _CurriculumScreenState extends ConsumerState<CurriculumScreen> {
   }
 
   /// Resolve the accent color: theme.colorHex if set, otherwise the
-  /// app's primary. Delegates the hex parsing to the file-level
-  /// [_parseHex] so per-week colors share the same logic.
+  /// app's primary. Delegates the hex parsing to the shared
+  /// `parseHex` helper so per-week colors share the same logic.
   Color _accentForTheme(BuildContext context, ProgramTheme? theme) {
-    return _parseHex(theme?.colorHex) ??
+    return parseHex(theme?.colorHex) ??
         Theme.of(context).colorScheme.primary;
   }
 
@@ -319,7 +320,7 @@ class _PhaseStrip extends StatelessWidget {
         out.add(
           _PhaseGroup(
             label: phase,
-            color: _parseHex(s.colorHex) ?? Colors.grey,
+            color: parseHex(s.colorHex) ?? Colors.grey,
             startIndex: out.fold<int>(0, (a, g) => a + g.weekCount),
             endIndex: out.fold<int>(0, (a, g) => a + g.weekCount),
           ),
@@ -340,7 +341,7 @@ class _PhaseStrip extends StatelessWidget {
         out.add(
           _PhaseGroup(
             label: phase,
-            color: _parseHex(seqs[i].colorHex) ?? Colors.grey,
+            color: parseHex(seqs[i].colorHex) ?? Colors.grey,
             startIndex: i,
             endIndex: i,
           ),
@@ -412,7 +413,7 @@ class _WeekStrip extends StatelessWidget {
         itemBuilder: (_, i) {
           final isSel = i == selectedIndex;
           final accent =
-              _parseHex(sequences[i].colorHex) ?? fallbackAccent;
+              parseHex(sequences[i].colorHex) ?? fallbackAccent;
           final fill = isSel ? accent : theme.colorScheme.surfaceContainerHigh;
           // Pick a readable foreground for the accent — bright accents
           // get black text, dim ones get white. Computing luminance
@@ -510,20 +511,6 @@ class _ToggleBar extends StatelessWidget {
   }
 }
 
-/// Forgiving hex parser. Returns null on malformed input so the
-/// caller can fall back to a default. Accepts `#rrggbb` and
-/// `rrggbb`; longer / shorter strings are rejected.
-Color? _parseHex(String? hex) {
-  if (hex == null || hex.isEmpty) return null;
-  try {
-    var clean = hex.replaceFirst('#', '');
-    if (clean.length == 6) clean = 'FF$clean';
-    if (clean.length != 8) return null;
-    return Color(int.parse(clean, radix: 16));
-  } on FormatException {
-    return null;
-  }
-}
 
 /// Body of the screen: title, core question, daily list, milestone.
 /// Subscribes to the WeekArc projection for [sequence].
