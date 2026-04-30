@@ -244,15 +244,29 @@ class SyncEngine {
       // once the bootstrap-backfill stamps it.
       if (row['program_id'] == null) return;
 
-      // Pre-push freshness check. Without this, two devices
-      // editing the same row blindly upsert past each other —
-      // last writer wins and the earlier device's changes are
+      // Phase 2: field-level dirty tracking. When the row has
+      // dirty_fields set, push only those fields as a partial
+      // UPDATE — concurrent edits on different fields no longer
+      // overwrite each other. Repos not yet migrated to call
+      // markDirty leave dirty_fields null/empty; we fall back to
+      // the full-row upsert path so they keep working until the
+      // Phase 4 repo refactor lands.
+      final dirtyFields = await _db.readDirtyFields(spec.table, id);
+      if (dirtyFields.isNotEmpty) {
+        await _pushPartialUpdate(client, spec, id, row, dirtyFields);
+        await _pushCascades(client, spec, id);
+        return;
+      }
+
+      // Pre-push freshness check (legacy path, fires only for
+      // un-migrated repos). Without this, two devices editing
+      // the same row blindly upsert past each other — last
+      // writer wins and the earlier device's changes are
       // silently lost. Fetch the cloud row's updated_at; if
       // cloud is newer than our local copy, abort the push and
-      // pull instead so local catches up. Best-effort: if the
-      // freshness check itself errors (RLS, network blip, the
-      // row doesn't exist yet), fall through to the upsert
-      // rather than silently skipping every push.
+      // pull instead so local catches up. Phase 5 will retire
+      // this branch + the additive merge below once every repo
+      // marks dirty fields.
       final localUpdatedAt = _parseUpdatedAt(row['updated_at']);
       if (localUpdatedAt != null) {
         final cloudUpdatedAt = await _readCloudUpdatedAt(
@@ -328,59 +342,7 @@ class SyncEngine {
             _toCloudShape(row, spec.dateColumns),
           );
 
-      for (final cascade in spec.cascades) {
-        final cascadeRows = await _readCascadeRows(
-          cascade.table,
-          cascade.parentColumn,
-          id,
-        );
-
-        final fingerprintKey =
-            '${cascade.table}/${cascade.parentColumn}/$id';
-        final fingerprint = _fingerprintRows(cascadeRows);
-        if (_lastCascadeFingerprint[fingerprintKey] == fingerprint) {
-          // Cascade payload unchanged since our last push — skip
-          // the delete+insert. Real bandwidth save on parent re-
-          // pushes that don't touch cascades.
-          continue;
-        }
-
-        // Cold-start safety: on the first push of this cascade
-        // since app launch (no fingerprint cached) AND local has
-        // zero cascade rows, refuse to wholesale-DELETE cloud's
-        // existing rows. The most likely interpretation of "I'm
-        // editing the parent + I have no cascades locally" is
-        // "I never pulled the cascades" — not "I deliberately
-        // emptied them." Wiping cloud's cascades in that case
-        // is silent data loss for the other device that *did*
-        // author them. The user can still legitimately empty a
-        // cascade by removing the rows on this device first
-        // (which sets the fingerprint to the empty hash); this
-        // guard only kicks in on the very first cold-start push.
-        if (_lastCascadeFingerprint[fingerprintKey] == null &&
-            cascadeRows.isEmpty) {
-          // Mark the fingerprint so subsequent pushes proceed
-          // normally — by then we've either pulled cloud's
-          // cascades into local or the user genuinely emptied
-          // them locally.
-          _lastCascadeFingerprint[fingerprintKey] = fingerprint;
-          continue;
-        }
-
-        // Replace wholesale. delete-then-upsert is fine within
-        // one parent's tiny cascade footprint.
-        await client
-            .from(cascade.table)
-            .delete()
-            .eq(cascade.parentColumn, id);
-        if (cascadeRows.isNotEmpty) {
-          await client.from(cascade.table).upsert([
-            for (final r in cascadeRows)
-              _toCloudShape(r, cascade.dateColumns),
-          ]);
-        }
-        _lastCascadeFingerprint[fingerprintKey] = fingerprint;
-      }
+      await _pushCascades(client, spec, id);
     } on Object catch (e, st) {
       debugPrint('Sync push failed for ${spec.table}/$id: $e\n$st');
       // Broadcast to listeners (the app shell shows a snackbar).
@@ -393,6 +355,121 @@ class SyncEngine {
           error: e,
         ));
       }
+    }
+  }
+
+  /// Phase 2: partial UPDATE via dirty_fields. Sends only the
+  /// fields the user actually edited locally (plus id, updated_at,
+  /// program_id) to cloud as an UPDATE — concurrent edits on
+  /// different fields no longer overwrite each other because each
+  /// device's UPDATE only touches its own changed columns.
+  ///
+  /// If the cloud doesn't have the row yet (fresh insert that's
+  /// never been pushed), falls through to a full upsert. Otherwise,
+  /// constructs a payload of `{id, updated_at, program_id, ...dirty}`
+  /// and sends `update().eq('id', id)`.
+  ///
+  /// On success, clears the dirty_fields list so subsequent
+  /// no-op pushes (debounce re-fires, etc.) don't re-send the
+  /// same partial update.
+  Future<void> _pushPartialUpdate(
+    SupabaseClient client,
+    TableSpec spec,
+    String id,
+    Map<String, Object?> row,
+    List<String> dirtyFields,
+  ) async {
+    // Cloud-row existence check. If the cloud doesn't have this
+    // id, our partial UPDATE would match zero rows and the local
+    // edit would never reach cloud. Detect via a HEAD-style
+    // SELECT on id; if missing, do a full upsert instead.
+    final cloudExists = await _readCloudUpdatedAt(
+      client,
+      spec.table,
+      id,
+    );
+    if (cloudExists == null) {
+      // No row in cloud — full upsert (insert path).
+      await client.from(spec.table).upsert(
+            _toCloudShape(row, spec.dateColumns),
+          );
+      await _db.clearDirtyFields(spec.table, id);
+      return;
+    }
+    // Cloud has the row; partial UPDATE.
+    final shaped = _toCloudShape(row, spec.dateColumns);
+    final payload = <String, Object?>{
+      // Always include the row's identity + cloud-side housekeeping
+      // fields. updated_at lets cloud's last-write-wins logic + our
+      // pull freshness tracking advance. program_id is required by
+      // RLS for some tables (idempotent here — it doesn't change
+      // post-creation).
+      if (shaped.containsKey('updated_at'))
+        'updated_at': shaped['updated_at'],
+      if (shaped.containsKey('program_id'))
+        'program_id': shaped['program_id'],
+      // The actually-dirty fields the user edited.
+      for (final field in dirtyFields)
+        if (shaped.containsKey(field)) field: shaped[field],
+    };
+    await client
+        .from(spec.table)
+        .update(payload)
+        .eq('id', id);
+    await _db.clearDirtyFields(spec.table, id);
+  }
+
+  /// Push the cascade rows (parent_children, attendance, etc.)
+  /// for a parent row. Called both by the legacy full-upsert path
+  /// and the new partial-UPDATE path — partial updates only
+  /// modify dirty parent fields, but the user might have also
+  /// added / removed cascade rows (a child's parents list, for
+  /// example). The fingerprint cache short-circuits when the
+  /// cascade payload hasn't changed, and the cold-start guard
+  /// from commit 7ae87cc protects against wholesale-DELETEing
+  /// cloud's cascades on a device that never pulled them.
+  Future<void> _pushCascades(
+    SupabaseClient client,
+    TableSpec spec,
+    String id,
+  ) async {
+    for (final cascade in spec.cascades) {
+      final cascadeRows = await _readCascadeRows(
+        cascade.table,
+        cascade.parentColumn,
+        id,
+      );
+
+      final fingerprintKey =
+          '${cascade.table}/${cascade.parentColumn}/$id';
+      final fingerprint = _fingerprintRows(cascadeRows);
+      if (_lastCascadeFingerprint[fingerprintKey] == fingerprint) {
+        // Cascade payload unchanged since our last push — skip
+        // the delete+insert.
+        continue;
+      }
+
+      // Cold-start safety (commit 7ae87cc): refuse to wholesale-
+      // DELETE cloud's cascade rows on the very first push when
+      // local has zero. Likely cause is "I never pulled the
+      // cascades," not "I deliberately emptied them."
+      if (_lastCascadeFingerprint[fingerprintKey] == null &&
+          cascadeRows.isEmpty) {
+        _lastCascadeFingerprint[fingerprintKey] = fingerprint;
+        continue;
+      }
+
+      await client
+          .from(cascade.table)
+          .delete()
+          .eq(cascade.parentColumn, id);
+      if (cascadeRows.isNotEmpty) {
+        await client.from(cascade.table).upsert([
+          for (final r in cascadeRows)
+            _toCloudShape(r, cascade.dateColumns),
+        ]);
+      }
+      _lastCascadeFingerprint[fingerprintKey] = fingerprint;
     }
   }
 
@@ -923,9 +1000,9 @@ class SyncEngine {
             (entry.value! as int) * 1000,
             isUtc: true,
           ).toIso8601String()
-        else if (entry.key != 'deleted_at')
-          // deleted_at is intentionally not pushed — only
-          // pushDelete sets it.
+        else if (entry.key != 'deleted_at' && entry.key != 'dirty_fields')
+          // deleted_at: cloud-only, pushDelete sets it.
+          // dirty_fields: local-only, never reaches cloud.
           entry.key: entry.value,
     };
   }
