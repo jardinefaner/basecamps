@@ -272,8 +272,11 @@ class _NewActivityWizardScreenState
     for (final day in _selectedDays) {
       final templateId = await repo.addTemplate(
         dayOfWeek: day,
-        startTime: Hhmm.formatLongTimeOfDay(_start),
-        endTime: Hhmm.formatLongTimeOfDay(_end),
+        // Wire format is "HH:mm" — formatLong* yields "9:30 AM"
+        // which is for *display only*. Storing it crashes Today's
+        // bucketer when it later parses for sort + ratio checks.
+        startTime: Hhmm.fromTimeOfDay(_start),
+        endTime: Hhmm.fromTimeOfDay(_end),
         title: _title.text.trim(),
         groupIds: groupIds,
         allGroups: _allGroups,

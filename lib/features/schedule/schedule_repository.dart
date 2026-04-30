@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:basecamp/core/format/date.dart';
+import 'package:basecamp/core/format/time.dart';
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/core/now_tick.dart';
 import 'package:basecamp/database/database.dart';
@@ -119,12 +120,35 @@ class ScheduleItem {
   int get startMinutes => startTimeOfDay.hour * 60 + startTimeOfDay.minute;
   int get endMinutes => endTimeOfDay.hour * 60 + endTimeOfDay.minute;
 
+  /// Lenient parser. The wire format is "HH:mm" (zero-padded
+  /// 24-hour) but a stray "9:00 AM" or empty string in cloud data
+  /// would otherwise crash the entire Today screen. Falls back to
+  /// midnight + a `debugPrint` so the row still renders (likely as
+  /// the wrong time, but at least the screen survives) and the bad
+  /// data can be hunted through the log.
   static TimeOfDay _parseTime(String hhmm) {
-    final parts = hhmm.split(':');
-    return TimeOfDay(
-      hour: int.parse(parts[0]),
-      minute: int.parse(parts[1]),
+    final tod = Hhmm.toTimeOfDay(hhmm);
+    if (tod != null) return tod;
+    // Try recovering from "9:00 AM" / "9:00 PM" — split on
+    // whitespace and reuse the parser, then add 12h for PM.
+    final cleaned = hhmm.trim();
+    final spaceIdx = cleaned.indexOf(' ');
+    if (spaceIdx > 0) {
+      final timePart = cleaned.substring(0, spaceIdx);
+      final tagPart = cleaned.substring(spaceIdx + 1).toUpperCase();
+      final inner = Hhmm.toTimeOfDay(timePart);
+      if (inner != null) {
+        var h = inner.hour;
+        if (tagPart == 'PM' && h < 12) h += 12;
+        if (tagPart == 'AM' && h == 12) h = 0;
+        return TimeOfDay(hour: h, minute: inner.minute);
+      }
+    }
+    debugPrint(
+      'ScheduleItem._parseTime: unrecognized time "$hhmm" — '
+      'rendering as 00:00. Hunt the writer that stored this.',
     );
+    return const TimeOfDay(hour: 0, minute: 0);
   }
 }
 
@@ -139,6 +163,93 @@ class ScheduleRepository {
   String? get _programId => _ref.read(activeProgramIdProvider);
 
   SyncEngine get _sync => _ref.read(syncEngineProvider);
+
+  /// One-shot heal: rewrites schedule rows whose `start_time` /
+  /// `end_time` columns hold a 12-hour display string ("9:30 AM")
+  /// instead of the wire format ("09:30"). Caused by a regression
+  /// in the format-utility consolidation pass — the wizard was
+  /// writing `Hhmm.formatLongTimeOfDay(_start)` (display) instead
+  /// of `Hhmm.fromTimeOfDay(_start)` (wire).
+  ///
+  /// Idempotent + cheap on a synced device — only rows whose
+  /// canonical form differs from the stored value get rewritten,
+  /// and we only run this once per app session via the bootstrap.
+  /// Rewrites mark the row dirty + push so cloud catches up too.
+  ///
+  /// Returns the number of rows healed for logging.
+  Future<int> healLegacyTimeStrings() async {
+    var healed = 0;
+    String? canonicalize(String stored) {
+      // Bail fast on the common-path "already in HH:mm" case.
+      if (Hhmm.tryToMinutes(stored) != null) return null;
+      // Try lenient parse of "9:30 AM" / "9:30 PM".
+      final cleaned = stored.trim();
+      final spaceIdx = cleaned.indexOf(' ');
+      if (spaceIdx <= 0) return null;
+      final timePart = cleaned.substring(0, spaceIdx);
+      final tagPart = cleaned.substring(spaceIdx + 1).toUpperCase();
+      final inner = Hhmm.tryToMinutes(timePart);
+      if (inner == null) return null;
+      var minutes = inner;
+      final hour = minutes ~/ 60;
+      if (tagPart == 'PM' && hour < 12) minutes += 12 * 60;
+      if (tagPart == 'AM' && hour == 12) minutes -= 12 * 60;
+      return Hhmm.fromMinutes(minutes);
+    }
+
+    try {
+      final templates = await _db.select(_db.scheduleTemplates).get();
+      for (final t in templates) {
+        final s = canonicalize(t.startTime);
+        final e = canonicalize(t.endTime);
+        if (s == null && e == null) continue;
+        await (_db.update(_db.scheduleTemplates)
+              ..where((row) => row.id.equals(t.id)))
+            .write(ScheduleTemplatesCompanion(
+          startTime: s == null ? const Value.absent() : Value(s),
+          endTime: e == null ? const Value.absent() : Value(e),
+        ));
+        await _db.markDirty(
+          'schedule_templates',
+          t.id,
+          [if (s != null) 'start_time', if (e != null) 'end_time'],
+        );
+        unawaited(_sync.pushRow(scheduleTemplatesSpec, t.id));
+        healed++;
+      }
+    } on Object catch (err) {
+      debugPrint('healLegacyTimeStrings (templates): $err');
+    }
+
+    try {
+      final entries = await _db.select(_db.scheduleEntries).get();
+      for (final e in entries) {
+        final s = canonicalize(e.startTime);
+        final en = canonicalize(e.endTime);
+        if (s == null && en == null) continue;
+        await (_db.update(_db.scheduleEntries)
+              ..where((row) => row.id.equals(e.id)))
+            .write(ScheduleEntriesCompanion(
+          startTime: s == null ? const Value.absent() : Value(s),
+          endTime: en == null ? const Value.absent() : Value(en),
+        ));
+        await _db.markDirty(
+          'schedule_entries',
+          e.id,
+          [if (s != null) 'start_time', if (en != null) 'end_time'],
+        );
+        unawaited(_sync.pushRow(scheduleEntriesSpec, e.id));
+        healed++;
+      }
+    } on Object catch (err) {
+      debugPrint('healLegacyTimeStrings (entries): $err');
+    }
+
+    if (healed > 0) {
+      debugPrint('Healed $healed legacy time-string row(s).');
+    }
+    return healed;
+  }
 
   Stream<List<ScheduleTemplate>> watchTemplates() {
     final query = _db.select(_db.scheduleTemplates)

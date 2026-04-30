@@ -187,8 +187,8 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
         _selectedDays.first != template.dayOfWeek) {
       return true;
     }
-    if (Hhmm.formatLongTimeOfDay(_start) != template.startTime) return true;
-    if (Hhmm.formatLongTimeOfDay(_end) != template.endTime) return true;
+    if (Hhmm.fromTimeOfDay(_start) != template.startTime) return true;
+    if (Hhmm.fromTimeOfDay(_end) != template.endTime) return true;
     if (_adultId != template.adultId) return true;
     if (_roomId != template.roomId) return true;
     if (trimOrNull(_locationController.text) != template.location) return true;
@@ -219,8 +219,10 @@ class _EditTemplateSheetState extends ConsumerState<EditTemplateSheet> {
     final location = _locationController.text.trim().isEmpty
         ? null
         : _locationController.text.trim();
-    final startHhmm = Hhmm.formatLongTimeOfDay(_start);
-    final endHhmm = Hhmm.formatLongTimeOfDay(_end);
+    // Wire format is "HH:mm" (zero-padded 24-hour) — formatLong*
+    // returns display "9:30 AM" which crashes Today's bucketer.
+    final startHhmm = Hhmm.fromTimeOfDay(_start);
+    final endHhmm = Hhmm.fromTimeOfDay(_end);
     final groupIds = _selectedGroupIds.toList();
 
     if (_isEdit) {

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/sync/media_service.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
@@ -218,6 +219,14 @@ class ProgramAuthBootstrap {
       // upload methods short-circuit when storage_path is
       // already set.
       unawaited(_ref.read(mediaServiceProvider).healMissingAvatarUploads());
+      // Time-string heal: pre-fix rows where the wizard stored a
+      // 12-hour display string ("9:30 AM") into the wire-format
+      // start_time / end_time columns. Idempotent — only rewrites
+      // rows where the canonical "HH:mm" form differs from what's
+      // stored. See ScheduleRepository.healLegacyTimeStrings.
+      unawaited(
+        _ref.read(scheduleRepositoryProvider).healLegacyTimeStrings(),
+      );
     } on Object catch (e, st) {
       // Bootstrap failure is recoverable — the user's still signed
       // in, just sitting on a no-program state until the next
