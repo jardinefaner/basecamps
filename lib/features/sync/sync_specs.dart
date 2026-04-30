@@ -73,7 +73,12 @@ const adultsSpec = TableSpec(
     CascadeSpec(
       table: 'adult_day_blocks',
       parentColumn: 'adult_id',
-      dateColumns: {'date', 'created_at', 'updated_at'},
+      // No `date` column on this table in either Drift
+      // (lib/database/tables.dart) or cloud (0005); audit caught
+      // the typo before it could matter, but if a future column
+      // ever lands with that name the spec would silently mistype
+      // it. Just the audit columns.
+      dateColumns: {'created_at', 'updated_at'},
     ),
     // v48: classroom-rotation timeline. Pattern + per-date
     // overrides ride along with the parent adult on every push.

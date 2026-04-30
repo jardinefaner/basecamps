@@ -144,7 +144,7 @@ class LatenessFlagsStrip extends ConsumerWidget {
             const SizedBox(height: AppSpacing.sm),
             for (var i = 0; i < reviewDue.length; i++) ...[
               if (i > 0) _sectionDivider(theme),
-              _ReviewDueRow(submission: reviewDue[i]),
+              _ReviewDueRow(submission: reviewDue[i], now: now),
             ],
           ],
         ],
@@ -311,9 +311,15 @@ String _fmt12h(String hhmm) {
 /// definition from the registry to know what to call it ("Behavior
 /// monitoring review") and opens the form on tap.
 class _ReviewDueRow extends StatelessWidget {
-  const _ReviewDueRow({required this.submission});
+  const _ReviewDueRow({required this.submission, required this.now});
 
   final FormSubmission submission;
+
+  /// Wall-clock now from the parent's nowTickProvider watch.
+  /// Threaded down so the relative-day phrasing stays in lockstep
+  /// with every other "today"-anchored widget on the screen
+  /// instead of drifting.
+  final DateTime now;
 
   @override
   Widget build(BuildContext context) {
@@ -375,7 +381,6 @@ class _ReviewDueRow extends StatelessWidget {
   }
 
   String _formatDue(DateTime due) {
-    final now = DateTime.now();
     final diff = due.difference(now).inDays;
     if (diff < 0) return 'review was due ${-diff} days ago';
     if (diff == 0) return 'review due today';

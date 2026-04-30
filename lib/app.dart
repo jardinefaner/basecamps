@@ -18,10 +18,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Global ScaffoldMessenger key. Lets out-of-tree code (sync
-/// engine's conflict stream, future background tasks, etc.) reach
-/// `ScaffoldMessenger.of(ctx)` without holding a BuildContext.
-/// Wired into [MaterialApp.router]'s `scaffoldMessengerKey` below.
+/// Global ScaffoldMessenger key. Lets out-of-tree code (the sync
+/// engine's pushErrors stream, future background tasks, etc.)
+/// reach `ScaffoldMessenger.of(ctx)` without holding a
+/// BuildContext. Wired into [MaterialApp.router]'s
+/// `scaffoldMessengerKey` below.
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
@@ -106,6 +107,42 @@ class _BasecampAppState extends ConsumerState<BasecampApp>
           ),
         );
     });
+
+    // Membership-out-of-sync banner. Bootstrap stamps this when
+    // the cloud `program_members` upsert fails — without a UI
+    // signal, every push silently 403s and the user wonders why
+    // their work isn't reaching cloud. A snackbar with an action
+    // lets them retry without digging through settings.
+    ref.listenManual<String?>(
+      membershipUpsertFailureProvider,
+      (previous, next) {
+        if (next == null || next == previous) return;
+        final messenger = scaffoldMessengerKey.currentState;
+        if (messenger == null) return;
+        messenger
+          ..clearSnackBars()
+          ..showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Membership out of sync. Saves may not reach cloud.',
+              ),
+              duration: const Duration(seconds: 12),
+              action: SnackBarAction(
+                label: 'Retry',
+                onPressed: () {
+                  final programId = ref.read(activeProgramIdProvider);
+                  if (programId == null) return;
+                  unawaited(
+                    ref
+                        .read(programAuthBootstrapProvider)
+                        .reconnectMembership(programId),
+                  );
+                },
+              ),
+            ),
+          );
+      },
+    );
 
     // Orphan-attachment sweep on startup. Reaps files in the app-
     // owned observation-media dir that no attachment row points at
