@@ -378,10 +378,15 @@ class _PlanCard extends ConsumerWidget {
     final fg = isSelected
         ? theme.colorScheme.onPrimary
         : theme.colorScheme.onPrimaryContainer;
+    // Constant-width border (1.5px) so the inner content area
+    // doesn't shift when selection toggles. The unselected state
+    // uses a faint transparent-ish color; selection ramps the same
+    // border to the primary color. Visual emphasis without layout
+    // jump.
     final borderColor = isSelected
         ? theme.colorScheme.primary
-        : theme.colorScheme.primary.withValues(alpha: 0.25);
-    final borderWidth = isSelected ? 1.5 : 0.5;
+        : theme.colorScheme.primary.withValues(alpha: 0.18);
+    const borderWidth = 1.5;
 
     return InkWell(
       onTap: () {

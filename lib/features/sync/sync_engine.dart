@@ -570,85 +570,95 @@ class SyncEngine {
         }
       }
 
-      // Concurrent-edit detection. For each live remote row,
-      // sample local updated_at BEFORE the upsert so we can spot
-      // the case where the local was edited between the watermark
-      // and now (i.e., we're about to overwrite an unsynced
-      await _db.transaction(() async {
-        // Cross-tier FK dance:
-        //   `activity_library_usages` is a cascade of
-        //   `activity_library` (tier 2) but has FKs to
-        //   `schedule_templates` (tier 3). With strict per-INSERT
-        //   FK checking, the tier-2 pull would fail every cycle
-        //   because the tier-3 schedule_template hasn't landed yet.
-        //   `defer_foreign_keys = ON` defers the FK check to the
-        //   COMMIT, so as long as the final state is consistent
-        //   (after all tiers pull) we're fine. SQLite resets the
-        //   pragma at end-of-transaction automatically.
-        //
-        // Also lets us recover from genuinely-orphaned rows
-        // (cloud has a schedule_template pointing at a deleted
-        // adult): the per-row catch around `_upsertLocalRow`
-        // skips that row and keeps pulling the rest, instead of
-        // wedging the whole table on one bad apple.
-        await _db.customStatement('PRAGMA defer_foreign_keys = ON');
-        if (deletedIds.isNotEmpty) {
-          await _db.customUpdate(
-            'DELETE FROM "${spec.table}" WHERE id IN (${_placeholders(deletedIds.length)})',
-            variables: [for (final id in deletedIds) Variable<String>(id)],
-          );
-        }
-        for (final row in liveRows) {
-          // Phase 3: dirty-field-preserving merge. Read local's
-          // dirty_fields list for this id; strip those keys from
-          // the cloud payload before upserting. The "ON CONFLICT
-          // DO UPDATE SET col = excluded.col" SQL only touches
-          // columns it's given, so omitting dirty columns means
-          // local's un-pushed edits survive the pull. New local
-          // rows (no row yet → dirty_fields is null) get the full
-          // cloud payload. Edge case: row exists locally but has
-          // no dirty_fields → behaves identically to the old
-          // wholesale upsert (cloud overwrites every column).
-          final dirty = await _db.readDirtyFields(
-            spec.table,
-            row['id'] as String,
-          );
-          final payload = dirty.isEmpty
-              ? row
-              : <String, dynamic>{
-                  for (final entry in row.entries)
-                    if (!dirty.contains(entry.key))
-                      entry.key: entry.value,
-                };
-          try {
-            await _upsertLocalRow(spec.table, payload, spec.dateColumns);
-          } on Object catch (e) {
-            // Skip the bad row and keep pulling. A row whose
-            // FK target is permanently missing in cloud (deleted
-            // adult, deleted room, etc.) would otherwise wedge
-            // the whole pull cycle indefinitely.
-            debugPrint(
-              'Pull skipped corrupt row in ${spec.table} '
-              'id=${row['id']}: $e',
+      // **Why no `defer_foreign_keys = ON`:** the previous
+      // attempt deferred FK checks to commit time. Inserts all
+      // succeeded individually, then COMMIT failed atomically with
+      // a generic "FOREIGN KEY constraint failed" — the per-row
+      // catch never fired (no per-INSERT throw), and the whole
+      // table's pull rolled back. Going back to per-INSERT checks
+      // means the catch fires on the specific bad row, the rest
+      // commit cleanly, and the failure log names which row
+      // tripped the FK so we can hunt the cloud-side
+      // inconsistency.
+      //
+      // Cross-tier cascade FKs (e.g. `activity_library_usages`
+      // → `schedule_templates`) still fail on first pull — the
+      // catch skips them and they land on the next pull cycle
+      // once tier 3 has populated. Eventually consistent.
+      try {
+        await _db.transaction(() async {
+          if (deletedIds.isNotEmpty) {
+            await _db.customUpdate(
+              'DELETE FROM "${spec.table}" WHERE id IN '
+              '(${_placeholders(deletedIds.length)})',
+              variables: [
+                for (final id in deletedIds) Variable<String>(id),
+              ],
             );
           }
-        }
-        if (liveRows.isNotEmpty) {
-          try {
-            await _replaceLocalCascades(
-              client,
-              spec.cascades,
-              liveRows.map((r) => r['id'] as String).toList(),
+          for (final row in liveRows) {
+            // Dirty-field-preserving merge (Phase 3). Read local's
+            // dirty_fields list; strip those keys from the cloud
+            // payload before upserting so un-pushed local edits
+            // survive the pull.
+            final dirty = await _db.readDirtyFields(
+              spec.table,
+              row['id'] as String,
             );
-          } on Object catch (e) {
-            // Same logic for cascade rows — one orphaned cascade
-            // row shouldn't block the parent table from pulling.
-            debugPrint(
-              'Pull cascade for ${spec.table} hit a corrupt row: $e',
-            );
+            final payload = dirty.isEmpty
+                ? row
+                : <String, dynamic>{
+                    for (final entry in row.entries)
+                      if (!dirty.contains(entry.key))
+                        entry.key: entry.value,
+                  };
+            try {
+              await _upsertLocalRow(
+                spec.table,
+                payload,
+                spec.dateColumns,
+              );
+            } on Object catch (e) {
+              // Skip the bad row and keep pulling. One row whose
+              // FK target is missing locally (cross-tier cascade
+              // not yet pulled, or genuine orphan in cloud) won't
+              // wedge the whole table.
+              debugPrint(
+                'Pull skipped row in ${spec.table} '
+                'id=${row['id']}: $e',
+              );
+            }
           }
-        }
-      });
+          if (liveRows.isNotEmpty) {
+            try {
+              await _replaceLocalCascades(
+                client,
+                spec.cascades,
+                liveRows.map((r) => r['id'] as String).toList(),
+              );
+            } on Object catch (e) {
+              // Same logic for cascade rows. The cascade replace
+              // walks each cascade child table; one bad child row
+              // shouldn't block the parent table's pull. Children
+              // that didn't land here will retry next cycle.
+              debugPrint(
+                'Pull cascade for ${spec.table} hit a row error: $e',
+              );
+            }
+          }
+        });
+      } on Object catch (e, st) {
+        // Last-resort catch around the whole transaction. With
+        // per-row try/catch above, this should rarely fire — but
+        // if a delete cascade or a defer-FK violation slips
+        // through, we log and skip the table for this cycle
+        // instead of wedging the periodic pull in a tight retry
+        // loop.
+        debugPrint(
+          'Pull ${spec.table} transaction failed: $e\n$st',
+        );
+        return totalApplied;
+      }
 
       totalApplied += page.length;
       cursor = DateTime.parse(page.last['updated_at'] as String).toUtc();
