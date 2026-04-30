@@ -111,7 +111,8 @@ class _NewGroupWizardScreenState extends ConsumerState<NewGroupWizardScreen> {
         name: s.name,
         role: s.role,
         notes: s.notes,
-        avatarPath: s.avatarPath,
+        // Avatar untouched on a role flip — omitting avatarFile
+        // leaves the existing photo alone.
         adultRole: const Value('lead'),
         anchoredGroupId: Value(groupId),
       );

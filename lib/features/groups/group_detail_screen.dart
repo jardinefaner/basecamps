@@ -507,7 +507,8 @@ class _LeadsSection extends ConsumerWidget {
           name: s.name,
           role: s.role,
           notes: s.notes,
-          avatarPath: s.avatarPath,
+          // Avatar untouched — omitting avatarFile leaves the photo
+          // alone (the existing avatar_path / storage_path stay).
           adultRole: const Value('lead'),
           anchoredGroupId: Value(summary.id),
         );
@@ -526,7 +527,7 @@ class _LeadsSection extends ConsumerWidget {
           name: s.name,
           role: s.role,
           notes: s.notes,
-          avatarPath: s.avatarPath,
+          // Avatar untouched on a role change.
           anchoredGroupId: const Value<String?>(null),
         );
   }

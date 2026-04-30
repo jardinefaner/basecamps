@@ -9,26 +9,164 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 /// Circular avatar picker used in the child and adult edit sheets.
-/// Shows the current photo (local file or initial fallback) with a
-/// small camera badge. Tap to open a bottom sheet that lets the
-/// teacher take a photo, pick one from the library, or remove the
-/// existing avatar.
+/// Shows the current photo (cross-device storage path, local path,
+/// or freshly-picked XFile) with a small camera badge. Tap to open
+/// a bottom sheet that lets the teacher take a photo, pick one
+/// from the library, or remove the existing avatar.
 ///
-/// Returns a local file path to the caller via [onChanged]. Null means
-/// "cleared".
-class AvatarPicker extends StatelessWidget {
+/// Returns the picked [XFile] to the caller via [onChanged]. Null
+/// means "cleared". The caller is responsible for handing the
+/// XFile to the repository on save — the picker itself doesn't
+/// trigger any cloud upload.
+///
+/// Web parity:
+///   * `image_picker` on web returns an [XFile] whose `path` is a
+///     `blob:` URL — useless to `dart:io.File`. Bytes are still
+///     readable via `XFile.readAsBytes()`, which the picker calls
+///     once and caches in [_AvatarPickerState._pendingBytes] so
+///     [MemoryImage] can render the preview.
+///   * Existing avatars on web resolve through a signed Supabase
+///     URL ([MediaService.signedUrlFor]); the local-file fast path
+///     is skipped.
+class AvatarPicker extends ConsumerStatefulWidget {
   const AvatarPicker({
-    required this.currentPath,
+    required this.currentLocalPath,
+    required this.currentStoragePath,
+    required this.pendingFile,
     required this.fallbackInitial,
     required this.onChanged,
     this.radius = 40,
     super.key,
   });
 
-  final String? currentPath;
+  /// Existing local file on this device. Only valid on native and
+  /// only on the device that captured the photo. Falls through to
+  /// [currentStoragePath] when missing.
+  final String? currentLocalPath;
+
+  /// Supabase Storage bucket key. Cross-device source of truth —
+  /// when set, the avatar is recoverable on every device + every
+  /// platform.
+  final String? currentStoragePath;
+
+  /// Freshly-picked file the teacher hasn't saved yet. Takes
+  /// precedence over [currentLocalPath] / [currentStoragePath]
+  /// for preview rendering. Pass null when nothing's pending (the
+  /// caller can also use a `_cleared` flag to suppress the
+  /// existing avatar — pass `currentLocalPath: null,
+  /// currentStoragePath: null` in that case).
+  final XFile? pendingFile;
+
   final String fallbackInitial;
-  final ValueChanged<String?> onChanged;
+
+  /// Called with the freshly-picked XFile when the teacher snaps
+  /// or chooses a photo, or with `null` when they tap "Remove
+  /// photo." The caller persists this on save — the picker is
+  /// purely UI.
+  final ValueChanged<XFile?> onChanged;
+
   final double radius;
+
+  @override
+  ConsumerState<AvatarPicker> createState() => _AvatarPickerState();
+}
+
+class _AvatarPickerState extends ConsumerState<AvatarPicker> {
+  /// Decoded bytes of [AvatarPicker.pendingFile]. Only populated on
+  /// web (where `File(xfile.path)` throws); on native we render
+  /// FileImage(File(xfile.path)) directly without decoding ahead.
+  Uint8List? _pendingBytes;
+
+  /// Local file path resolved from [AvatarPicker.currentLocalPath]
+  /// (when the file is still on disk) or from
+  /// [MediaService.ensureLocalFile] downloading the cloud copy.
+  /// Native-only.
+  String? _resolvedFilePath;
+
+  /// Signed HTTPS URL resolved from
+  /// [MediaService.signedUrlFor] for [AvatarPicker.currentStoragePath].
+  /// Web-only.
+  String? _resolvedNetworkUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_resolve());
+  }
+
+  @override
+  void didUpdateWidget(covariant AvatarPicker oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final pendingChanged =
+        oldWidget.pendingFile?.path != widget.pendingFile?.path;
+    if (pendingChanged ||
+        oldWidget.currentLocalPath != widget.currentLocalPath ||
+        oldWidget.currentStoragePath != widget.currentStoragePath) {
+      _pendingBytes = null;
+      _resolvedFilePath = null;
+      _resolvedNetworkUrl = null;
+      unawaited(_resolve());
+    }
+  }
+
+  Future<void> _resolve() async {
+    final pending = widget.pendingFile;
+    if (pending != null) {
+      if (kIsWeb) {
+        // The picker hands us bytes via XFile; cache them once
+        // for MemoryImage to render. blob: URLs in `path` won't
+        // round-trip through any image provider that hits the
+        // file system.
+        try {
+          final bytes = await pending.readAsBytes();
+          if (!mounted) return;
+          setState(() => _pendingBytes = bytes);
+        } on Object catch (e) {
+          debugPrint('AvatarPicker pending readAsBytes failed: $e');
+        }
+      }
+      // Native preview is rendered straight from the file path in
+      // build() — no async setup needed.
+      return;
+    }
+
+    // No pending pick — fall back to whatever's already saved.
+    final localPath = widget.currentLocalPath;
+    if (!kIsWeb && localPath != null && File(localPath).existsSync()) {
+      if (!mounted) return;
+      setState(() => _resolvedFilePath = localPath);
+      return;
+    }
+
+    final storagePath = widget.currentStoragePath;
+    if (storagePath == null || storagePath.isEmpty) return;
+
+    if (kIsWeb) {
+      try {
+        final url = await ref
+            .read(mediaServiceProvider)
+            .signedUrlFor(storagePath);
+        if (!mounted) return;
+        if (url != null) setState(() => _resolvedNetworkUrl = url);
+      } on Object catch (e) {
+        debugPrint('AvatarPicker signed URL failed for $storagePath: $e');
+      }
+      return;
+    }
+
+    // Native, no local file — pull from cloud cache. Survives app
+    // restarts; first hit on a fresh device shows the fallback
+    // initial briefly.
+    try {
+      final cached = await ref
+          .read(mediaServiceProvider)
+          .ensureLocalFile(storagePath);
+      if (!mounted) return;
+      setState(() => _resolvedFilePath = cached);
+    } on Object catch (e) {
+      debugPrint('AvatarPicker download failed for $storagePath: $e');
+    }
+  }
 
   Future<void> _openPickerSheet(BuildContext context) async {
     final picker = ImagePicker();
@@ -42,13 +180,17 @@ class AvatarPicker extends StatelessWidget {
           // Avatars are small — 1000px max keeps the file tiny.
           maxWidth: 1000,
         );
-        if (file != null) onChanged(file.path);
+        if (file != null) widget.onChanged(file);
       } on Object catch (e) {
         messenger.showSnackBar(
           SnackBar(content: Text("Couldn't set avatar: $e")),
         );
       }
     }
+
+    final hasExisting = widget.pendingFile != null ||
+        widget.currentLocalPath != null ||
+        widget.currentStoragePath != null;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -74,13 +216,13 @@ class AvatarPicker extends StatelessWidget {
                 unawaited(pick(ImageSource.gallery));
               },
             ),
-            if (currentPath != null)
+            if (hasExisting)
               ListTile(
                 leading: const Icon(Icons.delete_outline),
                 title: const Text('Remove photo'),
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  onChanged(null);
+                  widget.onChanged(null);
                 },
               ),
           ],
@@ -89,30 +231,56 @@ class AvatarPicker extends StatelessWidget {
     );
   }
 
+  ImageProvider? _resolveImageProvider() {
+    final diameter = widget.radius * 2;
+    final decodeSize = (diameter * 2).round();
+
+    final pending = widget.pendingFile;
+    if (pending != null) {
+      if (kIsWeb) {
+        // Wait for the bytes resolve to land before handing
+        // MemoryImage a fake null. Resolves on the next frame.
+        final bytes = _pendingBytes;
+        if (bytes == null) return null;
+        return ResizeImage(MemoryImage(bytes), width: decodeSize);
+      }
+      return ResizeImage(
+        FileImage(File(pending.path)),
+        width: decodeSize,
+      );
+    }
+
+    final filePath = _resolvedFilePath;
+    if (filePath != null && !kIsWeb) {
+      return ResizeImage(FileImage(File(filePath)), width: decodeSize);
+    }
+
+    final networkUrl = _resolvedNetworkUrl;
+    if (networkUrl != null) {
+      return ResizeImage(NetworkImage(networkUrl), width: decodeSize);
+    }
+
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final diameter = radius * 2;
-    final decodeSize = (diameter * 2).round();
+    final source = _resolveImageProvider();
 
     final avatar = CircleAvatar(
-      radius: radius,
+      radius: widget.radius,
       backgroundColor: theme.colorScheme.primaryContainer,
-      backgroundImage: (currentPath != null && !kIsWeb)
-          ? ResizeImage(
-              FileImage(File(currentPath!)),
-              // Cap the decode size (2× display for retina) but don't
-              // pin both axes — ResizeImage with both width AND height
-              // resizes to that exact box and squishes the source's
-              // native aspect ratio. We only clamp the width; the
-              // height scales proportionally, then CircleAvatar's
-              // BoxFit.cover crops to the circle cleanly.
-              width: decodeSize,
-            )
-          : null,
-      child: currentPath == null
+      // Cap the decode size (2× display for retina) but don't
+      // pin both axes — ResizeImage with both width AND height
+      // resizes to that exact box and squishes the source's
+      // native aspect ratio. We only clamp the width; the
+      // height scales proportionally, then CircleAvatar's
+      // BoxFit.cover crops to the circle cleanly.
+      backgroundImage: source,
+      child: source == null
           ? Text(
-              fallbackInitial,
+              widget.fallbackInitial,
               style: theme.textTheme.headlineSmall?.copyWith(
                 color: theme.colorScheme.onPrimaryContainer,
               ),

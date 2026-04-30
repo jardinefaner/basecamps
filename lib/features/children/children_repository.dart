@@ -8,7 +8,9 @@ import 'package:basecamp/features/sync/media_service.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 
 class ChildrenRepository {
   ChildrenRepository(this._db, this._ref);
@@ -114,12 +116,19 @@ class ChildrenRepository {
     String? lastName,
     String? groupId,
     String? notes,
-    String? avatarPath,
+    XFile? avatarFile,
     String? parentName,
     String? expectedArrival,
     String? expectedPickup,
   }) async {
     final id = newId();
+    // avatar_path is local-only (T1.1). On native we stamp the
+    // picker's filesystem path; on web `XFile.path` is a `blob:`
+    // URL that dart:io.File can't read, so we leave the column
+    // null and rely on `avatar_storage_path` for cross-device
+    // resolution.
+    final localAvatarPath =
+        avatarFile != null && !kIsWeb ? avatarFile.path : null;
     await _db.into(_db.children).insert(
           ChildrenCompanion.insert(
             id: id,
@@ -127,7 +136,7 @@ class ChildrenRepository {
             lastName: Value(lastName),
             groupId: Value(groupId),
             notes: Value(notes),
-            avatarPath: Value(avatarPath),
+            avatarPath: Value(localAvatarPath),
             parentName: Value(parentName),
             expectedArrival: Value(expectedArrival),
             expectedPickup: Value(expectedPickup),
@@ -135,11 +144,12 @@ class ChildrenRepository {
           ),
         );
     unawaited(_sync.pushRow(childrenSpec, id));
-    if (avatarPath != null) {
+    if (avatarFile != null) {
       // Fire-and-forget media upload — stamps avatar_storage_path
       // when the file lands in the bucket; the next push picks
-      // up the updated row.
-      unawaited(_media.uploadChildAvatar(id));
+      // up the updated row. Works on every platform — XFile
+      // abstracts away dart:io.File.
+      unawaited(_media.uploadChildAvatar(id, source: avatarFile));
     }
     return id;
   }
@@ -171,7 +181,7 @@ class ChildrenRepository {
     bool clearGroupId = false,
     String? notes,
     bool clearNotes = false,
-    String? avatarPath,
+    XFile? avatarFile,
     bool clearAvatarPath = false,
     String? parentName,
     bool clearParentName = false,
@@ -192,11 +202,14 @@ class ChildrenRepository {
       notes: clearNotes
           ? const Value<String?>(null)
           : (notes == null ? const Value.absent() : Value(notes)),
+      // avatar_path is local-only (T1.1). Mirrors `addChild` logic:
+      // native stamps the picker's path, web leaves null so the
+      // `blob:` URL never lands in storage and confuses other code.
       avatarPath: clearAvatarPath
           ? const Value<String?>(null)
-          : (avatarPath == null
+          : (avatarFile == null
               ? const Value.absent()
-              : Value(avatarPath)),
+              : Value(!kIsWeb ? avatarFile.path : null)),
       parentName: clearParentName
           ? const Value<String?>(null)
           : (parentName == null
@@ -215,12 +228,15 @@ class ChildrenRepository {
       updatedAt: Value(DateTime.now()),
     );
     await (_db.update(_db.children)..where((k) => k.id.equals(id))).write(companion);
+    // `avatar_path` deliberately omitted from dirty fields — it's
+    // local-only (T1.1) and the sync engine filters it out on push.
+    // The cross-device avatar handle is `avatar_storage_path`,
+    // stamped + dirty-marked by the upload below.
     await _db.markDirty('children', id, [
       if (firstName != null) 'first_name',
       if (clearLastName || lastName != null) 'last_name',
       if (clearGroupId || groupId != null) 'group_id',
       if (clearNotes || notes != null) 'notes',
-      if (clearAvatarPath || avatarPath != null) 'avatar_path',
       if (clearParentName || parentName != null) 'parent_name',
       if (clearExpectedArrival || expectedArrival != null)
         'expected_arrival',
@@ -229,10 +245,11 @@ class ChildrenRepository {
     ]);
     unawaited(_sync.pushRow(childrenSpec, id));
     // If the avatar was set/changed in this update, kick a
-    // (re-)upload. Idempotent — MediaService skips when the row
-    // already has a non-null storage_path matching the file.
-    if (avatarPath != null && !clearAvatarPath) {
-      unawaited(_media.uploadChildAvatar(id));
+    // (re-)upload. Hands the freshly-picked XFile straight to
+    // MediaService so the upload works on web too (where there's
+    // no filesystem to read from).
+    if (avatarFile != null && !clearAvatarPath) {
+      unawaited(_media.uploadChildAvatar(id, source: avatarFile));
     }
   }
 

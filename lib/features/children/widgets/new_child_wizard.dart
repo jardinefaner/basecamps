@@ -6,6 +6,7 @@ import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:basecamp/ui/step_wizard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 
 /// Create-only wizard for enrolling a new child. Follows the same
 /// page-by-page pattern as the activity and adult wizards so
@@ -32,7 +33,7 @@ class _NewChildWizardScreenState extends ConsumerState<NewChildWizardScreen> {
   final _parentName = TextEditingController();
   final _notes = TextEditingController();
 
-  String? _avatarPath;
+  XFile? _avatarFile;
   late String? _groupId = widget.initialGroupId;
 
   bool get _dirty =>
@@ -40,7 +41,7 @@ class _NewChildWizardScreenState extends ConsumerState<NewChildWizardScreen> {
       _lastName.text.trim().isNotEmpty ||
       _parentName.text.trim().isNotEmpty ||
       _notes.text.trim().isNotEmpty ||
-      _avatarPath != null ||
+      _avatarFile != null ||
       _groupId != widget.initialGroupId;
 
   bool get _page1Valid => _firstName.text.trim().isNotEmpty;
@@ -63,7 +64,7 @@ class _NewChildWizardScreenState extends ConsumerState<NewChildWizardScreen> {
           lastName: last.isEmpty ? null : last,
           groupId: _groupId,
           notes: notes.isEmpty ? null : notes,
-          avatarPath: _avatarPath,
+          avatarFile: _avatarFile,
           parentName: parent.isEmpty ? null : parent,
         );
     if (!mounted) return;
@@ -126,9 +127,12 @@ class _NewChildWizardScreenState extends ConsumerState<NewChildWizardScreen> {
       children: [
         Center(
           child: AvatarPicker(
-            currentPath: _avatarPath,
+            // Wizard is create-only — no existing row to render.
+            currentLocalPath: null,
+            currentStoragePath: null,
+            pendingFile: _avatarFile,
             fallbackInitial: initial,
-            onChanged: (p) => setState(() => _avatarPath = p),
+            onChanged: (file) => setState(() => _avatarFile = file),
           ),
         ),
         const SizedBox(height: AppSpacing.xl),

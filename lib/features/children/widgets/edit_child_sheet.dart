@@ -9,6 +9,7 @@ import 'package:basecamp/ui/sticky_action_sheet.dart';
 import 'package:basecamp/ui/undo_delete.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 
 /// Create-or-edit sheet for a child. When [child] is null we're adding;
 /// otherwise we're editing that child — the title, action label, and
@@ -48,9 +49,15 @@ class _EditChildSheetState extends ConsumerState<EditChildSheet> {
       widget.initialGroupId ??
       (widget.groups.isNotEmpty ? widget.groups.first.id : null);
 
-  /// Local file path for the avatar. Starts at the existing value and
-  /// flips to null when the teacher taps "Remove photo".
-  late String? _avatarPath = widget.child?.avatarPath;
+  /// Freshly-picked avatar. Non-null when the teacher just snapped
+  /// or chose a new photo this session; reset on save. Carried as
+  /// XFile so the upload works on every platform.
+  XFile? _pendingAvatar;
+
+  /// Set when the teacher tapped "Remove photo." Drives
+  /// `clearAvatarPath: true` on save and suppresses the existing
+  /// avatar from the picker preview.
+  bool _avatarCleared = false;
 
   /// Standing drop-off / pickup times stored as "HH:mm" strings.
   /// Null = no expected time (drop-in kids); a set value drives the
@@ -73,7 +80,8 @@ class _EditChildSheetState extends ConsumerState<EditChildSheet> {
     if (_selectedGroupId != child.groupId) return true;
     if (trimOrNull(_parentNameController.text) != child.parentName) return true;
     if (trimOrNull(_notesController.text) != child.notes) return true;
-    if (_avatarPath != child.avatarPath) return true;
+    if (_pendingAvatar != null) return true;
+    if (_avatarCleared) return true;
     if (_expectedArrival != child.expectedArrival) return true;
     if (_expectedPickup != child.expectedPickup) return true;
     return false;
@@ -104,7 +112,7 @@ class _EditChildSheetState extends ConsumerState<EditChildSheet> {
         lastName: lastName.isEmpty ? null : lastName,
         groupId: _selectedGroupId,
         notes: notes.isEmpty ? null : notes,
-        avatarPath: _avatarPath,
+        avatarFile: _pendingAvatar,
         parentName: parentName.isEmpty ? null : parentName,
         expectedArrival: _expectedArrival,
         expectedPickup: _expectedPickup,
@@ -119,9 +127,8 @@ class _EditChildSheetState extends ConsumerState<EditChildSheet> {
         clearGroupId: _selectedGroupId == null && existing.groupId != null,
         notes: notes.isEmpty ? null : notes,
         clearNotes: notes.isEmpty && existing.notes != null,
-        avatarPath: _avatarPath,
-        clearAvatarPath:
-            _avatarPath == null && existing.avatarPath != null,
+        avatarFile: _pendingAvatar,
+        clearAvatarPath: _avatarCleared,
         parentName: parentName.isEmpty ? null : parentName,
         clearParentName:
             parentName.isEmpty && existing.parentName != null,
@@ -195,9 +202,24 @@ class _EditChildSheetState extends ConsumerState<EditChildSheet> {
         children: [
           Center(
             child: AvatarPicker(
-              currentPath: _avatarPath,
+              // When the teacher cleared this session we suppress
+              // the existing avatar from the preview so it matches
+              // what the row will look like after save.
+              currentLocalPath:
+                  _avatarCleared ? null : widget.child?.avatarPath,
+              currentStoragePath:
+                  _avatarCleared ? null : widget.child?.avatarStoragePath,
+              pendingFile: _pendingAvatar,
               fallbackInitial: fallbackInitial,
-              onChanged: (path) => setState(() => _avatarPath = path),
+              onChanged: (file) => setState(() {
+                if (file == null) {
+                  _pendingAvatar = null;
+                  _avatarCleared = true;
+                } else {
+                  _pendingAvatar = file;
+                  _avatarCleared = false;
+                }
+              }),
             ),
           ),
           const SizedBox(height: AppSpacing.lg),

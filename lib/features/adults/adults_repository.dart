@@ -8,7 +8,9 @@ import 'package:basecamp/features/sync/media_service.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 
 /// Structural role an adult plays on the schedule (v28). Distinct from
 /// [Adult.role], which is the free-form job-title blurb
@@ -73,7 +75,7 @@ class AdultsRepository {
     String? role,
     String? roleId,
     String? notes,
-    String? avatarPath,
+    XFile? avatarFile,
     AdultRole adultRole = AdultRole.specialist,
     String? anchoredGroupId,
     // v40: direct contact columns + staff↔parent bridge. All
@@ -84,6 +86,14 @@ class AdultsRepository {
     String? parentId,
   }) async {
     final id = newId();
+    // avatar_path is local-only (T1.1). On native, store the
+    // picker's filesystem path so SmallAvatar can fast-render and
+    // the heal pass can recover. On web `XFile.path` is a `blob:`
+    // URL useless to dart:io.File, so we skip it — the cross-
+    // device handle is `avatar_storage_path`, stamped by the
+    // upload below.
+    final localAvatarPath =
+        avatarFile != null && !kIsWeb ? avatarFile.path : null;
     await _db.into(_db.adults).insert(
           AdultsCompanion.insert(
             id: id,
@@ -91,7 +101,7 @@ class AdultsRepository {
             role: Value(role),
             roleId: Value(roleId),
             notes: Value(notes),
-            avatarPath: Value(avatarPath),
+            avatarPath: Value(localAvatarPath),
             adultRole: Value(adultRole.dbValue),
             anchoredGroupId: Value(anchoredGroupId),
             phone: Value(phone),
@@ -101,8 +111,11 @@ class AdultsRepository {
           ),
         );
     unawaited(_sync.pushRow(adultsSpec, id));
-    if (avatarPath != null) {
-      unawaited(_media.uploadAdultAvatar(id));
+    if (avatarFile != null) {
+      // Hand the freshly-picked XFile straight to MediaService —
+      // works on every platform (web reads bytes via XFile, no
+      // dart:io needed).
+      unawaited(_media.uploadAdultAvatar(id, source: avatarFile));
     }
     return id;
   }
@@ -112,7 +125,7 @@ class AdultsRepository {
     required String name,
     String? role,
     String? notes,
-    String? avatarPath,
+    XFile? avatarFile,
     bool clearAvatarPath = false,
     // Both default to Value.absent() so callers that only touch the
     // legacy fields (name / role / notes / avatar) don't accidentally
@@ -132,6 +145,14 @@ class AdultsRepository {
     Value<String?> email = const Value.absent(),
     Value<String?> parentId = const Value.absent(),
   }) async {
+    // avatar_path is local-only (T1.1) — never pushed to cloud and
+    // never marked dirty. On native we stamp the picker's local
+    // path so SmallAvatar / AvatarPicker can fast-render and the
+    // heal pass can recover. On web we leave it null because
+    // `XFile.path` there is a `blob:` URL that won't survive a
+    // page reload.
+    final localAvatarPath =
+        avatarFile != null && !kIsWeb ? avatarFile.path : null;
     await (_db.update(_db.adults)..where((s) => s.id.equals(id))).write(
       AdultsCompanion(
         name: Value(name),
@@ -140,9 +161,9 @@ class AdultsRepository {
         notes: Value(notes),
         avatarPath: clearAvatarPath
             ? const Value<String?>(null)
-            : (avatarPath == null
+            : (avatarFile == null
                 ? const Value.absent()
-                : Value(avatarPath)),
+                : Value(localAvatarPath)),
         adultRole: adultRole,
         anchoredGroupId: anchoredGroupId,
         phone: phone,
@@ -158,11 +179,16 @@ class AdultsRepository {
     // companion uses `Value(role)` so null does write through), so
     // they're always dirty when the call happens. The Value-wrapped
     // params are dirty only when `.present`.
+    //
+    // `avatar_path` deliberately omitted: it's local-only (T1.1),
+    // so the sync engine filters it out of every push; marking it
+    // dirty would have no cloud effect. The cross-device avatar
+    // handle is `avatar_storage_path`, which the media-service
+    // upload below stamps and dirty-marks on its own.
     final dirty = <String>[
       'name',
       'role',
       'notes',
-      if (clearAvatarPath || avatarPath != null) 'avatar_path',
       if (roleId.present) 'role_id',
       if (adultRole.present) 'adult_role',
       if (anchoredGroupId.present) 'anchored_group_id',
@@ -172,8 +198,8 @@ class AdultsRepository {
     ];
     await _db.markDirty('adults', id, dirty);
     unawaited(_sync.pushRow(adultsSpec, id));
-    if (avatarPath != null && !clearAvatarPath) {
-      unawaited(_media.uploadAdultAvatar(id));
+    if (avatarFile != null && !clearAvatarPath) {
+      unawaited(_media.uploadAdultAvatar(id, source: avatarFile));
     }
   }
 

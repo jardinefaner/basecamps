@@ -279,7 +279,8 @@ class _StaffLinkSection extends ConsumerWidget {
           name: adult.name,
           role: adult.role,
           notes: adult.notes,
-          avatarPath: adult.avatarPath,
+          // Avatar is untouched by an unlink — omitting `avatarFile`
+          // and `clearAvatarPath` leaves the existing photo alone.
           parentId: const Value(null),
         );
   }

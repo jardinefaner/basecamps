@@ -920,6 +920,30 @@ class SyncEngine {
     return [for (final r in results) r.data];
   }
 
+  /// Columns the engine never reads from cloud or writes to cloud
+  /// — each device owns them locally. Filtered out of both push
+  /// payloads (`_toCloudShape`) and pull projections
+  /// (`_upsertLocalRow`) so a device never imports another
+  /// device's local-only column value over its own.
+  ///
+  ///   * `deleted_at` — cloud-only soft-delete tombstone; local
+  ///     hard-deletes the row, so cloud's deleted_at never has a
+  ///     local mirror.
+  ///   * `dirty_fields` — local-only sync state, see Phase 1.
+  ///   * `avatar_path` — local filesystem handle, only valid on
+  ///     the device that captured the photo. The cross-device
+  ///     handle is `avatar_storage_path` (the Supabase Storage
+  ///     key). Pre-fix the cloud row carried this useless string,
+  ///     polluting other devices' rendering.
+  ///   * `local_path` (on `observation_attachments`) — same shape
+  ///     as `avatar_path` for attachments.
+  static const _kLocalOnlyColumns = <String>{
+    'deleted_at',
+    'dirty_fields',
+    'avatar_path',
+    'local_path',
+  };
+
   /// Drift returns `int` for DateTime-typed columns (unix-seconds
   /// since drift's encoder). Postgres expects ISO strings. Convert
   /// every column the spec marked as date-typed.
@@ -929,15 +953,18 @@ class SyncEngine {
   ) {
     return <String, Object?>{
       for (final entry in row.entries)
-        if (dateColumns.contains(entry.key) && entry.value != null)
-          entry.key: DateTime.fromMillisecondsSinceEpoch(
-            (entry.value! as int) * 1000,
-            isUtc: true,
-          ).toIso8601String()
-        else if (entry.key != 'deleted_at' && entry.key != 'dirty_fields')
-          // deleted_at: cloud-only, pushDelete sets it.
-          // dirty_fields: local-only, never reaches cloud.
-          entry.key: entry.value,
+        // Local-only columns never make it onto the wire — invert
+        // the membership check so the collection-literal stays a
+        // simple if/else without `continue` (which Dart doesn't
+        // allow inside a collection literal).
+        if (!_kLocalOnlyColumns.contains(entry.key))
+          if (dateColumns.contains(entry.key) && entry.value != null)
+            entry.key: DateTime.fromMillisecondsSinceEpoch(
+              (entry.value! as int) * 1000,
+              isUtc: true,
+            ).toIso8601String()
+          else
+            entry.key: entry.value,
     };
   }
 
@@ -951,11 +978,15 @@ class SyncEngine {
     Map<String, dynamic> row,
     Set<String> dateColumns,
   ) async {
-    // Skip the cloud-only deleted_at column when projecting back
-    // to local — local doesn't carry it.
+    // Filter out local-only columns when projecting cloud → local.
+    // `deleted_at` is cloud-only (we hard-delete locally). The
+    // per-device columns (`avatar_path`, `local_path`,
+    // `dirty_fields`) belong to whichever device is reading the
+    // pull, NOT the device that pushed the row. Importing them
+    // would clobber this device's own state.
     final projected = <String, Object?>{};
     for (final entry in row.entries) {
-      if (entry.key == 'deleted_at') continue;
+      if (_kLocalOnlyColumns.contains(entry.key)) continue;
       if (dateColumns.contains(entry.key) && entry.value != null) {
         projected[entry.key] =
             DateTime.parse(entry.value as String).millisecondsSinceEpoch ~/

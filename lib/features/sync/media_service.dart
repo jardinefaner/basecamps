@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io';
+import 'dart:io' show Directory, File;
 
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
@@ -7,6 +7,7 @@ import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -37,6 +38,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 ///
 /// Path keying with the row id keeps lookups deterministic — no
 /// per-device file naming, no collisions across teachers.
+///
+/// **Web parity:** `dart:io.File` throws on web (no filesystem),
+/// so every code path that touches bytes goes through [XFile]
+/// (which on web wraps a `blob:` URL and returns bytes via its
+/// own platform-aware reader). The capture device passes the
+/// freshly-picked [XFile] in directly; heal passes for cloud-only
+/// rows are skipped on web because there's no local file to
+/// recover from.
 class MediaService {
   MediaService(this._db, [this._ref]);
 
@@ -69,6 +78,7 @@ class MediaService {
   ///   - the row is gone (deleted between mutation and upload)
   ///   - the row already has a non-null `storage_path` (idempotent)
   ///   - the local file no longer exists (e.g. user cleared cache)
+  ///   - the device is web (no filesystem to read from)
   ///
   /// Fire-and-forget. Errors logged via debugPrint so they don't
   /// surface to the caller.
@@ -76,6 +86,10 @@ class MediaService {
     final client = _client;
     if (client == null) return;
     if (client.auth.currentSession == null) return;
+    // Web has no filesystem — observation attachments stamped on
+    // a phone get pulled here as cloud rows; the upload pass is a
+    // no-op.
+    if (kIsWeb) return;
 
     try {
       final row = await (_db.select(_db.observationAttachments)
@@ -94,10 +108,10 @@ class MediaService {
       if (programId == null) return;
 
       final file = File(row.localPath);
-      // The lint suggests existsSync() but we don't want to
-      // block on disk I/O during a fire-and-forget upload.
-      // ignore: avoid_slow_async_io
-      if (!await file.exists()) {
+      // existsSync — heal-path I/O is OK to be sync; tripping the
+      // slow-async-io lint matters less than avoiding a needless
+      // event-loop hop, and we already gated on kIsWeb above.
+      if (!file.existsSync()) {
         debugPrint(
           'Media upload skipped — local file missing for $attachmentId',
         );
@@ -142,20 +156,34 @@ class MediaService {
     }
   }
 
-  /// Uploads the avatar file for [childId] to the bucket and
-  /// stamps `avatar_storage_path`. Same fire-and-forget shape as
-  /// [uploadObservationAttachment]. Idempotent — a re-upload only
-  /// fires when the local avatar path changed (caller checks).
+  /// Uploads an avatar for [childId] to the bucket and stamps
+  /// `avatar_storage_path`. Two callers:
+  ///
+  ///   * **Picker (fresh capture):** pass [source] — the [XFile]
+  ///     returned by `image_picker`. Bytes are read via
+  ///     `XFile.readAsBytes()`, which works on every platform
+  ///     including web (where `XFile.path` is a useless `blob:`
+  ///     URL but the bytes are still readable). Always uploads,
+  ///     overwriting any prior photo for this row.
+  ///
+  ///   * **Heal pass (no [source]):** native-only. Reads the row's
+  ///     `avatar_path`, verifies the file is still on disk, and
+  ///     uploads. No-op when `avatar_storage_path` is already set
+  ///     (idempotent).
   ///
   /// On success, marks `avatar_storage_path` dirty so the next
   /// pushRow propagates it to cloud — without that, the storage
   /// path stays local-only and other devices pulling the row see
   /// a useless cross-device file path with no cloud handle.
-  Future<void> uploadChildAvatar(String childId) async {
+  Future<void> uploadChildAvatar(
+    String childId, {
+    XFile? source,
+  }) async {
     await _uploadPersonAvatar(
       kind: 'children',
       table: 'children',
       rowId: childId,
+      source: source,
       tableSelect: () => (_db.select(_db.children)
             ..where((c) => c.id.equals(childId)))
           .getSingleOrNull()
@@ -179,11 +207,15 @@ class MediaService {
   }
 
   /// Same as [uploadChildAvatar] for adults.
-  Future<void> uploadAdultAvatar(String adultId) async {
+  Future<void> uploadAdultAvatar(
+    String adultId, {
+    XFile? source,
+  }) async {
     await _uploadPersonAvatar(
       kind: 'adults',
       table: 'adults',
       rowId: adultId,
+      source: source,
       tableSelect: () => (_db.select(_db.adults)
             ..where((a) => a.id.equals(adultId)))
           .getSingleOrNull()
@@ -213,15 +245,18 @@ class MediaService {
   /// path is already set), so re-running on every bootstrap +
   /// foreground tick is cheap at steady state.
   ///
-  /// Catches any media whose first upload silently failed or
-  /// whose stamp never reached cloud — the cross-device sync
-  /// guarantee for media was broken before this method existed:
-  /// pre-Phase-4 uploads stamped storage_path locally but never
-  /// marked it dirty, so it stayed device-local forever.
+  /// **Native-only.** Heal exists to recover the device that
+  /// captured the photo from a prior upload failure. Web devices
+  /// never carry the local file — running heal there would just
+  /// silently fail every cycle and waste cloud round-trips.
+  /// (Pre-T1 the heal pass _did_ run on web, where File()
+  /// construction threw `UnsupportedError` for every row.)
   Future<int> healMissingAvatarUploads() async {
     final client = _client;
     if (client == null) return 0;
     if (client.auth.currentSession == null) return 0;
+    if (kIsWeb) return 0;
+
     var triggered = 0;
     try {
       final children = await (_db.select(_db.children)
@@ -229,6 +264,14 @@ class MediaService {
                 c.avatarPath.isNotNull() & c.avatarStoragePath.isNull()))
           .get();
       for (final c in children) {
+        // Extra guard — only fire if the file is actually on this
+        // device's disk. The avatar_path column is local-only
+        // (Phase 6 / T1.1) so it should already correspond to
+        // *this* device, but a stale value can survive across
+        // wipe/import.
+        final local = c.avatarPath;
+        if (local == null) continue;
+        if (!File(local).existsSync()) continue;
         unawaited(uploadChildAvatar(c.id));
         triggered++;
       }
@@ -241,6 +284,9 @@ class MediaService {
                 a.avatarPath.isNotNull() & a.avatarStoragePath.isNull()))
           .get();
       for (final a in adults) {
+        final local = a.avatarPath;
+        if (local == null) continue;
+        if (!File(local).existsSync()) continue;
         unawaited(uploadAdultAvatar(a.id));
         triggered++;
       }
@@ -255,6 +301,7 @@ class MediaService {
             ..where((a) => a.storagePath.isNull()))
           .get();
       for (final a in attachments) {
+        if (!File(a.localPath).existsSync()) continue;
         unawaited(uploadObservationAttachment(a.id));
         triggered++;
       }
@@ -274,6 +321,7 @@ class MediaService {
     required Future<_AvatarPullback?> Function() tableSelect,
     required Future<void> Function(String storagePath) stampStoragePath,
     required String Function(String programId) bucketKey,
+    XFile? source,
   }) async {
     final client = _client;
     if (client == null) return;
@@ -283,19 +331,37 @@ class MediaService {
       final row = await tableSelect();
       if (row == null) return;
       final programId = row.programId;
-      final localPath = row.localPath;
-      if (programId == null || localPath == null) return;
-      if (row.storagePath != null) return; // already uploaded
+      if (programId == null) return;
 
-      final file = File(localPath);
-      // ignore: avoid_slow_async_io — see uploadObservationAttachment
-      if (!await file.exists()) return;
+      // Resolve bytes. Two paths:
+      //   1. Fresh capture: read straight from the picker's XFile.
+      //      Works on every platform — XFile abstracts the
+      //      file-vs-blob distinction.
+      //   2. Heal: read from the row's local path. Native-only;
+      //      web has no FS, so we'd never have a local file to
+      //      recover from.
+      final Uint8List bytes;
+      final String ext;
+      if (source != null) {
+        bytes = await source.readAsBytes();
+        ext = _extensionFromXFile(source);
+      } else {
+        if (kIsWeb) return; // web heal is a no-op, see comments above.
+        if (row.storagePath != null) return; // already uploaded
+        final localPath = row.localPath;
+        if (localPath == null) return;
+        final file = File(localPath);
+        if (!file.existsSync()) return;
+        bytes = await file.readAsBytes();
+        ext = p.extension(localPath).isEmpty
+            ? '.jpg'
+            : p.extension(localPath);
+      }
 
-      final ext = p.extension(localPath);
       final storagePath = '${bucketKey(programId)}$ext';
       await client.storage.from(_bucket).uploadBinary(
             storagePath,
-            await file.readAsBytes(),
+            bytes,
             fileOptions: FileOptions(
               upsert: true,
               contentType: _contentTypeFor(ext, 'photo'),
@@ -323,6 +389,32 @@ class MediaService {
     } on Object catch (e, st) {
       debugPrint('$kind avatar upload failed: $e\n$st');
     }
+  }
+
+  /// Best-effort file extension from an [XFile]. On native the
+  /// `name` always carries the original extension; on web some
+  /// browsers omit it (the `blob:` URL has none). Falls back to
+  /// the MIME type, then to `.jpg` so the bucket key is always
+  /// well-formed.
+  String _extensionFromXFile(XFile source) {
+    final fromName = p.extension(source.name);
+    if (fromName.isNotEmpty) return fromName;
+    final mime = source.mimeType;
+    if (mime != null) {
+      switch (mime) {
+        case 'image/jpeg':
+          return '.jpg';
+        case 'image/png':
+          return '.png';
+        case 'image/heic':
+          return '.heic';
+        case 'image/gif':
+          return '.gif';
+        case 'image/webp':
+          return '.webp';
+      }
+    }
+    return '.jpg';
   }
 
   /// Map a table name to its TableSpec. Avatars are pushed via
@@ -356,11 +448,16 @@ class MediaService {
     final client = _client;
     if (client == null) return null;
     if (client.auth.currentSession == null) return null;
+    // Form images come from the same image_picker plumbing as
+    // avatars — but this entry point still takes a string path,
+    // which on web is a `blob:` URL that File() can't open. The
+    // forms surface should migrate to XFile too; until it does,
+    // skip the upload on web rather than throw.
+    if (kIsWeb) return null;
 
     try {
       final file = File(localPath);
-      // ignore: avoid_slow_async_io — fire-and-forget; see siblings.
-      if (!await file.exists()) {
+      if (!file.existsSync()) {
         debugPrint(
           'Form image upload skipped — local file missing for '
           '$submissionId/$fieldKey',
@@ -436,7 +533,15 @@ class MediaService {
   /// `media-cache/`. Files are named by their storage path with
   /// path separators replaced — guaranteed unique without needing
   /// per-row mapping.
+  ///
+  /// Native-only: web has no filesystem; web callers route through
+  /// [signedUrlFor] + NetworkImage instead.
   Future<String> ensureLocalFile(String storagePath) async {
+    if (kIsWeb) {
+      throw const MediaUnavailableException(
+        'ensureLocalFile is native-only; use signedUrlFor on web',
+      );
+    }
     final client = _client;
     if (client == null) {
       throw const MediaUnavailableException(
@@ -450,8 +555,7 @@ class MediaService {
     final cacheDir = await _cacheDirectory();
     final cacheKey = storagePath.replaceAll('/', '__');
     final cacheFile = File(p.join(cacheDir.path, cacheKey));
-    // ignore: avoid_slow_async_io — same reason as upload paths.
-    if (await cacheFile.exists()) return cacheFile.path;
+    if (cacheFile.existsSync()) return cacheFile.path;
 
     final bytes = await client.storage.from(_bucket).download(storagePath);
     await cacheFile.parent.create(recursive: true);
@@ -473,6 +577,7 @@ class MediaService {
     if (lower == '.png') return 'image/png';
     if (lower == '.heic') return 'image/heic';
     if (lower == '.gif') return 'image/gif';
+    if (lower == '.webp') return 'image/webp';
     if (lower == '.mp4') return 'video/mp4';
     if (lower == '.mov') return 'video/quicktime';
     return kind == 'video'

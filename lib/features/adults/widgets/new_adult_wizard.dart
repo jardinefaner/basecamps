@@ -10,6 +10,7 @@ import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:basecamp/ui/step_wizard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 
 /// Create-only step-wizard for a new adult. Editing an existing row
 /// still uses the dense EditAdultSheet; this flow walks a
@@ -53,7 +54,11 @@ class _NewAdultWizardScreenState
   final _phone = TextEditingController();
   final _email = TextEditingController();
   final _notes = TextEditingController();
-  String? _avatarPath;
+
+  /// Freshly-picked avatar. Carried as XFile so the upload works
+  /// on every platform (web reads bytes via XFile; dart:io.File
+  /// throws there).
+  XFile? _avatarFile;
 
   AdultRole _adultRole = AdultRole.specialist;
   String? _anchoredGroupId;
@@ -89,7 +94,7 @@ class _NewAdultWizardScreenState
       _phone.text.trim().isNotEmpty ||
       _email.text.trim().isNotEmpty ||
       _notes.text.trim().isNotEmpty ||
-      _avatarPath != null ||
+      _avatarFile != null ||
       _adultRole != AdultRole.specialist ||
       _anchoredGroupId != null;
 
@@ -123,7 +128,7 @@ class _NewAdultWizardScreenState
       role: role,
       roleId: _roleId,
       notes: notes.isEmpty ? null : notes,
-      avatarPath: _avatarPath,
+      avatarFile: _avatarFile,
       adultRole: _adultRole,
       anchoredGroupId: effectiveAnchor,
       phone: phone.isEmpty ? null : phone,
@@ -219,9 +224,14 @@ class _NewAdultWizardScreenState
       children: [
         Center(
           child: AvatarPicker(
-            currentPath: _avatarPath,
+            // Wizard is create-only — there's no existing
+            // avatar_path / storage_path to render. Picker shows
+            // the pending pick (if any) or the fallback initial.
+            currentLocalPath: null,
+            currentStoragePath: null,
+            pendingFile: _avatarFile,
             fallbackInitial: initial,
-            onChanged: (p) => setState(() => _avatarPath = p),
+            onChanged: (file) => setState(() => _avatarFile = file),
           ),
         ),
         const SizedBox(height: AppSpacing.xl),

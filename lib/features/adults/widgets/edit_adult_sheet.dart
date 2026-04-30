@@ -20,6 +20,7 @@ import 'package:basecamp/ui/undo_delete.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 
 class EditAdultSheet extends ConsumerStatefulWidget {
   const EditAdultSheet({super.key, this.adult});
@@ -43,7 +44,16 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
   late final _notesController =
       TextEditingController(text: widget.adult?.notes ?? '');
 
-  late String? _avatarPath = widget.adult?.avatarPath;
+  /// Freshly-picked avatar — non-null when the teacher has just
+  /// snapped or chosen a new photo. Cleared on save. Takes
+  /// precedence over the existing row's `avatar_path` /
+  /// `avatar_storage_path` for both preview rendering and the
+  /// repo write.
+  XFile? _pendingAvatar;
+
+  /// Set when the teacher tapped "Remove photo" on a row that
+  /// previously had one. Drives `clearAvatarPath: true` on save.
+  bool _avatarCleared = false;
 
   /// v40: link to the Parents row when this staff member is also a
   /// parent of a child in the program. Null when not linked. The
@@ -100,7 +110,10 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
     final currentNotes =
         _notesController.text.trim().isEmpty ? null : _notesController.text.trim();
     if (currentNotes != adult.notes) return true;
-    if (_avatarPath != adult.avatarPath) return true;
+    // Either flag is the teacher having actually touched the
+    // avatar this session — pristine opens see neither.
+    if (_pendingAvatar != null) return true;
+    if (_avatarCleared) return true;
     if (_adultRole.dbValue != adult.adultRole) return true;
     if (_anchoredGroupId != adult.anchoredGroupId) return true;
     if (_parentId != adult.parentId) return true;
@@ -206,9 +219,8 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
         role: role,
         roleId: Value(roleId),
         notes: notes,
-        avatarPath: _avatarPath,
-        clearAvatarPath:
-            _avatarPath == null && existing.avatarPath != null,
+        avatarFile: _pendingAvatar,
+        clearAvatarPath: _avatarCleared,
         adultRole: Value(_adultRole.dbValue),
         anchoredGroupId: Value(effectiveAnchor),
         phone: Value(phone),
@@ -222,7 +234,7 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
         role: role,
         roleId: roleId,
         notes: notes,
-        avatarPath: _avatarPath,
+        avatarFile: _pendingAvatar,
         adultRole: _adultRole,
         anchoredGroupId: effectiveAnchor,
         phone: phone,
@@ -294,11 +306,29 @@ class _EditAdultSheetState extends ConsumerState<EditAdultSheet> {
         children: [
           Center(
             child: AvatarPicker(
-              currentPath: _avatarPath,
+              // When the teacher has cleared the photo this session
+              // we suppress both currentLocalPath and currentStoragePath
+              // so the preview falls through to the fallback initial,
+              // matching what the row will look like after save.
+              currentLocalPath: _avatarCleared
+                  ? null
+                  : widget.adult?.avatarPath,
+              currentStoragePath: _avatarCleared
+                  ? null
+                  : widget.adult?.avatarStoragePath,
+              pendingFile: _pendingAvatar,
               fallbackInitial: _nameController.text.trim().isNotEmpty
                   ? _nameController.text.trim().characters.first.toUpperCase()
                   : '?',
-              onChanged: (path) => setState(() => _avatarPath = path),
+              onChanged: (file) => setState(() {
+                if (file == null) {
+                  _pendingAvatar = null;
+                  _avatarCleared = true;
+                } else {
+                  _pendingAvatar = file;
+                  _avatarCleared = false;
+                }
+              }),
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
