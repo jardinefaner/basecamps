@@ -137,20 +137,6 @@ class SyncEngine {
   RealtimeChannel? _realtimeChannel;
   String? _realtimeProgramId;
 
-  /// Stream of detected concurrent-edit overwrites. Emits a
-  /// [SyncConflict] every time pull or realtime applies a remote
-  /// row that's strictly newer than local AND the local row had
-  /// been edited since the last successful pull (i.e., local had
-  /// unsynced changes when the remote version arrived).
-  ///
-  /// UI subscribes via `engine.conflicts` and surfaces a snackbar
-  /// so a teacher learns "your edit was overwritten by a change
-  /// from another device." Last-write-wins is still the semantic
-  /// model — this just adds visibility.
-  Stream<SyncConflict> get conflicts => _conflictController.stream;
-  final StreamController<SyncConflict> _conflictController =
-      StreamController<SyncConflict>.broadcast();
-
   /// Stream of push failures. Emits each time a debounced push hits
   /// an exception (network, RLS rejection, validation). The app
   /// listens at the root and surfaces a snackbar so users see when
@@ -537,15 +523,6 @@ class SyncEngine {
       // sample local updated_at BEFORE the upsert so we can spot
       // the case where the local was edited between the watermark
       // and now (i.e., we're about to overwrite an unsynced
-      // local edit). Watermark sentinel `_kEpoch` for the first-
-      // ever pull means no conflict can fire on a fresh device,
-      // which is what we want.
-      final preApplyLocalTs = <String, DateTime?>{};
-      for (final row in liveRows) {
-        preApplyLocalTs[row['id'] as String] =
-            await _localUpdatedAt(spec.table, row['id'] as String);
-      }
-
       await _db.transaction(() async {
         if (deletedIds.isNotEmpty) {
           await _db.customUpdate(
@@ -585,32 +562,6 @@ class SyncEngine {
           );
         }
       });
-
-      // Emit conflict events after the txn commits (we don't want
-      // listeners reacting to a state that might still get rolled
-      // back). Watermark is the value we read at the top of the
-      // page loop; rows whose local updated_at is later than that
-      // had unsynced edits we just overwrote.
-      for (final row in liveRows) {
-        final id = row['id'] as String;
-        final localTs = preApplyLocalTs[id];
-        if (localTs == null) continue;
-        final remoteTs =
-            DateTime.parse(row['updated_at'] as String).toUtc();
-        if (_isConcurrentOverwrite(
-          local: localTs,
-          remote: remoteTs,
-          watermark: watermarkRow?.lastPulledAt,
-        )) {
-          _conflictController.add(SyncConflict(
-            table: spec.table,
-            rowId: id,
-            localUpdatedAt: localTs,
-            remoteUpdatedAt: remoteTs,
-            detectedVia: 'pull',
-          ));
-        }
-      }
 
       totalApplied += page.length;
       cursor = DateTime.parse(page.last['updated_at'] as String).toUtc();
@@ -790,22 +741,6 @@ class SyncEngine {
         return;
       }
 
-      // Concurrent-edit detection. Realtime has no per-row
-      // watermark (only per-table last-pulled-at), so use that as
-      // the cutoff. If local updated_at is after the watermark,
-      // local had unsynced edits that the incoming change is
-      // about to overwrite.
-      final watermarkRow = await (_db.select(_db.syncState)
-            ..where((s) =>
-                s.programId.equals(row['program_id'] as String) &
-                s.targetTable.equals(spec.table)))
-          .getSingleOrNull();
-      final wasConflict = _isConcurrentOverwrite(
-        local: localTs,
-        remote: remoteUpdatedAt,
-        watermark: watermarkRow?.lastPulledAt,
-      );
-
       // Apply parent + re-fetch cascades. One round-trip per
       // cascade table; cheap because the parent event is rare
       // relative to keystroke-rate events.
@@ -827,16 +762,6 @@ class SyncEngine {
           await _replaceLocalCascades(client, spec.cascades, [id]);
         }
       });
-
-      if (wasConflict && localTs != null) {
-        _conflictController.add(SyncConflict(
-          table: spec.table,
-          rowId: id,
-          localUpdatedAt: localTs,
-          remoteUpdatedAt: remoteUpdatedAt,
-          detectedVia: 'realtime',
-        ));
-      }
     } on Object catch (e, st) {
       debugPrint(
         'Realtime apply failed for ${spec.table}: $e\n$st',
@@ -1106,20 +1031,6 @@ class SyncEngine {
     return Variable<String>(value.toString());
   }
 
-  /// Detects a concurrent-edit overwrite. Returns true if [local]
-  /// is non-null and was modified after [watermark] — meaning the
-  /// row had unsynced edits when the [remote] version arrived.
-  /// Caller takes the truth and emits a [SyncConflict].
-  bool _isConcurrentOverwrite({
-    required DateTime? local,
-    required DateTime remote,
-    required DateTime? watermark,
-  }) {
-    if (local == null) return false;
-    if (watermark == null) return false;
-    return local.isAfter(watermark);
-  }
-
   /// Force-flush every pending debounced push immediately. Called
   /// before switching active programs so the push queue (which
   /// captured the OLD program's row state) lands in cloud before
@@ -1153,15 +1064,14 @@ class SyncEngine {
     await Future.wait(futures);
   }
 
-  /// Closes the conflict stream + tears down realtime. Called
-  /// when the provider disposes (rare; mostly for tests).
+  /// Closes streams + tears down realtime. Called when the
+  /// provider disposes (rare; mostly for tests).
   void dispose() {
     for (final timer in _pendingPushes.values) {
       timer.cancel();
     }
     _pendingPushes.clear();
     unawaited(unsubscribeFromRealtime());
-    unawaited(_conflictController.close());
     unawaited(_pushErrorController.close());
     unawaited(_realtimeStatusController.close());
   }
@@ -1172,42 +1082,6 @@ final syncEngineProvider = Provider<SyncEngine>((ref) {
   ref.onDispose(engine.dispose);
   return engine;
 });
-
-/// One concurrent-edit overwrite. Emitted by the engine when a
-/// pull or realtime event applied a remote row that's strictly
-/// newer than the local one AND the local row had been edited
-/// since the last sync watermark.
-///
-/// "Concurrent" here means: while we held an unsynced local edit,
-/// another device pushed a change to the same row. Last-write-
-/// wins picked the remote one (because its updated_at is later);
-/// this event lets the UI surface that the local edit got
-/// shadowed.
-@immutable
-class SyncConflict {
-  const SyncConflict({
-    required this.table,
-    required this.rowId,
-    required this.localUpdatedAt,
-    required this.remoteUpdatedAt,
-    required this.detectedVia,
-  });
-
-  final String table;
-  final String rowId;
-  final DateTime localUpdatedAt;
-  final DateTime remoteUpdatedAt;
-
-  /// 'pull' (the watermarked pull-on-launch path) or 'realtime'
-  /// (the WebSocket subscription). Helps UIs report what surface
-  /// the conflict came in through.
-  final String detectedVia;
-
-  @override
-  String toString() =>
-      'SyncConflict($table/$rowId, local=$localUpdatedAt, '
-      'remote=$remoteUpdatedAt, via=$detectedVia)';
-}
 
 /// One row's push failure. Emitted on `engine.pushErrors` so the
 /// app shell can surface a snackbar / banner — without this,

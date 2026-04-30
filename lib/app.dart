@@ -35,7 +35,6 @@ class BasecampApp extends ConsumerStatefulWidget {
 class _BasecampAppState extends ConsumerState<BasecampApp>
     with WidgetsBindingObserver {
   ProviderSubscription<Session?>? _programBootstrapSub;
-  StreamSubscription<SyncConflict>? _conflictsSub;
   StreamSubscription<SyncPushError>? _pushErrorsSub;
   DateTime? _lastPushErrorToastAt;
 
@@ -71,26 +70,15 @@ class _BasecampAppState extends ConsumerState<BasecampApp>
     _programBootstrapSub =
         ref.read(programAuthBootstrapProvider).start();
 
-    // Conflict-detection: when sync overwrites a local row that
-    // had unsynced edits, surface a snackbar so the teacher
-    // knows their work was shadowed by another device. The toast
-    // groups the table + row id and is short — last-write-wins
-    // is the semantic; this just adds visibility.
-    _conflictsSub = ref.read(syncEngineProvider).conflicts.listen((c) {
-      final messenger = scaffoldMessengerKey.currentState;
-      if (messenger == null) return;
-      messenger
-        ..clearSnackBars()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              'A change from another device overwrote a local edit '
-              'on ${c.table}. (Last write wins.)',
-            ),
-            duration: const Duration(seconds: 6),
-          ),
-        );
-    });
+    // The "a change from another device overwrote a local edit"
+    // toast lived here through Phase 5 of the sync work. Field-
+    // level dirty tracking now preserves un-pushed local edits
+    // across pulls and realtime events (the dirty-fields list is
+    // filtered out of every incoming row before merge), so the
+    // row-level timestamp comparison that powered the toast was
+    // firing on overlap that didn't actually overwrite anything.
+    // Toast removed; the conflict stream + SyncConflict class
+    // + `_isConcurrentOverwrite` helper went with it.
 
     // Push-error toast. Without this, RLS rejections / network
     // failures only landed in `debugPrint` and gave the user the
@@ -141,7 +129,6 @@ class _BasecampAppState extends ConsumerState<BasecampApp>
     WidgetsBinding.instance.removeObserver(this);
     _periodicPullTimer?.cancel();
     _programBootstrapSub?.close();
-    unawaited(_conflictsSub?.cancel());
     unawaited(_pushErrorsSub?.cancel());
     super.dispose();
   }
