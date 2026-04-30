@@ -1,10 +1,17 @@
 import 'package:basecamp/app.dart';
 import 'package:basecamp/config/env.dart';
+// Conditional import — the stub is a no-op on every native build,
+// the web file calls window.history.replaceState. Without the
+// conditional, `package:web` (which is web-only) would be pulled
+// into Android/iOS compilation and break the kernel build with
+// `'JSObject' isn't a type` errors.
+import 'package:basecamp/url_cleanup_stub.dart'
+    if (dart.library.js_interop) 'package:basecamp/url_cleanup_web.dart'
+    as url_cleanup;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:web/web.dart' as web;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -56,9 +63,9 @@ void main() async {
       } on Object catch (e) {
         debugPrint('OAuth code exchange failed: $e');
         // Strip `?code=...` from the address bar so we don't loop
-        // on the same dead code on every refresh. window.history
-        // .replaceState is a no-reload swap — the in-flight Flutter
-        // boot continues normally with a clean URL.
+        // on the same dead code on every refresh. The actual call
+        // lives in `url_cleanup_web.dart` (web) /
+        // `url_cleanup_stub.dart` (everything else, no-op).
         try {
           final base = Uri.base;
           final cleaned = Uri(
@@ -68,7 +75,7 @@ void main() async {
             path: base.path,
             fragment: base.fragment.isEmpty ? null : base.fragment,
           ).toString();
-          web.window.history.replaceState(null, '', cleaned);
+          url_cleanup.replaceUrl(cleaned);
         } on Object catch (e) {
           debugPrint('Failed to clean stale code from URL: $e');
         }
