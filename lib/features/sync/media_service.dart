@@ -123,6 +123,20 @@ class MediaService {
           storagePath: Value(storagePath),
         ),
       );
+      // observation_attachments is a cascade of observations —
+      // it travels to cloud via the parent's pushRow + cascade
+      // replace. Trigger a push of the parent observation so the
+      // cascade rebuilds with the freshly-stamped storage_path
+      // included; otherwise the storage_path lingers local-only
+      // until the next observation edit happens to fire a push.
+      final ref = _ref;
+      if (ref != null) {
+        unawaited(
+          ref
+              .read(syncEngineProvider)
+              .pushRow(observationsSpec, row.observationId),
+        );
+      }
     } on Object catch (e, st) {
       debugPrint('Observation attachment upload failed: $e\n$st');
     }
@@ -192,15 +206,18 @@ class MediaService {
     );
   }
 
-  /// Heal pass — scan every children + adults row for "has
-  /// avatar_path locally but no avatar_storage_path" and re-fire
-  /// the upload. Idempotent (uploadXAvatar checks for an existing
-  /// storage path and skips), so re-running on every bootstrap +
-  /// foreground is cheap on the steady state. Catches any avatar
-  /// whose first upload silently failed or whose stamp never
-  /// reached cloud (the bug this method fixes — pre-Phase-4
-  /// uploads stamped storage_path but never marked it dirty, so
-  /// it stayed local-only forever).
+  /// Heal pass — scan every media-bearing table for "has a local
+  /// path but no cloud storage path" and re-fire the upload.
+  /// Covers children + adults avatars and observation attachments.
+  /// Idempotent (each upload method short-circuits when storage
+  /// path is already set), so re-running on every bootstrap +
+  /// foreground tick is cheap at steady state.
+  ///
+  /// Catches any media whose first upload silently failed or
+  /// whose stamp never reached cloud — the cross-device sync
+  /// guarantee for media was broken before this method existed:
+  /// pre-Phase-4 uploads stamped storage_path locally but never
+  /// marked it dirty, so it stayed device-local forever.
   Future<int> healMissingAvatarUploads() async {
     final client = _client;
     if (client == null) return 0;
@@ -216,7 +233,7 @@ class MediaService {
         triggered++;
       }
     } on Object catch (e) {
-      debugPrint('healMissingAvatarUploads (children) failed: $e');
+      debugPrint('heal (children avatars) failed: $e');
     }
     try {
       final adults = await (_db.select(_db.adults)
@@ -228,10 +245,24 @@ class MediaService {
         triggered++;
       }
     } on Object catch (e) {
-      debugPrint('healMissingAvatarUploads (adults) failed: $e');
+      debugPrint('heal (adults avatars) failed: $e');
+    }
+    try {
+      // observation_attachments.localPath is non-nullable, so
+      // every row has one — the gap to heal is "no storagePath
+      // yet."
+      final attachments = await (_db.select(_db.observationAttachments)
+            ..where((a) => a.storagePath.isNull()))
+          .get();
+      for (final a in attachments) {
+        unawaited(uploadObservationAttachment(a.id));
+        triggered++;
+      }
+    } on Object catch (e) {
+      debugPrint('heal (obs attachments) failed: $e');
     }
     if (triggered > 0) {
-      debugPrint('healMissingAvatarUploads queued $triggered upload(s).');
+      debugPrint('Media heal queued $triggered upload(s).');
     }
     return triggered;
   }
