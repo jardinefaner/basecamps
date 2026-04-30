@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/media_service.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:flutter/foundation.dart';
@@ -200,6 +201,12 @@ class ProgramAuthBootstrap {
       // still flagged. Cheap at steady state (zero rows on a
       // synced device).
       unawaited(_ref.read(syncEngineProvider).drainPendingPushes(kAllSpecs));
+      // Avatar heal: re-upload any avatars whose storage_path
+      // never reached cloud (legacy uploads that stamped local-
+      // only, partial network failures, etc.). Idempotent — the
+      // upload methods short-circuit when storage_path is
+      // already set.
+      unawaited(_ref.read(mediaServiceProvider).healMissingAvatarUploads());
     } on Object catch (e, st) {
       // Bootstrap failure is recoverable — the user's still signed
       // in, just sitting on a no-program state until the next

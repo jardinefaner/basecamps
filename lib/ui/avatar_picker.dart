@@ -154,26 +154,33 @@ class AvatarPicker extends StatelessWidget {
 
 /// Small read-only round avatar for tiles. Uses the same decode-size
 /// discipline as [AvatarPicker].
-/// Round avatar widget with cross-device-aware loading.
+/// Round avatar widget with cross-device + cross-platform-aware
+/// loading. Always shows the fallback initial when no image
+/// source is available — never a blank circle.
 ///
 /// Avatars store TWO paths:
 ///   * `avatar_path` — local filesystem path on the device that
-///     captured the photo. Only valid on that device.
+///     captured the photo. Only valid on that device + only when
+///     the file actually exists (cache eviction on iOS / Android
+///     can wipe it).
 ///   * `avatar_storage_path` — Supabase Storage bucket key.
-///     Deterministic per row id, valid on every device.
+///     Deterministic per row id, valid on every device + platform.
 ///
-/// SmallAvatar resolves them in order:
-///   1. If `path` exists on disk → render Image.file (fast, offline).
-///   2. Else if `storagePath` is set → ensureLocalFile downloads
-///      to a persistent cache dir, render from there. First render
-///      shows the fallback initial; subsequent renders hit the
-///      cache instantly.
-///   3. Else → fallback initial.
-///
-/// Without this fallback, syncing a row from another device
-/// brought down the `avatar_path` text but the file didn't exist
-/// on the receiving filesystem; FileImage failed silently and the
-/// avatar appeared blank.
+/// Resolution order:
+///   1. **Native + local file present** → Image.file (instant,
+///      offline-friendly). Falls through if the file is gone.
+///   2. **Native + storagePath** → ensureLocalFile downloads to
+///      a persistent cache dir; render from there. First render
+///      shows the fallback initial during download; cache hits
+///      are instant after.
+///   3. **Web + storagePath** → signed URL via Supabase Storage,
+///      render NetworkImage. URL is cached in memory; rotating
+///      hourly transparently. First render shows the fallback
+///      initial during URL fetch.
+///   4. **Anything else** → fallback initial. The CircleAvatar
+///      always renders the initial when no image is set, so a
+///      failure of any kind still produces something readable
+///      instead of a blank circle.
 class SmallAvatar extends ConsumerStatefulWidget {
   const SmallAvatar({
     required this.path,
@@ -205,16 +212,20 @@ class SmallAvatar extends ConsumerStatefulWidget {
 }
 
 class _SmallAvatarState extends ConsumerState<SmallAvatar> {
-  /// Resolved local path to render — either widget.path when
-  /// it exists on disk, or the cache path returned by
-  /// `ensureLocalFile(widget.storagePath)`. Null until we've
-  /// either confirmed a local file or downloaded one.
-  String? _resolvedPath;
+  /// Local file path on native — set when widget.path exists or
+  /// ensureLocalFile completes. Null on web (no FS) and when
+  /// nothing's resolved yet.
+  String? _resolvedFilePath;
+
+  /// Signed HTTPS URL on web — set when signedUrlFor completes.
+  /// Null on native (we use _resolvedFilePath there) and when
+  /// nothing's resolved yet.
+  String? _resolvedNetworkUrl;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_resolvePath());
+    unawaited(_resolve());
   }
 
   @override
@@ -222,42 +233,58 @@ class _SmallAvatarState extends ConsumerState<SmallAvatar> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.path != widget.path ||
         oldWidget.storagePath != widget.storagePath) {
-      _resolvedPath = null;
-      unawaited(_resolvePath());
+      _resolvedFilePath = null;
+      _resolvedNetworkUrl = null;
+      unawaited(_resolve());
     }
   }
 
-  Future<void> _resolvePath() async {
-    if (kIsWeb) return; // Web has no local FS; would need a different render path.
+  Future<void> _resolve() async {
     final localPath = widget.path;
     final storagePath = widget.storagePath;
 
-    // Fast path: the local-captured file is right here on disk.
-    // existsSync is fine here — initState/didUpdateWidget can
-    // afford the synchronous stat (microsecond-level), and the
-    // alternative (await File.exists()) trips the lint about
-    // slow async IO without a real benefit.
-    if (localPath != null && File(localPath).existsSync()) {
+    // Native: prefer the local-captured file when it exists. Fast,
+    // offline, no network round-trip. existsSync is fine here —
+    // a microsecond-level stat in init/didUpdate is cheaper than
+    // tripping the slow-async-io lint for await File.exists().
+    if (!kIsWeb && localPath != null && File(localPath).existsSync()) {
       if (!mounted) return;
-      setState(() => _resolvedPath = localPath);
+      setState(() => _resolvedFilePath = localPath);
       return;
     }
 
-    // Cross-device path: download from cloud storage to a
-    // persistent cache dir. ensureLocalFile is idempotent — the
-    // cache survives app restarts, so a re-render hits it
-    // instantly. First render on a fresh device shows the
-    // fallback initial during the download.
-    if (storagePath != null && storagePath.isNotEmpty) {
+    // No usable local file — fall back to cloud storage. Two
+    // paths depending on platform:
+    if (storagePath == null || storagePath.isEmpty) return;
+
+    if (kIsWeb) {
+      // Web: signed URL → NetworkImage. Browser caches bytes.
+      // Memory cache on the URL itself (TTL ~55min) keeps re-
+      // render cheap.
       try {
-        final cached = await ref
+        final url = await ref
             .read(mediaServiceProvider)
-            .ensureLocalFile(storagePath);
+            .signedUrlFor(storagePath);
         if (!mounted) return;
-        setState(() => _resolvedPath = cached);
+        if (url != null) setState(() => _resolvedNetworkUrl = url);
       } on Object catch (e) {
-        debugPrint('SmallAvatar download failed for $storagePath: $e');
+        debugPrint('SmallAvatar signed URL failed for $storagePath: $e');
       }
+      return;
+    }
+
+    // Native: download to persistent file cache. Cache survives
+    // app restarts so a re-render hits it instantly. First
+    // render on a fresh device shows the fallback initial during
+    // the download.
+    try {
+      final cached = await ref
+          .read(mediaServiceProvider)
+          .ensureLocalFile(storagePath);
+      if (!mounted) return;
+      setState(() => _resolvedFilePath = cached);
+    } on Object catch (e) {
+      debugPrint('SmallAvatar download failed for $storagePath: $e');
     }
   }
 
@@ -267,22 +294,30 @@ class _SmallAvatarState extends ConsumerState<SmallAvatar> {
     final decodeSize = (widget.radius * 4).round();
     final bg = widget.backgroundColor ?? theme.colorScheme.primaryContainer;
     final fg = widget.foregroundColor ?? theme.colorScheme.onPrimaryContainer;
-    final resolved = _resolvedPath;
+    // Pick the right ImageProvider based on what resolved. Both
+    // start null; only one ends up set per platform. ResizeImage
+    // wraps either to clamp decode width.
+    ImageProvider? source;
+    if (_resolvedFilePath != null && !kIsWeb) {
+      source = ResizeImage(
+        FileImage(File(_resolvedFilePath!)),
+        width: decodeSize,
+      );
+    } else if (_resolvedNetworkUrl != null) {
+      source = ResizeImage(
+        NetworkImage(_resolvedNetworkUrl!),
+        width: decodeSize,
+      );
+    }
 
     return CircleAvatar(
       radius: widget.radius,
       backgroundColor: bg,
-      backgroundImage: (resolved != null && !kIsWeb)
-          ? ResizeImage(
-              FileImage(File(resolved)),
-              // Clamp width only — see note in AvatarPicker for why.
-              width: decodeSize,
-            )
-          : null,
-      // Show the fallback initial when no image source resolved
-      // (no local path, no storage path, or download still
-      // pending). Hides automatically once `_resolvedPath` is set.
-      child: resolved == null
+      backgroundImage: source,
+      // Always show the fallback initial when there's no image
+      // source — no blank circles. The initial hides as soon as
+      // an ImageProvider lands.
+      child: source == null
           ? Text(
               widget.fallbackInitial,
               style: theme.textTheme.titleMedium?.copyWith(color: fg),

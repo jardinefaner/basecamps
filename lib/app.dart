@@ -7,6 +7,7 @@ import 'package:basecamp/features/observations/observation_media_store.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/features/programs/program_bootstrap.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/media_service.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
 import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:basecamp/router.dart';
@@ -220,6 +221,13 @@ class _BasecampAppState extends ConsumerState<BasecampApp>
     // self-heals when something is. Goes after the pulls so the
     // freshly-merged local state is what gets re-pushed.
     await engine.drainPendingPushes(kAllSpecs);
+    // Avatar heal — re-upload any avatars whose storage_path
+    // never reached cloud. Catches legacy uploads (pre-Phase-4,
+    // when stamp didn't markDirty) that stayed local-only.
+    // Idempotent so it's safe to run on every foreground tick.
+    unawaited(
+      ref.read(mediaServiceProvider).healMissingAvatarUploads(),
+    );
   }
 
   /// Force a realtime reconnect. The engine's normal subscribe is

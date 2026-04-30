@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -36,9 +38,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// Path keying with the row id keeps lookups deterministic — no
 /// per-device file naming, no collisions across teachers.
 class MediaService {
-  MediaService(this._db);
+  MediaService(this._db, [this._ref]);
 
   final AppDatabase _db;
+
+  /// Riverpod Ref for reading the sync engine on demand. Optional
+  /// so existing constructions (tests) that don't provide one
+  /// keep working — they just won't auto-push storage-path stamps,
+  /// which is fine in a test harness with no real Supabase.
+  final Ref? _ref;
 
   /// Bucket name. Created via the cloud SQL migration; RLS scopes
   /// reads/writes to program members.
@@ -124,9 +132,16 @@ class MediaService {
   /// stamps `avatar_storage_path`. Same fire-and-forget shape as
   /// [uploadObservationAttachment]. Idempotent — a re-upload only
   /// fires when the local avatar path changed (caller checks).
+  ///
+  /// On success, marks `avatar_storage_path` dirty so the next
+  /// pushRow propagates it to cloud — without that, the storage
+  /// path stays local-only and other devices pulling the row see
+  /// a useless cross-device file path with no cloud handle.
   Future<void> uploadChildAvatar(String childId) async {
     await _uploadPersonAvatar(
       kind: 'children',
+      table: 'children',
+      rowId: childId,
       tableSelect: () => (_db.select(_db.children)
             ..where((c) => c.id.equals(childId)))
           .getSingleOrNull()
@@ -153,6 +168,8 @@ class MediaService {
   Future<void> uploadAdultAvatar(String adultId) async {
     await _uploadPersonAvatar(
       kind: 'adults',
+      table: 'adults',
+      rowId: adultId,
       tableSelect: () => (_db.select(_db.adults)
             ..where((a) => a.id.equals(adultId)))
           .getSingleOrNull()
@@ -175,8 +192,54 @@ class MediaService {
     );
   }
 
+  /// Heal pass — scan every children + adults row for "has
+  /// avatar_path locally but no avatar_storage_path" and re-fire
+  /// the upload. Idempotent (uploadXAvatar checks for an existing
+  /// storage path and skips), so re-running on every bootstrap +
+  /// foreground is cheap on the steady state. Catches any avatar
+  /// whose first upload silently failed or whose stamp never
+  /// reached cloud (the bug this method fixes — pre-Phase-4
+  /// uploads stamped storage_path but never marked it dirty, so
+  /// it stayed local-only forever).
+  Future<int> healMissingAvatarUploads() async {
+    final client = _client;
+    if (client == null) return 0;
+    if (client.auth.currentSession == null) return 0;
+    var triggered = 0;
+    try {
+      final children = await (_db.select(_db.children)
+            ..where((c) =>
+                c.avatarPath.isNotNull() & c.avatarStoragePath.isNull()))
+          .get();
+      for (final c in children) {
+        unawaited(uploadChildAvatar(c.id));
+        triggered++;
+      }
+    } on Object catch (e) {
+      debugPrint('healMissingAvatarUploads (children) failed: $e');
+    }
+    try {
+      final adults = await (_db.select(_db.adults)
+            ..where((a) =>
+                a.avatarPath.isNotNull() & a.avatarStoragePath.isNull()))
+          .get();
+      for (final a in adults) {
+        unawaited(uploadAdultAvatar(a.id));
+        triggered++;
+      }
+    } on Object catch (e) {
+      debugPrint('healMissingAvatarUploads (adults) failed: $e');
+    }
+    if (triggered > 0) {
+      debugPrint('healMissingAvatarUploads queued $triggered upload(s).');
+    }
+    return triggered;
+  }
+
   Future<void> _uploadPersonAvatar({
     required String kind,
+    required String table,
+    required String rowId,
     required Future<_AvatarPullback?> Function() tableSelect,
     required Future<void> Function(String storagePath) stampStoragePath,
     required String Function(String programId) bucketKey,
@@ -208,9 +271,40 @@ class MediaService {
             ),
           );
       await stampStoragePath(storagePath);
+      // Mark the column dirty + nudge a push so the storage path
+      // actually reaches cloud. Without these two lines the stamp
+      // sits in local Drift forever and other devices can never
+      // download the file. The pushRow goes through the standard
+      // 250ms debounce + Phase-2 partial-UPDATE path, so the row's
+      // other fields aren't disturbed.
+      await _db.markDirty(table, rowId, ['avatar_storage_path']);
+      // syncEngineProvider is read lazily because MediaService is
+      // constructed before the sync engine is wired up at app
+      // startup; reading it eagerly in the constructor would
+      // create a circular dependency. The Riverpod container is
+      // a singleton — read-on-demand is cheap.
+      final ref = _ref;
+      if (ref != null) {
+        unawaited(
+          ref.read(syncEngineProvider).pushRow(_specFor(table), rowId),
+        );
+      }
     } on Object catch (e, st) {
       debugPrint('$kind avatar upload failed: $e\n$st');
     }
+  }
+
+  /// Map a table name to its TableSpec. Avatars are pushed via
+  /// the children / adults specs; observation attachments live on
+  /// observations' cascade list (caller pushes the parent row).
+  TableSpec _specFor(String table) {
+    switch (table) {
+      case 'children':
+        return childrenSpec;
+      case 'adults':
+        return adultsSpec;
+    }
+    throw ArgumentError('No spec known for $table');
   }
 
   /// Uploads a form image-field's local file to the bucket under
@@ -260,6 +354,46 @@ class MediaService {
   }
 
   // -- Download ----------------------------------------------------
+
+  /// Signed download URL for [storagePath], used by web (which
+  /// can't use the local-file cache because there's no filesystem).
+  /// Cached in memory keyed by storage path; expires ~5 minutes
+  /// before the actual signed-URL TTL so a long-render doesn't
+  /// show a 401-ed image when the URL flips just-expired.
+  /// Returns null when:
+  ///   * Supabase isn't initialized / signed in.
+  ///   * The signed-URL request fails (RLS, network, deleted).
+  ///
+  /// The `media` bucket is private (migrations 0008 / 0021), so a
+  /// vanilla public URL won't work — every request has to be
+  /// signed with the user's session.
+  Future<String?> signedUrlFor(String storagePath) async {
+    final cached = _signedUrlCache[storagePath];
+    if (cached != null && cached.expiresAt.isAfter(DateTime.now())) {
+      return cached.url;
+    }
+    final client = _client;
+    if (client == null) return null;
+    if (client.auth.currentSession == null) return null;
+    try {
+      // 1-hour signed URL — long enough that a session-of-use
+      // re-renders all hit cache, short enough that a leaked URL
+      // self-expires quickly.
+      final url = await client.storage
+          .from(_bucket)
+          .createSignedUrl(storagePath, 3600);
+      _signedUrlCache[storagePath] = _SignedUrl(
+        url: url,
+        expiresAt: DateTime.now().add(const Duration(minutes: 55)),
+      );
+      return url;
+    } on Object catch (e) {
+      debugPrint('Signed URL failed for $storagePath: $e');
+      return null;
+    }
+  }
+
+  final Map<String, _SignedUrl> _signedUrlCache = {};
 
   /// Returns a local file path for the given [storagePath]. If
   /// the file is already cached, returns the cache path
@@ -342,6 +476,15 @@ class MediaUnavailableException implements Exception {
   String toString() => 'MediaUnavailableException: $message';
 }
 
+/// Memory-cached signed URL with an expiry timestamp. Kept private
+/// — callers always go through [MediaService.signedUrlFor] which
+/// invalidates expired entries.
+class _SignedUrl {
+  const _SignedUrl({required this.url, required this.expiresAt});
+  final String url;
+  final DateTime expiresAt;
+}
+
 final mediaServiceProvider = Provider<MediaService>((ref) {
-  return MediaService(ref.read(databaseProvider));
+  return MediaService(ref.read(databaseProvider), ref);
 });
