@@ -155,6 +155,38 @@ class InviteRepository {
     await _client.from('program_invites').delete().eq('code', code);
   }
 
+  /// Outstanding invites bound to a specific Adult row. Used by the
+  /// admin's adult-detail view to show "Maya has a pending code"
+  /// and offer revoke/re-issue. Outstanding = not yet redeemed +
+  /// not yet expired; pre-filtered server-side so the client list
+  /// is the actionable subset.
+  Future<List<InviteRow>> listOutstandingForAdult(String adultId) async {
+    try {
+      final rows = await _client
+          .from('program_invites')
+          .select()
+          .eq('adult_id', adultId)
+          .filter('accepted_by', 'is', null)
+          .gte('expires_at', DateTime.now().toUtc().toIso8601String())
+          .order('created_at', ascending: false);
+      return [
+        for (final r in List<Map<String, dynamic>>.from(rows))
+          InviteRow.fromJson(r),
+      ];
+    } on PostgrestException catch (e) {
+      if (e.code == 'PGRST205' || e.code == '42P01') {
+        // Migrations 0012 / 0031 not applied yet — same hint as the
+        // generic listInvites path.
+        throw const InviteSetupError(
+          'Invites aren’t set up on the server yet. Apply the '
+          'invite migrations in the Supabase dashboard.',
+        );
+      }
+      if (e.code == '42501') return const [];
+      rethrow;
+    }
+  }
+
   // -- Redeem a code (recipient flow) -------------------------------
 
   /// Calls the `accept-invite` edge function. Returns the joined
@@ -489,6 +521,20 @@ final programMembersProvider =
 final programInvitesProvider =
     FutureProvider.family<List<InviteRow>, String>((ref, programId) {
   return ref.watch(inviteRepositoryProvider).listInvites(programId);
+});
+
+/// Outstanding invites for a single adult — used by the adult
+/// detail screen to surface "code already pending, here it is"
+/// instead of silently issuing a duplicate every time the admin
+/// taps invite. Refresh by `ref.invalidate(...)` after a
+/// create/revoke.
+// Riverpod family return type is complex; inference is intentional.
+// ignore: specify_nonobvious_property_types
+final adultOutstandingInvitesProvider =
+    FutureProvider.family<List<InviteRow>, String>((ref, adultId) {
+  return ref
+      .watch(inviteRepositoryProvider)
+      .listOutstandingForAdult(adultId);
 });
 
 /// Redeems [code] and switches the active program to the joined

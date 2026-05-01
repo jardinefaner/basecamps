@@ -12,8 +12,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// active program to the joined one (the bootstrap pulls + sub-
 /// scribes), and pops itself with the `RedeemResult` so the
 /// caller can show a "Joined Bug Week summer camp" toast.
+///
+/// [initialCode] pre-fills the input — used by the deep-link
+/// route `/redeem/:code` so a teacher tapping a shared link in
+/// their email lands on this sheet with the code already in.
 class JoinWithCodeSheet extends ConsumerStatefulWidget {
-  const JoinWithCodeSheet({super.key});
+  const JoinWithCodeSheet({this.initialCode, super.key});
+
+  final String? initialCode;
 
   @override
   ConsumerState<JoinWithCodeSheet> createState() =>
@@ -21,7 +27,7 @@ class JoinWithCodeSheet extends ConsumerStatefulWidget {
 }
 
 class _JoinWithCodeSheetState extends ConsumerState<JoinWithCodeSheet> {
-  final _code = TextEditingController();
+  late final _code = TextEditingController(text: widget.initialCode ?? '');
   bool _busy = false;
   String? _error;
 

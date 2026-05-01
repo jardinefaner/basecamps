@@ -186,12 +186,18 @@ class _AdultDetailScreenState extends ConsumerState<AdultDetailScreen>
     );
   }
 
-  /// Identity binding ceremony. Generates an invite code that
-  /// names this adult; recipient redeems → accept-invite stamps
-  /// `adults.auth_user_id`. The dialog offers Copy and Share —
-  /// Share opens the system sheet (email / SMS / messenger /
-  /// whatever the OS exposes) pre-loaded with a friendly
-  /// onboarding message.
+  /// Identity binding ceremony. Two paths:
+  ///   * If this adult already has an outstanding invite, surface
+  ///     the existing code instead of silently issuing a duplicate
+  ///     (admins were creating multiple codes by tapping the
+  ///     button repeatedly — confusing for the recipient who
+  ///     wonders which code is real).
+  ///   * Otherwise create a fresh invite.
+  ///
+  /// The dialog offers Copy / Share / Revoke + new code. Share
+  /// opens the system sheet (email / SMS / messenger / whatever
+  /// the OS exposes) pre-loaded with a friendly onboarding
+  /// message.
   Future<void> _openInviteForAdult(
     BuildContext context,
     Adult adult,
@@ -200,11 +206,14 @@ class _AdultDetailScreenState extends ConsumerState<AdultDetailScreen>
     if (programId == null) return;
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final invite =
-          await ref.read(inviteRepositoryProvider).createInvite(
-                programId: programId,
-                adultId: adult.id,
-              );
+      final repo = ref.read(inviteRepositoryProvider);
+      final outstanding = await repo.listOutstandingForAdult(adult.id);
+      final invite = outstanding.isNotEmpty
+          ? outstanding.first
+          : await repo.createInvite(
+              programId: programId,
+              adultId: adult.id,
+            );
       // Look up program name + sender's display for the share
       // message. Both are best-effort — if either fails we still
       // surface the dialog with whatever context we got.
@@ -214,6 +223,9 @@ class _AdultDetailScreenState extends ConsumerState<AdultDetailScreen>
       final session = Supabase.instance.client.auth.currentSession;
       final senderName = _resolveSenderName(session);
       if (!context.mounted) return;
+      // Refresh the outstanding-invites list so any banner / chip
+      // displaying invite state picks up the new row.
+      ref.invalidate(adultOutstandingInvitesProvider(adult.id));
       await showDialog<void>(
         context: context,
         builder: (dialogCtx) => _InviteDialog(
@@ -222,6 +234,8 @@ class _AdultDetailScreenState extends ConsumerState<AdultDetailScreen>
           expiresAt: invite.expiresAt,
           programName: program?.name ?? 'Basecamp',
           senderName: senderName,
+          onRevokeAndReissue: () =>
+              _revokeAndReissue(dialogCtx, adult, invite),
         ),
       );
     } on Object catch (e) {
@@ -230,6 +244,31 @@ class _AdultDetailScreenState extends ConsumerState<AdultDetailScreen>
         SnackBar(
           content: Text("Couldn't create invite: $e"),
         ),
+      );
+    }
+  }
+
+  /// Revoke the current code + immediately re-open the invite
+  /// flow. Since [_openInviteForAdult] checks for outstanding
+  /// invites before issuing, the post-revoke path naturally lands
+  /// on "create fresh" without us having to duplicate the
+  /// generation logic here.
+  Future<void> _revokeAndReissue(
+    BuildContext dialogCtx,
+    Adult adult,
+    InviteRow oldInvite,
+  ) async {
+    final repo = ref.read(inviteRepositoryProvider);
+    Navigator.of(dialogCtx).pop();
+    try {
+      await repo.revokeInvite(oldInvite.code);
+      ref.invalidate(adultOutstandingInvitesProvider(adult.id));
+      if (!mounted) return;
+      await _openInviteForAdult(context, adult);
+    } on Object catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Couldn't revoke code: $e")),
       );
     }
   }
@@ -294,6 +333,7 @@ class _InviteDialog extends StatelessWidget {
     required this.expiresAt,
     required this.programName,
     required this.senderName,
+    required this.onRevokeAndReissue,
   });
 
   final Adult adult;
@@ -302,31 +342,58 @@ class _InviteDialog extends StatelessWidget {
   final String programName;
   final String senderName;
 
-  /// Compose the message that lands in the recipient's inbox /
-  /// SMS / DM. Personalised: who's inviting, what program, what
-  /// role + group their profile is set up for, the code, where to
-  /// open the app, and when the code expires. Plain text — every
-  /// share target accepts that, and it reads cleanly when the
-  /// recipient pastes it elsewhere.
+  /// Revoke the current code + create a fresh one. Called from the
+  /// "Revoke + new code" overflow action — useful when the admin
+  /// wants to invalidate a code that leaked or is stale.
+  final VoidCallback onRevokeAndReissue;
+
+  /// Compose the onboarding message that lands in the recipient's
+  /// inbox / SMS / DM. Structure:
+  ///
+  ///   1. Personal greeting + sender + program
+  ///   2. One-line "what is Basecamp" value prop (first-timers
+  ///      don't know what they're being invited to)
+  ///   3. The code, prominent on its own line
+  ///   4. Numbered claim steps (lower the friction of "what do I
+  ///      do with this?")
+  ///   5. App URL
+  ///   6. Expiry note + a "reply if stuck" fallback so the
+  ///      recipient has a path back to the sender for help
+  ///
+  /// Plain text — every share target accepts it and the message
+  /// reads cleanly even when pasted into a 3rd-party app that
+  /// strips formatting.
   String _composeShareText() {
     final firstName = adult.name.split(' ').first;
     final roleLabel = _roleLabel(adult);
     final expiryLabel = _humanizeExpiry(expiresAt);
-    const claimLine = 'Your profile is already set up — sign in and '
-        'enter the code below to claim it.';
+    const valueProp = 'Basecamp is where the team coordinates each '
+        "day — schedule, plans, observations, all in one place.";
+    const steps = [
+      '1. Open the app on your phone or in a browser',
+      '2. Sign in (Google or email — whichever works)',
+      '3. Tap "Have an invite code?" on the welcome screen',
+      '4. Paste the code above',
+    ];
     final lines = <String>[
       'Hi $firstName,',
       '',
       '$senderName invited you to join $programName on Basecamp.',
-      claimLine,
+      'Your profile is already set up — sign in with the code '
+          'below to claim it.',
+      '',
+      valueProp,
       if (roleLabel.isNotEmpty) '',
-      if (roleLabel.isNotEmpty) 'Profile: $roleLabel',
+      if (roleLabel.isNotEmpty) 'Your profile: $roleLabel',
       '',
       'Code: $inviteCode',
       '',
+      ...steps,
+      '',
       'Open the app: ${Env.appShareUrl}',
       '',
-      '(Code expires $expiryLabel.)',
+      '(Code expires $expiryLabel. Reply to this message if anything '
+          'is unclear — happy to walk you through it.)',
     ];
     return lines.join('\n');
   }
@@ -361,7 +428,9 @@ class _InviteDialog extends StatelessWidget {
     await SharePlus.instance.share(
       ShareParams(
         text: _composeShareText(),
-        subject: '$programName invite for ${adult.name}',
+        // Subject lands in email targets; warmer than the previous
+        // "<program> invite for <name>" tag.
+        subject: 'Welcome to $programName — claim your profile',
       ),
     );
   }
@@ -422,10 +491,20 @@ class _InviteDialog extends StatelessWidget {
         ],
       ),
       actions: [
+        // Revoke-and-reissue is the destructive escape hatch —
+        // muted-tone TextButton so it doesn't compete with the
+        // primary Copy/Share. AlertDialog.actions lays out as an
+        // OverflowBar (no Spacer support); the visual hierarchy
+        // comes from button style, not horizontal alignment.
+        TextButton.icon(
+          onPressed: onRevokeAndReissue,
+          icon: const Icon(Icons.refresh, size: 18),
+          label: const Text('New code'),
+        ),
         TextButton.icon(
           onPressed: () => _copyCode(context),
           icon: const Icon(Icons.copy_outlined, size: 18),
-          label: const Text('Copy code'),
+          label: const Text('Copy'),
         ),
         FilledButton.icon(
           onPressed: () => _share(context),
@@ -441,16 +520,21 @@ class _InviteDialog extends StatelessWidget {
 /// Notes used to live at the bottom of the schedule scroll; pulling
 /// them up here means a teacher reading "who is this person" sees the
 /// note next to the contact rows where it actually belongs.
-class _ProfileTab extends StatelessWidget {
+class _ProfileTab extends ConsumerWidget {
   const _ProfileTab({required this.adult, required this.onEdit});
 
   final Adult adult;
   final VoidCallback onEdit;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final notes = (adult.notes ?? '').trim();
+    final invitesAsync = adult.authUserId != null
+        ? const AsyncValue<List<InviteRow>>.data([])
+        : ref.watch(adultOutstandingInvitesProvider(adult.id));
+    final outstanding = invitesAsync.asData?.value ?? const <InviteRow>[];
+    final pending = outstanding.isEmpty ? null : outstanding.first;
     return ListView(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.lg,
@@ -460,6 +544,22 @@ class _ProfileTab extends StatelessWidget {
       ),
       children: [
         _Header(adult: adult, onEdit: onEdit),
+        // Invite-status banner. Three states (one rendered at a
+        // time):
+        //   * already-bound — bound badge in the Header handles it.
+        //   * outstanding code → "Pending invite" banner with the
+        //     code + an expiry hint. If expiring within 2 days the
+        //     banner switches to a warning tone reminding the
+        //     admin to resend before it lapses.
+        //   * unbound + no invite — nothing here; admin uses the
+        //     person_add_alt button in the AppBar to issue one.
+        if (pending != null) ...[
+          const SizedBox(height: AppSpacing.lg),
+          _PendingInviteBanner(
+            invite: pending,
+            adultName: adult.name,
+          ),
+        ],
         _ContactSection(adult: adult),
         _AlsoParentBadge(adult: adult),
         if (notes.isNotEmpty) ...[
@@ -476,6 +576,95 @@ class _ProfileTab extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// Banner that surfaces when an Adult has an outstanding invite.
+/// Shows the code (selectable), expiry timing, and switches to an
+/// elevated/warning tone when expiry is < 2 days away — that's the
+/// reminder cadence we wanted without a server-side cron. It's an
+/// at-a-glance signal the admin notices when they happen to be
+/// looking at the adult's profile.
+class _PendingInviteBanner extends StatelessWidget {
+  const _PendingInviteBanner({
+    required this.invite,
+    required this.adultName,
+  });
+
+  final InviteRow invite;
+  final String adultName;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final delta = invite.expiresAt.difference(DateTime.now().toUtc());
+    final expiringSoon = delta.inDays < 2;
+    final bg = expiringSoon
+        ? cs.errorContainer.withValues(alpha: 0.55)
+        : cs.primaryContainer.withValues(alpha: 0.55);
+    final fg = expiringSoon
+        ? cs.onErrorContainer
+        : cs.onPrimaryContainer;
+    final timing = delta.isNegative
+        ? 'expired'
+        : delta.inDays >= 1
+            ? 'expires in ${delta.inDays} day${delta.inDays == 1 ? '' : 's'}'
+            : delta.inHours >= 1
+                ? 'expires in ${delta.inHours} hour${delta.inHours == 1 ? '' : 's'}'
+                : 'expires soon';
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            expiringSoon
+                ? Icons.timer_outlined
+                : Icons.mark_email_read_outlined,
+            color: fg,
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  expiringSoon
+                      ? 'Invite expiring soon'
+                      : 'Pending invite',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: fg,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$adultName hasn\'t claimed this profile yet — '
+                  'code $timing.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: fg,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                SelectableText(
+                  invite.code,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: fg,
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

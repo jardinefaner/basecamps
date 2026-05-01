@@ -22,6 +22,7 @@ import 'package:basecamp/features/observations/observations_screen.dart';
 import 'package:basecamp/features/parents/parent_detail_screen.dart';
 import 'package:basecamp/features/parents/parents_screen.dart';
 import 'package:basecamp/features/planning/week_plan_screen.dart';
+import 'package:basecamp/features/programs/join_with_code_sheet.dart';
 import 'package:basecamp/features/programs/program_bootstrap.dart';
 import 'package:basecamp/features/programs/program_detail_screen.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
@@ -183,6 +184,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       // bounces /more/programs/diagnostics back to /welcome.
       final goingToDiagnostics =
           state.matchedLocation == '/more/programs/diagnostics';
+      // Deep-link redeem path (/redeem/:code) is the landing page for
+      // someone tapping a shared invite link — they're explicitly
+      // joining their first program, so the no-active-program gate
+      // below must not bounce them off it. We also let signed-out
+      // users through to /sign-in normally; once they auth back in,
+      // they can re-tap the link (TODO: preserve `state.uri` across
+      // sign-in for a one-shot bounce-back).
+      final goingToRedeem = state.matchedLocation.startsWith('/redeem/');
       if (session == null && !goingToSignIn) return '/sign-in';
       if (session != null && goingToSignIn) return '/today';
       // No-active-program gate (Slice 3): a signed-in user without
@@ -205,7 +214,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (session != null &&
           !goingToSignIn &&
           !goingToWelcome &&
-          !goingToDiagnostics) {
+          !goingToDiagnostics &&
+          !goingToRedeem) {
         final bootstrapping =
             ref.read(programBootstrapInProgressProvider);
         if (!bootstrapping) {
@@ -230,6 +240,30 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/welcome',
         builder: (_, _) => const WelcomeScreen(),
+      ),
+      // Deep-link landing for shared invite codes
+      // (`https://basecamp.app/redeem/ABCD1234`). Renders the same
+      // JoinWithCodeSheet the welcome screen + programs screen open,
+      // but pre-filled with the path code and hosted in a full-screen
+      // Scaffold so it works as a top-level route. On success the
+      // sheet pops with a RedeemResult — but since this isn't a modal,
+      // pop just goes back; the program switch already fired inside
+      // redeemAndSwitch, so the bootstrap will route the user onward.
+      GoRoute(
+        path: '/redeem/:code',
+        builder: (_, state) => Scaffold(
+          appBar: AppBar(title: const Text('Join program')),
+          body: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: JoinWithCodeSheet(
+                  initialCode: state.pathParameters['code'],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
       GoRoute(
         path: '/today',
