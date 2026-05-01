@@ -87,6 +87,16 @@ class SyncEngine {
 
   final AppDatabase _db;
 
+  /// Sticky set of cascade rows we've already determined are
+  /// permanently broken — i.e. their FKs reference rows that don't
+  /// exist in cloud (deleted parent, orphaned reference, etc).
+  /// Once a row hits an FK error during cascade insert, we add its
+  /// `(table, id)` here so subsequent pull cycles can skip it
+  /// without retry + without spamming the log. In-memory only;
+  /// process restart clears it (giving the cloud a chance to fix
+  /// the orphan). Keyed `"$table:$id"`.
+  final Set<String> _knownBrokenCascadeRows = <String>{};
+
   /// Cap rows fetched per pull round-trip. See observations_sync_
   /// service.dart's _kPageSize comment for the math.
   static const int _kPageSize = 500;
@@ -1135,11 +1145,41 @@ class SyncEngine {
             .inFilter(cascade.parentColumn, parentIds),
       );
       for (final row in cloudRows) {
-        await _upsertLocalCascadeRow(
-          cascade.table,
-          row,
-          cascade.dateColumns,
-        );
+        // Permanently-broken row tracking. If this row's
+        // `(table, id)` already failed an FK check earlier in
+        // this session, skip it without retry + without
+        // re-logging. Cloud has to fix the orphan; process
+        // restart resets the set.
+        final id = row['id'];
+        final brokenKey = id is String ? '${cascade.table}:$id' : null;
+        if (brokenKey != null &&
+            _knownBrokenCascadeRows.contains(brokenKey)) {
+          continue;
+        }
+        try {
+          await _upsertLocalCascadeRow(
+            cascade.table,
+            row,
+            cascade.dateColumns,
+          );
+        } on Object catch (e) {
+          // Log once per row, then suppress on subsequent cycles.
+          // The error string ("FOREIGN KEY constraint failed,
+          // constraint failed (code 787)") tells the operator
+          // which row to chase in the cloud DB.
+          if (brokenKey != null) {
+            _knownBrokenCascadeRows.add(brokenKey);
+            debugPrint(
+              'Cascade row marked broken (orphaned FK), '
+              'silencing future retries: $brokenKey: $e',
+            );
+          } else {
+            // Composite-key cascade (no `id` column). Can't
+            // de-dup; let the error bubble up to the parent
+            // catch in pullTable / refreshCascadesForProgram.
+            rethrow;
+          }
+        }
       }
     }
   }
