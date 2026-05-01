@@ -327,6 +327,14 @@ class _ActivityDraftCard extends StatefulWidget {
   State<_ActivityDraftCard> createState() => _ActivityDraftCardState();
 }
 
+// Field index constants — used to identify which field a tap
+// targets and which TextField to focus when transitioning into
+// edit mode. Plain ints rather than an enum because the indices
+// also pick into a 3-slot list of controllers / focus nodes.
+const int _kTitleField = 0;
+const int _kDescriptionField = 1;
+const int _kLinkField = 2;
+
 class _ActivityDraftCardState extends State<_ActivityDraftCard> {
   late final TextEditingController _title =
       TextEditingController(text: widget.draft.title);
@@ -335,7 +343,18 @@ class _ActivityDraftCardState extends State<_ActivityDraftCard> {
   late final TextEditingController _link =
       TextEditingController(text: widget.draft.link);
 
+  // Per-field focus nodes. Each visible field in display mode has
+  // its own tap target that, on tap, requests focus on its
+  // corresponding node so the cursor lands in the field the user
+  // actually clicked — instead of always defaulting to the title.
   final FocusNode _titleFocus = FocusNode();
+  final FocusNode _descriptionFocus = FocusNode();
+  final FocusNode _linkFocus = FocusNode();
+
+  // Field index to focus on the next build *after* a display→edit
+  // transition. Captured during the tap (when we're still in display
+  // mode) and consumed in didUpdateWidget once the TextFields exist.
+  int? _focusOnNextBuild;
 
   @override
   void initState() {
@@ -346,25 +365,74 @@ class _ActivityDraftCardState extends State<_ActivityDraftCard> {
     );
     _link.addListener(() => widget.draft.link = _link.text);
     if (widget.isEditing && widget.draft.title.isEmpty) {
-      _focusTitleNextFrame();
+      _focusOnNextBuild = _kTitleField;
+      _consumeFocusRequest();
     }
   }
 
-  void _focusTitleNextFrame() {
+  /// Returns the controller + focus node for a field index.
+  (TextEditingController, FocusNode) _slotFor(int field) {
+    switch (field) {
+      case _kDescriptionField:
+        return (_description, _descriptionFocus);
+      case _kLinkField:
+        return (_link, _linkFocus);
+      case _kTitleField:
+      default:
+        return (_title, _titleFocus);
+    }
+  }
+
+  /// Called by display-mode tap targets. Records which field was
+  /// tapped, then asks the parent to flip into edit mode. The actual
+  /// focus + cursor placement happens in didUpdateWidget once the
+  /// TextField for that field has been built.
+  void _enterEditOnField(int field) {
+    if (widget.isEditing) {
+      // Already editing — no parent state flip needed; just shift
+      // focus to the tapped field directly.
+      _focusField(field);
+      return;
+    }
+    _focusOnNextBuild = field;
+    widget.onTap();
+  }
+
+  /// Focuses [field]'s TextField AND collapses its selection to the
+  /// end of its current text. Two reasons for the explicit selection:
+  ///   1. Some web browsers select-all when an HTML input first
+  ///      receives focus with content — that reads as random
+  ///      highlighting instead of a cursor.
+  ///   2. Default Flutter behavior places the cursor at offset 0
+  ///      on first focus of a fresh TextField, which is rarely what
+  ///      a tap-to-edit user wants.
+  /// Cursor-at-end is the predictable middle ground; tap-position-
+  /// preserving cursor would require text-painter math against the
+  /// tap's local coordinates, which we can layer on later if needed.
+  void _focusField(int field) {
+    final (ctrl, fn) = _slotFor(field);
+    fn.requestFocus();
+    ctrl.selection = TextSelection.collapsed(offset: ctrl.text.length);
+  }
+
+  void _consumeFocusRequest() {
+    final target = _focusOnNextBuild;
+    if (target == null) return;
+    _focusOnNextBuild = null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _titleFocus.requestFocus();
+      if (mounted) _focusField(target);
     });
   }
 
   @override
   void didUpdateWidget(covariant _ActivityDraftCard old) {
     super.didUpdateWidget(old);
-    // Auto-focus title when this card freshly enters edit mode AND
-    // has no title yet (the typical case for FAB-added blanks).
-    if (widget.isEditing &&
-        !old.isEditing &&
-        widget.draft.title.isEmpty) {
-      _focusTitleNextFrame();
+    // Card just transitioned into edit mode — focus the field the
+    // user tapped (or default to title for taps on the empty card
+    // body).
+    if (widget.isEditing && !old.isEditing) {
+      _focusOnNextBuild ??= _kTitleField;
+      _consumeFocusRequest();
     }
     // External writes (e.g. the advanced editor sheet) sync into the
     // controllers on the next display-mode rebuild. Skip while we're
@@ -387,6 +455,8 @@ class _ActivityDraftCardState extends State<_ActivityDraftCard> {
     _title.dispose();
     _description.dispose();
     _link.dispose();
+    _descriptionFocus.dispose();
+    _linkFocus.dispose();
     _titleFocus.dispose();
     super.dispose();
   }
@@ -414,7 +484,14 @@ class _ActivityDraftCardState extends State<_ActivityDraftCard> {
     );
 
     return GestureDetector(
-      onTap: widget.isEditing ? null : widget.onTap,
+      // Outer tap target catches taps on the card body that aren't
+      // on a field (e.g. the gap below a title-only card). Routes
+      // through _enterEditOnField so the focus pipeline is the same
+      // as a field tap — defaults to title since that's the only
+      // field that's always present.
+      onTap: widget.isEditing
+          ? null
+          : () => _enterEditOnField(_kTitleField),
       behavior: HitTestBehavior.opaque,
       child: AppCard(
         // AnimatedSize wraps the body so the layout transition between
@@ -452,42 +529,70 @@ class _ActivityDraftCardState extends State<_ActivityDraftCard> {
     required TextStyle linkStyle,
     required TextStyle placeholderTitle,
   }) {
+    // Each visible field is its own GestureDetector — tapping the
+    // title focuses the title's TextField, tapping the description
+    // focuses the description's, etc. The outer card-level
+    // GestureDetector still catches taps on the empty card body
+    // (e.g. the small gap below a title-only card) and defaults to
+    // focusing the title. Behavior = opaque on the inner ones so a
+    // tap inside a Text doesn't bubble out and defeat the targeted
+    // focus.
+    Widget tappable({required int field, required Widget child}) {
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _enterEditOnField(field),
+        child: child,
+      );
+    }
+
     final children = <Widget>[];
     if (widget.draft.title.isNotEmpty) {
-      children.add(Text(
-        widget.draft.title,
-        style: titleStyle,
-        strutStyle: _strut(titleStyle),
+      children.add(tappable(
+        field: _kTitleField,
+        child: Text(
+          widget.draft.title,
+          style: titleStyle,
+          strutStyle: _strut(titleStyle),
+        ),
       ));
     }
     if (widget.draft.description.isNotEmpty) {
       if (children.isNotEmpty) {
         children.add(const SizedBox(height: AppSpacing.sm));
       }
-      children.add(Text(
-        widget.draft.description,
-        style: bodyStyle,
-        strutStyle: _strut(bodyStyle),
+      children.add(tappable(
+        field: _kDescriptionField,
+        child: Text(
+          widget.draft.description,
+          style: bodyStyle,
+          strutStyle: _strut(bodyStyle),
+        ),
       ));
     }
     if (widget.draft.link.isNotEmpty) {
       if (children.isNotEmpty) {
         children.add(const SizedBox(height: AppSpacing.sm));
       }
-      children.add(Text(
-        widget.draft.link,
-        style: linkStyle,
-        strutStyle: _strut(linkStyle),
+      children.add(tappable(
+        field: _kLinkField,
+        child: Text(
+          widget.draft.link,
+          style: linkStyle,
+          strutStyle: _strut(linkStyle),
+        ),
       ));
     }
     if (children.isEmpty) {
       // Truly empty card — render a muted title placeholder so the
       // card has a visible footprint to tap. Done cleanup will delete
       // this if the user never types anything.
-      children.add(Text(
-        'Activity Name',
-        style: placeholderTitle,
-        strutStyle: _strut(placeholderTitle),
+      children.add(tappable(
+        field: _kTitleField,
+        child: Text(
+          'Activity Name',
+          style: placeholderTitle,
+          strutStyle: _strut(placeholderTitle),
+        ),
       ));
     }
     return Column(
@@ -527,6 +632,7 @@ class _ActivityDraftCardState extends State<_ActivityDraftCard> {
         const SizedBox(height: AppSpacing.sm),
         TextField(
           controller: _description,
+          focusNode: _descriptionFocus,
           style: bodyStyle,
           strutStyle: _strut(bodyStyle),
           maxLines: null,
@@ -540,6 +646,7 @@ class _ActivityDraftCardState extends State<_ActivityDraftCard> {
         const SizedBox(height: AppSpacing.sm),
         TextField(
           controller: _link,
+          focusNode: _linkFocus,
           style: linkStyle,
           strutStyle: _strut(linkStyle),
           keyboardType: TextInputType.url,
@@ -1043,11 +1150,26 @@ Future<_ActivityDraft> _generateActivityDraft({
       {
         'role': 'system',
         'content':
-            'You generate short activity cards for early-childhood '
-            'educators. Return JSON with exactly two keys: '
-            '"title" (a short, title-cased name, max 8 words), '
-            '"description" (one or two concrete classroom-friendly '
-            'sentences). Do not include URLs, markdown, or extra keys.',
+            'You generate activity cards for early-childhood '
+            'educators. Return JSON with these keys (title and '
+            'description are required; the rest are optional and '
+            'should be left as empty strings if you cannot infer '
+            'them confidently):\n'
+            '  "title": short, title-cased, max 8 words\n'
+            '  "description": one or two concrete classroom-friendly '
+            'sentences for the card preview\n'
+            '  "objectives": one to three sentences on what children '
+            'will practice or learn\n'
+            '  "steps": numbered, newline-separated steps for how to '
+            'run it (e.g. "1. Gather materials\\n2. Show example…")\n'
+            '  "materials": comma-separated list of common materials '
+            '(e.g. "paper, crayons, scissors")\n'
+            '  "duration": estimated time as a short label '
+            '(e.g. "15 min")\n'
+            '  "ageRange": target age range as a short label '
+            '(e.g. "3–5 years")\n'
+            'Do not include URLs, markdown formatting, or any extra '
+            'keys. Use empty strings, never null, for unknown fields.',
       },
       {'role': 'user', 'content': userMessage},
     ],
@@ -1064,9 +1186,15 @@ Future<_ActivityDraft> _generateActivityDraft({
   }
   // JSON mode guarantees parseable JSON — no extraction games needed.
   final parsed = jsonDecode(content) as Map<String, dynamic>;
+  String pull(String key) => (parsed[key] as String? ?? '').trim();
   return _ActivityDraft()
-    ..title = (parsed['title'] as String? ?? '').trim()
-    ..description = (parsed['description'] as String? ?? '').trim()
+    ..title = pull('title')
+    ..description = pull('description')
+    ..objectives = pull('objectives')
+    ..steps = pull('steps')
+    ..materials = pull('materials')
+    ..duration = pull('duration')
+    ..ageRange = pull('ageRange')
     // Always use the user's verbatim URL — never trust the model to
     // round-trip it (paraphrased hosts would silently break refs).
     ..link = url ?? '';
