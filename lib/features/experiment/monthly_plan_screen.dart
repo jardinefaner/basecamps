@@ -69,11 +69,10 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   /// just authored), so it's a single string. NOT keyed by month.
   String _monthlyTheme = '';
 
-  /// Per-group age range (free-text — "3-5 years", "ages 4-6",
-  /// whatever). Used as AI context so generations target the right
-  /// developmental level. Sandbox-state only; when this graduates,
-  /// the Group row itself will gain an age-range column.
-  final Map<String, String> _groupAgeRanges = {};
+  // Per-group age range now lives on the Group row itself
+  // (`audienceAgeLabel`) — no local state needed. Edit it from the
+  // Children & Groups screen's group detail / edit sheet; the
+  // monthly plan reads it via the `groupsProvider` stream.
 
   static DateTime _firstOfMonth(DateTime d) =>
       DateTime(d.year, d.month);
@@ -195,8 +194,9 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
     final monday = date.subtract(Duration(days: date.weekday - 1));
     return AiActivityContext(
       monthlyTheme: _monthlyTheme,
+      // Pulled straight off the Group row — single source of truth.
+      ageRange: group?.audienceAgeLabel,
       subTheme: _subThemes[_dayKey(monday)],
-      ageRange: groupId == null ? null : _groupAgeRanges[groupId],
       groupName: group?.name,
     );
   }
@@ -354,31 +354,10 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                   setState(() => _activeGroupId = groups.first.id);
                 });
               }
-              return Column(
-                children: [
-                  _GroupFilterBar(
-                    groups: groups,
-                    activeId: _activeGroupId,
-                    onSelect: (id) => setState(() => _activeGroupId = id),
-                  ),
-                  // Age range for the active group — drives AI
-                  // generation context so a "Toddlers" group gets
-                  // 2-yr-old-appropriate steps. Free-text by intent;
-                  // teachers say "ages 3-5" and "preschool" both, and
-                  // the model handles either.
-                  if (_activeGroupId != null)
-                    _AgeRangeBar(
-                      groupId: _activeGroupId!,
-                      value: _groupAgeRanges[_activeGroupId!] ?? '',
-                      onChanged: (v) => setState(() {
-                        if (v.isEmpty) {
-                          _groupAgeRanges.remove(_activeGroupId);
-                        } else {
-                          _groupAgeRanges[_activeGroupId!] = v;
-                        }
-                      }),
-                    ),
-                ],
+              return _GroupFilterBar(
+                groups: groups,
+                activeId: _activeGroupId,
+                onSelect: (id) => setState(() => _activeGroupId = id),
               );
             },
           ),
@@ -390,15 +369,32 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
           ),
           _GridHeader(),
           const Divider(height: 1),
+          // Grid lays out at the proportions of a US-Letter
+          // landscape sheet (11 × 8.5 inches → AR 11/8.5). On a
+          // narrow phone this is taller than the available viewport,
+          // so we wrap in a SingleChildScrollView and let the user
+          // scroll vertically rather than squishing each cell down
+          // until child content overflows. On a wide window the
+          // outer Expanded clamps the grid back to fit, so the AR
+          // never grows past the viewport's aspect.
           Expanded(
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.sm,
                 vertical: AppSpacing.sm,
               ),
               child: _activeGroupId == null
                   ? const SizedBox.shrink()
-                  : Column(
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final w = constraints.maxWidth;
+                        // Letter-landscape ratio = 11/8.5. Inner
+                        // height = w / (11/8.5) = w * 8.5/11.
+                        final h = w * 8.5 / 11;
+                        return SizedBox(
+                          width: w,
+                          height: h,
+                          child: Column(
                       children: [
                         for (final week in weeks)
                           Expanded(
@@ -474,6 +470,9 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                             ),
                           ),
                       ],
+                          ),
+                        );
+                      },
                     ),
             ),
           ),
@@ -550,8 +549,16 @@ class _GroupFilterBar extends StatelessWidget {
             for (final g in groups)
               Padding(
                 padding: const EdgeInsets.only(right: AppSpacing.sm),
+                // Chip label includes the group's audience age in
+                // parens when set — discoverable at-a-glance,
+                // editable from the Children & Groups screen so the
+                // monthly plan stays read-only on group metadata.
                 child: ChoiceChip(
-                  label: Text(g.name),
+                  label: Text(
+                    (g.audienceAgeLabel ?? '').isEmpty
+                        ? g.name
+                        : '${g.name} · ${g.audienceAgeLabel}',
+                  ),
                   selected: activeId == g.id,
                   onSelected: (_) => onSelect(g.id),
                 ),
@@ -1588,75 +1595,6 @@ class _MonthlyThemeBarState extends State<_MonthlyThemeBar> {
   }
 }
 
-/// Per-group age-range input. Active when a group is selected; the
-/// stored value is keyed by group id so switching groups shows that
-/// group's stored age range. Free-text by intent — teachers say
-/// "ages 3-5", "preschool", "toddlers", whatever — and the AI is
-/// good at pattern-matching either.
-class _AgeRangeBar extends StatefulWidget {
-  const _AgeRangeBar({
-    required this.groupId,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String groupId;
-  final String value;
-  final ValueChanged<String> onChanged;
-
-  @override
-  State<_AgeRangeBar> createState() => _AgeRangeBarState();
-}
-
-class _AgeRangeBarState extends State<_AgeRangeBar> {
-  late final TextEditingController _ctrl =
-      TextEditingController(text: widget.value);
-
-  @override
-  void didUpdateWidget(covariant _AgeRangeBar old) {
-    super.didUpdateWidget(old);
-    // Group id changed → swap in that group's stored value. Same
-    // textfield, different binding.
-    if (widget.groupId != old.groupId || widget.value != _ctrl.text) {
-      _ctrl.text = widget.value;
-    }
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      color: theme.colorScheme.surfaceContainerLow,
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        0,
-        AppSpacing.md,
-        AppSpacing.sm,
-      ),
-      child: TextField(
-        controller: _ctrl,
-        onChanged: widget.onChanged,
-        textInputAction: TextInputAction.done,
-        decoration: InputDecoration(
-          isDense: true,
-          prefixIcon: Icon(
-            Icons.cake_outlined,
-            size: 18,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          labelText: 'Age range for this group',
-          hintText: 'e.g. 3–5 years',
-        ),
-      ),
-    );
-  }
-}
 
 // =====================================================================
 // Week-details modal (sub-theme + supplies, given more breathing room)

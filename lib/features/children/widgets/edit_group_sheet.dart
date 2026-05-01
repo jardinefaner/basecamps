@@ -25,19 +25,29 @@ class EditGroupSheet extends ConsumerStatefulWidget {
 
 class _EditGroupSheetState extends ConsumerState<EditGroupSheet> {
   late final _name = TextEditingController(text: widget.group.name);
+  late final _audienceAge = TextEditingController(
+    text: widget.group.audienceAgeLabel ?? '',
+  );
   late String? _colorHex = widget.group.colorHex;
   bool _submitting = false;
 
   bool get _isValid => _name.text.trim().isNotEmpty;
 
   bool get _hasChanges {
+    final ageTrimmed = _audienceAge.text.trim();
+    final ageWasNull = widget.group.audienceAgeLabel == null;
+    final ageChanged = ageWasNull
+        ? ageTrimmed.isNotEmpty
+        : ageTrimmed != widget.group.audienceAgeLabel;
     return _name.text.trim() != widget.group.name ||
-        _colorHex != widget.group.colorHex;
+        _colorHex != widget.group.colorHex ||
+        ageChanged;
   }
 
   @override
   void dispose() {
     _name.dispose();
+    _audienceAge.dispose();
     super.dispose();
   }
 
@@ -45,12 +55,18 @@ class _EditGroupSheetState extends ConsumerState<EditGroupSheet> {
     if (!_isValid) return;
     setState(() => _submitting = true);
     final name = _name.text.trim();
+    final ageTrimmed = _audienceAge.text.trim();
     final repo = ref.read(childrenRepositoryProvider);
     await repo.updateGroup(
       id: widget.group.id,
       name: name,
       colorHex: _colorHex,
       clearColor: _colorHex == null && widget.group.colorHex != null,
+      // Distinguish "leave alone" (no edit) from "clear" (user
+      // emptied the field). Empty after a non-null original = clear.
+      audienceAgeLabel: ageTrimmed.isEmpty ? null : ageTrimmed,
+      clearAudienceAgeLabel: ageTrimmed.isEmpty &&
+          widget.group.audienceAgeLabel != null,
     );
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -103,6 +119,17 @@ class _EditGroupSheetState extends ConsumerState<EditGroupSheet> {
           AppTextField(
             controller: _name,
             label: 'Group name',
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          // Free-text age range. Used as AI generation context
+          // wherever a feature picks an activity for this group
+          // (monthly plan ✨, future activity-library suggestions,
+          // etc.). "3-5 years", "preschool", "toddlers" all work.
+          AppTextField(
+            controller: _audienceAge,
+            label: 'Age range',
+            hint: 'e.g. 3–5 years, preschool, toddlers',
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: AppSpacing.lg),

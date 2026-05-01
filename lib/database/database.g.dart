@@ -70,6 +70,17 @@ class $GroupsTable extends Groups with TableInfo<$GroupsTable, Group> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _audienceAgeLabelMeta = const VerificationMeta(
+    'audienceAgeLabel',
+  );
+  @override
+  late final GeneratedColumn<String> audienceAgeLabel = GeneratedColumn<String>(
+    'audience_age_label',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -102,6 +113,7 @@ class $GroupsTable extends Groups with TableInfo<$GroupsTable, Group> {
     programId,
     archivedAt,
     position,
+    audienceAgeLabel,
     createdAt,
     updatedAt,
   ];
@@ -154,6 +166,15 @@ class $GroupsTable extends Groups with TableInfo<$GroupsTable, Group> {
         position.isAcceptableOrUnknown(data['position']!, _positionMeta),
       );
     }
+    if (data.containsKey('audience_age_label')) {
+      context.handle(
+        _audienceAgeLabelMeta,
+        audienceAgeLabel.isAcceptableOrUnknown(
+          data['audience_age_label']!,
+          _audienceAgeLabelMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -199,6 +220,10 @@ class $GroupsTable extends Groups with TableInfo<$GroupsTable, Group> {
         DriftSqlType.int,
         data['${effectivePrefix}position'],
       ),
+      audienceAgeLabel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}audience_age_label'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -237,6 +262,14 @@ class Group extends DataClass implements Insertable<Group> {
   /// the teacher reorders, every group in the program gets a
   /// stable integer.
   final int? position;
+
+  /// v53: audience age label. Free-text by intent — teachers say
+  /// "3–5 years", "preschool", "toddlers", and the AI prompts
+  /// pattern-match either. Drives AI generation context (so a
+  /// "Toddlers" group gets 2-yr-old-appropriate steps) and could
+  /// later filter activity-library picks by age. Nullable; a group
+  /// without one just doesn't influence age-aware features.
+  final String? audienceAgeLabel;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Group({
@@ -246,6 +279,7 @@ class Group extends DataClass implements Insertable<Group> {
     this.programId,
     this.archivedAt,
     this.position,
+    this.audienceAgeLabel,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -265,6 +299,9 @@ class Group extends DataClass implements Insertable<Group> {
     }
     if (!nullToAbsent || position != null) {
       map['position'] = Variable<int>(position);
+    }
+    if (!nullToAbsent || audienceAgeLabel != null) {
+      map['audience_age_label'] = Variable<String>(audienceAgeLabel);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -287,6 +324,9 @@ class Group extends DataClass implements Insertable<Group> {
       position: position == null && nullToAbsent
           ? const Value.absent()
           : Value(position),
+      audienceAgeLabel: audienceAgeLabel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audienceAgeLabel),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -304,6 +344,7 @@ class Group extends DataClass implements Insertable<Group> {
       programId: serializer.fromJson<String?>(json['programId']),
       archivedAt: serializer.fromJson<DateTime?>(json['archivedAt']),
       position: serializer.fromJson<int?>(json['position']),
+      audienceAgeLabel: serializer.fromJson<String?>(json['audienceAgeLabel']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -318,6 +359,7 @@ class Group extends DataClass implements Insertable<Group> {
       'programId': serializer.toJson<String?>(programId),
       'archivedAt': serializer.toJson<DateTime?>(archivedAt),
       'position': serializer.toJson<int?>(position),
+      'audienceAgeLabel': serializer.toJson<String?>(audienceAgeLabel),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -330,6 +372,7 @@ class Group extends DataClass implements Insertable<Group> {
     Value<String?> programId = const Value.absent(),
     Value<DateTime?> archivedAt = const Value.absent(),
     Value<int?> position = const Value.absent(),
+    Value<String?> audienceAgeLabel = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Group(
@@ -339,6 +382,9 @@ class Group extends DataClass implements Insertable<Group> {
     programId: programId.present ? programId.value : this.programId,
     archivedAt: archivedAt.present ? archivedAt.value : this.archivedAt,
     position: position.present ? position.value : this.position,
+    audienceAgeLabel: audienceAgeLabel.present
+        ? audienceAgeLabel.value
+        : this.audienceAgeLabel,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -352,6 +398,9 @@ class Group extends DataClass implements Insertable<Group> {
           ? data.archivedAt.value
           : this.archivedAt,
       position: data.position.present ? data.position.value : this.position,
+      audienceAgeLabel: data.audienceAgeLabel.present
+          ? data.audienceAgeLabel.value
+          : this.audienceAgeLabel,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -366,6 +415,7 @@ class Group extends DataClass implements Insertable<Group> {
           ..write('programId: $programId, ')
           ..write('archivedAt: $archivedAt, ')
           ..write('position: $position, ')
+          ..write('audienceAgeLabel: $audienceAgeLabel, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -380,6 +430,7 @@ class Group extends DataClass implements Insertable<Group> {
     programId,
     archivedAt,
     position,
+    audienceAgeLabel,
     createdAt,
     updatedAt,
   );
@@ -393,6 +444,7 @@ class Group extends DataClass implements Insertable<Group> {
           other.programId == this.programId &&
           other.archivedAt == this.archivedAt &&
           other.position == this.position &&
+          other.audienceAgeLabel == this.audienceAgeLabel &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -404,6 +456,7 @@ class GroupsCompanion extends UpdateCompanion<Group> {
   final Value<String?> programId;
   final Value<DateTime?> archivedAt;
   final Value<int?> position;
+  final Value<String?> audienceAgeLabel;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -414,6 +467,7 @@ class GroupsCompanion extends UpdateCompanion<Group> {
     this.programId = const Value.absent(),
     this.archivedAt = const Value.absent(),
     this.position = const Value.absent(),
+    this.audienceAgeLabel = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -425,6 +479,7 @@ class GroupsCompanion extends UpdateCompanion<Group> {
     this.programId = const Value.absent(),
     this.archivedAt = const Value.absent(),
     this.position = const Value.absent(),
+    this.audienceAgeLabel = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -437,6 +492,7 @@ class GroupsCompanion extends UpdateCompanion<Group> {
     Expression<String>? programId,
     Expression<DateTime>? archivedAt,
     Expression<int>? position,
+    Expression<String>? audienceAgeLabel,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -448,6 +504,7 @@ class GroupsCompanion extends UpdateCompanion<Group> {
       if (programId != null) 'program_id': programId,
       if (archivedAt != null) 'archived_at': archivedAt,
       if (position != null) 'position': position,
+      if (audienceAgeLabel != null) 'audience_age_label': audienceAgeLabel,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -461,6 +518,7 @@ class GroupsCompanion extends UpdateCompanion<Group> {
     Value<String?>? programId,
     Value<DateTime?>? archivedAt,
     Value<int?>? position,
+    Value<String?>? audienceAgeLabel,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -472,6 +530,7 @@ class GroupsCompanion extends UpdateCompanion<Group> {
       programId: programId ?? this.programId,
       archivedAt: archivedAt ?? this.archivedAt,
       position: position ?? this.position,
+      audienceAgeLabel: audienceAgeLabel ?? this.audienceAgeLabel,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -499,6 +558,9 @@ class GroupsCompanion extends UpdateCompanion<Group> {
     if (position.present) {
       map['position'] = Variable<int>(position.value);
     }
+    if (audienceAgeLabel.present) {
+      map['audience_age_label'] = Variable<String>(audienceAgeLabel.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -520,6 +582,7 @@ class GroupsCompanion extends UpdateCompanion<Group> {
           ..write('programId: $programId, ')
           ..write('archivedAt: $archivedAt, ')
           ..write('position: $position, ')
+          ..write('audienceAgeLabel: $audienceAgeLabel, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -22457,6 +22520,7 @@ typedef $$GroupsTableCreateCompanionBuilder =
       Value<String?> programId,
       Value<DateTime?> archivedAt,
       Value<int?> position,
+      Value<String?> audienceAgeLabel,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -22469,6 +22533,7 @@ typedef $$GroupsTableUpdateCompanionBuilder =
       Value<String?> programId,
       Value<DateTime?> archivedAt,
       Value<int?> position,
+      Value<String?> audienceAgeLabel,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -22772,6 +22837,11 @@ class $$GroupsTableFilterComposer
 
   ColumnFilters<int> get position => $composableBuilder(
     column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get audienceAgeLabel => $composableBuilder(
+    column: $table.audienceAgeLabel,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -23151,6 +23221,11 @@ class $$GroupsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get audienceAgeLabel => $composableBuilder(
+    column: $table.audienceAgeLabel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -23190,6 +23265,11 @@ class $$GroupsTableAnnotationComposer
 
   GeneratedColumn<int> get position =>
       $composableBuilder(column: $table.position, builder: (column) => column);
+
+  GeneratedColumn<String> get audienceAgeLabel => $composableBuilder(
+    column: $table.audienceAgeLabel,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -23574,6 +23654,7 @@ class $$GroupsTableTableManager
                 Value<String?> programId = const Value.absent(),
                 Value<DateTime?> archivedAt = const Value.absent(),
                 Value<int?> position = const Value.absent(),
+                Value<String?> audienceAgeLabel = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -23584,6 +23665,7 @@ class $$GroupsTableTableManager
                 programId: programId,
                 archivedAt: archivedAt,
                 position: position,
+                audienceAgeLabel: audienceAgeLabel,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -23596,6 +23678,7 @@ class $$GroupsTableTableManager
                 Value<String?> programId = const Value.absent(),
                 Value<DateTime?> archivedAt = const Value.absent(),
                 Value<int?> position = const Value.absent(),
+                Value<String?> audienceAgeLabel = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -23606,6 +23689,7 @@ class $$GroupsTableTableManager
                 programId: programId,
                 archivedAt: archivedAt,
                 position: position,
+                audienceAgeLabel: audienceAgeLabel,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,

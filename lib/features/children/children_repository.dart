@@ -72,13 +72,18 @@ class ChildrenRepository {
         .watchSingleOrNull();
   }
 
-  Future<String> addGroup({required String name, String? colorHex}) async {
+  Future<String> addGroup({
+    required String name,
+    String? colorHex,
+    String? audienceAgeLabel,
+  }) async {
     final id = newId();
     await _db.into(_db.groups).insert(
           GroupsCompanion.insert(
             id: id,
             name: name,
             colorHex: Value(colorHex),
+            audienceAgeLabel: Value(audienceAgeLabel),
             programId: Value(_programId),
           ),
         );
@@ -87,13 +92,16 @@ class ChildrenRepository {
   }
 
   /// Partial group edit. Passing `null` means "leave alone"; use
-  /// [clearColor] to drop the color back to null. Matches the
-  /// clear-vs-absent convention the children/observations repos use.
+  /// [clearColor] / [clearAudienceAgeLabel] to drop a field back
+  /// to null. Matches the clear-vs-absent convention the
+  /// children/observations repos use.
   Future<void> updateGroup({
     required String id,
     String? name,
     String? colorHex,
     bool clearColor = false,
+    String? audienceAgeLabel,
+    bool clearAudienceAgeLabel = false,
   }) async {
     await (_db.update(_db.groups)..where((p) => p.id.equals(id))).write(
       GroupsCompanion(
@@ -101,12 +109,19 @@ class ChildrenRepository {
         colorHex: clearColor
             ? const Value<String?>(null)
             : (colorHex == null ? const Value.absent() : Value(colorHex)),
+        audienceAgeLabel: clearAudienceAgeLabel
+            ? const Value<String?>(null)
+            : (audienceAgeLabel == null
+                ? const Value.absent()
+                : Value(audienceAgeLabel)),
         updatedAt: Value(DateTime.now()),
       ),
     );
     await _db.markDirty('groups', id, [
       if (name != null) 'name',
       if (clearColor || colorHex != null) 'color_hex',
+      if (clearAudienceAgeLabel || audienceAgeLabel != null)
+        'audience_age_label',
     ]);
     unawaited(_sync.pushRow(groupsSpec, id));
   }

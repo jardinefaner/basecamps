@@ -23,6 +23,14 @@ class Groups extends Table {
   /// stable integer.
   IntColumn get position => integer().nullable()();
 
+  /// v53: audience age label. Free-text by intent — teachers say
+  /// "3–5 years", "preschool", "toddlers", and the AI prompts
+  /// pattern-match either. Drives AI generation context (so a
+  /// "Toddlers" group gets 2-yr-old-appropriate steps) and could
+  /// later filter activity-library picks by age. Nullable; a group
+  /// without one just doesn't influence age-aware features.
+  TextColumn get audienceAgeLabel => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>

@@ -73,7 +73,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 52;
+  int get schemaVersion => 53;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -102,6 +102,7 @@ class AppDatabase extends _$AppDatabase {
           await _healMediaCacheTable();
           await _healAvatarEtagColumns();
           await _healV52QolColumns();
+          await _healV53AudienceAgeColumn();
         },
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
@@ -119,6 +120,15 @@ class AppDatabase extends _$AppDatabase {
               'fresh at schema 25. This only affects devs who have '
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
+            );
+          }
+          if (from < 53) {
+            // v53: groups.audience_age_label — free-text age range
+            // attached to each group. Drives AI generation context
+            // and could later filter activity-library picks. Cloud
+            // parity: migration 0029.
+            await _runSilent(
+              'ALTER TABLE "groups" ADD COLUMN "audience_age_label" TEXT NULL',
             );
           }
           if (from < 52) {
@@ -1468,6 +1478,15 @@ class AppDatabase extends _$AppDatabase {
     );
     await _runSilent(
       'ALTER TABLE "parent_children" ADD COLUMN "updated_at" INTEGER NULL',
+    );
+  }
+
+  /// Re-apply v53's groups.audience_age_label ALTER every launch.
+  /// Same defensive pattern as the other heals — no-op on second
+  /// run, rescues users whose v53 upgrade landed only partially.
+  Future<void> _healV53AudienceAgeColumn() async {
+    await _runSilent(
+      'ALTER TABLE "groups" ADD COLUMN "audience_age_label" TEXT NULL',
     );
   }
 
