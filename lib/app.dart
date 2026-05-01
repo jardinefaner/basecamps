@@ -394,9 +394,10 @@ class _ResponsiveShell extends ConsumerWidget {
 
 /// Persistent launcher sidebar that defaults to a narrow icon rail
 /// and expands to the full launcher panel on hover. Same container,
-/// same Material surface — only the width animates and the contents
-/// swap between [LauncherIconRail] (compact) and [LauncherScreen]
-/// (full).
+/// same Material surface — only the width animates; the inner
+/// [MinimalLauncher] always lays out at the full panel width and
+/// the surrounding ClipRect reveals more of it as the outer
+/// AnimatedContainer grows.
 ///
 /// **Why a width animation rather than an overlay:** the alternative
 /// (panel slides over the route content) needs nested MouseRegion
@@ -428,9 +429,6 @@ class _HoverSidebarState extends State<_HoverSidebar> {
   /// Total width when the detail panel is open (rail + panel).
   static const double _kPanelWidth = 320;
 
-  /// Detail panel width = total minus rail.
-  static const double _kDetailWidth = _kPanelWidth - _kRailWidth; // 256
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -447,66 +445,20 @@ class _HoverSidebarState extends State<_HoverSidebar> {
         width: _expanded ? _kPanelWidth : _kRailWidth,
         child: Material(
           color: theme.colorScheme.surfaceContainerLow,
-          // The trick: lay the inner content out at the FULL panel
+          // The trick: lay MinimalLauncher out at the FULL panel
           // width even when the outer AnimatedContainer is narrower
           // (mid-animation or fully-collapsed). OverflowBox forces
-          // that, ClipRect clips the overhang. Result: the rail's
-          // icons paint at exactly the same screen coordinates in
-          // both states, and the detail panel just becomes
-          // visible/invisible as the clip window grows.
+          // that, ClipRect clips the overhang. Result: every row's
+          // leading icon paints at exactly the same screen
+          // coordinates regardless of expand state — labels just
+          // appear/disappear as the clip window grows.
           child: ClipRect(
             child: OverflowBox(
               alignment: Alignment.centerLeft,
               minWidth: _kPanelWidth,
               maxWidth: _kPanelWidth,
               child: SafeArea(
-                child: Stack(
-                  children: [
-                    // Detail panel — sits to the right of the rail.
-                    // Wraps in an Overlay because LauncherScreen
-                    // hosts LongPressDraggable feedback and needs
-                    // one as ancestor.
-                    Positioned(
-                      left: _kRailWidth,
-                      top: 0,
-                      bottom: 0,
-                      width: _kDetailWidth,
-                      child: Overlay(
-                        initialEntries: [
-                          OverlayEntry(
-                            builder: (_) => const Positioned.fill(
-                              child: LauncherScreen(),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Hairline divider between rail and detail —
-                    // appears only when expanded so the collapsed
-                    // rail doesn't sit next to a stub line.
-                    if (_expanded)
-                      Positioned(
-                        left: _kRailWidth,
-                        top: 0,
-                        bottom: 0,
-                        width: 0.5,
-                        child: Container(
-                          color: theme.colorScheme.outlineVariant,
-                        ),
-                      ),
-                    // Permanent icon rail. Always at left:0 width:64
-                    // — never moves. The Material override gives it
-                    // the same fill as the surrounding panel so the
-                    // visual seam is just the divider above.
-                    const Positioned(
-                      left: 0,
-                      top: 0,
-                      bottom: 0,
-                      width: _kRailWidth,
-                      child: LauncherIconRail(),
-                    ),
-                  ],
-                ),
+                child: MinimalLauncher(expanded: _expanded),
               ),
             ),
           ),

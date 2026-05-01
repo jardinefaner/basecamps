@@ -1535,39 +1535,299 @@ class _NoResults extends StatelessWidget {
   }
 }
 
-/// Compact icon rail for the persistent sidebar's collapsed state.
-/// Renders just the destination icons stacked vertically — tap to
-/// navigate. The rest of the launcher (search, pinned, people grids,
-/// account footer) is hidden in this mode; hovering the rail expands
-/// into the full [LauncherScreen].
+/// Minimal Notion-style launcher for the persistent web sidebar.
 ///
-/// Tooltips intentionally omitted: the global 600ms tooltipTheme +
-/// the hover-to-expand affordance together mean a teacher who pauses
-/// long enough for a tooltip would already see the full panel with
-/// the destination's text label, making the tooltip redundant chrome
-/// on a flicker-prone surface.
-class LauncherIconRail extends StatelessWidget {
-  const LauncherIconRail({super.key});
+/// Three regions stacked top-to-bottom:
+///   1. **Search row** — search icon at the rail's leading edge;
+///      when [expanded], a borderless TextField appears beside it
+///      and filters the destinations list below by label substring.
+///   2. **Destinations** — every `_DestinationData.all` entry as
+///      `[Icon] [Label]` rows. Icons sit at the same X position
+///      regardless of expanded state (the row's leading 64dp is a
+///      fixed icon column); labels appear/disappear as the outer
+///      AnimatedContainer's width grows past 64dp and the ClipRect
+///      reveals them.
+///   3. **Account row** — the user's CircleAvatar at the leading
+///      edge; when [expanded], email + program-switch + sign-out
+///      appear beside it.
+///
+/// Pinned tiles, people grids, and library pills that the legacy
+/// LauncherScreen carried are intentionally absent — they were
+/// chrome that never earned the screen real estate. The full
+/// LauncherScreen still ships behind the mobile Drawer; only the
+/// web sidebar uses this minimal variant.
+class MinimalLauncher extends ConsumerStatefulWidget {
+  const MinimalLauncher({required this.expanded, super.key});
+
+  /// True when the parent (`_HoverSidebar` in app.dart) is showing
+  /// the full panel width. Drives whether labels render and whether
+  /// the search TextField is rendered at all.
+  final bool expanded;
+
+  @override
+  ConsumerState<MinimalLauncher> createState() => _MinimalLauncherState();
+}
+
+class _MinimalLauncherState extends ConsumerState<MinimalLauncher> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant MinimalLauncher old) {
+    super.didUpdateWidget(old);
+    // When the sidebar collapses (cursor leaves), clear any in-
+    // progress search so the next hover starts from a clean state.
+    if (!widget.expanded && old.expanded && _query.isNotEmpty) {
+      _searchCtrl.clear();
+      _query = '';
+    }
+  }
+
+  List<_DestinationData> get _filteredDestinations {
+    if (_query.isEmpty) return _DestinationData.all;
+    final q = _query.toLowerCase();
+    return _DestinationData.all
+        .where((d) => d.label.toLowerCase().contains(q))
+        .toList();
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-      child: Column(
-        children: [
-          for (final d in _DestinationData.all)
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                vertical: 2,
-                horizontal: AppSpacing.sm,
-              ),
-              child: IconButton(
-                icon: Icon(d.icon),
+    final divider = Divider(
+      height: 1,
+      thickness: 0.5,
+      color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _SearchRow(
+          expanded: widget.expanded,
+          controller: _searchCtrl,
+          onChanged: (v) => setState(() => _query = v),
+        ),
+        divider,
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final d in _filteredDestinations)
+                  _MinimalRow(
+                    icon: d.icon,
+                    label: d.label,
+                    expanded: widget.expanded,
+                    onTap: () => _navigateTo(context, d.path),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        divider,
+        _MinimalAccountRow(expanded: widget.expanded),
+      ],
+    );
+  }
+}
+
+/// One row of the minimal launcher. Layout is invariant across
+/// states: a 64dp leading icon column + an Expanded label area. The
+/// icon sits at the same X coordinate whether the parent's width is
+/// 64dp or 320dp; the parent's ClipRect simply reveals more or less
+/// of the label area as the AnimatedContainer animates.
+class _MinimalRow extends StatelessWidget {
+  const _MinimalRow({
+    required this.icon,
+    required this.label,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      child: SizedBox(
+        height: 44,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 64,
+              child: Icon(
+                icon,
                 color: theme.colorScheme.onSurfaceVariant,
-                onPressed: () => _navigateTo(context, d.path),
+                size: 22,
               ),
             ),
+            // Label is always laid out (so the icon's X position is
+            // identical in both states); the ClipRect on the parent
+            // clips it off the screen when the sidebar is collapsed.
+            // softWrap:false + clip-overflow keeps it tidy if a
+            // particularly long label leaks while animating.
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(right: AppSpacing.md),
+                child: Text(
+                  label,
+                  style: theme.textTheme.bodyMedium,
+                  overflow: TextOverflow.clip,
+                  softWrap: false,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchRow extends StatelessWidget {
+  const _SearchRow({
+    required this.expanded,
+    required this.controller,
+    required this.onChanged,
+  });
+
+  final bool expanded;
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      height: 48,
+      child: Row(
+        children: [
+          SizedBox(
+            width: 64,
+            child: Icon(
+              Icons.search,
+              color: theme.colorScheme.onSurfaceVariant,
+              size: 22,
+            ),
+          ),
+          // Render the TextField only when expanded — at width 64
+          // there's no horizontal room for it and an empty TextField
+          // intercepts taps that should bubble to the parent
+          // MouseRegion's hover-expand. Conditional render keeps
+          // the collapsed state stripped to just the icon.
+          if (expanded)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(right: AppSpacing.md),
+                child: TextField(
+                  controller: controller,
+                  onChanged: onChanged,
+                  style: theme.textTheme.bodyMedium,
+                  decoration: InputDecoration(
+                    hintText: 'Search',
+                    hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant
+                          .withValues(alpha: 0.6),
+                    ),
+                    isDense: true,
+                    isCollapsed: true,
+                    filled: false,
+                    fillColor: Colors.transparent,
+                    contentPadding: EdgeInsets.zero,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MinimalAccountRow extends ConsumerWidget {
+  const _MinimalAccountRow({required this.expanded});
+
+  final bool expanded;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final session = ref.watch(currentSessionProvider);
+    if (session == null) return const SizedBox(height: 56);
+    final user = session.user;
+    final email = user.email ?? 'Signed in';
+    final meta = user.userMetadata ?? const <String, dynamic>{};
+    final avatarUrl = (meta['avatar_url'] ?? meta['picture']) as String?;
+    final fallbackInitial = email.initial;
+
+    return SizedBox(
+      height: 56,
+      child: Row(
+        children: [
+          SizedBox(
+            width: 64,
+            child: Center(
+              child: CircleAvatar(
+                radius: 16,
+                backgroundColor: theme.colorScheme.primaryContainer,
+                foregroundImage:
+                    (avatarUrl != null && avatarUrl.isNotEmpty)
+                        ? NetworkImage(avatarUrl)
+                        : null,
+                child: Text(
+                  fallbackInitial,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      email,
+                      style: theme.textTheme.bodyMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Switch program',
+                    icon: const Icon(Icons.swap_horiz, size: 20),
+                    color: theme.colorScheme.onSurfaceVariant,
+                    onPressed: () => _navigateTo(context, '/more/programs'),
+                  ),
+                  IconButton(
+                    tooltip: 'Sign out',
+                    icon: const Icon(Icons.logout, size: 20),
+                    color: theme.colorScheme.onSurfaceVariant,
+                    onPressed: () async {
+                      await ref.read(authRepositoryProvider).signOut();
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

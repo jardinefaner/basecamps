@@ -369,32 +369,53 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
           ),
           _GridHeader(),
           const Divider(height: 1),
-          // Grid lays out at the proportions of a US-Letter
-          // landscape sheet (11 × 8.5 inches → AR 11/8.5). On a
-          // narrow phone this is taller than the available viewport,
-          // so we wrap in a SingleChildScrollView and let the user
-          // scroll vertically rather than squishing each cell down
-          // until child content overflows. On a wide window the
-          // outer Expanded clamps the grid back to fit, so the AR
-          // never grows past the viewport's aspect.
+          // Grid uses fixed minimum cell sizes — day cells 160dp
+          // wide × 120dp tall minimum, side rail 240dp wide. On a
+          // phone the total exceeds the viewport on both axes, so
+          // we wrap in nested ScrollViews (vertical outer +
+          // horizontal inner) and let the user pan around like a
+          // printed sheet. On wide windows the cells stretch up to
+          // fill the viewport via Expanded inside the day Row.
+          //
+          // Why fixed-min rather than fit-to-viewport: a phone-fit
+          // grid crunches each cell to ~30×45dp, which is too small
+          // to read (and overflowed the children with a striped
+          // error pattern). A fixed-min grid is bigger than the
+          // phone but readable and tappable, which is the actual
+          // job to be done.
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.sm,
-                vertical: AppSpacing.sm,
-              ),
-              child: _activeGroupId == null
-                  ? const SizedBox.shrink()
-                  : LayoutBuilder(
-                      builder: (context, constraints) {
-                        final w = constraints.maxWidth;
-                        // Letter-landscape ratio = 11/8.5. Inner
-                        // height = w / (11/8.5) = w * 8.5/11.
-                        final h = w * 8.5 / 11;
-                        return SizedBox(
-                          width: w,
-                          height: h,
-                          child: Column(
+            child: _activeGroupId == null
+                ? const SizedBox.shrink()
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      const minSideRailWidth = 240.0;
+                      const minDayCellWidth = 160.0;
+                      const minRowHeight = 120.0;
+                      const totalCols = 5;
+                      const minTotalWidth = minSideRailWidth +
+                          minDayCellWidth * totalCols;
+                      final width = constraints.maxWidth >= minTotalWidth
+                          ? constraints.maxWidth
+                          : minTotalWidth;
+                      final minTotalHeight =
+                          minRowHeight * weeks.length;
+                      final height =
+                          constraints.maxHeight >= minTotalHeight
+                              ? constraints.maxHeight
+                              : minTotalHeight;
+                      return SingleChildScrollView(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Padding(
+                            padding:
+                                const EdgeInsets.all(AppSpacing.sm),
+                            child: SizedBox(
+                              // Pad subtraction so the inner grid
+                              // matches the SCV's content area
+                              // including the AppSpacing.sm padding.
+                              width: width - AppSpacing.sm * 2,
+                              height: height - AppSpacing.sm * 2,
+                              child: Column(
                       children: [
                         for (final week in weeks)
                           Expanded(
@@ -403,12 +424,13 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                                   CrossAxisAlignment.stretch,
                               children: [
                                 // Side rail: sub-theme + aggregated
-                                // materials for this week. flex 3 so
-                                // the column has enough breathing
-                                // room for materials lists; day cells
-                                // use flex 4 each.
-                                Expanded(
-                                  flex: 3,
+                                // materials for this week. Fixed
+                                // 240dp wide so it stays readable
+                                // independent of how many days are
+                                // in the row; day cells stretch via
+                                // Expanded above the 160dp minimum.
+                                SizedBox(
+                                  width: minSideRailWidth,
                                   child: Padding(
                                     padding: const EdgeInsets.all(2),
                                     child: _WeekSidePanel(
@@ -435,8 +457,12 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                                   ),
                                 ),
                                 for (final date in week)
+                                  // Day cell — stretches via Expanded
+                                  // above the 160dp minimum (the
+                                  // outer SizedBox's width guarantees
+                                  // the floor). On wide windows
+                                  // these grow proportionally.
                                   Expanded(
-                                    flex: 4,
                                     child: Padding(
                                       padding: const EdgeInsets.all(2),
                                       child: _DayCell(
@@ -470,11 +496,13 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                             ),
                           ),
                       ],
+                              ),
+                            ),
                           ),
-                        );
-                      },
-                    ),
-            ),
+                        ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
