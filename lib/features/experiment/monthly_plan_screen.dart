@@ -1293,11 +1293,36 @@ class _DayCellState extends State<_DayCell> {
     final seedDesc = _activeVariant?.description ?? '';
     _titleCtrl = TextEditingController(text: seedTitle);
     _descCtrl = TextEditingController(text: seedDesc);
+    // Commit-on-blur: when both fields lose focus while we're in
+    // edit mode, the user has tapped outside the cell. Fire
+    // onCommitEdit so the screen runs _exitInlineEdit, which drops
+    // an empty variant + clears _focusedCellKey — exactly the
+    // "revert to empty visual" behavior the user wanted when they
+    // bail without typing.
+    //
+    // We listen on BOTH nodes (and defer one frame) because the
+    // ↵-on-title path moves focus from title to description; in
+    // that brief moment both nodes can register as unfocused before
+    // the description grabs focus. The post-frame check sees the
+    // settled state and ignores the transient gap.
+    _titleFocus.addListener(_handleFocusChange);
+    _descFocus.addListener(_handleFocusChange);
     if (widget.isEditing) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _titleFocus.requestFocus();
       });
     }
+  }
+
+  void _handleFocusChange() {
+    if (!widget.isEditing) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!widget.isEditing) return;
+      if (!_titleFocus.hasFocus && !_descFocus.hasFocus) {
+        widget.onCommitEdit();
+      }
+    });
   }
 
   _MonthlyActivity? get _activeVariant {
@@ -1364,6 +1389,8 @@ class _DayCellState extends State<_DayCell> {
 
   @override
   void dispose() {
+    _titleFocus.removeListener(_handleFocusChange);
+    _descFocus.removeListener(_handleFocusChange);
     _titleCtrl.dispose();
     _descCtrl.dispose();
     _titleFocus.dispose();
