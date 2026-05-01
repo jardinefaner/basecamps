@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:basecamp/features/activity_library/url_scraper.dart';
 import 'package:basecamp/features/ai/openai_client.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -453,8 +454,15 @@ class _AiActivityComposer extends StatefulWidget {
 
 class _AiActivityComposerState extends State<_AiActivityComposer> {
   final _ctrl = TextEditingController();
-  bool _generating = false;
+  // Null when idle. While work is in flight, holds a teacher-facing
+  // status string ("Reading link…", "Generating…") that becomes the
+  // button label so the user sees which phase we're in. A single
+  // string handles "is something happening" + "what is happening"
+  // together, so we don't need a parallel bool.
+  String? _status;
   String? _error;
+
+  bool get _busy => _status != null;
 
   @override
   void dispose() {
@@ -464,22 +472,38 @@ class _AiActivityComposerState extends State<_AiActivityComposer> {
 
   Future<void> _generate() async {
     final input = _ctrl.text.trim();
-    if (input.isEmpty || _generating) return;
+    if (input.isEmpty || _busy) return;
     setState(() {
-      _generating = true;
+      _status = 'Working…';
       _error = null;
     });
     try {
-      final draft = await _generateActivityDraft(input);
+      final url = _urlPattern.firstMatch(input)?.group(0);
+      // If the user pasted a link, fetch it and pass the page's
+      // actual title + extracted text to the model — otherwise we'd
+      // be asking gpt-4o-mini to riff on a URL pattern, which is
+      // hallucination-prone. Body fetched and HTML→text-extracted
+      // by `scrapeUrl` (same helper the activity-library wizard uses).
+      ScrapedPage? scraped;
+      if (url != null) {
+        if (mounted) setState(() => _status = 'Reading link…');
+        scraped = await scrapeUrl(url);
+      }
+      if (mounted) setState(() => _status = 'Generating…');
+      final draft = await _generateActivityDraft(
+        input: input,
+        url: url,
+        scraped: scraped,
+      );
       if (!mounted) return;
       Navigator.of(context).pop(draft);
     } on Object catch (e) {
       if (!mounted) return;
       setState(() {
-        _generating = false;
+        _status = null;
         // Trim the exception's class prefix — users don't need to
-        // see "OpenAiClientException(...)" to understand "the model
-        // didn't respond, try again."
+        // see "ScrapeFailure: …" or "OpenAiClientException(...): …"
+        // to understand "the link didn't load, try again."
         _error = e.toString().replaceFirst(RegExp(r'^[^:]+:\s*'), '');
       });
     }
@@ -538,8 +562,8 @@ class _AiActivityComposerState extends State<_AiActivityComposer> {
               ],
               const SizedBox(height: AppSpacing.md),
               FilledButton.icon(
-                onPressed: _generating ? null : _generate,
-                icon: _generating
+                onPressed: _busy ? null : _generate,
+                icon: _busy
                     ? const SizedBox(
                         width: 16,
                         height: 16,
@@ -547,7 +571,10 @@ class _AiActivityComposerState extends State<_AiActivityComposer> {
                             CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.auto_awesome_outlined),
-                label: Text(_generating ? 'Generating…' : 'Generate'),
+                // Label tracks the phase ("Reading link…" then
+                // "Generating…") so a long network hop has visible
+                // progress instead of a generic spinner.
+                label: Text(_status ?? 'Generate'),
               ),
             ],
           ),
@@ -558,14 +585,40 @@ class _AiActivityComposerState extends State<_AiActivityComposer> {
 }
 
 /// Calls the OpenAI proxy with a JSON-mode prompt and turns the
-/// freeform `input` into a populated draft. URL detection runs
-/// locally — if the input contained a URL, we attach it verbatim to
-/// the draft's link field rather than trusting the model to echo it.
-Future<_ActivityDraft> _generateActivityDraft(String input) async {
+/// freeform `input` into a populated draft.
+///
+/// When [scraped] is non-null (the caller fetched the URL via
+/// [scrapeUrl] first), the model gets the page's actual title +
+/// extracted text — so the description is grounded in real content
+/// rather than the model's prior on whatever the URL pattern looked
+/// like. When no URL is present the model riffs on the description
+/// directly.
+///
+/// The link field on the returned draft is always the user's
+/// verbatim URL (or empty) — we never trust the model to round-trip
+/// it, since paraphrased hosts ("medium.com" → "medium.example.com")
+/// would silently break the reference.
+Future<_ActivityDraft> _generateActivityDraft({
+  required String input,
+  required String? url,
+  required ScrapedPage? scraped,
+}) async {
   if (!OpenAiClient.isAvailable) {
     throw const _AiUnavailable();
   }
-  final url = _urlPattern.firstMatch(input)?.group(0);
+
+  // Two prompt shapes — one for "we read the page, here's its
+  // content," one for "the user described an idea, expand it." We
+  // could collapse these into one parameterised prompt, but keeping
+  // them split makes each one easier to tune independently when the
+  // outputs drift.
+  final userMessage = scraped != null
+      ? 'Source page title: ${scraped.title}\n\n'
+          'Source page text:\n${scraped.text}\n\n'
+          'Write an activity card based on what the page describes. '
+          'Use concrete details from the source text — do not invent '
+          'materials or steps that the source does not mention.'
+      : 'Generate an activity card based on this description: $input';
 
   final body = await OpenAiClient.chat({
     // gpt-4o-mini matches the rest of the AI features in the app —
@@ -583,12 +636,7 @@ Future<_ActivityDraft> _generateActivityDraft(String input) async {
             '"description" (one or two concrete classroom-friendly '
             'sentences). Do not include URLs, markdown, or extra keys.',
       },
-      {
-        'role': 'user',
-        'content': url != null
-            ? 'Generate an activity card based on this link: $input'
-            : 'Generate an activity card based on this description: $input',
-      },
+      {'role': 'user', 'content': userMessage},
     ],
   });
   final choices = body['choices'] as List<dynamic>?;
@@ -605,9 +653,6 @@ Future<_ActivityDraft> _generateActivityDraft(String input) async {
   return _ActivityDraft()
     ..title = (parsed['title'] as String? ?? '').trim()
     ..description = (parsed['description'] as String? ?? '').trim()
-    // Use the user's pasted URL verbatim (or empty if they only
-    // described an idea). Never trust the model to round-trip the
-    // URL — it sometimes paraphrases it into a different host.
     ..link = url ?? '';
 }
 
