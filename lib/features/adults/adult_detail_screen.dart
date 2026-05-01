@@ -121,11 +121,11 @@ class _AdultDetailScreenState extends ConsumerState<AdultDetailScreen>
                         ),
                       ),
                     ),
-                  IconButton(
-                    tooltip: 'Edit',
-                    icon: const Icon(Icons.edit_outlined),
-                    onPressed: () => _openEdit(context, s),
-                  ),
+                  // Edit pencil dropped: the Profile tab's card is
+                  // tap-to-edit (and the Schedule tab's per-section
+                  // edit affordances handle Schedule edits). The
+                  // AppBar pencil was a third path to the same
+                  // identity sheet — redundant clutter.
                 ],
               );
             },
@@ -554,10 +554,24 @@ class _InviteDialog extends StatelessWidget {
   }
 }
 
-/// Profile tab body — identity + contact + parent bridge + notes.
-/// Notes used to live at the bottom of the schedule scroll; pulling
-/// them up here means a teacher reading "who is this person" sees the
-/// note next to the contact rows where it actually belongs.
+/// Profile tab body — one consolidated identity card. Header (avatar
+/// + name + role + anchor) on top, then optional contact rows,
+/// optional "also a parent" link, and optional notes — all in a
+/// single AppCard with `onTap: onEdit`. Tapping anywhere on the card
+/// surface that isn't a sub-action (phone / email / parent badge)
+/// opens the edit sheet. The phone/email/parent rows keep their own
+/// InkWells so a child gesture wins the arena before the outer card
+/// onTap fires.
+///
+/// Earlier this tab stacked the Header + ContactSection + ParentBadge
+/// + Notes as four separate widgets with three different edit paths
+/// (AppBar pencil, Header InkWell, Notes inline). One card, one tap,
+/// is plenty: the AppBar pencil is dropped, the Header's InkWell
+/// becomes the AppCard's tap, and Notes folds into the same card.
+///
+/// The pending-invite banner stays *above* the card (it's an alert,
+/// not part of identity), so its warning tone doesn't get visually
+/// neutralized by the card's surface.
 class _ProfileTab extends ConsumerWidget {
   const _ProfileTab({required this.adult, required this.onEdit});
 
@@ -567,12 +581,25 @@ class _ProfileTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final notes = (adult.notes ?? '').trim();
+    final phone = adult.phone;
+    final email = adult.email;
+    final hasContact =
+        (phone != null && phone.isNotEmpty) ||
+            (email != null && email.isNotEmpty);
+    final hasParentLink = adult.parentId != null;
     final invitesAsync = adult.authUserId != null
         ? const AsyncValue<List<InviteRow>>.data([])
         : ref.watch(adultOutstandingInvitesProvider(adult.id));
     final outstanding = invitesAsync.asData?.value ?? const <InviteRow>[];
     final pending = outstanding.isEmpty ? null : outstanding.first;
+
+    Widget divider() => Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+          child: Divider(height: 1, color: cs.outlineVariant),
+        );
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.lg,
@@ -581,38 +608,50 @@ class _ProfileTab extends ConsumerWidget {
         AppSpacing.xxxl * 2,
       ),
       children: [
-        _Header(adult: adult, onEdit: onEdit),
-        // Invite-status banner. Three states (one rendered at a
-        // time):
-        //   * already-bound — bound badge in the Header handles it.
-        //   * outstanding code → "Pending invite" banner with the
-        //     code + an expiry hint. If expiring within 2 days the
-        //     banner switches to a warning tone reminding the
-        //     admin to resend before it lapses.
-        //   * unbound + no invite — nothing here; admin uses the
-        //     person_add_alt button in the AppBar to issue one.
+        // Pending-invite banner sits above the identity card so its
+        // warning tone reads as an alert, not part of the static
+        // identity. Three states (one rendered at a time):
+        //   * already-bound → no banner; AppBar shield is the cue.
+        //   * outstanding code → banner with code + expiry hint.
+        //     Switches to warning tone < 2 days from expiry.
+        //   * unbound + no invite → nothing; admin uses the AppBar
+        //     person_add icon to issue one.
         if (pending != null) ...[
-          const SizedBox(height: AppSpacing.lg),
           _PendingInviteBanner(
             invite: pending,
             adultName: adult.name,
           ),
+          const SizedBox(height: AppSpacing.lg),
         ],
-        _ContactSection(adult: adult),
-        _AlsoParentBadge(adult: adult),
-        if (notes.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.xl),
-          AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Notes', style: theme.textTheme.titleMedium),
-                const SizedBox(height: AppSpacing.sm),
+        AppCard(
+          onTap: onEdit,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _Header(adult: adult),
+              if (hasContact) ...[
+                divider(),
+                _ContactSection(adult: adult),
+              ],
+              if (hasParentLink) ...[
+                divider(),
+                _AlsoParentBadge(adult: adult),
+              ],
+              if (notes.isNotEmpty) ...[
+                divider(),
+                Text(
+                  'Notes',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: cs.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
                 Text(notes, style: theme.textTheme.bodyMedium),
               ],
-            ),
+            ],
           ),
-        ],
+        ),
       ],
     );
   }
@@ -757,10 +796,9 @@ class _ScheduleTab extends StatelessWidget {
 }
 
 class _Header extends ConsumerWidget {
-  const _Header({required this.adult, required this.onEdit});
+  const _Header({required this.adult});
 
   final Adult adult;
-  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -775,71 +813,70 @@ class _Header extends ConsumerWidget {
         ? null
         : ref.watch(groupProvider(anchorId)).asData?.value?.name;
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onEdit,
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xs),
-        child: Row(
-          children: [
-            SmallAvatar(
-              path: adult.avatarPath,
-              storagePath: adult.avatarStoragePath,
-              etag: adult.avatarEtag,
-              fallbackInitial: initial,
-              radius: 32,
-              backgroundColor: theme.colorScheme.secondaryContainer,
-              foregroundColor: theme.colorScheme.onSecondaryContainer,
+    // No InkWell wrapper — the parent AppCard's onTap handles edit.
+    // A nested InkWell would either steal the tap (and lose the
+    // outer card ripple) or layer two ripples on the same gesture.
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.xs),
+      child: Row(
+        children: [
+          SmallAvatar(
+            path: adult.avatarPath,
+            storagePath: adult.avatarStoragePath,
+            etag: adult.avatarEtag,
+            fallbackInitial: initial,
+            radius: 32,
+            backgroundColor: theme.colorScheme.secondaryContainer,
+            foregroundColor: theme.colorScheme.onSecondaryContainer,
+          ),
+          const SizedBox(width: AppSpacing.lg),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  adult.name,
+                  style: theme.textTheme.headlineMedium,
+                ),
+                // v39: resolve the role label by priority —
+                //   1. roleId → Roles entity name
+                //   2. legacy free-text `role` string
+                //   3. nothing
+                Builder(
+                  builder: (_) {
+                    final roleId = adult.roleId;
+                    final resolvedName = roleId == null
+                        ? null
+                        : ref.watch(roleProvider(roleId)).asData?.value?.name;
+                    final legacy = (adult.role ?? '').trim();
+                    final label = resolvedName ??
+                        (legacy.isEmpty ? null : legacy);
+                    if (label == null) return const SizedBox.shrink();
+                    return Text(
+                      label,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: 4,
+                  children: [
+                    _RoleChip(role: role),
+                    if (role == AdultRole.lead && anchorName != null)
+                      _AnchorChip(name: anchorName),
+                    if (role == AdultRole.lead && anchorId != null &&
+                        anchorName == null)
+                      const _AnchorChip(name: '…'),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(width: AppSpacing.lg),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    adult.name,
-                    style: theme.textTheme.headlineMedium,
-                  ),
-                  // v39: resolve the role label by priority —
-                  //   1. roleId → Roles entity name
-                  //   2. legacy free-text `role` string
-                  //   3. nothing
-                  Builder(
-                    builder: (_) {
-                      final roleId = adult.roleId;
-                      final resolvedName = roleId == null
-                          ? null
-                          : ref.watch(roleProvider(roleId)).asData?.value?.name;
-                      final legacy = (adult.role ?? '').trim();
-                      final label = resolvedName ??
-                          (legacy.isEmpty ? null : legacy);
-                      if (label == null) return const SizedBox.shrink();
-                      return Text(
-                        label,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: AppSpacing.xs,
-                    runSpacing: 4,
-                    children: [
-                      _RoleChip(role: role),
-                      if (role == AdultRole.lead && anchorName != null)
-                        _AnchorChip(name: anchorName),
-                      if (role == AdultRole.lead && anchorId != null &&
-                          anchorName == null)
-                        const _AnchorChip(name: '…'),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -2847,31 +2884,27 @@ class _ContactSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final phone = adult.phone;
     final email = adult.email;
-    if ((phone == null || phone.isEmpty) &&
-        (email == null || email.isEmpty)) {
-      return const SizedBox.shrink();
-    }
-    return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (phone != null && phone.isNotEmpty)
-            _AdultContactRow(
-              icon: Icons.call_outlined,
-              label: phone,
-              uri: Uri(scheme: 'tel', path: phone),
-              failMessage: "Couldn't start a call.",
-            ),
-          if (email != null && email.isNotEmpty)
-            _AdultContactRow(
-              icon: Icons.mail_outlined,
-              label: email,
-              uri: Uri(scheme: 'mailto', path: email),
-              failMessage: "Couldn't open your email app.",
-            ),
-        ],
-      ),
+    // Caller guards the empty-contact case (the section renders
+    // inside the consolidated profile card with its own divider, so
+    // a SizedBox.shrink would leave a stray divider above nothing).
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (phone != null && phone.isNotEmpty)
+          _AdultContactRow(
+            icon: Icons.call_outlined,
+            label: phone,
+            uri: Uri(scheme: 'tel', path: phone),
+            failMessage: "Couldn't start a call.",
+          ),
+        if (email != null && email.isNotEmpty)
+          _AdultContactRow(
+            icon: Icons.mail_outlined,
+            label: email,
+            uri: Uri(scheme: 'mailto', path: email),
+            failMessage: "Couldn't open your email app.",
+          ),
+      ],
     );
   }
 }
@@ -2934,11 +2967,11 @@ class _AlsoParentBadge extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final parentId = adult.parentId;
+    // Caller guards adult.parentId == null. Bare assertion-style
+    // null-check here so the rest of the build can assume non-null.
     if (parentId == null) return const SizedBox.shrink();
     final parent = ref.watch(parentProvider(parentId)).asData?.value;
-    return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.sm),
-      child: Align(
+    return Align(
         alignment: Alignment.centerLeft,
         child: InkWell(
           onTap: () => context.push('/more/parents/$parentId'),
@@ -2980,7 +3013,6 @@ class _AlsoParentBadge extends ConsumerWidget {
             ),
           ),
         ),
-      ),
     );
   }
 
