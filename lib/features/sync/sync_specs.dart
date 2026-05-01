@@ -116,21 +116,12 @@ const activityLibrarySpec = TableSpec(
       table: 'activity_library_domain_tags',
       parentColumn: 'library_item_id',
     ),
-    // `activity_library_usages` was here; promoted to its own
-    // top-level spec (`activityLibraryUsagesSpec`) below because
-    // it has FKs to `schedule_templates` and `schedule_entries`
-    // (tier 3). Pulling it as a tier-2 cascade meant the FK
-    // targets weren't loaded yet — every cycle the cascade
-    // failed and the rows never landed.
+    CascadeSpec(
+      table: 'activity_library_usages',
+      parentColumn: 'library_item_id',
+      dateColumns: {'used_on', 'created_at'},
+    ),
   ],
-);
-
-/// Standalone usages spec. Has FKs to both
-/// `schedule_templates.id` (nullable) and `schedule_entries.id`
-/// (nullable), so it must pull AFTER both — that's tier 4.
-const activityLibraryUsagesSpec = TableSpec(
-  table: 'activity_library_usages',
-  dateColumns: {'used_on', 'created_at'},
 );
 
 const lessonSequencesSpec = TableSpec(
@@ -235,13 +226,20 @@ const List<List<TableSpec>> kSpecTiers = [
     observationsSpec,
     formSubmissionsSpec,
   ],
-  // Tier 4 — references tier-3 entities. activity_library_usages
-  // has nullable FKs to both schedule_templates.id and
-  // schedule_entries.id, so it can only land after those have
-  // been pulled.
-  [
-    activityLibraryUsagesSpec,
-  ],
+];
+
+/// Specs whose **cascade tables** have FKs into tiers later than
+/// the parent's own tier — e.g. `activity_library_usages` is a
+/// cascade of tier-2 `activity_library` but holds nullable FKs to
+/// `schedule_templates.id` (tier 3). Pulling the cascade together
+/// with the parent fails because the FK targets aren't loaded yet.
+///
+/// The bootstrap solution: after every tier has pulled, do a
+/// second pass that re-fires the cascades for these specs only —
+/// by that point the FK targets exist locally and the inserts go
+/// through cleanly.
+const List<TableSpec> kPostTierCascadeRefreshSpecs = [
+  activityLibrarySpec,
 ];
 
 /// Flat view of every spec in tier order. Use [kSpecTiers] when

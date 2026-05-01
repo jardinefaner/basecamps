@@ -685,6 +685,18 @@ class ProgramAuthBootstrap {
       debugPrint('Sync pull complete — $total rows applied across '
           '${kAllSpecs.length} tables.');
     }
+    // Post-tier cascade catchup. Some cascades (e.g.
+    // `activity_library_usages`) hold FKs into tiers later than
+    // their parent's, so the first pass during the parent's tier
+    // fails — the FK targets haven't pulled yet. After every
+    // tier has run, re-fire those cascades so the late-binding
+    // rows finally land.
+    for (final spec in kPostTierCascadeRefreshSpecs) {
+      await engine.refreshCascadesForProgram(
+        spec: spec,
+        programId: programId,
+      );
+    }
     // Re-hydrate programs + program_members alongside the
     // entity pulls. These tables don't go through the engine
     // (composite PK on members, no `updated_at`/`id` columns —

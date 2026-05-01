@@ -866,6 +866,52 @@ class SyncEngine {
     }
   }
 
+  /// Re-fires a parent spec's cascades against every local parent
+  /// row for [programId]. Used by the bootstrap's post-tier
+  /// catchup pass to handle cross-tier FK dependencies — e.g.
+  /// `activity_library_usages` cascades from tier-2
+  /// `activity_library` but holds FKs into tier-3
+  /// `schedule_templates`. The first pull (during tier 2) fails
+  /// because the templates haven't landed; this method runs after
+  /// tier 3 to retry with the FK targets in place.
+  ///
+  /// Best-effort: each cascade row is wrapped in its own try /
+  /// catch (delegated to `_replaceLocalCascades`), so a single
+  /// orphaned row doesn't wedge the whole refresh.
+  Future<void> refreshCascadesForProgram({
+    required TableSpec spec,
+    required String programId,
+  }) async {
+    final client = _client;
+    if (client == null) return;
+    if (client.auth.currentSession == null) return;
+    if (spec.cascades.isEmpty) return;
+    try {
+      // Read every local parent id for this program. We don't go
+      // back to cloud — the parent rows already pulled in their
+      // own tier, so local is the source of truth for the id list.
+      final rows = await _db.customSelect(
+        'SELECT id FROM "${spec.table}" WHERE program_id = ?',
+        variables: [Variable<String>(programId)],
+      ).get();
+      final ids = [for (final r in rows) r.read<String>('id')];
+      if (ids.isEmpty) return;
+      await _db.transaction(() async {
+        try {
+          await _replaceLocalCascades(client, spec.cascades, ids);
+        } on Object catch (e) {
+          debugPrint(
+            'Post-tier cascade refresh ${spec.table} hit row error: $e',
+          );
+        }
+      });
+    } on Object catch (e, st) {
+      debugPrint(
+        'Post-tier cascade refresh failed for ${spec.table}: $e\n$st',
+      );
+    }
+  }
+
   /// Read `updated_at` from the cloud row for [id] in [table].
   /// Returns null if the row doesn't exist in cloud (a brand-new
   /// local row that's never been pushed) or the read fails (RLS,
