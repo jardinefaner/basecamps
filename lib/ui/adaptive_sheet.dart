@@ -1,6 +1,38 @@
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/responsive.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+/// Width (px) of the active right-side adaptive sheet, or null
+/// when none is open. Surfaces from [showAdaptiveSheet]'s side-
+/// panel branch so screens that want their content to **shift
+/// left when the panel opens** (so the panel doesn't cover the
+/// rightmost cards / list rows / whatever) can read this and
+/// reserve right-edge padding.
+///
+/// Mobile (bottom-sheet path) doesn't touch this — the sheet
+/// pushes from the bottom, not the right, so horizontal layout
+/// doesn't need to reflow.
+class AdaptiveSidePanelNotifier extends Notifier<double?> {
+  @override
+  double? build() => null;
+
+  // Method-not-setter — opening a panel is a transient event with
+  // a paired `close`, not a passive property write.
+  // ignore: use_setters_to_change_properties
+  void open(double width) {
+    state = width;
+  }
+
+  void close() {
+    state = null;
+  }
+}
+
+final adaptiveSidePanelWidthProvider =
+    NotifierProvider<AdaptiveSidePanelNotifier, double?>(
+  AdaptiveSidePanelNotifier.new,
+);
 
 /// Adaptive sheet — bottom on phones, right side-panel on wide windows.
 ///
@@ -36,7 +68,7 @@ Future<T?> showAdaptiveSheet<T>({
   // a bottom sheet uses Material's defaults.
   double sidePanelWidth = 480,
   double sidePanelMaxWidthFraction = 0.45,
-}) {
+}) async {
   final isWide = Breakpoints.isWide(context);
   if (!isWide) {
     return showModalBottomSheet<T>(
@@ -47,15 +79,30 @@ Future<T?> showAdaptiveSheet<T>({
       builder: builder,
     );
   }
-  return Navigator.of(context, rootNavigator: true).push<T>(
-    _SidePanelRoute<T>(
-      builder: builder,
-      width: sidePanelWidth,
-      maxWidthFraction: sidePanelMaxWidthFraction,
-      barrierColor: barrierColor ??
-          Theme.of(context).colorScheme.scrim.withValues(alpha: 0.32),
-    ),
-  );
+  // Resolve the same width the panel will paint at so the
+  // notifier's value matches the visible panel pixel-for-pixel.
+  final mq = MediaQuery.of(context);
+  final resolvedWidth = (mq.size.width * sidePanelMaxWidthFraction)
+      .clamp(320.0, sidePanelWidth);
+  // Publish width via Riverpod so screens can shift their content
+  // left under the panel. Cleared in `finally` regardless of how
+  // the panel dismisses (Navigator.pop, barrier-tap, route swipe).
+  final notifier = ProviderScope.containerOf(context)
+      .read(adaptiveSidePanelWidthProvider.notifier)
+    ..open(resolvedWidth);
+  try {
+    return await Navigator.of(context, rootNavigator: true).push<T>(
+      _SidePanelRoute<T>(
+        builder: builder,
+        width: sidePanelWidth,
+        maxWidthFraction: sidePanelMaxWidthFraction,
+        barrierColor: barrierColor ??
+            Theme.of(context).colorScheme.scrim.withValues(alpha: 0.32),
+      ),
+    );
+  } finally {
+    notifier.close();
+  }
 }
 
 /// Right-anchored slide-over route. Borrows the modal-bottom-sheet

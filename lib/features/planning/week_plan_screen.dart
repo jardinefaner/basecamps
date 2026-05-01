@@ -280,16 +280,30 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
           // Group filter chip rail.
           const _GroupFilterRail(),
           Expanded(
-            child: scheduleAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (err, _) => Center(child: Text('Error: $err')),
-              data: (byDay) => WeekPlanCanvas(
-                monday: monday,
-                byDay: byDay,
-                onTapCard: _openDetail,
-                onTapAlreadySelected: _openEditForCard,
-                onCreateAt: _onCreateAt,
-                onCardDrop: _onCardDrop,
+            // When the side-panel adaptive sheet opens (web), shift
+            // the canvas left by the panel's width so the rightmost
+            // column (Friday) doesn't sit hidden underneath. Mobile
+            // uses a bottom sheet which doesn't affect horizontal
+            // layout, so the padding stays 0 there.
+            child: AnimatedPadding(
+              duration: const Duration(milliseconds: 240),
+              curve: Curves.easeOutCubic,
+              padding: EdgeInsets.only(
+                right:
+                    ref.watch(adaptiveSidePanelWidthProvider) ?? 0,
+              ),
+              child: scheduleAsync.when(
+                loading: () =>
+                    const Center(child: CircularProgressIndicator()),
+                error: (err, _) => Center(child: Text('Error: $err')),
+                data: (byDay) => WeekPlanCanvas(
+                  monday: monday,
+                  byDay: byDay,
+                  onTapCard: _openDetail,
+                  onTapAlreadySelected: _openEditForCard,
+                  onCreateAt: _onCreateAt,
+                  onCardDrop: _onCardDrop,
+                ),
               ),
             ),
           ),
