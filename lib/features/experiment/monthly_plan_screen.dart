@@ -77,6 +77,12 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   /// every cell at once.
   String? _focusedCellKey;
 
+  /// Cell whose ✨ is currently mid-generation. While this matches
+  /// a cell's key, the cell renders a spinner where the ✨ used to
+  /// be and the button is disabled. Inline (no modal) so the user
+  /// stays in the calendar view through the round-trip.
+  String? _generatingCellKey;
+
   /// Sub-theme strings keyed by `weekMondayDayKey`. NOT group-scoped —
   /// the sub-theme is a thematic label for the week as a whole and
   /// shared across groups (a "Colors" week means colors for everyone).
@@ -158,11 +164,17 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
 
   /// Called when a cell receives focus + the user wants to start
   /// authoring inline. Adds an empty variant if the cell has none,
-  /// then flips into inline-edit mode for that variant.
+  /// then flips into inline-edit mode for that variant. If a
+  /// different cell was already in edit mode, that cell's edit is
+  /// finalised first (drops its empty variant if the user typed
+  /// nothing).
   void _enterInlineEdit(DateTime date) {
     final groupId = _activeGroupId;
     if (groupId == null) return;
     final key = _activityKey(date, groupId);
+    if (_editingCellKey != null && _editingCellKey != key) {
+      _exitInlineEdit();
+    }
     setState(() {
       final list = _activities.putIfAbsent(key, () => []);
       if (list.isEmpty) {
@@ -174,29 +186,45 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
     });
   }
 
-  /// Commits the inline TextField text into the active variant.
-  /// First line → title; subsequent lines → description. Matches
-  /// the user's "type title, hit enter, become description" mental
-  /// model.
-  void _commitInlineEdit({
+  /// Live write into the active variant on every keystroke. The
+  /// commit-on-blur pattern was fragile on mobile (tapping outside
+  /// a TextField doesn't auto-unfocus on Flutter mobile, so blur
+  /// never fired and content was lost). Writing on every keystroke
+  /// means the variant is *always* up to date — even if the cell
+  /// unmounts mid-edit (group switch, month change), the typed text
+  /// survives.
+  void _writeInlineEdit({
     required DateTime date,
-    required String text,
+    String? title,
+    String? description,
   }) {
     final groupId = _activeGroupId;
     if (groupId == null) return;
     final key = _activityKey(date, groupId);
-    final lines = text.split('\n');
-    final title = lines.first.trim();
-    final description = lines.length > 1
-        ? lines.sublist(1).join('\n').trim()
-        : '';
+    final list = _activities[key];
+    if (list == null || list.isEmpty) return;
+    setState(() {
+      final idx = _activeIdxAt(date, groupId);
+      if (title != null) list[idx].title = title;
+      if (description != null) list[idx].description = description;
+    });
+  }
+
+  /// Exit edit mode without losing content (writes already happened
+  /// per-keystroke via [_writeInlineEdit]). Drops the variant if it
+  /// ended up entirely empty.
+  void _exitInlineEdit() {
+    final key = _editingCellKey;
+    if (key == null) return;
     setState(() {
       _editingCellKey = null;
       final list = _activities[key];
       if (list == null || list.isEmpty) return;
-      final idx = _activeIdxAt(date, groupId);
-      if (title.isEmpty && description.isEmpty) {
-        // Empty-on-commit → drop this variant entirely.
+      // Use the LAST element since edit mode always points at the
+      // most recently appended (manual or AI) variant.
+      final idx = (_activeVariantIndex[key] ?? 0)
+          .clamp(0, list.length - 1);
+      if (list[idx].isEmpty) {
         list.removeAt(idx);
         if (list.isEmpty) {
           _activities.remove(key);
@@ -205,49 +233,55 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
         } else {
           _activeVariantIndex[key] = idx.clamp(0, list.length - 1);
         }
-        return;
       }
-      list[idx]
-        ..title = title
-        ..description = description;
     });
   }
 
-  /// AI variant — pre-fills the composer with the active variant's
-  /// title + description so the user can tweak before generating an
-  /// alternate take. The result becomes a NEW variant; the original
-  /// is preserved (the whole point of the carousel).
+  /// AI variant — INLINE generation, no modal sheet. The cell
+  /// already has the source content; opening a modal would just be
+  /// an extra step the user has to confirm before the model runs.
+  /// Tap → spinner in the cell → new variant lands. Seamless.
   Future<void> _onCellAi(DateTime date) async {
     final groupId = _activeGroupId;
     if (groupId == null) return;
     final key = _activityKey(date, groupId);
     final active = _activeAt(date, groupId);
-    final initialInput = active == null
-        ? ''
-        : [
-            if (active.title.isNotEmpty) active.title,
-            if (active.description.isNotEmpty) active.description,
-          ].join('\n\n');
-
-    final result = await showAiActivityComposer(
-      context,
-      planContext: _aiContextForDate(date),
-      initialInput: initialInput.isEmpty ? null : initialInput,
-    );
-    if (!mounted || result == null) return;
-    setState(() {
-      _activities.putIfAbsent(key, () => []);
-      final list = _activities[key]!..add(_MonthlyActivity(
-        title: result.title,
-        description: result.description,
-        objectives: result.objectives,
-        steps: result.steps,
-        materials: result.materials,
-        link: result.link,
-      ));
-      // Switch active to the freshly-generated variant.
-      _activeVariantIndex[key] = list.length - 1;
-    });
+    if (active == null || active.isEmpty) return;
+    setState(() => _generatingCellKey = key);
+    try {
+      final result = await generateAiVariant(
+        activity: active.toAiActivity(),
+        planContext: _aiContextForDate(date),
+      );
+      if (!mounted) return;
+      setState(() {
+        _generatingCellKey = null;
+        _activities.putIfAbsent(key, () => []);
+        final list = _activities[key]!
+          ..add(_MonthlyActivity(
+            title: result.title,
+            description: result.description,
+            objectives: result.objectives,
+            steps: result.steps,
+            materials: result.materials,
+            link: result.link,
+          ));
+        // Switch active to the freshly-generated variant.
+        _activeVariantIndex[key] = list.length - 1;
+      });
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() => _generatingCellKey = null);
+      // Surface via snackbar — quick, non-blocking, doesn't interrupt
+      // the calendar view.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Couldn't generate: ${e.toString().replaceFirst(RegExp(r'^[^:]+:\s*'), '')}",
+          ),
+        ),
+      );
+    }
   }
 
   /// Switch the active variant via dot tap or PageView swipe.
@@ -279,9 +313,14 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
     });
   }
 
-  /// Set/clear the focused cell (mobile tap or web hover).
+  /// Set/clear the focused cell (mobile tap or web hover). When
+  /// focusing a different cell while a prior one was inline-editing,
+  /// finalise that prior edit first so empty variants don't pile up.
   void _setFocusedCell(String? key) {
     if (_focusedCellKey == key) return;
+    if (_editingCellKey != null && _editingCellKey != key) {
+      _exitInlineEdit();
+    }
     setState(() => _focusedCellKey = key);
   }
 
@@ -692,6 +731,10 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                                         isFocused: _focusedCellKey ==
                                             _activityKey(
                                                 date, _activeGroupId!),
+                                        isGenerating:
+                                            _generatingCellKey ==
+                                                _activityKey(date,
+                                                    _activeGroupId!),
                                         onTap: () => unawaited(
                                           _onDayCellTap(date),
                                         ),
@@ -710,10 +753,15 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                                             _setFocusedCell(null);
                                           }
                                         },
-                                        onCommitInlineEdit: (text) =>
-                                            _commitInlineEdit(
+                                        onWriteTitle: (v) =>
+                                            _writeInlineEdit(
                                           date: date,
-                                          text: text,
+                                          title: v,
+                                        ),
+                                        onWriteDescription: (v) =>
+                                            _writeInlineEdit(
+                                          date: date,
+                                          description: v,
                                         ),
                                         onSwitchVariant: (idx) =>
                                             _switchVariant(date, idx),
@@ -1092,10 +1140,12 @@ class _DayCell extends StatefulWidget {
     required this.activeIndex,
     required this.isEditing,
     required this.isFocused,
+    required this.isGenerating,
     required this.onTap,
     required this.onFocusEnter,
     required this.onFocusExit,
-    required this.onCommitInlineEdit,
+    required this.onWriteTitle,
+    required this.onWriteDescription,
     required this.onSwitchVariant,
     required this.onAi,
     required this.onDeleteActive,
@@ -1108,10 +1158,16 @@ class _DayCell extends StatefulWidget {
   final int activeIndex;
   final bool isEditing;
   final bool isFocused;
+  final bool isGenerating;
   final VoidCallback onTap;
   final VoidCallback onFocusEnter;
   final VoidCallback onFocusExit;
-  final ValueChanged<String> onCommitInlineEdit;
+  // Two narrow callbacks instead of one commit-on-blur — see
+  // _writeInlineEdit's doc-comment on the screen state. Each writes
+  // immediately to the active variant so the typed content survives
+  // even if the cell unmounts mid-edit (group switch, scroll-off).
+  final ValueChanged<String> onWriteTitle;
+  final ValueChanged<String> onWriteDescription;
   final ValueChanged<int> onSwitchVariant;
   final VoidCallback onAi;
   final VoidCallback onDeleteActive;
@@ -1123,8 +1179,17 @@ class _DayCell extends StatefulWidget {
 class _DayCellState extends State<_DayCell> {
   late final PageController _pager =
       PageController(initialPage: widget.activeIndex);
-  late final TextEditingController _inlineCtrl;
-  late final FocusNode _inlineFocus;
+
+  // Two controllers — one per field — so the title genuinely
+  // renders bold while the user types it (single-buffer + split-on-
+  // commit had no visual distinction between title and description
+  // mid-edit). Two focus nodes too: ↵ on title moves focus to the
+  // description field for the natural "type title, hit enter,
+  // describe" flow.
+  late final TextEditingController _titleCtrl;
+  late final TextEditingController _descCtrl;
+  late final FocusNode _titleFocus = FocusNode();
+  late final FocusNode _descFocus = FocusNode();
 
   bool get _isToday {
     final now = DateTime.now();
@@ -1136,28 +1201,21 @@ class _DayCellState extends State<_DayCell> {
   @override
   void initState() {
     super.initState();
-    _inlineCtrl = TextEditingController(text: _seedInlineText());
-    _inlineFocus = FocusNode()..addListener(_onInlineFocusChange);
+    final seedTitle = _activeVariant?.title ?? '';
+    final seedDesc = _activeVariant?.description ?? '';
+    _titleCtrl = TextEditingController(text: seedTitle);
+    _descCtrl = TextEditingController(text: seedDesc);
     if (widget.isEditing) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _inlineFocus.requestFocus();
+        if (mounted) _titleFocus.requestFocus();
       });
     }
   }
 
-  /// Initial text for the inline TextField — first line is the
-  /// active variant's title, subsequent lines are the description
-  /// (matches the user's "type title, hit enter, becomes
-  /// description" mental model both for fresh creates and edits).
-  String _seedInlineText() {
-    if (widget.variants.isEmpty) return '';
-    final v = widget.variants[widget.activeIndex.clamp(
-      0,
-      widget.variants.length - 1,
-    )];
-    if (v.title.isEmpty && v.description.isEmpty) return '';
-    if (v.description.isEmpty) return v.title;
-    return '${v.title}\n${v.description}';
+  _MonthlyActivity? get _activeVariant {
+    if (widget.variants.isEmpty) return null;
+    return widget.variants[
+        widget.activeIndex.clamp(0, widget.variants.length - 1)];
   }
 
   @override
@@ -1174,32 +1232,35 @@ class _DayCellState extends State<_DayCell> {
         curve: Curves.easeOutCubic,
       ));
     }
-    // Edit state flipped on → grab focus + seed the inline text
-    // from the current active variant so the user can edit in place.
-    if (widget.isEditing && !old.isEditing) {
-      _inlineCtrl.text = _seedInlineText();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _inlineFocus.requestFocus();
-      });
+    // Sync the title/description controllers from the active variant
+    // when an external write changes its content (advanced editor in
+    // a sheet, etc.) — but only when we're NOT actively editing, so
+    // we don't trample an in-progress keystroke.
+    final active = _activeVariant;
+    if (!widget.isEditing && active != null) {
+      if (_titleCtrl.text != active.title) _titleCtrl.text = active.title;
+      if (_descCtrl.text != active.description) {
+        _descCtrl.text = active.description;
+      }
     }
-  }
-
-  void _onInlineFocusChange() {
-    // Blur on the inline editor commits — same idiom as the
-    // experiment screen. Keystrokes don't auto-save; only blur or
-    // explicit done.
-    if (!_inlineFocus.hasFocus && widget.isEditing) {
-      widget.onCommitInlineEdit(_inlineCtrl.text);
+    // Edit state flipped on → grab focus on the title field. If the
+    // variant already had content, keep the controllers' values
+    // (they survive across rebuilds because they're State-level
+    // fields).
+    if (widget.isEditing && !old.isEditing) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _titleFocus.requestFocus();
+      });
     }
   }
 
   @override
   void dispose() {
     _pager.dispose();
-    _inlineCtrl.dispose();
-    _inlineFocus
-      ..removeListener(_onInlineFocusChange)
-      ..dispose();
+    _titleCtrl.dispose();
+    _descCtrl.dispose();
+    _titleFocus.dispose();
+    _descFocus.dispose();
     super.dispose();
   }
 
@@ -1210,9 +1271,9 @@ class _DayCellState extends State<_DayCell> {
     final isOutOfMonth = !widget.isCurrentMonth;
     final hasContent =
         widget.variants.any((v) => !v.isEmpty);
-    final showAffordances =
-        !isOutOfMonth && (widget.isFocused || widget.isEditing) &&
-            !widget.isEditing;
+    final showAffordances = !isOutOfMonth &&
+        widget.isFocused &&
+        !widget.isEditing;
 
     final dateColor = isOutOfMonth
         ? cs.onSurfaceVariant.withValues(alpha: 0.4)
@@ -1224,22 +1285,26 @@ class _DayCellState extends State<_DayCell> {
         color: _isToday
             ? cs.primary.withValues(alpha: 0.5)
             : (widget.isFocused
-                ? cs.primary.withValues(alpha: 0.6)
+                ? cs.primary.withValues(alpha: 0.4)
                 : cs.outlineVariant.withValues(alpha: 0.6)),
         width: (_isToday || widget.isFocused) ? 1 : 0.5,
       ),
     );
 
+    // Cell tone matches the side rail's theme/supplies panel —
+    // surfaceContainerLow with a subtle outline. The earlier
+    // surface tone made cells visually disconnected from the side
+    // rail; same tone reads as one continuous grid.
     final body = Material(
       color: isOutOfMonth
           ? cs.surfaceContainerLowest.withValues(alpha: 0.4)
-          : cs.surface,
+          : cs.surfaceContainerLow,
       shape: cellShape,
       child: InkWell(
         onTap: isOutOfMonth ? null : widget.onTap,
         customBorder: cellShape,
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xs),
+          padding: const EdgeInsets.all(AppSpacing.sm),
           child: Stack(
             children: [
               Column(
@@ -1257,7 +1322,7 @@ class _DayCellState extends State<_DayCell> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   if (widget.isEditing)
                     Expanded(child: _buildInlineEditor(theme))
                   else if (!isOutOfMonth && hasContent)
@@ -1266,10 +1331,10 @@ class _DayCellState extends State<_DayCell> {
                     ),
                 ],
               ),
-              // ✨ + × affordances overlay — visible only when the
-              // cell is focused/hovered AND has content. Pinned to
-              // bottom-right (✨) and top-right (×) so they don't
-              // crowd the activity preview.
+              // ✨ + × affordances overlay — visible when the cell
+              // is focused (hover on web, tap-to-focus on mobile)
+              // AND has content. Pinned to bottom-right (✨) and
+              // top-right (×) so they don't crowd the preview.
               if (showAffordances && hasContent) ...[
                 Positioned(
                   top: 0,
@@ -1287,14 +1352,14 @@ class _DayCellState extends State<_DayCell> {
                   child: _CellAffordanceButton(
                     icon: Icons.auto_awesome_outlined,
                     tone: _AffordanceTone.primary,
-                    onTap: widget.onAi,
+                    onTap: widget.isGenerating ? null : widget.onAi,
                     tooltip: 'AI variant',
+                    loading: widget.isGenerating,
                   ),
                 ),
               ],
               // Variant dots — always visible when >1 variant exists
-              // (they're navigation, not affordances). Centered at
-              // the bottom of the cell.
+              // (navigation, not affordance). Centered at the bottom.
               if (!isOutOfMonth && widget.variants.length > 1)
                 Positioned(
                   bottom: 2,
@@ -1324,37 +1389,72 @@ class _DayCellState extends State<_DayCell> {
     );
   }
 
+  /// Two-TextField inline editor. Title field is single-line + bold
+  /// (with `textInputAction: next` so ↵ moves focus to the
+  /// description); description is multi-line + body-weight. Each
+  /// field's `onChanged` writes IMMEDIATELY into the active variant
+  /// — no commit-on-blur (mobile doesn't reliably blur on tap-out)
+  /// and no buffer-split-on-commit (the title only got bold AFTER
+  /// commit, which made the live edit feel flat).
   Widget _buildInlineEditor(ThemeData theme) {
     final cs = theme.colorScheme;
+    final titleStyle = theme.textTheme.bodyMedium?.copyWith(
+      fontWeight: FontWeight.w700,
+    );
+    final descStyle = theme.textTheme.bodySmall?.copyWith(
+      color: cs.onSurfaceVariant,
+    );
+    final mutedColor = cs.onSurfaceVariant.withValues(alpha: 0.55);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: TextField(
-        controller: _inlineCtrl,
-        focusNode: _inlineFocus,
-        maxLines: null,
-        // First line takes the bold "title" weight; subsequent lines
-        // render at body-medium (description) thanks to the on-blur
-        // commit splitting the buffer into title + description.
-        // Visually the in-progress text is a single-style block; the
-        // split happens at commit, which keeps the editor cheap.
-        style: theme.textTheme.bodyMedium?.copyWith(
-          fontWeight: FontWeight.w600,
-        ),
-        textInputAction: TextInputAction.newline,
-        decoration: InputDecoration(
-          isDense: true,
-          isCollapsed: true,
-          filled: false,
-          contentPadding: EdgeInsets.zero,
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          hintText: 'Title… ↵ then description',
-          hintStyle: theme.textTheme.bodyMedium?.copyWith(
-            color: cs.onSurfaceVariant.withValues(alpha: 0.55),
-            fontWeight: FontWeight.w500,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _titleCtrl,
+            focusNode: _titleFocus,
+            onChanged: widget.onWriteTitle,
+            style: titleStyle,
+            textInputAction: TextInputAction.next,
+            // ↵ on title moves to the description field — natural
+            // "type title, hit return, describe" flow.
+            onSubmitted: (_) => _descFocus.requestFocus(),
+            decoration: InputDecoration(
+              isDense: true,
+              isCollapsed: true,
+              filled: false,
+              contentPadding: EdgeInsets.zero,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              hintText: 'Activity Name',
+              hintStyle: titleStyle?.copyWith(color: mutedColor),
+            ),
           ),
-        ),
+          const SizedBox(height: 2),
+          Expanded(
+            child: TextField(
+              controller: _descCtrl,
+              focusNode: _descFocus,
+              onChanged: widget.onWriteDescription,
+              style: descStyle,
+              maxLines: null,
+              textInputAction: TextInputAction.newline,
+              decoration: InputDecoration(
+                isDense: true,
+                isCollapsed: true,
+                filled: false,
+                contentPadding: EdgeInsets.zero,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                hintText: 'Describe…',
+                hintStyle: descStyle?.copyWith(color: mutedColor),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1427,12 +1527,18 @@ class _CellAffordanceButton extends StatelessWidget {
     required this.tone,
     required this.onTap,
     required this.tooltip,
+    this.loading = false,
   });
 
   final IconData icon;
   final _AffordanceTone tone;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final String tooltip;
+
+  /// While true, renders a CircularProgressIndicator in place of
+  /// [icon]. Used by the AI variant flow to show inline progress
+  /// without opening a modal.
+  final bool loading;
 
   static const double _size = 22;
 
@@ -1462,11 +1568,19 @@ class _CellAffordanceButton extends StatelessWidget {
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(_size / 2),
-          onTap: onTap,
+          onTap: loading ? null : onTap,
           child: SizedBox(
             width: _size,
             height: _size,
-            child: Icon(icon, size: 14, color: fg),
+            child: loading
+                ? Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: fg,
+                    ),
+                  )
+                : Icon(icon, size: 14, color: fg),
           ),
         ),
       ),

@@ -363,6 +363,112 @@ Future<AiActivity> _generateAiActivity({
   );
 }
 
+/// "Make me an alternate take on this activity" — no modal, no
+/// scrape, no fresh user prompt. The caller already has an activity
+/// in hand (typed inline by the user, or a previous AI variant) and
+/// wants the model to riff on it. Used by the monthly plan's cell
+/// ✨ button so the variant flow stays seamless: tap → spinner →
+/// new variant lands.
+///
+/// The model gets the existing activity's full content as source
+/// material with a "produce a different take" instruction, so
+/// variants stay on-theme but actually diverge (different angle,
+/// different difficulty, different materials).
+Future<AiActivity> generateAiVariant({
+  required AiActivity activity,
+  AiActivityContext? planContext,
+}) async {
+  if (!OpenAiClient.isAvailable) {
+    throw const _AiUnavailable();
+  }
+  final ctxLine = planContext?.promptLine ?? '';
+  final activityBlock = [
+    if (activity.title.isNotEmpty) 'Existing title: ${activity.title}',
+    if (activity.description.isNotEmpty)
+      'Existing description: ${activity.description}',
+    if (activity.objectives.isNotEmpty)
+      'Existing objectives: ${activity.objectives}',
+    if (activity.steps.isNotEmpty) 'Existing steps:\n${activity.steps}',
+    if (activity.materials.isNotEmpty)
+      'Existing materials: ${activity.materials}',
+  ].join('\n');
+
+  final body = await OpenAiClient.chat({
+    'model': 'gpt-4o-mini',
+    // Bumped from 0.4 — variants WANT divergence, otherwise the
+    // carousel just fills with near-duplicates of the original.
+    'temperature': 0.7,
+    'response_format': {'type': 'json_object'},
+    'messages': [
+      {
+        'role': 'system',
+        'content':
+            'You generate activity cards for early-childhood '
+            'educators. Return JSON with these keys (title and '
+            'description are required; the rest are optional and '
+            'should be left as empty strings if you cannot infer '
+            'them confidently):\n'
+            '  "title": short, title-cased, max 8 words\n'
+            '  "description": one or two concrete classroom-friendly '
+            'sentences for the card preview\n'
+            '  "objectives": one to three sentences on what children '
+            'will practice or learn\n'
+            '  "steps": numbered, newline-separated steps for how to '
+            'run it\n'
+            '  "materials": comma-separated list of common materials\n'
+            '  "duration": estimated time as a short label\n'
+            '  "ageRange": target age range as a short label\n'
+            'Use empty strings, never null, for unknown fields. No '
+            'URLs, markdown, or extra keys.',
+      },
+      {
+        'role': 'user',
+        'content': _composeVariantPrompt(ctxLine, activityBlock),
+      },
+    ],
+  });
+  final choices = body['choices'] as List<dynamic>?;
+  if (choices == null || choices.isEmpty) {
+    throw const _AiEmptyResponse();
+  }
+  final message = (choices.first as Map<String, dynamic>)['message']
+      as Map<String, dynamic>?;
+  final content = message?['content'] as String?;
+  if (content == null || content.trim().isEmpty) {
+    throw const _AiEmptyResponse();
+  }
+  final parsed = jsonDecode(content) as Map<String, dynamic>;
+  String pull(String key) => (parsed[key] as String? ?? '').trim();
+  return AiActivity(
+    title: pull('title'),
+    description: pull('description'),
+    objectives: pull('objectives'),
+    steps: pull('steps'),
+    materials: pull('materials'),
+    duration: pull('duration'),
+    ageRange: pull('ageRange'),
+    // Carry the original link forward — variants share the same
+    // reference material as the source activity unless explicitly
+    // changed by the user.
+    link: activity.link,
+  );
+}
+
+String _composeVariantPrompt(String ctxLine, String activityBlock) {
+  final parts = <String>[];
+  if (ctxLine.isNotEmpty) parts.add(ctxLine);
+  parts
+    ..add(activityBlock)
+    ..add(
+      'Generate a meaningfully DIFFERENT version of this activity '
+      'for the same group/age/theme. Vary the angle, materials, or '
+      'difficulty so it complements the existing activity rather '
+      'than duplicating it. Stay tied to the same monthly + weekly '
+      'themes when provided.',
+    );
+  return parts.join('\n\n');
+}
+
 class _AiUnavailable implements Exception {
   const _AiUnavailable();
   @override

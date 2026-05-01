@@ -418,6 +418,13 @@ class _HoverSidebar extends StatefulWidget {
 class _HoverSidebarState extends State<_HoverSidebar> {
   bool _expanded = false;
 
+  /// True while any descendant of the launcher (search TextField,
+  /// for now — destinations are stateless taps) holds focus. Pins
+  /// the panel as expanded while the user is interacting, so a
+  /// stray mouse drift outside the rail doesn't yank the panel
+  /// away mid-keystroke and unmount the focused input.
+  bool _hasInteractiveFocus = false;
+
   /// Permanent icon rail width. The rail is *always* rendered at this
   /// width — collapsed/expanded state only changes whether the detail
   /// panel slides in beside it. Icons in the rail therefore never
@@ -437,6 +444,12 @@ class _HoverSidebarState extends State<_HoverSidebar> {
         if (!_expanded) setState(() => _expanded = true);
       },
       onExit: (_) {
+        // Don't collapse while the user is actively typing in the
+        // search field (or any other launcher descendant has
+        // focus) — collapsing would unmount the TextField, drop
+        // the in-progress keystroke, and read as the search field
+        // "not searching."
+        if (_hasInteractiveFocus) return;
         if (_expanded) setState(() => _expanded = false);
       },
       child: AnimatedContainer(
@@ -458,7 +471,21 @@ class _HoverSidebarState extends State<_HoverSidebar> {
               minWidth: _kPanelWidth,
               maxWidth: _kPanelWidth,
               child: SafeArea(
-                child: MinimalLauncher(expanded: _expanded),
+                // Focus-listener wrapper. `Focus.hasFocus` is true
+                // when this node OR any descendant holds focus —
+                // exactly the signal we need to know "the user is
+                // interacting; don't collapse the panel right now."
+                // canRequestFocus:false so this Focus isn't itself
+                // a focus stop in tab navigation; it's purely an
+                // observer.
+                child: Focus(
+                  canRequestFocus: false,
+                  onFocusChange: (hasFocus) {
+                    if (hasFocus == _hasInteractiveFocus) return;
+                    setState(() => _hasInteractiveFocus = hasFocus);
+                  },
+                  child: MinimalLauncher(expanded: _expanded),
+                ),
               ),
             ),
           ),
