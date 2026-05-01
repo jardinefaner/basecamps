@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/core/format/time.dart';
+import 'package:basecamp/features/activity_library/activity_library_repository.dart';
 import 'package:basecamp/features/ai/ai_activity_composer.dart';
 import 'package:basecamp/features/children/children_repository.dart'
     show groupsProvider;
@@ -112,30 +113,54 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
     );
   }
 
-  /// Empty-slot click handler. Creates a fresh card scoped to the
-  /// visible week with the snapped slot's start time. Marks the
-  /// new id as the fresh-card so the title TextField autofocuses
-  /// on its first build.
+  /// Manual create. **Every** new activity from the week plan now
+  /// also creates an `activity_library` row, with the schedule
+  /// template pointing back at it via `sourceLibraryItemId`. So:
+  ///   * The library is the source of truth for an activity's
+  ///     content; the template is just a *scheduling* of that
+  ///     content at a particular day/time.
+  ///   * Tapping the title in the today-tab activity modal opens
+  ///     `LibraryCardDetailSheet` automatically — that route is
+  ///     already gated on `sourceLibraryItemId != null`.
+  ///   * The legacy `_PromoteToLibraryButton` keeps working for
+  ///     templates that pre-date this change.
+  ///
+  /// Manual variant lands a blank library item; the user's first
+  /// title keystroke (via the inline edit on the canvas) writes to
+  /// the schedule_template only — library + template titles can
+  /// drift if the user edits each independently. We don't propagate
+  /// today; if that becomes painful we'll add a write-through path.
   Future<void> _onCreateAt({
     required int dayOfWeek,
     required int snappedStartMinutes,
   }) async {
-    final repo = ref.read(scheduleRepositoryProvider);
+    final scheduleRepo = ref.read(scheduleRepositoryProvider);
+    final libraryRepo = ref.read(activityLibraryRepositoryProvider);
     final monday = ref.read(weekPlanWeekProvider);
     final groupFilter = ref.read(weekPlanGroupFilterProvider);
     final friday = monday.add(const Duration(days: 4));
 
-    final newId = await repo.addTemplate(
+    // Create the library item first so we have its id to pass as
+    // sourceLibraryItemId on the template. Failure here bubbles out
+    // and the template never gets created — better than orphaning a
+    // template that points at a missing library row.
+    final libraryItemId = await libraryRepo.addItem(
+      title: '',
+      defaultDurationMin: 30,
+    );
+
+    final newId = await scheduleRepo.addTemplate(
       dayOfWeek: dayOfWeek,
       startTime: Hhmm.fromMinutes(snappedStartMinutes),
-      // Default 30-min duration. The user resizes via edge-drag
-      // (next commit) or via the full edit sheet.
+      // Default 30-min duration. The user resizes via edge-drag or
+      // the full edit sheet.
       endTime: Hhmm.fromMinutes(snappedStartMinutes + 30),
       title: '',
       groupIds: groupFilter == null ? const [] : [groupFilter],
       allGroups: groupFilter == null,
       startDate: monday,
       endDate: friday,
+      sourceLibraryItemId: libraryItemId,
     );
 
     // Select + mark fresh so the card autofocuses its title input.
@@ -143,15 +168,20 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
     ref.read(weekPlanFreshCardProvider.notifier).mark(newId);
   }
 
-  /// AI-create handler — fires when the user clicks the ✨ icon on a
-  /// hovered empty slot. Opens the shared AI activity composer; on a
-  /// generated result, lands a template at the snapped slot with the
-  /// AI's title + description (as notes) + URL (as sourceUrl). The
-  /// other AI metadata fields (objectives, steps, materials, …) get
-  /// dropped on the floor here — the schedule template doesn't have
-  /// homes for them yet. When the week plan card adopts the
-  /// experiment's full WYSIWYG pattern those fields will get wired
-  /// through too.
+  /// AI-create handler. Same library-first flow as `_onCreateAt`,
+  /// but the library item is born already-populated with every
+  /// field the AI generated:
+  ///   * description → library.summary
+  ///   * objectives  → library.learningGoals
+  ///   * steps       → library.keyPoints
+  ///   * materials   → library.materials
+  ///   * duration    → library.defaultDurationMin (parsed)
+  ///   * ageRange    → library.audienceMinAge / audienceMaxAge (parsed)
+  ///   * link        → library.sourceUrl
+  ///
+  /// The schedule_template gets the title + a condensed `notes`
+  /// (description) for the calendar preview. The full content lives
+  /// on the library card, which the today-tab modal links to.
   Future<void> _onCreateAiAt({
     required int dayOfWeek,
     required int snappedStartMinutes,
@@ -159,35 +189,51 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
     final activity = await showAiActivityComposer(context);
     if (!mounted || activity == null) return;
     if (activity.title.isEmpty && activity.description.isEmpty) {
-      // Defensive — the composer always returns *something* when it
-      // pops with a value, but a model that returned only empty
-      // strings shouldn't materialize as a blank template.
       return;
     }
 
-    final repo = ref.read(scheduleRepositoryProvider);
+    final scheduleRepo = ref.read(scheduleRepositoryProvider);
+    final libraryRepo = ref.read(activityLibraryRepositoryProvider);
     final monday = ref.read(weekPlanWeekProvider);
     final groupFilter = ref.read(weekPlanGroupFilterProvider);
     final friday = monday.add(const Duration(days: 4));
 
-    final newId = await repo.addTemplate(
+    final durationMin = _parseDurationMinutes(activity.duration);
+    final (minAge, maxAge) = _parseAgeRange(activity.ageRange);
+
+    final libraryItemId = await libraryRepo.addItem(
+      title: activity.title,
+      defaultDurationMin: durationMin ?? 30,
+      summary: _orNull(activity.description),
+      learningGoals: _orNull(activity.objectives),
+      keyPoints: _orNull(activity.steps),
+      materials: _orNull(activity.materials),
+      audienceMinAge: minAge,
+      audienceMaxAge: maxAge,
+      sourceUrl: _orNull(activity.link),
+    );
+
+    final endMinutes =
+        snappedStartMinutes + (durationMin ?? 30);
+
+    final newId = await scheduleRepo.addTemplate(
       dayOfWeek: dayOfWeek,
       startTime: Hhmm.fromMinutes(snappedStartMinutes),
-      // Default 30-min duration matches the manual-create path. If
-      // we ever start parsing AI's "duration" hint into minutes,
-      // wire it here.
-      endTime: Hhmm.fromMinutes(snappedStartMinutes + 30),
+      endTime: Hhmm.fromMinutes(endMinutes),
       title: activity.title,
-      notes: activity.description.isEmpty ? null : activity.description,
-      sourceUrl: activity.link.isEmpty ? null : activity.link,
+      // The notes here are a tiny preview for the calendar card; the
+      // rich content lives on the library item.
+      notes: _orNull(activity.description),
+      sourceUrl: _orNull(activity.link),
+      sourceLibraryItemId: libraryItemId,
       groupIds: groupFilter == null ? const [] : [groupFilter],
       allGroups: groupFilter == null,
       startDate: monday,
       endDate: friday,
     );
-    // Select but don't mark fresh — AI cards land already-populated;
-    // popping focus on a TextField the user didn't ask for would
-    // shove the keyboard up unsolicited.
+    // Select but don't mark fresh — AI cards land populated; popping
+    // focus on a TextField the user didn't ask for would shove the
+    // keyboard up unsolicited.
     ref.read(weekPlanSelectedTemplateProvider.notifier).select(newId);
   }
 
@@ -520,4 +566,63 @@ class _FilterChip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Trims and returns null for empty strings — tightens the
+/// `addItem(...)` / `addTemplate(...)` call sites since both repos
+/// treat null as "field absent" but blank `""` as a real value, and
+/// we don't want to persist whitespace-only fields the AI sometimes
+/// emits when a key is unknown.
+String? _orNull(String s) {
+  final trimmed = s.trim();
+  return trimmed.isEmpty ? null : trimmed;
+}
+
+/// Best-effort minute parser for AI-generated duration strings like
+/// "15 min", "30 minutes", "1 hour", "1 hr 15 min". Returns null when
+/// nothing matches — the caller falls back to its default.
+int? _parseDurationMinutes(String s) {
+  if (s.trim().isEmpty) return null;
+  // Capture every number-with-unit pair, then sum minutes + hours×60.
+  // Handles "1 hour 15 minutes", "1h 30m", "45 min", etc.
+  final matches = RegExp(
+    r'(\d+)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)\b',
+    caseSensitive: false,
+  ).allMatches(s);
+  if (matches.isEmpty) {
+    // Fallback: a bare number means minutes ("15").
+    final bare = RegExp(r'\d+').firstMatch(s);
+    return bare == null ? null : int.tryParse(bare.group(0)!);
+  }
+  var total = 0;
+  for (final m in matches) {
+    final n = int.tryParse(m.group(1)!) ?? 0;
+    final unit = m.group(2)!.toLowerCase();
+    total += unit.startsWith('h') ? n * 60 : n;
+  }
+  return total > 0 ? total : null;
+}
+
+/// Best-effort age-range parser for AI-generated strings like
+/// "3–5 years", "ages 4 to 6", "5". Returns (null, null) when
+/// nothing matches.
+(int?, int?) _parseAgeRange(String s) {
+  if (s.trim().isEmpty) return (null, null);
+  // Pair-of-numbers separated by hyphen / en-dash / em-dash / "to".
+  final pair = RegExp(
+    r'(\d+)\s*(?:-|–|—|to)\s*(\d+)',
+    caseSensitive: false,
+  ).firstMatch(s);
+  if (pair != null) {
+    final lo = int.tryParse(pair.group(1)!);
+    final hi = int.tryParse(pair.group(2)!);
+    return (lo, hi);
+  }
+  // Single number — treat as both min and max.
+  final single = RegExp(r'\d+').firstMatch(s);
+  if (single != null) {
+    final n = int.tryParse(single.group(0)!);
+    return (n, n);
+  }
+  return (null, null);
 }
