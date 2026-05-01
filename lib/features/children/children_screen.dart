@@ -1,12 +1,15 @@
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/children/group_colors.dart';
-import 'package:basecamp/features/children/widgets/child_tile.dart';
 import 'package:basecamp/features/children/widgets/new_child_wizard.dart';
 import 'package:basecamp/features/children/widgets/new_group_wizard.dart';
 import 'package:basecamp/features/groups/group_detail_screen.dart';
+import 'package:basecamp/features/people/people_display.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:basecamp/ui/app_card.dart';
+import 'package:basecamp/ui/avatar_picker.dart';
 import 'package:basecamp/ui/bootstrap_setup_card.dart';
+import 'package:basecamp/ui/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -272,16 +275,38 @@ class _GroupSection extends ConsumerWidget {
                   ),
                 )
               else
-                Column(
-                  children: [
-                    for (final child in children)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          bottom: AppSpacing.sm,
-                        ),
-                        child: _DraggableChildTile(child: child),
+                BreakpointBuilder(
+                  // Avatar-card grid per section — matches the
+                  // parents/adults layout so all three people surfaces
+                  // read the same. Denser than the previous one-line
+                  // tile column; face-first so a Lead scanning their
+                  // group sees who's there at a glance.
+                  builder: (context, bp) {
+                    final columns = switch (bp) {
+                      Breakpoint.compact => 3,
+                      Breakpoint.medium => 4,
+                      Breakpoint.expanded => 5,
+                      Breakpoint.large => 6,
+                    };
+                    return GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: EdgeInsets.zero,
+                      gridDelegate:
+                          SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: columns,
+                        mainAxisSpacing: AppSpacing.sm,
+                        crossAxisSpacing: AppSpacing.sm,
+                        // 150dp fits avatar + name; tighter than
+                        // adults/parents because there's no role
+                        // chip or group label per child.
+                        mainAxisExtent: 150,
                       ),
-                  ],
+                      itemCount: children.length,
+                      itemBuilder: (_, i) =>
+                          _DraggableChildCard(child: children[i]),
+                    );
+                  },
                 ),
             ],
           ),
@@ -291,41 +316,73 @@ class _GroupSection extends ConsumerWidget {
   }
 }
 
-/// Long-press to pick up, drag onto any group section to reassign.
-/// We don't render a grip handle — the drag affordance is the
-/// long-press itself, which keeps the list visually calm.
-class _DraggableChildTile extends StatelessWidget {
-  const _DraggableChildTile({required this.child});
+/// Avatar-card child tile inside the group grid. Stacks avatar /
+/// short name vertically — same shape as `_AdultCard` and
+/// `_ParentCard` so the three people surfaces share one visual
+/// language. Wrapped in [LongPressDraggable] so a teacher can pick
+/// the child up and drop them on another group's drop zone.
+class _DraggableChildCard extends StatelessWidget {
+  const _DraggableChildCard({required this.child});
 
   final Child child;
 
   @override
   Widget build(BuildContext context) {
-    final tile = ChildTile(
-      child: child,
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final card = AppCard(
       onTap: () => context.push('/children/${child.id}'),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SmallAvatar(
+            path: child.avatarPath,
+            storagePath: child.avatarStoragePath,
+            etag: child.avatarEtag,
+            fallbackInitial: child.displayInitial,
+            backgroundColor: cs.secondaryContainer,
+            foregroundColor: cs.onSecondaryContainer,
+            radius: 28,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            // shortName ("Sarah J.") fits in dense grids; fullName
+            // would force ellipsis at 3-column compact layout.
+            child.shortName,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
+
+    // Drag feedback shows the card itself, scaled slightly so the
+    // dragged item is visually distinct from the source spot.
     return LongPressDraggable<Child>(
       data: child,
-      // Grab one full card's width for the floating feedback; keeps it
-      // legible when the finger obscures the original spot.
       feedback: Material(
         color: Colors.transparent,
         child: Transform.scale(
           scale: 1.04,
           child: Opacity(
             opacity: 0.94,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.sizeOf(context).width - 48,
-              ),
-              child: tile,
+            // Cap width so the floating card doesn't balloon to fill
+            // the screen on phones (the source card is grid-sized,
+            // ~120dp wide on compact).
+            child: SizedBox(
+              width: 140,
+              height: 150,
+              child: card,
             ),
           ),
         ),
       ),
-      childWhenDragging: Opacity(opacity: 0.35, child: tile),
-      child: tile,
+      childWhenDragging: Opacity(opacity: 0.35, child: card),
+      child: card,
     );
   }
 }
