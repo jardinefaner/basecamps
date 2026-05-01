@@ -1120,7 +1120,11 @@ enum _DestCategory {
   people('People'),
   curriculum('Curriculum'),
   setup('Setup'),
-  program('Program');
+  program('Program'),
+  // Lab — sandbox surfaces that aren't real product yet. Sits last
+  // on purpose so it never displaces a teacher's daily-use tiles, but
+  // stays one tap away while we iterate.
+  lab('Lab');
 
   const _DestCategory(this.label);
   final String label;
@@ -1212,6 +1216,16 @@ class _DestinationData {
       icon: Icons.settings_outlined,
       path: '/more/settings',
       category: _DestCategory.program,
+    ),
+    // Lab — blank-canvas sandbox where we try ideas before they earn
+    // their own feature directory. The screen itself is intentionally
+    // empty (just a FAB) — current experiments paint their own
+    // contents on top.
+    _DestinationData(
+      label: 'Experiment',
+      icon: Icons.science_outlined,
+      path: '/experiment',
+      category: _DestCategory.lab,
     ),
   ];
 }

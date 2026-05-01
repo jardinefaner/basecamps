@@ -9,6 +9,7 @@ import 'package:basecamp/features/children/child_detail_screen.dart';
 import 'package:basecamp/features/children/children_screen.dart';
 import 'package:basecamp/features/curriculum/curriculum_hub_screen.dart';
 import 'package:basecamp/features/curriculum/curriculum_screen.dart';
+import 'package:basecamp/features/experiment/experiment_screen.dart';
 import 'package:basecamp/features/forms/forms_hub_screen.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/parent_concern.dart';
 import 'package:basecamp/features/forms/polymorphic/generic_form_list_screen.dart';
@@ -368,6 +369,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/week-plan',
         builder: (_, _) => const WeekPlanScreen(),
+      ),
+      // Sandbox surface — blank canvas for trying out new ideas before
+      // they earn their own feature directory + route. Reachable from
+      // the launcher under the "Lab" category.
+      GoRoute(
+        path: '/experiment',
+        builder: (_, _) => const ExperimentScreen(),
       ),
       GoRoute(
         path: '/more/sequences',
