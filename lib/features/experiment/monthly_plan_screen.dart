@@ -351,6 +351,25 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
     setState(() => _activeVariantIndex[key] = newIdx);
   }
 
+  /// v57 (Slice 3) — extend the active variant's span by one day.
+  /// Mints a span_id on the head if it doesn't have one yet, then
+  /// inserts a continuation row on the next consecutive day in the
+  /// same group. Other teachers see the new continuation cell
+  /// appear within the second via realtime.
+  Future<void> _extendSpan(DateTime date) async {
+    final groupId = _activeGroupId;
+    if (groupId == null) return;
+    final active = _activeAt(date, groupId);
+    if (active == null || active.isEmpty) return;
+    // The "head" the user wants to extend is whichever variant
+    // they're currently looking at — if they're on a continuation
+    // row, extend the same span; if they're on the first variant
+    // of a single-day cell, the repo mints a span on the fly.
+    await ref
+        .read(monthlyPlanRepositoryProvider)
+        .extendSpanByOneDay(active.id);
+  }
+
   /// Soft-delete the active variant (deletedAt stamp + null clear).
   /// Drift's stream filters tombstones, so the variant disappears
   /// from the local view; cloud realtime propagates to other
@@ -594,6 +613,11 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
     final groupId = _activeGroupId;
     if (groupId == null) return const [];
     final seen = <String, String>{}; // lowercased → original casing
+    // v57 — dedupe spans across the week. A 3-day book read-aloud
+    // shouldn't have its materials counted three times. Track
+    // visited spanIds so continuation rows in the same week don't
+    // re-add the head's materials.
+    final visitedSpans = <String>{};
     for (final date in week) {
       // Aggregate from the ACTIVE variant only — the user's seeing
       // that one in the cell, so its materials are what they
@@ -602,6 +626,11 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
       // generation regardless of which one was kept).
       final active = _activeAt(date, groupId);
       if (active == null) continue;
+      final spanId = active.spanId;
+      if (spanId != null) {
+        if (visitedSpans.contains(spanId)) continue;
+        visitedSpans.add(spanId);
+      }
       for (final raw in active.materials.split(',')) {
         final trimmed = raw.trim();
         if (trimmed.isEmpty) continue;
@@ -971,6 +1000,8 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                                             unawaited(_enterInlineEdit(date)),
                                         onCommitEdit: () =>
                                             unawaited(_exitInlineEdit()),
+                                        onExtendSpan: () =>
+                                            unawaited(_extendSpan(date)),
                                       );
                                         },
                                       ),
@@ -1016,6 +1047,8 @@ class _MonthlyActivity {
     this.steps = '',
     this.materials = '',
     this.link = '',
+    this.spanId,
+    this.spanPosition = 0,
   });
 
   /// Convert a Drift row to the UI working type, normalizing nulls
@@ -1030,6 +1063,8 @@ class _MonthlyActivity {
       steps: row.steps ?? '',
       materials: row.materials ?? '',
       link: row.link ?? '',
+      spanId: row.spanId,
+      spanPosition: row.spanPosition,
     );
   }
 
@@ -1042,6 +1077,18 @@ class _MonthlyActivity {
   final String steps;
   final String materials;
   final String link;
+
+  /// v57 — span identity. Null = single-day activity. Non-null
+  /// means this row belongs to a multi-day arc; siblings share the
+  /// same spanId and order by [spanPosition].
+  final String? spanId;
+
+  /// v57 — position within the span. 0 = head (carries the full
+  /// content); 1+ = continuation days.
+  final int spanPosition;
+
+  bool get isSpanHead => spanId != null && spanPosition == 0;
+  bool get isSpanContinuation => spanId != null && spanPosition > 0;
 
   bool get isEmpty =>
       title.trim().isEmpty &&
@@ -1372,6 +1419,7 @@ class _DayCell extends StatefulWidget {
     required this.onDeleteActive,
     required this.onEditActive,
     required this.onCommitEdit,
+    required this.onExtendSpan,
     super.key,
   });
 
@@ -1411,6 +1459,12 @@ class _DayCell extends StatefulWidget {
   // Enter on the description field, the cell closes the editor and
   // shows the formatted preview.
   final VoidCallback onCommitEdit;
+
+  /// v57 — extend the active variant's span by one day. Tapping the
+  /// "↔" affordance fires this callback; the screen routes to the
+  /// repo's `extendSpanByOneDay`. Continuation days are inserted on
+  /// the next consecutive calendar day in the same group.
+  final VoidCallback onExtendSpan;
 
   @override
   State<_DayCell> createState() => _DayCellState();
@@ -1552,8 +1606,14 @@ class _DayCellState extends State<_DayCell> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isOutOfMonth = !widget.isCurrentMonth;
-    final hasContent =
-        widget.variants.any((v) => !v.isEmpty);
+    // "hasContent" — a cell shows the variant pager / preview when
+    // any variant carries text. Continuation rows count as content
+    // too: even with no per-day text, the "↪ continued" pill needs
+    // the same focus + affordance treatment so the user can delete
+    // (× shrinks the span) or add per-day content (pencil).
+    final hasContent = widget.variants.any(
+      (v) => !v.isEmpty || v.isSpanContinuation,
+    );
     final showAffordances = !isOutOfMonth &&
         widget.isFocused &&
         !widget.isEditing &&
@@ -1622,6 +1682,8 @@ class _DayCellState extends State<_DayCell> {
                   // IntrinsicHeight propagates that up to the Row.
                   if (widget.isEditing)
                     _buildInlineEditor(theme)
+                  else if (!isOutOfMonth && _isContinuationOnly)
+                    _buildContinuationPill(theme)
                   else if (!isOutOfMonth && hasContent)
                     _buildVariantPager(theme),
                 ],
@@ -1656,15 +1718,34 @@ class _DayCellState extends State<_DayCell> {
                     ],
                   ),
                 ),
+                // Bottom-right column: AI ✨ on top, span "↔" below.
+                // Only the head of a span (or a single-day variant
+                // about to become one) gets the extend affordance —
+                // continuation days delete via × instead.
                 Positioned(
                   bottom: 0,
                   right: 0,
-                  child: _CellAffordanceButton(
-                    icon: Icons.auto_awesome_outlined,
-                    tone: _AffordanceTone.primary,
-                    onTap: widget.isGenerating ? null : widget.onAi,
-                    tooltip: 'AI variant',
-                    loading: widget.isGenerating,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      _CellAffordanceButton(
+                        icon: Icons.auto_awesome_outlined,
+                        tone: _AffordanceTone.primary,
+                        onTap: widget.isGenerating ? null : widget.onAi,
+                        tooltip: 'AI variant',
+                        loading: widget.isGenerating,
+                      ),
+                      if (_activeVariant?.isSpanContinuation != true) ...[
+                        const SizedBox(height: 4),
+                        _CellAffordanceButton(
+                          icon: Icons.last_page,
+                          tone: _AffordanceTone.muted,
+                          onTap: widget.onExtendSpan,
+                          tooltip: 'Extend across days',
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],
@@ -1803,6 +1884,61 @@ class _DayCellState extends State<_DayCell> {
       children: [
         for (final v in widget.variants) _CellPreview(activity: v),
       ],
+    );
+  }
+
+  /// True when the only variant in this cell is a continuation row
+  /// with no per-day content of its own — render a "continued" pill
+  /// instead of an empty variant pager. As soon as the user types
+  /// per-day content into a continuation cell, `hasContent` flips
+  /// true and the regular pager takes over.
+  bool get _isContinuationOnly {
+    if (widget.variants.isEmpty) return false;
+    return widget.variants.every(
+      (v) => v.isSpanContinuation && v.isEmpty,
+    );
+  }
+
+  /// Visual placeholder for a continuation day — a small "↪" pill
+  /// with "continued" text. The user can tap × to remove this day
+  /// from the span (uses the existing onDeleteActive callback,
+  /// which the screen routes to deleteVariant by id) or tap the
+  /// edit pencil to add per-day content.
+  Widget _buildContinuationPill(ThemeData theme) {
+    final cs = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 0, 2, 14),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            color: cs.secondaryContainer.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.subdirectory_arrow_right,
+                size: 14,
+                color: cs.onSecondaryContainer,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'continued',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: cs.onSecondaryContainer,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

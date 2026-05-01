@@ -1657,6 +1657,18 @@ class MonthlyActivities extends Table {
   TextColumn get materials => text().nullable()();
   TextColumn get link => text().nullable()();
 
+  /// v57: multi-day span (Slice 3). Rows sharing a span_id belong
+  /// to one logical activity that runs across N consecutive days.
+  /// The head row's span_position is 0; continuation rows are 1+.
+  /// Null span_id = single-day activity.
+  TextColumn get spanId => text().nullable()();
+
+  /// v57: position within the span. 0 = head (the cell with the
+  /// full content); 1+ = continuation days (rendered as "continued"
+  /// pills unless they carry per-day content).
+  IntColumn get spanPosition =>
+      integer().withDefault(const Constant(0))();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>

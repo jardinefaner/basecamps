@@ -281,6 +281,127 @@ class MonthlyPlanRepository {
     unawaited(_sync.pushRow(monthlyActivitiesSpec, id));
   }
 
+  // ---- Multi-day spans (v57, Slice 3) -------------------------
+
+  /// Extend the span at [headId] by one day. Creates a continuation
+  /// row on the next calendar day in the same group; if the head
+  /// doesn't yet have a span_id, mints one and stamps the head with
+  /// span_position 0 so the lineage is queryable.
+  ///
+  /// The continuation row inherits position from the head (so the
+  /// span's variant carousel structure stays consistent — a head
+  /// at variant 1 of [0,1,2] doesn't suddenly become a 0-position
+  /// variant on day 2). Content fields are left null on the
+  /// continuation; the UI renders a "continued" pill (with the
+  /// head's title) until per-day content is filled in.
+  Future<void> extendSpanByOneDay(String headId) async {
+    final programId = _programId;
+    if (programId == null) return;
+    final head = await (_db.select(_db.monthlyActivities)
+          ..where((r) => r.id.equals(headId))
+          ..limit(1))
+        .getSingleOrNull();
+    if (head == null) return;
+
+    // Mint a span_id on first extend so the head has identity.
+    final spanId = head.spanId ?? newId();
+    if (head.spanId == null) {
+      final now = DateTime.now();
+      await (_db.update(_db.monthlyActivities)
+            ..where((r) => r.id.equals(headId)))
+          .write(
+        MonthlyActivitiesCompanion(
+          spanId: Value(spanId),
+          spanPosition: const Value(0),
+          updatedAt: Value(now),
+        ),
+      );
+      await _db.markDirty(
+          'monthly_activities', headId, ['span_id', 'span_position']);
+      unawaited(_sync.pushRow(monthlyActivitiesSpec, headId));
+    }
+
+    // Find the highest span_position currently in the span. Next
+    // continuation lands at +1; its date is one day after the
+    // current tail.
+    final tail = await (_db.select(_db.monthlyActivities)
+          ..where((r) => r.spanId.equals(spanId))
+          ..where((r) => r.deletedAt.isNull())
+          ..orderBy([
+            (r) => OrderingTerm.desc(r.spanPosition),
+          ])
+          ..limit(1))
+        .getSingleOrNull();
+    final tailRow = tail ?? head;
+    final tailDate = _parseDayKey(tailRow.date);
+    final nextDate = _formatDayKey(tailDate.add(const Duration(days: 1)));
+    final nextPos = tailRow.spanPosition + 1;
+
+    final id = newId();
+    final now = DateTime.now();
+    await _db.into(_db.monthlyActivities).insert(
+          MonthlyActivitiesCompanion.insert(
+            id: id,
+            programId: Value(programId),
+            groupId: head.groupId,
+            date: nextDate,
+            position: Value(head.position),
+            spanId: Value(spanId),
+            spanPosition: Value(nextPos),
+            createdAt: Value(now),
+            updatedAt: Value(now),
+          ),
+        );
+    unawaited(_sync.pushRow(monthlyActivitiesSpec, id));
+  }
+
+  /// Trim the span at [spanId] by one day — soft-deletes the
+  /// highest-position continuation row. If the span ends up with
+  /// only the head, the head's span_id is left intact (cheap, no
+  /// data loss; a future extend re-uses the same id).
+  Future<void> trimSpanByOneDay(String spanId) async {
+    final tail = await (_db.select(_db.monthlyActivities)
+          ..where((r) => r.spanId.equals(spanId))
+          ..where((r) => r.spanPosition.isBiggerThanValue(0))
+          ..where((r) => r.deletedAt.isNull())
+          ..orderBy([
+            (r) => OrderingTerm.desc(r.spanPosition),
+          ])
+          ..limit(1))
+        .getSingleOrNull();
+    if (tail == null) return;
+    await deleteVariant(tail.id);
+  }
+
+  /// Watch every continuation + the head for a given span_id, in
+  /// span-position order. Used by the formatted sheet to render
+  /// "Day 1 of 3" etc.
+  Stream<List<MonthlyActivity>> watchSpan(String spanId) {
+    final query = _db.select(_db.monthlyActivities)
+      ..where((r) => matchesActiveProgram(r.programId, _programId))
+      ..where((r) => r.spanId.equals(spanId))
+      ..where((r) => r.deletedAt.isNull())
+      ..orderBy([
+        (r) => OrderingTerm.asc(r.spanPosition),
+      ]);
+    return query.watch();
+  }
+
+  // ---- Day-key helpers ----------------------------------------
+
+  static DateTime _parseDayKey(String s) {
+    final parts = s.split('-');
+    return DateTime(
+      int.parse(parts[0]),
+      int.parse(parts[1]),
+      int.parse(parts[2]),
+    );
+  }
+
+  static String _formatDayKey(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
+
   Future<int> _nextPosition({
     required String groupId,
     required String date,

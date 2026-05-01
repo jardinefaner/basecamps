@@ -76,7 +76,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 56;
+  int get schemaVersion => 57;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -113,6 +113,7 @@ class AppDatabase extends _$AppDatabase {
           // then breaks the sync engine's partial-UPDATE pushes.
           await _healV55MonthlyPlanTables();
           await _healV56MonthlyActivitiesTable();
+          await _healV57MonthlyActivitySpanColumns();
           await _healDirtyFieldsColumns();
         },
         onCreate: (m) => m.createAll(),
@@ -131,6 +132,21 @@ class AppDatabase extends _$AppDatabase {
               'fresh at schema 25. This only affects devs who have '
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
+            );
+          }
+          if (from < 57) {
+            // v57: monthly plan multi-day spans (Slice 3). Adds
+            // span_id + span_position to monthly_activities so
+            // multiple rows can be stitched into a single logical
+            // activity that runs across N consecutive days. Cloud
+            // parity: migration 0034.
+            await _runSilent(
+              'ALTER TABLE "monthly_activities" '
+              'ADD COLUMN "span_id" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "monthly_activities" '
+              'ADD COLUMN "span_position" INTEGER NOT NULL DEFAULT 0',
             );
           }
           if (from < 56) {
@@ -1591,6 +1607,21 @@ class AppDatabase extends _$AppDatabase {
       '"updated_at" INTEGER NOT NULL, '
       '"deleted_at" INTEGER NULL, '
       'PRIMARY KEY ("id"))',
+    );
+  }
+
+  /// v57 schema heal — add span_id + span_position to
+  /// monthly_activities. ALTER COLUMN ADD IF NOT EXISTS isn't
+  /// supported by older SQLite; _runSilent swallows the
+  /// "duplicate column" error from re-running the ALTER.
+  Future<void> _healV57MonthlyActivitySpanColumns() async {
+    await _runSilent(
+      'ALTER TABLE "monthly_activities" '
+      'ADD COLUMN "span_id" TEXT NULL',
+    );
+    await _runSilent(
+      'ALTER TABLE "monthly_activities" '
+      'ADD COLUMN "span_position" INTEGER NOT NULL DEFAULT 0',
     );
   }
 

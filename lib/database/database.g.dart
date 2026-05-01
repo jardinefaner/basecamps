@@ -23113,6 +23113,27 @@ class $MonthlyActivitiesTable extends MonthlyActivities
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _spanIdMeta = const VerificationMeta('spanId');
+  @override
+  late final GeneratedColumn<String> spanId = GeneratedColumn<String>(
+    'span_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _spanPositionMeta = const VerificationMeta(
+    'spanPosition',
+  );
+  @override
+  late final GeneratedColumn<int> spanPosition = GeneratedColumn<int>(
+    'span_position',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -23161,6 +23182,8 @@ class $MonthlyActivitiesTable extends MonthlyActivities
     steps,
     materials,
     link,
+    spanId,
+    spanPosition,
     createdAt,
     updatedAt,
     deletedAt,
@@ -23249,6 +23272,21 @@ class $MonthlyActivitiesTable extends MonthlyActivities
         link.isAcceptableOrUnknown(data['link']!, _linkMeta),
       );
     }
+    if (data.containsKey('span_id')) {
+      context.handle(
+        _spanIdMeta,
+        spanId.isAcceptableOrUnknown(data['span_id']!, _spanIdMeta),
+      );
+    }
+    if (data.containsKey('span_position')) {
+      context.handle(
+        _spanPositionMeta,
+        spanPosition.isAcceptableOrUnknown(
+          data['span_position']!,
+          _spanPositionMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -23320,6 +23358,14 @@ class $MonthlyActivitiesTable extends MonthlyActivities
         DriftSqlType.string,
         data['${effectivePrefix}link'],
       ),
+      spanId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}span_id'],
+      ),
+      spanPosition: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}span_position'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -23353,6 +23399,17 @@ class MonthlyActivity extends DataClass implements Insertable<MonthlyActivity> {
   final String? steps;
   final String? materials;
   final String? link;
+
+  /// v57: multi-day span (Slice 3). Rows sharing a span_id belong
+  /// to one logical activity that runs across N consecutive days.
+  /// The head row's span_position is 0; continuation rows are 1+.
+  /// Null span_id = single-day activity.
+  final String? spanId;
+
+  /// v57: position within the span. 0 = head (the cell with the
+  /// full content); 1+ = continuation days (rendered as "continued"
+  /// pills unless they carry per-day content).
+  final int spanPosition;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt;
@@ -23368,6 +23425,8 @@ class MonthlyActivity extends DataClass implements Insertable<MonthlyActivity> {
     this.steps,
     this.materials,
     this.link,
+    this.spanId,
+    required this.spanPosition,
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
@@ -23400,6 +23459,10 @@ class MonthlyActivity extends DataClass implements Insertable<MonthlyActivity> {
     if (!nullToAbsent || link != null) {
       map['link'] = Variable<String>(link);
     }
+    if (!nullToAbsent || spanId != null) {
+      map['span_id'] = Variable<String>(spanId);
+    }
+    map['span_position'] = Variable<int>(spanPosition);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     if (!nullToAbsent || deletedAt != null) {
@@ -23433,6 +23496,10 @@ class MonthlyActivity extends DataClass implements Insertable<MonthlyActivity> {
           ? const Value.absent()
           : Value(materials),
       link: link == null && nullToAbsent ? const Value.absent() : Value(link),
+      spanId: spanId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(spanId),
+      spanPosition: Value(spanPosition),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       deletedAt: deletedAt == null && nullToAbsent
@@ -23458,6 +23525,8 @@ class MonthlyActivity extends DataClass implements Insertable<MonthlyActivity> {
       steps: serializer.fromJson<String?>(json['steps']),
       materials: serializer.fromJson<String?>(json['materials']),
       link: serializer.fromJson<String?>(json['link']),
+      spanId: serializer.fromJson<String?>(json['spanId']),
+      spanPosition: serializer.fromJson<int>(json['spanPosition']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
@@ -23478,6 +23547,8 @@ class MonthlyActivity extends DataClass implements Insertable<MonthlyActivity> {
       'steps': serializer.toJson<String?>(steps),
       'materials': serializer.toJson<String?>(materials),
       'link': serializer.toJson<String?>(link),
+      'spanId': serializer.toJson<String?>(spanId),
+      'spanPosition': serializer.toJson<int>(spanPosition),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
@@ -23496,6 +23567,8 @@ class MonthlyActivity extends DataClass implements Insertable<MonthlyActivity> {
     Value<String?> steps = const Value.absent(),
     Value<String?> materials = const Value.absent(),
     Value<String?> link = const Value.absent(),
+    Value<String?> spanId = const Value.absent(),
+    int? spanPosition,
     DateTime? createdAt,
     DateTime? updatedAt,
     Value<DateTime?> deletedAt = const Value.absent(),
@@ -23511,6 +23584,8 @@ class MonthlyActivity extends DataClass implements Insertable<MonthlyActivity> {
     steps: steps.present ? steps.value : this.steps,
     materials: materials.present ? materials.value : this.materials,
     link: link.present ? link.value : this.link,
+    spanId: spanId.present ? spanId.value : this.spanId,
+    spanPosition: spanPosition ?? this.spanPosition,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
@@ -23532,6 +23607,10 @@ class MonthlyActivity extends DataClass implements Insertable<MonthlyActivity> {
       steps: data.steps.present ? data.steps.value : this.steps,
       materials: data.materials.present ? data.materials.value : this.materials,
       link: data.link.present ? data.link.value : this.link,
+      spanId: data.spanId.present ? data.spanId.value : this.spanId,
+      spanPosition: data.spanPosition.present
+          ? data.spanPosition.value
+          : this.spanPosition,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
@@ -23552,6 +23631,8 @@ class MonthlyActivity extends DataClass implements Insertable<MonthlyActivity> {
           ..write('steps: $steps, ')
           ..write('materials: $materials, ')
           ..write('link: $link, ')
+          ..write('spanId: $spanId, ')
+          ..write('spanPosition: $spanPosition, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt')
@@ -23572,6 +23653,8 @@ class MonthlyActivity extends DataClass implements Insertable<MonthlyActivity> {
     steps,
     materials,
     link,
+    spanId,
+    spanPosition,
     createdAt,
     updatedAt,
     deletedAt,
@@ -23591,6 +23674,8 @@ class MonthlyActivity extends DataClass implements Insertable<MonthlyActivity> {
           other.steps == this.steps &&
           other.materials == this.materials &&
           other.link == this.link &&
+          other.spanId == this.spanId &&
+          other.spanPosition == this.spanPosition &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt);
@@ -23608,6 +23693,8 @@ class MonthlyActivitiesCompanion extends UpdateCompanion<MonthlyActivity> {
   final Value<String?> steps;
   final Value<String?> materials;
   final Value<String?> link;
+  final Value<String?> spanId;
+  final Value<int> spanPosition;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> deletedAt;
@@ -23624,6 +23711,8 @@ class MonthlyActivitiesCompanion extends UpdateCompanion<MonthlyActivity> {
     this.steps = const Value.absent(),
     this.materials = const Value.absent(),
     this.link = const Value.absent(),
+    this.spanId = const Value.absent(),
+    this.spanPosition = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
@@ -23641,6 +23730,8 @@ class MonthlyActivitiesCompanion extends UpdateCompanion<MonthlyActivity> {
     this.steps = const Value.absent(),
     this.materials = const Value.absent(),
     this.link = const Value.absent(),
+    this.spanId = const Value.absent(),
+    this.spanPosition = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
@@ -23660,6 +23751,8 @@ class MonthlyActivitiesCompanion extends UpdateCompanion<MonthlyActivity> {
     Expression<String>? steps,
     Expression<String>? materials,
     Expression<String>? link,
+    Expression<String>? spanId,
+    Expression<int>? spanPosition,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? deletedAt,
@@ -23677,6 +23770,8 @@ class MonthlyActivitiesCompanion extends UpdateCompanion<MonthlyActivity> {
       if (steps != null) 'steps': steps,
       if (materials != null) 'materials': materials,
       if (link != null) 'link': link,
+      if (spanId != null) 'span_id': spanId,
+      if (spanPosition != null) 'span_position': spanPosition,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
@@ -23696,6 +23791,8 @@ class MonthlyActivitiesCompanion extends UpdateCompanion<MonthlyActivity> {
     Value<String?>? steps,
     Value<String?>? materials,
     Value<String?>? link,
+    Value<String?>? spanId,
+    Value<int>? spanPosition,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<DateTime?>? deletedAt,
@@ -23713,6 +23810,8 @@ class MonthlyActivitiesCompanion extends UpdateCompanion<MonthlyActivity> {
       steps: steps ?? this.steps,
       materials: materials ?? this.materials,
       link: link ?? this.link,
+      spanId: spanId ?? this.spanId,
+      spanPosition: spanPosition ?? this.spanPosition,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
@@ -23756,6 +23855,12 @@ class MonthlyActivitiesCompanion extends UpdateCompanion<MonthlyActivity> {
     if (link.present) {
       map['link'] = Variable<String>(link.value);
     }
+    if (spanId.present) {
+      map['span_id'] = Variable<String>(spanId.value);
+    }
+    if (spanPosition.present) {
+      map['span_position'] = Variable<int>(spanPosition.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -23785,6 +23890,8 @@ class MonthlyActivitiesCompanion extends UpdateCompanion<MonthlyActivity> {
           ..write('steps: $steps, ')
           ..write('materials: $materials, ')
           ..write('link: $link, ')
+          ..write('spanId: $spanId, ')
+          ..write('spanPosition: $spanPosition, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
@@ -46958,6 +47065,8 @@ typedef $$MonthlyActivitiesTableCreateCompanionBuilder =
       Value<String?> steps,
       Value<String?> materials,
       Value<String?> link,
+      Value<String?> spanId,
+      Value<int> spanPosition,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
@@ -46976,6 +47085,8 @@ typedef $$MonthlyActivitiesTableUpdateCompanionBuilder =
       Value<String?> steps,
       Value<String?> materials,
       Value<String?> link,
+      Value<String?> spanId,
+      Value<int> spanPosition,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
@@ -47043,6 +47154,16 @@ class $$MonthlyActivitiesTableFilterComposer
 
   ColumnFilters<String> get link => $composableBuilder(
     column: $table.link,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get spanId => $composableBuilder(
+    column: $table.spanId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get spanPosition => $composableBuilder(
+    column: $table.spanPosition,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -47126,6 +47247,16 @@ class $$MonthlyActivitiesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get spanId => $composableBuilder(
+    column: $table.spanId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get spanPosition => $composableBuilder(
+    column: $table.spanPosition,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -47188,6 +47319,14 @@ class $$MonthlyActivitiesTableAnnotationComposer
   GeneratedColumn<String> get link =>
       $composableBuilder(column: $table.link, builder: (column) => column);
 
+  GeneratedColumn<String> get spanId =>
+      $composableBuilder(column: $table.spanId, builder: (column) => column);
+
+  GeneratedColumn<int> get spanPosition => $composableBuilder(
+    column: $table.spanPosition,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -47249,6 +47388,8 @@ class $$MonthlyActivitiesTableTableManager
                 Value<String?> steps = const Value.absent(),
                 Value<String?> materials = const Value.absent(),
                 Value<String?> link = const Value.absent(),
+                Value<String?> spanId = const Value.absent(),
+                Value<int> spanPosition = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
@@ -47265,6 +47406,8 @@ class $$MonthlyActivitiesTableTableManager
                 steps: steps,
                 materials: materials,
                 link: link,
+                spanId: spanId,
+                spanPosition: spanPosition,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
@@ -47283,6 +47426,8 @@ class $$MonthlyActivitiesTableTableManager
                 Value<String?> steps = const Value.absent(),
                 Value<String?> materials = const Value.absent(),
                 Value<String?> link = const Value.absent(),
+                Value<String?> spanId = const Value.absent(),
+                Value<int> spanPosition = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
@@ -47299,6 +47444,8 @@ class $$MonthlyActivitiesTableTableManager
                 steps: steps,
                 materials: materials,
                 link: link,
+                spanId: spanId,
+                spanPosition: spanPosition,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
