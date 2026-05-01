@@ -77,9 +77,12 @@ serve(async (req) => {
   );
 
   // 1. Look up the invite. Single() so a missing row throws.
+  //    `adult_id` is the v54 identity-binding hook — when set, this
+  //    invite says "the redeemer IS this Adult," and we stamp the
+  //    auth_user_id below.
   const { data: invite, error: inviteErr } = await supabase
     .from("program_invites")
-    .select("code, program_id, role, expires_at, accepted_by")
+    .select("code, program_id, role, expires_at, accepted_by, adult_id")
     .eq("code", code)
     .maybeSingle();
   if (inviteErr) {
@@ -119,7 +122,38 @@ serve(async (req) => {
     }
   }
 
-  // 3. Mark the invite consumed. Single-use semantics: stamp
+  // 3. Identity binding (v54). If the invite carried an adult_id,
+  //    stamp the recipient's auth user id onto that Adult row.
+  //    That's the moment a pre-created profile becomes "this user."
+  //    Best-effort: a stamp failure (adult was deleted between
+  //    invite creation and redemption, etc.) doesn't fail the join
+  //    — the membership still landed and the user can be re-
+  //    invited later if needed. We DO check whether another adult
+  //    in the same program already claims this user — keeps the
+  //    "one bind per program" soft invariant honored without a
+  //    schema-level UNIQUE constraint.
+  if (invite.adult_id) {
+    const { data: existingBind } = await supabase
+      .from("adults")
+      .select("id")
+      .eq("program_id", invite.program_id)
+      .eq("auth_user_id", userId)
+      .neq("id", invite.adult_id)
+      .maybeSingle();
+    if (!existingBind) {
+      await supabase
+        .from("adults")
+        .update({ auth_user_id: userId })
+        .eq("id", invite.adult_id)
+        .eq("program_id", invite.program_id);
+    }
+    // If existingBind is set, we silently skip the stamp — the
+    // user is already bound to a different adult in this program;
+    // surfacing that as an error would block the join. Admin can
+    // reconcile later.
+  }
+
+  // 4. Mark the invite consumed. Single-use semantics: stamp
   //    `accepted_by + accepted_at` so a second redemption fails
   //    with `already_used`. Best-effort — if this fails the
   //    membership still landed, which is the important part.
@@ -131,7 +165,7 @@ serve(async (req) => {
     })
     .eq("code", code);
 
-  // 4. Hydrate the program name for the success toast — also
+  // 5. Hydrate the program name for the success toast — also
   //    serves as a sanity check that the program still exists.
   //    The membership FK we just inserted would have failed if
   //    the program was deleted, but if the FK was deferred or

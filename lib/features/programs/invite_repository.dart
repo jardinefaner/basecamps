@@ -51,6 +51,11 @@ class InviteRepository {
     required String programId,
     String role = 'teacher',
     Duration lifetime = _defaultLifetime,
+    /// When set, the invite binds the redeemer's auth user id onto
+    /// this specific Adult row at acceptance time (v54 identity
+    /// binding). Null = generic membership invite, same as the
+    /// pre-v54 flow.
+    String? adultId,
   }) async {
     final user = _client.auth.currentUser;
     if (user == null) {
@@ -68,6 +73,7 @@ class InviteRepository {
           'role': role,
           'created_by': user.id,
           'expires_at': expiresAt.toIso8601String(),
+          'adult_id': ?adultId,
         }).select().single();
         return InviteRow.fromJson(inserted);
       } on PostgrestException catch (e) {
@@ -397,6 +403,7 @@ class InviteRow {
     required this.createdAt,
     this.acceptedBy,
     this.acceptedAt,
+    this.adultId,
   });
 
   factory InviteRow.fromJson(Map<String, dynamic> json) => InviteRow(
@@ -410,6 +417,7 @@ class InviteRow {
             ? DateTime.parse(json['accepted_at'] as String).toUtc()
             : null,
         createdAt: DateTime.parse(json['created_at'] as String).toUtc(),
+        adultId: json['adult_id'] as String?,
       );
 
   final String code;
@@ -420,6 +428,10 @@ class InviteRow {
   final String? acceptedBy;
   final DateTime? acceptedAt;
   final DateTime createdAt;
+
+  /// v54 identity-binding hook. When set, redeeming this invite
+  /// stamps `adults.auth_user_id` on the named row.
+  final String? adultId;
 
   bool get isAccepted => acceptedBy != null;
   bool get isExpired =>

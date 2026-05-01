@@ -9,6 +9,9 @@ import 'package:basecamp/features/adults/widgets/edit_adult_sheet.dart';
 import 'package:basecamp/features/children/children_repository.dart';
 import 'package:basecamp/features/groups/group_summary_repository.dart';
 import 'package:basecamp/features/parents/parents_repository.dart';
+import 'package:basecamp/features/programs/invite_repository.dart';
+import 'package:basecamp/features/programs/programs_repository.dart'
+    show activeProgramIdProvider;
 import 'package:basecamp/features/roles/roles_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
@@ -82,13 +85,46 @@ class _AdultDetailScreenState extends ConsumerState<AdultDetailScreen>
       appBar: AppBar(
         actions: [
           adultAsync.maybeWhen(
-            data: (s) => s == null
-                ? const SizedBox.shrink()
-                : IconButton(
+            data: (s) {
+              if (s == null) return const SizedBox.shrink();
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Identity binding (v54) — shows when this Adult
+                  // row hasn't been bound to a Supabase user yet.
+                  // Tapping creates an adult-bound invite + shows
+                  // the code in a dialog. Once the recipient
+                  // redeems, the auth_user_id stamp lands and the
+                  // button disappears.
+                  if (s.authUserId == null)
+                    IconButton(
+                      tooltip: 'Invite to claim profile',
+                      icon: const Icon(Icons.person_add_alt_outlined),
+                      onPressed: () =>
+                          _openInviteForAdult(context, s),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                      ),
+                      child: Tooltip(
+                        message: 'Profile claimed by a signed-in user',
+                        child: Icon(
+                          Icons.verified_user_outlined,
+                          color:
+                              Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  IconButton(
                     tooltip: 'Edit',
                     icon: const Icon(Icons.edit_outlined),
                     onPressed: () => _openEdit(context, s),
                   ),
+                ],
+              );
+            },
             orElse: () => const SizedBox.shrink(),
           ),
         ],
@@ -144,6 +180,107 @@ class _AdultDetailScreenState extends ConsumerState<AdultDetailScreen>
       showDragHandle: true,
       builder: (_) => EditAdultSheet(adult: s),
     );
+  }
+
+  /// Identity binding ceremony. Generates an invite code that
+  /// names this adult; recipient redeems → accept-invite stamps
+  /// `adults.auth_user_id`. The code is shown in a dialog the
+  /// admin copies + shares (text/email/whatever).
+  Future<void> _openInviteForAdult(
+    BuildContext context,
+    Adult adult,
+  ) async {
+    final programId = ref.read(activeProgramIdProvider);
+    if (programId == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final invite =
+          await ref.read(inviteRepositoryProvider).createInvite(
+                programId: programId,
+                adultId: adult.id,
+              );
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogCtx) => AlertDialog(
+          title: Text('Invite ${adult.name}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Share this code with ${adult.name}. When they sign '
+                'in and enter it, this profile will be linked to '
+                'their account.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg,
+                  vertical: AppSpacing.md,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: SelectableText(
+                    invite.code,
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineMedium
+                        ?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 4,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onPrimaryContainer,
+                        ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'Expires ${_humanizeExpiry(invite.expiresAt)}.',
+                style:
+                    Theme.of(dialogCtx).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(dialogCtx)
+                              .colorScheme
+                              .onSurfaceVariant,
+                        ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      );
+    } on Object catch (e) {
+      if (!context.mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text("Couldn't create invite: $e"),
+        ),
+      );
+    }
+  }
+
+  /// Quick "expires in 5 days" rendering for the invite dialog.
+  /// Granular enough for the typical 7-day lifetime; not worth a
+  /// full DateFormat pull for this one string.
+  String _humanizeExpiry(DateTime expires) {
+    final delta = expires.difference(DateTime.now().toUtc());
+    if (delta.isNegative) return 'already expired';
+    if (delta.inDays >= 1) return 'in ${delta.inDays} days';
+    if (delta.inHours >= 1) return 'in ${delta.inHours} hours';
+    return 'soon';
   }
 
   Future<void> _openAddActivity(BuildContext context, Adult s) async {
