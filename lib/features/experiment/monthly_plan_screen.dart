@@ -12,6 +12,7 @@ import 'package:basecamp/features/children/children_repository.dart'
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/adaptive_sheet.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -281,7 +282,12 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
             materials: result.materials,
             link: result.link,
           ));
-        // Switch active to the freshly-generated variant.
+        // Auto-switch to the AI variant — the user just hit ✨ to
+        // see the refined take, so it should be visible immediately.
+        // The variant is a *refinement* of their first input (the
+        // prompt now anchors the AI to what they typed), not a
+        // different activity. Variant 0 stays as the source of
+        // truth they can swipe back to.
         _activeVariantIndex[key] = list.length - 1;
       });
     } on Object catch (e) {
@@ -843,6 +849,9 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                                             unawaited(_onCellAi(date)),
                                         onDeleteActive: () =>
                                             _deleteActiveVariant(date),
+                                        onEditActive: () =>
+                                            _enterInlineEdit(date),
+                                        onCommitEdit: _exitInlineEdit,
                                       ),
                                     ),
                                   ),
@@ -1212,6 +1221,8 @@ class _DayCell extends StatefulWidget {
     required this.onSwitchVariant,
     required this.onAi,
     required this.onDeleteActive,
+    required this.onEditActive,
+    required this.onCommitEdit,
     super.key,
   });
 
@@ -1241,6 +1252,16 @@ class _DayCell extends StatefulWidget {
   final ValueChanged<int> onSwitchVariant;
   final VoidCallback onAi;
   final VoidCallback onDeleteActive;
+  // Re-enter inline edit on the active variant — paired with the ✏︎
+  // affordance next to ×. The cell already has content; we just want
+  // the TextField back so the user can tweak the title or description
+  // without opening the full activity sheet.
+  final VoidCallback onEditActive;
+  // Description-Enter commits the edit. Title-Enter still moves focus
+  // to the description (handled inside the cell). When the user hits
+  // Enter on the description field, the cell closes the editor and
+  // shows the formatted preview.
+  final VoidCallback onCommitEdit;
 
   @override
   State<_DayCell> createState() => _DayCellState();
@@ -1429,19 +1450,34 @@ class _DayCellState extends State<_DayCell> {
                     _buildVariantPager(theme),
                 ],
               ),
-              // ✨ + × affordances overlay — visible when the cell
-              // is focused (hover on web, tap-to-focus on mobile)
-              // AND has content. Pinned to bottom-right (✨) and
-              // top-right (×) so they don't crowd the preview.
-              if (showAffordances && hasContent) ...[
+              // ✏︎ + × + ✨ affordances — visible when the cell is
+              // focused (hover on web, tap-to-focus on mobile) AND
+              // has content. Edit pencil + delete pair at top-right
+              // (paired actions on the existing variant); AI ✨ at
+              // bottom-right (creates a new variant). The pencil
+              // re-enters inline edit mode so the user can tweak
+              // wording without opening the full activity sheet.
+              if (showAffordances && hasContent && !widget.isEditing) ...[
                 Positioned(
                   top: 0,
                   right: 0,
-                  child: _CellAffordanceButton(
-                    icon: Icons.close,
-                    tone: _AffordanceTone.muted,
-                    onTap: widget.onDeleteActive,
-                    tooltip: 'Delete this variant',
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _CellAffordanceButton(
+                        icon: Icons.edit_outlined,
+                        tone: _AffordanceTone.muted,
+                        onTap: widget.onEditActive,
+                        tooltip: 'Edit this variant',
+                      ),
+                      const SizedBox(width: 4),
+                      _CellAffordanceButton(
+                        icon: Icons.close,
+                        tone: _AffordanceTone.muted,
+                        onTap: widget.onDeleteActive,
+                        tooltip: 'Delete this variant',
+                      ),
+                    ],
                   ),
                 ),
                 Positioned(
@@ -1533,23 +1569,43 @@ class _DayCellState extends State<_DayCell> {
           ),
           const SizedBox(height: 2),
           Expanded(
-            child: TextField(
-              controller: _descCtrl,
-              focusNode: _descFocus,
-              onChanged: widget.onWriteDescription,
-              style: descStyle,
-              maxLines: null,
-              textInputAction: TextInputAction.newline,
-              decoration: InputDecoration(
-                isDense: true,
-                isCollapsed: true,
-                filled: false,
-                contentPadding: EdgeInsets.zero,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                hintText: 'Describe…',
-                hintStyle: descStyle?.copyWith(color: mutedColor),
+            // Focus.onKeyEvent intercepts Enter for the web hardware-
+            // keyboard path: in a maxLines=null TextField, Enter
+            // would otherwise insert a newline regardless of
+            // textInputAction. Mobile uses onSubmitted (the keyboard
+            // shows a "done" button because action: done). Both
+            // paths route to the same commit callback. Shift+Enter
+            // falls through to default behavior, so power-users on
+            // web can still insert a newline if they need one.
+            child: Focus(
+              onKeyEvent: (node, event) {
+                if (event is KeyDownEvent &&
+                    event.logicalKey == LogicalKeyboardKey.enter &&
+                    !HardwareKeyboard.instance.isShiftPressed) {
+                  widget.onCommitEdit();
+                  return KeyEventResult.handled;
+                }
+                return KeyEventResult.ignored;
+              },
+              child: TextField(
+                controller: _descCtrl,
+                focusNode: _descFocus,
+                onChanged: widget.onWriteDescription,
+                onSubmitted: (_) => widget.onCommitEdit(),
+                style: descStyle,
+                maxLines: null,
+                textInputAction: TextInputAction.done,
+                decoration: InputDecoration(
+                  isDense: true,
+                  isCollapsed: true,
+                  filled: false,
+                  contentPadding: EdgeInsets.zero,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  hintText: 'Describe…',
+                  hintStyle: descStyle?.copyWith(color: mutedColor),
+                ),
               ),
             ),
           ),

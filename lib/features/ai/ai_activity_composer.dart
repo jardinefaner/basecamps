@@ -363,17 +363,25 @@ Future<AiActivity> _generateAiActivity({
   );
 }
 
-/// "Make me an alternate take on this activity" — no modal, no
-/// scrape, no fresh user prompt. The caller already has an activity
-/// in hand (typed inline by the user, or a previous AI variant) and
-/// wants the model to riff on it. Used by the monthly plan's cell
-/// ✨ button so the variant flow stays seamless: tap → spinner →
-/// new variant lands.
+/// "Flesh out what the teacher already typed" — no modal, no scrape,
+/// no fresh user prompt. The caller already has an activity in hand
+/// (typed inline by the user, or a previous AI variant) and wants
+/// the model to elaborate it into a runnable card. Used by the
+/// monthly plan's ✨ button so the variant flow stays seamless: tap
+/// → spinner → fleshed-out alternate lands.
 ///
-/// The model gets the existing activity's full content as source
-/// material with a "produce a different take" instruction, so
-/// variants stay on-theme but actually diverge (different angle,
-/// different difficulty, different materials).
+/// **The user's text is the source of truth.** The model fills in
+/// objectives, steps, and materials based on what the teacher
+/// actually typed — it does NOT invent a different activity. Earlier
+/// versions of this prompt asked for "a meaningfully DIFFERENT take"
+/// and the result was teachers writing "reading something about
+/// trees" and getting back a sensory bin or a movement game. Now
+/// the teacher's title/description anchor the output; the variant
+/// adds structure (steps, materials) without drifting topic.
+///
+/// Theme/sub-theme are *secondary* context — used to inform tone
+/// and developmentally-appropriate detail, never to override what
+/// the teacher specifically asked for.
 Future<AiActivity> generateAiVariant({
   required AiActivity activity,
   AiActivityContext? planContext,
@@ -383,9 +391,9 @@ Future<AiActivity> generateAiVariant({
   }
   final ctxLine = planContext?.promptLine ?? '';
   final activityBlock = [
-    if (activity.title.isNotEmpty) 'Existing title: ${activity.title}',
+    if (activity.title.isNotEmpty) "Teacher's title: ${activity.title}",
     if (activity.description.isNotEmpty)
-      'Existing description: ${activity.description}',
+      "Teacher's description: ${activity.description}",
     if (activity.objectives.isNotEmpty)
       'Existing objectives: ${activity.objectives}',
     if (activity.steps.isNotEmpty) 'Existing steps:\n${activity.steps}',
@@ -395,22 +403,40 @@ Future<AiActivity> generateAiVariant({
 
   final body = await OpenAiClient.chat({
     'model': 'gpt-4o-mini',
-    // Bumped from 0.4 — variants WANT divergence, otherwise the
-    // carousel just fills with near-duplicates of the original.
-    'temperature': 0.7,
+    // Lower temperature — we want faithful elaboration, not creative
+    // divergence. The previous 0.7 was tuned for "make something
+    // different" which is the opposite of the current behavior.
+    'temperature': 0.4,
     'response_format': {'type': 'json_object'},
     'messages': [
       {
         'role': 'system',
         'content':
-            'You generate activity cards for early-childhood '
-            'educators. Return JSON with these keys (title and '
-            'description are required; the rest are optional and '
-            'should be left as empty strings if you cannot infer '
-            'them confidently):\n'
-            '  "title": short, title-cased, max 8 words\n'
+            'You flesh out activity cards for early-childhood '
+            'educators. The teacher has typed a short title and/or '
+            'description for an activity they want to run; your job '
+            'is to fill in the runnable details (objectives, steps, '
+            'materials) WITHOUT changing what the activity is.\n\n'
+            'CRITICAL FAITHFULNESS RULES:\n'
+            "- Treat the teacher's title and description as the "
+            'definition of the activity. Do not substitute a '
+            'different activity, even if a different one would fit '
+            'the theme better.\n'
+            '- If the teacher wrote about reading a book on trees, '
+            'the result is a read-aloud, not a sensory bin.\n'
+            '- The theme/sub-theme context is for tone and '
+            'developmental fit only. Never use the theme to override '
+            "the teacher's stated activity.\n"
+            '- Polish the title and description (clearer wording, '
+            'title case) but keep the same activity, same focus, '
+            "same content. Don't rename a read-aloud into a craft.\n\n"
+            'Return JSON with these keys (title and description are '
+            'required; the rest are optional and should be empty '
+            'strings if you cannot infer them confidently):\n'
+            '  "title": short, title-cased, max 8 words — same '
+            "activity as the teacher's title\n"
             '  "description": one or two concrete classroom-friendly '
-            'sentences for the card preview\n'
+            "sentences expanding the teacher's description\n"
             '  "objectives": one to three sentences on what children '
             'will practice or learn\n'
             '  "steps": numbered, newline-separated steps for how to '
@@ -456,15 +482,21 @@ Future<AiActivity> generateAiVariant({
 
 String _composeVariantPrompt(String ctxLine, String activityBlock) {
   final parts = <String>[];
-  if (ctxLine.isNotEmpty) parts.add(ctxLine);
+  if (ctxLine.isNotEmpty) {
+    parts.add('Context (for tone + developmental fit only — do NOT '
+        "use this to override the teacher's stated activity): "
+        '$ctxLine');
+  }
   parts
     ..add(activityBlock)
     ..add(
-      'Generate a meaningfully DIFFERENT version of this activity '
-      'for the same group/age/theme. Vary the angle, materials, or '
-      'difficulty so it complements the existing activity rather '
-      'than duplicating it. Stay tied to the same monthly + weekly '
-      'themes when provided.',
+      'Flesh out this activity into a runnable card. Keep the same '
+      'activity the teacher specified — same focus, same medium, '
+      'same content. Polish the title and expand the description '
+      'into one or two concrete classroom-friendly sentences. Add '
+      'objectives, steps, and materials that fit what the teacher '
+      'actually wrote. Do NOT swap the activity for a different '
+      'one, even if a different one would fit the theme.',
     );
   return parts.join('\n\n');
 }
