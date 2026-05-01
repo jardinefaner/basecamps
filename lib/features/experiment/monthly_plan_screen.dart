@@ -636,7 +636,6 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                     builder: (context, constraints) {
                       const minSideRailWidth = 240.0;
                       const minDayCellWidth = 160.0;
-                      const minRowHeight = 120.0;
                       const headerRowHeight = 32.0;
                       const totalCols = 5;
                       const minTotalWidth = minSideRailWidth +
@@ -644,14 +643,6 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                       final width = constraints.maxWidth >= minTotalWidth
                           ? constraints.maxWidth
                           : minTotalWidth;
-                      // Reserve the header row's height in the total
-                      // so weeks always get their full minRowHeight.
-                      final minTotalHeight = headerRowHeight +
-                          minRowHeight * weeks.length;
-                      final height =
-                          constraints.maxHeight >= minTotalHeight
-                              ? constraints.maxHeight
-                              : minTotalHeight;
                       return SingleChildScrollView(
                         child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
@@ -659,11 +650,14 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                             padding:
                                 const EdgeInsets.all(AppSpacing.sm),
                             child: SizedBox(
-                              // Pad subtraction so the inner grid
-                              // matches the SCV's content area
-                              // including the AppSpacing.sm padding.
+                              // Width is fixed (max of viewport vs the
+                              // minimum). Height is INTRINSIC — each
+                              // row sizes to its tallest cell's
+                              // content so long descriptions, tall
+                              // bullet lists, etc. all fit without
+                              // truncation. The user explicitly
+                              // wanted "all texts displayed."
                               width: width - AppSpacing.sm * 2,
-                              height: height - AppSpacing.sm * 2,
                               child: Column(
                       children: [
                         // Day-of-week header — same column widths
@@ -677,7 +671,15 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                           ),
                         ),
                         for (final week in weeks)
-                          Expanded(
+                          // Each row's height = max of its cells'
+                          // intrinsic content heights, with a 120dp
+                          // floor (ConstrainedBox inside the cell).
+                          // Different weeks can therefore end up
+                          // different heights, which is fine — a
+                          // sparse week stays compact, a packed week
+                          // grows to fit. No more "title gets a 3-
+                          // line ellipsis" cropping.
+                          IntrinsicHeight(
                             child: Row(
                               crossAxisAlignment:
                                   CrossAxisAlignment.stretch,
@@ -1092,33 +1094,28 @@ class _WeekSidePanelState extends State<_WeekSidePanel> {
               ),
             ),
             const SizedBox(height: 2),
-            // Aggregated supplies — bulleted list scrolled inside the
-            // remaining cell height. Empty state stays muted.
-            Expanded(
-              child: widget.materials.isEmpty
-                  ? Text(
-                      '—',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: cs.onSurfaceVariant.withValues(alpha: 0.5),
-                      ),
-                    )
-                  : SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          for (final m in widget.materials)
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 1),
-                              child: Text(
-                                '• $m',
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-            ),
+            // Aggregated supplies — full bullet list, no inner
+            // scroll. The week's row grows tall enough to fit
+            // because the parent IntrinsicHeight on the row reads
+            // this Column's natural height. A long supplies list
+            // will push the whole row taller; that's the trade
+            // (matches the user's "show all texts" intent).
+            if (widget.materials.isEmpty)
+              Text(
+                '—',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant.withValues(alpha: 0.5),
+                ),
+              )
+            else
+              for (final m in widget.materials)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 1),
+                  child: Text(
+                    '• $m',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
           ],
         ),
         ),
@@ -1176,9 +1173,6 @@ class _DayCell extends StatefulWidget {
 }
 
 class _DayCellState extends State<_DayCell> {
-  late final PageController _pager =
-      PageController(initialPage: widget.activeIndex);
-
   // Two controllers — one per field — so the title genuinely
   // renders bold while the user types it (single-buffer + split-on-
   // commit had no visual distinction between title and description
@@ -1220,17 +1214,6 @@ class _DayCellState extends State<_DayCell> {
   @override
   void didUpdateWidget(covariant _DayCell old) {
     super.didUpdateWidget(old);
-    // Keep the PageController in sync with parent's active index
-    // when the parent flips it (e.g. the user picked a dot or a
-    // fresh AI variant just landed).
-    if (widget.activeIndex != old.activeIndex && _pager.hasClients) {
-      // Fire-and-forget animation; we don't need the completion.
-      unawaited(_pager.animateToPage(
-        widget.activeIndex,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-      ));
-    }
     // Sync the title/description controllers from the active variant
     // when an external write changes its content (advanced editor in
     // a sheet, etc.) — but only when we're NOT actively editing, so
@@ -1286,7 +1269,6 @@ class _DayCellState extends State<_DayCell> {
 
   @override
   void dispose() {
-    _pager.dispose();
     _titleCtrl.dispose();
     _descCtrl.dispose();
     _titleFocus.dispose();
@@ -1325,7 +1307,15 @@ class _DayCellState extends State<_DayCell> {
     // surfaceContainerLow with a subtle outline. The earlier
     // surface tone made cells visually disconnected from the side
     // rail; same tone reads as one continuous grid.
-    final body = Material(
+    //
+    // ConstrainedBox(minHeight: 120) is the floor under sparse
+    // weeks — empty rows still get the readable cell height. Tall
+    // content (long descriptions, many variants) grows the cell
+    // (and thus the row) above this floor; the IntrinsicHeight in
+    // the parent Row handles that propagation.
+    final body = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 120),
+      child: Material(
       color: isOutOfMonth
           ? cs.surfaceContainerLowest.withValues(alpha: 0.4)
           : cs.surfaceContainerLow,
@@ -1339,6 +1329,7 @@ class _DayCellState extends State<_DayCell> {
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Padding(
                     padding: const EdgeInsets.only(left: 2, top: 2),
@@ -1353,12 +1344,14 @@ class _DayCellState extends State<_DayCell> {
                     ),
                   ),
                   const SizedBox(height: 4),
+                  // No Expanded around the inline editor or variant
+                  // stack — the cell uses MainAxisSize.min so it
+                  // grows to fit content, and the parent
+                  // IntrinsicHeight propagates that up to the Row.
                   if (widget.isEditing)
-                    Expanded(child: _buildInlineEditor(theme))
+                    _buildInlineEditor(theme)
                   else if (!isOutOfMonth && hasContent)
-                    Expanded(
-                      child: _buildVariantPager(theme),
-                    ),
+                    _buildVariantPager(theme),
                 ],
               ),
               // ✨ + × affordances overlay — visible when the cell
@@ -1406,6 +1399,7 @@ class _DayCellState extends State<_DayCell> {
             ],
           ),
         ),
+      ),
       ),
     );
 
@@ -1489,14 +1483,19 @@ class _DayCellState extends State<_DayCell> {
     );
   }
 
+  /// Variants stack via [IndexedStack] — the cell sizes to the
+  /// tallest variant's content, so switching between them via the
+  /// dots is layout-stable (no row-height jitter as the user
+  /// flips). Trade-off: lost the PageView swipe-between-variants
+  /// gesture; user said full text > swipe, since PageView demands
+  /// bounded height which fights "all text visible." Revisit if
+  /// swipe re-enters the priority list.
   Widget _buildVariantPager(ThemeData theme) {
-    return PageView.builder(
-      controller: _pager,
-      itemCount: widget.variants.length,
-      onPageChanged: (idx) {
-        if (idx != widget.activeIndex) widget.onSwitchVariant(idx);
-      },
-      itemBuilder: (_, i) => _CellPreview(activity: widget.variants[i]),
+    return IndexedStack(
+      index: widget.activeIndex,
+      children: [
+        for (final v in widget.variants) _CellPreview(activity: v),
+      ],
     );
   }
 }
@@ -1510,29 +1509,28 @@ class _CellPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
+      // Bottom 14dp reserves space for the variant dots overlay so
+      // the description's last line doesn't sit underneath them.
       padding: const EdgeInsets.fromLTRB(2, 0, 2, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
           if (activity.title.isNotEmpty)
             Text(
               activity.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+              // No maxLines / ellipsis — the user explicitly wanted
+              // all text shown. The cell will grow to fit.
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
             ),
           if (activity.description.isNotEmpty) ...[
             const SizedBox(height: 2),
-            Expanded(
-              child: Text(
-                activity.description,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+            Text(
+              activity.description,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
           ],
