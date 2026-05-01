@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:basecamp/database/database.dart' show Group;
+import 'package:basecamp/features/adults/adults_repository.dart'
+    show AdultRole, currentAdultProvider;
 import 'package:basecamp/features/ai/ai_activity_addons.dart';
 import 'package:basecamp/features/ai/ai_activity_composer.dart';
 import 'package:basecamp/features/ai/openai_client.dart';
@@ -124,6 +126,19 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
 
   String _activityKey(DateTime d, String groupId) =>
       '$groupId|${_dayKey(d)}';
+
+  /// Identity-gating predicate (v54). Same logic as the build
+  /// method's local `canEdit` — re-derived here so async event
+  /// handlers (tap dispatcher, AI variant handler, etc.) can check
+  /// without threading the value through every callback.
+  bool get _canEditActiveGroup {
+    final me = ref.read(currentAdultProvider).asData?.value;
+    if (me == null) return true; // unbound = full access
+    final role = AdultRole.fromDb(me.adultRole);
+    if (role != AdultRole.lead) return false;
+    return me.anchoredGroupId != null &&
+        _activeGroupId == me.anchoredGroupId;
+  }
 
   // -----------------------------------------------------------------
   // Variant accessors
@@ -402,7 +417,15 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
     final key = _activityKey(date, groupId);
     final variants = _variantsAt(date, groupId);
     if (variants.isEmpty) {
-      _enterInlineEdit(date);
+      // Read-only viewers (non-leads, leads viewing another group)
+      // can't enter inline edit on an empty cell. The focus halo
+      // still updates so they see which cell they tapped, but no
+      // editor opens. Lead-on-anchored-group users get full edit.
+      if (_canEditActiveGroup) {
+        _enterInlineEdit(date);
+      } else {
+        _setFocusedCell(key);
+      }
       return;
     }
     if (_focusedCellKey != key) {
@@ -528,6 +551,28 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
     final weeks = _buildWeeks();
     final monthLabel = DateFormat.yMMMM().format(_viewMonth);
 
+    // Identity gating (v54). The signed-in user resolves to an
+    // Adult row via currentAdultProvider; from there:
+    //   * me == null           → unbound user (admin pre-rollout,
+    //                            generic teacher who hasn't redeemed
+    //                            an adult-bound invite). Full access
+    //                            preserved — backward compatible.
+    //   * me + role == lead    → locked to anchored group; can edit.
+    //   * me + role != lead    → can browse any group, read-only.
+    //
+    // canEdit decides whether cells expose inline edit / AI / delete
+    // affordances. The group filter is locked to the lead's
+    // anchored group when applicable so they can't accidentally
+    // edit a peer's plan.
+    final me = ref.watch(currentAdultProvider).asData?.value;
+    final myAdultRole =
+        me == null ? null : AdultRole.fromDb(me.adultRole);
+    final isLead = myAdultRole == AdultRole.lead;
+    final myGroupId = me?.anchoredGroupId;
+    final lockedToGroup = isLead && myGroupId != null;
+    final canEdit = me == null ||
+        (lockedToGroup && _activeGroupId == myGroupId);
+
     return Scaffold(
       appBar: AppBar(
         // Month label + chevrons live IN the AppBar now (was a
@@ -593,18 +638,38 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                   ),
                 );
               }
-              // Default-select the first group once they load.
-              if (_activeGroupId == null ||
-                  !groups.any((g) => g.id == _activeGroupId)) {
+              // Default-select the active group. For leads we
+              // prefer their anchored group; for everyone else
+              // (unbound users, non-leads), fall back to the
+              // first group. Leads also get re-snapped to their
+              // anchored group if the active id ever drifts off
+              // (e.g. reading another group's plan and then the
+              // identity provider resolves).
+              final preferred = lockedToGroup &&
+                      groups.any((g) => g.id == myGroupId)
+                  ? myGroupId
+                  : (_activeGroupId == null ||
+                          !groups.any((g) => g.id == _activeGroupId))
+                      ? groups.first.id
+                      : _activeGroupId;
+              if (_activeGroupId != preferred) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (!mounted) return;
-                  setState(() => _activeGroupId = groups.first.id);
+                  setState(() => _activeGroupId = preferred);
                 });
               }
+              // When the user is a Lead, restrict the dropdown to
+              // their anchored group only — they shouldn't be able
+              // to switch into someone else's plan and accidentally
+              // edit it. Other users see the full list.
+              final visibleGroups = lockedToGroup
+                  ? groups.where((g) => g.id == myGroupId).toList()
+                  : groups;
               return _GroupFilterBar(
-                groups: groups,
+                groups: visibleGroups,
                 activeId: _activeGroupId,
                 onSelect: (id) => setState(() => _activeGroupId = id),
+                locked: lockedToGroup,
               );
             },
           ),
@@ -753,6 +818,7 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                                             _generatingCellKey ==
                                                 _activityKey(date,
                                                     _activeGroupId!),
+                                        canEdit: canEdit,
                                         onTap: () => unawaited(
                                           _onDayCellTap(date),
                                         ),
@@ -873,11 +939,18 @@ class _GroupFilterBar extends StatelessWidget {
     required this.groups,
     required this.activeId,
     required this.onSelect,
+    this.locked = false,
   });
 
   final List<Group> groups;
   final String? activeId;
   final ValueChanged<String> onSelect;
+
+  /// True when the user is a Lead anchored to one specific group;
+  /// the dropdown becomes a static label so they can't switch into
+  /// another group's plan. The PopupMenuButton is replaced with a
+  /// plain Container in this state.
+  final bool locked;
 
   String _labelFor(Group g) =>
       (g.audienceAgeLabel ?? '').isEmpty
@@ -892,63 +965,67 @@ class _GroupFilterBar extends StatelessWidget {
       (g) => g.id == activeId,
       orElse: () => groups.first,
     );
+    // Static label form — no popup, no chevron. The leading group
+    // icon stays so the row reads identically to the dropdown
+    // form; the trailing unfold_more chevron is replaced by a
+    // small lock icon to signal "you can't switch."
+    final labelRow = Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: cs.outlineVariant,
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.group_outlined,
+            size: 18,
+            color: cs.onSurfaceVariant,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              _labelFor(active),
+              style: theme.textTheme.bodyMedium,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Icon(
+            locked ? Icons.lock_outline : Icons.unfold_more,
+            size: 18,
+            color: cs.onSurfaceVariant,
+          ),
+        ],
+      ),
+    );
     return Container(
       color: cs.surfaceContainerLow,
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.sm,
       ),
-      child: PopupMenuButton<String>(
-        position: PopupMenuPosition.under,
-        initialValue: activeId,
-        onSelected: onSelect,
-        itemBuilder: (_) => [
-          for (final g in groups)
-            PopupMenuItem(
-              value: g.id,
-              child: Text(_labelFor(g)),
+      child: locked
+          ? labelRow
+          : PopupMenuButton<String>(
+              position: PopupMenuPosition.under,
+              initialValue: activeId,
+              onSelected: onSelect,
+              itemBuilder: (_) => [
+                for (final g in groups)
+                  PopupMenuItem(
+                    value: g.id,
+                    child: Text(_labelFor(g)),
+                  ),
+              ],
+              child: labelRow,
             ),
-        ],
-        // Inline "Group: <name> · <age> ▾" affordance. Border +
-        // outlineVariant matches the rest of the surface tier so it
-        // feels like a control, not a free-floating button.
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.sm,
-          ),
-          decoration: BoxDecoration(
-            color: cs.surface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: cs.outlineVariant,
-              width: 0.5,
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.group_outlined,
-                size: 18,
-                color: cs.onSurfaceVariant,
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Text(
-                  _labelFor(active),
-                  style: theme.textTheme.bodyMedium,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Icon(
-                Icons.unfold_more,
-                size: 18,
-                color: cs.onSurfaceVariant,
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -1184,6 +1261,7 @@ class _DayCell extends StatefulWidget {
     required this.isEditing,
     required this.isFocused,
     required this.isGenerating,
+    required this.canEdit,
     required this.onTap,
     required this.onFocusEnter,
     required this.onFocusExit,
@@ -1202,6 +1280,13 @@ class _DayCell extends StatefulWidget {
   final bool isEditing;
   final bool isFocused;
   final bool isGenerating;
+
+  /// Identity gating (v54). When false, the cell is read-only — no
+  /// inline edit, no AI / × affordances. Tapping a filled cell
+  /// still opens the formatted view (read-only is browseable, just
+  /// not authorable). Driven by the screen's `canEdit` derived
+  /// from currentAdultProvider + lead-anchored-group check.
+  final bool canEdit;
   final VoidCallback onTap;
   final VoidCallback onFocusEnter;
   final VoidCallback onFocusExit;
@@ -1332,7 +1417,8 @@ class _DayCellState extends State<_DayCell> {
         widget.variants.any((v) => !v.isEmpty);
     final showAffordances = !isOutOfMonth &&
         widget.isFocused &&
-        !widget.isEditing;
+        !widget.isEditing &&
+        widget.canEdit;
 
     final dateColor = isOutOfMonth
         ? cs.onSurfaceVariant.withValues(alpha: 0.4)
