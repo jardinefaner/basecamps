@@ -108,18 +108,10 @@ final weekPlanGroupFilterProvider =
   WeekPlanGroupFilterNotifier.new,
 );
 
-/// Live drag state. Non-null while the user is mid-drag *or*
-/// after they've released into a tentative-placement state and
-/// haven't confirmed/cancelled yet.
-///
-/// Two phases:
-///   * `tentative == false` — finger still down, ghost follows
-///     the pointer in real time (classic drag).
-///   * `tentative == true` — finger released, ghost pinned at the
-///     last known position; the canvas shows a Confirm/Cancel
-///     toolbar so the user can scroll, look around, and decide.
-///     Designed for long moves where the source and destination
-///     don't fit in the viewport at once.
+/// Live drag state. Non-null only while the user is mid-long-press
+/// drag of a card. Used by the canvas to render a ghost following
+/// the pointer; cleared on release (which fires the immediate
+/// commit).
 class WeekPlanDragState {
   const WeekPlanDragState({
     required this.templateId,
@@ -128,8 +120,6 @@ class WeekPlanDragState {
     required this.sourceEndMinutes,
     required this.pointerGlobal,
     required this.pickupOffsetLocal,
-    this.tentative = false,
-    this.pinnedCanvasLocal,
   });
 
   final String templateId;
@@ -138,8 +128,7 @@ class WeekPlanDragState {
   final int sourceEndMinutes;
 
   /// Global screen position of the pointer right now. Updated on
-  /// every long-press-move event during the active-drag phase, and
-  /// frozen at the release position once `tentative` flips to true.
+  /// every long-press-move event.
   final Offset pointerGlobal;
 
   /// Where on the card the user pressed initially, in card-local
@@ -147,19 +136,6 @@ class WeekPlanDragState {
   /// "from where the finger is" rather than snapping to the
   /// pointer's tip.
   final Offset pickupOffsetLocal;
-
-  /// True when the user has released the finger; the ghost stays
-  /// pinned at the last position and waits for explicit Confirm /
-  /// Cancel.
-  final bool tentative;
-
-  /// Canvas-local position the ghost is pinned to during tentative
-  /// mode. Captured once at release time (via
-  /// `RenderBox.globalToLocal`) so that scrolling the canvas keeps
-  /// the ghost anchored to its time slot rather than its screen
-  /// pixel. Null while the drag is still active (where the ghost
-  /// follows the live pointer instead).
-  final Offset? pinnedCanvasLocal;
 
   int get durationMinutes => sourceEndMinutes - sourceStartMinutes;
 
@@ -170,20 +146,6 @@ class WeekPlanDragState {
         sourceEndMinutes: sourceEndMinutes,
         pointerGlobal: pointer,
         pickupOffsetLocal: pickupOffsetLocal,
-        tentative: tentative,
-        pinnedCanvasLocal: pinnedCanvasLocal,
-      );
-
-  WeekPlanDragState copyAsTentative(Offset pinnedCanvasLocal) =>
-      WeekPlanDragState(
-        templateId: templateId,
-        sourceDayOfWeek: sourceDayOfWeek,
-        sourceStartMinutes: sourceStartMinutes,
-        sourceEndMinutes: sourceEndMinutes,
-        pointerGlobal: pointerGlobal,
-        pickupOffsetLocal: pickupOffsetLocal,
-        tentative: true,
-        pinnedCanvasLocal: pinnedCanvasLocal,
       );
 }
 
@@ -204,15 +166,6 @@ class WeekPlanDragNotifier extends Notifier<WeekPlanDragState?> {
     state = current.copyWithPointer(global);
   }
 
-  /// Flip into tentative mode: ghost pins to [pinnedCanvasLocal]
-  /// (so a scroll doesn't slide it off the time slot), awaiting an
-  /// explicit confirm/cancel via the canvas's floating toolbar.
-  void markTentative(Offset pinnedCanvasLocal) {
-    final current = state;
-    if (current == null) return;
-    state = current.copyAsTentative(pinnedCanvasLocal);
-  }
-
   void clear() {
     state = null;
   }
@@ -221,4 +174,31 @@ class WeekPlanDragNotifier extends Notifier<WeekPlanDragState?> {
 final weekPlanDragProvider =
     NotifierProvider<WeekPlanDragNotifier, WeekPlanDragState?>(
   WeekPlanDragNotifier.new,
+);
+
+/// ID of a freshly-created card whose title TextField should
+/// autofocus on first build. Cleared once the user commits or
+/// cancels the title input. Mirrors the empty-slot click flow:
+/// click → `addTemplate` returns id → set this provider → card
+/// renders with autofocused TextField → user types title → cleared.
+class WeekPlanFreshCardNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  // Method-not-setter — `notifier.mark(id)` reads as a flag-setting
+  // event (analogous to `select`); a setter would imply a passive
+  // property write.
+  // ignore: use_setters_to_change_properties
+  void mark(String templateId) {
+    state = templateId;
+  }
+
+  void clear() {
+    state = null;
+  }
+}
+
+final weekPlanFreshCardProvider =
+    NotifierProvider<WeekPlanFreshCardNotifier, String?>(
+  WeekPlanFreshCardNotifier.new,
 );

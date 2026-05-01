@@ -202,23 +202,12 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
     final canvasHeight =
         _kColumnHeaderHeight + scale.totalHeight + AppSpacing.md;
 
-    return Stack(
-      // Outer Stack lets the tentative-mode toolbar pin to the
-      // bottom of the canvas viewport without affecting the
-      // scroll-area layout.
-      children: [
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () {
-            // Tap during tentative is a no-op so the user can
-            // poke around (cancelling requires the explicit
-            // toolbar button). Otherwise it clears selection.
-            if (dragState?.tentative ?? false) return;
-            ref
-                .read(weekPlanSelectedTemplateProvider.notifier)
-                .clear();
-          },
-          child: Padding(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => ref
+          .read(weekPlanSelectedTemplateProvider.notifier)
+          .clear(),
+      child: Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,
               AppSpacing.sm,
@@ -268,43 +257,21 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
                           ],
                         ),
                   ),
-                      // Ghost overlay — rendered during active drag
-                      // AND during tentative mode. Source of position
-                      // differs: live pointer for active, pinned
-                      // canvas-local for tentative.
-                      if (dragState != null)
-                        _DragGhost(
-                          state: dragState,
-                          scale: scale,
-                          canvasKey: _canvasBodyKey,
-                          theme: theme,
-                        ),
-                    ],
-                  ),
-                ),
+                  // Ghost overlay — rendered during the active
+                  // drag, follows live pointer.
+                  if (dragState != null)
+                    _DragGhost(
+                      state: dragState,
+                      scale: scale,
+                      canvasKey: _canvasBodyKey,
+                      theme: theme,
+                    ),
+                ],
               ),
             ),
           ),
         ),
-        // Floating tentative-mode toolbar. Pinned to the bottom of
-        // the canvas's viewport (NOT the scroll content) via the
-        // outer Stack, so it stays in reach as the user scrolls
-        // looking for the right slot.
-        if (dragState?.tentative ?? false)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: AppSpacing.md,
-            child: Center(
-              child: _TentativeToolbar(
-                onMove: () => _commitTentative(duplicate: false),
-                onDuplicate: () =>
-                    _commitTentative(duplicate: true),
-                onCancel: _cancelTentative,
-              ),
-            ),
-          ),
-      ],
+      ),
     );
   }
 
@@ -360,37 +327,20 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
     );
   }
 
-  /// Drag-end handler. Instead of committing immediately, captures
-  /// the canvas-local drop position and flips the drag state into
-  /// "tentative" — the ghost stays pinned at that exact time slot
-  /// (a scroll won't slide it onto another row) and the canvas
-  /// paints a Move/Duplicate/Cancel toolbar at the bottom. The
-  /// user can scroll freely between source and target and only
-  /// commit when they hit a button.
-  void _onLongPressEnd(LongPressEndDetails details) {
+  /// Drag-end handler. Computes the snap target from the live
+  /// pointer position and fires the drop callback immediately on
+  /// release. No tentative-confirm step — the canvas's
+  /// auto-scroll-near-edges (added in the next phase) handles long
+  /// moves where the source and target don't fit in viewport.
+  Future<void> _onLongPressEnd(LongPressEndDetails details) async {
     final dragState = ref.read(weekPlanDragProvider);
+    final altHeld = HardwareKeyboard.instance.isAltPressed;
+    ref.read(weekPlanDragProvider.notifier).clear();
     if (dragState == null) return;
     final box =
         _canvasBodyKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null) {
-      ref.read(weekPlanDragProvider.notifier).clear();
-      return;
-    }
+    if (box == null) return;
     final canvasLocal = box.globalToLocal(dragState.pointerGlobal);
-    ref
-        .read(weekPlanDragProvider.notifier)
-        .markTentative(canvasLocal);
-  }
-
-  /// User picked Move (move=false / duplicate=true) on the
-  /// tentative toolbar. Compute the snap target from the pinned
-  /// canvas-local position and fire the drop handler.
-  Future<void> _commitTentative({required bool duplicate}) async {
-    final dragState = ref.read(weekPlanDragProvider);
-    ref.read(weekPlanDragProvider.notifier).clear();
-    if (dragState == null) return;
-    final pinned = dragState.pinnedCanvasLocal;
-    if (pinned == null) return;
     final groupFilter = ref.read(weekPlanGroupFilterProvider);
     final visibleByDay = <int, List<ScheduleItem>>{
       for (var d = 1; d <= scheduleDayCount; d++)
@@ -403,18 +353,16 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
       visibleByDay.values.expand((items) => items),
     );
     final target = _snapTargetFromCanvasLocal(
-      canvasLocal: pinned,
+      canvasLocal: canvasLocal,
       pickupLocal: dragState.pickupOffsetLocal,
       scale: scale,
       durationMinutes: dragState.durationMinutes,
     );
     if (target == null) return;
-    // No-op when target equals source AND it's a move (duplicates
-    // intentionally land at the same slot).
-    if (!duplicate &&
+    if (!altHeld &&
         target.dayOfWeek == dragState.sourceDayOfWeek &&
         target.snappedStartMinutes == dragState.sourceStartMinutes) {
-      return;
+      return; // no-op move
     }
     final snappedEnd =
         target.snappedStartMinutes + dragState.durationMinutes;
@@ -424,12 +372,8 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
       targetDayOfWeek: target.dayOfWeek,
       snappedStartMinutes: target.snappedStartMinutes,
       snappedEndMinutes: snappedEnd,
-      altHeld: duplicate,
+      altHeld: altHeld,
     );
-  }
-
-  void _cancelTentative() {
-    ref.read(weekPlanDragProvider.notifier).clear();
   }
 
   /// Filter visible templates by the active group filter.
@@ -1064,12 +1008,7 @@ class _DragGhost extends StatelessWidget {
   Widget build(BuildContext context) {
     final box = canvasKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return const SizedBox.shrink();
-    // Two position sources: tentative mode uses the canvas-local
-    // pin (so a scroll doesn't slide it off the time slot); active
-    // drag converts live pointer-global to canvas-local each frame.
-    final canvasLocal = state.tentative && state.pinnedCanvasLocal != null
-        ? state.pinnedCanvasLocal!
-        : box.globalToLocal(state.pointerGlobal);
+    final canvasLocal = box.globalToLocal(state.pointerGlobal);
     final ghostTop = canvasLocal.dy - state.pickupOffsetLocal.dy;
 
     final canvasSize = box.size;
@@ -1104,9 +1043,7 @@ class _DragGhost extends StatelessWidget {
               children: [
                 Center(
                   child: Text(
-                    state.tentative
-                        ? 'Tap Move or Duplicate to confirm'
-                        : (altHeld ? 'Drop to duplicate' : 'Move…'),
+                    altHeld ? 'Drop to duplicate' : 'Move…',
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: theme.colorScheme.onPrimary,
                       fontWeight: FontWeight.w600,
@@ -1134,77 +1071,6 @@ class _DragGhost extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Floating toolbar shown while the user is in tentative drag-drop
-/// mode. Three explicit choices: Move, Duplicate, Cancel. Pinned to
-/// the bottom of the canvas viewport via a parent Stack so it
-/// stays in reach as the user scrolls between source and target.
-class _TentativeToolbar extends StatelessWidget {
-  const _TentativeToolbar({
-    required this.onMove,
-    required this.onDuplicate,
-    required this.onCancel,
-  });
-
-  final VoidCallback onMove;
-  final VoidCallback onDuplicate;
-  final VoidCallback onCancel;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: theme.colorScheme.surfaceContainerHighest,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(28),
-        side: BorderSide(
-          color: theme.colorScheme.outlineVariant,
-          width: 0.5,
-        ),
-      ),
-      elevation: 6,
-      shadowColor: theme.colorScheme.shadow.withValues(alpha: 0.3),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm,
-          vertical: AppSpacing.xs,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextButton.icon(
-              onPressed: onCancel,
-              icon: const Icon(Icons.close, size: 18),
-              label: const Text('Cancel'),
-              style: TextButton.styleFrom(
-                foregroundColor: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            Container(
-              width: 0.5,
-              height: 24,
-              color: theme.colorScheme.outlineVariant,
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-            ),
-            TextButton.icon(
-              onPressed: onDuplicate,
-              icon: const Icon(Icons.content_copy_outlined, size: 18),
-              label: const Text('Duplicate'),
-              style: TextButton.styleFrom(
-                foregroundColor: theme.colorScheme.tertiary,
-              ),
-            ),
-            FilledButton.icon(
-              onPressed: onMove,
-              icon: const Icon(Icons.check, size: 18),
-              label: const Text('Move here'),
-            ),
-          ],
         ),
       ),
     );
