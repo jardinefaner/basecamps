@@ -530,9 +530,31 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        // Stable title — month navigation lives in the toolbar below.
-        title: const Text('Monthly Plan'),
+        // Month label + chevrons live IN the AppBar now (was a
+        // separate toolbar row eating ~50dp of vertical space on
+        // mobile). Tapping the title resets to the current month.
+        title: InkWell(
+          onTap: _resetToThisMonth,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: 4,
+            ),
+            child: Text(monthLabel),
+          ),
+        ),
         actions: [
+          IconButton(
+            tooltip: 'Previous month',
+            icon: const Icon(Icons.chevron_left),
+            onPressed: () => _shiftMonth(-1),
+          ),
+          IconButton(
+            tooltip: 'Next month',
+            icon: const Icon(Icons.chevron_right),
+            onPressed: () => _shiftMonth(1),
+          ),
           IconButton(
             tooltip: 'This month',
             icon: const Icon(Icons.today_outlined),
@@ -585,12 +607,6 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                 onSelect: (id) => setState(() => _activeGroupId = id),
               );
             },
-          ),
-          _MonthToolbar(
-            label: monthLabel,
-            onPrev: () => _shiftMonth(-1),
-            onNext: () => _shiftMonth(1),
-            onReset: _resetToThisMonth,
           ),
           // Day-of-week header was previously rendered above the
           // horizontal scroll view, which on mobile drifted out of
@@ -845,6 +861,11 @@ class _MonthlyActivity {
 // Top bars
 // =====================================================================
 
+/// Compact group selector — replaces the previous horizontal chip
+/// row that wrapped to multi-line on mobile. Single inline button
+/// showing the active group + age range; tap opens a popup menu
+/// with all groups. Matches the "month chevrons in AppBar" decision
+/// — top bar should stay one row, not three.
 class _GroupFilterBar extends StatelessWidget {
   const _GroupFilterBar({
     required this.groups,
@@ -856,102 +877,80 @@ class _GroupFilterBar extends StatelessWidget {
   final String? activeId;
   final ValueChanged<String> onSelect;
 
+  String _labelFor(Group g) =>
+      (g.audienceAgeLabel ?? '').isEmpty
+          ? g.name
+          : '${g.name} · ${g.audienceAgeLabel}';
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final active = groups.firstWhere(
+      (g) => g.id == activeId,
+      orElse: () => groups.first,
+    );
     return Container(
-      color: theme.colorScheme.surfaceContainerLow,
+      color: cs.surfaceContainerLow,
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.sm,
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            for (final g in groups)
-              Padding(
-                padding: const EdgeInsets.only(right: AppSpacing.sm),
-                // Chip label includes the group's audience age in
-                // parens when set — discoverable at-a-glance,
-                // editable from the Children & Groups screen so the
-                // monthly plan stays read-only on group metadata.
-                child: ChoiceChip(
-                  label: Text(
-                    (g.audienceAgeLabel ?? '').isEmpty
-                        ? g.name
-                        : '${g.name} · ${g.audienceAgeLabel}',
-                  ),
-                  selected: activeId == g.id,
-                  onSelected: (_) => onSelect(g.id),
+      child: PopupMenuButton<String>(
+        position: PopupMenuPosition.under,
+        initialValue: activeId,
+        onSelected: onSelect,
+        itemBuilder: (_) => [
+          for (final g in groups)
+            PopupMenuItem(
+              value: g.id,
+              child: Text(_labelFor(g)),
+            ),
+        ],
+        // Inline "Group: <name> · <age> ▾" affordance. Border +
+        // outlineVariant matches the rest of the surface tier so it
+        // feels like a control, not a free-floating button.
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
+          ),
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: cs.outlineVariant,
+              width: 0.5,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.group_outlined,
+                size: 18,
+                color: cs.onSurfaceVariant,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  _labelFor(active),
+                  style: theme.textTheme.bodyMedium,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-          ],
+              Icon(
+                Icons.unfold_more,
+                size: 18,
+                color: cs.onSurfaceVariant,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _MonthToolbar extends StatelessWidget {
-  const _MonthToolbar({
-    required this.label,
-    required this.onPrev,
-    required this.onNext,
-    required this.onReset,
-  });
-
-  final String label;
-  final VoidCallback onPrev;
-  final VoidCallback onNext;
-  final VoidCallback onReset;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: theme.colorScheme.surfaceContainerLow,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.sm,
-        ),
-        child: Row(
-          children: [
-            IconButton(
-              tooltip: 'Previous month',
-              icon: const Icon(Icons.chevron_left),
-              onPressed: onPrev,
-            ),
-            Expanded(
-              child: Center(
-                child: TextButton(
-                  onPressed: onReset,
-                  child: Text(
-                    label,
-                    style: theme.textTheme.titleMedium,
-                  ),
-                ),
-              ),
-            ),
-            IconButton(
-              tooltip: 'Next month',
-              icon: const Icon(Icons.chevron_right),
-              onPressed: onNext,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Day-of-week header row — sized to match the body's column shape
-/// so labels align with their respective cells regardless of where
-/// the horizontal scroll lands. Side rail uses a fixed width
-/// (matches the body's `SizedBox(width: minSideRailWidth)`); each
-/// day uses a plain `Expanded` (matches the body's `Expanded`
-/// stretching above the 160dp floor).
 class _GridHeaderRow extends StatelessWidget {
   const _GridHeaderRow({required this.sideWidth});
 
@@ -1246,12 +1245,43 @@ class _DayCellState extends State<_DayCell> {
     // Edit state flipped on → grab focus on the title field. If the
     // variant already had content, keep the controllers' values
     // (they survive across rebuilds because they're State-level
-    // fields).
+    // fields). Also scroll the cell into view so the keyboard
+    // doesn't cover it on mobile — a cell deep in a 6-week month
+    // could otherwise be entirely behind the keyboard the moment
+    // focus lands.
     if (widget.isEditing && !old.isEditing) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _titleFocus.requestFocus();
+        if (!mounted) return;
+        _titleFocus.requestFocus();
+        unawaited(_scrollIntoView());
       });
     }
+  }
+
+  Future<void> _scrollIntoView() async {
+    if (!mounted) return;
+    // Scrollable.ensureVisible walks the parent chain and scrolls
+    // each ancestor scrollable so that this widget is visible.
+    // alignment 0.3 puts the cell roughly a third of the way down
+    // the viewport — leaves room above for the toolbar/header and
+    // pulls the cell well clear of the keyboard below.
+    await Scrollable.ensureVisible(
+      context,
+      alignment: 0.3,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+    );
+    // Keyboard typically animates in over ~250ms — re-ensure once
+    // it's up, since the viewport just shrunk and our cell may
+    // have been pushed under it.
+    await Future<void>.delayed(const Duration(milliseconds: 320));
+    if (!mounted) return;
+    await Scrollable.ensureVisible(
+      context,
+      alignment: 0.3,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   @override
@@ -2255,43 +2285,44 @@ class _MonthlyThemeBarState extends State<_MonthlyThemeBar> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _ctrl,
-                  onChanged: widget.onChanged,
-                  textInputAction: TextInputAction.done,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    prefixIcon: Icon(
-                      Icons.workspace_premium_outlined,
-                      size: 18,
-                      color: theme.colorScheme.primary,
-                    ),
-                    labelText: 'Monthly theme',
-                    hintText: "e.g. Nature, Mother's Day, Growing things",
-                  ),
-                ),
+          // Suggest button moved INTO the TextField as a suffixIcon —
+          // a beside-the-field button on its own row was too much
+          // chrome on mobile (eaten ~50dp). Visible only when the
+          // field is empty (gives the user a quick "give me ideas"
+          // affordance without sitting on top of typed input).
+          TextField(
+            controller: _ctrl,
+            onChanged: widget.onChanged,
+            textInputAction: TextInputAction.done,
+            decoration: InputDecoration(
+              isDense: true,
+              prefixIcon: Icon(
+                Icons.workspace_premium_outlined,
+                size: 18,
+                color: theme.colorScheme.primary,
               ),
-              const SizedBox(width: AppSpacing.sm),
-              // ✨ Suggest button — visible when the field is empty.
-              // Asks the model for typical themes for the visible
-              // month so a teacher staring at a blank field has
-              // somewhere to start.
-              if (widget.value.isEmpty)
-                FilledButton.tonalIcon(
-                  onPressed: _suggesting ? null : _suggest,
-                  icon: _suggesting
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.auto_awesome_outlined, size: 16),
-                  label: Text(_suggesting ? '…' : 'Suggest'),
-                ),
-            ],
+              labelText: 'Monthly theme',
+              hintText: "e.g. Nature, Mother's Day, Growing things",
+              helperText: 'Used as context when AI generates activities',
+              suffixIcon: widget.value.isEmpty
+                  ? IconButton(
+                      tooltip: 'Suggest themes for $monthLabel',
+                      onPressed: _suggesting ? null : _suggest,
+                      icon: _suggesting
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(
+                              Icons.auto_awesome_outlined,
+                              size: 18,
+                              color: theme.colorScheme.primary,
+                            ),
+                    )
+                  : null,
+            ),
           ),
           if (_suggestError != null) ...[
             const SizedBox(height: AppSpacing.xs),
