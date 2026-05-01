@@ -1227,6 +1227,15 @@ class _DestinationData {
       path: '/experiment',
       category: _DestCategory.lab,
     ),
+    // Monthly plan — Mon–Fri grid, one activity per cell. Trying out
+    // a "one big idea per day" model that's lighter than the week
+    // plan's hour-by-hour grid.
+    _DestinationData(
+      label: 'Monthly plan',
+      icon: Icons.calendar_view_month_outlined,
+      path: '/monthly-plan',
+      category: _DestCategory.lab,
+    ),
   ];
 }
 

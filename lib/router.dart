@@ -10,6 +10,7 @@ import 'package:basecamp/features/children/children_screen.dart';
 import 'package:basecamp/features/curriculum/curriculum_hub_screen.dart';
 import 'package:basecamp/features/curriculum/curriculum_screen.dart';
 import 'package:basecamp/features/experiment/experiment_screen.dart';
+import 'package:basecamp/features/experiment/monthly_plan_screen.dart';
 import 'package:basecamp/features/forms/forms_hub_screen.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/parent_concern.dart';
 import 'package:basecamp/features/forms/polymorphic/generic_form_list_screen.dart';
@@ -376,6 +377,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/experiment',
         builder: (_, _) => const ExperimentScreen(),
+      ),
+      // Monthly plan sandbox — Mon–Fri grid, one activity per cell,
+      // no time-of-day. Different mental model from the week plan;
+      // we're trying it out before deciding whether it graduates.
+      GoRoute(
+        path: '/monthly-plan',
+        builder: (_, _) => const MonthlyPlanScreen(),
       ),
       GoRoute(
         path: '/more/sequences',
