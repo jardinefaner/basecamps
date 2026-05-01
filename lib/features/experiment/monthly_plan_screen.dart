@@ -9,6 +9,7 @@ import 'package:basecamp/features/ai/ai_activity_composer.dart';
 import 'package:basecamp/features/ai/openai_client.dart';
 import 'package:basecamp/features/children/children_repository.dart'
     show groupsProvider;
+import 'package:basecamp/features/experiment/monthly_plan_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/adaptive_sheet.dart';
 import 'package:flutter/material.dart';
@@ -86,32 +87,20 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   /// stays in the calendar view through the round-trip.
   String? _generatingCellKey;
 
-  /// Sub-theme strings keyed by `weekMondayDayKey`. NOT group-scoped —
-  /// the sub-theme is a thematic label for the week as a whole and
-  /// shared across groups (a "Colors" week means colors for everyone).
-  /// If usage shows that's wrong, easy to scope per-group later.
-  final Map<String, String> _subThemes = {};
+  // Theme + sub-theme state moved to the cloud (v55, Slice 1).
+  // Reads go through monthlyThemeProvider / weeklySubThemeProvider
+  // (StreamProviderFamily — auto-updates when another teacher edits)
+  // and writes go through monthlyPlanRepository.setTheme /
+  // setSubTheme. The repo is composite-id keyed by program + period
+  // so two clients setting at the same time converge on the same
+  // row rather than racing into duplicates.
 
-  /// Monthly themes keyed by `"$year-$month"`. Each visible month
-  /// owns its own theme — flipping from April to May swaps in May's
-  /// theme (or empty if not yet set). Drives AI generation context
-  /// for cells in that month.
-  final Map<String, String> _monthlyThemes = {};
-
-  String _monthKey(DateTime d) => '${d.year}-${d.month}';
-  String get _activeMonthlyTheme =>
-      _monthlyThemes[_monthKey(_viewMonth)] ?? '';
-
-  void _setMonthlyTheme(String value) {
-    setState(() {
-      final key = _monthKey(_viewMonth);
-      if (value.trim().isEmpty) {
-        _monthlyThemes.remove(key);
-      } else {
-        _monthlyThemes[key] = value;
-      }
-    });
-  }
+  /// "yyyy-MM" — calendar key used as the second half of the
+  /// monthly_themes composite id, and as the family key on
+  /// `monthlyThemeProvider`. Zero-padded so it aligns with the
+  /// cloud column shape.
+  String _yearMonth(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}';
 
   // Per-group age range now lives on the Group row itself
   // (`audienceAgeLabel`) — no local state needed. Edit it from the
@@ -353,19 +342,21 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   /// some breathing room."
   Future<void> _openWeekDetails(List<DateTime> week) async {
     final mondayKey = _dayKey(week.first);
+    final repo = ref.read(monthlyPlanRepositoryProvider);
+    final initial =
+        ref.read(weeklySubThemeProvider(mondayKey)).asData?.value ?? '';
     await showAdaptiveSheet<void>(
       context: context,
       builder: (_) => _WeekDetailsSheet(
         weekRangeLabel: _weekRangeLabel(week),
-        initialSubTheme: _subThemes[mondayKey] ?? '',
+        initialSubTheme: initial,
         onSubThemeChanged: (v) {
-          setState(() {
-            if (v.isEmpty) {
-              _subThemes.remove(mondayKey);
-            } else {
-              _subThemes[mondayKey] = v;
-            }
-          });
+          // Per-keystroke write — the repo's setSubTheme upserts
+          // the (program, monday) row. The realtime channel
+          // propagates to other clients; locally Drift's stream
+          // re-emits and any cell watching this monday's
+          // sub-theme rebuilds with the new value.
+          unawaited(repo.setSubTheme(mondayDate: mondayKey, subTheme: v));
         },
         materials: _aggregateMaterialsForWeek(week),
       ),
@@ -400,11 +391,23 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
           );
     // Find the Monday of the date's week to look up the sub-theme.
     final monday = date.subtract(Duration(days: date.weekday - 1));
+    // Read the latest cached values straight off the providers
+    // (synchronous, doesn't subscribe — this is fine inside a
+    // one-shot prompt builder; the UI itself watches the same
+    // providers separately).
+    final monthlyTheme = ref
+        .read(monthlyThemeProvider(_yearMonth(date)))
+        .asData
+        ?.value;
+    final subTheme = ref
+        .read(weeklySubThemeProvider(_dayKey(monday)))
+        .asData
+        ?.value;
     return AiActivityContext(
-      monthlyTheme: _activeMonthlyTheme,
+      monthlyTheme: monthlyTheme ?? '',
       // Pulled straight off the Group row — single source of truth.
       ageRange: group?.audienceAgeLabel,
-      subTheme: _subThemes[_dayKey(monday)],
+      subTheme: subTheme,
       groupName: group?.name,
     );
   }
@@ -618,12 +621,29 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
           // Monthly theme — top-most input. Per-month, used as AI
           // generation context. The bar keys itself by month so
           // flipping months remounts cleanly with the right value
-          // and any in-flight suggestion chips reset.
-          _MonthlyThemeBar(
-            key: ValueKey(_monthKey(_viewMonth)),
-            month: _viewMonth,
-            value: _activeMonthlyTheme,
-            onChanged: _setMonthlyTheme,
+          // and any in-flight suggestion chips reset. Reads + writes
+          // go through monthlyPlanRepository (cloud-backed v55) so
+          // every member of the program sees the same theme
+          // without anyone "owning" it.
+          Consumer(
+            builder: (context, ref, _) {
+              final yearMonth = _yearMonth(_viewMonth);
+              final value =
+                  ref.watch(monthlyThemeProvider(yearMonth)).asData?.value ??
+                      '';
+              return _MonthlyThemeBar(
+                key: ValueKey(yearMonth),
+                month: _viewMonth,
+                value: value,
+                onChanged: (v) {
+                  unawaited(
+                    ref
+                        .read(monthlyPlanRepositoryProvider)
+                        .setTheme(yearMonth: yearMonth, theme: v),
+                  );
+                },
+              );
+            },
           ),
           // Group filter — required. Sits above the toolbar so it's
           // the first thing the user sees / picks.
@@ -755,26 +775,36 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                                   width: minSideRailWidth,
                                   child: Padding(
                                     padding: const EdgeInsets.all(2),
-                                    child: _WeekSidePanel(
-                                      weekMondayKey: _dayKey(week.first),
-                                      subTheme: _subThemes[
-                                              _dayKey(week.first)] ??
-                                          '',
-                                      onSubThemeChanged: (v) {
-                                        setState(() {
-                                          if (v.isEmpty) {
-                                            _subThemes.remove(
-                                                _dayKey(week.first));
-                                          } else {
-                                            _subThemes[_dayKey(week.first)] =
-                                                v;
-                                          }
-                                        });
+                                    child: Consumer(
+                                      builder: (context, ref, _) {
+                                        final mondayKey = _dayKey(week.first);
+                                        final subTheme = ref
+                                                .watch(
+                                                  weeklySubThemeProvider(
+                                                      mondayKey),
+                                                )
+                                                .asData
+                                                ?.value ??
+                                            '';
+                                        return _WeekSidePanel(
+                                          weekMondayKey: mondayKey,
+                                          subTheme: subTheme,
+                                          onSubThemeChanged: (v) {
+                                            unawaited(
+                                              ref
+                                                  .read(
+                                                      monthlyPlanRepositoryProvider)
+                                                  .setSubTheme(
+                                                    mondayDate: mondayKey,
+                                                    subTheme: v,
+                                                  ),
+                                            );
+                                          },
+                                          materials:
+                                              _aggregateMaterialsForWeek(week),
+                                          onTap: () => _openWeekDetails(week),
+                                        );
                                       },
-                                      materials: _aggregateMaterialsForWeek(
-                                        week,
-                                      ),
-                                      onTap: () => _openWeekDetails(week),
                                     ),
                                   ),
                                 ),

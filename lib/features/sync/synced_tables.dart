@@ -27,6 +27,11 @@ const List<String> kSyncedTableNames = <String>[
   'roles',
   'vehicles',
   'themes',
+  // v55 (Slice 1) — monthly plan persistence. Theme per
+  // (program, calendar month) and sub-theme per (program, ISO
+  // Monday). Activities follow in Slice 2.
+  'monthly_themes',
+  'weekly_subthemes',
   // Tier 2 — people + library
   'parents',
   'children',

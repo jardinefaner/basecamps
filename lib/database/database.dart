@@ -65,6 +65,8 @@ QueryExecutor _openConnection() {
     ProgramMembers,
     SyncState,
     MediaCache,
+    MonthlyThemes,
+    WeeklySubThemes,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -73,7 +75,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 54;
+  int get schemaVersion => 55;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -104,6 +106,7 @@ class AppDatabase extends _$AppDatabase {
           await _healV52QolColumns();
           await _healV53AudienceAgeColumn();
           await _healV54AuthUserIdColumn();
+          await _healV55MonthlyPlanTables();
         },
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
@@ -122,6 +125,17 @@ class AppDatabase extends _$AppDatabase {
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
             );
+          }
+          if (from < 55) {
+            // v55: monthly plan persistence (Slice 1). Two new
+            // tables: monthly_themes (one row per program/month)
+            // and weekly_subthemes (one row per program/Monday).
+            // Cloud parity: migration 0032. The schema-heal below
+            // (`_healV55MonthlyPlanTables`) defends against
+            // partial-upgrade states by re-running CREATE TABLE
+            // IF NOT EXISTS on every launch.
+            await m.createTable(monthlyThemes);
+            await m.createTable(weeklySubThemes);
           }
           if (from < 54) {
             // v54: adults.auth_user_id — identity binding. The
@@ -1506,6 +1520,39 @@ class AppDatabase extends _$AppDatabase {
   Future<void> _healV54AuthUserIdColumn() async {
     await _runSilent(
       'ALTER TABLE "adults" ADD COLUMN "auth_user_id" TEXT NULL',
+    );
+  }
+
+  /// v55 schema heal. Re-creates the monthly_themes + weekly_subthemes
+  /// tables on every launch as a safety net against partial upgrades
+  /// (web IndexedDB closed mid-migration, native app force-killed
+  /// during launch). CREATE TABLE IF NOT EXISTS is a no-op when the
+  /// tables already exist; if they're missing — or if a partial
+  /// upgrade left them only half-formed — this brings them up to
+  /// the full v55 shape so subsequent inserts don't blow up with
+  /// "no such table" errors.
+  Future<void> _healV55MonthlyPlanTables() async {
+    await _runSilent(
+      'CREATE TABLE IF NOT EXISTS "monthly_themes" '
+      '("id" TEXT NOT NULL, '
+      '"program_id" TEXT NULL, '
+      '"year_month" TEXT NOT NULL, '
+      '"theme" TEXT NULL, '
+      '"created_at" INTEGER NOT NULL, '
+      '"updated_at" INTEGER NOT NULL, '
+      '"deleted_at" INTEGER NULL, '
+      'PRIMARY KEY ("id"))',
+    );
+    await _runSilent(
+      'CREATE TABLE IF NOT EXISTS "weekly_subthemes" '
+      '("id" TEXT NOT NULL, '
+      '"program_id" TEXT NULL, '
+      '"monday_date" TEXT NOT NULL, '
+      '"sub_theme" TEXT NULL, '
+      '"created_at" INTEGER NOT NULL, '
+      '"updated_at" INTEGER NOT NULL, '
+      '"deleted_at" INTEGER NULL, '
+      'PRIMARY KEY ("id"))',
     );
   }
 

@@ -1603,3 +1603,59 @@ class MediaCache extends Table {
   @override
   String? get tableName => 'media_cache';
 }
+
+/// v55: monthly plan persistence — themes per (program, month).
+///
+/// One row per (program_id, year_month). The id is composed
+/// deterministically as `${program}|${yyyy-mm}` so any client can
+/// upsert without round-tripping through a generated id (and without
+/// racing two clients on first-set).
+///
+/// `yearMonth` is "yyyy-MM" — calendar-only, no timezone semantics.
+/// Storing as text rather than DateTime avoids the "what time is it
+/// for May 2026" question that the DateTime column would force.
+@DataClassName('MonthlyTheme')
+class MonthlyThemes extends Table {
+  TextColumn get id => text()();
+  TextColumn get programId => text().nullable()();
+  TextColumn get yearMonth => text()();
+  TextColumn get theme => text().nullable()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  String? get tableName => 'monthly_themes';
+}
+
+/// v55: weekly sub-theme — one row per (program, ISO Monday).
+///
+/// The monthly plan groups days into weeks at the Monday boundary;
+/// the per-week sub-theme is keyed off Monday's date in "yyyy-MM-dd".
+/// Like MonthlyThemes, the id is `${program}|${yyyy-MM-dd}` for
+/// deterministic upsert.
+@DataClassName('WeeklySubTheme')
+class WeeklySubThemes extends Table {
+  TextColumn get id => text()();
+  TextColumn get programId => text().nullable()();
+  TextColumn get mondayDate => text()();
+  TextColumn get subTheme => text().nullable()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  String? get tableName => 'weekly_subthemes';
+}

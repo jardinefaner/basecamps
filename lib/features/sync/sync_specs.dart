@@ -141,6 +141,22 @@ const themesSpec = TableSpec(
   dateColumns: {'start_date', 'end_date', 'created_at', 'updated_at'},
 );
 
+/// v55 (Slice 1) — monthly plan theme per (program, calendar month).
+/// `year_month` is "yyyy-MM" text (calendar-only, no timezone), so
+/// it doesn't appear in `dateColumns`. Just the audit timestamps.
+const monthlyThemesSpec = TableSpec(
+  table: 'monthly_themes',
+  dateColumns: {'created_at', 'updated_at'},
+);
+
+/// v55 (Slice 1) — weekly sub-theme per (program, ISO Monday). Same
+/// reasoning as [monthlyThemesSpec]: `monday_date` is calendar text,
+/// not a timezone-aware instant.
+const weeklySubThemesSpec = TableSpec(
+  table: 'weekly_subthemes',
+  dateColumns: {'created_at', 'updated_at'},
+);
+
 const scheduleTemplatesSpec = TableSpec(
   table: 'schedule_templates',
   dateColumns: {'start_date', 'end_date', 'created_at', 'updated_at'},
@@ -205,6 +221,8 @@ const List<List<TableSpec>> kSpecTiers = [
     rolesSpec,
     vehiclesSpec,
     themesSpec,
+    monthlyThemesSpec,
+    weeklySubThemesSpec,
   ],
   // Tier 2 — references tier-1 entities. Rooms moved here from
   // tier 1 because of its `default_for_group_id` FK to groups —

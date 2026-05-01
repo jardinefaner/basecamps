@@ -22069,6 +22069,932 @@ class MediaCacheCompanion extends UpdateCompanion<MediaCacheData> {
   }
 }
 
+class $MonthlyThemesTable extends MonthlyThemes
+    with TableInfo<$MonthlyThemesTable, MonthlyTheme> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MonthlyThemesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _programIdMeta = const VerificationMeta(
+    'programId',
+  );
+  @override
+  late final GeneratedColumn<String> programId = GeneratedColumn<String>(
+    'program_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _yearMonthMeta = const VerificationMeta(
+    'yearMonth',
+  );
+  @override
+  late final GeneratedColumn<String> yearMonth = GeneratedColumn<String>(
+    'year_month',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _themeMeta = const VerificationMeta('theme');
+  @override
+  late final GeneratedColumn<String> theme = GeneratedColumn<String>(
+    'theme',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    programId,
+    yearMonth,
+    theme,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'monthly_themes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<MonthlyTheme> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('program_id')) {
+      context.handle(
+        _programIdMeta,
+        programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
+      );
+    }
+    if (data.containsKey('year_month')) {
+      context.handle(
+        _yearMonthMeta,
+        yearMonth.isAcceptableOrUnknown(data['year_month']!, _yearMonthMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_yearMonthMeta);
+    }
+    if (data.containsKey('theme')) {
+      context.handle(
+        _themeMeta,
+        theme.isAcceptableOrUnknown(data['theme']!, _themeMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MonthlyTheme map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MonthlyTheme(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      programId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}program_id'],
+      ),
+      yearMonth: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}year_month'],
+      )!,
+      theme: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}theme'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $MonthlyThemesTable createAlias(String alias) {
+    return $MonthlyThemesTable(attachedDatabase, alias);
+  }
+}
+
+class MonthlyTheme extends DataClass implements Insertable<MonthlyTheme> {
+  final String id;
+  final String? programId;
+  final String yearMonth;
+  final String? theme;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  const MonthlyTheme({
+    required this.id,
+    this.programId,
+    required this.yearMonth,
+    this.theme,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || programId != null) {
+      map['program_id'] = Variable<String>(programId);
+    }
+    map['year_month'] = Variable<String>(yearMonth);
+    if (!nullToAbsent || theme != null) {
+      map['theme'] = Variable<String>(theme);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  MonthlyThemesCompanion toCompanion(bool nullToAbsent) {
+    return MonthlyThemesCompanion(
+      id: Value(id),
+      programId: programId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(programId),
+      yearMonth: Value(yearMonth),
+      theme: theme == null && nullToAbsent
+          ? const Value.absent()
+          : Value(theme),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory MonthlyTheme.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MonthlyTheme(
+      id: serializer.fromJson<String>(json['id']),
+      programId: serializer.fromJson<String?>(json['programId']),
+      yearMonth: serializer.fromJson<String>(json['yearMonth']),
+      theme: serializer.fromJson<String?>(json['theme']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'programId': serializer.toJson<String?>(programId),
+      'yearMonth': serializer.toJson<String>(yearMonth),
+      'theme': serializer.toJson<String?>(theme),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  MonthlyTheme copyWith({
+    String? id,
+    Value<String?> programId = const Value.absent(),
+    String? yearMonth,
+    Value<String?> theme = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => MonthlyTheme(
+    id: id ?? this.id,
+    programId: programId.present ? programId.value : this.programId,
+    yearMonth: yearMonth ?? this.yearMonth,
+    theme: theme.present ? theme.value : this.theme,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  MonthlyTheme copyWithCompanion(MonthlyThemesCompanion data) {
+    return MonthlyTheme(
+      id: data.id.present ? data.id.value : this.id,
+      programId: data.programId.present ? data.programId.value : this.programId,
+      yearMonth: data.yearMonth.present ? data.yearMonth.value : this.yearMonth,
+      theme: data.theme.present ? data.theme.value : this.theme,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MonthlyTheme(')
+          ..write('id: $id, ')
+          ..write('programId: $programId, ')
+          ..write('yearMonth: $yearMonth, ')
+          ..write('theme: $theme, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    programId,
+    yearMonth,
+    theme,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MonthlyTheme &&
+          other.id == this.id &&
+          other.programId == this.programId &&
+          other.yearMonth == this.yearMonth &&
+          other.theme == this.theme &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class MonthlyThemesCompanion extends UpdateCompanion<MonthlyTheme> {
+  final Value<String> id;
+  final Value<String?> programId;
+  final Value<String> yearMonth;
+  final Value<String?> theme;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const MonthlyThemesCompanion({
+    this.id = const Value.absent(),
+    this.programId = const Value.absent(),
+    this.yearMonth = const Value.absent(),
+    this.theme = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MonthlyThemesCompanion.insert({
+    required String id,
+    this.programId = const Value.absent(),
+    required String yearMonth,
+    this.theme = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       yearMonth = Value(yearMonth);
+  static Insertable<MonthlyTheme> custom({
+    Expression<String>? id,
+    Expression<String>? programId,
+    Expression<String>? yearMonth,
+    Expression<String>? theme,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (programId != null) 'program_id': programId,
+      if (yearMonth != null) 'year_month': yearMonth,
+      if (theme != null) 'theme': theme,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MonthlyThemesCompanion copyWith({
+    Value<String>? id,
+    Value<String?>? programId,
+    Value<String>? yearMonth,
+    Value<String?>? theme,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return MonthlyThemesCompanion(
+      id: id ?? this.id,
+      programId: programId ?? this.programId,
+      yearMonth: yearMonth ?? this.yearMonth,
+      theme: theme ?? this.theme,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (programId.present) {
+      map['program_id'] = Variable<String>(programId.value);
+    }
+    if (yearMonth.present) {
+      map['year_month'] = Variable<String>(yearMonth.value);
+    }
+    if (theme.present) {
+      map['theme'] = Variable<String>(theme.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MonthlyThemesCompanion(')
+          ..write('id: $id, ')
+          ..write('programId: $programId, ')
+          ..write('yearMonth: $yearMonth, ')
+          ..write('theme: $theme, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $WeeklySubThemesTable extends WeeklySubThemes
+    with TableInfo<$WeeklySubThemesTable, WeeklySubTheme> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $WeeklySubThemesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _programIdMeta = const VerificationMeta(
+    'programId',
+  );
+  @override
+  late final GeneratedColumn<String> programId = GeneratedColumn<String>(
+    'program_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _mondayDateMeta = const VerificationMeta(
+    'mondayDate',
+  );
+  @override
+  late final GeneratedColumn<String> mondayDate = GeneratedColumn<String>(
+    'monday_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _subThemeMeta = const VerificationMeta(
+    'subTheme',
+  );
+  @override
+  late final GeneratedColumn<String> subTheme = GeneratedColumn<String>(
+    'sub_theme',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    programId,
+    mondayDate,
+    subTheme,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'weekly_subthemes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<WeeklySubTheme> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('program_id')) {
+      context.handle(
+        _programIdMeta,
+        programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
+      );
+    }
+    if (data.containsKey('monday_date')) {
+      context.handle(
+        _mondayDateMeta,
+        mondayDate.isAcceptableOrUnknown(data['monday_date']!, _mondayDateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_mondayDateMeta);
+    }
+    if (data.containsKey('sub_theme')) {
+      context.handle(
+        _subThemeMeta,
+        subTheme.isAcceptableOrUnknown(data['sub_theme']!, _subThemeMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  WeeklySubTheme map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return WeeklySubTheme(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      programId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}program_id'],
+      ),
+      mondayDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}monday_date'],
+      )!,
+      subTheme: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sub_theme'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $WeeklySubThemesTable createAlias(String alias) {
+    return $WeeklySubThemesTable(attachedDatabase, alias);
+  }
+}
+
+class WeeklySubTheme extends DataClass implements Insertable<WeeklySubTheme> {
+  final String id;
+  final String? programId;
+  final String mondayDate;
+  final String? subTheme;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  const WeeklySubTheme({
+    required this.id,
+    this.programId,
+    required this.mondayDate,
+    this.subTheme,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || programId != null) {
+      map['program_id'] = Variable<String>(programId);
+    }
+    map['monday_date'] = Variable<String>(mondayDate);
+    if (!nullToAbsent || subTheme != null) {
+      map['sub_theme'] = Variable<String>(subTheme);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  WeeklySubThemesCompanion toCompanion(bool nullToAbsent) {
+    return WeeklySubThemesCompanion(
+      id: Value(id),
+      programId: programId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(programId),
+      mondayDate: Value(mondayDate),
+      subTheme: subTheme == null && nullToAbsent
+          ? const Value.absent()
+          : Value(subTheme),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory WeeklySubTheme.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return WeeklySubTheme(
+      id: serializer.fromJson<String>(json['id']),
+      programId: serializer.fromJson<String?>(json['programId']),
+      mondayDate: serializer.fromJson<String>(json['mondayDate']),
+      subTheme: serializer.fromJson<String?>(json['subTheme']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'programId': serializer.toJson<String?>(programId),
+      'mondayDate': serializer.toJson<String>(mondayDate),
+      'subTheme': serializer.toJson<String?>(subTheme),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  WeeklySubTheme copyWith({
+    String? id,
+    Value<String?> programId = const Value.absent(),
+    String? mondayDate,
+    Value<String?> subTheme = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => WeeklySubTheme(
+    id: id ?? this.id,
+    programId: programId.present ? programId.value : this.programId,
+    mondayDate: mondayDate ?? this.mondayDate,
+    subTheme: subTheme.present ? subTheme.value : this.subTheme,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  WeeklySubTheme copyWithCompanion(WeeklySubThemesCompanion data) {
+    return WeeklySubTheme(
+      id: data.id.present ? data.id.value : this.id,
+      programId: data.programId.present ? data.programId.value : this.programId,
+      mondayDate: data.mondayDate.present
+          ? data.mondayDate.value
+          : this.mondayDate,
+      subTheme: data.subTheme.present ? data.subTheme.value : this.subTheme,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WeeklySubTheme(')
+          ..write('id: $id, ')
+          ..write('programId: $programId, ')
+          ..write('mondayDate: $mondayDate, ')
+          ..write('subTheme: $subTheme, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    programId,
+    mondayDate,
+    subTheme,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is WeeklySubTheme &&
+          other.id == this.id &&
+          other.programId == this.programId &&
+          other.mondayDate == this.mondayDate &&
+          other.subTheme == this.subTheme &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class WeeklySubThemesCompanion extends UpdateCompanion<WeeklySubTheme> {
+  final Value<String> id;
+  final Value<String?> programId;
+  final Value<String> mondayDate;
+  final Value<String?> subTheme;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const WeeklySubThemesCompanion({
+    this.id = const Value.absent(),
+    this.programId = const Value.absent(),
+    this.mondayDate = const Value.absent(),
+    this.subTheme = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  WeeklySubThemesCompanion.insert({
+    required String id,
+    this.programId = const Value.absent(),
+    required String mondayDate,
+    this.subTheme = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       mondayDate = Value(mondayDate);
+  static Insertable<WeeklySubTheme> custom({
+    Expression<String>? id,
+    Expression<String>? programId,
+    Expression<String>? mondayDate,
+    Expression<String>? subTheme,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (programId != null) 'program_id': programId,
+      if (mondayDate != null) 'monday_date': mondayDate,
+      if (subTheme != null) 'sub_theme': subTheme,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  WeeklySubThemesCompanion copyWith({
+    Value<String>? id,
+    Value<String?>? programId,
+    Value<String>? mondayDate,
+    Value<String?>? subTheme,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return WeeklySubThemesCompanion(
+      id: id ?? this.id,
+      programId: programId ?? this.programId,
+      mondayDate: mondayDate ?? this.mondayDate,
+      subTheme: subTheme ?? this.subTheme,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (programId.present) {
+      map['program_id'] = Variable<String>(programId.value);
+    }
+    if (mondayDate.present) {
+      map['monday_date'] = Variable<String>(mondayDate.value);
+    }
+    if (subTheme.present) {
+      map['sub_theme'] = Variable<String>(subTheme.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WeeklySubThemesCompanion(')
+          ..write('id: $id, ')
+          ..write('programId: $programId, ')
+          ..write('mondayDate: $mondayDate, ')
+          ..write('subTheme: $subTheme, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -22131,6 +23057,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ProgramMembersTable programMembers = $ProgramMembersTable(this);
   late final $SyncStateTable syncState = $SyncStateTable(this);
   late final $MediaCacheTable mediaCache = $MediaCacheTable(this);
+  late final $MonthlyThemesTable monthlyThemes = $MonthlyThemesTable(this);
+  late final $WeeklySubThemesTable weeklySubThemes = $WeeklySubThemesTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -22173,6 +23103,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     programMembers,
     syncState,
     mediaCache,
+    monthlyThemes,
+    weeklySubThemes,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -44727,6 +45659,490 @@ typedef $$MediaCacheTableProcessedTableManager =
       MediaCacheData,
       PrefetchHooks Function()
     >;
+typedef $$MonthlyThemesTableCreateCompanionBuilder =
+    MonthlyThemesCompanion Function({
+      required String id,
+      Value<String?> programId,
+      required String yearMonth,
+      Value<String?> theme,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$MonthlyThemesTableUpdateCompanionBuilder =
+    MonthlyThemesCompanion Function({
+      Value<String> id,
+      Value<String?> programId,
+      Value<String> yearMonth,
+      Value<String?> theme,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$MonthlyThemesTableFilterComposer
+    extends Composer<_$AppDatabase, $MonthlyThemesTable> {
+  $$MonthlyThemesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get programId => $composableBuilder(
+    column: $table.programId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get yearMonth => $composableBuilder(
+    column: $table.yearMonth,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get theme => $composableBuilder(
+    column: $table.theme,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$MonthlyThemesTableOrderingComposer
+    extends Composer<_$AppDatabase, $MonthlyThemesTable> {
+  $$MonthlyThemesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get programId => $composableBuilder(
+    column: $table.programId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get yearMonth => $composableBuilder(
+    column: $table.yearMonth,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get theme => $composableBuilder(
+    column: $table.theme,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$MonthlyThemesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MonthlyThemesTable> {
+  $$MonthlyThemesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get programId =>
+      $composableBuilder(column: $table.programId, builder: (column) => column);
+
+  GeneratedColumn<String> get yearMonth =>
+      $composableBuilder(column: $table.yearMonth, builder: (column) => column);
+
+  GeneratedColumn<String> get theme =>
+      $composableBuilder(column: $table.theme, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$MonthlyThemesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $MonthlyThemesTable,
+          MonthlyTheme,
+          $$MonthlyThemesTableFilterComposer,
+          $$MonthlyThemesTableOrderingComposer,
+          $$MonthlyThemesTableAnnotationComposer,
+          $$MonthlyThemesTableCreateCompanionBuilder,
+          $$MonthlyThemesTableUpdateCompanionBuilder,
+          (
+            MonthlyTheme,
+            BaseReferences<_$AppDatabase, $MonthlyThemesTable, MonthlyTheme>,
+          ),
+          MonthlyTheme,
+          PrefetchHooks Function()
+        > {
+  $$MonthlyThemesTableTableManager(_$AppDatabase db, $MonthlyThemesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MonthlyThemesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MonthlyThemesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MonthlyThemesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String?> programId = const Value.absent(),
+                Value<String> yearMonth = const Value.absent(),
+                Value<String?> theme = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => MonthlyThemesCompanion(
+                id: id,
+                programId: programId,
+                yearMonth: yearMonth,
+                theme: theme,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String?> programId = const Value.absent(),
+                required String yearMonth,
+                Value<String?> theme = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => MonthlyThemesCompanion.insert(
+                id: id,
+                programId: programId,
+                yearMonth: yearMonth,
+                theme: theme,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$MonthlyThemesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $MonthlyThemesTable,
+      MonthlyTheme,
+      $$MonthlyThemesTableFilterComposer,
+      $$MonthlyThemesTableOrderingComposer,
+      $$MonthlyThemesTableAnnotationComposer,
+      $$MonthlyThemesTableCreateCompanionBuilder,
+      $$MonthlyThemesTableUpdateCompanionBuilder,
+      (
+        MonthlyTheme,
+        BaseReferences<_$AppDatabase, $MonthlyThemesTable, MonthlyTheme>,
+      ),
+      MonthlyTheme,
+      PrefetchHooks Function()
+    >;
+typedef $$WeeklySubThemesTableCreateCompanionBuilder =
+    WeeklySubThemesCompanion Function({
+      required String id,
+      Value<String?> programId,
+      required String mondayDate,
+      Value<String?> subTheme,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$WeeklySubThemesTableUpdateCompanionBuilder =
+    WeeklySubThemesCompanion Function({
+      Value<String> id,
+      Value<String?> programId,
+      Value<String> mondayDate,
+      Value<String?> subTheme,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$WeeklySubThemesTableFilterComposer
+    extends Composer<_$AppDatabase, $WeeklySubThemesTable> {
+  $$WeeklySubThemesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get programId => $composableBuilder(
+    column: $table.programId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mondayDate => $composableBuilder(
+    column: $table.mondayDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get subTheme => $composableBuilder(
+    column: $table.subTheme,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$WeeklySubThemesTableOrderingComposer
+    extends Composer<_$AppDatabase, $WeeklySubThemesTable> {
+  $$WeeklySubThemesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get programId => $composableBuilder(
+    column: $table.programId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mondayDate => $composableBuilder(
+    column: $table.mondayDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get subTheme => $composableBuilder(
+    column: $table.subTheme,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$WeeklySubThemesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $WeeklySubThemesTable> {
+  $$WeeklySubThemesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get programId =>
+      $composableBuilder(column: $table.programId, builder: (column) => column);
+
+  GeneratedColumn<String> get mondayDate => $composableBuilder(
+    column: $table.mondayDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get subTheme =>
+      $composableBuilder(column: $table.subTheme, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$WeeklySubThemesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $WeeklySubThemesTable,
+          WeeklySubTheme,
+          $$WeeklySubThemesTableFilterComposer,
+          $$WeeklySubThemesTableOrderingComposer,
+          $$WeeklySubThemesTableAnnotationComposer,
+          $$WeeklySubThemesTableCreateCompanionBuilder,
+          $$WeeklySubThemesTableUpdateCompanionBuilder,
+          (
+            WeeklySubTheme,
+            BaseReferences<
+              _$AppDatabase,
+              $WeeklySubThemesTable,
+              WeeklySubTheme
+            >,
+          ),
+          WeeklySubTheme,
+          PrefetchHooks Function()
+        > {
+  $$WeeklySubThemesTableTableManager(
+    _$AppDatabase db,
+    $WeeklySubThemesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$WeeklySubThemesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$WeeklySubThemesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$WeeklySubThemesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String?> programId = const Value.absent(),
+                Value<String> mondayDate = const Value.absent(),
+                Value<String?> subTheme = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => WeeklySubThemesCompanion(
+                id: id,
+                programId: programId,
+                mondayDate: mondayDate,
+                subTheme: subTheme,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String?> programId = const Value.absent(),
+                required String mondayDate,
+                Value<String?> subTheme = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => WeeklySubThemesCompanion.insert(
+                id: id,
+                programId: programId,
+                mondayDate: mondayDate,
+                subTheme: subTheme,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$WeeklySubThemesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $WeeklySubThemesTable,
+      WeeklySubTheme,
+      $$WeeklySubThemesTableFilterComposer,
+      $$WeeklySubThemesTableOrderingComposer,
+      $$WeeklySubThemesTableAnnotationComposer,
+      $$WeeklySubThemesTableCreateCompanionBuilder,
+      $$WeeklySubThemesTableUpdateCompanionBuilder,
+      (
+        WeeklySubTheme,
+        BaseReferences<_$AppDatabase, $WeeklySubThemesTable, WeeklySubTheme>,
+      ),
+      WeeklySubTheme,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -44817,4 +46233,8 @@ class $AppDatabaseManager {
       $$SyncStateTableTableManager(_db, _db.syncState);
   $$MediaCacheTableTableManager get mediaCache =>
       $$MediaCacheTableTableManager(_db, _db.mediaCache);
+  $$MonthlyThemesTableTableManager get monthlyThemes =>
+      $$MonthlyThemesTableTableManager(_db, _db.monthlyThemes);
+  $$WeeklySubThemesTableTableManager get weeklySubThemes =>
+      $$WeeklySubThemesTableTableManager(_db, _db.weeklySubThemes);
 }
