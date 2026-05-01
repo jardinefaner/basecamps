@@ -1069,7 +1069,6 @@ class _SlotActionIcons extends StatelessWidget {
         children: [
           _SlotIconButton(
             icon: Icons.add,
-            tooltip: 'New activity',
             onTap: onManual,
             background: theme.colorScheme.surface,
             foreground: theme.colorScheme.onSurface,
@@ -1078,7 +1077,6 @@ class _SlotActionIcons extends StatelessWidget {
           const SizedBox(width: 4),
           _SlotIconButton(
             icon: Icons.auto_awesome_outlined,
-            tooltip: 'AI activity',
             onTap: onAi,
             // Tinted so the AI option reads as a distinct affordance
             // — the manual + is grey-on-surface, the AI ✨ is
@@ -1097,7 +1095,6 @@ class _SlotActionIcons extends StatelessWidget {
 class _SlotIconButton extends StatelessWidget {
   const _SlotIconButton({
     required this.icon,
-    required this.tooltip,
     required this.onTap,
     required this.background,
     required this.foreground,
@@ -1105,7 +1102,6 @@ class _SlotIconButton extends StatelessWidget {
   });
 
   final IconData icon;
-  final String tooltip;
   final VoidCallback onTap;
   final Color background;
   final Color foreground;
@@ -1115,24 +1111,27 @@ class _SlotIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: background,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(_size / 2),
-          side: BorderSide(color: borderColor, width: 0.5),
-        ),
-        child: InkWell(
-          // BorderRadius matches the Material so the hover splash
-          // doesn't bleed past the circle.
-          borderRadius: BorderRadius.circular(_size / 2),
-          onTap: onTap,
-          child: SizedBox(
-            width: _size,
-            height: _size,
-            child: Icon(icon, size: 16, color: foreground),
-          ),
+    // No Tooltip — the icons only appear when the user is already
+    // hovering an empty slot, so the icon glyph itself is the
+    // discovery surface. Adding a Tooltip here also stacks a third
+    // hover-triggered widget (column body MouseRegion + InkWell
+    // hover splash + Tooltip overlay) which is exactly the
+    // arrangement that flickers on Flutter web.
+    return Material(
+      color: background,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(_size / 2),
+        side: BorderSide(color: borderColor, width: 0.5),
+      ),
+      child: InkWell(
+        // BorderRadius matches the Material so the hover splash
+        // doesn't bleed past the circle.
+        borderRadius: BorderRadius.circular(_size / 2),
+        onTap: onTap,
+        child: SizedBox(
+          width: _size,
+          height: _size,
+          child: Icon(icon, size: 16, color: foreground),
         ),
       ),
     );

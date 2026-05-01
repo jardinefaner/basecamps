@@ -190,32 +190,49 @@ class _ExperimentScreenState extends State<ExperimentScreen> {
           ),
         ],
       ),
-      body: _drafts.isEmpty
-          ? const SizedBox.expand()
-          : ListView.builder(
-              // Bottom inset clears the FAB (56 dp) + its 16 dp margin
-              // + a comfortable 24 dp breathing room. Without this the
-              // last card sits behind the FAB on a full list.
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                AppSpacing.lg,
-                AppSpacing.lg,
-                96,
+      // Tap-anywhere-outside-a-card dismisses edit mode (and cancels
+      // pick mode). Notion / Apple Notes / most doc-feel editors
+      // exit when the user taps "outside the document," so we match
+      // that. Inner card GestureDetectors win the gesture arena
+      // because they're nested deeper — tapping a card still routes
+      // to _onCardTap, never to this outer handler.
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          if (_isEditing) {
+            _doneEditing();
+          } else if (_pickForAdvanced) {
+            _togglePickMode();
+          }
+        },
+        child: _drafts.isEmpty
+            ? const SizedBox.expand()
+            : ListView.builder(
+                // Bottom inset clears the FAB (56 dp) + its 16 dp
+                // margin + a comfortable 24 dp breathing room.
+                // Without this the last card sits behind the FAB on
+                // a full list.
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                  96,
+                ),
+                itemCount: _drafts.length,
+                itemBuilder: (_, i) {
+                  final draft = _drafts[i];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                    child: _ActivityDraftCard(
+                      key: ValueKey(draft),
+                      draft: draft,
+                      isEditing: _editingDraft == draft,
+                      onTap: () => _onCardTap(draft),
+                    ),
+                  );
+                },
               ),
-              itemCount: _drafts.length,
-              itemBuilder: (_, i) {
-                final draft = _drafts[i];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                  child: _ActivityDraftCard(
-                    key: ValueKey(draft),
-                    draft: draft,
-                    isEditing: _editingDraft == draft,
-                    onTap: () => _onCardTap(draft),
-                  ),
-                );
-              },
-            ),
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _isEditing ? _doneEditing : _showAddMenu,
         tooltip: _isEditing ? 'Done' : 'Add activity',

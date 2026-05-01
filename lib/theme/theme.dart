@@ -46,6 +46,16 @@ ThemeData _buildTheme(ColorScheme colorScheme) {
       color: colorScheme.surfaceContainer,
       margin: EdgeInsets.zero,
     ),
+    // 600ms wait before tooltips appear, app-wide. Workaround for
+    // Flutter web's Tooltip jitter — when the cursor moves through
+    // a row of IconButtons with default-zero waitDuration, each
+    // tooltip flashes in/out as the pointer crosses the boundary,
+    // which reads as flicker. A short delay lets the cursor settle
+    // before any tooltip materialises and quick hovers don't
+    // trigger anything at all.
+    tooltipTheme: const TooltipThemeData(
+      waitDuration: Duration(milliseconds: 600),
+    ),
     navigationBarTheme: NavigationBarThemeData(
       elevation: 0,
       backgroundColor: colorScheme.surface,
