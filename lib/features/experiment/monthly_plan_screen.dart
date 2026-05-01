@@ -1119,10 +1119,13 @@ class _WeekSidePanelState extends State<_WeekSidePanel> {
 }
 
 /// Two-column bulleted layout for the side rail's supplies list.
-/// First half of [items] fills the left column top-to-bottom; the
-/// rest fills the right. Halves the vertical footprint of a long
-/// list (which would otherwise push the whole week row taller via
-/// the IntrinsicHeight on the parent Row).
+/// **Column-major** fill — the left column fills top-to-bottom
+/// first; once it's exhausted, items spill into the right column.
+/// That matches how a printed list reads (newspaper-style) and
+/// keeps the most important supplies in the leftmost column.
+///
+/// No truncation — full text wraps to multiple lines if needed,
+/// matches the user's "all texts visible" rule for the calendar.
 class _SuppliesTwoColumns extends StatelessWidget {
   const _SuppliesTwoColumns({required this.items});
 
@@ -1131,8 +1134,9 @@ class _SuppliesTwoColumns extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // Round up — for an odd count, left column gets the extra so
-    // the columns visually balance from the top.
+    // Column-major split: left column gets ceil(N/2) items, right
+    // column gets the remaining floor(N/2). For odd counts the
+    // left column carries the extra (visual balance from the top).
     final mid = (items.length + 1) ~/ 2;
     final left = items.sublist(0, mid);
     final right = items.sublist(mid);
@@ -1147,8 +1151,9 @@ class _SuppliesTwoColumns extends StatelessWidget {
               child: Text(
                 '• $m',
                 style: theme.textTheme.bodySmall,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
+                // No maxLines / no ellipsis — long materials wrap
+                // and the cell grows to accommodate. Matches the
+                // monthly plan's "show all texts" rule.
               ),
             ),
         ],

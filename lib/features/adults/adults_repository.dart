@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/auth/auth_repository.dart'
+    show currentSessionProvider;
 import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/sync/media_service.dart';
@@ -67,6 +69,27 @@ class AdultsRepository {
   /// Stream a single adult so tiles/detail rebuild on edit.
   Stream<Adult?> watchAdult(String id) {
     return (_db.select(_db.adults)..where((s) => s.id.equals(id)))
+        .watchSingleOrNull();
+  }
+
+  /// Stream the Adult bound to the given Supabase auth user id,
+  /// scoped to the active program. Used by `currentAdultProvider`
+  /// to answer "who am I in this program?" — drives identity-aware
+  /// gating (lead-can-only-edit-anchored-group, etc.).
+  ///
+  /// Scoped by program because a user might hold an Adult row in
+  /// each program they're a member of; the active program decides
+  /// which one is "me right now." Returns null when:
+  ///   * no row matches (admin hasn't bound this user yet)
+  ///   * no active program is selected
+  Stream<Adult?> watchByAuthUserId(String authUserId) {
+    final programId = _programId;
+    if (programId == null) return Stream.value(null);
+    return (_db.select(_db.adults)
+          ..where((a) =>
+              a.authUserId.equals(authUserId) &
+              a.programId.equals(programId))
+          ..limit(1))
         .watchSingleOrNull();
   }
 
@@ -445,6 +468,29 @@ final adultsRepositoryProvider = Provider<AdultsRepository>((ref) {
 final adultsProvider = StreamProvider<List<Adult>>((ref) {
   ref.watch(activeProgramIdProvider);
   return ref.watch(adultsRepositoryProvider).watchAll();
+});
+
+/// Resolves "the signed-in user, but as an Adult." Streams the
+/// Adult row whose `authUserId` matches the current Supabase
+/// session's user id, scoped to the active program. Returns
+/// `AsyncData(null)` when:
+///   * no session (signed out)
+///   * the user's auth id isn't bound to any Adult in this program
+///     (admin needs to send/redeem an invite — see commit 3/4)
+///   * no active program selected
+///
+/// Drives identity-aware gating across the app — feature code uses
+/// it to ask "is the current user a Lead of this group?" rather
+/// than reaching for `auth.user` + a manual lookup at every
+/// callsite.
+final currentAdultProvider = StreamProvider<Adult?>((ref) {
+  ref.watch(activeProgramIdProvider);
+  final session = ref.watch(currentSessionProvider);
+  final userId = session?.user.id;
+  if (userId == null) return Stream.value(null);
+  return ref
+      .watch(adultsRepositoryProvider)
+      .watchByAuthUserId(userId);
 });
 
 // Riverpod family return type is complex; inference is intentional.
