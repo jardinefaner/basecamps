@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/core/format/time.dart';
+import 'package:basecamp/features/ai/ai_activity_composer.dart';
 import 'package:basecamp/features/children/children_repository.dart'
     show groupsProvider;
 import 'package:basecamp/features/export/export_actions.dart';
@@ -140,6 +141,54 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
     // Select + mark fresh so the card autofocuses its title input.
     ref.read(weekPlanSelectedTemplateProvider.notifier).select(newId);
     ref.read(weekPlanFreshCardProvider.notifier).mark(newId);
+  }
+
+  /// AI-create handler — fires when the user clicks the ✨ icon on a
+  /// hovered empty slot. Opens the shared AI activity composer; on a
+  /// generated result, lands a template at the snapped slot with the
+  /// AI's title + description (as notes) + URL (as sourceUrl). The
+  /// other AI metadata fields (objectives, steps, materials, …) get
+  /// dropped on the floor here — the schedule template doesn't have
+  /// homes for them yet. When the week plan card adopts the
+  /// experiment's full WYSIWYG pattern those fields will get wired
+  /// through too.
+  Future<void> _onCreateAiAt({
+    required int dayOfWeek,
+    required int snappedStartMinutes,
+  }) async {
+    final activity = await showAiActivityComposer(context);
+    if (!mounted || activity == null) return;
+    if (activity.title.isEmpty && activity.description.isEmpty) {
+      // Defensive — the composer always returns *something* when it
+      // pops with a value, but a model that returned only empty
+      // strings shouldn't materialize as a blank template.
+      return;
+    }
+
+    final repo = ref.read(scheduleRepositoryProvider);
+    final monday = ref.read(weekPlanWeekProvider);
+    final groupFilter = ref.read(weekPlanGroupFilterProvider);
+    final friday = monday.add(const Duration(days: 4));
+
+    final newId = await repo.addTemplate(
+      dayOfWeek: dayOfWeek,
+      startTime: Hhmm.fromMinutes(snappedStartMinutes),
+      // Default 30-min duration matches the manual-create path. If
+      // we ever start parsing AI's "duration" hint into minutes,
+      // wire it here.
+      endTime: Hhmm.fromMinutes(snappedStartMinutes + 30),
+      title: activity.title,
+      notes: activity.description.isEmpty ? null : activity.description,
+      sourceUrl: activity.link.isEmpty ? null : activity.link,
+      groupIds: groupFilter == null ? const [] : [groupFilter],
+      allGroups: groupFilter == null,
+      startDate: monday,
+      endDate: friday,
+    );
+    // Select but don't mark fresh — AI cards land already-populated;
+    // popping focus on a TextField the user didn't ask for would
+    // shove the keyboard up unsolicited.
+    ref.read(weekPlanSelectedTemplateProvider.notifier).select(newId);
   }
 
   /// Drop handler — fires when a long-press drag ends. Two paths:
@@ -302,6 +351,7 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
                   onTapCard: _openDetail,
                   onTapAlreadySelected: _openEditForCard,
                   onCreateAt: _onCreateAt,
+                  onCreateAiAt: _onCreateAiAt,
                   onCardDrop: _onCardDrop,
                 ),
               ),

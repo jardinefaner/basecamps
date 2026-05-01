@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
 
-import 'package:basecamp/features/activity_library/url_scraper.dart';
-import 'package:basecamp/features/ai/openai_client.dart';
+import 'package:basecamp/features/ai/ai_activity_composer.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/adaptive_sheet.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -33,12 +31,10 @@ import 'package:flutter/material.dart';
 ///   * The list reserves enough bottom whitespace that the FAB never
 ///     covers the last card.
 ///
-/// **AI activity** uses `gpt-4o-mini` (cheap — fractions of a cent
-/// per call). When the user pastes a URL we fetch + extract the page
-/// text via [scrapeUrl] first and pass that to the model so the
-/// description is grounded in real content. The browser-side fetch
-/// is subject to CORS — works on native, can fail on web for sites
-/// without permissive CORS headers (the message surfaces inline).
+/// **AI activity** routes through the shared `showAiActivityComposer`
+/// in `lib/features/ai/ai_activity_composer.dart` — same composer
+/// the week plan uses, so AI generation stays consistent across
+/// surfaces.
 ///
 /// Drafts live in memory only — sandbox.
 class ExperimentScreen extends StatefulWidget {
@@ -110,14 +106,12 @@ class _ExperimentScreenState extends State<ExperimentScreen> {
   }
 
   Future<void> _openAiComposer() async {
-    final result = await showModalBottomSheet<_ActivityDraft>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => const _AiActivityComposer(),
-    );
-    if (!mounted || result == null) return;
-    setState(() => _drafts.add(result));
+    final activity = await showAiActivityComposer(context);
+    if (!mounted || activity == null) return;
+    // Adapt the shared AiActivity into our local draft model. Same
+    // shape, separate instance — keeps the experiment's mutable
+    // draft type from leaking into the AI layer's API.
+    setState(() => _drafts.add(_draftFromAiActivity(activity)));
   }
 
   void _enterEditMode(_ActivityDraft draft) {
@@ -269,6 +263,23 @@ class _ActivityDraft {
       materials.isNotEmpty ||
       duration.isNotEmpty ||
       ageRange.isNotEmpty;
+}
+
+/// Adapter — pours an [AiActivity] (the shared AI-layer struct)
+/// into a fresh draft. Exists because the experiment's draft is a
+/// mutable class with the same field shape; we don't want the AI
+/// layer's type leaking into this file's identity, but we also
+/// don't want a `copyWith` chain when copying field-for-field.
+_ActivityDraft _draftFromAiActivity(AiActivity a) {
+  return _ActivityDraft()
+    ..title = a.title
+    ..description = a.description
+    ..link = a.link
+    ..objectives = a.objectives
+    ..steps = a.steps
+    ..materials = a.materials
+    ..duration = a.duration
+    ..ageRange = a.ageRange;
 }
 
 // =====================================================================
@@ -980,234 +991,4 @@ class _DetailsDisclosureState extends State<_DetailsDisclosure> {
       ],
     );
   }
-}
-
-// =====================================================================
-// AI activity composer
-// =====================================================================
-
-final _urlPattern = RegExp(r'https?://\S+');
-
-class _AiActivityComposer extends StatefulWidget {
-  const _AiActivityComposer();
-
-  @override
-  State<_AiActivityComposer> createState() => _AiActivityComposerState();
-}
-
-class _AiActivityComposerState extends State<_AiActivityComposer> {
-  final _ctrl = TextEditingController();
-  // Null when idle. While work is in flight, holds a teacher-facing
-  // status string that becomes the button label.
-  String? _status;
-  String? _error;
-
-  bool get _busy => _status != null;
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _generate() async {
-    final input = _ctrl.text.trim();
-    if (input.isEmpty || _busy) return;
-    setState(() {
-      _status = 'Working…';
-      _error = null;
-    });
-    try {
-      final url = _urlPattern.firstMatch(input)?.group(0);
-      // If the user pasted a link, fetch + extract the page text
-      // first. Cheap-model generation alone has no browsing, so
-      // without this step it'd just hallucinate from the URL pattern.
-      ScrapedPage? scraped;
-      if (url != null) {
-        if (mounted) setState(() => _status = 'Reading link…');
-        scraped = await scrapeUrl(url);
-      }
-      if (mounted) setState(() => _status = 'Generating…');
-      final draft = await _generateActivityDraft(
-        input: input,
-        url: url,
-        scraped: scraped,
-      );
-      if (!mounted) return;
-      Navigator.of(context).pop(draft);
-    } on Object catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _status = null;
-        // Trim the exception's class prefix — users don't need to see
-        // "ScrapeFailure: …" or "OpenAiClientException(...): …" to
-        // understand "the link didn't load, try again."
-        _error = e.toString().replaceFirst(RegExp(r'^[^:]+:\s*'), '');
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final mq = MediaQuery.of(context);
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.sm,
-            AppSpacing.lg,
-            AppSpacing.lg,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.auto_awesome_outlined,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Text('AI activity', style: theme.textTheme.titleMedium),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: _ctrl,
-                autofocus: true,
-                minLines: 2,
-                maxLines: 5,
-                textInputAction: TextInputAction.newline,
-                decoration: const InputDecoration(
-                  hintText: 'Describe an activity, or paste a link',
-                ),
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  _error!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.error,
-                  ),
-                ),
-              ],
-              const SizedBox(height: AppSpacing.md),
-              FilledButton.icon(
-                onPressed: _busy ? null : _generate,
-                icon: _busy
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.auto_awesome_outlined),
-                label: Text(_status ?? 'Generate'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Calls `gpt-4o-mini` with JSON mode and turns the freeform input
-/// into a populated draft. Cheap — fractions of a cent per call.
-///
-/// When [scraped] is non-null (the caller fetched the URL via
-/// [scrapeUrl] first), the model gets the page's actual title +
-/// extracted body text as source material. When no URL is present
-/// the model expands the description directly. The model itself
-/// doesn't browse — that's the trade-off for the 140× lower cost
-/// versus the search-preview variant.
-Future<_ActivityDraft> _generateActivityDraft({
-  required String input,
-  required String? url,
-  required ScrapedPage? scraped,
-}) async {
-  if (!OpenAiClient.isAvailable) {
-    throw const _AiUnavailable();
-  }
-
-  final userMessage = scraped != null
-      ? 'Source page title: ${scraped.title}\n\n'
-          'Source page text:\n${scraped.text}\n\n'
-          'Write an activity card based on what the page describes. '
-          'Use concrete details from the source text — do not invent '
-          'materials or steps that the source does not mention.'
-      : 'Generate an activity card based on this description: $input';
-
-  final body = await OpenAiClient.chat({
-    'model': 'gpt-4o-mini',
-    'temperature': 0.4,
-    'response_format': {'type': 'json_object'},
-    'messages': [
-      {
-        'role': 'system',
-        'content':
-            'You generate activity cards for early-childhood '
-            'educators. Return JSON with these keys (title and '
-            'description are required; the rest are optional and '
-            'should be left as empty strings if you cannot infer '
-            'them confidently):\n'
-            '  "title": short, title-cased, max 8 words\n'
-            '  "description": one or two concrete classroom-friendly '
-            'sentences for the card preview\n'
-            '  "objectives": one to three sentences on what children '
-            'will practice or learn\n'
-            '  "steps": numbered, newline-separated steps for how to '
-            'run it (e.g. "1. Gather materials\\n2. Show example…")\n'
-            '  "materials": comma-separated list of common materials '
-            '(e.g. "paper, crayons, scissors")\n'
-            '  "duration": estimated time as a short label '
-            '(e.g. "15 min")\n'
-            '  "ageRange": target age range as a short label '
-            '(e.g. "3–5 years")\n'
-            'Do not include URLs, markdown formatting, or any extra '
-            'keys. Use empty strings, never null, for unknown fields.',
-      },
-      {'role': 'user', 'content': userMessage},
-    ],
-  });
-  final choices = body['choices'] as List<dynamic>?;
-  if (choices == null || choices.isEmpty) {
-    throw const _AiEmptyResponse();
-  }
-  final message = (choices.first as Map<String, dynamic>)['message']
-      as Map<String, dynamic>?;
-  final content = message?['content'] as String?;
-  if (content == null || content.trim().isEmpty) {
-    throw const _AiEmptyResponse();
-  }
-  // JSON mode guarantees parseable JSON — no extraction games needed.
-  final parsed = jsonDecode(content) as Map<String, dynamic>;
-  String pull(String key) => (parsed[key] as String? ?? '').trim();
-  return _ActivityDraft()
-    ..title = pull('title')
-    ..description = pull('description')
-    ..objectives = pull('objectives')
-    ..steps = pull('steps')
-    ..materials = pull('materials')
-    ..duration = pull('duration')
-    ..ageRange = pull('ageRange')
-    // Always use the user's verbatim URL — never trust the model to
-    // round-trip it (paraphrased hosts would silently break refs).
-    ..link = url ?? '';
-}
-
-class _AiUnavailable implements Exception {
-  const _AiUnavailable();
-  @override
-  String toString() => 'AI: Sign in to use AI generation.';
-}
-
-class _AiEmptyResponse implements Exception {
-  const _AiEmptyResponse();
-  @override
-  String toString() => 'AI: The model returned no content.';
 }

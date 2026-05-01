@@ -101,6 +101,7 @@ class WeekPlanCanvas extends ConsumerStatefulWidget {
     required this.byDay,
     required this.onTapAlreadySelected,
     required this.onCreateAt,
+    required this.onCreateAiAt,
     this.onTapCard,
     this.onCardDrop,
     super.key,
@@ -130,13 +131,26 @@ class WeekPlanCanvas extends ConsumerStatefulWidget {
   /// replaces the FAB → ✏️ flow.
   final ValueChanged<ScheduleItem> onTapAlreadySelected;
 
-  /// Click on an empty 15-min slot. Receives the snapped start
-  /// minute + the day-of-week so the screen can `addTemplate(...)`
-  /// and mark the new id as fresh-card for autofocus.
+  /// Click the **+** icon on a hovered empty slot — manual create.
+  /// Receives the snapped start minute + the day-of-week so the
+  /// screen can `addTemplate(...)` and mark the new id as fresh-card
+  /// for autofocus. Same handler as the legacy ambient slot click.
   final Future<void> Function({
     required int dayOfWeek,
     required int snappedStartMinutes,
   }) onCreateAt;
+
+  /// Click the **✨** icon on a hovered empty slot — AI create. The
+  /// screen opens the AI activity composer; on a generated result,
+  /// it calls `addTemplate` with the AI's title + description + URL.
+  /// Separate handler from [onCreateAt] because the screen has the
+  /// context-passing scaffolding (composer, snackbars, mark-fresh)
+  /// already, and bundling it would just turn this into a `kind`-
+  /// switching helper.
+  final Future<void> Function({
+    required int dayOfWeek,
+    required int snappedStartMinutes,
+  }) onCreateAiAt;
 
   @override
   ConsumerState<WeekPlanCanvas> createState() => _WeekPlanCanvasState();
@@ -390,6 +404,12 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
                                         onLongPressEnd: _onLongPressEnd,
                                         onCreateAt: (snappedStart) =>
                                             widget.onCreateAt(
+                                          dayOfWeek: d,
+                                          snappedStartMinutes:
+                                              snappedStart,
+                                        ),
+                                        onCreateAiAt: (snappedStart) =>
+                                            widget.onCreateAiAt(
                                           dayOfWeek: d,
                                           snappedStartMinutes:
                                               snappedStart,
@@ -719,6 +739,7 @@ class _DayColumnBody extends ConsumerStatefulWidget {
     required this.onTapAlreadySelected,
     required this.onLongPressEnd,
     required this.onCreateAt,
+    required this.onCreateAiAt,
     required this.onDeleteCard,
   });
 
@@ -732,6 +753,10 @@ class _DayColumnBody extends ConsumerStatefulWidget {
   final ValueChanged<ScheduleItem> onTapAlreadySelected;
   final void Function(LongPressEndDetails) onLongPressEnd;
   final Future<void> Function(int snappedStartMinutes) onCreateAt;
+  // AI-create variant. Same shape as onCreateAt — the parent screen
+  // owns the composer-opening + addTemplate-with-AI-fields flow; the
+  // column just plumbs the snapped slot through.
+  final Future<void> Function(int snappedStartMinutes) onCreateAiAt;
   final Future<void> Function(String templateId) onDeleteCard;
 
   @override
@@ -798,10 +823,15 @@ class _DayColumnBodyState extends ConsumerState<_DayColumnBody> {
                             .withValues(alpha: 0.18),
                       ),
                     ),
-                  // Empty-slot hover + tap-to-create layer. Sits
-                  // BELOW the cards so card hits beat empty-slot
-                  // hits — the empty-slot detector only fires on
-                  // the gaps between cards.
+                  // Empty-slot hover layer. Sits BELOW the cards so
+                  // card hits beat empty-slot hits — the hover
+                  // detector only fires on the gaps between cards.
+                  // Tap-to-create is no longer ambient — the user
+                  // explicitly clicks one of the slot icons (manual
+                  // / AI) layered above this. That makes the choice
+                  // discoverable and prevents an accidental ambient
+                  // click from creating a blank card when the user
+                  // really wanted the AI path.
                   Positioned.fill(
                     child: MouseRegion(
                       onHover: (event) {
@@ -813,20 +843,18 @@ class _DayColumnBodyState extends ConsumerState<_DayColumnBody> {
                       },
                       onExit: (_) =>
                           setState(() => _hoveredSlotStart = null),
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTapDown: (details) async {
-                          final slot = _slotStartFromLocalY(
-                            details.localPosition.dy,
-                          );
-                          await widget.onCreateAt(slot);
-                        },
-                      ),
+                      // Opaque hit-testing so this layer absorbs
+                      // pointer events that would otherwise fall
+                      // through to whatever's underneath. The slot
+                      // icons are layered on top in their own
+                      // Positioned, so they receive the click.
+                      child: const SizedBox.expand(),
                     ),
                   ),
-                  // Hovered-slot outline. Painted over the gesture
-                  // layer (same Stack child order) so it stays
-                  // readable even when the cursor moves fast.
+                  // Hovered-slot outline. Painted over the hover
+                  // layer so it stays readable even when the cursor
+                  // moves fast. IgnorePointer so it doesn't steal
+                  // taps from the slot-icons layer above.
                   if (_hoveredSlotStart != null)
                     Positioned(
                       top: scale.yFor(_hoveredSlotStart!),
@@ -845,6 +873,22 @@ class _DayColumnBodyState extends ConsumerState<_DayColumnBody> {
                             ),
                           ),
                         ),
+                      ),
+                    ),
+                  // Slot action icons — manual + AI. Anchored to the
+                  // right edge of the hovered slot. Each icon has
+                  // its own InkWell that consumes the tap so the
+                  // hover layer below never sees it.
+                  if (_hoveredSlotStart != null)
+                    Positioned(
+                      top: scale.yFor(_hoveredSlotStart!),
+                      right: 6,
+                      height: 15 * _kPxPerMinute,
+                      child: _SlotActionIcons(
+                        onManual: () =>
+                            widget.onCreateAt(_hoveredSlotStart!),
+                        onAi: () =>
+                            widget.onCreateAiAt(_hoveredSlotStart!),
                       ),
                     ),
                   // The cards. Hidden when this card is the drag
@@ -1000,6 +1044,99 @@ extension _CompactTime on String {
   /// caller-side conversion. (`Hhmm.formatCompact` already does
   /// exactly this on the static class.)
   String _asCompact() => Hhmm.formatCompact(this);
+}
+
+/// Two-icon row that anchors to the right edge of the hovered empty
+/// slot. The user picks the create path explicitly:
+///   * `+` (manual) → existing zero-friction blank-card flow
+///   * `✨` (AI)    → opens the shared AI activity composer
+///
+/// Each icon is a small circular tap target sized to fit a 15-min
+/// slot (37.5 px tall). InkWells consume their taps so the hover
+/// layer below them never fires.
+class _SlotActionIcons extends StatelessWidget {
+  const _SlotActionIcons({required this.onManual, required this.onAi});
+
+  final VoidCallback onManual;
+  final VoidCallback onAi;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _SlotIconButton(
+            icon: Icons.add,
+            tooltip: 'New activity',
+            onTap: onManual,
+            background: theme.colorScheme.surface,
+            foreground: theme.colorScheme.onSurface,
+            borderColor: theme.colorScheme.outlineVariant,
+          ),
+          const SizedBox(width: 4),
+          _SlotIconButton(
+            icon: Icons.auto_awesome_outlined,
+            tooltip: 'AI activity',
+            onTap: onAi,
+            // Tinted so the AI option reads as a distinct affordance
+            // — the manual + is grey-on-surface, the AI ✨ is
+            // primary-on-primary-container.
+            background: theme.colorScheme.primaryContainer,
+            foreground: theme.colorScheme.onPrimaryContainer,
+            borderColor: theme.colorScheme.primary
+                .withValues(alpha: 0.4),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SlotIconButton extends StatelessWidget {
+  const _SlotIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    required this.background,
+    required this.foreground,
+    required this.borderColor,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final Color background;
+  final Color foreground;
+  final Color borderColor;
+
+  static const double _size = 28;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: background,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_size / 2),
+          side: BorderSide(color: borderColor, width: 0.5),
+        ),
+        child: InkWell(
+          // BorderRadius matches the Material so the hover splash
+          // doesn't bleed past the circle.
+          borderRadius: BorderRadius.circular(_size / 2),
+          onTap: onTap,
+          child: SizedBox(
+            width: _size,
+            height: _size,
+            child: Icon(icon, size: 16, color: foreground),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Small time chip floating outside the selected card. Renders as
