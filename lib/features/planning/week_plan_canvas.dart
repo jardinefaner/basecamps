@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:basecamp/core/format/time.dart';
 import 'package:basecamp/features/planning/week_plan_state.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
@@ -153,47 +155,90 @@ typedef WeekPlanDropHandler = Future<void> Function({
 });
 
 class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
-  // GlobalKey on the canvas body so the drop handler can convert
-  // global pointer coords → canvas-local for the snap math.
+  // GlobalKey on the inner body container so the drop handler
+  // can convert global pointer coords → canvas-local for the snap
+  // math. The render box reflects the live scroll transform, so
+  // globalToLocal correctly accounts for both axes.
   final GlobalKey _canvasBodyKey = GlobalKey();
 
-  // Vertical scroll controller — used to auto-scroll to "now" when
-  // the canvas first mounts so the teacher lands looking at the
-  // current time slot with prior + upcoming activities flanking it.
-  final ScrollController _vScroll = ScrollController();
+  // Frozen-pane scroll controllers. Day headers + hour rail mirror
+  // the body's scroll position via one-way listeners (rails are
+  // `NeverScrollableScrollPhysics` so the user can't double-drive
+  // them; only the body accepts gestures).
+  final ScrollController _vBody = ScrollController();
+  final ScrollController _hBody = ScrollController();
+  final ScrollController _vRail = ScrollController();
+  final ScrollController _hHeader = ScrollController();
+
   bool _didCenterOnNow = false;
+  bool _syncingV = false;
+  bool _syncingH = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // One-way mirroring: body drives the rails. Reentrancy guard
+    // because while we're calling jumpTo on the rail the rail
+    // emits its own update which would otherwise re-fire this
+    // callback.
+    _vBody.addListener(() {
+      if (_syncingV || !_vRail.hasClients) return;
+      _syncingV = true;
+      final target = _vBody.offset.clamp(
+        _vRail.position.minScrollExtent,
+        _vRail.position.maxScrollExtent,
+      );
+      if ((target - _vRail.offset).abs() > 0.5) {
+        _vRail.jumpTo(target);
+      }
+      _syncingV = false;
+    });
+    _hBody.addListener(() {
+      if (_syncingH || !_hHeader.hasClients) return;
+      _syncingH = true;
+      final target = _hBody.offset.clamp(
+        _hHeader.position.minScrollExtent,
+        _hHeader.position.maxScrollExtent,
+      );
+      if ((target - _hHeader.offset).abs() > 0.5) {
+        _hHeader.jumpTo(target);
+      }
+      _syncingH = false;
+    });
+  }
 
   @override
   void dispose() {
-    _vScroll.dispose();
+    _vBody.dispose();
+    _hBody.dispose();
+    _vRail.dispose();
+    _hHeader.dispose();
     super.dispose();
   }
 
   /// Schedule a one-shot scroll-to-now after the first layout pass.
   /// Centers the current time vertically in the visible viewport so
   /// the user sees what just happened + what's coming up next.
+  /// Drives `_vBody`; the rail follows via the listener.
   void _scheduleCenterOnNow(WeekPlanScale scale) {
     if (_didCenterOnNow) return;
     _didCenterOnNow = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_vScroll.hasClients) return;
+      if (!mounted || !_vBody.hasClients) return;
       final now = DateTime.now();
       final nowMinutes = now.hour * 60 + now.minute;
-      // Bail if "now" sits outside the day window — teacher's
-      // working at 11pm? Don't yank them somewhere weird; let
-      // them start at the top.
       if (nowMinutes < scale.dayStartMinutes ||
           nowMinutes > scale.dayEndMinutes) {
         return;
       }
-      final nowY = scale.yFor(nowMinutes) + _kColumnHeaderHeight;
-      final viewport = _vScroll.position.viewportDimension;
-      final maxScroll = _vScroll.position.maxScrollExtent;
-      // Aim for "now" to land at viewport-center. Clamp to the
-      // valid scroll range so a short window doesn't try to
-      // scroll past the end.
+      // Header is frozen now (separate row), so the body's y=0
+      // already corresponds to dayStartMinutes — no header
+      // padding to offset.
+      final nowY = scale.yFor(nowMinutes);
+      final viewport = _vBody.position.viewportDimension;
+      final maxScroll = _vBody.position.maxScrollExtent;
       final desired = (nowY - viewport / 2).clamp(0.0, maxScroll);
-      _vScroll.jumpTo(desired);
+      _vBody.jumpTo(desired);
     });
   }
 
@@ -212,89 +257,218 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
     );
     _scheduleCenterOnNow(scale);
 
-    const canvasWidth =
-        _kHourLabelWidth + _kDayColumnWidth * scheduleDayCount;
-    final canvasHeight =
-        _kColumnHeaderHeight + scale.totalHeight + AppSpacing.md;
+    const bodyWidth = _kDayColumnWidth * scheduleDayCount;
+    final bodyHeight = scale.totalHeight + AppSpacing.md;
 
-    return GestureDetector(
+    final selectedTemplateId =
+        ref.watch(weekPlanSelectedTemplateProvider);
+
+    final canvas = GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => ref
           .read(weekPlanSelectedTemplateProvider.notifier)
           .clear(),
       child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.sm,
-              AppSpacing.lg,
-              AppSpacing.lg,
-            ),
-            // Outer = horizontal scroll. Inner = vertical scroll.
-            // Both axes scroll independently. Each column is a fixed
-            // width so cards have enough room to render in the
-            // standard app-card look; the canvas can grow wider
-            // than the viewport on narrow screens.
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: canvasWidth,
-                child: SingleChildScrollView(
-                  controller: _vScroll,
-                  child: Stack(
-                    // Stack lets the ghost-overlay paint on top of
-                    // the columns without affecting layout.
-                    children: [
-                      SizedBox(
-                        key: _canvasBodyKey,
-                        width: canvasWidth,
-                        height: canvasHeight,
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.sm,
+          AppSpacing.lg,
+          AppSpacing.lg,
+        ),
+        // Frozen-pane layout — four quadrants:
+        //   ┌─────────┬───────────────────┐
+        //   │ corner  │ day headers       │ ← top stripe (frozen y)
+        //   ├─────────┼───────────────────┤
+        //   │ hour    │ body (cards)      │ ← main body
+        //   │ rail    │                   │
+        //   └─────────┴───────────────────┘
+        //              ↑ frozen x
+        // The corner stays put; headers scroll x with the body;
+        // rail scrolls y with the body; body scrolls both.
+        child: Column(
+          children: [
+            // TOP STRIPE: corner + scrolling day headers
+            SizedBox(
+              height: _kColumnHeaderHeight,
+              child: Row(
+                children: [
+                  // Empty corner square aligned with the rail.
+                  const SizedBox(width: _kHourLabelWidth),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: _hHeader,
+                      scrollDirection: Axis.horizontal,
+                      // Rails don't accept their own scroll — only
+                      // mirror the body's. Two-way input would race
+                      // with the listener-based sync.
+                      physics: const NeverScrollableScrollPhysics(),
+                      child: SizedBox(
+                        width: bodyWidth,
                         child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            _HourGutter(scale: scale, theme: theme),
-                            for (var d = 1;
-                                d <= scheduleDayCount;
-                                d++)
+                            for (var d = 1; d <= scheduleDayCount; d++)
                               SizedBox(
                                 width: _kDayColumnWidth,
-                                child: _DayColumn(
+                                child: _DayHeader(
                                   date: widget.monday
                                       .add(Duration(days: d - 1)),
-                                  weekday: d,
-                                  items: visibleByDay[d] ?? const [],
-                                  scale: scale,
-                                  selectedId: selectedId,
-                                  dragState: dragState,
-                                  onTapCard: widget.onTapCard,
-                                  onTapAlreadySelected:
-                                      widget.onTapAlreadySelected,
-                                  onLongPressEnd: _onLongPressEnd,
-                                  onCreateAt: (snappedStart) =>
-                                      widget.onCreateAt(
-                                    dayOfWeek: d,
-                                    snappedStartMinutes: snappedStart,
-                                  ),
                                 ),
                               ),
                           ],
                         ),
-                  ),
-                  // Ghost overlay — rendered during the active
-                  // drag, follows live pointer.
-                  if (dragState != null)
-                    _DragGhost(
-                      state: dragState,
-                      scale: scale,
-                      canvasKey: _canvasBodyKey,
-                      theme: theme,
+                      ),
                     ),
+                  ),
                 ],
               ),
             ),
-          ),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // LEFT RAIL: hour labels, follows body's vertical
+                  // scroll.
+                  SizedBox(
+                    width: _kHourLabelWidth,
+                    child: SingleChildScrollView(
+                      controller: _vRail,
+                      physics: const NeverScrollableScrollPhysics(),
+                      child: SizedBox(
+                        height: bodyHeight,
+                        child: _HourGutter(scale: scale, theme: theme),
+                      ),
+                    ),
+                  ),
+                  // BODY: 2D-scrolling card grid.
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: _hBody,
+                      scrollDirection: Axis.horizontal,
+                      child: SingleChildScrollView(
+                        controller: _vBody,
+                        child: SizedBox(
+                          key: _canvasBodyKey,
+                          width: bodyWidth,
+                          height: bodyHeight,
+                          child: Stack(
+                            children: [
+                              Row(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.stretch,
+                                children: [
+                                  for (var d = 1;
+                                      d <= scheduleDayCount;
+                                      d++)
+                                    SizedBox(
+                                      width: _kDayColumnWidth,
+                                      child: _DayColumnBody(
+                                        date: widget.monday
+                                            .add(Duration(days: d - 1)),
+                                        weekday: d,
+                                        items: visibleByDay[d] ??
+                                            const [],
+                                        scale: scale,
+                                        selectedId: selectedId,
+                                        dragState: dragState,
+                                        onTapCard: widget.onTapCard,
+                                        onTapAlreadySelected:
+                                            widget.onTapAlreadySelected,
+                                        onLongPressEnd: _onLongPressEnd,
+                                        onCreateAt: (snappedStart) =>
+                                            widget.onCreateAt(
+                                          dayOfWeek: d,
+                                          snappedStartMinutes:
+                                              snappedStart,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              if (dragState != null)
+                                _DragGhost(
+                                  state: dragState,
+                                  scale: scale,
+                                  canvasKey: _canvasBodyKey,
+                                  theme: theme,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
+
+    // Delete-key shortcut. Pressing Delete (or Backspace) anywhere
+    // inside the canvas while a card is selected → delete with an
+    // Undo SnackBar. Wrapping in `Shortcuts` + `Actions` means the
+    // shortcut only fires when focus is in the canvas; a TextField
+    // (e.g. the fresh-card title input) intercepts first because
+    // it's deeper in the focus tree.
+    return Shortcuts(
+      shortcuts: const {
+        SingleActivator(LogicalKeyboardKey.delete): _DeleteIntent(),
+        SingleActivator(LogicalKeyboardKey.backspace): _DeleteIntent(),
+      },
+      child: Actions(
+        actions: {
+          _DeleteIntent: CallbackAction<_DeleteIntent>(
+            onInvoke: (_) {
+              final id = selectedTemplateId;
+              if (id != null) {
+                unawaited(_deleteSelected(id));
+              }
+              return null;
+            },
+          ),
+        },
+        child: Focus(autofocus: true, child: canvas),
+      ),
+    );
+  }
+
+  /// Delete the selected template, surface an Undo SnackBar, and
+  /// clear the selection. Re-creates the row on Undo via
+  /// `addTemplate` with the same payload.
+  Future<void> _deleteSelected(String templateId) async {
+    final repo = ref.read(scheduleRepositoryProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    final template = await repo.getTemplate(templateId);
+    if (template == null || !mounted) return;
+    await repo.deleteTemplate(templateId);
+    ref.read(weekPlanSelectedTemplateProvider.notifier).clear();
+    if (!mounted) return;
+    messenger
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Deleted "${template.title}".'),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () async {
+              await repo.addTemplate(
+                dayOfWeek: template.dayOfWeek,
+                startTime: template.startTime,
+                endTime: template.endTime,
+                title: template.title,
+                allGroups: template.allGroups,
+                adultId: template.adultId,
+                location: template.location,
+                notes: template.notes,
+                startDate: template.startDate,
+                endDate: template.endDate,
+                isFullDay: template.isFullDay,
+              );
+            },
+          ),
+        ),
+      );
   }
 
   /// Convert a canvas-local position to (day, snapped start
@@ -416,7 +590,8 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
 }
 
 /// Left-side rail of hour labels. Ticks every hour; labels every
-/// hour. The ticks line up with each [_DayColumn]'s grid lines.
+/// hour. The ticks line up with each [_DayColumnBody]'s grid
+/// lines.
 class _HourGutter extends StatelessWidget {
   const _HourGutter({required this.scale, required this.theme});
 
@@ -425,40 +600,92 @@ class _HourGutter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hourCount =
-        ((scale.totalMinutes + 59) / 60).floor();
+    final hourCount = ((scale.totalMinutes + 59) / 60).floor();
+    // No top padding — the rail is now in its own row, parallel
+    // to the body. Day headers live in a separate frozen stripe
+    // above.
     return SizedBox(
       width: _kHourLabelWidth,
-      child: Padding(
-        padding: const EdgeInsets.only(top: _kColumnHeaderHeight),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            for (var h = 0; h <= hourCount; h++)
-              Positioned(
-                top: h * 60 * _kPxPerMinute - 7,
-                right: AppSpacing.xs,
-                child: Text(
-                  Hhmm.formatCompactTimeOfDay(
-                    TimeOfDay(
-                      hour: ((scale.dayStartMinutes + h * 60) ~/ 60) % 24,
-                      minute: 0,
-                    ),
-                  ),
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          for (var h = 0; h <= hourCount; h++)
+            Positioned(
+              top: h * 60 * _kPxPerMinute - 7,
+              right: AppSpacing.xs,
+              child: Text(
+                Hhmm.formatCompactTimeOfDay(
+                  TimeOfDay(
+                    hour: ((scale.dayStartMinutes + h * 60) ~/ 60) % 24,
+                    minute: 0,
                   ),
                 ),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
 }
 
-class _DayColumn extends ConsumerStatefulWidget {
-  const _DayColumn({
+/// Intent for the Delete-key shortcut on the canvas. Wired in
+/// `WeekPlanCanvas.build` via `Shortcuts` + `Actions`.
+class _DeleteIntent extends Intent {
+  const _DeleteIntent();
+}
+
+/// Frozen day-header cell. Lives in the top stripe (separate from
+/// the column body) so it stays put while the body scrolls
+/// vertically. Mon–Fri abbrev + day number; today highlights.
+class _DayHeader extends StatelessWidget {
+  const _DayHeader({required this.date});
+
+  final DateTime date;
+
+  bool get _isToday {
+    final now = DateTime.now();
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            DateFormat.E().format(date).toUpperCase(),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: _isToday
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+              letterSpacing: 0.6,
+              fontWeight: _isToday ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+          Text(
+            DateFormat.d().format(date),
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: _isToday
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurface,
+              fontWeight: _isToday ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DayColumnBody extends ConsumerStatefulWidget {
+  const _DayColumnBody({
     required this.date,
     required this.weekday,
     required this.items,
@@ -483,10 +710,10 @@ class _DayColumn extends ConsumerStatefulWidget {
   final Future<void> Function(int snappedStartMinutes) onCreateAt;
 
   @override
-  ConsumerState<_DayColumn> createState() => _DayColumnState();
+  ConsumerState<_DayColumnBody> createState() => _DayColumnBodyState();
 }
 
-class _DayColumnState extends ConsumerState<_DayColumn> {
+class _DayColumnBodyState extends ConsumerState<_DayColumnBody> {
   /// Hovered slot's start minute, snapped to 15. Null when the
   /// pointer is off the column body. Drives the faint hover
   /// outline so the user can see where a click would land.
@@ -505,55 +732,17 @@ class _DayColumnState extends ConsumerState<_DayColumn> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isToday = _isToday(widget.date);
     final scale = widget.scale;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Header row: weekday + date. Highlights today.
-          SizedBox(
-            height: _kColumnHeaderHeight,
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    DateFormat.E().format(widget.date).toUpperCase(),
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: isToday
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurfaceVariant,
-                      letterSpacing: 0.6,
-                      fontWeight:
-                          isToday ? FontWeight.w700 : FontWeight.w500,
-                    ),
-                  ),
-                  Text(
-                    DateFormat.d().format(widget.date),
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: isToday
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurface,
-                      fontWeight:
-                          isToday ? FontWeight.w700 : FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // Body: hour grid + empty-slot hover/click + cards.
-          Expanded(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerLow
-                    .withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Stack(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerLow
+              .withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Stack(
                 clipBehavior: Clip.none,
                 children: [
                   // Hour rule lines.
@@ -664,16 +853,13 @@ class _DayColumnState extends ConsumerState<_DayColumn> {
                   // bottom-left = end. Painted outside the card via
                   // negative offsets (clipBehavior: Clip.none on the
                   // body Stack so this works).
-                  for (final item in widget.items)
-                    if (item.templateId != null &&
-                        item.templateId == widget.selectedId)
-                      ..._buildTimeChips(item, scale, theme),
-                ],
-              ),
-            ),
-          ),
+          for (final item in widget.items)
+            if (item.templateId != null &&
+                item.templateId == widget.selectedId)
+              ..._buildTimeChips(item, scale, theme),
         ],
       ),
+    ),
     );
   }
 
@@ -705,13 +891,6 @@ class _DayColumnState extends ConsumerState<_DayColumn> {
         ),
       ),
     ];
-  }
-
-  static bool _isToday(DateTime date) {
-    final now = DateTime.now();
-    return date.year == now.year &&
-        date.month == now.month &&
-        date.day == now.day;
   }
 }
 
@@ -869,18 +1048,12 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
     final theme = Theme.of(context);
     final item = widget.item;
 
-    // Match the AppCard look used everywhere else in the app:
-    //   * default — neutral card surface, transparent border (kept
-    //     at 1.5px so selection doesn't shift layout)
-    //   * selected — `primaryContainer.withValues(alpha: 0.55)` fill
-    //     + 1.5px primary outline
+    // Border-only selection — fill stays neutral so selecting a
+    // card doesn't redraw its title, only its outline. Cleaner
+    // visual: the border carries the entire selected-state signal.
     final isSelected = widget.isSelected;
-    final cardColor = isSelected
-        ? theme.colorScheme.primaryContainer.withValues(alpha: 0.55)
-        : theme.colorScheme.surfaceContainerHigh;
-    final fg = isSelected
-        ? theme.colorScheme.onPrimaryContainer
-        : theme.colorScheme.onSurface;
+    final cardColor = theme.colorScheme.surfaceContainerHigh;
+    final fg = theme.colorScheme.onSurface;
     final borderColor =
         isSelected ? theme.colorScheme.primary : Colors.transparent;
     const borderWidth = 1.5;
