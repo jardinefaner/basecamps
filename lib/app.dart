@@ -374,11 +374,6 @@ class _ResponsiveShell extends ConsumerWidget {
 
   final Widget? child;
 
-  /// Width of the persistent sidebar on wide layouts. 320dp matches
-  /// the Material navigation drawer default; the launcher's rows
-  /// were already designed for that footprint.
-  static const double _kSidebarWidth = 320;
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (child == null) return const SizedBox.shrink();
@@ -387,43 +382,95 @@ class _ResponsiveShell extends ConsumerWidget {
     final session = ref.watch(currentSessionProvider);
     if (session == null) return child!;
     if (!Breakpoints.hasPersistentSidebar(context)) return child!;
-    final theme = Theme.of(context);
     return Row(
       children: [
-        // Left rail — the launcher in its own Material container so
-        // it picks up the surface color stack and shows its own
-        // elevation against the route. SizedBox + Material gives
-        // it a clean stop without the slide-in animation overhead
-        // a Drawer would carry.
-        SizedBox(
-          width: _kSidebarWidth,
-          child: Material(
-            color: theme.colorScheme.surfaceContainerLow,
-            // SafeArea so the launcher's search pill doesn't slide
-            // under desktop chrome on browsers that expose a top
-            // inset.
-            //
-            // The local Overlay is required: LauncherScreen wraps
-            // pinnable tiles in LongPressDraggable, which renders
-            // its drag feedback into an Overlay ancestor. Inside a
-            // Drawer route (mobile) the Navigator supplies one; here
-            // we're a plain Row child with no route, so we add our
-            // own. Navigation taps still bubble to the root
-            // navigator via go_router — this Overlay only hosts
-            // local floating widgets (drag feedback, future
-            // tooltips, etc.).
+        const _HoverSidebar(),
+        const VerticalDivider(width: 1, thickness: 1),
+        Expanded(child: child!),
+      ],
+    );
+  }
+}
+
+/// Persistent launcher sidebar that defaults to a narrow icon rail
+/// and expands to the full launcher panel on hover. Same container,
+/// same Material surface — only the width animates and the contents
+/// swap between [LauncherIconRail] (compact) and [LauncherScreen]
+/// (full).
+///
+/// **Why a width animation rather than an overlay:** the alternative
+/// (panel slides over the route content) needs nested MouseRegion
+/// gymnastics — when the overlay covers the rail, the rail's
+/// MouseRegion fires onExit (its hit-test was lost to the overlay),
+/// which collapses the panel, which uncovers the rail, which fires
+/// onEnter, which expands the panel… ad infinitum. AnimatedContainer
+/// + a single MouseRegion sidesteps all of that. The trade-off is
+/// the route pane reflowing as the rail expands; for a 256px,
+/// 200ms shift it reads as intentional.
+class _HoverSidebar extends StatefulWidget {
+  const _HoverSidebar();
+
+  @override
+  State<_HoverSidebar> createState() => _HoverSidebarState();
+}
+
+class _HoverSidebarState extends State<_HoverSidebar> {
+  bool _expanded = false;
+
+  /// Compact rail width — wide enough for a 22dp icon + breathing
+  /// room on either side, narrow enough that the route pane still
+  /// dominates the viewport.
+  static const double _kRailWidth = 64;
+
+  /// Expanded panel width — same 320dp the launcher's rows were
+  /// originally designed for.
+  static const double _kPanelWidth = 320;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return MouseRegion(
+      onEnter: (_) {
+        if (!_expanded) setState(() => _expanded = true);
+      },
+      onExit: (_) {
+        if (_expanded) setState(() => _expanded = false);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        width: _expanded ? _kPanelWidth : _kRailWidth,
+        child: Material(
+          color: theme.colorScheme.surfaceContainerLow,
+          // ClipRect so mid-animation the launcher's wider content
+          // doesn't bleed past the shrinking width.
+          child: ClipRect(
+            // Local Overlay required: LauncherScreen wraps pinnable
+            // tiles in LongPressDraggable, which needs an Overlay
+            // ancestor for drag feedback. Drawer route (mobile)
+            // supplies one for free; here we're a plain Row child
+            // with no route Navigator, so we host our own.
             child: Overlay(
               initialEntries: [
                 OverlayEntry(
-                  // Positioned.fill is required: the Overlay's
-                  // _Theatre lays out children with loose
-                  // constraints, so a SafeArea+LauncherScreen
-                  // without explicit sizing trips a "RenderBox
-                  // was not laid out" assertion the first time
-                  // focus traversal walks the tree.
-                  builder: (_) => const Positioned.fill(
+                  // AnimatedSwitcher between rail and full panel —
+                  // a clean cross-fade so swapping content during
+                  // the width animation doesn't pop. Layout-builder
+                  // wrapper hands both modes the live (animated)
+                  // width so they don't try to lay out at full size
+                  // mid-transition and overflow.
+                  builder: (_) => Positioned.fill(
                     child: SafeArea(
-                      child: LauncherScreen(),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 150),
+                        child: _expanded
+                            ? const LauncherScreen(
+                                key: ValueKey('panel'),
+                              )
+                            : const LauncherIconRail(
+                                key: ValueKey('rail'),
+                              ),
+                      ),
                     ),
                   ),
                 ),
@@ -431,14 +478,7 @@ class _ResponsiveShell extends ConsumerWidget {
             ),
           ),
         ),
-        // Hairline separator. VerticalDivider inherits the theme's
-        // outlineVariant — looks right against surface tiers.
-        const VerticalDivider(width: 1, thickness: 1),
-        // Route pane. Fills whatever the sidebar doesn't claim. No
-        // max-width clamp here — teachers on a 27-inch monitor see
-        // the full pane, week-plan grids breathe, etc.
-        Expanded(child: child!),
-      ],
+      ),
     );
   }
 }

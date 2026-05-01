@@ -1,61 +1,77 @@
 import 'dart:async';
 
+import 'package:basecamp/database/database.dart' show Group;
 import 'package:basecamp/features/ai/ai_activity_composer.dart';
+import 'package:basecamp/features/children/children_repository.dart'
+    show groupsProvider;
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/adaptive_sheet.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-/// Lab surface — **Monthly plan.** Mon–Fri grid for a single month;
-/// each cell holds at most one activity (no time-of-day, no duration —
-/// that's what the week plan is for).
+/// Lab surface — **Monthly Plan.** Mon–Fri grid for a single month;
+/// each cell holds at most one activity per group. No time-of-day,
+/// no duration — that's what the week plan is for.
 ///
-/// **Why it lives in /lab and not the planning surface (yet):** this
-/// is a different mental model from the week plan. Week plan = "what's
-/// happening hour-by-hour"; monthly plan = "one big idea per day,
-/// stretching across weeks." We're trying out the simpler model first.
-/// If it sticks, it graduates and gets backed by the same template
-/// store + library link the week plan uses. Until then, drafts live
-/// in memory only.
+/// **Per-group activities.** A required group filter at the top
+/// scopes the visible cells: each (date, group) pair owns one
+/// activity. There's no "All" option — a teacher picks a group and
+/// authors *that group's* month.
 ///
-/// **Cell shapes:**
-///   * Empty cell: date number top-left, `+ / ✨` chooser centered in
-///     the body. + drops a blank activity and opens the inline editor;
-///     ✨ opens the shared AI activity composer.
-///   * Filled cell: date number top-left, activity title (bold) + a
-///     two-line description preview. Tap anywhere on the cell to open
-///     the advanced editor in an adaptive sheet.
+/// **Side rail per week.** First column is the sub-theme and
+/// aggregated supplies for that week — sub-theme is free-text the
+/// teacher types ("Colors", "Spring", "Numbers"), supplies are
+/// computed from the activities visible in that week (deduped,
+/// case-insensitive). Both update live as the row's cells fill in.
 ///
-/// **Adjacent-month days** (the days that round out the first/last
-/// week of the visible month) render muted and non-interactive — same
-/// idiom as Google Calendar's monthly view.
-class MonthlyPlanScreen extends StatefulWidget {
+/// **Cell tap → formatted view.** Tapping a filled cell opens a
+/// READ-only "what to do today" sheet — title, description, numbered
+/// steps, materials, link, all rendered for an adult who's looking at
+/// the day cold and needs to know exactly what to run. A pencil in
+/// the top-right of that sheet drops into the editor for the
+/// teacher who actually owns the lesson plan.
+///
+/// **Adjacent-month dates** render muted + non-interactive so the
+/// grid stays rectangular (Google Calendar idiom).
+///
+/// Drafts live in memory only; sandbox until this graduates.
+class MonthlyPlanScreen extends ConsumerStatefulWidget {
   const MonthlyPlanScreen({super.key});
 
   @override
-  State<MonthlyPlanScreen> createState() => _MonthlyPlanScreenState();
+  ConsumerState<MonthlyPlanScreen> createState() =>
+      _MonthlyPlanScreenState();
 }
 
-class _MonthlyPlanScreenState extends State<MonthlyPlanScreen> {
-  /// First-of-month for the visible month. Initialised to the current
-  /// month at midnight local. Prev/next chevrons in the AppBar shift
-  /// this by ±1 month.
+class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
+  /// First-of-month for the visible month.
   late DateTime _viewMonth = _firstOfMonth(DateTime.now());
 
-  /// In-memory activities keyed by `dayKey(date)` — see [_dayKey] for
-  /// why we string-key instead of DateTime-key. Sandbox only; when
-  /// this graduates, swap for a Drift-backed repo.
+  /// Currently-selected group filter. Required (no "All"). Defaults
+  /// to the first group as soon as the groups stream resolves with at
+  /// least one entry. Kept null until that point.
+  String? _activeGroupId;
+
+  /// Activities keyed by `"$groupId|$dayKey"`. Group-scoped so each
+  /// group can author its own month independently in the same UI.
   final Map<String, _MonthlyActivity> _activities = {};
+
+  /// Sub-theme strings keyed by `weekMondayDayKey`. NOT group-scoped —
+  /// the sub-theme is a thematic label for the week as a whole and
+  /// shared across groups (a "Colors" week means colors for everyone).
+  /// If usage shows that's wrong, easy to scope per-group later.
+  final Map<String, String> _subThemes = {};
 
   static DateTime _firstOfMonth(DateTime d) =>
       DateTime(d.year, d.month);
 
-  /// String key for [_activities] map. DateTime equality on Dart
-  /// includes time-of-day, so a 2026-04-30 00:00 and a 2026-04-30
-  /// 12:00 hash differently. We index by yyyy-mm-dd to dodge that.
   static String _dayKey(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}'
       '-${d.day.toString().padLeft(2, '0')}';
+
+  String _activityKey(DateTime d, String groupId) =>
+      '$groupId|${_dayKey(d)}';
 
   void _shiftMonth(int deltaMonths) {
     setState(() {
@@ -74,30 +90,29 @@ class _MonthlyPlanScreenState extends State<MonthlyPlanScreen> {
   // Cell actions
   // -----------------------------------------------------------------
 
-  /// `+` icon — manual create. Drops a blank activity at [date] and
-  /// immediately opens the editor so the user can type the title
-  /// without a second tap.
   Future<void> _onCreateBlank(DateTime date) async {
+    final groupId = _activeGroupId;
+    if (groupId == null) return;
     final activity = _MonthlyActivity();
-    setState(() => _activities[_dayKey(date)] = activity);
-    await _openEditor(date, activity);
-    // If the user cleared every field, treat it as a cancel: drop the
-    // empty placeholder so the cell goes back to showing the chooser.
-    if (activity.isEmpty) {
-      setState(() => _activities.remove(_dayKey(date)));
+    final key = _activityKey(date, groupId);
+    setState(() => _activities[key] = activity);
+    // New blank → editor immediately so the user can type the title
+    // without an extra tap. (Different from filled-cell tap, which
+    // routes to the formatted view first.)
+    await _openEditor(date, groupId, activity);
+    if (activity.isEmpty && mounted) {
+      // Treat "closed without typing" as a cancel.
+      setState(() => _activities.remove(key));
     }
   }
 
-  /// `✨` icon — AI create. Opens the shared composer; on a generated
-  /// result, lands the activity in the cell. The composer's full
-  /// AiActivity field set is kept (objectives, steps, materials, etc.)
-  /// so when the editor sheet later surfaces a More-details
-  /// disclosure those fields are already there.
   Future<void> _onCreateAi(DateTime date) async {
+    final groupId = _activeGroupId;
+    if (groupId == null) return;
     final result = await showAiActivityComposer(context);
     if (!mounted || result == null) return;
     setState(() {
-      _activities[_dayKey(date)] = _MonthlyActivity(
+      _activities[_activityKey(date, groupId)] = _MonthlyActivity(
         title: result.title,
         description: result.description,
         objectives: result.objectives,
@@ -108,11 +123,38 @@ class _MonthlyPlanScreenState extends State<MonthlyPlanScreen> {
     });
   }
 
-  /// Opens the editor on an existing activity. Same sheet for both
-  /// "fill in a fresh blank" and "edit an existing one" — the
-  /// difference is just whether the fields start populated.
+  /// Tap on a filled cell — opens the read-only "what to do today"
+  /// view. Inside that sheet, the user can drop into the editor via
+  /// a pencil icon. The two surfaces are distinct on purpose: the
+  /// formatted view is for *running* the day (someone who didn't
+  /// author it); the editor is for *authoring* the day.
+  Future<void> _onTapFilled(DateTime date, _MonthlyActivity activity) async {
+    final groupId = _activeGroupId;
+    if (groupId == null) return;
+    await showAdaptiveSheet<void>(
+      context: context,
+      builder: (_) => _ActivityFormattedSheet(
+        date: date,
+        activity: activity,
+        onEdit: () async {
+          // Pop the formatted sheet first so the editor stacks on
+          // top of the calendar, not on top of the read view (back
+          // gesture on mobile lands the user in the calendar, not
+          // back in the formatted view).
+          Navigator.of(context).pop();
+          await _openEditor(date, groupId, activity);
+        },
+        onDelete: () {
+          Navigator.of(context).pop();
+          setState(() => _activities.remove(_activityKey(date, groupId)));
+        },
+      ),
+    );
+  }
+
   Future<void> _openEditor(
     DateTime date,
+    String groupId,
     _MonthlyActivity activity,
   ) async {
     await showAdaptiveSheet<void>(
@@ -124,9 +166,7 @@ class _MonthlyPlanScreenState extends State<MonthlyPlanScreen> {
           if (mounted) setState(() {});
         },
         onDelete: () {
-          setState(() => _activities.remove(_dayKey(date)));
-          // Fire-and-forget — caller doesn't need the pop result and
-          // the surrounding callback is sync-typed.
+          setState(() => _activities.remove(_activityKey(date, groupId)));
           unawaited(Navigator.of(context).maybePop());
         },
       ),
@@ -134,19 +174,16 @@ class _MonthlyPlanScreenState extends State<MonthlyPlanScreen> {
   }
 
   // -----------------------------------------------------------------
-  // Layout
+  // Aggregations
   // -----------------------------------------------------------------
 
-  /// Build the visible weeks. Each row is Mon–Fri (5 dates). Pads with
-  /// adjacent-month dates so every row is a complete week — those
-  /// dates render muted in the cells.
+  /// Weeks of the visible month, each as a Mon–Fri list. Pads with
+  /// adjacent-month dates so every row is a complete week.
   List<List<DateTime>> _buildWeeks() {
     final first = DateTime(_viewMonth.year, _viewMonth.month);
     final last = DateTime(_viewMonth.year, _viewMonth.month + 1, 0);
 
-    // Monday of the week containing the 1st (could be in prior month).
     final firstMonday = first.subtract(Duration(days: first.weekday - 1));
-    // Friday of the week containing the last day. weekday: 1=Mon..7=Sun.
     final lastFriday = last.weekday <= 5
         ? last.add(Duration(days: 5 - last.weekday))
         : last.subtract(Duration(days: last.weekday - 5));
@@ -162,14 +199,40 @@ class _MonthlyPlanScreenState extends State<MonthlyPlanScreen> {
     return weeks;
   }
 
+  /// Materials from every activity rendered in [week] for the active
+  /// group, deduped case-insensitively. Empty when no activities have
+  /// materials filled in. Strings come pre-split on commas so an
+  /// activity's "paper, scissors, glue" contributes three entries.
+  List<String> _aggregateMaterialsForWeek(List<DateTime> week) {
+    final groupId = _activeGroupId;
+    if (groupId == null) return const [];
+    final seen = <String, String>{}; // lowercased → original casing
+    for (final date in week) {
+      final activity = _activities[_activityKey(date, groupId)];
+      if (activity == null) continue;
+      for (final raw in activity.materials.split(',')) {
+        final trimmed = raw.trim();
+        if (trimmed.isEmpty) continue;
+        seen.putIfAbsent(trimmed.toLowerCase(), () => trimmed);
+      }
+    }
+    return seen.values.toList()..sort();
+  }
+
+  // -----------------------------------------------------------------
+  // Build
+  // -----------------------------------------------------------------
+
   @override
   Widget build(BuildContext context) {
+    final groupsAsync = ref.watch(groupsProvider);
     final weeks = _buildWeeks();
     final monthLabel = DateFormat.yMMMM().format(_viewMonth);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(monthLabel),
+        // Stable title — month navigation lives in the toolbar below.
+        title: const Text('Monthly Plan'),
         actions: [
           IconButton(
             tooltip: 'This month',
@@ -180,62 +243,132 @@ class _MonthlyPlanScreenState extends State<MonthlyPlanScreen> {
       ),
       body: Column(
         children: [
-          // Prev/next chevrons + range label. Mirrors the week plan's
-          // toolbar pattern so muscle memory transfers.
+          // Group filter — required. Sits above the toolbar so it's
+          // the first thing the user sees / picks.
+          groupsAsync.when(
+            loading: () => const LinearProgressIndicator(),
+            error: (e, _) => Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Text('Error loading groups: $e'),
+            ),
+            data: (groups) {
+              if (groups.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Text(
+                    'No groups yet — add one in Children & Groups '
+                    'before authoring a monthly plan.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                );
+              }
+              // Default-select the first group once they load.
+              if (_activeGroupId == null ||
+                  !groups.any((g) => g.id == _activeGroupId)) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) return;
+                  setState(() => _activeGroupId = groups.first.id);
+                });
+              }
+              return _GroupFilterBar(
+                groups: groups,
+                activeId: _activeGroupId,
+                onSelect: (id) => setState(() => _activeGroupId = id),
+              );
+            },
+          ),
           _MonthToolbar(
             label: monthLabel,
             onPrev: () => _shiftMonth(-1),
             onNext: () => _shiftMonth(1),
             onReset: _resetToThisMonth,
           ),
-          // Day-of-week header. Mon–Fri only — weekends never render.
-          _DayOfWeekHeader(),
+          _GridHeader(),
           const Divider(height: 1),
-          // Grid of weeks. Expanded so it fills the remaining space;
-          // each row inside is also Expanded so weeks share the
-          // height evenly (so a 4-week month uses bigger cells than
-          // a 6-week month — feels right for a sandbox where there's
-          // never more than ~22 cells visible).
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.sm,
                 vertical: AppSpacing.sm,
               ),
-              child: Column(
-                children: [
-                  for (final week in weeks)
-                    Expanded(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          for (final date in week)
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.all(2),
-                                child: _DayCell(
-                                  date: date,
-                                  isCurrentMonth:
-                                      date.month == _viewMonth.month,
-                                  activity: _activities[_dayKey(date)],
-                                  onCreateBlank: () =>
-                                      unawaited(_onCreateBlank(date)),
-                                  onCreateAi: () =>
-                                      unawaited(_onCreateAi(date)),
-                                  onTap: () {
-                                    final a = _activities[_dayKey(date)];
-                                    if (a != null) {
-                                      unawaited(_openEditor(date, a));
-                                    }
-                                  },
+              child: _activeGroupId == null
+                  ? const SizedBox.shrink()
+                  : Column(
+                      children: [
+                        for (final week in weeks)
+                          Expanded(
+                            child: Row(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.stretch,
+                              children: [
+                                // Side rail: sub-theme + aggregated
+                                // materials for this week. flex 3 so
+                                // the column has enough breathing
+                                // room for materials lists; day cells
+                                // use flex 4 each.
+                                Expanded(
+                                  flex: 3,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(2),
+                                    child: _WeekSidePanel(
+                                      weekMondayKey: _dayKey(week.first),
+                                      subTheme: _subThemes[
+                                              _dayKey(week.first)] ??
+                                          '',
+                                      onSubThemeChanged: (v) {
+                                        setState(() {
+                                          if (v.isEmpty) {
+                                            _subThemes.remove(
+                                                _dayKey(week.first));
+                                          } else {
+                                            _subThemes[_dayKey(week.first)] =
+                                                v;
+                                          }
+                                        });
+                                      },
+                                      materials: _aggregateMaterialsForWeek(
+                                        week,
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                for (final date in week)
+                                  Expanded(
+                                    flex: 4,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(2),
+                                      child: _DayCell(
+                                        date: date,
+                                        isCurrentMonth: date.month ==
+                                            _viewMonth.month,
+                                        activity: _activities[
+                                            _activityKey(
+                                          date,
+                                          _activeGroupId!,
+                                        )],
+                                        onCreateBlank: () => unawaited(
+                                          _onCreateBlank(date),
+                                        ),
+                                        onCreateAi: () =>
+                                            unawaited(_onCreateAi(date)),
+                                        onTap: () {
+                                          final a = _activities[
+                                              _activityKey(
+                                            date,
+                                            _activeGroupId!,
+                                          )];
+                                          if (a != null && !a.isEmpty) {
+                                            unawaited(_onTapFilled(date, a));
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
-                        ],
-                      ),
+                          ),
+                      ],
                     ),
-                ],
-              ),
             ),
           ),
         ],
@@ -248,9 +381,6 @@ class _MonthlyPlanScreenState extends State<MonthlyPlanScreen> {
 // Models
 // =====================================================================
 
-/// In-memory record. Plain class (not freezed) because the editor
-/// sheet writes back field-by-field; immutability would force a
-/// `copyWith` per keystroke.
 class _MonthlyActivity {
   _MonthlyActivity({
     this.title = '',
@@ -263,10 +393,6 @@ class _MonthlyActivity {
 
   String title;
   String description;
-
-  // Carried through from the AI composer so the sheet's More-details
-  // disclosure has something to render. The cell-preview only shows
-  // title + description; these are tucked away.
   String objectives;
   String steps;
   String materials;
@@ -288,8 +414,48 @@ class _MonthlyActivity {
 }
 
 // =====================================================================
-// Toolbar / header
+// Top bars
 // =====================================================================
+
+class _GroupFilterBar extends StatelessWidget {
+  const _GroupFilterBar({
+    required this.groups,
+    required this.activeId,
+    required this.onSelect,
+  });
+
+  final List<Group> groups;
+  final String? activeId;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      color: theme.colorScheme.surfaceContainerLow,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final g in groups)
+              Padding(
+                padding: const EdgeInsets.only(right: AppSpacing.sm),
+                child: ChoiceChip(
+                  label: Text(g.name),
+                  selected: activeId == g.id,
+                  onSelected: (_) => onSelect(g.id),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _MonthToolbar extends StatelessWidget {
   const _MonthToolbar({
@@ -344,10 +510,14 @@ class _MonthToolbar extends StatelessWidget {
   }
 }
 
-class _DayOfWeekHeader extends StatelessWidget {
+class _GridHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final labelStyle = theme.textTheme.labelMedium?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+      fontWeight: FontWeight.w600,
+    );
     const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -356,19 +526,152 @@ class _DayOfWeekHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
+          // Side-rail header — empty title, just visual placeholder
+          // so the column widths align with the body grid below.
+          Expanded(
+            flex: 3,
+            child: Center(
+              child: Text('Theme · Supplies', style: labelStyle),
+            ),
+          ),
           for (final label in labels)
             Expanded(
-              child: Center(
-                child: Text(
-                  label,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
+              flex: 4,
+              child: Center(child: Text(label, style: labelStyle)),
             ),
         ],
+      ),
+    );
+  }
+}
+
+// =====================================================================
+// Side rail — sub-theme + materials per week
+// =====================================================================
+
+class _WeekSidePanel extends StatefulWidget {
+  const _WeekSidePanel({
+    required this.weekMondayKey,
+    required this.subTheme,
+    required this.onSubThemeChanged,
+    required this.materials,
+  });
+
+  final String weekMondayKey;
+  final String subTheme;
+  final ValueChanged<String> onSubThemeChanged;
+  final List<String> materials;
+
+  @override
+  State<_WeekSidePanel> createState() => _WeekSidePanelState();
+}
+
+class _WeekSidePanelState extends State<_WeekSidePanel> {
+  late final TextEditingController _subThemeCtrl =
+      TextEditingController(text: widget.subTheme);
+
+  @override
+  void didUpdateWidget(covariant _WeekSidePanel old) {
+    super.didUpdateWidget(old);
+    // External writes (different week reusing this state slot) sync
+    // back into the controller.
+    if (widget.subTheme != _subThemeCtrl.text) {
+      _subThemeCtrl.text = widget.subTheme;
+    }
+  }
+
+  @override
+  void dispose() {
+    _subThemeCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Material(
+      color: cs.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: cs.outlineVariant.withValues(alpha: 0.6),
+          width: 0.5,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Sub-theme — single-line text input. No chrome (matches
+            // the WYSIWYG idiom from the experiment), placeholder
+            // visible when empty.
+            TextField(
+              controller: _subThemeCtrl,
+              onChanged: widget.onSubThemeChanged,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Sub-theme',
+                hintStyle: theme.textTheme.titleSmall?.copyWith(
+                  color: cs.onSurfaceVariant.withValues(alpha: 0.55),
+                  fontWeight: FontWeight.w700,
+                ),
+                isDense: true,
+                isCollapsed: true,
+                filled: false,
+                fillColor: Colors.transparent,
+                contentPadding: EdgeInsets.zero,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Divider(
+              height: 1,
+              color: cs.outlineVariant.withValues(alpha: 0.4),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Supplies',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: cs.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 2),
+            // Aggregated supplies — bulleted list scrolled inside the
+            // remaining cell height. Empty state stays muted.
+            Expanded(
+              child: widget.materials.isEmpty
+                  ? Text(
+                      '—',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant.withValues(alpha: 0.5),
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (final m in widget.materials)
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 1),
+                              child: Text(
+                                '• $m',
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -410,9 +713,6 @@ class _DayCell extends StatelessWidget {
     final hasActivity = activity != null && !activity!.isEmpty;
     final isOutOfMonth = !isCurrentMonth;
 
-    // Out-of-month days render as muted, non-interactive context
-    // — they exist purely to keep the grid rectangular. Same idiom
-    // as Google Calendar.
     final dateColor = isOutOfMonth
         ? cs.onSurfaceVariant.withValues(alpha: 0.4)
         : (_isToday ? cs.primary : cs.onSurfaceVariant);
@@ -427,16 +727,12 @@ class _DayCell extends StatelessWidget {
       ),
     );
 
-    final cell = Material(
+    return Material(
       color: isOutOfMonth
           ? cs.surfaceContainerLowest.withValues(alpha: 0.4)
           : cs.surface,
       shape: cellShape,
       child: InkWell(
-        // Out-of-month cells aren't interactive (yet — could later
-        // jump to that month). Empty in-month cells use the chooser
-        // icons inline; tapping the cell body when empty is a no-op
-        // so we don't accidentally create a blank.
         onTap: isOutOfMonth || !hasActivity ? null : onTap,
         customBorder: cellShape,
         child: Padding(
@@ -444,8 +740,6 @@ class _DayCell extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Date number — top-left, small, semi-bold for the
-              // current day so it pops.
               Padding(
                 padding: const EdgeInsets.only(left: 2, top: 2),
                 child: Row(
@@ -463,8 +757,6 @@ class _DayCell extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              // Body — either the activity preview, the +/✨ chooser
-              // (in-month empty cells), or nothing (out-of-month).
               Expanded(
                 child: isOutOfMonth
                     ? const SizedBox.shrink()
@@ -480,8 +772,6 @@ class _DayCell extends StatelessWidget {
         ),
       ),
     );
-
-    return cell;
   }
 }
 
@@ -509,8 +799,6 @@ class _CellPreview extends StatelessWidget {
             ),
           if (activity.description.isNotEmpty) ...[
             const SizedBox(height: 2),
-            // Two-line clipped description so a long one doesn't
-            // blow out the cell. The rest is reachable in the editor.
             Expanded(
               child: Text(
                 activity.description,
@@ -606,14 +894,241 @@ class _ChooserIcon extends StatelessWidget {
 }
 
 // =====================================================================
+// Formatted "what to do today" sheet — read-only; pencil → editor
+// =====================================================================
+
+/// Read-only, formatted view of an activity. Designed for the person
+/// who didn't author the lesson plan and is looking at today's day
+/// cold — has to know exactly what to run. The editor is reachable
+/// via the pencil in the top-right.
+class _ActivityFormattedSheet extends StatelessWidget {
+  const _ActivityFormattedSheet({
+    required this.date,
+    required this.activity,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final DateTime date;
+  final _MonthlyActivity activity;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final mq = MediaQuery.of(context);
+    final dateLabel = DateFormat('EEE MMM d').format(date);
+    final steps = _splitSteps(activity.steps);
+    final materials = activity.materials
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.sm,
+            AppSpacing.lg,
+            AppSpacing.lg,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header — date label + pencil (edit) on the right.
+              // Keeps the "ownership" affordance visible without
+              // shoving an extra row of buttons at the bottom of the
+              // sheet.
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      dateLabel,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: cs.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Edit activity',
+                    icon: const Icon(Icons.edit_outlined),
+                    onPressed: onEdit,
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              if (activity.title.isNotEmpty)
+                Text(
+                  activity.title,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              if (activity.description.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  activity.description,
+                  style: theme.textTheme.bodyLarge?.copyWith(height: 1.45),
+                ),
+              ],
+              if (activity.objectives.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.xl),
+                const _SectionHeader(label: 'Objectives'),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  activity.objectives,
+                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+                ),
+              ],
+              if (steps.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.xl),
+                const _SectionHeader(label: 'Steps'),
+                const SizedBox(height: AppSpacing.sm),
+                for (var i = 0; i < steps.length; i++)
+                  Padding(
+                    padding:
+                        const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Numbered bullet rendered in primary so the
+                        // step pop is always visible — the running
+                        // adult can scan vertically.
+                        SizedBox(
+                          width: 28,
+                          child: Text(
+                            '${i + 1}.',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: cs.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            steps[i],
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              height: 1.45,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+              if (materials.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.xl),
+                const _SectionHeader(label: 'Materials'),
+                const SizedBox(height: AppSpacing.xs),
+                Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  children: [
+                    for (final m in materials)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: cs.surfaceContainer,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: cs.outlineVariant,
+                            width: 0.5,
+                          ),
+                        ),
+                        child: Text(
+                          m,
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+              if (activity.link.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.xl),
+                const _SectionHeader(label: 'Reference'),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  activity.link,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: cs.primary,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.xxl),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: cs.error,
+                  side: BorderSide(
+                    color: cs.error.withValues(alpha: 0.5),
+                  ),
+                ),
+                icon: const Icon(Icons.delete_outline, size: 18),
+                label: const Text('Delete activity'),
+                onPressed: onDelete,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Split a free-text steps blob into individual lines, stripping
+  /// any leading numbering ("1. ", "1) ", "•"). The model + the
+  /// editor both use newline-separated entries; this normalises both
+  /// shapes for the formatted view.
+  List<String> _splitSteps(String raw) {
+    return raw
+        .split('\n')
+        .map((s) => s.trim())
+        .map((s) => s.replaceFirst(
+              RegExp(r'^(\d+[\.\)]\s*|[•\-\*]\s+)'),
+              '',
+            ))
+        .where((s) => s.isNotEmpty)
+        .toList();
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Text(
+      label.toUpperCase(),
+      style: theme.textTheme.labelSmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.2,
+      ),
+    );
+  }
+}
+
+// =====================================================================
 // Editor sheet — adaptive (bottom on mobile, side panel on web)
 // =====================================================================
 
-/// Editor for a single day's activity. Same shape as the experiment's
-/// advanced editor, scoped to the monthly-plan field set: title +
-/// description as the primary fields; objectives / steps / materials
-/// / link tucked behind a More-details disclosure (open by default if
-/// any are filled — usually true after an AI generation).
 class _MonthlyActivityEditor extends StatefulWidget {
   const _MonthlyActivityEditor({
     required this.date,
@@ -774,7 +1289,8 @@ class _MonthlyActivityEditorState extends State<_MonthlyActivityEditor> {
                     textInputAction: TextInputAction.newline,
                     decoration: const InputDecoration(
                       labelText: 'Materials',
-                      helperText: 'What you need on hand',
+                      helperText: 'Comma-separated — these aggregate '
+                          'into the side rail',
                       alignLabelWithHint: true,
                     ),
                   ),
@@ -810,10 +1326,6 @@ class _MonthlyActivityEditorState extends State<_MonthlyActivityEditor> {
   }
 }
 
-/// Same disclosure shape as the experiment screen — chevron + label
-/// row, AnimatedSize'd children. Hand-rolled rather than ExpansionTile
-/// so it doesn't fight the sheet's surrounding layout with default
-/// dividers.
 class _DetailsDisclosure extends StatefulWidget {
   const _DetailsDisclosure({
     required this.children,

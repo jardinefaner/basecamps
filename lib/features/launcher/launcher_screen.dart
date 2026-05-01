@@ -1534,3 +1534,42 @@ class _NoResults extends StatelessWidget {
     );
   }
 }
+
+/// Compact icon rail for the persistent sidebar's collapsed state.
+/// Renders just the destination icons stacked vertically — tap to
+/// navigate. The rest of the launcher (search, pinned, people grids,
+/// account footer) is hidden in this mode; hovering the rail expands
+/// into the full [LauncherScreen].
+///
+/// Tooltips intentionally omitted: the global 600ms tooltipTheme +
+/// the hover-to-expand affordance together mean a teacher who pauses
+/// long enough for a tooltip would already see the full panel with
+/// the destination's text label, making the tooltip redundant chrome
+/// on a flicker-prone surface.
+class LauncherIconRail extends StatelessWidget {
+  const LauncherIconRail({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: Column(
+        children: [
+          for (final d in _DestinationData.all)
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: 2,
+                horizontal: AppSpacing.sm,
+              ),
+              child: IconButton(
+                icon: Icon(d.icon),
+                color: theme.colorScheme.onSurfaceVariant,
+                onPressed: () => _navigateTo(context, d.path),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
