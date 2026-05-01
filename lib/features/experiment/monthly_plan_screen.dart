@@ -56,9 +56,26 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   /// least one entry. Kept null until that point.
   String? _activeGroupId;
 
-  /// Activities keyed by `"$groupId|$dayKey"`. Group-scoped so each
-  /// group can author its own month independently in the same UI.
-  final Map<String, _MonthlyActivity> _activities = {};
+  /// Variants per cell, keyed by `"$groupId|$dayKey"`. Each cell can
+  /// hold N variants — the manual one the user typed inline, plus
+  /// any AI variants generated via the ✨ button. List order is
+  /// creation order; [_activeVariantIndex] picks which one renders
+  /// in the cell + opens in the formatted view.
+  final Map<String, List<_MonthlyActivity>> _activities = {};
+
+  /// Active variant index per cell. Defaults to 0 (the first/manual
+  /// variant) when absent. Setting it switches what the cell shows.
+  final Map<String, int> _activeVariantIndex = {};
+
+  /// Cell that's currently in inline-edit mode (the multi-line
+  /// TextField rendering inside the cell). Only one cell edits at a
+  /// time. Null when nothing's editing.
+  String? _editingCellKey;
+
+  /// Cell that's currently focused (touch-tap on mobile, hover on
+  /// web). Drives visibility of ✨ + × + dots so they don't clutter
+  /// every cell at once.
+  String? _focusedCellKey;
 
   /// Sub-theme strings keyed by `weekMondayDayKey`. NOT group-scoped —
   /// the sub-theme is a thematic label for the week as a whole and
@@ -102,6 +119,26 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   String _activityKey(DateTime d, String groupId) =>
       '$groupId|${_dayKey(d)}';
 
+  // -----------------------------------------------------------------
+  // Variant accessors
+  // -----------------------------------------------------------------
+
+  List<_MonthlyActivity> _variantsAt(DateTime d, String groupId) =>
+      _activities[_activityKey(d, groupId)] ?? const [];
+
+  int _activeIdxAt(DateTime d, String groupId) {
+    final list = _variantsAt(d, groupId);
+    if (list.isEmpty) return 0;
+    final raw = _activeVariantIndex[_activityKey(d, groupId)] ?? 0;
+    return raw.clamp(0, list.length - 1);
+  }
+
+  _MonthlyActivity? _activeAt(DateTime d, String groupId) {
+    final list = _variantsAt(d, groupId);
+    if (list.isEmpty) return null;
+    return list[_activeIdxAt(d, groupId)];
+  }
+
   void _shiftMonth(int deltaMonths) {
     setState(() {
       _viewMonth = DateTime(
@@ -119,40 +156,133 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   // Cell actions
   // -----------------------------------------------------------------
 
-  Future<void> _onCreateBlank(DateTime date) async {
+  /// Called when a cell receives focus + the user wants to start
+  /// authoring inline. Adds an empty variant if the cell has none,
+  /// then flips into inline-edit mode for that variant.
+  void _enterInlineEdit(DateTime date) {
     final groupId = _activeGroupId;
     if (groupId == null) return;
-    final activity = _MonthlyActivity();
     final key = _activityKey(date, groupId);
-    setState(() => _activities[key] = activity);
-    // New blank → editor immediately so the user can type the title
-    // without an extra tap. (Different from filled-cell tap, which
-    // routes to the formatted view first.)
-    await _openEditor(date, groupId, activity);
-    if (activity.isEmpty && mounted) {
-      // Treat "closed without typing" as a cancel.
-      setState(() => _activities.remove(key));
-    }
+    setState(() {
+      final list = _activities.putIfAbsent(key, () => []);
+      if (list.isEmpty) {
+        list.add(_MonthlyActivity());
+        _activeVariantIndex[key] = 0;
+      }
+      _editingCellKey = key;
+      _focusedCellKey = key;
+    });
   }
 
-  Future<void> _onCreateAi(DateTime date) async {
+  /// Commits the inline TextField text into the active variant.
+  /// First line → title; subsequent lines → description. Matches
+  /// the user's "type title, hit enter, become description" mental
+  /// model.
+  void _commitInlineEdit({
+    required DateTime date,
+    required String text,
+  }) {
     final groupId = _activeGroupId;
     if (groupId == null) return;
+    final key = _activityKey(date, groupId);
+    final lines = text.split('\n');
+    final title = lines.first.trim();
+    final description = lines.length > 1
+        ? lines.sublist(1).join('\n').trim()
+        : '';
+    setState(() {
+      _editingCellKey = null;
+      final list = _activities[key];
+      if (list == null || list.isEmpty) return;
+      final idx = _activeIdxAt(date, groupId);
+      if (title.isEmpty && description.isEmpty) {
+        // Empty-on-commit → drop this variant entirely.
+        list.removeAt(idx);
+        if (list.isEmpty) {
+          _activities.remove(key);
+          _activeVariantIndex.remove(key);
+          _focusedCellKey = null;
+        } else {
+          _activeVariantIndex[key] = idx.clamp(0, list.length - 1);
+        }
+        return;
+      }
+      list[idx]
+        ..title = title
+        ..description = description;
+    });
+  }
+
+  /// AI variant — pre-fills the composer with the active variant's
+  /// title + description so the user can tweak before generating an
+  /// alternate take. The result becomes a NEW variant; the original
+  /// is preserved (the whole point of the carousel).
+  Future<void> _onCellAi(DateTime date) async {
+    final groupId = _activeGroupId;
+    if (groupId == null) return;
+    final key = _activityKey(date, groupId);
+    final active = _activeAt(date, groupId);
+    final initialInput = active == null
+        ? ''
+        : [
+            if (active.title.isNotEmpty) active.title,
+            if (active.description.isNotEmpty) active.description,
+          ].join('\n\n');
+
     final result = await showAiActivityComposer(
       context,
       planContext: _aiContextForDate(date),
+      initialInput: initialInput.isEmpty ? null : initialInput,
     );
     if (!mounted || result == null) return;
     setState(() {
-      _activities[_activityKey(date, groupId)] = _MonthlyActivity(
+      _activities.putIfAbsent(key, () => []);
+      final list = _activities[key]!..add(_MonthlyActivity(
         title: result.title,
         description: result.description,
         objectives: result.objectives,
         steps: result.steps,
         materials: result.materials,
         link: result.link,
-      );
+      ));
+      // Switch active to the freshly-generated variant.
+      _activeVariantIndex[key] = list.length - 1;
     });
+  }
+
+  /// Switch the active variant via dot tap or PageView swipe.
+  void _switchVariant(DateTime date, int newIdx) {
+    final groupId = _activeGroupId;
+    if (groupId == null) return;
+    final key = _activityKey(date, groupId);
+    setState(() => _activeVariantIndex[key] = newIdx);
+  }
+
+  /// Delete the active variant. If it was the last one, the cell
+  /// becomes empty.
+  void _deleteActiveVariant(DateTime date) {
+    final groupId = _activeGroupId;
+    if (groupId == null) return;
+    final key = _activityKey(date, groupId);
+    setState(() {
+      final list = _activities[key];
+      if (list == null || list.isEmpty) return;
+      final idx = _activeIdxAt(date, groupId);
+      list.removeAt(idx);
+      if (list.isEmpty) {
+        _activities.remove(key);
+        _activeVariantIndex.remove(key);
+        _focusedCellKey = null;
+      } else {
+        _activeVariantIndex[key] = idx.clamp(0, list.length - 1);
+      }
+    });
+  }
+
+  /// Set/clear the focused cell (mobile tap or web hover).
+  void _setFocusedCell(String? key) {
+    if (_focusedCellKey == key) return;
+    setState(() => _focusedCellKey = key);
   }
 
   /// Tap on a week's side rail — opens a bigger modal that surfaces
@@ -219,54 +349,31 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
     );
   }
 
-  /// One-stop tap dispatcher for any day cell. Filled → formatted
-  /// preview. Empty → chooser popup (manual / AI). Replaces the old
-  /// per-cell + and ✨ icons (which were clutter on every empty
-  /// in-month cell — both web and mobile read as visually noisy).
+  /// One-stop tap dispatcher for any day cell. Three branches:
+  ///   * Empty cell → enter inline edit mode (the cell becomes a
+  ///     mini-doc with a multi-line TextField; first line = title,
+  ///     subsequent lines = description).
+  ///   * Filled cell that's not yet focused → focus it (reveals
+  ///     ✨ + × + dots).
+  ///   * Filled cell that's already focused → open the formatted
+  ///     "what to do today" view for the active variant.
   Future<void> _onDayCellTap(DateTime date) async {
     final groupId = _activeGroupId;
     if (groupId == null) return;
-    final activity = _activities[_activityKey(date, groupId)];
-    if (activity != null && !activity.isEmpty) {
-      await _onTapFilled(date, activity);
+    final key = _activityKey(date, groupId);
+    final variants = _variantsAt(date, groupId);
+    if (variants.isEmpty) {
+      _enterInlineEdit(date);
       return;
     }
-    await _showCreateChooser(date);
-  }
-
-  /// Bottom-sheet chooser. Same shape as the experiment screen's
-  /// FAB add menu — two ListTiles, fire-and-forget on tap.
-  Future<void> _showCreateChooser(DateTime date) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetCtx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.add),
-              title: const Text('New activity'),
-              subtitle: const Text('Blank card to fill in'),
-              onTap: () {
-                Navigator.of(sheetCtx).pop();
-                unawaited(_onCreateBlank(date));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.auto_awesome_outlined),
-              title: const Text('AI activity'),
-              subtitle: const Text('Describe an idea or paste a link'),
-              onTap: () {
-                Navigator.of(sheetCtx).pop();
-                unawaited(_onCreateAi(date));
-              },
-            ),
-            const SizedBox(height: AppSpacing.md),
-          ],
-        ),
-      ),
-    );
+    if (_focusedCellKey != key) {
+      _setFocusedCell(key);
+      return;
+    }
+    final active = _activeAt(date, groupId);
+    if (active != null && !active.isEmpty) {
+      await _onTapFilled(date, active);
+    }
   }
 
   /// Tap on a filled cell — opens the read-only "what to do today"
@@ -356,9 +463,14 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
     if (groupId == null) return const [];
     final seen = <String, String>{}; // lowercased → original casing
     for (final date in week) {
-      final activity = _activities[_activityKey(date, groupId)];
-      if (activity == null) continue;
-      for (final raw in activity.materials.split(',')) {
+      // Aggregate from the ACTIVE variant only — the user's seeing
+      // that one in the cell, so its materials are what they
+      // actually need to gather. Inactive variants don't contribute
+      // (otherwise the supply list would balloon with every AI
+      // generation regardless of which one was kept).
+      final active = _activeAt(date, groupId);
+      if (active == null) continue;
+      for (final raw in active.materials.split(',')) {
         final trimmed = raw.trim();
         if (trimmed.isEmpty) continue;
         seen.putIfAbsent(trimmed.toLowerCase(), () => trimmed);
@@ -558,20 +670,57 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                                     child: Padding(
                                       padding: const EdgeInsets.all(2),
                                       child: _DayCell(
+                                        // Key includes the cell key
+                                        // so the cell's local state
+                                        // (PageController) doesn't
+                                        // leak across cells when
+                                        // groups switch.
+                                        key: ValueKey(
+                                          '${_activeGroupId!}|'
+                                          '${_dayKey(date)}',
+                                        ),
                                         date: date,
                                         isCurrentMonth: date.month ==
                                             _viewMonth.month,
-                                        activity: _activities[
+                                        variants: _variantsAt(
+                                            date, _activeGroupId!),
+                                        activeIndex: _activeIdxAt(
+                                            date, _activeGroupId!),
+                                        isEditing: _editingCellKey ==
                                             _activityKey(
-                                          date,
-                                          _activeGroupId!,
-                                        )],
-                                        // Single tap dispatcher —
-                                        // empty cell → create chooser,
-                                        // filled cell → formatted view.
+                                                date, _activeGroupId!),
+                                        isFocused: _focusedCellKey ==
+                                            _activityKey(
+                                                date, _activeGroupId!),
                                         onTap: () => unawaited(
                                           _onDayCellTap(date),
                                         ),
+                                        onFocusEnter: () =>
+                                            _setFocusedCell(
+                                                _activityKey(date,
+                                                    _activeGroupId!)),
+                                        onFocusExit: () {
+                                          // Web hover-out clears
+                                          // focus only if no inline
+                                          // edit is in progress on
+                                          // this cell.
+                                          if (_editingCellKey !=
+                                              _activityKey(date,
+                                                  _activeGroupId!)) {
+                                            _setFocusedCell(null);
+                                          }
+                                        },
+                                        onCommitInlineEdit: (text) =>
+                                            _commitInlineEdit(
+                                          date: date,
+                                          text: text,
+                                        ),
+                                        onSwitchVariant: (idx) =>
+                                            _switchVariant(date, idx),
+                                        onAi: () =>
+                                            unawaited(_onCellAi(date)),
+                                        onDeleteActive: () =>
+                                            _deleteActiveVariant(date),
                                       ),
                                     ),
                                   ),
@@ -935,33 +1084,135 @@ class _WeekSidePanelState extends State<_WeekSidePanel> {
 // Day cell
 // =====================================================================
 
-class _DayCell extends StatelessWidget {
+class _DayCell extends StatefulWidget {
   const _DayCell({
     required this.date,
     required this.isCurrentMonth,
-    required this.activity,
+    required this.variants,
+    required this.activeIndex,
+    required this.isEditing,
+    required this.isFocused,
     required this.onTap,
+    required this.onFocusEnter,
+    required this.onFocusExit,
+    required this.onCommitInlineEdit,
+    required this.onSwitchVariant,
+    required this.onAi,
+    required this.onDeleteActive,
+    super.key,
   });
 
   final DateTime date;
   final bool isCurrentMonth;
-  final _MonthlyActivity? activity;
+  final List<_MonthlyActivity> variants;
+  final int activeIndex;
+  final bool isEditing;
+  final bool isFocused;
   final VoidCallback onTap;
+  final VoidCallback onFocusEnter;
+  final VoidCallback onFocusExit;
+  final ValueChanged<String> onCommitInlineEdit;
+  final ValueChanged<int> onSwitchVariant;
+  final VoidCallback onAi;
+  final VoidCallback onDeleteActive;
+
+  @override
+  State<_DayCell> createState() => _DayCellState();
+}
+
+class _DayCellState extends State<_DayCell> {
+  late final PageController _pager =
+      PageController(initialPage: widget.activeIndex);
+  late final TextEditingController _inlineCtrl;
+  late final FocusNode _inlineFocus;
 
   bool get _isToday {
     final now = DateTime.now();
-    return date.year == now.year &&
-        date.month == now.month &&
-        date.day == now.day;
+    return widget.date.year == now.year &&
+        widget.date.month == now.month &&
+        widget.date.day == now.day;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _inlineCtrl = TextEditingController(text: _seedInlineText());
+    _inlineFocus = FocusNode()..addListener(_onInlineFocusChange);
+    if (widget.isEditing) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _inlineFocus.requestFocus();
+      });
+    }
+  }
+
+  /// Initial text for the inline TextField — first line is the
+  /// active variant's title, subsequent lines are the description
+  /// (matches the user's "type title, hit enter, becomes
+  /// description" mental model both for fresh creates and edits).
+  String _seedInlineText() {
+    if (widget.variants.isEmpty) return '';
+    final v = widget.variants[widget.activeIndex.clamp(
+      0,
+      widget.variants.length - 1,
+    )];
+    if (v.title.isEmpty && v.description.isEmpty) return '';
+    if (v.description.isEmpty) return v.title;
+    return '${v.title}\n${v.description}';
+  }
+
+  @override
+  void didUpdateWidget(covariant _DayCell old) {
+    super.didUpdateWidget(old);
+    // Keep the PageController in sync with parent's active index
+    // when the parent flips it (e.g. the user picked a dot or a
+    // fresh AI variant just landed).
+    if (widget.activeIndex != old.activeIndex && _pager.hasClients) {
+      // Fire-and-forget animation; we don't need the completion.
+      unawaited(_pager.animateToPage(
+        widget.activeIndex,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+      ));
+    }
+    // Edit state flipped on → grab focus + seed the inline text
+    // from the current active variant so the user can edit in place.
+    if (widget.isEditing && !old.isEditing) {
+      _inlineCtrl.text = _seedInlineText();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _inlineFocus.requestFocus();
+      });
+    }
+  }
+
+  void _onInlineFocusChange() {
+    // Blur on the inline editor commits — same idiom as the
+    // experiment screen. Keystrokes don't auto-save; only blur or
+    // explicit done.
+    if (!_inlineFocus.hasFocus && widget.isEditing) {
+      widget.onCommitInlineEdit(_inlineCtrl.text);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pager.dispose();
+    _inlineCtrl.dispose();
+    _inlineFocus
+      ..removeListener(_onInlineFocusChange)
+      ..dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-
-    final hasActivity = activity != null && !activity!.isEmpty;
-    final isOutOfMonth = !isCurrentMonth;
+    final isOutOfMonth = !widget.isCurrentMonth;
+    final hasContent =
+        widget.variants.any((v) => !v.isEmpty);
+    final showAffordances =
+        !isOutOfMonth && (widget.isFocused || widget.isEditing) &&
+            !widget.isEditing;
 
     final dateColor = isOutOfMonth
         ? cs.onSurfaceVariant.withValues(alpha: 0.4)
@@ -972,34 +1223,32 @@ class _DayCell extends StatelessWidget {
       side: BorderSide(
         color: _isToday
             ? cs.primary.withValues(alpha: 0.5)
-            : cs.outlineVariant.withValues(alpha: 0.6),
-        width: _isToday ? 1 : 0.5,
+            : (widget.isFocused
+                ? cs.primary.withValues(alpha: 0.6)
+                : cs.outlineVariant.withValues(alpha: 0.6)),
+        width: (_isToday || widget.isFocused) ? 1 : 0.5,
       ),
     );
 
-    return Material(
+    final body = Material(
       color: isOutOfMonth
           ? cs.surfaceContainerLowest.withValues(alpha: 0.4)
           : cs.surface,
       shape: cellShape,
       child: InkWell(
-        // Empty in-month cells are now also tappable — the screen's
-        // dispatcher routes the tap to the create-chooser popup.
-        // Only out-of-month cells stay non-interactive (they're
-        // adjacent-month padding for the rectangular grid).
-        onTap: isOutOfMonth ? null : onTap,
+        onTap: isOutOfMonth ? null : widget.onTap,
         customBorder: cellShape,
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.xs),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          child: Stack(
             children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 2, top: 2),
-                child: Row(
-                  children: [
-                    Text(
-                      '${date.day}',
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: 2, top: 2),
+                    child: Text(
+                      '${widget.date.day}',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: dateColor,
                         fontWeight: _isToday
@@ -1007,20 +1256,117 @@ class _DayCell extends StatelessWidget {
                             : FontWeight.w500,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 2),
+                  if (widget.isEditing)
+                    Expanded(child: _buildInlineEditor(theme))
+                  else if (!isOutOfMonth && hasContent)
+                    Expanded(
+                      child: _buildVariantPager(theme),
+                    ),
+                ],
               ),
-              const SizedBox(height: 2),
-              // Empty in-month cells now show NOTHING below the date
-              // number — clean, declutters the whole grid. Tap the
-              // cell to open the create chooser. Filled cells
-              // continue to render the activity preview.
-              if (!isOutOfMonth && hasActivity)
-                Expanded(child: _CellPreview(activity: activity!)),
+              // ✨ + × affordances overlay — visible only when the
+              // cell is focused/hovered AND has content. Pinned to
+              // bottom-right (✨) and top-right (×) so they don't
+              // crowd the activity preview.
+              if (showAffordances && hasContent) ...[
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: _CellAffordanceButton(
+                    icon: Icons.close,
+                    tone: _AffordanceTone.muted,
+                    onTap: widget.onDeleteActive,
+                    tooltip: 'Delete this variant',
+                  ),
+                ),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: _CellAffordanceButton(
+                    icon: Icons.auto_awesome_outlined,
+                    tone: _AffordanceTone.primary,
+                    onTap: widget.onAi,
+                    tooltip: 'AI variant',
+                  ),
+                ),
+              ],
+              // Variant dots — always visible when >1 variant exists
+              // (they're navigation, not affordances). Centered at
+              // the bottom of the cell.
+              if (!isOutOfMonth && widget.variants.length > 1)
+                Positioned(
+                  bottom: 2,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: _VariantDots(
+                      count: widget.variants.length,
+                      active: widget.activeIndex,
+                      onTap: widget.onSwitchVariant,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
       ),
+    );
+
+    // MouseRegion provides the hover-to-focus path on web. On touch
+    // devices it's a no-op (no hover events fire); the parent's tap
+    // dispatcher handles focus instead.
+    return MouseRegion(
+      onEnter: isOutOfMonth ? null : (_) => widget.onFocusEnter(),
+      onExit: isOutOfMonth ? null : (_) => widget.onFocusExit(),
+      child: body,
+    );
+  }
+
+  Widget _buildInlineEditor(ThemeData theme) {
+    final cs = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: TextField(
+        controller: _inlineCtrl,
+        focusNode: _inlineFocus,
+        maxLines: null,
+        // First line takes the bold "title" weight; subsequent lines
+        // render at body-medium (description) thanks to the on-blur
+        // commit splitting the buffer into title + description.
+        // Visually the in-progress text is a single-style block; the
+        // split happens at commit, which keeps the editor cheap.
+        style: theme.textTheme.bodyMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
+        textInputAction: TextInputAction.newline,
+        decoration: InputDecoration(
+          isDense: true,
+          isCollapsed: true,
+          filled: false,
+          contentPadding: EdgeInsets.zero,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          hintText: 'Title… ↵ then description',
+          hintStyle: theme.textTheme.bodyMedium?.copyWith(
+            color: cs.onSurfaceVariant.withValues(alpha: 0.55),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVariantPager(ThemeData theme) {
+    return PageView.builder(
+      controller: _pager,
+      itemCount: widget.variants.length,
+      onPageChanged: (idx) {
+        if (idx != widget.activeIndex) widget.onSwitchVariant(idx);
+      },
+      itemBuilder: (_, i) => _CellPreview(activity: widget.variants[i]),
     );
   }
 }
@@ -1034,7 +1380,7 @@ class _CellPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
+      padding: const EdgeInsets.fromLTRB(2, 0, 2, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1062,6 +1408,112 @@ class _CellPreview extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+// -- Cell-internal affordance widgets -----------------------------
+
+/// Two visual tones for the cell's overlay buttons. The user
+/// flagged the week plan's red × as too loud; we use neutral
+/// `surface + outlineVariant` for `muted` (×) and a tinted
+/// `primaryContainer` for `primary` (✨). Same shape across both
+/// so the icons read as one set.
+enum _AffordanceTone { muted, primary }
+
+class _CellAffordanceButton extends StatelessWidget {
+  const _CellAffordanceButton({
+    required this.icon,
+    required this.tone,
+    required this.onTap,
+    required this.tooltip,
+  });
+
+  final IconData icon;
+  final _AffordanceTone tone;
+  final VoidCallback onTap;
+  final String tooltip;
+
+  static const double _size = 22;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final (bg, fg, border) = switch (tone) {
+      _AffordanceTone.primary => (
+          cs.primaryContainer,
+          cs.onPrimaryContainer,
+          cs.primary.withValues(alpha: 0.4),
+        ),
+      _AffordanceTone.muted => (
+          cs.surface,
+          cs.onSurfaceVariant,
+          cs.outlineVariant,
+        ),
+    };
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: bg,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_size / 2),
+          side: BorderSide(color: border, width: 0.5),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(_size / 2),
+          onTap: onTap,
+          child: SizedBox(
+            width: _size,
+            height: _size,
+            child: Icon(icon, size: 14, color: fg),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Variant-carousel dots — one per variant, filled = active. Each
+/// dot is a tap target so the user can switch directly without
+/// swiping the PageView.
+class _VariantDots extends StatelessWidget {
+  const _VariantDots({
+    required this.count,
+    required this.active,
+    required this.onTap,
+  });
+
+  final int count;
+  final int active;
+  final ValueChanged<int> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < count; i++)
+          GestureDetector(
+            onTap: () => onTap(i),
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: i == active
+                      ? cs.primary
+                      : cs.onSurfaceVariant.withValues(alpha: 0.3),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

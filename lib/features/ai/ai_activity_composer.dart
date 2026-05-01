@@ -63,12 +63,16 @@ class AiActivity {
 Future<AiActivity?> showAiActivityComposer(
   BuildContext context, {
   AiActivityContext? planContext,
+  String? initialInput,
 }) async {
   return showModalBottomSheet<AiActivity>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => _AiActivityComposerSheet(planContext: planContext),
+    builder: (_) => _AiActivityComposerSheet(
+      planContext: planContext,
+      initialInput: initialInput,
+    ),
   );
 }
 
@@ -120,9 +124,18 @@ class AiActivityContext {
 final _urlPattern = RegExp(r'https?://\S+');
 
 class _AiActivityComposerSheet extends StatefulWidget {
-  const _AiActivityComposerSheet({this.planContext});
+  const _AiActivityComposerSheet({
+    this.planContext,
+    this.initialInput,
+  });
 
   final AiActivityContext? planContext;
+
+  /// Optional starting text for the input field. Used by the
+  /// monthly-plan variant flow to seed the composer with the active
+  /// variant's title + description so the user can tweak before
+  /// generating an alternate take.
+  final String? initialInput;
 
   @override
   State<_AiActivityComposerSheet> createState() =>
@@ -130,7 +143,8 @@ class _AiActivityComposerSheet extends StatefulWidget {
 }
 
 class _AiActivityComposerSheetState extends State<_AiActivityComposerSheet> {
-  final _ctrl = TextEditingController();
+  late final _ctrl =
+      TextEditingController(text: widget.initialInput ?? '');
   // Null when idle. While work is in flight, holds a teacher-facing
   // status string ("Reading link…", "Generating…") that becomes the
   // button label.
