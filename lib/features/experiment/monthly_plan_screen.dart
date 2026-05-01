@@ -2185,6 +2185,69 @@ class _CellAffordanceButton extends StatelessWidget {
 
 
 // =====================================================================
+// Persisted add-ons wrapper — bridges the AI module to the repo
+// =====================================================================
+
+/// Thin wrapper around `AiActivityAddonsSection` that wires it to
+/// the cloud-backed add-on column on the activity row. Watches the
+/// row's variants stream so add-ons generated on one device land
+/// on every other open client within the second; passes the
+/// decoded map to the AI module's section as `previouslyGenerated`,
+/// and routes its `onGenerated` / `onRemoved` callbacks into
+/// `monthlyPlanRepository.setAddon` / `removeAddon`.
+class _PersistedAddonsSection extends ConsumerWidget {
+  const _PersistedAddonsSection({
+    required this.activity,
+    required this.planContext,
+  });
+
+  final _MonthlyActivity activity;
+  final AiActivityContext? planContext;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Watch the variants stream for the cell this activity lives in
+    // so the section rebuilds on realtime updates. We don't have
+    // (groupId, date) on the UI variant directly — but we can
+    // bypass the stream and just re-decode whatever's in the row's
+    // current persisted blob via a one-shot read. For real-time
+    // sync, the stream-watching path is taken at the cell level.
+    //
+    // For now (keeps the touch surface small): decode whatever's
+    // currently persisted on this row, accept that the addon list
+    // doesn't auto-refresh inside an open sheet when another
+    // teacher generates one. Closing + re-opening pulls fresh.
+    final repo = ref.read(monthlyPlanRepositoryProvider);
+    final raw = ref
+        .watch(monthlyVariantProvider(activity.id))
+        .asData
+        ?.value;
+    final persisted = MonthlyPlanRepository.decodeAddons(raw?.addons);
+    return AiActivityAddonsSection(
+      activity: activity.toAiActivity(),
+      planContext: planContext,
+      previouslyGenerated: persisted,
+      onGenerated: (specId, sections) {
+        unawaited(repo.setAddon(
+          activityId: activity.id,
+          specId: specId,
+          sections: [
+            for (final s in sections)
+              {'heading': s.heading, 'body': s.body},
+          ],
+        ));
+      },
+      onRemoved: (specId) {
+        unawaited(repo.removeAddon(
+          activityId: activity.id,
+          specId: specId,
+        ));
+      },
+    );
+  }
+}
+
+// =====================================================================
 // Formatted "what to do today" sheet — read-only; pencil → editor
 // =====================================================================
 
@@ -2373,8 +2436,8 @@ class _ActivityFormattedSheet extends StatelessWidget {
                 color: cs.outlineVariant,
               ),
               const SizedBox(height: AppSpacing.lg),
-              AiActivityAddonsSection(
-                activity: activity.toAiActivity(),
+              _PersistedAddonsSection(
+                activity: activity,
                 planContext: planContext,
               ),
               const SizedBox(height: AppSpacing.xxl),
@@ -2628,8 +2691,8 @@ class _MonthlyActivityEditorState
               // Same inline AI add-ons section as the formatted
               // preview — exposes them at edit-time too so authors
               // can iterate without leaving the editor.
-              AiActivityAddonsSection(
-                activity: widget.activity.toAiActivity(),
+              _PersistedAddonsSection(
+                activity: widget.activity,
                 planContext: widget.planContext,
               ),
               const SizedBox(height: AppSpacing.xl),

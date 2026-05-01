@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
@@ -373,6 +374,116 @@ class MonthlyPlanRepository {
     await deleteVariant(tail.id);
   }
 
+  // ---- Add-ons (v58) ------------------------------------------
+
+  /// Read the persisted add-ons for a variant, decoded into the
+  /// flat shape the UI consumes (`{ specId: List<{heading, body}> }`).
+  /// Returns an empty map when the column is null / unparsable —
+  /// resilience against rows that pre-date v58 or that got
+  /// corrupted by a partial cloud merge.
+  ///
+  /// Reading via the stream-watching `watchVariants`/`watchSpan` is
+  /// the canonical path for live UI; this helper exposes a one-shot
+  /// decoded version for callsites that already have the row.
+  static Map<String, List<Map<String, String>>> decodeAddons(
+    String? raw,
+  ) {
+    if (raw == null || raw.isEmpty) return const {};
+    try {
+      final parsed = jsonDecode(raw);
+      if (parsed is! Map<String, dynamic>) return const {};
+      final out = <String, List<Map<String, String>>>{};
+      for (final entry in parsed.entries) {
+        final list = entry.value;
+        if (list is! List) continue;
+        final sections = <Map<String, String>>[];
+        for (final raw in list) {
+          if (raw is! Map) continue;
+          sections.add({
+            'heading': (raw['heading'] as String? ?? '').trim(),
+            'body': (raw['body'] as String? ?? '').trim(),
+          });
+        }
+        out[entry.key] = sections;
+      }
+      return out;
+    } on Object {
+      return const {};
+    }
+  }
+
+  /// Persist (or replace) the add-on at [specId] for variant
+  /// [activityId]. The column stores the entire add-ons map for the
+  /// activity, so we read-modify-write — cheap because the blob is
+  /// small. Marks `addons` as the only dirty field so the cloud
+  /// push is a partial UPDATE.
+  Future<void> setAddon({
+    required String activityId,
+    required String specId,
+    required List<Map<String, String>> sections,
+  }) async {
+    final row = await (_db.select(_db.monthlyActivities)
+          ..where((r) => r.id.equals(activityId))
+          ..limit(1))
+        .getSingleOrNull();
+    if (row == null) return;
+    final current = decodeAddons(row.addons);
+    final next = Map<String, List<Map<String, String>>>.from(current)
+      ..[specId] = sections;
+    final encoded = jsonEncode(next);
+    final now = DateTime.now();
+    await (_db.update(_db.monthlyActivities)
+          ..where((r) => r.id.equals(activityId)))
+        .write(
+      MonthlyActivitiesCompanion(
+        addons: Value(encoded),
+        updatedAt: Value(now),
+      ),
+    );
+    await _db.markDirty('monthly_activities', activityId, ['addons']);
+    unawaited(_sync.pushRow(monthlyActivitiesSpec, activityId));
+  }
+
+  /// Drop a single add-on entry (the user tapped "regenerate" and
+  /// wants to start clean, or chose to delete one). Different
+  /// from setAddon with empty sections — that would render as a
+  /// generated-but-empty result.
+  Future<void> removeAddon({
+    required String activityId,
+    required String specId,
+  }) async {
+    final row = await (_db.select(_db.monthlyActivities)
+          ..where((r) => r.id.equals(activityId))
+          ..limit(1))
+        .getSingleOrNull();
+    if (row == null) return;
+    final current = decodeAddons(row.addons);
+    if (!current.containsKey(specId)) return;
+    final next = Map<String, List<Map<String, String>>>.from(current)
+      ..remove(specId);
+    final encoded = next.isEmpty ? null : jsonEncode(next);
+    final now = DateTime.now();
+    await (_db.update(_db.monthlyActivities)
+          ..where((r) => r.id.equals(activityId)))
+        .write(
+      MonthlyActivitiesCompanion(
+        addons: encoded == null ? const Value(null) : Value(encoded),
+        updatedAt: Value(now),
+      ),
+    );
+    await _db.markDirty('monthly_activities', activityId, ['addons']);
+    unawaited(_sync.pushRow(monthlyActivitiesSpec, activityId));
+  }
+
+  /// Watch a single variant by row id. Useful for sheets that hold
+  /// a reference to a specific variant and need it to refresh
+  /// (add-ons, "Day N of M" header, etc.) when another client
+  /// updates the row over realtime.
+  Stream<MonthlyActivity?> watchById(String id) {
+    return (_db.select(_db.monthlyActivities)..where((r) => r.id.equals(id)))
+        .watchSingleOrNull();
+  }
+
   /// Watch every continuation + the head for a given span_id, in
   /// span-position order. Used by the formatted sheet to render
   /// "Day 1 of 3" etc.
@@ -507,4 +618,15 @@ final monthlySpanProvider =
     StreamProvider.family<List<MonthlyActivity>, String>((ref, spanId) {
   ref.watch(activeProgramIdProvider);
   return ref.watch(monthlyPlanRepositoryProvider).watchSpan(spanId);
+});
+
+/// v58 — single-variant watcher by row id. Sheets that pin a
+/// specific variant (formatted view, editor) use this to track
+/// updates from realtime — when another teacher generates an
+/// add-on, the open sheet picks up the new persisted data.
+// ignore: specify_nonobvious_property_types
+final monthlyVariantProvider =
+    StreamProvider.family<MonthlyActivity?, String>((ref, id) {
+  ref.watch(activeProgramIdProvider);
+  return ref.watch(monthlyPlanRepositoryProvider).watchById(id);
 });

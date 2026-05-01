@@ -1669,6 +1669,13 @@ class MonthlyActivities extends Table {
   IntColumn get spanPosition =>
       integer().withDefault(const Constant(0))();
 
+  /// v58: persisted AI add-ons. JSON blob shaped as
+  /// `{ "<spec_id>": [{"heading": "...", "body": "..."}, ...] }`.
+  /// Spec ids match `addonSpecs[].id`. Null = no add-ons generated
+  /// yet for this activity; an empty map (`{}`) means the user
+  /// generated and then deleted everything.
+  TextColumn get addons => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>

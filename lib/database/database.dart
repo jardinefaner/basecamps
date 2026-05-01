@@ -76,7 +76,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 57;
+  int get schemaVersion => 58;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -114,6 +114,7 @@ class AppDatabase extends _$AppDatabase {
           await _healV55MonthlyPlanTables();
           await _healV56MonthlyActivitiesTable();
           await _healV57MonthlyActivitySpanColumns();
+          await _healV58MonthlyActivityAddonsColumn();
           await _healDirtyFieldsColumns();
         },
         onCreate: (m) => m.createAll(),
@@ -132,6 +133,15 @@ class AppDatabase extends _$AppDatabase {
               'fresh at schema 25. This only affects devs who have '
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
+            );
+          }
+          if (from < 58) {
+            // v58: persisted AI add-ons on monthly activities.
+            // JSON blob keyed by spec id. Cloud parity: migration
+            // 0035.
+            await _runSilent(
+              'ALTER TABLE "monthly_activities" '
+              'ADD COLUMN "addons" TEXT NULL',
             );
           }
           if (from < 57) {
@@ -1622,6 +1632,15 @@ class AppDatabase extends _$AppDatabase {
     await _runSilent(
       'ALTER TABLE "monthly_activities" '
       'ADD COLUMN "span_position" INTEGER NOT NULL DEFAULT 0',
+    );
+  }
+
+  /// v58 schema heal — add addons (JSON text) to monthly_activities.
+  /// Same belt-and-suspenders pattern as v57.
+  Future<void> _healV58MonthlyActivityAddonsColumn() async {
+    await _runSilent(
+      'ALTER TABLE "monthly_activities" '
+      'ADD COLUMN "addons" TEXT NULL',
     );
   }
 

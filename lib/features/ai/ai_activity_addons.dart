@@ -479,19 +479,40 @@ class _AddonsEmpty implements Exception {
 /// state inline. No separate modal — keeps the scroll context with
 /// the activity above so the user can reference it.
 ///
-/// Sandbox-only: state lives in this widget's [State], so popping
-/// the parent sheet drops everything. When this graduates we'll
-/// give it a `previouslyGenerated` map keyed by spec id so
-/// generations persist between opens.
+/// **Persistence (v58).** When the caller passes [previouslyGenerated]
+/// (the persisted add-ons map for the activity) and an [onGenerated]
+/// callback, generated results are saved on the activity row through
+/// the callback. Reopening the sheet shows already-generated add-ons
+/// as filled tiles the user can re-open or regenerate. Sandbox
+/// callsites (the experiment screen) leave both null and fall back
+/// to the old in-memory behavior.
 class AiActivityAddonsSection extends StatefulWidget {
   const AiActivityAddonsSection({
     required this.activity,
     this.planContext,
+    this.previouslyGenerated,
+    this.onGenerated,
+    this.onRemoved,
     super.key,
   });
 
   final AiActivity activity;
   final AiActivityContext? planContext;
+
+  /// Persisted add-ons for this activity, keyed by spec id, with
+  /// each entry the same `[{heading, body}, ...]` shape the
+  /// repository decodes. When non-null, the picker shows filled
+  /// tiles for already-generated entries.
+  final Map<String, List<Map<String, String>>>? previouslyGenerated;
+
+  /// Called after a successful generate (or regenerate). Receives
+  /// the spec id + sections payload — caller persists. When null,
+  /// generation is in-memory only (sandbox).
+  final void Function(String specId, List<AddonSection> sections)? onGenerated;
+
+  /// Called when the user explicitly removes a previously-generated
+  /// add-on. When null, removal isn't surfaced as an action.
+  final void Function(String specId)? onRemoved;
 
   @override
   State<AiActivityAddonsSection> createState() =>
@@ -517,6 +538,8 @@ class _AiActivityAddonsSectionState
         planContext: widget.planContext,
       );
       if (!mounted) return;
+      // Persist if the caller wired it up.
+      widget.onGenerated?.call(spec.id, result.sections);
       setState(() {
         _generating = null;
         _result = result;
@@ -531,11 +554,36 @@ class _AiActivityAddonsSectionState
     }
   }
 
+  /// Open a previously-generated add-on without re-running the
+  /// model. Reconstructs an [AddonResult] from the persisted JSON.
+  void _openPersisted(AddonSpec spec, List<Map<String, String>> raw) {
+    final sections = [
+      for (final m in raw)
+        AddonSection(
+          heading: m['heading'] ?? '',
+          body: m['body'] ?? '',
+        ),
+    ];
+    setState(() {
+      _result = AddonResult(spec: spec, sections: sections);
+      _error = null;
+    });
+  }
+
   void _backToPicker() {
     setState(() {
       _result = null;
       _error = null;
     });
+  }
+
+  void _remove(AddonSpec spec) {
+    widget.onRemoved?.call(spec.id);
+    if (_result?.spec.id == spec.id) {
+      setState(() => _result = null);
+    } else {
+      setState(() {});
+    }
   }
 
   @override
@@ -544,25 +592,52 @@ class _AiActivityAddonsSectionState
       return _InlineLoading(spec: _generating!);
     }
     if (_result != null) {
+      final hasPersisted =
+          widget.previouslyGenerated?.containsKey(_result!.spec.id) ?? false;
       return _InlineResult(
         result: _result!,
         onBack: _backToPicker,
         onRegenerate: () => _generate(_result!.spec),
+        onRemove: hasPersisted && widget.onRemoved != null
+            ? () => _remove(_result!.spec)
+            : null,
       );
     }
-    return _InlinePicker(error: _error, onPicked: _generate);
+    return _InlinePicker(
+      error: _error,
+      onPicked: _generate,
+      previouslyGenerated: widget.previouslyGenerated,
+      onOpenPersisted: _openPersisted,
+      persisted: widget.previouslyGenerated != null,
+    );
   }
 }
 
 class _InlinePicker extends StatelessWidget {
-  const _InlinePicker({required this.error, required this.onPicked});
+  const _InlinePicker({
+    required this.error,
+    required this.onPicked,
+    required this.persisted,
+    this.previouslyGenerated,
+    this.onOpenPersisted,
+  });
 
   final String? error;
   final ValueChanged<AddonSpec> onPicked;
 
+  /// True when the parent passed an `onGenerated` callback — i.e.
+  /// the caller is wiring real persistence. Drives the subtitle copy
+  /// (no more "sandbox only, nothing saves" lie).
+  final bool persisted;
+
+  final Map<String, List<Map<String, String>>>? previouslyGenerated;
+  final void Function(AddonSpec spec, List<Map<String, String>> raw)?
+      onOpenPersisted;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final generated = previouslyGenerated ?? const {};
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -579,8 +654,12 @@ class _InlinePicker extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
-          'AI-generated supplements. Tap one to see what the model '
-          'comes up with — sandbox only, nothing saves.',
+          persisted
+              ? 'AI-generated supplements. Once you tap one and it '
+                  'generates, the result saves with this activity — '
+                  'open it again later without re-running the model.'
+              : 'AI-generated supplements. Tap one to see what the '
+                  'model comes up with — sandbox only, nothing saves.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -607,7 +686,18 @@ class _InlinePicker extends StatelessWidget {
           _CategoryHeader(label: cat.label),
           const SizedBox(height: AppSpacing.xs),
           for (final spec in addonSpecs.where((s) => s.category == cat))
-            _AddonTile(spec: spec, onTap: () => onPicked(spec)),
+            _AddonTile(
+              spec: spec,
+              filled: generated.containsKey(spec.id),
+              onTap: () {
+                final saved = generated[spec.id];
+                if (saved != null && onOpenPersisted != null) {
+                  onOpenPersisted!(spec, saved);
+                } else {
+                  onPicked(spec);
+                }
+              },
+            ),
         ],
       ],
     );
@@ -633,13 +723,24 @@ class _CategoryHeader extends StatelessWidget {
 }
 
 class _AddonTile extends StatelessWidget {
-  const _AddonTile({required this.spec, required this.onTap});
+  const _AddonTile({
+    required this.spec,
+    required this.onTap,
+    this.filled = false,
+  });
   final AddonSpec spec;
   final VoidCallback onTap;
+
+  /// True when the caller passed a previously-generated result for
+  /// this spec — render with a "saved" check and a tinted icon
+  /// background so the user can see at a glance which add-ons have
+  /// already been generated for this activity.
+  final bool filled;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return InkWell(
       borderRadius: BorderRadius.circular(8),
       onTap: onTap,
@@ -650,26 +751,51 @@ class _AddonTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(
-              spec.icon,
-              size: 22,
-              color: theme.colorScheme.primary,
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: filled
+                    ? cs.primaryContainer
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                spec.icon,
+                size: 22,
+                color: filled ? cs.onPrimaryContainer : cs.primary,
+              ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    spec.label,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          spec.label,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (filled) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        Icon(
+                          Icons.check_circle,
+                          size: 14,
+                          color: cs.primary,
+                        ),
+                      ],
+                    ],
                   ),
                   Text(
-                    spec.subtitle,
+                    filled ? 'Saved — tap to view' : spec.subtitle,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -677,7 +803,7 @@ class _AddonTile extends StatelessWidget {
             ),
             Icon(
               Icons.chevron_right,
-              color: theme.colorScheme.onSurfaceVariant,
+              color: cs.onSurfaceVariant,
             ),
           ],
         ),
@@ -732,11 +858,18 @@ class _InlineResult extends StatelessWidget {
     required this.result,
     required this.onBack,
     required this.onRegenerate,
+    this.onRemove,
   });
 
   final AddonResult result;
   final VoidCallback onBack;
   final VoidCallback onRegenerate;
+
+  /// When non-null, render a delete affordance that drops the
+  /// persisted add-on. Only relevant for callsites that wired
+  /// persistence (the formatted sheet + editor); sandbox callsites
+  /// have nothing to delete.
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -767,6 +900,17 @@ class _InlineResult extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (onRemove != null)
+              IconButton(
+                tooltip: 'Remove this add-on',
+                icon: const Icon(Icons.delete_outline),
+                onPressed: onRemove,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 36,
+                  minHeight: 36,
+                ),
+              ),
             IconButton(
               tooltip: 'Regenerate',
               icon: const Icon(Icons.refresh),
