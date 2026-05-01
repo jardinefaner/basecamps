@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:basecamp/database/database.dart' show Group;
 import 'package:basecamp/features/ai/ai_activity_addons.dart';
 import 'package:basecamp/features/ai/ai_activity_composer.dart';
+import 'package:basecamp/features/ai/openai_client.dart';
 import 'package:basecamp/features/children/children_repository.dart'
     show groupsProvider;
 import 'package:basecamp/theme/spacing.dart';
@@ -64,11 +66,26 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   /// If usage shows that's wrong, easy to scope per-group later.
   final Map<String, String> _subThemes = {};
 
-  /// Monthly theme — applies across the visible month, used as AI
-  /// generation context. Per-month would be overkill for the sandbox
-  /// (a teacher who flips months wants to see the same theme they
-  /// just authored), so it's a single string. NOT keyed by month.
-  String _monthlyTheme = '';
+  /// Monthly themes keyed by `"$year-$month"`. Each visible month
+  /// owns its own theme — flipping from April to May swaps in May's
+  /// theme (or empty if not yet set). Drives AI generation context
+  /// for cells in that month.
+  final Map<String, String> _monthlyThemes = {};
+
+  String _monthKey(DateTime d) => '${d.year}-${d.month}';
+  String get _activeMonthlyTheme =>
+      _monthlyThemes[_monthKey(_viewMonth)] ?? '';
+
+  void _setMonthlyTheme(String value) {
+    setState(() {
+      final key = _monthKey(_viewMonth);
+      if (value.trim().isEmpty) {
+        _monthlyThemes.remove(key);
+      } else {
+        _monthlyThemes[key] = value;
+      }
+    });
+  }
 
   // Per-group age range now lives on the Group row itself
   // (`audienceAgeLabel`) — no local state needed. Edit it from the
@@ -194,11 +211,61 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
     // Find the Monday of the date's week to look up the sub-theme.
     final monday = date.subtract(Duration(days: date.weekday - 1));
     return AiActivityContext(
-      monthlyTheme: _monthlyTheme,
+      monthlyTheme: _activeMonthlyTheme,
       // Pulled straight off the Group row — single source of truth.
       ageRange: group?.audienceAgeLabel,
       subTheme: _subThemes[_dayKey(monday)],
       groupName: group?.name,
+    );
+  }
+
+  /// One-stop tap dispatcher for any day cell. Filled → formatted
+  /// preview. Empty → chooser popup (manual / AI). Replaces the old
+  /// per-cell + and ✨ icons (which were clutter on every empty
+  /// in-month cell — both web and mobile read as visually noisy).
+  Future<void> _onDayCellTap(DateTime date) async {
+    final groupId = _activeGroupId;
+    if (groupId == null) return;
+    final activity = _activities[_activityKey(date, groupId)];
+    if (activity != null && !activity.isEmpty) {
+      await _onTapFilled(date, activity);
+      return;
+    }
+    await _showCreateChooser(date);
+  }
+
+  /// Bottom-sheet chooser. Same shape as the experiment screen's
+  /// FAB add menu — two ListTiles, fire-and-forget on tap.
+  Future<void> _showCreateChooser(DateTime date) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.add),
+              title: const Text('New activity'),
+              subtitle: const Text('Blank card to fill in'),
+              onTap: () {
+                Navigator.of(sheetCtx).pop();
+                unawaited(_onCreateBlank(date));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.auto_awesome_outlined),
+              title: const Text('AI activity'),
+              subtitle: const Text('Describe an idea or paste a link'),
+              onTap: () {
+                Navigator.of(sheetCtx).pop();
+                unawaited(_onCreateAi(date));
+              },
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+        ),
+      ),
     );
   }
 
@@ -324,11 +391,15 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
       ),
       body: Column(
         children: [
-          // Monthly theme — top-most input. Drives AI generation
-          // context for every cell in the visible month.
+          // Monthly theme — top-most input. Per-month, used as AI
+          // generation context. The bar keys itself by month so
+          // flipping months remounts cleanly with the right value
+          // and any in-flight suggestion chips reset.
           _MonthlyThemeBar(
-            value: _monthlyTheme,
-            onChanged: (v) => setState(() => _monthlyTheme = v),
+            key: ValueKey(_monthKey(_viewMonth)),
+            month: _viewMonth,
+            value: _activeMonthlyTheme,
+            onChanged: _setMonthlyTheme,
           ),
           // Group filter — required. Sits above the toolbar so it's
           // the first thing the user sees / picks.
@@ -370,7 +441,12 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
             onNext: () => _shiftMonth(1),
             onReset: _resetToThisMonth,
           ),
-          _GridHeader(),
+          // Day-of-week header was previously rendered above the
+          // horizontal scroll view, which on mobile drifted out of
+          // alignment with the day columns once the user scrolled
+          // (the body scrolled, the header didn't). The header has
+          // moved INSIDE the scroll view alongside the grid below;
+          // see the SizedBox child Column.
           const Divider(height: 1),
           // Grid uses fixed minimum cell sizes — day cells 160dp
           // wide × 120dp tall minimum, side rail 240dp wide. On a
@@ -394,13 +470,16 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                       const minSideRailWidth = 240.0;
                       const minDayCellWidth = 160.0;
                       const minRowHeight = 120.0;
+                      const headerRowHeight = 32.0;
                       const totalCols = 5;
                       const minTotalWidth = minSideRailWidth +
                           minDayCellWidth * totalCols;
                       final width = constraints.maxWidth >= minTotalWidth
                           ? constraints.maxWidth
                           : minTotalWidth;
-                      final minTotalHeight =
+                      // Reserve the header row's height in the total
+                      // so weeks always get their full minRowHeight.
+                      final minTotalHeight = headerRowHeight +
                           minRowHeight * weeks.length;
                       final height =
                           constraints.maxHeight >= minTotalHeight
@@ -420,6 +499,16 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                               height: height - AppSpacing.sm * 2,
                               child: Column(
                       children: [
+                        // Day-of-week header — same column widths
+                        // as the body rows so labels line up under
+                        // their cells regardless of horizontal scroll
+                        // position.
+                        const SizedBox(
+                          height: headerRowHeight,
+                          child: _GridHeaderRow(
+                            sideWidth: minSideRailWidth,
+                          ),
+                        ),
                         for (final week in weeks)
                           Expanded(
                             child: Row(
@@ -477,21 +566,12 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                                           date,
                                           _activeGroupId!,
                                         )],
-                                        onCreateBlank: () => unawaited(
-                                          _onCreateBlank(date),
+                                        // Single tap dispatcher —
+                                        // empty cell → create chooser,
+                                        // filled cell → formatted view.
+                                        onTap: () => unawaited(
+                                          _onDayCellTap(date),
                                         ),
-                                        onCreateAi: () =>
-                                            unawaited(_onCreateAi(date)),
-                                        onTap: () {
-                                          final a = _activities[
-                                              _activityKey(
-                                            date,
-                                            _activeGroupId!,
-                                          )];
-                                          if (a != null && !a.isEmpty) {
-                                            unawaited(_onTapFilled(date, a));
-                                          }
-                                        },
                                       ),
                                     ),
                                   ),
@@ -669,7 +749,17 @@ class _MonthToolbar extends StatelessWidget {
   }
 }
 
-class _GridHeader extends StatelessWidget {
+/// Day-of-week header row — sized to match the body's column shape
+/// so labels align with their respective cells regardless of where
+/// the horizontal scroll lands. Side rail uses a fixed width
+/// (matches the body's `SizedBox(width: minSideRailWidth)`); each
+/// day uses a plain `Expanded` (matches the body's `Expanded`
+/// stretching above the 160dp floor).
+class _GridHeaderRow extends StatelessWidget {
+  const _GridHeaderRow({required this.sideWidth});
+
+  final double sideWidth;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -677,29 +767,20 @@ class _GridHeader extends StatelessWidget {
       color: theme.colorScheme.onSurfaceVariant,
       fontWeight: FontWeight.w600,
     );
-    const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
-      ),
-      child: Row(
-        children: [
-          // Side-rail header — empty title, just visual placeholder
-          // so the column widths align with the body grid below.
-          Expanded(
-            flex: 3,
-            child: Center(
-              child: Text('Theme · Supplies', style: labelStyle),
-            ),
+    const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    return Row(
+      children: [
+        SizedBox(
+          width: sideWidth,
+          child: Center(
+            child: Text('Theme · Supplies', style: labelStyle),
           ),
-          for (final label in labels)
-            Expanded(
-              flex: 4,
-              child: Center(child: Text(label, style: labelStyle)),
-            ),
-        ],
-      ),
+        ),
+        for (final label in dayLabels)
+          Expanded(
+            child: Center(child: Text(label, style: labelStyle)),
+          ),
+      ],
     );
   }
 }
@@ -859,16 +940,12 @@ class _DayCell extends StatelessWidget {
     required this.date,
     required this.isCurrentMonth,
     required this.activity,
-    required this.onCreateBlank,
-    required this.onCreateAi,
     required this.onTap,
   });
 
   final DateTime date;
   final bool isCurrentMonth;
   final _MonthlyActivity? activity;
-  final VoidCallback onCreateBlank;
-  final VoidCallback onCreateAi;
   final VoidCallback onTap;
 
   bool get _isToday {
@@ -906,7 +983,11 @@ class _DayCell extends StatelessWidget {
           : cs.surface,
       shape: cellShape,
       child: InkWell(
-        onTap: isOutOfMonth || !hasActivity ? null : onTap,
+        // Empty in-month cells are now also tappable — the screen's
+        // dispatcher routes the tap to the create-chooser popup.
+        // Only out-of-month cells stay non-interactive (they're
+        // adjacent-month padding for the rectangular grid).
+        onTap: isOutOfMonth ? null : onTap,
         customBorder: cellShape,
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.xs),
@@ -930,16 +1011,12 @@ class _DayCell extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              Expanded(
-                child: isOutOfMonth
-                    ? const SizedBox.shrink()
-                    : (hasActivity
-                        ? _CellPreview(activity: activity!)
-                        : _CellChooser(
-                            onCreateBlank: onCreateBlank,
-                            onCreateAi: onCreateAi,
-                          )),
-              ),
+              // Empty in-month cells now show NOTHING below the date
+              // number — clean, declutters the whole grid. Tap the
+              // cell to open the create chooser. Filled cells
+              // continue to render the activity preview.
+              if (!isOutOfMonth && hasActivity)
+                Expanded(child: _CellPreview(activity: activity!)),
             ],
           ),
         ),
@@ -989,89 +1066,6 @@ class _CellPreview extends StatelessWidget {
   }
 }
 
-class _CellChooser extends StatelessWidget {
-  const _CellChooser({
-    required this.onCreateBlank,
-    required this.onCreateAi,
-  });
-
-  final VoidCallback onCreateBlank;
-  final VoidCallback onCreateAi;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    // FittedBox(scaleDown) around the icon row so very small cells
-    // (a 6-week month on a narrow phone window can drop a cell to
-    // ~30dp) shrink the icons to fit instead of overflowing the
-    // Column. Default cell sizes still render the full 24dp icons.
-    return Center(
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _ChooserIcon(
-              icon: Icons.add,
-              background: cs.surface,
-              foreground: cs.onSurface,
-              borderColor: cs.outlineVariant,
-              onTap: onCreateBlank,
-            ),
-            const SizedBox(width: 4),
-            _ChooserIcon(
-              icon: Icons.auto_awesome_outlined,
-              background: cs.primaryContainer,
-              foreground: cs.onPrimaryContainer,
-              borderColor: cs.primary.withValues(alpha: 0.4),
-              onTap: onCreateAi,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ChooserIcon extends StatelessWidget {
-  const _ChooserIcon({
-    required this.icon,
-    required this.background,
-    required this.foreground,
-    required this.borderColor,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final Color background;
-  final Color foreground;
-  final Color borderColor;
-  final VoidCallback onTap;
-
-  static const double _size = 26;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: background,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(_size / 2),
-        side: BorderSide(color: borderColor, width: 0.5),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(_size / 2),
-        onTap: onTap,
-        child: SizedBox(
-          width: _size,
-          height: _size,
-          child: Icon(icon, size: 14, color: foreground),
-        ),
-      ),
-    );
-  }
-}
 
 // =====================================================================
 // Formatted "what to do today" sheet — read-only; pencil → editor
@@ -1614,8 +1608,14 @@ class _DetailsDisclosureState extends State<_DetailsDisclosure> {
 /// pattern) because this is a deliberate top-of-page form field, not
 /// a doc-feel inline edit.
 class _MonthlyThemeBar extends StatefulWidget {
-  const _MonthlyThemeBar({required this.value, required this.onChanged});
+  const _MonthlyThemeBar({
+    required this.month,
+    required this.value,
+    required this.onChanged,
+    super.key,
+  });
 
+  final DateTime month;
   final String value;
   final ValueChanged<String> onChanged;
 
@@ -1626,6 +1626,9 @@ class _MonthlyThemeBar extends StatefulWidget {
 class _MonthlyThemeBarState extends State<_MonthlyThemeBar> {
   late final TextEditingController _ctrl =
       TextEditingController(text: widget.value);
+  bool _suggesting = false;
+  List<String> _suggestions = const [];
+  String? _suggestError;
 
   @override
   void didUpdateWidget(covariant _MonthlyThemeBar old) {
@@ -1641,35 +1644,166 @@ class _MonthlyThemeBarState extends State<_MonthlyThemeBar> {
     super.dispose();
   }
 
+  Future<void> _suggest() async {
+    if (_suggesting) return;
+    setState(() {
+      _suggesting = true;
+      _suggestError = null;
+      _suggestions = const [];
+    });
+    try {
+      final list = await _suggestMonthlyThemes(widget.month);
+      if (!mounted) return;
+      setState(() {
+        _suggesting = false;
+        _suggestions = list;
+      });
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _suggesting = false;
+        _suggestError =
+            e.toString().replaceFirst(RegExp(r'^[^:]+:\s*'), '');
+      });
+    }
+  }
+
+  void _pickSuggestion(String s) {
+    _ctrl.text = s;
+    widget.onChanged(s);
+    setState(() => _suggestions = const []);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final monthLabel = DateFormat.MMMM().format(widget.month);
     return Container(
       color: theme.colorScheme.surface,
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.md,
         AppSpacing.sm,
         AppSpacing.md,
-        AppSpacing.xs,
+        AppSpacing.sm,
       ),
-      child: TextField(
-        controller: _ctrl,
-        onChanged: widget.onChanged,
-        textInputAction: TextInputAction.done,
-        decoration: InputDecoration(
-          isDense: true,
-          prefixIcon: Icon(
-            Icons.workspace_premium_outlined,
-            size: 18,
-            color: theme.colorScheme.primary,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _ctrl,
+                  onChanged: widget.onChanged,
+                  textInputAction: TextInputAction.done,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    prefixIcon: Icon(
+                      Icons.workspace_premium_outlined,
+                      size: 18,
+                      color: theme.colorScheme.primary,
+                    ),
+                    labelText: 'Monthly theme',
+                    hintText: "e.g. Nature, Mother's Day, Growing things",
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              // ✨ Suggest button — visible when the field is empty.
+              // Asks the model for typical themes for the visible
+              // month so a teacher staring at a blank field has
+              // somewhere to start.
+              if (widget.value.isEmpty)
+                FilledButton.tonalIcon(
+                  onPressed: _suggesting ? null : _suggest,
+                  icon: _suggesting
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_awesome_outlined, size: 16),
+                  label: Text(_suggesting ? '…' : 'Suggest'),
+                ),
+            ],
           ),
-          labelText: 'Monthly theme',
-          hintText: 'e.g. Nature, Friendships, Ocean',
-          helperText: 'Used as context when AI generates activities',
-        ),
+          if (_suggestError != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              _suggestError!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ],
+          if (_suggestions.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Suggested themes for $monthLabel',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
+              children: [
+                for (final s in _suggestions)
+                  ActionChip(
+                    label: Text(s),
+                    onPressed: () => _pickSuggestion(s),
+                  ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }
+}
+
+/// Asks the model for ~4 short, season-appropriate monthly themes
+/// for [month]. Returns an empty list on any failure. Uses the
+/// existing OpenAI proxy via the AI client.
+Future<List<String>> _suggestMonthlyThemes(DateTime month) async {
+  final monthName = DateFormat.MMMM().format(month);
+  final body = await OpenAiClient.chat({
+    'model': 'gpt-4o-mini',
+    'temperature': 0.7,
+    'response_format': {'type': 'json_object'},
+    'messages': [
+      {
+        'role': 'system',
+        'content':
+            'You suggest seasonal monthly themes for early-childhood '
+            'classrooms. Return JSON: {"themes": ["...", "...", "...", '
+            '"..."]} — exactly 4 short, classroom-friendly themes '
+            'appropriate to the month (seasons, holidays, natural '
+            'events). Each theme is a short noun or noun phrase like '
+            '"Spring blooms" or "Friendship". No descriptions, just '
+            'the labels.',
+      },
+      {
+        'role': 'user',
+        'content': 'Suggest 4 monthly themes for $monthName.',
+      },
+    ],
+  });
+  final choices = body['choices'] as List<dynamic>?;
+  final message = choices?.isNotEmpty == true
+      ? (choices!.first as Map<String, dynamic>)['message']
+          as Map<String, dynamic>?
+      : null;
+  final content = message?['content'] as String?;
+  if (content == null || content.trim().isEmpty) return const [];
+  final parsed = jsonDecode(content) as Map<String, dynamic>;
+  final themes = parsed['themes'] as List<dynamic>? ?? const [];
+  return [
+    for (final t in themes)
+      if (t is String && t.trim().isNotEmpty) t.trim(),
+  ];
 }
 
 
