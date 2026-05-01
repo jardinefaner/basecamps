@@ -478,13 +478,48 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
         .read(weeklySubThemeProvider(_dayKey(monday)))
         .asData
         ?.value;
+    // v57 — span continuity. If the active variant on this date is
+    // part of a multi-day arc, give the AI a "Day N of M" hint plus
+    // the head's title so the generated content threads with the
+    // rest of the span instead of producing a standalone activity
+    // for the same day.
+    final spanInfo = _spanInfoForDate(date, groupId);
     return AiActivityContext(
       monthlyTheme: monthlyTheme ?? '',
       // Pulled straight off the Group row — single source of truth.
       ageRange: group?.audienceAgeLabel,
       subTheme: subTheme,
       groupName: group?.name,
+      spanInfo: spanInfo,
     );
+  }
+
+  /// Compute "Day N of M, continuing: [head title]" for the active
+  /// variant at (date, groupId), if it belongs to a span. Returns
+  /// null for single-day variants. Reads synchronously from the
+  /// activities provider snapshot (which is always populated for
+  /// the active month — the screen subscribes per-cell).
+  String? _spanInfoForDate(DateTime date, String? groupId) {
+    if (groupId == null) return null;
+    final active = _activeAt(date, groupId);
+    final spanId = active?.spanId;
+    if (active == null || spanId == null) return null;
+    // The repo's watchSpan stream is the canonical source for
+    // (head + length); we read it through ref.read for a one-shot
+    // sync snapshot. The provider hydrates from local Drift so the
+    // snapshot is up-to-date; if it hasn't yet emitted (rare), we
+    // bail out of the span hint rather than guess.
+    final span = ref.read(monthlySpanProvider(spanId)).asData?.value ??
+        const <MonthlyActivity>[];
+    if (span.isEmpty) return null;
+    final total = span.length;
+    final dayN = active.spanPosition + 1;
+    final head = span.first;
+    final headTitle = (head.title ?? '').trim();
+    if (headTitle.isEmpty) {
+      return 'Day $dayN of $total of a multi-day arc';
+    }
+    return 'Day $dayN of $total, continuing the arc: $headTitle';
   }
 
   /// One-stop tap dispatcher for any day cell. Three branches:

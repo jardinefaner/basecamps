@@ -87,6 +87,7 @@ class AiActivityContext {
     this.subTheme,
     this.ageRange,
     this.groupName,
+    this.spanInfo,
   });
 
   final String? monthlyTheme;
@@ -94,11 +95,19 @@ class AiActivityContext {
   final String? ageRange;
   final String? groupName;
 
+  /// v57 — when the cell being generated for is part of a multi-day
+  /// span, this is a short string the prompt can use to keep the
+  /// AI's output continuous with the rest of the span. Format is
+  /// "Day N of M" plus optional head title — e.g.
+  /// "Day 2 of 3, continuing the read-aloud arc: Tree Stories".
+  final String? spanInfo;
+
   bool get isEmpty =>
       _isBlank(monthlyTheme) &&
       _isBlank(subTheme) &&
       _isBlank(ageRange) &&
-      _isBlank(groupName);
+      _isBlank(groupName) &&
+      _isBlank(spanInfo);
 
   /// One-line summary suitable for prepending to a user prompt.
   /// Returns empty string when there's nothing to say so callers
@@ -109,6 +118,7 @@ class AiActivityContext {
     if (!_isBlank(ageRange)) parts.add('Audience age: $ageRange');
     if (!_isBlank(monthlyTheme)) parts.add('Monthly theme: $monthlyTheme');
     if (!_isBlank(subTheme)) parts.add('Weekly sub-theme: $subTheme');
+    if (!_isBlank(spanInfo)) parts.add('Span continuity: $spanInfo');
     return parts.isEmpty ? '' : 'Context — ${parts.join('. ')}.';
   }
 

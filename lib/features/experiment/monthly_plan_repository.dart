@@ -497,3 +497,14 @@ final monthlyActivitiesProvider =
         date: key.date,
       );
 });
+
+/// v57 — live rows belonging to a multi-day span. Sorted by
+/// span_position so element 0 is always the head. Used by the AI
+/// continuity prompt builder and (later) the formatted sheet's
+/// "Day N of M" header.
+// ignore: specify_nonobvious_property_types
+final monthlySpanProvider =
+    StreamProvider.family<List<MonthlyActivity>, String>((ref, spanId) {
+  ref.watch(activeProgramIdProvider);
+  return ref.watch(monthlyPlanRepositoryProvider).watchSpan(spanId);
+});
