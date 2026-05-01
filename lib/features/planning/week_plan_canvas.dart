@@ -865,10 +865,30 @@ class _DayColumnBodyState extends ConsumerState<_DayColumnBody> {
             if (item.templateId != null &&
                 item.templateId == widget.selectedId)
               ..._buildTimeChips(item, scale, theme),
+          // × delete chip — visibility depends on hover OR
+          // selection so web mouse users discover it on hover and
+          // touch users still see it on tap.
+          ..._buildDeleteChips(scale, theme),
         ],
       ),
     ),
     );
+  }
+
+  /// Collects the (at most one) delete chip across all items.
+  /// Returns the empty list when nothing's hovered or selected so
+  /// the spread doesn't pollute the Stack with empties.
+  List<Widget> _buildDeleteChips(
+    WeekPlanScale scale,
+    ThemeData theme,
+  ) {
+    final hoveredId = ref.watch(weekPlanHoveredTemplateProvider);
+    final out = <Widget>[];
+    for (final item in widget.items) {
+      final chip = _buildDeleteChip(item, scale, theme, hoveredId);
+      if (chip != null) out.add(chip);
+    }
+    return out;
   }
 
   /// Compute the (start, end) bounds the column should render this
@@ -911,24 +931,20 @@ class _DayColumnBodyState extends ConsumerState<_DayColumnBody> {
     );
   }
 
-  /// Render the start + end time chips AND the delete button for
-  /// a selected card. Each is a `Positioned` widget anchored
-  /// *outside* the card via negative offsets — start chip pokes
-  /// above the top-LEFT, end chip below the bottom-LEFT, delete
-  /// button above the top-RIGHT. Time chips use compact "9:00a"
-  /// format so they read fast.
+  /// Render the start + end time chips for a selected card. Each
+  /// is anchored *outside* the card via negative offsets — start
+  /// pokes above the top-LEFT, end below the bottom-LEFT. Compact
+  /// "9:00a" format so they read fast. Live-resize bounds drive
+  /// the labels so the snap target ticks by during the drag.
   ///
-  /// The delete button is the discoverable replacement for the
-  /// Delete-key shortcut (which is still active for power users).
-  /// On web a tiny × button in the corner says "click to remove"
-  /// without the user needing to know a keyboard combo.
+  /// The × delete chip is rendered separately by `_buildDeleteChip`
+  /// because its visibility rule (hover OR selected) differs from
+  /// the time chips (selected only).
   List<Widget> _buildTimeChips(
     ScheduleItem item,
     WeekPlanScale scale,
     ThemeData theme,
   ) {
-    // Reflect live-resize bounds in the chip labels so the user
-    // sees the snap target tick by as they drag the edge.
     final bounds = _liveBounds(item);
     return [
       Positioned(
@@ -939,18 +955,6 @@ class _DayColumnBodyState extends ConsumerState<_DayColumnBody> {
           theme: theme,
         ),
       ),
-      // Delete button — top-right exterior, mirrors the start
-      // chip's vertical offset.
-      if (item.templateId != null)
-        Positioned(
-          top: scale.yFor(bounds.start) - 14,
-          right: 4,
-          child: _DeleteChip(
-            onTap: () =>
-                unawaited(widget.onDeleteCard(item.templateId!)),
-            theme: theme,
-          ),
-        ),
       Positioned(
         top: scale.yFor(bounds.end) - 6,
         left: 4,
@@ -960,6 +964,33 @@ class _DayColumnBodyState extends ConsumerState<_DayColumnBody> {
         ),
       ),
     ];
+  }
+
+  /// Floating × delete chip, top-right exterior of the card.
+  /// Visible when the card is hovered (web mouse) OR selected
+  /// (touch fallback, since hover doesn't fire there). Returns
+  /// `null` if the item isn't a template-backed card or the
+  /// affordance shouldn't show.
+  Widget? _buildDeleteChip(
+    ScheduleItem item,
+    WeekPlanScale scale,
+    ThemeData theme,
+    String? hoveredId,
+  ) {
+    final templateId = item.templateId;
+    if (templateId == null) return null;
+    final visible = templateId == hoveredId ||
+        templateId == widget.selectedId;
+    if (!visible) return null;
+    final bounds = _liveBounds(item);
+    return Positioned(
+      top: scale.yFor(bounds.start) - 14,
+      right: 4,
+      child: _DeleteChip(
+        onTap: () => unawaited(widget.onDeleteCard(templateId)),
+        theme: theme,
+      ),
+    );
   }
 }
 
@@ -1210,19 +1241,32 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
     // typing; a stray long-press shouldn't yank the card away).
     if (!_isTemplate || isFresh) return card;
 
+    // MouseRegion publishes the hovered template id so the parent
+    // column can paint the × delete chip. Touch never fires
+    // hover, so touch users still get the × on selection (handled
+    // by the column's chip-render condition).
+    final templateId = widget.item.templateId!;
+
     // Stack the card body underneath two thin edge-resize handles.
     // The handles only intercept gestures inside their 8dp strip
     // — the rest of the card stays interactive for long-press
     // drag + tap-to-select.
-    return GestureDetector(
-      onLongPressStart: _onLongPressStart,
-      onLongPressMoveUpdate: _onLongPressMoveUpdate,
-      onLongPressEnd: widget.onLongPressEnd,
-      onLongPressCancel: () =>
-          ref.read(weekPlanDragProvider.notifier).clear(),
-      child: Stack(
-        children: [
-          Positioned.fill(child: card),
+    return MouseRegion(
+      onEnter: (_) => ref
+          .read(weekPlanHoveredTemplateProvider.notifier)
+          .enter(templateId),
+      onExit: (_) => ref
+          .read(weekPlanHoveredTemplateProvider.notifier)
+          .exit(templateId),
+      child: GestureDetector(
+        onLongPressStart: _onLongPressStart,
+        onLongPressMoveUpdate: _onLongPressMoveUpdate,
+        onLongPressEnd: widget.onLongPressEnd,
+        onLongPressCancel: () =>
+            ref.read(weekPlanDragProvider.notifier).clear(),
+        child: Stack(
+          children: [
+            Positioned.fill(child: card),
           // Top edge — drag to change start time.
           Positioned(
             top: 0,
@@ -1254,8 +1298,9 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
               onPanEnd: (_) => _onEdgeEnd(),
               onPanCancel: _onEdgeEnd,
             ),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }

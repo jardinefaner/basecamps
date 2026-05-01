@@ -254,6 +254,33 @@ final weekPlanResizeProvider =
   WeekPlanResizeNotifier.new,
 );
 
+/// Currently-hovered template id (web mouse only — touch never
+/// fires hover). Drives the on-hover × delete chip so users
+/// discover the action without having to select first.
+class WeekPlanHoveredNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  // Method-not-setter — pointer-enter is a transient event with a
+  // paired clear; setter would imply a passive write.
+  // ignore: use_setters_to_change_properties
+  void enter(String templateId) {
+    state = templateId;
+  }
+
+  void exit(String templateId) {
+    // Only clear if the leaving id is the one currently held —
+    // prevents a fast hover swap (A.exit → B.enter then A.exit
+    // landed late) from blanking the new hover.
+    if (state == templateId) state = null;
+  }
+}
+
+final weekPlanHoveredTemplateProvider =
+    NotifierProvider<WeekPlanHoveredNotifier, String?>(
+  WeekPlanHoveredNotifier.new,
+);
+
 /// ID of a freshly-created card whose title TextField should
 /// autofocus on first build. Cleared once the user commits or
 /// cancels the title input. Mirrors the empty-slot click flow:
