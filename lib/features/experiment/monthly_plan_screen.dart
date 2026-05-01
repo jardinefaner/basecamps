@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:basecamp/database/database.dart' show Group;
+import 'package:basecamp/features/ai/ai_activity_addons.dart';
 import 'package:basecamp/features/ai/ai_activity_composer.dart';
 import 'package:basecamp/features/children/children_repository.dart'
     show groupsProvider;
@@ -214,6 +215,7 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
       builder: (_) => _ActivityFormattedSheet(
         date: date,
         activity: activity,
+        planContext: _aiContextForDate(date),
         onEdit: () async {
           // Pop the formatted sheet first so the editor stacks on
           // top of the calendar, not on top of the read view (back
@@ -240,6 +242,7 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
       builder: (_) => _MonthlyActivityEditor(
         date: date,
         activity: activity,
+        planContext: _aiContextForDate(date),
         onChanged: () {
           if (mounted) setState(() {});
         },
@@ -544,6 +547,21 @@ class _MonthlyActivity {
       steps.isNotEmpty ||
       materials.isNotEmpty ||
       link.isNotEmpty;
+
+  /// Adapter for the AI add-ons + composer surfaces, both of which
+  /// take the public [AiActivity] shape. Same fields, just a copy
+  /// across the layer boundary so this private draft type doesn't
+  /// leak into the AI module's API.
+  AiActivity toAiActivity() {
+    return AiActivity(
+      title: title,
+      description: description,
+      objectives: objectives,
+      steps: steps,
+      materials: materials,
+      link: link,
+    );
+  }
 }
 
 // =====================================================================
@@ -1067,12 +1085,14 @@ class _ActivityFormattedSheet extends StatelessWidget {
   const _ActivityFormattedSheet({
     required this.date,
     required this.activity,
+    required this.planContext,
     required this.onEdit,
     required this.onDelete,
   });
 
   final DateTime date;
   final _MonthlyActivity activity;
+  final AiActivityContext? planContext;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
@@ -1233,6 +1253,20 @@ class _ActivityFormattedSheet extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: AppSpacing.xxl),
+              // AI add-ons — embedded inline so the user can see
+              // the activity above for reference while picking. The
+              // section self-manages picker → loading → result
+              // state internally.
+              Divider(
+                height: 1,
+                color: cs.outlineVariant,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              AiActivityAddonsSection(
+                activity: activity.toAiActivity(),
+                planContext: planContext,
+              ),
+              const SizedBox(height: AppSpacing.xxl),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   foregroundColor: cs.error,
@@ -1295,12 +1329,14 @@ class _MonthlyActivityEditor extends StatefulWidget {
   const _MonthlyActivityEditor({
     required this.date,
     required this.activity,
+    required this.planContext,
     required this.onChanged,
     required this.onDelete,
   });
 
   final DateTime date;
   final _MonthlyActivity activity;
+  final AiActivityContext? planContext;
   final VoidCallback onChanged;
   final VoidCallback onDelete;
 
@@ -1467,6 +1503,19 @@ class _MonthlyActivityEditorState extends State<_MonthlyActivityEditor> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              Divider(
+                height: 1,
+                color: theme.colorScheme.outlineVariant,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              // Same inline AI add-ons section as the formatted
+              // preview — exposes them at edit-time too so authors
+              // can iterate without leaving the editor.
+              AiActivityAddonsSection(
+                activity: widget.activity.toAiActivity(),
+                planContext: widget.planContext,
               ),
               const SizedBox(height: AppSpacing.xl),
               OutlinedButton.icon(

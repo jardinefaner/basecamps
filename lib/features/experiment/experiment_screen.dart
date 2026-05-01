@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:basecamp/features/ai/ai_activity_addons.dart';
 import 'package:basecamp/features/ai/ai_activity_composer.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/adaptive_sheet.dart';
@@ -287,6 +288,20 @@ class _ActivityDraft {
 /// mutable class with the same field shape; we don't want the AI
 /// layer's type leaking into this file's identity, but we also
 /// don't want a `copyWith` chain when copying field-for-field.
+/// Reverse-adapter — converts a draft into an [AiActivity] for the
+/// shared add-ons section. Same fields, just a copy across the
+/// layer boundary.
+AiActivity _aiActivityFromDraft(_ActivityDraft d) {
+  return AiActivity(
+    title: d.title,
+    description: d.description,
+    objectives: d.objectives,
+    steps: d.steps,
+    materials: d.materials,
+    link: d.link,
+  );
+}
+
 _ActivityDraft _draftFromAiActivity(AiActivity a) {
   return _ActivityDraft()
     ..title = a.title
@@ -924,6 +939,18 @@ class _AdvancedActivityEditorState extends State<_AdvancedActivityEditor> {
                     ],
                   ),
                 ],
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              Divider(
+                height: 1,
+                color: theme.colorScheme.outlineVariant,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              // Inline AI add-ons. Sandbox-only — closing the sheet
+              // drops anything generated. Same widget the monthly
+              // plan embeds; lives wherever an activity sheet does.
+              AiActivityAddonsSection(
+                activity: _aiActivityFromDraft(widget.draft),
               ),
             ],
           ),
