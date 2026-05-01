@@ -394,6 +394,7 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
                                           snappedStartMinutes:
                                               snappedStart,
                                         ),
+                                        onDeleteCard: _deleteSelected,
                                       ),
                                     ),
                                 ],
@@ -718,6 +719,7 @@ class _DayColumnBody extends ConsumerStatefulWidget {
     required this.onTapAlreadySelected,
     required this.onLongPressEnd,
     required this.onCreateAt,
+    required this.onDeleteCard,
   });
 
   final DateTime date;
@@ -730,6 +732,7 @@ class _DayColumnBody extends ConsumerStatefulWidget {
   final ValueChanged<ScheduleItem> onTapAlreadySelected;
   final void Function(LongPressEndDetails) onLongPressEnd;
   final Future<void> Function(int snappedStartMinutes) onCreateAt;
+  final Future<void> Function(String templateId) onDeleteCard;
 
   @override
   ConsumerState<_DayColumnBody> createState() => _DayColumnBodyState();
@@ -908,11 +911,17 @@ class _DayColumnBodyState extends ConsumerState<_DayColumnBody> {
     );
   }
 
-  /// Render the start + end time chips for a selected card. Each
-  /// chip is a `Positioned` widget anchored *outside* the card via
-  /// negative offsets — start chip pokes above the top edge, end
-  /// chip pokes below the bottom edge. Both use compact "9:00a"
+  /// Render the start + end time chips AND the delete button for
+  /// a selected card. Each is a `Positioned` widget anchored
+  /// *outside* the card via negative offsets — start chip pokes
+  /// above the top-LEFT, end chip below the bottom-LEFT, delete
+  /// button above the top-RIGHT. Time chips use compact "9:00a"
   /// format so they read fast.
+  ///
+  /// The delete button is the discoverable replacement for the
+  /// Delete-key shortcut (which is still active for power users).
+  /// On web a tiny × button in the corner says "click to remove"
+  /// without the user needing to know a keyboard combo.
   List<Widget> _buildTimeChips(
     ScheduleItem item,
     WeekPlanScale scale,
@@ -930,6 +939,18 @@ class _DayColumnBodyState extends ConsumerState<_DayColumnBody> {
           theme: theme,
         ),
       ),
+      // Delete button — top-right exterior, mirrors the start
+      // chip's vertical offset.
+      if (item.templateId != null)
+        Positioned(
+          top: scale.yFor(bounds.start) - 14,
+          right: 4,
+          child: _DeleteChip(
+            onTap: () =>
+                unawaited(widget.onDeleteCard(item.templateId!)),
+            theme: theme,
+          ),
+        ),
       Positioned(
         top: scale.yFor(bounds.end) - 6,
         left: 4,
@@ -1132,22 +1153,39 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
             vertical: 8,
           ),
           child: isFresh
+              // The fresh-card TextField is tuned to render
+              // identically to the displayed Text so committing
+              // doesn't cause a layout shift:
+              //   * `maxLines: 2` matches the Text's `maxLines: 2`
+              //     so a long title wraps the same way before and
+              //     after commit.
+              //   * `InputDecoration.collapsed` strips ALL chrome
+              //     (no internal padding, no border, no helper
+              //     text) — the field renders flush like a plain
+              //     Text node.
+              //   * `textAlignVertical: TextAlignVertical.top`
+              //     pins to the top edge instead of TextField's
+              //     default centered baseline.
+              //   * `cursorHeight` set to the font's line-height
+              //     so the cursor doesn't visually push baseline.
               ? TextField(
                   controller: _titleController,
                   focusNode: _titleFocus,
                   autofocus: true,
+                  maxLines: 2,
+                  textAlignVertical: TextAlignVertical.top,
                   style: theme.textTheme.titleSmall?.copyWith(
                     color: fg,
                     fontWeight: FontWeight.w600,
                   ),
                   cursorColor: fg,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                    border: InputBorder.none,
+                  cursorWidth: 1.5,
+                  cursorHeight: theme.textTheme.titleSmall?.fontSize,
+                  decoration: InputDecoration.collapsed(
                     hintText: 'Activity name…',
                     hintStyle: theme.textTheme.titleSmall?.copyWith(
                       color: fg.withValues(alpha: 0.5),
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   onSubmitted: (_) => _commitTitle(),
@@ -1449,6 +1487,42 @@ class _EdgeHandle extends StatelessWidget {
                 color: theme.colorScheme.primary,
                 borderRadius: BorderRadius.circular(2),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Small × button floating outside the selected card's top-right
+/// corner. Discoverable replacement for the Delete-key shortcut on
+/// web — a visible affordance the user finds without having to
+/// know a keyboard combo. Tap fires the same delete-with-undo
+/// flow as the Delete key.
+class _DeleteChip extends StatelessWidget {
+  const _DeleteChip({required this.onTap, required this.theme});
+
+  final VoidCallback onTap;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: theme.colorScheme.errorContainer,
+      shape: const CircleBorder(),
+      elevation: 1,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Tooltip(
+          message: 'Delete activity',
+          child: Padding(
+            padding: const EdgeInsets.all(2),
+            child: Icon(
+              Icons.close,
+              size: 14,
+              color: theme.colorScheme.onErrorContainer,
             ),
           ),
         ),
