@@ -157,6 +157,15 @@ const weeklySubThemesSpec = TableSpec(
   dateColumns: {'created_at', 'updated_at'},
 );
 
+/// v56 (Slice 2) — monthly plan activities. One row per variant;
+/// (program, group, date, position) addresses a variant within its
+/// cell. References groups so it lands in tier 2 (after groups
+/// resolves).
+const monthlyActivitiesSpec = TableSpec(
+  table: 'monthly_activities',
+  dateColumns: {'created_at', 'updated_at'},
+);
+
 const scheduleTemplatesSpec = TableSpec(
   table: 'schedule_templates',
   dateColumns: {'start_date', 'end_date', 'created_at', 'updated_at'},
@@ -235,6 +244,7 @@ const List<List<TableSpec>> kSpecTiers = [
     roomsSpec,
     activityLibrarySpec,
     lessonSequencesSpec,
+    monthlyActivitiesSpec,
   ],
   // Tier 3 — events + forms. Reference tier-1/tier-2 entities.
   [

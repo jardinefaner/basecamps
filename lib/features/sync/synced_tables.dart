@@ -38,6 +38,9 @@ const List<String> kSyncedTableNames = <String>[
   'adults',
   'activity_library',
   'lesson_sequences',
+  // v56 (Slice 2) — monthly plan activities. References groups so
+  // it sits in tier 2 with the other group-FK entities.
+  'monthly_activities',
   // Tier 3 — events + forms
   'schedule_templates',
   'trips',

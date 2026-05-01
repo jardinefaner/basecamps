@@ -22995,6 +22995,805 @@ class WeeklySubThemesCompanion extends UpdateCompanion<WeeklySubTheme> {
   }
 }
 
+class $MonthlyActivitiesTable extends MonthlyActivities
+    with TableInfo<$MonthlyActivitiesTable, MonthlyActivity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MonthlyActivitiesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _programIdMeta = const VerificationMeta(
+    'programId',
+  );
+  @override
+  late final GeneratedColumn<String> programId = GeneratedColumn<String>(
+    'program_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _groupIdMeta = const VerificationMeta(
+    'groupId',
+  );
+  @override
+  late final GeneratedColumn<String> groupId = GeneratedColumn<String>(
+    'group_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _dateMeta = const VerificationMeta('date');
+  @override
+  late final GeneratedColumn<String> date = GeneratedColumn<String>(
+    'date',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _positionMeta = const VerificationMeta(
+    'position',
+  );
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+    'position',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _objectivesMeta = const VerificationMeta(
+    'objectives',
+  );
+  @override
+  late final GeneratedColumn<String> objectives = GeneratedColumn<String>(
+    'objectives',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _stepsMeta = const VerificationMeta('steps');
+  @override
+  late final GeneratedColumn<String> steps = GeneratedColumn<String>(
+    'steps',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _materialsMeta = const VerificationMeta(
+    'materials',
+  );
+  @override
+  late final GeneratedColumn<String> materials = GeneratedColumn<String>(
+    'materials',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _linkMeta = const VerificationMeta('link');
+  @override
+  late final GeneratedColumn<String> link = GeneratedColumn<String>(
+    'link',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    programId,
+    groupId,
+    date,
+    position,
+    title,
+    description,
+    objectives,
+    steps,
+    materials,
+    link,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'monthly_activities';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<MonthlyActivity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('program_id')) {
+      context.handle(
+        _programIdMeta,
+        programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
+      );
+    }
+    if (data.containsKey('group_id')) {
+      context.handle(
+        _groupIdMeta,
+        groupId.isAcceptableOrUnknown(data['group_id']!, _groupIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_groupIdMeta);
+    }
+    if (data.containsKey('date')) {
+      context.handle(
+        _dateMeta,
+        date.isAcceptableOrUnknown(data['date']!, _dateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dateMeta);
+    }
+    if (data.containsKey('position')) {
+      context.handle(
+        _positionMeta,
+        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
+      );
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('objectives')) {
+      context.handle(
+        _objectivesMeta,
+        objectives.isAcceptableOrUnknown(data['objectives']!, _objectivesMeta),
+      );
+    }
+    if (data.containsKey('steps')) {
+      context.handle(
+        _stepsMeta,
+        steps.isAcceptableOrUnknown(data['steps']!, _stepsMeta),
+      );
+    }
+    if (data.containsKey('materials')) {
+      context.handle(
+        _materialsMeta,
+        materials.isAcceptableOrUnknown(data['materials']!, _materialsMeta),
+      );
+    }
+    if (data.containsKey('link')) {
+      context.handle(
+        _linkMeta,
+        link.isAcceptableOrUnknown(data['link']!, _linkMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MonthlyActivity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MonthlyActivity(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      programId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}program_id'],
+      ),
+      groupId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}group_id'],
+      )!,
+      date: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}date'],
+      )!,
+      position: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      ),
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      ),
+      objectives: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}objectives'],
+      ),
+      steps: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}steps'],
+      ),
+      materials: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}materials'],
+      ),
+      link: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}link'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $MonthlyActivitiesTable createAlias(String alias) {
+    return $MonthlyActivitiesTable(attachedDatabase, alias);
+  }
+}
+
+class MonthlyActivity extends DataClass implements Insertable<MonthlyActivity> {
+  final String id;
+  final String? programId;
+  final String groupId;
+  final String date;
+  final int position;
+  final String? title;
+  final String? description;
+  final String? objectives;
+  final String? steps;
+  final String? materials;
+  final String? link;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  const MonthlyActivity({
+    required this.id,
+    this.programId,
+    required this.groupId,
+    required this.date,
+    required this.position,
+    this.title,
+    this.description,
+    this.objectives,
+    this.steps,
+    this.materials,
+    this.link,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || programId != null) {
+      map['program_id'] = Variable<String>(programId);
+    }
+    map['group_id'] = Variable<String>(groupId);
+    map['date'] = Variable<String>(date);
+    map['position'] = Variable<int>(position);
+    if (!nullToAbsent || title != null) {
+      map['title'] = Variable<String>(title);
+    }
+    if (!nullToAbsent || description != null) {
+      map['description'] = Variable<String>(description);
+    }
+    if (!nullToAbsent || objectives != null) {
+      map['objectives'] = Variable<String>(objectives);
+    }
+    if (!nullToAbsent || steps != null) {
+      map['steps'] = Variable<String>(steps);
+    }
+    if (!nullToAbsent || materials != null) {
+      map['materials'] = Variable<String>(materials);
+    }
+    if (!nullToAbsent || link != null) {
+      map['link'] = Variable<String>(link);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  MonthlyActivitiesCompanion toCompanion(bool nullToAbsent) {
+    return MonthlyActivitiesCompanion(
+      id: Value(id),
+      programId: programId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(programId),
+      groupId: Value(groupId),
+      date: Value(date),
+      position: Value(position),
+      title: title == null && nullToAbsent
+          ? const Value.absent()
+          : Value(title),
+      description: description == null && nullToAbsent
+          ? const Value.absent()
+          : Value(description),
+      objectives: objectives == null && nullToAbsent
+          ? const Value.absent()
+          : Value(objectives),
+      steps: steps == null && nullToAbsent
+          ? const Value.absent()
+          : Value(steps),
+      materials: materials == null && nullToAbsent
+          ? const Value.absent()
+          : Value(materials),
+      link: link == null && nullToAbsent ? const Value.absent() : Value(link),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory MonthlyActivity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MonthlyActivity(
+      id: serializer.fromJson<String>(json['id']),
+      programId: serializer.fromJson<String?>(json['programId']),
+      groupId: serializer.fromJson<String>(json['groupId']),
+      date: serializer.fromJson<String>(json['date']),
+      position: serializer.fromJson<int>(json['position']),
+      title: serializer.fromJson<String?>(json['title']),
+      description: serializer.fromJson<String?>(json['description']),
+      objectives: serializer.fromJson<String?>(json['objectives']),
+      steps: serializer.fromJson<String?>(json['steps']),
+      materials: serializer.fromJson<String?>(json['materials']),
+      link: serializer.fromJson<String?>(json['link']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'programId': serializer.toJson<String?>(programId),
+      'groupId': serializer.toJson<String>(groupId),
+      'date': serializer.toJson<String>(date),
+      'position': serializer.toJson<int>(position),
+      'title': serializer.toJson<String?>(title),
+      'description': serializer.toJson<String?>(description),
+      'objectives': serializer.toJson<String?>(objectives),
+      'steps': serializer.toJson<String?>(steps),
+      'materials': serializer.toJson<String?>(materials),
+      'link': serializer.toJson<String?>(link),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  MonthlyActivity copyWith({
+    String? id,
+    Value<String?> programId = const Value.absent(),
+    String? groupId,
+    String? date,
+    int? position,
+    Value<String?> title = const Value.absent(),
+    Value<String?> description = const Value.absent(),
+    Value<String?> objectives = const Value.absent(),
+    Value<String?> steps = const Value.absent(),
+    Value<String?> materials = const Value.absent(),
+    Value<String?> link = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => MonthlyActivity(
+    id: id ?? this.id,
+    programId: programId.present ? programId.value : this.programId,
+    groupId: groupId ?? this.groupId,
+    date: date ?? this.date,
+    position: position ?? this.position,
+    title: title.present ? title.value : this.title,
+    description: description.present ? description.value : this.description,
+    objectives: objectives.present ? objectives.value : this.objectives,
+    steps: steps.present ? steps.value : this.steps,
+    materials: materials.present ? materials.value : this.materials,
+    link: link.present ? link.value : this.link,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  MonthlyActivity copyWithCompanion(MonthlyActivitiesCompanion data) {
+    return MonthlyActivity(
+      id: data.id.present ? data.id.value : this.id,
+      programId: data.programId.present ? data.programId.value : this.programId,
+      groupId: data.groupId.present ? data.groupId.value : this.groupId,
+      date: data.date.present ? data.date.value : this.date,
+      position: data.position.present ? data.position.value : this.position,
+      title: data.title.present ? data.title.value : this.title,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      objectives: data.objectives.present
+          ? data.objectives.value
+          : this.objectives,
+      steps: data.steps.present ? data.steps.value : this.steps,
+      materials: data.materials.present ? data.materials.value : this.materials,
+      link: data.link.present ? data.link.value : this.link,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MonthlyActivity(')
+          ..write('id: $id, ')
+          ..write('programId: $programId, ')
+          ..write('groupId: $groupId, ')
+          ..write('date: $date, ')
+          ..write('position: $position, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('objectives: $objectives, ')
+          ..write('steps: $steps, ')
+          ..write('materials: $materials, ')
+          ..write('link: $link, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    programId,
+    groupId,
+    date,
+    position,
+    title,
+    description,
+    objectives,
+    steps,
+    materials,
+    link,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MonthlyActivity &&
+          other.id == this.id &&
+          other.programId == this.programId &&
+          other.groupId == this.groupId &&
+          other.date == this.date &&
+          other.position == this.position &&
+          other.title == this.title &&
+          other.description == this.description &&
+          other.objectives == this.objectives &&
+          other.steps == this.steps &&
+          other.materials == this.materials &&
+          other.link == this.link &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class MonthlyActivitiesCompanion extends UpdateCompanion<MonthlyActivity> {
+  final Value<String> id;
+  final Value<String?> programId;
+  final Value<String> groupId;
+  final Value<String> date;
+  final Value<int> position;
+  final Value<String?> title;
+  final Value<String?> description;
+  final Value<String?> objectives;
+  final Value<String?> steps;
+  final Value<String?> materials;
+  final Value<String?> link;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const MonthlyActivitiesCompanion({
+    this.id = const Value.absent(),
+    this.programId = const Value.absent(),
+    this.groupId = const Value.absent(),
+    this.date = const Value.absent(),
+    this.position = const Value.absent(),
+    this.title = const Value.absent(),
+    this.description = const Value.absent(),
+    this.objectives = const Value.absent(),
+    this.steps = const Value.absent(),
+    this.materials = const Value.absent(),
+    this.link = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MonthlyActivitiesCompanion.insert({
+    required String id,
+    this.programId = const Value.absent(),
+    required String groupId,
+    required String date,
+    this.position = const Value.absent(),
+    this.title = const Value.absent(),
+    this.description = const Value.absent(),
+    this.objectives = const Value.absent(),
+    this.steps = const Value.absent(),
+    this.materials = const Value.absent(),
+    this.link = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       groupId = Value(groupId),
+       date = Value(date);
+  static Insertable<MonthlyActivity> custom({
+    Expression<String>? id,
+    Expression<String>? programId,
+    Expression<String>? groupId,
+    Expression<String>? date,
+    Expression<int>? position,
+    Expression<String>? title,
+    Expression<String>? description,
+    Expression<String>? objectives,
+    Expression<String>? steps,
+    Expression<String>? materials,
+    Expression<String>? link,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (programId != null) 'program_id': programId,
+      if (groupId != null) 'group_id': groupId,
+      if (date != null) 'date': date,
+      if (position != null) 'position': position,
+      if (title != null) 'title': title,
+      if (description != null) 'description': description,
+      if (objectives != null) 'objectives': objectives,
+      if (steps != null) 'steps': steps,
+      if (materials != null) 'materials': materials,
+      if (link != null) 'link': link,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MonthlyActivitiesCompanion copyWith({
+    Value<String>? id,
+    Value<String?>? programId,
+    Value<String>? groupId,
+    Value<String>? date,
+    Value<int>? position,
+    Value<String?>? title,
+    Value<String?>? description,
+    Value<String?>? objectives,
+    Value<String?>? steps,
+    Value<String?>? materials,
+    Value<String?>? link,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return MonthlyActivitiesCompanion(
+      id: id ?? this.id,
+      programId: programId ?? this.programId,
+      groupId: groupId ?? this.groupId,
+      date: date ?? this.date,
+      position: position ?? this.position,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      objectives: objectives ?? this.objectives,
+      steps: steps ?? this.steps,
+      materials: materials ?? this.materials,
+      link: link ?? this.link,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (programId.present) {
+      map['program_id'] = Variable<String>(programId.value);
+    }
+    if (groupId.present) {
+      map['group_id'] = Variable<String>(groupId.value);
+    }
+    if (date.present) {
+      map['date'] = Variable<String>(date.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (objectives.present) {
+      map['objectives'] = Variable<String>(objectives.value);
+    }
+    if (steps.present) {
+      map['steps'] = Variable<String>(steps.value);
+    }
+    if (materials.present) {
+      map['materials'] = Variable<String>(materials.value);
+    }
+    if (link.present) {
+      map['link'] = Variable<String>(link.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MonthlyActivitiesCompanion(')
+          ..write('id: $id, ')
+          ..write('programId: $programId, ')
+          ..write('groupId: $groupId, ')
+          ..write('date: $date, ')
+          ..write('position: $position, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('objectives: $objectives, ')
+          ..write('steps: $steps, ')
+          ..write('materials: $materials, ')
+          ..write('link: $link, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -23061,6 +23860,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $WeeklySubThemesTable weeklySubThemes = $WeeklySubThemesTable(
     this,
   );
+  late final $MonthlyActivitiesTable monthlyActivities =
+      $MonthlyActivitiesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -23105,6 +23906,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     mediaCache,
     monthlyThemes,
     weeklySubThemes,
+    monthlyActivities,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -46143,6 +46945,390 @@ typedef $$WeeklySubThemesTableProcessedTableManager =
       WeeklySubTheme,
       PrefetchHooks Function()
     >;
+typedef $$MonthlyActivitiesTableCreateCompanionBuilder =
+    MonthlyActivitiesCompanion Function({
+      required String id,
+      Value<String?> programId,
+      required String groupId,
+      required String date,
+      Value<int> position,
+      Value<String?> title,
+      Value<String?> description,
+      Value<String?> objectives,
+      Value<String?> steps,
+      Value<String?> materials,
+      Value<String?> link,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$MonthlyActivitiesTableUpdateCompanionBuilder =
+    MonthlyActivitiesCompanion Function({
+      Value<String> id,
+      Value<String?> programId,
+      Value<String> groupId,
+      Value<String> date,
+      Value<int> position,
+      Value<String?> title,
+      Value<String?> description,
+      Value<String?> objectives,
+      Value<String?> steps,
+      Value<String?> materials,
+      Value<String?> link,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$MonthlyActivitiesTableFilterComposer
+    extends Composer<_$AppDatabase, $MonthlyActivitiesTable> {
+  $$MonthlyActivitiesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get programId => $composableBuilder(
+    column: $table.programId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get groupId => $composableBuilder(
+    column: $table.groupId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get objectives => $composableBuilder(
+    column: $table.objectives,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get steps => $composableBuilder(
+    column: $table.steps,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get materials => $composableBuilder(
+    column: $table.materials,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get link => $composableBuilder(
+    column: $table.link,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$MonthlyActivitiesTableOrderingComposer
+    extends Composer<_$AppDatabase, $MonthlyActivitiesTable> {
+  $$MonthlyActivitiesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get programId => $composableBuilder(
+    column: $table.programId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get groupId => $composableBuilder(
+    column: $table.groupId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get objectives => $composableBuilder(
+    column: $table.objectives,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get steps => $composableBuilder(
+    column: $table.steps,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get materials => $composableBuilder(
+    column: $table.materials,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get link => $composableBuilder(
+    column: $table.link,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$MonthlyActivitiesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MonthlyActivitiesTable> {
+  $$MonthlyActivitiesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get programId =>
+      $composableBuilder(column: $table.programId, builder: (column) => column);
+
+  GeneratedColumn<String> get groupId =>
+      $composableBuilder(column: $table.groupId, builder: (column) => column);
+
+  GeneratedColumn<String> get date =>
+      $composableBuilder(column: $table.date, builder: (column) => column);
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get objectives => $composableBuilder(
+    column: $table.objectives,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get steps =>
+      $composableBuilder(column: $table.steps, builder: (column) => column);
+
+  GeneratedColumn<String> get materials =>
+      $composableBuilder(column: $table.materials, builder: (column) => column);
+
+  GeneratedColumn<String> get link =>
+      $composableBuilder(column: $table.link, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$MonthlyActivitiesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $MonthlyActivitiesTable,
+          MonthlyActivity,
+          $$MonthlyActivitiesTableFilterComposer,
+          $$MonthlyActivitiesTableOrderingComposer,
+          $$MonthlyActivitiesTableAnnotationComposer,
+          $$MonthlyActivitiesTableCreateCompanionBuilder,
+          $$MonthlyActivitiesTableUpdateCompanionBuilder,
+          (
+            MonthlyActivity,
+            BaseReferences<
+              _$AppDatabase,
+              $MonthlyActivitiesTable,
+              MonthlyActivity
+            >,
+          ),
+          MonthlyActivity,
+          PrefetchHooks Function()
+        > {
+  $$MonthlyActivitiesTableTableManager(
+    _$AppDatabase db,
+    $MonthlyActivitiesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MonthlyActivitiesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MonthlyActivitiesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MonthlyActivitiesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String?> programId = const Value.absent(),
+                Value<String> groupId = const Value.absent(),
+                Value<String> date = const Value.absent(),
+                Value<int> position = const Value.absent(),
+                Value<String?> title = const Value.absent(),
+                Value<String?> description = const Value.absent(),
+                Value<String?> objectives = const Value.absent(),
+                Value<String?> steps = const Value.absent(),
+                Value<String?> materials = const Value.absent(),
+                Value<String?> link = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => MonthlyActivitiesCompanion(
+                id: id,
+                programId: programId,
+                groupId: groupId,
+                date: date,
+                position: position,
+                title: title,
+                description: description,
+                objectives: objectives,
+                steps: steps,
+                materials: materials,
+                link: link,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String?> programId = const Value.absent(),
+                required String groupId,
+                required String date,
+                Value<int> position = const Value.absent(),
+                Value<String?> title = const Value.absent(),
+                Value<String?> description = const Value.absent(),
+                Value<String?> objectives = const Value.absent(),
+                Value<String?> steps = const Value.absent(),
+                Value<String?> materials = const Value.absent(),
+                Value<String?> link = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => MonthlyActivitiesCompanion.insert(
+                id: id,
+                programId: programId,
+                groupId: groupId,
+                date: date,
+                position: position,
+                title: title,
+                description: description,
+                objectives: objectives,
+                steps: steps,
+                materials: materials,
+                link: link,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$MonthlyActivitiesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $MonthlyActivitiesTable,
+      MonthlyActivity,
+      $$MonthlyActivitiesTableFilterComposer,
+      $$MonthlyActivitiesTableOrderingComposer,
+      $$MonthlyActivitiesTableAnnotationComposer,
+      $$MonthlyActivitiesTableCreateCompanionBuilder,
+      $$MonthlyActivitiesTableUpdateCompanionBuilder,
+      (
+        MonthlyActivity,
+        BaseReferences<_$AppDatabase, $MonthlyActivitiesTable, MonthlyActivity>,
+      ),
+      MonthlyActivity,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -46237,4 +47423,6 @@ class $AppDatabaseManager {
       $$MonthlyThemesTableTableManager(_db, _db.monthlyThemes);
   $$WeeklySubThemesTableTableManager get weeklySubThemes =>
       $$WeeklySubThemesTableTableManager(_db, _db.weeklySubThemes);
+  $$MonthlyActivitiesTableTableManager get monthlyActivities =>
+      $$MonthlyActivitiesTableTableManager(_db, _db.monthlyActivities);
 }

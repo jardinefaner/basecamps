@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
@@ -152,6 +153,166 @@ class MonthlyPlanRepository {
     unawaited(_sync.pushRow(weeklySubThemesSpec, id));
   }
 
+  // ---- Activities (v56, Slice 2) -------------------------------
+
+  /// Watch every variant for cell (group, date) within the active
+  /// program, sorted by position. Soft-deleted rows filtered out.
+  /// Empty variants ARE included — they represent in-progress
+  /// drafts the user is still typing into; the UI's `hasContent`
+  /// check filters them visually without dropping the row.
+  Stream<List<MonthlyActivity>> watchVariants({
+    required String groupId,
+    required String date,
+  }) {
+    final query = _db.select(_db.monthlyActivities)
+      ..where((r) => matchesActiveProgram(r.programId, _programId))
+      ..where((r) => r.groupId.equals(groupId))
+      ..where((r) => r.date.equals(date))
+      ..where((r) => r.deletedAt.isNull())
+      ..orderBy([
+        (r) => OrderingTerm.asc(r.position),
+        (r) => OrderingTerm.asc(r.createdAt),
+      ]);
+    return query.watch();
+  }
+
+  /// Insert a fresh variant at the next position for (group, date).
+  /// Returns the row's id so the caller can keep referring to it
+  /// across subsequent edits / deletes / etc.
+  ///
+  /// `position` defaults to "next slot" — the highest existing
+  /// position + 1. Pass an explicit value to slot a variant at a
+  /// specific spot (rare; the variant carousel is append-only in
+  /// practice).
+  Future<String> addVariant({
+    required String groupId,
+    required String date,
+    int? position,
+    String title = '',
+    String description = '',
+    String objectives = '',
+    String steps = '',
+    String materials = '',
+    String link = '',
+  }) async {
+    final programId = _programId;
+    if (programId == null) {
+      throw StateError('No active program; cannot add a variant.');
+    }
+    final id = newId();
+    final pos = position ?? await _nextPosition(groupId: groupId, date: date);
+    final now = DateTime.now();
+    await _db.into(_db.monthlyActivities).insert(
+          MonthlyActivitiesCompanion.insert(
+            id: id,
+            programId: Value(programId),
+            groupId: groupId,
+            date: date,
+            position: Value(pos),
+            title: title.isEmpty ? const Value(null) : Value(title),
+            description:
+                description.isEmpty ? const Value(null) : Value(description),
+            objectives:
+                objectives.isEmpty ? const Value(null) : Value(objectives),
+            steps: steps.isEmpty ? const Value(null) : Value(steps),
+            materials:
+                materials.isEmpty ? const Value(null) : Value(materials),
+            link: link.isEmpty ? const Value(null) : Value(link),
+            createdAt: Value(now),
+            updatedAt: Value(now),
+          ),
+        );
+    unawaited(_sync.pushRow(monthlyActivitiesSpec, id));
+    return id;
+  }
+
+  /// Update a variant's content. Pass only the fields that change;
+  /// nulls leave the existing column untouched. Marks the touched
+  /// fields as dirty so the sync engine can push a partial UPDATE
+  /// rather than a full row write.
+  ///
+  /// The repository accepts empty strings as "clear this field" and
+  /// translates to `null` on the wire — same convention as the rest
+  /// of the codebase. Passing `null` for a parameter means "don't
+  /// touch."
+  Future<void> updateVariant({
+    required String id,
+    String? title,
+    String? description,
+    String? objectives,
+    String? steps,
+    String? materials,
+    String? link,
+  }) async {
+    final dirty = <String>[];
+    final companion = MonthlyActivitiesCompanion(
+      id: Value(id),
+      title: _maybeText(title, dirty: dirty, fieldName: 'title'),
+      description:
+          _maybeText(description, dirty: dirty, fieldName: 'description'),
+      objectives:
+          _maybeText(objectives, dirty: dirty, fieldName: 'objectives'),
+      steps: _maybeText(steps, dirty: dirty, fieldName: 'steps'),
+      materials: _maybeText(materials, dirty: dirty, fieldName: 'materials'),
+      link: _maybeText(link, dirty: dirty, fieldName: 'link'),
+      updatedAt: Value(DateTime.now()),
+    );
+    if (dirty.isEmpty) return;
+    await (_db.update(_db.monthlyActivities)..where((r) => r.id.equals(id)))
+        .write(companion);
+    await _db.markDirty('monthly_activities', id, dirty);
+    unawaited(_sync.pushRow(monthlyActivitiesSpec, id));
+  }
+
+  /// Soft-delete a variant. The row stays in the table with its
+  /// content + a deletedAt stamp; watch streams filter it out, and
+  /// the cloud realtime channel propagates the tombstone so other
+  /// clients drop it from their views too.
+  Future<void> deleteVariant(String id) async {
+    final now = DateTime.now();
+    await (_db.update(_db.monthlyActivities)..where((r) => r.id.equals(id)))
+        .write(
+      MonthlyActivitiesCompanion(
+        deletedAt: Value(now),
+        updatedAt: Value(now),
+      ),
+    );
+    await _db.markDirty('monthly_activities', id, ['deleted_at']);
+    unawaited(_sync.pushRow(monthlyActivitiesSpec, id));
+  }
+
+  Future<int> _nextPosition({
+    required String groupId,
+    required String date,
+  }) async {
+    final rows = await (_db.select(_db.monthlyActivities)
+          ..where((r) => matchesActiveProgram(r.programId, _programId))
+          ..where((r) => r.groupId.equals(groupId))
+          ..where((r) => r.date.equals(date))
+          ..where((r) => r.deletedAt.isNull())
+          ..orderBy([
+            (r) => OrderingTerm.desc(r.position),
+          ])
+          ..limit(1))
+        .get();
+    if (rows.isEmpty) return 0;
+    return (rows.first.position) + 1;
+  }
+
+  /// Helper for [updateVariant] — translates a "maybe touch this
+  /// field" parameter into a Drift Value, recording the field name
+  /// in [dirty] when it does touch the column. Empty string maps to
+  /// SQL NULL (matches "" → null convention everywhere else).
+  Value<String?> _maybeText(
+    String? input, {
+    required List<String> dirty,
+    required String fieldName,
+  }) {
+    if (input == null) return const Value.absent();
+    dirty.add(fieldName);
+    return input.isEmpty ? const Value(null) : Value(input);
+  }
+
   // ---- Helpers --------------------------------------------------
 
   String? _themeText(MonthlyTheme? row) {
@@ -193,4 +354,25 @@ final weeklySubThemeProvider =
     StreamProvider.family<String?, String>((ref, mondayDate) {
   ref.watch(activeProgramIdProvider);
   return ref.watch(monthlyPlanRepositoryProvider).watchSubTheme(mondayDate);
+});
+
+/// Family key for [monthlyActivitiesProvider]: (groupId, date) where
+/// `date` is "yyyy-MM-dd". Records carry value-equality so two
+/// `(groupId, date)` records with the same fields hit the same
+/// provider instance.
+typedef MonthlyCellKey = ({String groupId, String date});
+
+/// Live variants for cell (groupId, date) within the active program.
+/// Sorted by position; soft-deleted rows filtered out. Empty drafts
+/// are included — the caller's `hasContent` check decides what to
+/// render.
+// ignore: specify_nonobvious_property_types
+final monthlyActivitiesProvider =
+    StreamProvider.family<List<MonthlyActivity>, MonthlyCellKey>(
+        (ref, key) {
+  ref.watch(activeProgramIdProvider);
+  return ref.watch(monthlyPlanRepositoryProvider).watchVariants(
+        groupId: key.groupId,
+        date: key.date,
+      );
 });

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:basecamp/database/database.dart' show Group;
+import 'package:basecamp/database/database.dart' show Group, MonthlyActivity;
 import 'package:basecamp/features/adults/adults_repository.dart'
     show AdultRole, currentAdultProvider;
 import 'package:basecamp/features/ai/ai_activity_addons.dart';
@@ -60,21 +60,29 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   /// least one entry. Kept null until that point.
   String? _activeGroupId;
 
-  /// Variants per cell, keyed by `"$groupId|$dayKey"`. Each cell can
-  /// hold N variants — the manual one the user typed inline, plus
-  /// any AI variants generated via the ✨ button. List order is
-  /// creation order; [_activeVariantIndex] picks which one renders
-  /// in the cell + opens in the formatted view.
-  final Map<String, List<_MonthlyActivity>> _activities = {};
+  // v56 (Slice 2): variants moved to the cloud. Reads go through
+  // monthlyActivitiesProvider (StreamProviderFamily keyed by
+  // (groupId, date)) and writes go through
+  // monthlyPlanRepository.addVariant / updateVariant / deleteVariant.
+  // The realtime channel keeps two teachers' carousels in sync.
 
-  /// Active variant index per cell. Defaults to 0 (the first/manual
-  /// variant) when absent. Setting it switches what the cell shows.
+  /// Active variant index per cell, keyed by `"$groupId|$dayKey"`.
+  /// Stays in-memory because it's a per-user view preference — if
+  /// teacher A is looking at variant 1 and teacher B at variant 0,
+  /// that's fine. Defaults to 0 (the first/manual variant) when the
+  /// key is absent.
   final Map<String, int> _activeVariantIndex = {};
 
   /// Cell that's currently in inline-edit mode (the multi-line
   /// TextField rendering inside the cell). Only one cell edits at a
   /// time. Null when nothing's editing.
   String? _editingCellKey;
+
+  /// Drift row id of the variant currently in inline-edit mode.
+  /// Companion to `_editingCellKey`: `_editingCellKey` says "which
+  /// cell" and `_editingVariantId` says "which row inside that cell".
+  /// Null when nothing's editing.
+  String? _editingVariantId;
 
   /// Cell that's currently focused (touch-tap on mobile, hover on
   /// web). Drives visibility of ✨ + × + dots so they don't clutter
@@ -117,6 +125,24 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   String _activityKey(DateTime d, String groupId) =>
       '$groupId|${_dayKey(d)}';
 
+  /// Inverse of [_activityKey] — extract the date portion from a
+  /// composite cell key. Used by [_exitInlineEdit] which has the key
+  /// in hand but needs to consult the variants stream for the cell.
+  DateTime _dateFromKey(String key) {
+    final parts = key.split('|');
+    final ymd = parts.last.split('-');
+    return DateTime(
+      int.parse(ymd[0]),
+      int.parse(ymd[1]),
+      int.parse(ymd[2]),
+    );
+  }
+
+  /// Inverse of [_activityKey] — extract the group portion. Group
+  /// ids never contain `|` (they're Drift's text() ids, ULID-style),
+  /// so split-on-pipe is unambiguous.
+  String _groupFromKey(String key) => key.split('|').first;
+
   /// Identity-gating predicate (v54). Same logic as the build
   /// method's local `canEdit` — re-derived here so async event
   /// handlers (tap dispatcher, AI variant handler, etc.) can check
@@ -133,9 +159,27 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   // -----------------------------------------------------------------
   // Variant accessors
   // -----------------------------------------------------------------
+  //
+  // All accessors go through the cloud-backed
+  // `monthlyActivitiesProvider`. Synchronous handlers (tap dispatch,
+  // AI variant, delete) read via `ref.read(...).asData?.value` —
+  // safe because the provider hydrates from local Drift first
+  // (no network latency on cached data) and the worst-case
+  // pre-hydration "" value is just an empty list, identical to "no
+  // variants yet."
 
-  List<_MonthlyActivity> _variantsAt(DateTime d, String groupId) =>
-      _activities[_activityKey(d, groupId)] ?? const [];
+  List<_MonthlyActivity> _variantsAt(DateTime d, String groupId) {
+    final raw = ref
+            .read(
+              monthlyActivitiesProvider(
+                (groupId: groupId, date: _dayKey(d)),
+              ),
+            )
+            .asData
+            ?.value ??
+        const <MonthlyActivity>[];
+    return [for (final r in raw) _MonthlyActivity.fromDrift(r)];
+  }
 
   int _activeIdxAt(DateTime d, String groupId) {
     final list = _variantsAt(d, groupId);
@@ -168,84 +212,88 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   // -----------------------------------------------------------------
 
   /// Called when a cell receives focus + the user wants to start
-  /// authoring inline. Adds an empty variant if the cell has none,
-  /// then flips into inline-edit mode for that variant. If a
-  /// different cell was already in edit mode, that cell's edit is
-  /// finalised first (drops its empty variant if the user typed
-  /// nothing).
-  void _enterInlineEdit(DateTime date) {
+  /// authoring inline. v56: inserts an empty Drift row immediately
+  /// (the row is the "draft") and flips the cell into edit mode.
+  /// Other clients see the empty draft show up via realtime; if the
+  /// user bails without typing, _exitInlineEdit hard-deletes the
+  /// row so cells stay clean.
+  Future<void> _enterInlineEdit(DateTime date) async {
     final groupId = _activeGroupId;
     if (groupId == null) return;
     final key = _activityKey(date, groupId);
     if (_editingCellKey != null && _editingCellKey != key) {
-      _exitInlineEdit();
+      await _exitInlineEdit();
+    }
+    final variants = _variantsAt(date, groupId);
+    String editingVariantId;
+    if (variants.isEmpty) {
+      // Insert a fresh empty draft row so subsequent keystrokes
+      // have an id to update against.
+      editingVariantId = await ref
+          .read(monthlyPlanRepositoryProvider)
+          .addVariant(groupId: groupId, date: _dayKey(date));
+      if (!mounted) return;
+    } else {
+      // Edit the active variant in-place.
+      editingVariantId = variants[_activeIdxAt(date, groupId)].id;
     }
     setState(() {
-      final list = _activities.putIfAbsent(key, () => []);
-      if (list.isEmpty) {
-        list.add(_MonthlyActivity());
-        _activeVariantIndex[key] = 0;
-      }
       _editingCellKey = key;
+      _editingVariantId = editingVariantId;
       _focusedCellKey = key;
     });
   }
 
-  /// Live write into the active variant on every keystroke. The
-  /// commit-on-blur pattern was fragile on mobile (tapping outside
-  /// a TextField doesn't auto-unfocus on Flutter mobile, so blur
-  /// never fired and content was lost). Writing on every keystroke
-  /// means the variant is *always* up to date — even if the cell
-  /// unmounts mid-edit (group switch, month change), the typed text
-  /// survives.
+  /// Per-keystroke push to the repo — Drift writes locally + sync
+  /// engine debounces the cloud push. Per-keystroke is fine: Drift
+  /// is fast (sub-ms) and pushRow's debounce coalesces a flurry of
+  /// keystrokes into a single UPDATE.
   void _writeInlineEdit({
     required DateTime date,
     String? title,
     String? description,
   }) {
-    final groupId = _activeGroupId;
-    if (groupId == null) return;
-    final key = _activityKey(date, groupId);
-    final list = _activities[key];
-    if (list == null || list.isEmpty) return;
-    setState(() {
-      final idx = _activeIdxAt(date, groupId);
-      if (title != null) list[idx].title = title;
-      if (description != null) list[idx].description = description;
-    });
+    final id = _editingVariantId;
+    if (id == null) return;
+    unawaited(
+      ref.read(monthlyPlanRepositoryProvider).updateVariant(
+            id: id,
+            title: title,
+            description: description,
+          ),
+    );
   }
 
-  /// Exit edit mode without losing content (writes already happened
-  /// per-keystroke via [_writeInlineEdit]). Drops the variant if it
-  /// ended up entirely empty.
-  void _exitInlineEdit() {
+  /// Exit edit mode. If the row ended up entirely empty (user
+  /// bailed without typing), hard-delete it so the cell reverts to
+  /// its empty visual. Otherwise just drop edit state — content
+  /// already persisted through per-keystroke writes.
+  Future<void> _exitInlineEdit() async {
     final key = _editingCellKey;
-    if (key == null) return;
+    final id = _editingVariantId;
+    if (key == null || id == null) return;
+    // Snapshot focus state BEFORE the async gap; the user might tap
+    // away during the in-flight delete.
+    final isLast = _variantsAt(_dateFromKey(key), _groupFromKey(key)).length <= 1;
+    final activeUi = _activeAt(_dateFromKey(key), _groupFromKey(key));
+    final isEmpty = activeUi != null && activeUi.id == id && activeUi.isEmpty;
+    if (isEmpty) {
+      await ref.read(monthlyPlanRepositoryProvider).deleteVariant(id);
+      if (!mounted) return;
+    }
     setState(() {
       _editingCellKey = null;
-      final list = _activities[key];
-      if (list == null || list.isEmpty) return;
-      // Use the LAST element since edit mode always points at the
-      // most recently appended (manual or AI) variant.
-      final idx = (_activeVariantIndex[key] ?? 0)
-          .clamp(0, list.length - 1);
-      if (list[idx].isEmpty) {
-        list.removeAt(idx);
-        if (list.isEmpty) {
-          _activities.remove(key);
-          _activeVariantIndex.remove(key);
-          _focusedCellKey = null;
-        } else {
-          _activeVariantIndex[key] = idx.clamp(0, list.length - 1);
-        }
+      _editingVariantId = null;
+      if (isEmpty && isLast) {
+        _activeVariantIndex.remove(key);
+        _focusedCellKey = null;
       }
     });
   }
 
-  /// AI variant — INLINE generation, no modal sheet. The cell
-  /// already has the source content; opening a modal would just be
-  /// an extra step the user has to confirm before the model runs.
-  /// Tap → spinner in the cell → new variant lands. Seamless.
+  /// AI variant — INLINE generation, no modal sheet. v56: inserts
+  /// the new variant as a fresh row at next position; the cloud
+  /// realtime channel pushes it to other teachers' carousels.
   Future<void> _onCellAi(DateTime date) async {
     final groupId = _activeGroupId;
     if (groupId == null) return;
@@ -259,31 +307,32 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
         planContext: _aiContextForDate(date),
       );
       if (!mounted) return;
-      setState(() {
-        _generatingCellKey = null;
-        _activities.putIfAbsent(key, () => []);
-        final list = _activities[key]!
-          ..add(_MonthlyActivity(
+      await ref.read(monthlyPlanRepositoryProvider).addVariant(
+            groupId: groupId,
+            date: _dayKey(date),
             title: result.title,
             description: result.description,
             objectives: result.objectives,
             steps: result.steps,
             materials: result.materials,
             link: result.link,
-          ));
-        // Auto-switch to the AI variant — the user just hit ✨ to
-        // see the refined take, so it should be visible immediately.
-        // The variant is a *refinement* of their first input (the
-        // prompt now anchors the AI to what they typed), not a
-        // different activity. Variant 0 stays as the source of
-        // truth they can swipe back to.
-        _activeVariantIndex[key] = list.length - 1;
+          );
+      if (!mounted) return;
+      setState(() {
+        _generatingCellKey = null;
+        // Auto-switch to the new variant. The new row has the
+        // highest position; once Drift's stream re-emits, the
+        // variants list grows by 1 and clamping in _activeIdxAt
+        // resolves to that new tail. Setting the index to a value
+        // that's currently "out of range" works because the
+        // accessor clamps every read.
+        final currentLen =
+            _variantsAt(date, groupId).length; // pre-stream-update
+        _activeVariantIndex[key] = currentLen; // becomes valid post-emit
       });
     } on Object catch (e) {
       if (!mounted) return;
       setState(() => _generatingCellKey = null);
-      // Surface via snackbar — quick, non-blocking, doesn't interrupt
-      // the calendar view.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -302,23 +351,30 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
     setState(() => _activeVariantIndex[key] = newIdx);
   }
 
-  /// Delete the active variant. If it was the last one, the cell
-  /// becomes empty.
-  void _deleteActiveVariant(DateTime date) {
+  /// Soft-delete the active variant (deletedAt stamp + null clear).
+  /// Drift's stream filters tombstones, so the variant disappears
+  /// from the local view; cloud realtime propagates to other
+  /// clients.
+  Future<void> _deleteActiveVariant(DateTime date) async {
     final groupId = _activeGroupId;
     if (groupId == null) return;
     final key = _activityKey(date, groupId);
+    final variants = _variantsAt(date, groupId);
+    if (variants.isEmpty) return;
+    final idx = _activeIdxAt(date, groupId);
+    final id = variants[idx].id;
+    await ref.read(monthlyPlanRepositoryProvider).deleteVariant(id);
+    if (!mounted) return;
     setState(() {
-      final list = _activities[key];
-      if (list == null || list.isEmpty) return;
-      final idx = _activeIdxAt(date, groupId);
-      list.removeAt(idx);
-      if (list.isEmpty) {
-        _activities.remove(key);
+      // After deletion the list will shrink by 1 (post-stream-emit).
+      // Clamp the active index back. If the cell becomes empty,
+      // drop focus too — same UX as the in-memory path.
+      final newLen = variants.length - 1;
+      if (newLen <= 0) {
         _activeVariantIndex.remove(key);
         _focusedCellKey = null;
       } else {
-        _activeVariantIndex[key] = idx.clamp(0, list.length - 1);
+        _activeVariantIndex[key] = idx.clamp(0, newLen - 1);
       }
     });
   }
@@ -329,7 +385,7 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   void _setFocusedCell(String? key) {
     if (_focusedCellKey == key) return;
     if (_editingCellKey != null && _editingCellKey != key) {
-      _exitInlineEdit();
+      unawaited(_exitInlineEdit());
     }
     setState(() => _focusedCellKey = key);
   }
@@ -431,7 +487,7 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
       // still updates so they see which cell they tapped, but no
       // editor opens. Lead-on-anchored-group users get full edit.
       if (_canEditActiveGroup) {
-        _enterInlineEdit(date);
+        unawaited(_enterInlineEdit(date));
       } else {
         _setFocusedCell(key);
       }
@@ -469,9 +525,11 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
           Navigator.of(context).pop();
           await _openEditor(date, groupId, activity);
         },
-        onDelete: () {
+        onDelete: () async {
           Navigator.of(context).pop();
-          setState(() => _activities.remove(_activityKey(date, groupId)));
+          // Delete the active variant only — other variants in the
+          // cell stay. Matches the cell-level × affordance.
+          await _deleteActiveVariant(date);
         },
       ),
     );
@@ -491,8 +549,11 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
         onChanged: () {
           if (mounted) setState(() {});
         },
-        onDelete: () {
-          setState(() => _activities.remove(_activityKey(date, groupId)));
+        onDelete: () async {
+          await ref
+              .read(monthlyPlanRepositoryProvider)
+              .deleteVariant(activity.id);
+          if (!mounted) return;
           unawaited(Navigator.of(context).maybePop());
         },
       ),
@@ -812,28 +873,55 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                                   // Day cell — stretches via Expanded
                                   // above the 160dp minimum (the
                                   // outer SizedBox's width guarantees
-                                  // the floor). On wide windows
-                                  // these grow proportionally.
+                                  // the floor). Each cell wraps in a
+                                  // Consumer so it watches its own
+                                  // (groupId, date) variants stream
+                                  // — another teacher's edit lands
+                                  // here directly without rebuilding
+                                  // the whole calendar.
                                   Expanded(
                                     child: Padding(
                                       padding: const EdgeInsets.all(2),
-                                      child: _DayCell(
-                                        // Key includes the cell key
-                                        // so the cell's local state
-                                        // (PageController) doesn't
-                                        // leak across cells when
-                                        // groups switch.
-                                        key: ValueKey(
-                                          '${_activeGroupId!}|'
-                                          '${_dayKey(date)}',
-                                        ),
-                                        date: date,
-                                        isCurrentMonth: date.month ==
-                                            _viewMonth.month,
-                                        variants: _variantsAt(
-                                            date, _activeGroupId!),
-                                        activeIndex: _activeIdxAt(
-                                            date, _activeGroupId!),
+                                      child: Consumer(
+                                        builder: (context, ref, _) {
+                                          final cellKey = (
+                                            groupId: _activeGroupId!,
+                                            date: _dayKey(date),
+                                          );
+                                          final raw = ref
+                                                  .watch(
+                                                    monthlyActivitiesProvider(
+                                                        cellKey),
+                                                  )
+                                                  .asData
+                                                  ?.value ??
+                                              const <MonthlyActivity>[];
+                                          final variants = [
+                                            for (final r in raw)
+                                              _MonthlyActivity.fromDrift(r),
+                                          ];
+                                          final activeIdx = (variants.isEmpty
+                                                  ? 0
+                                                  : (_activeVariantIndex[
+                                                              _activityKey(date,
+                                                                  _activeGroupId!)] ??
+                                                          0))
+                                              .clamp(
+                                            0,
+                                            variants.isEmpty
+                                                ? 0
+                                                : variants.length - 1,
+                                          );
+                                          return _DayCell(
+                                            key: ValueKey(
+                                              '${_activeGroupId!}|'
+                                              '${_dayKey(date)}',
+                                            ),
+                                            date: date,
+                                            isCurrentMonth: date.month ==
+                                                _viewMonth.month,
+                                            variants: variants,
+                                            activeIndex: activeIdx,
                                         isEditing: _editingCellKey ==
                                             _activityKey(
                                                 date, _activeGroupId!),
@@ -880,8 +968,11 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                                         onDeleteActive: () =>
                                             _deleteActiveVariant(date),
                                         onEditActive: () =>
-                                            _enterInlineEdit(date),
-                                        onCommitEdit: _exitInlineEdit,
+                                            unawaited(_enterInlineEdit(date)),
+                                        onCommitEdit: () =>
+                                            unawaited(_exitInlineEdit()),
+                                      );
+                                        },
                                       ),
                                     ),
                                   ),
@@ -907,8 +998,18 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
 // Models
 // =====================================================================
 
+/// UI working type for an activity variant. v56 (Slice 2): backed by
+/// a Drift `MonthlyActivity` row — the `id` field is the row's
+/// primary key, and edits route back to the repository's
+/// `updateVariant` so the cloud sync engine pushes the changes.
+///
+/// Was previously a mutable in-memory class; now it's an immutable
+/// view onto a Drift row. The `Empty` factory keeps the "no draft yet"
+/// case simple where we need a placeholder without a cloud row (rare
+/// — the inline-edit path inserts a draft row immediately).
 class _MonthlyActivity {
-  _MonthlyActivity({
+  const _MonthlyActivity({
+    required this.id,
     this.title = '',
     this.description = '',
     this.objectives = '',
@@ -917,12 +1018,30 @@ class _MonthlyActivity {
     this.link = '',
   });
 
-  String title;
-  String description;
-  String objectives;
-  String steps;
-  String materials;
-  String link;
+  /// Convert a Drift row to the UI working type, normalizing nulls
+  /// to empty strings so `.isEmpty` semantics work without
+  /// scattering null-checks everywhere.
+  factory _MonthlyActivity.fromDrift(MonthlyActivity row) {
+    return _MonthlyActivity(
+      id: row.id,
+      title: row.title ?? '',
+      description: row.description ?? '',
+      objectives: row.objectives ?? '',
+      steps: row.steps ?? '',
+      materials: row.materials ?? '',
+      link: row.link ?? '',
+    );
+  }
+
+  /// Row id from `monthly_activities`. Used by every edit / delete
+  /// callback to address the right cloud row.
+  final String id;
+  final String title;
+  final String description;
+  final String objectives;
+  final String steps;
+  final String materials;
+  final String link;
 
   bool get isEmpty =>
       title.trim().isEmpty &&
@@ -2101,7 +2220,7 @@ class _SectionHeader extends StatelessWidget {
 // Editor sheet — adaptive (bottom on mobile, side panel on web)
 // =====================================================================
 
-class _MonthlyActivityEditor extends StatefulWidget {
+class _MonthlyActivityEditor extends ConsumerStatefulWidget {
   const _MonthlyActivityEditor({
     required this.date,
     required this.activity,
@@ -2117,11 +2236,12 @@ class _MonthlyActivityEditor extends StatefulWidget {
   final VoidCallback onDelete;
 
   @override
-  State<_MonthlyActivityEditor> createState() =>
+  ConsumerState<_MonthlyActivityEditor> createState() =>
       _MonthlyActivityEditorState();
 }
 
-class _MonthlyActivityEditorState extends State<_MonthlyActivityEditor> {
+class _MonthlyActivityEditorState
+    extends ConsumerState<_MonthlyActivityEditor> {
   late final TextEditingController _title =
       TextEditingController(text: widget.activity.title)
         ..addListener(_pushTitle);
@@ -2141,35 +2261,38 @@ class _MonthlyActivityEditorState extends State<_MonthlyActivityEditor> {
       TextEditingController(text: widget.activity.link)
         ..addListener(_pushLink);
 
-  void _pushTitle() {
-    widget.activity.title = _title.text;
+  // v56 push helpers — each one routes the controller's text to
+  // monthlyPlanRepository.updateVariant for the activity's row id.
+  // The repo's updateVariant marks only the touched field as dirty,
+  // so the cloud push is a partial UPDATE (other fields untouched).
+  void _push({
+    String? title,
+    String? description,
+    String? objectives,
+    String? steps,
+    String? materials,
+    String? link,
+  }) {
+    unawaited(
+      ref.read(monthlyPlanRepositoryProvider).updateVariant(
+            id: widget.activity.id,
+            title: title,
+            description: description,
+            objectives: objectives,
+            steps: steps,
+            materials: materials,
+            link: link,
+          ),
+    );
     widget.onChanged();
   }
 
-  void _pushDescription() {
-    widget.activity.description = _description.text;
-    widget.onChanged();
-  }
-
-  void _pushObjectives() {
-    widget.activity.objectives = _objectives.text;
-    widget.onChanged();
-  }
-
-  void _pushSteps() {
-    widget.activity.steps = _steps.text;
-    widget.onChanged();
-  }
-
-  void _pushMaterials() {
-    widget.activity.materials = _materials.text;
-    widget.onChanged();
-  }
-
-  void _pushLink() {
-    widget.activity.link = _link.text;
-    widget.onChanged();
-  }
+  void _pushTitle() => _push(title: _title.text);
+  void _pushDescription() => _push(description: _description.text);
+  void _pushObjectives() => _push(objectives: _objectives.text);
+  void _pushSteps() => _push(steps: _steps.text);
+  void _pushMaterials() => _push(materials: _materials.text);
+  void _pushLink() => _push(link: _link.text);
 
   @override
   void dispose() {

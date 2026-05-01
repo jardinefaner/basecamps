@@ -67,6 +67,7 @@ QueryExecutor _openConnection() {
     MediaCache,
     MonthlyThemes,
     WeeklySubThemes,
+    MonthlyActivities,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -75,7 +76,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 55;
+  int get schemaVersion => 56;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -100,13 +101,19 @@ class AppDatabase extends _$AppDatabase {
           await _healCurriculumArcColumns();
           await _healRoleBlockTables();
           await _healScheduleTemplateColumns();
-          await _healDirtyFieldsColumns();
           await _healMediaCacheTable();
           await _healAvatarEtagColumns();
           await _healV52QolColumns();
           await _healV53AudienceAgeColumn();
           await _healV54AuthUserIdColumn();
+          // v55+v56 table creation must happen BEFORE the dirty-
+          // fields heal, otherwise the ALTER TABLE on those new
+          // tables silently fails (table doesn't exist yet) and
+          // their dirty_fields column never gets added — which
+          // then breaks the sync engine's partial-UPDATE pushes.
           await _healV55MonthlyPlanTables();
+          await _healV56MonthlyActivitiesTable();
+          await _healDirtyFieldsColumns();
         },
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
@@ -125,6 +132,12 @@ class AppDatabase extends _$AppDatabase {
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
             );
+          }
+          if (from < 56) {
+            // v56: monthly plan activities (Slice 2). One row per
+            // variant; (program, group, date, position) addresses a
+            // variant within its cell. Cloud parity: migration 0033.
+            await m.createTable(monthlyActivities);
           }
           if (from < 55) {
             // v55: monthly plan persistence (Slice 1). Two new
@@ -1549,6 +1562,31 @@ class AppDatabase extends _$AppDatabase {
       '"program_id" TEXT NULL, '
       '"monday_date" TEXT NOT NULL, '
       '"sub_theme" TEXT NULL, '
+      '"created_at" INTEGER NOT NULL, '
+      '"updated_at" INTEGER NOT NULL, '
+      '"deleted_at" INTEGER NULL, '
+      'PRIMARY KEY ("id"))',
+    );
+  }
+
+  /// v56 schema heal — same belt-and-suspenders pattern as v55.
+  /// Re-runs CREATE TABLE IF NOT EXISTS on every launch so a
+  /// partial upgrade (e.g. web IDB closed mid-migration) doesn't
+  /// leave the user without the activities table.
+  Future<void> _healV56MonthlyActivitiesTable() async {
+    await _runSilent(
+      'CREATE TABLE IF NOT EXISTS "monthly_activities" '
+      '("id" TEXT NOT NULL, '
+      '"program_id" TEXT NULL, '
+      '"group_id" TEXT NOT NULL, '
+      '"date" TEXT NOT NULL, '
+      '"position" INTEGER NOT NULL DEFAULT 0, '
+      '"title" TEXT NULL, '
+      '"description" TEXT NULL, '
+      '"objectives" TEXT NULL, '
+      '"steps" TEXT NULL, '
+      '"materials" TEXT NULL, '
+      '"link" TEXT NULL, '
       '"created_at" INTEGER NOT NULL, '
       '"updated_at" INTEGER NOT NULL, '
       '"deleted_at" INTEGER NULL, '

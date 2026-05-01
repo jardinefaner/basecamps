@@ -1634,6 +1634,42 @@ class MonthlyThemes extends Table {
   String? get tableName => 'monthly_themes';
 }
 
+/// v56: monthly plan activities (Slice 2). One row per variant —
+/// variant 0 is the manual-entry "headline" the teacher typed;
+/// variants 1+ are AI-generated alternates created via the ∗
+/// button. Together a (program, group, date) tuple gives the cell;
+/// `position` orders variants within that cell.
+///
+/// All content fields nullable so an in-progress empty variant can
+/// persist a draft without violating any constraint. The repository
+/// filters empty variants from the public-facing watch stream.
+@DataClassName('MonthlyActivity')
+class MonthlyActivities extends Table {
+  TextColumn get id => text()();
+  TextColumn get programId => text().nullable()();
+  TextColumn get groupId => text()();
+  TextColumn get date => text()();  // "yyyy-MM-dd"
+  IntColumn get position => integer().withDefault(const Constant(0))();
+  TextColumn get title => text().nullable()();
+  TextColumn get description => text().nullable()();
+  TextColumn get objectives => text().nullable()();
+  TextColumn get steps => text().nullable()();
+  TextColumn get materials => text().nullable()();
+  TextColumn get link => text().nullable()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  String? get tableName => 'monthly_activities';
+}
+
 /// v55: weekly sub-theme — one row per (program, ISO Monday).
 ///
 /// The monthly plan groups days into weeks at the Monday boundary;
