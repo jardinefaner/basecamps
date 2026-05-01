@@ -769,6 +769,32 @@ class _DayColumnBodyState extends ConsumerState<_DayColumnBody> {
   /// outline so the user can see where a click would land.
   int? _hoveredSlotStart;
 
+  /// Tap-pinned slot. Touch devices don't have hover, so the hover-
+  /// only icon-reveal would leave mobile users with no way to reach
+  /// the manual / AI choice. Tap on an empty slot pins it here; the
+  /// rendering treats `_pinnedSlotStart ?? _hoveredSlotStart` as the
+  /// active slot. Pin clears when:
+  ///   * the user taps a different slot (pin moves)
+  ///   * the user taps an icon (action fires + clear)
+  /// Doesn't auto-clear on hover-out — that's for the desktop case
+  /// where hover and pin should coexist (e.g., a touch-laptop user
+  /// taps a slot, then mouses elsewhere).
+  int? _pinnedSlotStart;
+
+  /// True while the cursor is over the slot icon row. While this is
+  /// true the column-body MouseRegion stops updating
+  /// `_hoveredSlotStart` — without this guard, micro-movements of
+  /// the cursor across the icons recompute the slot from local Y,
+  /// and near a slot boundary the calculation oscillates between
+  /// adjacent slots, which makes the icons flicker between two
+  /// vertical positions on every paint.
+  bool _hoveringIcons = false;
+
+  /// Active slot to draw the outline + icon row at — pin wins, hover
+  /// is the fallback. Used in three places (outline visibility,
+  /// outline position, icon-row position) so it lives as a getter.
+  int? get _activeSlotStart => _pinnedSlotStart ?? _hoveredSlotStart;
+
   /// Round the local-y to the slot start that contains it.
   int _slotStartFromLocalY(double localY) {
     final raw = widget.scale.minutesAtY(localY);
@@ -823,41 +849,65 @@ class _DayColumnBodyState extends ConsumerState<_DayColumnBody> {
                             .withValues(alpha: 0.18),
                       ),
                     ),
-                  // Empty-slot hover layer. Sits BELOW the cards so
-                  // card hits beat empty-slot hits — the hover
+                  // Empty-slot hover + tap layer. Sits BELOW the
+                  // cards so card hits beat empty-slot hits — the
                   // detector only fires on the gaps between cards.
-                  // Tap-to-create is no longer ambient — the user
-                  // explicitly clicks one of the slot icons (manual
-                  // / AI) layered above this. That makes the choice
-                  // discoverable and prevents an accidental ambient
-                  // click from creating a blank card when the user
-                  // really wanted the AI path.
+                  //
+                  // Hover (desktop): updates `_hoveredSlotStart`.
+                  // Tap (touch + desktop): pins the slot via
+                  // `_pinnedSlotStart`. Touch users have no hover
+                  // path to the slot icons, so the tap-to-pin is
+                  // their entry point; desktop users can also use
+                  // tap if they prefer. Tap on a slot is *not* the
+                  // immediate-create gesture anymore — it reveals
+                  // the manual / AI choice and the user clicks one
+                  // of those to commit.
                   Positioned.fill(
                     child: MouseRegion(
                       onHover: (event) {
+                        // Freeze the slot while the cursor is over
+                        // the icon row — prevents flicker when
+                        // micro-movements near a slot boundary would
+                        // otherwise oscillate the computed slot Y.
+                        if (_hoveringIcons) return;
                         final slot =
                             _slotStartFromLocalY(event.localPosition.dy);
                         if (slot != _hoveredSlotStart) {
                           setState(() => _hoveredSlotStart = slot);
                         }
                       },
-                      onExit: (_) =>
-                          setState(() => _hoveredSlotStart = null),
-                      // Opaque hit-testing so this layer absorbs
-                      // pointer events that would otherwise fall
-                      // through to whatever's underneath. The slot
-                      // icons are layered on top in their own
-                      // Positioned, so they receive the click.
-                      child: const SizedBox.expand(),
+                      onExit: (_) {
+                        // Same guard on exit — moving onto the icons
+                        // can fire a transient onExit on the parent
+                        // MouseRegion in some Flutter web builds,
+                        // which would clear the hover and make the
+                        // icons disappear out from under the cursor.
+                        if (_hoveringIcons) return;
+                        setState(() => _hoveredSlotStart = null);
+                      },
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        // onTapDown rather than onTap so the icons
+                        // appear immediately on press, not after the
+                        // gesture-arena's tap-vs-drag delay.
+                        onTapDown: (details) {
+                          final slot = _slotStartFromLocalY(
+                            details.localPosition.dy,
+                          );
+                          if (slot != _pinnedSlotStart) {
+                            setState(() => _pinnedSlotStart = slot);
+                          }
+                        },
+                      ),
                     ),
                   ),
-                  // Hovered-slot outline. Painted over the hover
+                  // Active-slot outline. Painted over the gesture
                   // layer so it stays readable even when the cursor
                   // moves fast. IgnorePointer so it doesn't steal
                   // taps from the slot-icons layer above.
-                  if (_hoveredSlotStart != null)
+                  if (_activeSlotStart != null)
                     Positioned(
-                      top: scale.yFor(_hoveredSlotStart!),
+                      top: scale.yFor(_activeSlotStart!),
                       left: 4,
                       right: 4,
                       height: 15 * _kPxPerMinute,
@@ -876,19 +926,49 @@ class _DayColumnBodyState extends ConsumerState<_DayColumnBody> {
                       ),
                     ),
                   // Slot action icons — manual + AI. Anchored to the
-                  // right edge of the hovered slot. Each icon has
-                  // its own InkWell that consumes the tap so the
-                  // hover layer below never sees it.
-                  if (_hoveredSlotStart != null)
+                  // right edge of the active slot. Each icon's
+                  // InkWell consumes the tap so the gesture layer
+                  // below never re-pins. After the action fires, we
+                  // clear the pin so the icons disappear.
+                  if (_activeSlotStart != null)
                     Positioned(
-                      top: scale.yFor(_hoveredSlotStart!),
+                      top: scale.yFor(_activeSlotStart!),
                       right: 6,
                       height: 15 * _kPxPerMinute,
-                      child: _SlotActionIcons(
-                        onManual: () =>
-                            widget.onCreateAt(_hoveredSlotStart!),
-                        onAi: () =>
-                            widget.onCreateAiAt(_hoveredSlotStart!),
+                      // MouseRegion around the icons sets
+                      // `_hoveringIcons = true` so the parent's
+                      // onHover stops re-computing the slot. This is
+                      // the actual flicker fix — without it, the
+                      // parent's continuous onHover near the slot
+                      // boundary causes the icons to twitch between
+                      // adjacent slots' Y positions.
+                      child: MouseRegion(
+                        onEnter: (_) =>
+                            setState(() => _hoveringIcons = true),
+                        onExit: (_) =>
+                            setState(() => _hoveringIcons = false),
+                        child: _SlotActionIcons(
+                          onManual: () {
+                            final slot = _activeSlotStart!;
+                            setState(() {
+                              _pinnedSlotStart = null;
+                              _hoveringIcons = false;
+                            });
+                            // Fire-and-forget — the parent screen
+                            // owns the addTemplate flow + post-create
+                            // selection / fresh-card mark; we don't
+                            // need to await from here.
+                            unawaited(widget.onCreateAt(slot));
+                          },
+                          onAi: () {
+                            final slot = _activeSlotStart!;
+                            setState(() {
+                              _pinnedSlotStart = null;
+                              _hoveringIcons = false;
+                            });
+                            unawaited(widget.onCreateAiAt(slot));
+                          },
+                        ),
                       ),
                     ),
                   // The cards. Hidden when this card is the drag
