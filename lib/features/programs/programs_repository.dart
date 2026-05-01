@@ -41,6 +41,15 @@ class ProgramsRepository {
         );
   }
 
+  /// One-shot read of a single program by id. Returns null when
+  /// the program isn't in local Drift (not a member of it, or it's
+  /// been deleted). Used by surfaces that want a program's name in
+  /// a one-off context — invite share dialogs, audit logs, etc.
+  Future<Program?> getProgram(String id) {
+    return (_db.select(_db.programs)..where((p) => p.id.equals(id)))
+        .getSingleOrNull();
+  }
+
   /// One-shot list version of [watchProgramsForUser]. The bootstrap
   /// uses this to decide whether a default program needs creating
   /// without subscribing for the lifetime of the call.

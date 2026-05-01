@@ -23,6 +23,8 @@
 -- the invite drops back to generic-membership mode rather than
 -- breaking the redemption.
 
+-- adults.id is `text` in this schema (Drift-generated string ids,
+-- not Postgres uuids), so the FK column matches that type.
 alter table public.program_invites
-  add column if not exists adult_id uuid
+  add column if not exists adult_id text
   references public.adults(id) on delete set null;

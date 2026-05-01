@@ -638,38 +638,28 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                   ),
                 );
               }
-              // Default-select the active group. For leads we
-              // prefer their anchored group; for everyone else
-              // (unbound users, non-leads), fall back to the
-              // first group. Leads also get re-snapped to their
-              // anchored group if the active id ever drifts off
-              // (e.g. reading another group's plan and then the
-              // identity provider resolves).
-              final preferred = lockedToGroup &&
-                      groups.any((g) => g.id == myGroupId)
-                  ? myGroupId
-                  : (_activeGroupId == null ||
-                          !groups.any((g) => g.id == _activeGroupId))
-                      ? groups.first.id
-                      : _activeGroupId;
-              if (_activeGroupId != preferred) {
+              // Default-select. Leads land on their anchored group;
+              // everyone else lands on the first group. Leads can
+              // STILL switch into other groups (view-only) — this
+              // is a coordination app where everyone sees the full
+              // plan; the gating is on *edit*, not visibility. The
+              // initial pre-select just gets them to their own
+              // group fastest.
+              if (_activeGroupId == null ||
+                  !groups.any((g) => g.id == _activeGroupId)) {
+                final preferred = lockedToGroup &&
+                        groups.any((g) => g.id == myGroupId)
+                    ? myGroupId
+                    : groups.first.id;
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (!mounted) return;
                   setState(() => _activeGroupId = preferred);
                 });
               }
-              // When the user is a Lead, restrict the dropdown to
-              // their anchored group only — they shouldn't be able
-              // to switch into someone else's plan and accidentally
-              // edit it. Other users see the full list.
-              final visibleGroups = lockedToGroup
-                  ? groups.where((g) => g.id == myGroupId).toList()
-                  : groups;
               return _GroupFilterBar(
-                groups: visibleGroups,
+                groups: groups,
                 activeId: _activeGroupId,
                 onSelect: (id) => setState(() => _activeGroupId = id),
-                locked: lockedToGroup,
               );
             },
           ),
@@ -929,103 +919,55 @@ class _MonthlyActivity {
 // Top bars
 // =====================================================================
 
-/// Compact group selector — replaces the previous horizontal chip
-/// row that wrapped to multi-line on mobile. Single inline button
-/// showing the active group + age range; tap opens a popup menu
-/// with all groups. Matches the "month chevrons in AppBar" decision
-/// — top bar should stay one row, not three.
+/// Group filter — horizontal chip row. Each group renders as a
+/// ChoiceChip with name + audience-age suffix; tap to switch. The
+/// row scrolls horizontally on narrow phones so 5+ groups don't
+/// wrap into a tall multi-line block.
+///
+/// Coordination model: every signed-in user can switch through
+/// every group's plan freely. The edit gating is per-cell (driven
+/// by `canEdit` on the screen) — non-leads can browse but not
+/// author. So this filter is pure navigation, no lock state.
 class _GroupFilterBar extends StatelessWidget {
   const _GroupFilterBar({
     required this.groups,
     required this.activeId,
     required this.onSelect,
-    this.locked = false,
   });
 
   final List<Group> groups;
   final String? activeId;
   final ValueChanged<String> onSelect;
 
-  /// True when the user is a Lead anchored to one specific group;
-  /// the dropdown becomes a static label so they can't switch into
-  /// another group's plan. The PopupMenuButton is replaced with a
-  /// plain Container in this state.
-  final bool locked;
-
-  String _labelFor(Group g) =>
-      (g.audienceAgeLabel ?? '').isEmpty
-          ? g.name
-          : '${g.name} · ${g.audienceAgeLabel}';
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final active = groups.firstWhere(
-      (g) => g.id == activeId,
-      orElse: () => groups.first,
-    );
-    // Static label form — no popup, no chevron. The leading group
-    // icon stays so the row reads identically to the dropdown
-    // form; the trailing unfold_more chevron is replaced by a
-    // small lock icon to signal "you can't switch."
-    final labelRow = Container(
+    return Container(
+      color: theme.colorScheme.surfaceContainerLow,
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.sm,
       ),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: cs.outlineVariant,
-          width: 0.5,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final g in groups)
+              Padding(
+                padding: const EdgeInsets.only(right: AppSpacing.sm),
+                child: ChoiceChip(
+                  label: Text(
+                    (g.audienceAgeLabel ?? '').isEmpty
+                        ? g.name
+                        : '${g.name} · ${g.audienceAgeLabel}',
+                  ),
+                  selected: activeId == g.id,
+                  onSelected: (_) => onSelect(g.id),
+                ),
+              ),
+          ],
         ),
       ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.group_outlined,
-            size: 18,
-            color: cs.onSurfaceVariant,
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(
-              _labelFor(active),
-              style: theme.textTheme.bodyMedium,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Icon(
-            locked ? Icons.lock_outline : Icons.unfold_more,
-            size: 18,
-            color: cs.onSurfaceVariant,
-          ),
-        ],
-      ),
-    );
-    return Container(
-      color: cs.surfaceContainerLow,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm,
-      ),
-      child: locked
-          ? labelRow
-          : PopupMenuButton<String>(
-              position: PopupMenuPosition.under,
-              initialValue: activeId,
-              onSelected: onSelect,
-              itemBuilder: (_) => [
-                for (final g in groups)
-                  PopupMenuItem(
-                    value: g.id,
-                    child: Text(_labelFor(g)),
-                  ),
-              ],
-              child: labelRow,
-            ),
     );
   }
 }

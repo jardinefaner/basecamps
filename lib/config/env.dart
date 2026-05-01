@@ -9,6 +9,17 @@ abstract final class Env {
     defaultValue: 'placeholder-anon-key',
   );
 
+  /// Public URL where recipients open the app to redeem invites.
+  /// Pass `--dart-define=APP_SHARE_URL=https://your.deploy.url` at
+  /// build time. The default is intentionally a placeholder so a
+  /// deploy without the override surfaces the missing config in
+  /// the share message rather than silently shipping a broken
+  /// link.
+  static const String appShareUrl = String.fromEnvironment(
+    'APP_SHARE_URL',
+    defaultValue: 'https://basecamp.app',
+  );
+
   // OPENAI_API_KEY removed from the client (commit 452eb75). All
   // OpenAI calls now route through the Supabase Edge Function
   // `openai-chat`. The long-lived key lives only in Supabase's

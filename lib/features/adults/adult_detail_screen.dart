@@ -1,3 +1,4 @@
+import 'package:basecamp/config/env.dart';
 import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/core/format/text.dart';
 import 'package:basecamp/database/database.dart';
@@ -11,7 +12,7 @@ import 'package:basecamp/features/groups/group_summary_repository.dart';
 import 'package:basecamp/features/parents/parents_repository.dart';
 import 'package:basecamp/features/programs/invite_repository.dart';
 import 'package:basecamp/features/programs/programs_repository.dart'
-    show activeProgramIdProvider;
+    show activeProgramIdProvider, programsRepositoryProvider;
 import 'package:basecamp/features/roles/roles_repository.dart';
 import 'package:basecamp/features/schedule/schedule_repository.dart';
 import 'package:basecamp/features/schedule/week_days.dart';
@@ -23,9 +24,12 @@ import 'package:basecamp/ui/avatar_picker.dart';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Profile + schedule surface for a single adult. Two tabs:
@@ -184,8 +188,10 @@ class _AdultDetailScreenState extends ConsumerState<AdultDetailScreen>
 
   /// Identity binding ceremony. Generates an invite code that
   /// names this adult; recipient redeems → accept-invite stamps
-  /// `adults.auth_user_id`. The code is shown in a dialog the
-  /// admin copies + shares (text/email/whatever).
+  /// `adults.auth_user_id`. The dialog offers Copy and Share —
+  /// Share opens the system sheet (email / SMS / messenger /
+  /// whatever the OS exposes) pre-loaded with a friendly
+  /// onboarding message.
   Future<void> _openInviteForAdult(
     BuildContext context,
     Adult adult,
@@ -199,67 +205,23 @@ class _AdultDetailScreenState extends ConsumerState<AdultDetailScreen>
                 programId: programId,
                 adultId: adult.id,
               );
+      // Look up program name + sender's display for the share
+      // message. Both are best-effort — if either fails we still
+      // surface the dialog with whatever context we got.
+      final program = await ref
+          .read(programsRepositoryProvider)
+          .getProgram(programId);
+      final session = Supabase.instance.client.auth.currentSession;
+      final senderName = _resolveSenderName(session);
       if (!context.mounted) return;
       await showDialog<void>(
         context: context,
-        builder: (dialogCtx) => AlertDialog(
-          title: Text('Invite ${adult.name}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Share this code with ${adult.name}. When they sign '
-                'in and enter it, this profile will be linked to '
-                'their account.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg,
-                  vertical: AppSpacing.md,
-                ),
-                decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .primaryContainer,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(
-                  child: SelectableText(
-                    invite.code,
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineMedium
-                        ?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 4,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onPrimaryContainer,
-                        ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'Expires ${_humanizeExpiry(invite.expiresAt)}.',
-                style:
-                    Theme.of(dialogCtx).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(dialogCtx)
-                              .colorScheme
-                              .onSurfaceVariant,
-                        ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogCtx).pop(),
-              child: const Text('Done'),
-            ),
-          ],
+        builder: (dialogCtx) => _InviteDialog(
+          adult: adult,
+          inviteCode: invite.code,
+          expiresAt: invite.expiresAt,
+          programName: program?.name ?? 'Basecamp',
+          senderName: senderName,
         ),
       );
     } on Object catch (e) {
@@ -272,15 +234,21 @@ class _AdultDetailScreenState extends ConsumerState<AdultDetailScreen>
     }
   }
 
-  /// Quick "expires in 5 days" rendering for the invite dialog.
-  /// Granular enough for the typical 7-day lifetime; not worth a
-  /// full DateFormat pull for this one string.
-  String _humanizeExpiry(DateTime expires) {
-    final delta = expires.difference(DateTime.now().toUtc());
-    if (delta.isNegative) return 'already expired';
-    if (delta.inDays >= 1) return 'in ${delta.inDays} days';
-    if (delta.inHours >= 1) return 'in ${delta.inHours} hours';
-    return 'soon';
+  /// Best-effort sender display name for the share message. Falls
+  /// back through layered metadata: full_name → name → email →
+  /// generic. Keeps the message warm even when the auth user
+  /// hasn't filled in their profile.
+  String _resolveSenderName(Session? session) {
+    if (session == null) return 'Your team';
+    final user = session.user;
+    final meta = user.userMetadata ?? const <String, dynamic>{};
+    final full = meta['full_name'] as String?;
+    if (full != null && full.trim().isNotEmpty) return full.trim();
+    final name = meta['name'] as String?;
+    if (name != null && name.trim().isNotEmpty) return name.trim();
+    final email = user.email;
+    if (email != null && email.trim().isNotEmpty) return email.trim();
+    return 'Your team';
   }
 
   Future<void> _openAddActivity(BuildContext context, Adult s) async {
@@ -308,6 +276,163 @@ class _AdultDetailScreenState extends ConsumerState<AdultDetailScreen>
       showDragHandle: true,
       isDismissible: false,
       builder: (_) => EditTemplateSheet(template: template),
+    );
+  }
+}
+
+/// Invite-share dialog. Shows the 8-char code prominently for
+/// in-room "read it to me" sharing, plus Copy and Share buttons.
+/// Share opens the system sheet (email / SMS / Messenger / etc.)
+/// pre-loaded with a warm onboarding message that includes the
+/// recipient's name, role + group, the code, the app URL, and
+/// the expiry — so the recipient gets actionable context rather
+/// than a bare code in their inbox.
+class _InviteDialog extends StatelessWidget {
+  const _InviteDialog({
+    required this.adult,
+    required this.inviteCode,
+    required this.expiresAt,
+    required this.programName,
+    required this.senderName,
+  });
+
+  final Adult adult;
+  final String inviteCode;
+  final DateTime expiresAt;
+  final String programName;
+  final String senderName;
+
+  /// Compose the message that lands in the recipient's inbox /
+  /// SMS / DM. Personalised: who's inviting, what program, what
+  /// role + group their profile is set up for, the code, where to
+  /// open the app, and when the code expires. Plain text — every
+  /// share target accepts that, and it reads cleanly when the
+  /// recipient pastes it elsewhere.
+  String _composeShareText() {
+    final firstName = adult.name.split(' ').first;
+    final roleLabel = _roleLabel(adult);
+    final expiryLabel = _humanizeExpiry(expiresAt);
+    const claimLine = 'Your profile is already set up — sign in and '
+        'enter the code below to claim it.';
+    final lines = <String>[
+      'Hi $firstName,',
+      '',
+      '$senderName invited you to join $programName on Basecamp.',
+      claimLine,
+      if (roleLabel.isNotEmpty) '',
+      if (roleLabel.isNotEmpty) 'Profile: $roleLabel',
+      '',
+      'Code: $inviteCode',
+      '',
+      'Open the app: ${Env.appShareUrl}',
+      '',
+      '(Code expires $expiryLabel.)',
+    ];
+    return lines.join('\n');
+  }
+
+  String _roleLabel(Adult a) {
+    final adultRole = AdultRole.fromDb(a.adultRole);
+    final pretty = switch (adultRole) {
+      AdultRole.lead => 'Lead',
+      AdultRole.specialist => 'Specialist',
+      AdultRole.ambient => 'Ambient',
+    };
+    final job = (a.role ?? '').trim();
+    if (job.isEmpty) return pretty;
+    return '$pretty · $job';
+  }
+
+  String _humanizeExpiry(DateTime expires) {
+    final delta = expires.difference(DateTime.now().toUtc());
+    if (delta.isNegative) return 'already';
+    if (delta.inDays >= 1) {
+      final days = delta.inDays;
+      return 'in $days ${days == 1 ? 'day' : 'days'}';
+    }
+    if (delta.inHours >= 1) {
+      final hours = delta.inHours;
+      return 'in $hours ${hours == 1 ? 'hour' : 'hours'}';
+    }
+    return 'soon';
+  }
+
+  Future<void> _share(BuildContext context) async {
+    await SharePlus.instance.share(
+      ShareParams(
+        text: _composeShareText(),
+        subject: '$programName invite for ${adult.name}',
+      ),
+    );
+  }
+
+  Future<void> _copyCode(BuildContext context) async {
+    await Clipboard.setData(ClipboardData(text: inviteCode));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Code copied'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: Text('Invite ${adult.name}'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Send this code to ${adult.name}. Once they sign in and '
+            'enter it, this profile becomes their account.',
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: SelectableText(
+                inviteCode,
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 4,
+                  color: theme.colorScheme.onPrimaryContainer,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Expires ${_humanizeExpiry(expiresAt)}.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton.icon(
+          onPressed: () => _copyCode(context),
+          icon: const Icon(Icons.copy_outlined, size: 18),
+          label: const Text('Copy code'),
+        ),
+        FilledButton.icon(
+          onPressed: () => _share(context),
+          icon: const Icon(Icons.ios_share_outlined, size: 18),
+          label: const Text('Share'),
+        ),
+      ],
     );
   }
 }
