@@ -715,35 +715,47 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   }
 
   /// Materials from every activity rendered in [week] for the active
-  /// group, deduped case-insensitively. Empty when no activities have
-  /// materials filled in. Strings come pre-split on commas so an
-  /// activity's "paper, scissors, glue" contributes three entries.
+  /// group, deduped case-insensitively. Empty when no variants in
+  /// the week have materials filled in. Strings come pre-split on
+  /// commas so an activity's "paper, scissors, glue" contributes
+  /// three entries.
+  ///
+  /// **Aggregates across all variants per cell.** v58 — toggling
+  /// between original ↔ AI no longer changes the supply rail. The
+  /// supplies for a cell come from any variant that has them
+  /// populated, unioned + deduped. Common case: original is short
+  /// text and AI fills materials → AI's materials show up
+  /// regardless of which view is currently active. If both
+  /// variants have materials, the union covers both.
+  ///
+  /// v57 span dedupe still applies: a multi-day arc's head
+  /// contributes once even when its continuation rows live in the
+  /// same week.
   List<String> _aggregateMaterialsForWeek(List<DateTime> week) {
     final groupId = _activeGroupId;
     if (groupId == null) return const [];
     final seen = <String, String>{}; // lowercased → original casing
-    // v57 — dedupe spans across the week. A 3-day book read-aloud
-    // shouldn't have its materials counted three times. Track
-    // visited spanIds so continuation rows in the same week don't
-    // re-add the head's materials.
     final visitedSpans = <String>{};
     for (final date in week) {
-      // Aggregate from the ACTIVE variant only — the user's seeing
-      // that one in the cell, so its materials are what they
-      // actually need to gather. Inactive variants don't contribute
-      // (otherwise the supply list would balloon with every AI
-      // generation regardless of which one was kept).
-      final active = _activeAt(date, groupId);
-      if (active == null) continue;
-      final spanId = active.spanId;
+      final variants = _variantsAt(date, groupId);
+      if (variants.isEmpty) continue;
+      // Span check — use the active variant's spanId (or first
+      // variant's if no active is set) as the span identity for
+      // the cell. If we've already aggregated this span on an
+      // earlier day in the week, skip the whole cell.
+      final spanId = variants.first.spanId;
       if (spanId != null) {
         if (visitedSpans.contains(spanId)) continue;
         visitedSpans.add(spanId);
       }
-      for (final raw in active.materials.split(',')) {
-        final trimmed = raw.trim();
-        if (trimmed.isEmpty) continue;
-        seen.putIfAbsent(trimmed.toLowerCase(), () => trimmed);
+      // Union materials across every variant in the cell — toggle
+      // view doesn't gate the supply rail.
+      for (final v in variants) {
+        for (final raw in v.materials.split(',')) {
+          final trimmed = raw.trim();
+          if (trimmed.isEmpty) continue;
+          seen.putIfAbsent(trimmed.toLowerCase(), () => trimmed);
+        }
       }
     }
     return seen.values.toList()..sort();
