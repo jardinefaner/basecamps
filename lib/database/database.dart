@@ -73,7 +73,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 53;
+  int get schemaVersion => 54;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -103,6 +103,7 @@ class AppDatabase extends _$AppDatabase {
           await _healAvatarEtagColumns();
           await _healV52QolColumns();
           await _healV53AudienceAgeColumn();
+          await _healV54AuthUserIdColumn();
         },
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
@@ -120,6 +121,17 @@ class AppDatabase extends _$AppDatabase {
               'fresh at schema 25. This only affects devs who have '
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
+            );
+          }
+          if (from < 54) {
+            // v54: adults.auth_user_id — identity binding. The
+            // Supabase auth user id (uuid as text) of the signed-in
+            // account that *is* this adult. Stamped by the
+            // accept-invite edge function when the recipient
+            // redeems an invite carrying an `adult_id`. Cloud
+            // parity: migration 0030.
+            await _runSilent(
+              'ALTER TABLE "adults" ADD COLUMN "auth_user_id" TEXT NULL',
             );
           }
           if (from < 53) {
@@ -1487,6 +1499,13 @@ class AppDatabase extends _$AppDatabase {
   Future<void> _healV53AudienceAgeColumn() async {
     await _runSilent(
       'ALTER TABLE "groups" ADD COLUMN "audience_age_label" TEXT NULL',
+    );
+  }
+
+  /// Re-apply v54's adults.auth_user_id ALTER every launch.
+  Future<void> _healV54AuthUserIdColumn() async {
+    await _runSilent(
+      'ALTER TABLE "adults" ADD COLUMN "auth_user_id" TEXT NULL',
     );
   }
 

@@ -970,6 +970,20 @@ class Adults extends Table {
   /// attribution.
   DateTimeColumn get archivedAt => dateTime().nullable()();
 
+  /// v54: identity binding. The Supabase auth user id (uuid as
+  /// text) of the signed-in account that *is* this adult. Stamped
+  /// by the accept-invite edge function when the recipient redeems
+  /// an invite that carries an `adult_id`. Null for unbound rows
+  /// (admin-pre-created profiles waiting on an invite, ex-staff,
+  /// historical observation attributions).
+  ///
+  /// Unique-ish in practice (one auth user → one Adult per program)
+  /// but NOT enforced at the schema level — cleaner to keep this
+  /// loose so the migration ALTER stays additive and edge cases
+  /// like "admin-marks-row-and-then-changes-mind" don't trip a
+  /// constraint.
+  TextColumn get authUserId => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>

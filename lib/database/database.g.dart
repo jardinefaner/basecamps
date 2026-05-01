@@ -7322,6 +7322,17 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _authUserIdMeta = const VerificationMeta(
+    'authUserId',
+  );
+  @override
+  late final GeneratedColumn<String> authUserId = GeneratedColumn<String>(
+    'auth_user_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -7363,6 +7374,7 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
     anchoredGroupId,
     programId,
     archivedAt,
+    authUserId,
     createdAt,
     updatedAt,
   ];
@@ -7475,6 +7487,15 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
         archivedAt.isAcceptableOrUnknown(data['archived_at']!, _archivedAtMeta),
       );
     }
+    if (data.containsKey('auth_user_id')) {
+      context.handle(
+        _authUserIdMeta,
+        authUserId.isAcceptableOrUnknown(
+          data['auth_user_id']!,
+          _authUserIdMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -7556,6 +7577,10 @@ class $AdultsTable extends Adults with TableInfo<$AdultsTable, Adult> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}archived_at'],
       ),
+      authUserId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}auth_user_id'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -7625,6 +7650,20 @@ class Adult extends DataClass implements Insertable<Adult> {
   /// v52: archive ex-staff without losing observation/audit
   /// attribution.
   final DateTime? archivedAt;
+
+  /// v54: identity binding. The Supabase auth user id (uuid as
+  /// text) of the signed-in account that *is* this adult. Stamped
+  /// by the accept-invite edge function when the recipient redeems
+  /// an invite that carries an `adult_id`. Null for unbound rows
+  /// (admin-pre-created profiles waiting on an invite, ex-staff,
+  /// historical observation attributions).
+  ///
+  /// Unique-ish in practice (one auth user → one Adult per program)
+  /// but NOT enforced at the schema level — cleaner to keep this
+  /// loose so the migration ALTER stays additive and edge cases
+  /// like "admin-marks-row-and-then-changes-mind" don't trip a
+  /// constraint.
+  final String? authUserId;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Adult({
@@ -7643,6 +7682,7 @@ class Adult extends DataClass implements Insertable<Adult> {
     this.anchoredGroupId,
     this.programId,
     this.archivedAt,
+    this.authUserId,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -7688,6 +7728,9 @@ class Adult extends DataClass implements Insertable<Adult> {
     if (!nullToAbsent || archivedAt != null) {
       map['archived_at'] = Variable<DateTime>(archivedAt);
     }
+    if (!nullToAbsent || authUserId != null) {
+      map['auth_user_id'] = Variable<String>(authUserId);
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -7732,6 +7775,9 @@ class Adult extends DataClass implements Insertable<Adult> {
       archivedAt: archivedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(archivedAt),
+      authUserId: authUserId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(authUserId),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -7760,6 +7806,7 @@ class Adult extends DataClass implements Insertable<Adult> {
       anchoredGroupId: serializer.fromJson<String?>(json['anchoredGroupId']),
       programId: serializer.fromJson<String?>(json['programId']),
       archivedAt: serializer.fromJson<DateTime?>(json['archivedAt']),
+      authUserId: serializer.fromJson<String?>(json['authUserId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -7783,6 +7830,7 @@ class Adult extends DataClass implements Insertable<Adult> {
       'anchoredGroupId': serializer.toJson<String?>(anchoredGroupId),
       'programId': serializer.toJson<String?>(programId),
       'archivedAt': serializer.toJson<DateTime?>(archivedAt),
+      'authUserId': serializer.toJson<String?>(authUserId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -7804,6 +7852,7 @@ class Adult extends DataClass implements Insertable<Adult> {
     Value<String?> anchoredGroupId = const Value.absent(),
     Value<String?> programId = const Value.absent(),
     Value<DateTime?> archivedAt = const Value.absent(),
+    Value<String?> authUserId = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Adult(
@@ -7826,6 +7875,7 @@ class Adult extends DataClass implements Insertable<Adult> {
         : this.anchoredGroupId,
     programId: programId.present ? programId.value : this.programId,
     archivedAt: archivedAt.present ? archivedAt.value : this.archivedAt,
+    authUserId: authUserId.present ? authUserId.value : this.authUserId,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -7856,6 +7906,9 @@ class Adult extends DataClass implements Insertable<Adult> {
       archivedAt: data.archivedAt.present
           ? data.archivedAt.value
           : this.archivedAt,
+      authUserId: data.authUserId.present
+          ? data.authUserId.value
+          : this.authUserId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -7879,6 +7932,7 @@ class Adult extends DataClass implements Insertable<Adult> {
           ..write('anchoredGroupId: $anchoredGroupId, ')
           ..write('programId: $programId, ')
           ..write('archivedAt: $archivedAt, ')
+          ..write('authUserId: $authUserId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -7902,6 +7956,7 @@ class Adult extends DataClass implements Insertable<Adult> {
     anchoredGroupId,
     programId,
     archivedAt,
+    authUserId,
     createdAt,
     updatedAt,
   );
@@ -7924,6 +7979,7 @@ class Adult extends DataClass implements Insertable<Adult> {
           other.anchoredGroupId == this.anchoredGroupId &&
           other.programId == this.programId &&
           other.archivedAt == this.archivedAt &&
+          other.authUserId == this.authUserId &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -7944,6 +8000,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
   final Value<String?> anchoredGroupId;
   final Value<String?> programId;
   final Value<DateTime?> archivedAt;
+  final Value<String?> authUserId;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -7963,6 +8020,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     this.anchoredGroupId = const Value.absent(),
     this.programId = const Value.absent(),
     this.archivedAt = const Value.absent(),
+    this.authUserId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -7983,6 +8041,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     this.anchoredGroupId = const Value.absent(),
     this.programId = const Value.absent(),
     this.archivedAt = const Value.absent(),
+    this.authUserId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -8004,6 +8063,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     Expression<String>? anchoredGroupId,
     Expression<String>? programId,
     Expression<DateTime>? archivedAt,
+    Expression<String>? authUserId,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -8024,6 +8084,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
       if (anchoredGroupId != null) 'anchored_group_id': anchoredGroupId,
       if (programId != null) 'program_id': programId,
       if (archivedAt != null) 'archived_at': archivedAt,
+      if (authUserId != null) 'auth_user_id': authUserId,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -8046,6 +8107,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     Value<String?>? anchoredGroupId,
     Value<String?>? programId,
     Value<DateTime?>? archivedAt,
+    Value<String?>? authUserId,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -8066,6 +8128,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
       anchoredGroupId: anchoredGroupId ?? this.anchoredGroupId,
       programId: programId ?? this.programId,
       archivedAt: archivedAt ?? this.archivedAt,
+      authUserId: authUserId ?? this.authUserId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -8120,6 +8183,9 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
     if (archivedAt.present) {
       map['archived_at'] = Variable<DateTime>(archivedAt.value);
     }
+    if (authUserId.present) {
+      map['auth_user_id'] = Variable<String>(authUserId.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -8150,6 +8216,7 @@ class AdultsCompanion extends UpdateCompanion<Adult> {
           ..write('anchoredGroupId: $anchoredGroupId, ')
           ..write('programId: $programId, ')
           ..write('archivedAt: $archivedAt, ')
+          ..write('authUserId: $authUserId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -31114,6 +31181,7 @@ typedef $$AdultsTableCreateCompanionBuilder =
       Value<String?> anchoredGroupId,
       Value<String?> programId,
       Value<DateTime?> archivedAt,
+      Value<String?> authUserId,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -31135,6 +31203,7 @@ typedef $$AdultsTableUpdateCompanionBuilder =
       Value<String?> anchoredGroupId,
       Value<String?> programId,
       Value<DateTime?> archivedAt,
+      Value<String?> authUserId,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -31421,6 +31490,11 @@ class $$AdultsTableFilterComposer
 
   ColumnFilters<DateTime> get archivedAt => $composableBuilder(
     column: $table.archivedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get authUserId => $composableBuilder(
+    column: $table.authUserId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -31749,6 +31823,11 @@ class $$AdultsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get authUserId => $composableBuilder(
+    column: $table.authUserId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -31879,6 +31958,11 @@ class $$AdultsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get archivedAt => $composableBuilder(
     column: $table.archivedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get authUserId => $composableBuilder(
+    column: $table.authUserId,
     builder: (column) => column,
   );
 
@@ -32191,6 +32275,7 @@ class $$AdultsTableTableManager
                 Value<String?> anchoredGroupId = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
                 Value<DateTime?> archivedAt = const Value.absent(),
+                Value<String?> authUserId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -32210,6 +32295,7 @@ class $$AdultsTableTableManager
                 anchoredGroupId: anchoredGroupId,
                 programId: programId,
                 archivedAt: archivedAt,
+                authUserId: authUserId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -32231,6 +32317,7 @@ class $$AdultsTableTableManager
                 Value<String?> anchoredGroupId = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
                 Value<DateTime?> archivedAt = const Value.absent(),
+                Value<String?> authUserId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -32250,6 +32337,7 @@ class $$AdultsTableTableManager
                 anchoredGroupId: anchoredGroupId,
                 programId: programId,
                 archivedAt: archivedAt,
+                authUserId: authUserId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
