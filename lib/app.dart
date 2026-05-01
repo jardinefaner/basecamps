@@ -374,6 +374,11 @@ class _ResponsiveShell extends ConsumerWidget {
 
   final Widget? child;
 
+  /// Width the route gives up to the always-present icon rail.
+  /// Mirrors `_HoverSidebar._kRailWidth` so the layout reservation
+  /// matches what the rail's collapsed width will paint.
+  static const double _kReservedRail = 64;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (child == null) return const SizedBox.shrink();
@@ -382,11 +387,33 @@ class _ResponsiveShell extends ConsumerWidget {
     final session = ref.watch(currentSessionProvider);
     if (session == null) return child!;
     if (!Breakpoints.hasPersistentSidebar(context)) return child!;
-    return Row(
+    // Stack lets the launcher EXPAND OVER the route content instead
+    // of shrinking it. The Row in the bottom layer reserves a fixed
+    // 64dp gutter on the left so the route never paints under the
+    // collapsed icon rail; when the rail expands to 320dp, the
+    // sidebar Positioned grows over the route's leftmost 256dp.
+    // Route layout stays put — just the panel slides on top.
+    return Stack(
       children: [
-        const _HoverSidebar(),
-        const VerticalDivider(width: 1, thickness: 1),
-        Expanded(child: child!),
+        // Bottom layer: 64dp left gutter + divider + route. Route
+        // gets a stable width of (viewport - 64dp - divider 1dp).
+        Row(
+          children: [
+            const SizedBox(width: _kReservedRail),
+            const VerticalDivider(width: 1, thickness: 1),
+            Expanded(child: child!),
+          ],
+        ),
+        // Top layer: the hover sidebar itself. Pinned to the left
+        // edge; animates its own width 64↔320 without disturbing
+        // the Row below. Material elevation reinforces the
+        // "panel sits over the route" perception when expanded.
+        const Positioned(
+          left: 0,
+          top: 0,
+          bottom: 0,
+          child: _HoverSidebar(),
+        ),
       ],
     );
   }
@@ -458,6 +485,11 @@ class _HoverSidebarState extends State<_HoverSidebar> {
         width: _expanded ? _kPanelWidth : _kRailWidth,
         child: Material(
           color: theme.colorScheme.surfaceContainerLow,
+          // Elevation only kicks in when expanded — the panel needs
+          // to read as "floating over the route," not "in line with
+          // it." Collapsed, the rail sits at elevation 0 (matches
+          // the rest of the surface tier).
+          elevation: _expanded ? 8 : 0,
           // The trick: lay MinimalLauncher out at the FULL panel
           // width even when the outer AnimatedContainer is narrower
           // (mid-animation or fully-collapsed). OverflowBox forces

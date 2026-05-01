@@ -1094,12 +1094,13 @@ class _WeekSidePanelState extends State<_WeekSidePanel> {
               ),
             ),
             const SizedBox(height: 2),
-            // Aggregated supplies — full bullet list, no inner
-            // scroll. The week's row grows tall enough to fit
-            // because the parent IntrinsicHeight on the row reads
-            // this Column's natural height. A long supplies list
-            // will push the whole row taller; that's the trade
-            // (matches the user's "show all texts" intent).
+            // Aggregated supplies — laid out in TWO columns inside
+            // the side rail so a long week's supplies list doesn't
+            // push the whole row vertically as much. The list
+            // splits left-to-right (item 0, 1, 2 → left column;
+            // item 3, 4, 5 → right) — half the rows for the same
+            // count of supplies. Empty state stays as a single
+            // muted dash.
             if (widget.materials.isEmpty)
               Text(
                 '—',
@@ -1108,18 +1109,59 @@ class _WeekSidePanelState extends State<_WeekSidePanel> {
                 ),
               )
             else
-              for (final m in widget.materials)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 1),
-                  child: Text(
-                    '• $m',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ),
+              _SuppliesTwoColumns(items: widget.materials),
           ],
         ),
         ),
       ),
+    );
+  }
+}
+
+/// Two-column bulleted layout for the side rail's supplies list.
+/// First half of [items] fills the left column top-to-bottom; the
+/// rest fills the right. Halves the vertical footprint of a long
+/// list (which would otherwise push the whole week row taller via
+/// the IntrinsicHeight on the parent Row).
+class _SuppliesTwoColumns extends StatelessWidget {
+  const _SuppliesTwoColumns({required this.items});
+
+  final List<String> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Round up — for an odd count, left column gets the extra so
+    // the columns visually balance from the top.
+    final mid = (items.length + 1) ~/ 2;
+    final left = items.sublist(0, mid);
+    final right = items.sublist(mid);
+    Widget bulletColumn(List<String> entries) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final m in entries)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 1),
+              child: Text(
+                '• $m',
+                style: theme.textTheme.bodySmall,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+        ],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: bulletColumn(left)),
+        const SizedBox(width: AppSpacing.xs),
+        Expanded(child: bulletColumn(right)),
+      ],
     );
   }
 }
