@@ -49,8 +49,14 @@ class _ParentsScreenState extends ConsumerState<ParentsScreen> {
           }
           return BreakpointBuilder(
             builder: (context, bp) {
-              // Default 1 / 1 / 2 / 3 ramp — parent rows are short.
-              final columns = Breakpoints.columnsFor(context);
+              // Avatar-card grid (matches adults). Denser than the
+              // old default 1/1/2/3 ramp — face-first reading.
+              final columns = switch (bp) {
+                Breakpoint.compact => 2,
+                Breakpoint.medium => 3,
+                Breakpoint.expanded => 4,
+                Breakpoint.large => 5,
+              };
               final hSide = bp == Breakpoint.compact
                   ? AppSpacing.lg
                   : AppSpacing.xl;
@@ -60,27 +66,16 @@ class _ParentsScreenState extends ConsumerState<ParentsScreen> {
                 top: AppSpacing.md,
                 bottom: AppSpacing.xxxl * 2,
               );
-              Widget tileFor(int i) => _ParentTile(parent: parents[i]);
-
-              if (columns == 1) {
-                return ListView.separated(
-                  padding: padding,
-                  itemCount: parents.length,
-                  separatorBuilder: (_, _) =>
-                      const SizedBox(height: AppSpacing.md),
-                  itemBuilder: (_, i) => tileFor(i),
-                );
-              }
               return GridView.builder(
                 padding: padding,
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: columns,
                   mainAxisSpacing: AppSpacing.md,
                   crossAxisSpacing: AppSpacing.md,
-                  mainAxisExtent: 96,
+                  mainAxisExtent: 220,
                 ),
                 itemCount: parents.length,
-                itemBuilder: (_, i) => tileFor(i),
+                itemBuilder: (_, i) => _ParentCard(parent: parents[i]),
               );
             },
           );
@@ -90,78 +85,97 @@ class _ParentsScreenState extends ConsumerState<ParentsScreen> {
   }
 }
 
-class _ParentTile extends ConsumerWidget {
-  const _ParentTile({required this.parent});
+/// Avatar-card variant — same shape as `_AdultCard` so the people
+/// surfaces (Adults, Parents, Children) read as one consistent
+/// visual language. Stacks: avatar / name (+ relationship) / kids
+/// summary line.
+class _ParentCard extends ConsumerWidget {
+  const _ParentCard({required this.parent});
 
   final Parent parent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    // Subtitle pulls the children the parent is linked to — cheap
-    // thanks to the index on parent_children.parent_id (well, on
-    // child_id; this is the less-common direction and is still fine
-    // for a list of < 200 parents).
+    final cs = theme.colorScheme;
     final kidsAsync = ref.watch(childrenForParentProvider(parent.id));
     final kids = kidsAsync.asData?.value ?? const <Child>[];
     final kidLine = kids.isEmpty
         ? null
         : kids.length == 1
             ? kids.first.firstName
-            : '${kids.first.firstName} +${kids.length - 1}';
+            : '${kids.first.firstName} +${kids.length - 1} more';
 
-    final name = _formatName(parent);
     final relationship = parent.relationship;
 
     return AppCard(
       onTap: () => context.push('/more/parents/${parent.id}'),
-      child: Row(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           CircleAvatar(
-            radius: 22,
-            backgroundColor: theme.colorScheme.secondaryContainer,
-            foregroundColor: theme.colorScheme.onSecondaryContainer,
+            radius: 36,
+            backgroundColor: cs.secondaryContainer,
+            foregroundColor: cs.onSecondaryContainer,
             child: Text(
-              _initial(parent),
-              style: theme.textTheme.titleMedium,
+              parent.displayInitial,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                color: cs.onSecondaryContainer,
+              ),
             ),
           ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            parent.fullName,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (relationship != null && relationship.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              relationship,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          if (kidLine != null) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  relationship == null || relationship.isEmpty
-                      ? name
-                      : '$name · $relationship',
-                  style: theme.textTheme.titleMedium,
+                Icon(
+                  Icons.child_care_outlined,
+                  size: 12,
+                  color: cs.primary,
                 ),
-                if (kidLine != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      'For $kidLine',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                const SizedBox(width: 3),
+                Flexible(
+                  child: Text(
+                    kidLine,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: cs.primary,
+                      fontWeight: FontWeight.w600,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
+                ),
               ],
             ),
-          ),
-          Icon(
-            Icons.chevron_right,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+          ],
         ],
       ),
     );
   }
-
-  String _formatName(Parent p) => p.fullName;
-
-  String _initial(Parent p) => p.displayInitial;
 }
 
 class _EmptyState extends StatelessWidget {
