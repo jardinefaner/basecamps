@@ -424,13 +424,26 @@ class _InviteDialog extends StatelessWidget {
     return 'soon';
   }
 
+  String get _shareSubject =>
+      'Welcome to $programName — claim your profile';
+
+  /// Copy-friendly version of the full message — subject as the first
+  /// line, blank line, then the body. Useful when the system share
+  /// sheet isn't where the admin wants the message: they paste this
+  /// straight into Gmail (move first line to Subject), WhatsApp, an
+  /// SMS, a Slack DM, wherever. Plain text only so it survives any
+  /// rich-text destination that strips formatting.
+  String _composeFullMessage() {
+    return '$_shareSubject\n\n${_composeShareText()}';
+  }
+
   Future<void> _share(BuildContext context) async {
     await SharePlus.instance.share(
       ShareParams(
         text: _composeShareText(),
         // Subject lands in email targets; warmer than the previous
         // "<program> invite for <name>" tag.
-        subject: 'Welcome to $programName — claim your profile',
+        subject: _shareSubject,
       ),
     );
   }
@@ -441,6 +454,17 @@ class _InviteDialog extends StatelessWidget {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Code copied'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _copyMessage(BuildContext context) async {
+    await Clipboard.setData(ClipboardData(text: _composeFullMessage()));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Message copied — paste it anywhere'),
         duration: Duration(seconds: 2),
       ),
     );
@@ -493,9 +517,18 @@ class _InviteDialog extends StatelessWidget {
       actions: [
         // Revoke-and-reissue is the destructive escape hatch —
         // muted-tone TextButton so it doesn't compete with the
-        // primary Copy/Share. AlertDialog.actions lays out as an
-        // OverflowBar (no Spacer support); the visual hierarchy
-        // comes from button style, not horizontal alignment.
+        // primary share actions. AlertDialog.actions lays out as
+        // an OverflowBar that wraps to a second row when the four
+        // buttons don't fit horizontally; the visual hierarchy
+        // comes from button style, not row position.
+        //
+        // Two distinct copy actions because they serve different
+        // moments: "Copy code" is for when the admin is reading the
+        // code aloud / texting it bare; "Copy message" is the
+        // pre-formatted onboarding email an admin can paste into
+        // Gmail / WhatsApp / Slack DM without going through the
+        // system share sheet (which on web is unreliable, and on
+        // desktop is missing altogether).
         TextButton.icon(
           onPressed: onRevokeAndReissue,
           icon: const Icon(Icons.refresh, size: 18),
@@ -503,8 +536,13 @@ class _InviteDialog extends StatelessWidget {
         ),
         TextButton.icon(
           onPressed: () => _copyCode(context),
-          icon: const Icon(Icons.copy_outlined, size: 18),
-          label: const Text('Copy'),
+          icon: const Icon(Icons.tag, size: 18),
+          label: const Text('Copy code'),
+        ),
+        TextButton.icon(
+          onPressed: () => _copyMessage(context),
+          icon: const Icon(Icons.subject, size: 18),
+          label: const Text('Copy message'),
         ),
         FilledButton.icon(
           onPressed: () => _share(context),
