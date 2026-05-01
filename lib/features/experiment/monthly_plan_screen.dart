@@ -81,8 +81,19 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   /// Drift row id of the variant currently in inline-edit mode.
   /// Companion to `_editingCellKey`: `_editingCellKey` says "which
   /// cell" and `_editingVariantId` says "which row inside that cell".
-  /// Null when nothing's editing.
+  /// Null when nothing's editing OR when we're editing an empty cell
+  /// that hasn't received a keystroke yet (lazy-create — see
+  /// `_writeInlineEdit`).
   String? _editingVariantId;
+
+  /// Pending lazy-create future. When the user enters edit mode on
+  /// an empty cell, we DON'T insert a draft row eagerly — instead,
+  /// the first keystroke kicks off `addVariant` and stashes the
+  /// future here so concurrent keystrokes from the same edit session
+  /// share one in-flight insert (no duplicate draft rows). Cleared
+  /// on commit / exit / when the future resolves and `_editingVariantId`
+  /// gets stamped.
+  Future<String>? _pendingDraftInsert;
 
   /// Cell that's currently focused (touch-tap on mobile, hover on
   /// web). Drives visibility of ✨ + × + dots so they don't clutter
@@ -184,7 +195,12 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   int _activeIdxAt(DateTime d, String groupId) {
     final list = _variantsAt(d, groupId);
     if (list.isEmpty) return 0;
-    final raw = _activeVariantIndex[_activityKey(d, groupId)] ?? 0;
+    // Default to the LAST variant (the AI take when one exists).
+    // Cells with only the manual original collapse to index 0
+    // through the same default. The user toggles to the original
+    // via the swap-icon affordance on the cell.
+    final raw =
+        _activeVariantIndex[_activityKey(d, groupId)] ?? list.length - 1;
     return raw.clamp(0, list.length - 1);
   }
 
@@ -212,11 +228,19 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   // -----------------------------------------------------------------
 
   /// Called when a cell receives focus + the user wants to start
-  /// authoring inline. v56: inserts an empty Drift row immediately
-  /// (the row is the "draft") and flips the cell into edit mode.
-  /// Other clients see the empty draft show up via realtime; if the
-  /// user bails without typing, _exitInlineEdit hard-deletes the
-  /// row so cells stay clean.
+  /// authoring inline.
+  ///
+  /// **Lazy-create.** No Drift row is inserted on enter — that path
+  /// used to leave orphan empty rows behind whenever the user
+  /// tapped a cell, didn't type, then closed the app / switched
+  /// programs / lost focus through any path that didn't go through
+  /// `_exitInlineEdit`. The first keystroke is what mints the row
+  /// (see [_writeInlineEdit]); an empty enter-and-bail leaves
+  /// nothing behind because nothing was created.
+  ///
+  /// On a non-empty cell we still set `_editingVariantId` to the
+  /// active variant's id — the user is editing existing content,
+  /// not creating a new draft.
   Future<void> _enterInlineEdit(DateTime date) async {
     final groupId = _activeGroupId;
     if (groupId == null) return;
@@ -225,58 +249,81 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
       await _exitInlineEdit();
     }
     final variants = _variantsAt(date, groupId);
-    String editingVariantId;
-    if (variants.isEmpty) {
-      // Insert a fresh empty draft row so subsequent keystrokes
-      // have an id to update against.
-      editingVariantId = await ref
-          .read(monthlyPlanRepositoryProvider)
-          .addVariant(groupId: groupId, date: _dayKey(date));
-      if (!mounted) return;
-    } else {
-      // Edit the active variant in-place.
-      editingVariantId = variants[_activeIdxAt(date, groupId)].id;
-    }
+    final existingId = variants.isEmpty
+        ? null
+        : variants[_activeIdxAt(date, groupId)].id;
     setState(() {
       _editingCellKey = key;
-      _editingVariantId = editingVariantId;
+      _editingVariantId = existingId; // null on a fresh empty cell
+      _pendingDraftInsert = null;
       _focusedCellKey = key;
     });
   }
 
-  /// Per-keystroke push to the repo — Drift writes locally + sync
-  /// engine debounces the cloud push. Per-keystroke is fine: Drift
-  /// is fast (sub-ms) and pushRow's debounce coalesces a flurry of
-  /// keystrokes into a single UPDATE.
-  void _writeInlineEdit({
+  /// Per-keystroke push to the repo. **Lazy-create on first
+  /// keystroke**: if `_editingVariantId` is null, the user has
+  /// entered an empty cell and just typed — mint the row now and
+  /// pin its id so subsequent keystrokes update in place.
+  /// `_pendingDraftInsert` collapses concurrent first-keystroke
+  /// races into one in-flight insert.
+  Future<void> _writeInlineEdit({
     required DateTime date,
     String? title,
     String? description,
-  }) {
-    final id = _editingVariantId;
-    if (id == null) return;
-    unawaited(
-      ref.read(monthlyPlanRepositoryProvider).updateVariant(
-            id: id,
-            title: title,
-            description: description,
-          ),
-    );
+  }) async {
+    if (_editingCellKey == null) return;
+    var id = _editingVariantId;
+    if (id == null) {
+      final groupId = _activeGroupId;
+      if (groupId == null) return;
+      _pendingDraftInsert ??= ref
+          .read(monthlyPlanRepositoryProvider)
+          .addVariant(groupId: groupId, date: _dayKey(date));
+      id = await _pendingDraftInsert;
+      if (!mounted) return;
+      // The user might have exited edit mode while addVariant was
+      // in flight — guard against stamping a stale id onto a fresh
+      // edit session. Worst case: an empty draft hits the DB and
+      // gets cleaned up by the next exit.
+      if (id == null) return;
+      if (_editingCellKey == null) return;
+      if (_editingVariantId == null) {
+        setState(() => _editingVariantId = id);
+      }
+    }
+    await ref.read(monthlyPlanRepositoryProvider).updateVariant(
+          id: id,
+          title: title,
+          description: description,
+        );
   }
 
-  /// Exit edit mode. If the row ended up entirely empty (user
-  /// bailed without typing), hard-delete it so the cell reverts to
-  /// its empty visual. Otherwise just drop edit state — content
-  /// already persisted through per-keystroke writes.
+  /// Exit edit mode. If a draft row was created during this session
+  /// and is still empty, hard-delete it so the cell reverts to its
+  /// empty visual. Lazy-create means most empty enter-and-bail
+  /// sessions leave nothing to clean up.
   Future<void> _exitInlineEdit() async {
     final key = _editingCellKey;
+    if (key == null) return;
+    // Resolve a pending draft insert (rare race: the user is
+    // exiting while a first keystroke's addVariant is still in
+    // flight). Awaiting here ensures we get the id and can clean
+    // it up if it ended up empty.
+    final pending = _pendingDraftInsert;
+    if (pending != null && _editingVariantId == null) {
+      try {
+        _editingVariantId = await pending;
+      } on Object {
+        _editingVariantId = null;
+      }
+      if (!mounted) return;
+    }
     final id = _editingVariantId;
-    if (key == null || id == null) return;
-    // Snapshot focus state BEFORE the async gap; the user might tap
-    // away during the in-flight delete.
-    final isLast = _variantsAt(_dateFromKey(key), _groupFromKey(key)).length <= 1;
+    final isLast =
+        _variantsAt(_dateFromKey(key), _groupFromKey(key)).length <= 1;
     final activeUi = _activeAt(_dateFromKey(key), _groupFromKey(key));
-    final isEmpty = activeUi != null && activeUi.id == id && activeUi.isEmpty;
+    final isEmpty =
+        id != null && activeUi != null && activeUi.id == id && activeUi.isEmpty;
     if (isEmpty) {
       await ref.read(monthlyPlanRepositoryProvider).deleteVariant(id);
       if (!mounted) return;
@@ -284,6 +331,7 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
     setState(() {
       _editingCellKey = null;
       _editingVariantId = null;
+      _pendingDraftInsert = null;
       if (isEmpty && isLast) {
         _activeVariantIndex.remove(key);
         _focusedCellKey = null;
@@ -291,44 +339,70 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
     });
   }
 
-  /// AI variant — INLINE generation, no modal sheet. v56: inserts
-  /// the new variant as a fresh row at next position; the cloud
-  /// realtime channel pushes it to other teachers' carousels.
+  /// AI variant — INLINE generation, no modal sheet. v56 with
+  /// replace-not-append (v58): if the cell already has an AI
+  /// variant, refresh it in place; otherwise insert one. The cell
+  /// holds at most two variants — the original (the user's typed
+  /// content, position 0) and the AI take (position 1+). Multiple
+  /// ✨ taps don't accumulate dead rows.
   Future<void> _onCellAi(DateTime date) async {
     final groupId = _activeGroupId;
     if (groupId == null) return;
+    final variants = _variantsAt(date, groupId);
+    if (variants.isEmpty) return;
+    // Source for the AI prompt is the ORIGINAL — the user's first
+    // input. Toggling to the AI view doesn't change what the prompt
+    // refines; we always refine the original so re-running ✨
+    // doesn't drift from what the teacher actually typed.
+    final original = variants.first;
+    if (original.isEmpty) return;
     final key = _activityKey(date, groupId);
-    final active = _activeAt(date, groupId);
-    if (active == null || active.isEmpty) return;
     setState(() => _generatingCellKey = key);
     try {
       final result = await generateAiVariant(
-        activity: active.toAiActivity(),
+        activity: original.toAiActivity(),
         planContext: _aiContextForDate(date),
       );
       if (!mounted) return;
-      await ref.read(monthlyPlanRepositoryProvider).addVariant(
-            groupId: groupId,
-            date: _dayKey(date),
-            title: result.title,
-            description: result.description,
-            objectives: result.objectives,
-            steps: result.steps,
-            materials: result.materials,
-            link: result.link,
-          );
+      // Find an existing AI variant (anything past position 0).
+      final existingAi = variants.length > 1 ? variants.last : null;
+      final repo = ref.read(monthlyPlanRepositoryProvider);
+      if (existingAi != null) {
+        // Update in place — same row id, fresh content. Other
+        // clients see a single UPDATE on the realtime channel
+        // rather than an insert + delete pair.
+        await repo.updateVariant(
+          id: existingAi.id,
+          title: result.title,
+          description: result.description,
+          objectives: result.objectives,
+          steps: result.steps,
+          materials: result.materials,
+          link: result.link,
+        );
+      } else {
+        await repo.addVariant(
+          groupId: groupId,
+          date: _dayKey(date),
+          title: result.title,
+          description: result.description,
+          objectives: result.objectives,
+          steps: result.steps,
+          materials: result.materials,
+          link: result.link,
+        );
+      }
       if (!mounted) return;
       setState(() {
         _generatingCellKey = null;
-        // Auto-switch to the new variant. The new row has the
-        // highest position; once Drift's stream re-emits, the
-        // variants list grows by 1 and clamping in _activeIdxAt
-        // resolves to that new tail. Setting the index to a value
-        // that's currently "out of range" works because the
-        // accessor clamps every read.
-        final currentLen =
-            _variantsAt(date, groupId).length; // pre-stream-update
-        _activeVariantIndex[key] = currentLen; // becomes valid post-emit
+        // After the stream re-emits, the AI take is at the tail.
+        // Clamping in _activeIdxAt resolves to that index even if
+        // we set it now (pre-emit) — the clamp will accept any
+        // value within the new bounds.
+        final newLen = existingAi != null
+            ? variants.length
+            : variants.length + 1;
+        _activeVariantIndex[key] = newLen - 1;
       });
     } on Object catch (e) {
       if (!mounted) return;
@@ -1016,15 +1090,15 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                                           }
                                         },
                                         onWriteTitle: (v) =>
-                                            _writeInlineEdit(
+                                            unawaited(_writeInlineEdit(
                                           date: date,
                                           title: v,
-                                        ),
+                                        )),
                                         onWriteDescription: (v) =>
-                                            _writeInlineEdit(
+                                            unawaited(_writeInlineEdit(
                                           date: date,
                                           description: v,
-                                        ),
+                                        )),
                                         onSwitchVariant: (idx) =>
                                             _switchVariant(date, idx),
                                         onAi: () =>
@@ -1569,6 +1643,16 @@ class _DayCellState extends State<_DayCell> {
         widget.activeIndex.clamp(0, widget.variants.length - 1)];
   }
 
+  /// True when the currently-displayed variant is the AI take
+  /// (anything past the first variant). Drives the swap-icon
+  /// affordance — the icon flips its tooltip + glyph to read
+  /// "show AI" vs "show original" depending on what's currently
+  /// in view.
+  bool get _viewingAi {
+    if (widget.variants.length < 2) return false;
+    return widget.activeIndex == widget.variants.length - 1;
+  }
+
   @override
   void didUpdateWidget(covariant _DayCell old) {
     super.didUpdateWidget(old);
@@ -1723,13 +1807,12 @@ class _DayCellState extends State<_DayCell> {
                     _buildVariantPager(theme),
                 ],
               ),
-              // ✏︎ + × + ✨ affordances — visible when the cell is
-              // focused (hover on web, tap-to-focus on mobile) AND
-              // has content. Edit pencil + delete pair at top-right
-              // (paired actions on the existing variant); AI ✨ at
-              // bottom-right (creates a new variant). The pencil
-              // re-enters inline edit mode so the user can tweak
-              // wording without opening the full activity sheet.
+              // ⇄ + ✏︎ + × + ✨ affordances — visible when the cell
+              // is focused (hover on web, tap-to-focus on mobile) AND
+              // has content. Top-right cluster: [swap → edit → ×];
+              // AI ✨ + span ↔ stack at bottom-right. The swap icon
+              // toggles between the AI take (default visible when
+              // present) and the original text the teacher typed.
               if (showAffordances && hasContent && !widget.isEditing) ...[
                 Positioned(
                   top: 0,
@@ -1737,6 +1820,23 @@ class _DayCellState extends State<_DayCell> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Toggle is hidden when there's only one
+                      // variant (nothing to switch between).
+                      if (widget.variants.length > 1) ...[
+                        _CellAffordanceButton(
+                          icon: _viewingAi
+                              ? Icons.edit_note_outlined
+                              : Icons.auto_awesome_outlined,
+                          tone: _AffordanceTone.muted,
+                          onTap: () => widget.onSwitchVariant(
+                            _viewingAi ? 0 : widget.variants.length - 1,
+                          ),
+                          tooltip: _viewingAi
+                              ? 'Show original text'
+                              : 'Show AI version',
+                        ),
+                        const SizedBox(width: 4),
+                      ],
                       _CellAffordanceButton(
                         icon: Icons.edit_outlined,
                         tone: _AffordanceTone.muted,
@@ -1784,21 +1884,6 @@ class _DayCellState extends State<_DayCell> {
                   ),
                 ),
               ],
-              // Variant dots — always visible when >1 variant exists
-              // (navigation, not affordance). Centered at the bottom.
-              if (!isOutOfMonth && widget.variants.length > 1)
-                Positioned(
-                  bottom: 2,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: _VariantDots(
-                      count: widget.variants.length,
-                      active: widget.activeIndex,
-                      onTap: widget.onSwitchVariant,
-                    ),
-                  ),
-                ),
             ],
           ),
         ),
@@ -2094,49 +2179,9 @@ class _CellAffordanceButton extends StatelessWidget {
   }
 }
 
-/// Variant-carousel dots — one per variant, filled = active. Each
-/// dot is a tap target so the user can switch directly without
-/// swiping the PageView.
-class _VariantDots extends StatelessWidget {
-  const _VariantDots({
-    required this.count,
-    required this.active,
-    required this.onTap,
-  });
-
-  final int count;
-  final int active;
-  final ValueChanged<int> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = 0; i < count; i++)
-          GestureDetector(
-            onTap: () => onTap(i),
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: i == active
-                      ? cs.primary
-                      : cs.onSurfaceVariant.withValues(alpha: 0.3),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
+// _VariantDots removed (v58) — the swap icon at top-right replaces
+// the carousel-dot UX. With at most two variants per cell (original
+// + AI), a binary toggle reads cleaner than a row of dots.
 
 
 // =====================================================================
