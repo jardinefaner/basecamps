@@ -500,6 +500,43 @@ class ScheduleRepository {
       if (sourceLibraryItemId.present) 'source_library_item_id',
     ]);
     unawaited(_sync.pushRow(scheduleTemplatesSpec, id));
+
+    // Title write-through to the linked library card — same rule as
+    // renameTemplate, just routed through the wholesale-edit path
+    // that the EditTemplateSheet uses. If the caller is wiring up a
+    // brand-new sourceLibraryItemId in this same write, prefer that
+    // value over the one already on disk.
+    final newLibraryId = sourceLibraryItemId.present
+        ? sourceLibraryItemId.value
+        : (await getTemplate(id))?.sourceLibraryItemId;
+    if (newLibraryId != null) {
+      await _propagateTitleToLibrary(newLibraryId, title);
+    }
+  }
+
+  /// Mirror a template's title onto the linked activity_library row.
+  /// Writes directly through `_db` so we don't have to import (and
+  /// circularly depend on) `ActivityLibraryRepository`. Marks the
+  /// library row dirty + pushes so the cloud row updates too.
+  Future<void> _propagateTitleToLibrary(
+    String libraryItemId,
+    String newTitle,
+  ) async {
+    final current = await (_db.select(_db.activityLibrary)
+          ..where((a) => a.id.equals(libraryItemId)))
+        .getSingleOrNull();
+    if (current == null) return;
+    if (current.title == newTitle) return;
+    await (_db.update(_db.activityLibrary)
+          ..where((a) => a.id.equals(libraryItemId)))
+        .write(
+      ActivityLibraryCompanion(
+        title: Value(newTitle),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+    await _db.markDirty('activity_library', libraryItemId, ['title']);
+    unawaited(_sync.pushRow(activityLibrarySpec, libraryItemId));
   }
 
   /// Wire an existing template row to a library card without touching
@@ -828,6 +865,12 @@ class ScheduleRepository {
     required String templateId,
     required String newTitle,
   }) async {
+    // Look up the back-link to the library card BEFORE we write — we
+    // use it after the write to mirror the title onto the library row
+    // so the calendar template and the library card never drift.
+    final existing = await getTemplate(templateId);
+    final libraryItemId = existing?.sourceLibraryItemId;
+
     await (_db.update(_db.scheduleTemplates)
           ..where((t) => t.id.equals(templateId)))
         .write(
@@ -838,6 +881,15 @@ class ScheduleRepository {
     );
     await _db.markDirty('schedule_templates', templateId, ['title']);
     unawaited(_sync.pushRow(scheduleTemplatesSpec, templateId));
+
+    // Title write-through to the linked library card. We do this from
+    // inside the schedule repo (rather than the call site) so every
+    // rename path benefits without each caller remembering. Same
+    // table is owned by activityLibrary; we write directly via _db
+    // to avoid a circular import on the repo.
+    if (libraryItemId != null) {
+      await _propagateTitleToLibrary(libraryItemId, newTitle);
+    }
   }
 
   /// Narrow update: shift start + end (duration-preserving move

@@ -158,6 +158,44 @@ class ActivityLibraryRepository {
       if (ageVariants.present) 'age_variants',
     ]);
     unawaited(_sync.pushRow(activityLibrarySpec, id));
+
+    // Title write-through to every linked schedule_template. The
+    // library card is the source of truth for an activity's content;
+    // a rename here should rename every place that activity is
+    // scheduled. Other field changes (summary, materials, etc.) stay
+    // on the library row only — they're not mirrored onto templates.
+    if (title != null) {
+      await _propagateTitleToTemplates(id, title);
+    }
+  }
+
+  /// Mirror a library card's title onto every schedule_template that
+  /// references it. Writes directly via `_db` so we don't pull in the
+  /// schedule repo (would create a circular import). Each template
+  /// gets its title column marked dirty + pushed so the cloud row
+  /// updates too.
+  Future<void> _propagateTitleToTemplates(
+    String libraryItemId,
+    String newTitle,
+  ) async {
+    final templates = await (_db.select(_db.scheduleTemplates)
+          ..where((t) => t.sourceLibraryItemId.equals(libraryItemId)))
+        .get();
+    if (templates.isEmpty) return;
+    final now = DateTime.now();
+    for (final t in templates) {
+      if (t.title == newTitle) continue;
+      await (_db.update(_db.scheduleTemplates)
+            ..where((row) => row.id.equals(t.id)))
+          .write(
+        ScheduleTemplatesCompanion(
+          title: Value(newTitle),
+          updatedAt: Value(now),
+        ),
+      );
+      await _db.markDirty('schedule_templates', t.id, ['title']);
+      unawaited(_sync.pushRow(scheduleTemplatesSpec, t.id));
+    }
   }
 
   Future<void> deleteItem(String id) async {

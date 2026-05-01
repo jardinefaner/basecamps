@@ -141,14 +141,22 @@ class ActivityDetailSheet extends ConsumerWidget {
             // isolated.
             const SizedBox(height: AppSpacing.lg),
             _CaptureActionRow(item: item),
-            // "Save to library" — only for items that aren't already
-            // backed by a library card. Creates a fresh card from the
-            // item's fields and rewires the template/entry to point at
-            // it, so next time the teacher opens the detail sheet the
-            // title tap routes to the rich card.
+            // Library back-reference. Two mutually exclusive states:
+            //   * No library card yet → "Save to library" promotes
+            //     the item into a reusable card.
+            //   * Already linked    → "View activity details" opens
+            //     the rich library card with steps, learning goals,
+            //     materials, source link, etc.
+            // The title in the header is also tappable for the
+            // already-linked case (with a small ↗ glyph), but this
+            // explicit button surfaces the path more discoverably so
+            // teachers don't miss it.
             if (item.sourceLibraryItemId == null) ...[
               const SizedBox(height: AppSpacing.sm),
               _PromoteToLibraryButton(item: item),
+            ] else ...[
+              const SizedBox(height: AppSpacing.sm),
+              _OpenLibraryButton(item: item),
             ],
             // Exactly one delete button — the two paths are mutually
             // exclusive by intent, even though a template-sourced
@@ -1057,6 +1065,44 @@ class _PromoteToLibraryButtonState
             )
           : const Icon(Icons.bookmark_add_outlined, size: 18),
       label: const Text('Save to library'),
+    );
+  }
+}
+
+/// "View activity details" — counterpart to the Save-to-library
+/// button, fires when the item is already linked to a library card
+/// (`sourceLibraryItemId != null`). Opens the rich
+/// `LibraryCardDetailSheet` (steps, learning goals, materials,
+/// source link, age guidance) on top of the activity-detail sheet.
+/// The header title is also tappable as a secondary path; this
+/// button is the discoverable primary affordance.
+class _OpenLibraryButton extends ConsumerWidget {
+  const _OpenLibraryButton({required this.item});
+
+  final ScheduleItem item;
+
+  Future<void> _open(BuildContext context, WidgetRef ref) async {
+    final libraryId = item.sourceLibraryItemId;
+    if (libraryId == null) return;
+    final libraryItem = await ref
+        .read(activityLibraryRepositoryProvider)
+        .getItem(libraryId);
+    if (libraryItem == null || !context.mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (_) => LibraryCardDetailSheet(item: libraryItem),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return OutlinedButton.icon(
+      onPressed: () => unawaited(_open(context, ref)),
+      icon: const Icon(Icons.menu_book_outlined, size: 18),
+      label: const Text('View activity details'),
     );
   }
 }
