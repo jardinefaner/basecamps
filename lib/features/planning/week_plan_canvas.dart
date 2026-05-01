@@ -408,9 +408,14 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
     // Delete-key shortcut. Pressing Delete (or Backspace) anywhere
     // inside the canvas while a card is selected → delete with an
     // Undo SnackBar. Wrapping in `Shortcuts` + `Actions` means the
-    // shortcut only fires when focus is in the canvas; a TextField
-    // (e.g. the fresh-card title input) intercepts first because
-    // it's deeper in the focus tree.
+    // shortcut only fires when focus is within the canvas; a
+    // TextField (e.g. the fresh-card title input) intercepts first
+    // because it's deeper in the focus tree.
+    //
+    // Focus is grabbed by an `onTap` (selecting a card) rather
+    // than `autofocus: true` — autofocus during build was
+    // triggering a Riverpod "modify provider during build"
+    // exception when the canvas was rebuilt mid-stream-emit.
     return Shortcuts(
       shortcuts: const {
         SingleActivator(LogicalKeyboardKey.delete): _DeleteIntent(),
@@ -428,7 +433,10 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
             },
           ),
         },
-        child: Focus(autofocus: true, child: canvas),
+        // Tap card or empty slot grabs focus implicitly via the
+        // child's GestureDetector + a parent Focus wrapper that's
+        // descendantsAreFocusable.
+        child: Focus(canRequestFocus: true, child: canvas),
       ),
     );
   }
@@ -823,36 +831,19 @@ class _DayColumnBodyState extends ConsumerState<_DayColumnBody> {
                       ),
                     ),
                   // The cards. Hidden when this card is the drag
-                  // source — the ghost overlay paints in its place.
+                  // source (the ghost overlay paints in its place).
+                  // When the card is being live-resized via an edge
+                  // handle, render at the live bounds so the user
+                  // sees the new size immediately.
                   for (final item in widget.items)
                     if (!item.isFullDay)
-                      Positioned(
-                        top: scale.yFor(item.startMinutes),
-                        left: 4,
-                        right: 4,
-                        height: (item.endMinutes - item.startMinutes) *
-                                _kPxPerMinute -
-                            2,
-                        child: Opacity(
-                          opacity:
-                              widget.dragState?.templateId == item.templateId
-                                  ? 0.25
-                                  : 1,
-                          child: _PlanCard(
-                            item: item,
-                            weekday: widget.weekday,
-                            isSelected: item.templateId != null &&
-                                item.templateId == widget.selectedId,
-                            onTap: widget.onTapCard,
-                            onTapAlreadySelected: widget.onTapAlreadySelected,
-                            onLongPressEnd: widget.onLongPressEnd,
-                          ),
-                        ),
-                      ),
+                      _positionedCard(item, scale),
                   // Selected-card time chips. Top-left = start;
                   // bottom-left = end. Painted outside the card via
                   // negative offsets (clipBehavior: Clip.none on the
-                  // body Stack so this works).
+                  // body Stack so this works). Chip values reflect
+                  // the live-resize state when active so the user
+                  // sees the snap target update in real time.
           for (final item in widget.items)
             if (item.templateId != null &&
                 item.templateId == widget.selectedId)
@@ -860,6 +851,46 @@ class _DayColumnBodyState extends ConsumerState<_DayColumnBody> {
         ],
       ),
     ),
+    );
+  }
+
+  /// Compute the (start, end) bounds the column should render this
+  /// item at. Live-resize state (when matching this template id)
+  /// overrides the row's persisted values.
+  ({int start, int end}) _liveBounds(ScheduleItem item) {
+    final resize = ref.watch(weekPlanResizeProvider);
+    if (resize != null && resize.templateId == item.templateId) {
+      return (start: resize.liveStartMinutes, end: resize.liveEndMinutes);
+    }
+    return (start: item.startMinutes, end: item.endMinutes);
+  }
+
+  Widget _positionedCard(ScheduleItem item, WeekPlanScale scale) {
+    final bounds = _liveBounds(item);
+    final isResizingThis = ref
+            .watch(weekPlanResizeProvider)
+            ?.templateId ==
+        item.templateId;
+    return Positioned(
+      top: scale.yFor(bounds.start),
+      left: 4,
+      right: 4,
+      height: (bounds.end - bounds.start) * _kPxPerMinute - 2,
+      child: Opacity(
+        opacity: widget.dragState?.templateId == item.templateId
+            ? 0.25
+            : 1,
+        child: _PlanCard(
+          item: item,
+          weekday: widget.weekday,
+          isSelected: item.templateId != null &&
+              item.templateId == widget.selectedId,
+          isResizingNow: isResizingThis,
+          onTap: widget.onTapCard,
+          onTapAlreadySelected: widget.onTapAlreadySelected,
+          onLongPressEnd: widget.onLongPressEnd,
+        ),
+      ),
     );
   }
 
@@ -873,25 +904,36 @@ class _DayColumnBodyState extends ConsumerState<_DayColumnBody> {
     WeekPlanScale scale,
     ThemeData theme,
   ) {
+    // Reflect live-resize bounds in the chip labels so the user
+    // sees the snap target tick by as they drag the edge.
+    final bounds = _liveBounds(item);
     return [
       Positioned(
-        top: scale.yFor(item.startMinutes) - 14,
+        top: scale.yFor(bounds.start) - 14,
         left: 4,
         child: _TimeChip(
-          label: Hhmm.formatCompact(item.startTime),
+          label: Hhmm.fromMinutes(bounds.start)._asCompact(),
           theme: theme,
         ),
       ),
       Positioned(
-        top: scale.yFor(item.endMinutes) - 6,
+        top: scale.yFor(bounds.end) - 6,
         left: 4,
         child: _TimeChip(
-          label: Hhmm.formatCompact(item.endTime),
+          label: Hhmm.fromMinutes(bounds.end)._asCompact(),
           theme: theme,
         ),
       ),
     ];
   }
+}
+
+extension _CompactTime on String {
+  /// Compact-format an "HH:mm" string. Tiny adapter so the chips
+  /// can take a wire-format time and emit "9:00a" without a
+  /// caller-side conversion. (`Hhmm.formatCompact` already does
+  /// exactly this on the static class.)
+  String _asCompact() => Hhmm.formatCompact(this);
 }
 
 /// Small time chip floating outside the selected card. Renders as
@@ -946,6 +988,7 @@ class _PlanCard extends ConsumerStatefulWidget {
     required this.item,
     required this.weekday,
     required this.isSelected,
+    required this.isResizingNow,
     required this.onTap,
     required this.onTapAlreadySelected,
     required this.onLongPressEnd,
@@ -954,6 +997,7 @@ class _PlanCard extends ConsumerStatefulWidget {
   final ScheduleItem item;
   final int weekday;
   final bool isSelected;
+  final bool isResizingNow;
   final ValueChanged<ScheduleItem>? onTap;
   final ValueChanged<ScheduleItem> onTapAlreadySelected;
   final void Function(LongPressEndDetails) onLongPressEnd;
@@ -1113,13 +1157,128 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
     // source of truth) and for the fresh-card mode (the user is
     // typing; a stray long-press shouldn't yank the card away).
     if (!_isTemplate || isFresh) return card;
+
+    // Stack the card body underneath two thin edge-resize handles.
+    // The handles only intercept gestures inside their 8dp strip
+    // — the rest of the card stays interactive for long-press
+    // drag + tap-to-select.
     return GestureDetector(
       onLongPressStart: _onLongPressStart,
       onLongPressMoveUpdate: _onLongPressMoveUpdate,
       onLongPressEnd: widget.onLongPressEnd,
       onLongPressCancel: () =>
           ref.read(weekPlanDragProvider.notifier).clear(),
-      child: card,
+      child: Stack(
+        children: [
+          Positioned.fill(child: card),
+          // Top edge — drag to change start time.
+          Positioned(
+            top: 0,
+            left: 8,
+            right: 8,
+            height: 8,
+            child: _EdgeHandle(
+              isTop: true,
+              isVisible: widget.isSelected || widget.isResizingNow,
+              onPanStart: (details) =>
+                  _onEdgeStart(details, topEdge: true),
+              onPanUpdate: _onEdgeUpdate,
+              onPanEnd: (_) => _onEdgeEnd(),
+              onPanCancel: _onEdgeEnd,
+            ),
+          ),
+          // Bottom edge — drag to change end time.
+          Positioned(
+            bottom: 0,
+            left: 8,
+            right: 8,
+            height: 8,
+            child: _EdgeHandle(
+              isTop: false,
+              isVisible: widget.isSelected || widget.isResizingNow,
+              onPanStart: (details) =>
+                  _onEdgeStart(details, topEdge: false),
+              onPanUpdate: _onEdgeUpdate,
+              onPanEnd: (_) => _onEdgeEnd(),
+              onPanCancel: _onEdgeEnd,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Pan-start on either edge handle. Captures the pan-start
+  /// global Y and original times in the resize provider.
+  void _onEdgeStart(
+    DragStartDetails details, {
+    required bool topEdge,
+  }) {
+    if (!_isTemplate) return;
+    // Selecting the card on resize-start so the user gets the
+    // chip overlay during the drag — visual confirmation of the
+    // live snap target.
+    ref
+        .read(weekPlanSelectedTemplateProvider.notifier)
+        .select(widget.item.templateId!);
+    ref.read(weekPlanResizeProvider.notifier).start(
+          WeekPlanResizeState(
+            templateId: widget.item.templateId!,
+            topEdge: topEdge,
+            sourceStartMinutes: widget.item.startMinutes,
+            sourceEndMinutes: widget.item.endMinutes,
+            panStartGlobalY: details.globalPosition.dy,
+            liveStartMinutes: widget.item.startMinutes,
+            liveEndMinutes: widget.item.endMinutes,
+          ),
+        );
+  }
+
+  /// Pan-update — translates total Y delta from start into
+  /// snapped 15-min times, clamped so neither edge crosses the
+  /// other.
+  void _onEdgeUpdate(DragUpdateDetails details) {
+    final state = ref.read(weekPlanResizeProvider);
+    if (state == null) return;
+    final totalDeltaY = details.globalPosition.dy - state.panStartGlobalY;
+    final deltaMinutes = (totalDeltaY / _kPxPerMinute).round();
+    if (state.topEdge) {
+      // Move start time. Clamp so start ≤ end - 15 (always at
+      // least one snap unit).
+      var newStart = state.sourceStartMinutes + deltaMinutes;
+      newStart = (newStart / 15).round() * 15;
+      newStart = newStart.clamp(0, state.sourceEndMinutes - 15);
+      if (newStart != state.liveStartMinutes) {
+        ref
+            .read(weekPlanResizeProvider.notifier)
+            .update(liveStart: newStart);
+      }
+    } else {
+      var newEnd = state.sourceEndMinutes + deltaMinutes;
+      newEnd = (newEnd / 15).round() * 15;
+      newEnd = newEnd.clamp(state.sourceStartMinutes + 15, 24 * 60 - 1);
+      if (newEnd != state.liveEndMinutes) {
+        ref
+            .read(weekPlanResizeProvider.notifier)
+            .update(liveEnd: newEnd);
+      }
+    }
+  }
+
+  /// Pan-end / pan-cancel. Commits the live values to the row if
+  /// they actually changed; clears the resize provider.
+  Future<void> _onEdgeEnd() async {
+    final state = ref.read(weekPlanResizeProvider);
+    ref.read(weekPlanResizeProvider.notifier).clear();
+    if (state == null) return;
+    final changed = state.liveStartMinutes != state.sourceStartMinutes ||
+        state.liveEndMinutes != state.sourceEndMinutes;
+    if (!changed) return;
+    final repo = ref.read(scheduleRepositoryProvider);
+    await repo.shiftTemplateStart(
+      templateId: state.templateId,
+      newStartTime: Hhmm.fromMinutes(state.liveStartMinutes),
+      newEndTime: Hhmm.fromMinutes(state.liveEndMinutes),
     );
   }
 
@@ -1220,6 +1379,62 @@ class _DragGhost extends StatelessWidget {
                     ),
                   ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Thin (8dp) edge-resize handle. Sits on the top or bottom of a
+/// card; on web shows a `resizeUpDown` cursor on hover; gestures
+/// drive the resize provider via callbacks. Handles only render a
+/// visible affordance when the card is selected or actively
+/// resizing — they're invisible otherwise so the cards don't look
+/// busy at rest, but the gesture still works (cursor changes on
+/// hover so power users discover the affordance).
+class _EdgeHandle extends StatelessWidget {
+  const _EdgeHandle({
+    required this.isTop,
+    required this.isVisible,
+    required this.onPanStart,
+    required this.onPanUpdate,
+    required this.onPanEnd,
+    required this.onPanCancel,
+  });
+
+  final bool isTop;
+  final bool isVisible;
+  final void Function(DragStartDetails) onPanStart;
+  final void Function(DragUpdateDetails) onPanUpdate;
+  final void Function(DragEndDetails) onPanEnd;
+  final VoidCallback onPanCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeUpDown,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onPanStart: onPanStart,
+        onPanUpdate: onPanUpdate,
+        onPanEnd: onPanEnd,
+        onPanCancel: onPanCancel,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 140),
+          opacity: isVisible ? 1 : 0,
+          child: Align(
+            alignment: isTop ? Alignment.topCenter : Alignment.bottomCenter,
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 1),
+              width: 32,
+              height: 3,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
         ),

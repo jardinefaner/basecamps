@@ -68,8 +68,18 @@ class _BasecampAppState extends ConsumerState<BasecampApp>
     // pumps the active program id into Riverpod for the rest of
     // the app to consume. Runs once per sign-in (idempotent —
     // existing programs are reused, not re-created).
-    _programBootstrapSub =
-        ref.read(programAuthBootstrapProvider).start();
+    //
+    // Deferred to a post-frame callback because `start()` fires
+    // its initial session check synchronously, which can call
+    // `_BootstrapInProgressNotifier.set` — modifying a Riverpod
+    // provider during initState/build raises an "unhandled
+    // exception" assertion. Post-frame puts the first call
+    // outside the build phase.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _programBootstrapSub =
+          ref.read(programAuthBootstrapProvider).start();
+    });
 
     // The "a change from another device overwrote a local edit"
     // toast lived here through Phase 5 of the sync work. Field-

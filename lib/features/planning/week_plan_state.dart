@@ -176,6 +176,84 @@ final weekPlanDragProvider =
   WeekPlanDragNotifier.new,
 );
 
+/// Live edge-resize state. Non-null while the user is mid-pan on
+/// a card's top or bottom edge handle. Used by the column to
+/// render the card at its LIVE bounds (so it grows/shrinks in real
+/// time) and by the time chips to display the live snap target.
+class WeekPlanResizeState {
+  const WeekPlanResizeState({
+    required this.templateId,
+    required this.topEdge,
+    required this.sourceStartMinutes,
+    required this.sourceEndMinutes,
+    required this.panStartGlobalY,
+    required this.liveStartMinutes,
+    required this.liveEndMinutes,
+  });
+
+  final String templateId;
+
+  /// True when the user grabbed the top edge (start changes); false
+  /// for bottom edge (end changes).
+  final bool topEdge;
+
+  final int sourceStartMinutes;
+  final int sourceEndMinutes;
+
+  /// Global pointer Y at pan-start. Subtract from the current
+  /// global Y to get total delta — incremental `delta.dy` would
+  /// accumulate rounding errors over a long drag.
+  final double panStartGlobalY;
+
+  /// Snapped, clamped values that the column renders against.
+  final int liveStartMinutes;
+  final int liveEndMinutes;
+
+  WeekPlanResizeState copyWithLive({
+    int? liveStart,
+    int? liveEnd,
+  }) =>
+      WeekPlanResizeState(
+        templateId: templateId,
+        topEdge: topEdge,
+        sourceStartMinutes: sourceStartMinutes,
+        sourceEndMinutes: sourceEndMinutes,
+        panStartGlobalY: panStartGlobalY,
+        liveStartMinutes: liveStart ?? liveStartMinutes,
+        liveEndMinutes: liveEnd ?? liveEndMinutes,
+      );
+}
+
+class WeekPlanResizeNotifier extends Notifier<WeekPlanResizeState?> {
+  @override
+  WeekPlanResizeState? build() => null;
+
+  // Method-not-setter — pan-start is a user gesture, not a passive
+  // property write.
+  // ignore: use_setters_to_change_properties
+  void start(WeekPlanResizeState s) {
+    state = s;
+  }
+
+  void update({int? liveStart, int? liveEnd}) {
+    final current = state;
+    if (current == null) return;
+    state = current.copyWithLive(
+      liveStart: liveStart,
+      liveEnd: liveEnd,
+    );
+  }
+
+  void clear() {
+    state = null;
+  }
+}
+
+final weekPlanResizeProvider =
+    NotifierProvider<WeekPlanResizeNotifier, WeekPlanResizeState?>(
+  WeekPlanResizeNotifier.new,
+);
+
 /// ID of a freshly-created card whose title TextField should
 /// autofocus on first build. Cleared once the user commits or
 /// cancels the title input. Mirrors the empty-slot click flow:
