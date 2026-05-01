@@ -2,6 +2,8 @@ import 'package:basecamp/core/format/text.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/adults/widgets/new_adult_wizard.dart';
+import 'package:basecamp/features/children/children_repository.dart'
+    show groupsProvider;
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
@@ -112,11 +114,26 @@ class _AdultsScreenState extends ConsumerState<AdultsScreen>
             if (adults.isEmpty) {
               return _EmptyState(onAdd: _openWizard);
             }
+            // Build a quick id → Group map for the cards' group
+            // labels. groupsProvider streams; if it hasn't resolved
+            // yet the cards just render without the group line.
+            final groupsAsync = ref.watch(groupsProvider);
+            final groupsById = <String, Group>{
+              for (final g in groupsAsync.value ?? const <Group>[])
+                g.id: g,
+            };
             return BreakpointBuilder(
               builder: (context, bp) {
-                // Simple row tiles — default `columnsFor` ramp
-                // (1 / 1 / 2 / 3) reads well across breakpoints.
-                final columns = Breakpoints.columnsFor(context);
+                // Avatar-card grid is denser than the old single-
+                // line-row layout. Each card stacks avatar + name +
+                // role pill + job title + group label vertically,
+                // so we want more cards per row at every breakpoint.
+                final columns = switch (bp) {
+                  Breakpoint.compact => 2,
+                  Breakpoint.medium => 3,
+                  Breakpoint.expanded => 4,
+                  Breakpoint.large => 5,
+                };
                 final hSide = bp == Breakpoint.compact
                     ? AppSpacing.lg
                     : AppSpacing.xl;
@@ -126,27 +143,6 @@ class _AdultsScreenState extends ConsumerState<AdultsScreen>
                   top: AppSpacing.md,
                   bottom: AppSpacing.xxxl * 2,
                 );
-                Widget tileFor(int i) {
-                  final s = adults[i];
-                  return _AdultTile(
-                    adult: s,
-                    selected: isSelected(s.id),
-                    onTap: isSelecting
-                        ? () => toggleSelection(s.id)
-                        : () => context.push('/more/adults/${s.id}'),
-                    onLongPress: () => toggleSelection(s.id),
-                  );
-                }
-
-                if (columns == 1) {
-                  return ListView.separated(
-                    padding: padding,
-                    itemCount: adults.length,
-                    separatorBuilder: (_, _) =>
-                        const SizedBox(height: AppSpacing.md),
-                    itemBuilder: (_, i) => tileFor(i),
-                  );
-                }
                 return GridView.builder(
                   padding: padding,
                   gridDelegate:
@@ -154,12 +150,27 @@ class _AdultsScreenState extends ConsumerState<AdultsScreen>
                     crossAxisCount: columns,
                     mainAxisSpacing: AppSpacing.md,
                     crossAxisSpacing: AppSpacing.md,
-                    // Tile is a single-line row — keep it short so
-                    // the grid reads as a tight list of cards.
-                    mainAxisExtent: 88,
+                    // 220dp gives the avatar (72dp) + name + role pill
+                    // + job title + group line room without
+                    // overflowing the cardPadding's 16dp.
+                    mainAxisExtent: 220,
                   ),
                   itemCount: adults.length,
-                  itemBuilder: (_, i) => tileFor(i),
+                  itemBuilder: (_, i) {
+                    final a = adults[i];
+                    final group = a.anchoredGroupId == null
+                        ? null
+                        : groupsById[a.anchoredGroupId];
+                    return _AdultCard(
+                      adult: a,
+                      group: group,
+                      selected: isSelected(a.id),
+                      onTap: isSelecting
+                          ? () => toggleSelection(a.id)
+                          : () => context.push('/more/adults/${a.id}'),
+                      onLongPress: () => toggleSelection(a.id),
+                    );
+                  },
                 );
               },
             );
@@ -170,15 +181,23 @@ class _AdultsScreenState extends ConsumerState<AdultsScreen>
   }
 }
 
-class _AdultTile extends StatelessWidget {
-  const _AdultTile({
+/// Avatar-card variant of the adults tile. Stacks vertically so the
+/// teacher sees a face-first roster with name + canonical role pill
+/// (Lead / Specialist / Ambient) + their job title (the free-text
+/// "role on schedule" — Director, Kitchen, Floater, etc.) + their
+/// anchored group. Replaces the previous one-line ListTile shape;
+/// reads less like a contact list and more like a staff page.
+class _AdultCard extends StatelessWidget {
+  const _AdultCard({
     required this.adult,
+    required this.group,
     required this.onTap,
     required this.onLongPress,
     this.selected = false,
   });
 
   final Adult adult;
+  final Group? group;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
   final bool selected;
@@ -186,54 +205,75 @@ class _AdultTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final initial = adult.name.initial;
-
+    final cs = theme.colorScheme;
     final adultRole = AdultRole.fromDb(adult.adultRole);
+    final hasJobTitle = adult.role != null && adult.role!.isNotEmpty;
     return AppCard(
       onTap: onTap,
       onLongPress: onLongPress,
       selected: selected,
-      child: Row(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SmallAvatar(
             path: adult.avatarPath,
             storagePath: adult.avatarStoragePath,
             etag: adult.avatarEtag,
-            fallbackInitial: initial,
-            backgroundColor: theme.colorScheme.secondaryContainer,
-            foregroundColor: theme.colorScheme.onSecondaryContainer,
+            fallbackInitial: adult.name.initial,
+            backgroundColor: cs.secondaryContainer,
+            foregroundColor: cs.onSecondaryContainer,
+            radius: 36,
           ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            adult.name,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          _RoleChip(role: adultRole),
+          if (hasJobTitle) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              adult.role!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          if (group != null) ...[
+            const SizedBox(height: 2),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        adult.name,
-                        style: theme.textTheme.titleMedium,
-                      ),
-                    ),
-                    _RoleChip(role: adultRole),
-                  ],
+                Icon(
+                  Icons.group_outlined,
+                  size: 12,
+                  color: cs.primary,
                 ),
-                if (adult.role != null && adult.role!.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      adult.role!,
-                      style: theme.textTheme.bodySmall,
+                const SizedBox(width: 3),
+                Flexible(
+                  child: Text(
+                    group!.name,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: cs.primary,
+                      fontWeight: FontWeight.w600,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
+                ),
               ],
             ),
-          ),
-          Icon(
-            Icons.chevron_right,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+          ],
         ],
       ),
     );
