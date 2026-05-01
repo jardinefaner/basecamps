@@ -239,10 +239,36 @@ class _ExperimentScreenState extends State<ExperimentScreen> {
   }
 }
 
+/// In-memory draft. The first three fields are the doc-facing ones —
+/// they render inline on the card. The rest are **metadata**: the
+/// inline card never shows them; they're surfaced only in the
+/// advanced editor's "More details" disclosure. Free-text strings
+/// across the board because this is a sandbox — when the activity
+/// model graduates we'll pick proper structured types (Duration,
+/// AgeRange, `List<String>` for steps, etc.) but for now leaving them
+/// loose means we can iterate on which fields matter without churn.
 class _ActivityDraft {
   String title = '';
   String description = '';
   String link = '';
+
+  // --- Metadata (advanced editor only) ---
+  String objectives = '';
+  String steps = '';
+  String materials = '';
+  String duration = '';
+  String ageRange = '';
+
+  /// True if any metadata field has content. Drives the "More
+  /// details" disclosure's initial state — if the user previously
+  /// filled in metadata, the disclosure opens already-expanded so
+  /// they don't have to hunt for what they wrote.
+  bool get hasAnyMetadata =>
+      objectives.isNotEmpty ||
+      steps.isNotEmpty ||
+      materials.isNotEmpty ||
+      duration.isNotEmpty ||
+      ageRange.isNotEmpty;
 }
 
 // =====================================================================
@@ -553,6 +579,7 @@ class _AdvancedActivityEditor extends StatefulWidget {
 }
 
 class _AdvancedActivityEditorState extends State<_AdvancedActivityEditor> {
+  // Doc-facing fields (also rendered on the inline card).
   late final TextEditingController _title =
       TextEditingController(text: widget.draft.title)..addListener(_pushTitle);
   late final TextEditingController _description =
@@ -560,6 +587,23 @@ class _AdvancedActivityEditorState extends State<_AdvancedActivityEditor> {
         ..addListener(_pushDescription);
   late final TextEditingController _link =
       TextEditingController(text: widget.draft.link)..addListener(_pushLink);
+
+  // Metadata fields — only surfaced here, never on the inline card.
+  late final TextEditingController _objectives =
+      TextEditingController(text: widget.draft.objectives)
+        ..addListener(_pushObjectives);
+  late final TextEditingController _steps =
+      TextEditingController(text: widget.draft.steps)
+        ..addListener(_pushSteps);
+  late final TextEditingController _materials =
+      TextEditingController(text: widget.draft.materials)
+        ..addListener(_pushMaterials);
+  late final TextEditingController _duration =
+      TextEditingController(text: widget.draft.duration)
+        ..addListener(_pushDuration);
+  late final TextEditingController _ageRange =
+      TextEditingController(text: widget.draft.ageRange)
+        ..addListener(_pushAgeRange);
 
   void _pushTitle() {
     widget.draft.title = _title.text;
@@ -576,17 +620,48 @@ class _AdvancedActivityEditorState extends State<_AdvancedActivityEditor> {
     widget.onChanged();
   }
 
+  void _pushObjectives() {
+    widget.draft.objectives = _objectives.text;
+    widget.onChanged();
+  }
+
+  void _pushSteps() {
+    widget.draft.steps = _steps.text;
+    widget.onChanged();
+  }
+
+  void _pushMaterials() {
+    widget.draft.materials = _materials.text;
+    widget.onChanged();
+  }
+
+  void _pushDuration() {
+    widget.draft.duration = _duration.text;
+    widget.onChanged();
+  }
+
+  void _pushAgeRange() {
+    widget.draft.ageRange = _ageRange.text;
+    widget.onChanged();
+  }
+
   @override
   void dispose() {
     _title.dispose();
     _description.dispose();
     _link.dispose();
+    _objectives.dispose();
+    _steps.dispose();
+    _materials.dispose();
+    _duration.dispose();
+    _ageRange.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
+    final theme = Theme.of(context);
     return SafeArea(
       // The sheet host (drag handle on bottom modal, header on side
       // panel) already positions content under the system chrome.
@@ -635,10 +710,167 @@ class _AdvancedActivityEditorState extends State<_AdvancedActivityEditor> {
                   hintText: 'https://…',
                 ),
               ),
+              const SizedBox(height: AppSpacing.lg),
+              // Hairline divider visually separates the doc-facing
+              // fields above from the metadata disclosure below, so
+              // the user reads them as two tiers.
+              Divider(
+                height: 1,
+                color: theme.colorScheme.outlineVariant,
+              ),
+              // "More details" disclosure. Open by default if the
+              // draft already has metadata so the user doesn't have
+              // to hunt for what they previously wrote.
+              _DetailsDisclosure(
+                initiallyExpanded: widget.draft.hasAnyMetadata,
+                children: [
+                  TextField(
+                    controller: _objectives,
+                    maxLines: null,
+                    minLines: 2,
+                    textInputAction: TextInputAction.newline,
+                    decoration: const InputDecoration(
+                      labelText: 'Objectives',
+                      helperText: 'What children will learn or practice',
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  TextField(
+                    controller: _steps,
+                    maxLines: null,
+                    minLines: 3,
+                    textInputAction: TextInputAction.newline,
+                    decoration: const InputDecoration(
+                      labelText: 'Steps',
+                      helperText: 'Step-by-step how to run it',
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  TextField(
+                    controller: _materials,
+                    maxLines: null,
+                    minLines: 1,
+                    textInputAction: TextInputAction.newline,
+                    decoration: const InputDecoration(
+                      labelText: 'Materials',
+                      helperText: 'What you need on hand',
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  // Duration + age range share a row on wide layouts
+                  // because they're both compact single-value fields;
+                  // pairing them saves vertical space without crowding.
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _duration,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            labelText: 'Duration',
+                            hintText: '15 min',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: TextField(
+                          controller: _ageRange,
+                          textInputAction: TextInputAction.done,
+                          decoration: const InputDecoration(
+                            labelText: 'Age range',
+                            hintText: '3–5 years',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Tappable "More details" disclosure used inside the advanced
+/// editor for the metadata block. Why a hand-rolled widget instead
+/// of [ExpansionTile]: ExpansionTile insists on top/bottom dividers
+/// and tile padding that fight the sheet's existing layout. This
+/// version is just an InkWell row that flips a chevron + animates
+/// the children's height into view via [AnimatedSize].
+class _DetailsDisclosure extends StatefulWidget {
+  const _DetailsDisclosure({
+    required this.children,
+    this.initiallyExpanded = false,
+  });
+
+  final List<Widget> children;
+  final bool initiallyExpanded;
+
+  @override
+  State<_DetailsDisclosure> createState() => _DetailsDisclosureState();
+}
+
+class _DetailsDisclosureState extends State<_DetailsDisclosure> {
+  late bool _expanded = widget.initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              vertical: AppSpacing.md,
+            ),
+            child: Row(
+              children: [
+                AnimatedRotation(
+                  duration: const Duration(milliseconds: 180),
+                  // 0 → chevron points right (collapsed)
+                  // 0.25 → chevron points down (expanded)
+                  turns: _expanded ? 0.25 : 0,
+                  child: Icon(
+                    Icons.chevron_right,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  'More details',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: _expanded
+              ? Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.sm),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: widget.children,
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
     );
   }
 }
