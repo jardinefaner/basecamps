@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:basecamp/features/activity_library/url_scraper.dart';
 import 'package:basecamp/features/ai/openai_client.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/adaptive_sheet.dart';
@@ -32,10 +33,12 @@ import 'package:flutter/material.dart';
 ///   * The list reserves enough bottom whitespace that the FAB never
 ///     covers the last card.
 ///
-/// **AI activity** uses `gpt-4o-mini-search-preview`, which has web
-/// browsing built in. We pass the user's freeform input straight to
-/// the model — if it contained a URL, the model visits it; otherwise
-/// it searches the web for related content. We don't pre-fetch.
+/// **AI activity** uses `gpt-4o-mini` (cheap — fractions of a cent
+/// per call). When the user pastes a URL we fetch + extract the page
+/// text via [scrapeUrl] first and pass that to the model so the
+/// description is grounded in real content. The browser-side fetch
+/// is subject to CORS — works on native, can fail on web for sites
+/// without permissive CORS headers (the message surfaces inline).
 ///
 /// Drafts live in memory only — sandbox.
 class ExperimentScreen extends StatefulWidget {
@@ -672,12 +675,25 @@ class _AiActivityComposerState extends State<_AiActivityComposer> {
     final input = _ctrl.text.trim();
     if (input.isEmpty || _busy) return;
     setState(() {
-      _status = 'Generating…';
+      _status = 'Working…';
       _error = null;
     });
     try {
       final url = _urlPattern.firstMatch(input)?.group(0);
-      final draft = await _generateActivityDraft(input: input, url: url);
+      // If the user pasted a link, fetch + extract the page text
+      // first. Cheap-model generation alone has no browsing, so
+      // without this step it'd just hallucinate from the URL pattern.
+      ScrapedPage? scraped;
+      if (url != null) {
+        if (mounted) setState(() => _status = 'Reading link…');
+        scraped = await scrapeUrl(url);
+      }
+      if (mounted) setState(() => _status = 'Generating…');
+      final draft = await _generateActivityDraft(
+        input: input,
+        url: url,
+        scraped: scraped,
+      );
       if (!mounted) return;
       Navigator.of(context).pop(draft);
     } on Object catch (e) {
@@ -685,8 +701,8 @@ class _AiActivityComposerState extends State<_AiActivityComposer> {
       setState(() {
         _status = null;
         // Trim the exception's class prefix — users don't need to see
-        // "OpenAiClientException(...)" to understand "the model didn't
-        // respond, try again."
+        // "ScrapeFailure: …" or "OpenAiClientException(...): …" to
+        // understand "the link didn't load, try again."
         _error = e.toString().replaceFirst(RegExp(r'^[^:]+:\s*'), '');
       });
     }
@@ -761,56 +777,47 @@ class _AiActivityComposerState extends State<_AiActivityComposer> {
   }
 }
 
-/// Calls `gpt-4o-mini-search-preview` — OpenAI's chat-completions
-/// model with built-in web search — and turns the freeform input
-/// into a populated draft.
+/// Calls `gpt-4o-mini` with JSON mode and turns the freeform input
+/// into a populated draft. Cheap — fractions of a cent per call.
 ///
-/// Why this model: `gpt-4o-mini` (the one we use elsewhere) doesn't
-/// browse, so a pasted URL would force us to fetch the page client-
-/// side first. The search-preview variant browses for us, which:
-///   1. Removes the CORS wall on web (we'd otherwise need a server-
-///      side scrape proxy).
-///   2. Lets the model decide *whether* to search even when the user
-///      gave a freeform description rather than a URL.
-///
-/// Quirks worth knowing:
-///   * Search-preview models don't accept `temperature` or
-///     `response_format`. We instruct JSON in the prompt and parse
-///     best-effort.
-///   * `web_search_options` is a required parameter — empty `{}` is
-///     fine and uses default search context size.
-///   * The model may include citation markdown in its output; we
-///     pull the first `{...}` JSON block out by index rather than
-///     trusting the whole content body to parse.
+/// When [scraped] is non-null (the caller fetched the URL via
+/// [scrapeUrl] first), the model gets the page's actual title +
+/// extracted body text as source material. When no URL is present
+/// the model expands the description directly. The model itself
+/// doesn't browse — that's the trade-off for the 140× lower cost
+/// versus the search-preview variant.
 Future<_ActivityDraft> _generateActivityDraft({
   required String input,
   required String? url,
+  required ScrapedPage? scraped,
 }) async {
   if (!OpenAiClient.isAvailable) {
     throw const _AiUnavailable();
   }
+
+  final userMessage = scraped != null
+      ? 'Source page title: ${scraped.title}\n\n'
+          'Source page text:\n${scraped.text}\n\n'
+          'Write an activity card based on what the page describes. '
+          'Use concrete details from the source text — do not invent '
+          'materials or steps that the source does not mention.'
+      : 'Generate an activity card based on this description: $input';
+
   final body = await OpenAiClient.chat({
-    'model': 'gpt-4o-mini-search-preview',
-    // Empty options uses default search context. Bump to
-    // {"search_context_size": "high"} if we want richer browsing
-    // later — costs more tokens.
-    'web_search_options': <String, dynamic>{},
+    'model': 'gpt-4o-mini',
+    'temperature': 0.4,
+    'response_format': {'type': 'json_object'},
     'messages': [
       {
         'role': 'system',
         'content':
             'You generate short activity cards for early-childhood '
-            'educators. If the user pastes a URL, visit it and base '
-            'the card on real content from the page. If the user '
-            'describes an idea instead, expand it directly. '
-            'Respond with ONLY a JSON object — no prose, no markdown, '
-            'no code fences. Required keys:\n'
-            '  "title": short title-cased name, max 8 words\n'
-            '  "description": one or two concrete classroom-friendly '
-            'sentences\n'
-            'Do not include URLs, citations, or any extra keys.',
+            'educators. Return JSON with exactly two keys: '
+            '"title" (a short, title-cased name, max 8 words), '
+            '"description" (one or two concrete classroom-friendly '
+            'sentences). Do not include URLs, markdown, or extra keys.',
       },
-      {'role': 'user', 'content': input},
+      {'role': 'user', 'content': userMessage},
     ],
   });
   final choices = body['choices'] as List<dynamic>?;
@@ -823,32 +830,14 @@ Future<_ActivityDraft> _generateActivityDraft({
   if (content == null || content.trim().isEmpty) {
     throw const _AiEmptyResponse();
   }
-  final parsed = _parseFirstJsonObject(content);
+  // JSON mode guarantees parseable JSON — no extraction games needed.
+  final parsed = jsonDecode(content) as Map<String, dynamic>;
   return _ActivityDraft()
     ..title = (parsed['title'] as String? ?? '').trim()
     ..description = (parsed['description'] as String? ?? '').trim()
     // Always use the user's verbatim URL — never trust the model to
     // round-trip it (paraphrased hosts would silently break refs).
     ..link = url ?? '';
-}
-
-/// Pulls the first `{...}` block out of a freeform model response.
-/// The search-preview models sometimes wrap JSON in prose or markdown
-/// fences despite our "ONLY JSON" instruction — extracting by first
-/// `{` to last `}` survives that without us needing a real JSON-
-/// streaming parser.
-Map<String, dynamic> _parseFirstJsonObject(String content) {
-  final start = content.indexOf('{');
-  final end = content.lastIndexOf('}');
-  if (start < 0 || end <= start) {
-    throw const _AiEmptyResponse();
-  }
-  final json = content.substring(start, end + 1);
-  final decoded = jsonDecode(json);
-  if (decoded is! Map<String, dynamic>) {
-    throw const _AiEmptyResponse();
-  }
-  return decoded;
 }
 
 class _AiUnavailable implements Exception {
