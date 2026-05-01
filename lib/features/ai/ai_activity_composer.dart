@@ -48,18 +48,67 @@ class AiActivity {
 /// generated activity on success, or null when the user dismissed
 /// without generating.
 ///
+/// [planContext] is optional metadata the calling surface (week plan,
+/// monthly plan, etc.) wants the model to use when generating —
+/// monthly theme, sub-theme, target age range, group name. Whatever's
+/// non-null gets prepended to the user prompt as a "Context: ..."
+/// line. The model uses it to keep the activity on-theme and age-
+/// appropriate.
+///
 /// Bottom modal everywhere (mobile + web) — the composer's a one-
 /// shot input → result handoff, not a side-by-side workspace, so
 /// the bottom-sheet idiom fits both shapes. (Compare the *advanced*
 /// activity editor, which uses `showAdaptiveSheet` for a side-panel
 /// on web because that one IS a workspace.)
-Future<AiActivity?> showAiActivityComposer(BuildContext context) async {
+Future<AiActivity?> showAiActivityComposer(
+  BuildContext context, {
+  AiActivityContext? planContext,
+}) async {
   return showModalBottomSheet<AiActivity>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => const _AiActivityComposerSheet(),
+    builder: (_) => _AiActivityComposerSheet(planContext: planContext),
   );
+}
+
+/// Optional "what surface is generating, what does it know" context.
+/// Plumbed through to the model's prompt so a generation for the
+/// "Toddlers, ages 2-3, monthly theme: Nature, sub-theme: Trees"
+/// cell knows to produce something on-theme and developmentally
+/// appropriate. All fields optional — pass only what you have.
+class AiActivityContext {
+  const AiActivityContext({
+    this.monthlyTheme,
+    this.subTheme,
+    this.ageRange,
+    this.groupName,
+  });
+
+  final String? monthlyTheme;
+  final String? subTheme;
+  final String? ageRange;
+  final String? groupName;
+
+  bool get isEmpty =>
+      _isBlank(monthlyTheme) &&
+      _isBlank(subTheme) &&
+      _isBlank(ageRange) &&
+      _isBlank(groupName);
+
+  /// One-line summary suitable for prepending to a user prompt.
+  /// Returns empty string when there's nothing to say so callers
+  /// don't have to special-case the no-context path.
+  String get promptLine {
+    final parts = <String>[];
+    if (!_isBlank(groupName)) parts.add('Group: $groupName');
+    if (!_isBlank(ageRange)) parts.add('Audience age: $ageRange');
+    if (!_isBlank(monthlyTheme)) parts.add('Monthly theme: $monthlyTheme');
+    if (!_isBlank(subTheme)) parts.add('Weekly sub-theme: $subTheme');
+    return parts.isEmpty ? '' : 'Context — ${parts.join('. ')}.';
+  }
+
+  static bool _isBlank(String? s) => s == null || s.trim().isEmpty;
 }
 
 /// URL detector — anything that looks like an HTTP(S) link in the
@@ -71,7 +120,9 @@ Future<AiActivity?> showAiActivityComposer(BuildContext context) async {
 final _urlPattern = RegExp(r'https?://\S+');
 
 class _AiActivityComposerSheet extends StatefulWidget {
-  const _AiActivityComposerSheet();
+  const _AiActivityComposerSheet({this.planContext});
+
+  final AiActivityContext? planContext;
 
   @override
   State<_AiActivityComposerSheet> createState() =>
@@ -117,6 +168,7 @@ class _AiActivityComposerSheetState extends State<_AiActivityComposerSheet> {
         input: input,
         url: url,
         scraped: scraped,
+        planContext: widget.planContext,
       );
       if (!mounted) return;
       Navigator.of(context).pop(activity);
@@ -215,18 +267,29 @@ Future<AiActivity> _generateAiActivity({
   required String input,
   required String? url,
   required ScrapedPage? scraped,
+  AiActivityContext? planContext,
 }) async {
   if (!OpenAiClient.isAvailable) {
     throw const _AiUnavailable();
   }
 
+  // Prepend any caller-supplied context so the model knows the group
+  // / age / themes before it reads the user's prompt. Empty string
+  // when nothing was passed — the trailing newline is fine.
+  final contextLine = planContext?.promptLine ?? '';
+  final contextPrefix = contextLine.isEmpty ? '' : '$contextLine\n\n';
+
   final userMessage = scraped != null
-      ? 'Source page title: ${scraped.title}\n\n'
+      ? '$contextPrefix'
+          'Source page title: ${scraped.title}\n\n'
           'Source page text:\n${scraped.text}\n\n'
           'Write an activity card based on what the page describes. '
           'Use concrete details from the source text — do not invent '
-          'materials or steps that the source does not mention.'
-      : 'Generate an activity card based on this description: $input';
+          'materials or steps that the source does not mention. '
+          'Tailor the description, objectives, and steps to the audience '
+          'age above when one is provided.'
+      : '${contextPrefix}Generate an activity card based on this '
+          'description: $input';
 
   final body = await OpenAiClient.chat({
     'model': 'gpt-4o-mini',

@@ -63,6 +63,18 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   /// If usage shows that's wrong, easy to scope per-group later.
   final Map<String, String> _subThemes = {};
 
+  /// Monthly theme — applies across the visible month, used as AI
+  /// generation context. Per-month would be overkill for the sandbox
+  /// (a teacher who flips months wants to see the same theme they
+  /// just authored), so it's a single string. NOT keyed by month.
+  String _monthlyTheme = '';
+
+  /// Per-group age range (free-text — "3-5 years", "ages 4-6",
+  /// whatever). Used as AI context so generations target the right
+  /// developmental level. Sandbox-state only; when this graduates,
+  /// the Group row itself will gain an age-range column.
+  final Map<String, String> _groupAgeRanges = {};
+
   static DateTime _firstOfMonth(DateTime d) =>
       DateTime(d.year, d.month);
 
@@ -109,7 +121,10 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   Future<void> _onCreateAi(DateTime date) async {
     final groupId = _activeGroupId;
     if (groupId == null) return;
-    final result = await showAiActivityComposer(context);
+    final result = await showAiActivityComposer(
+      context,
+      planContext: _aiContextForDate(date),
+    );
     if (!mounted || result == null) return;
     setState(() {
       _activities[_activityKey(date, groupId)] = _MonthlyActivity(
@@ -121,6 +136,69 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
         link: result.link,
       );
     });
+  }
+
+  /// Tap on a week's side rail — opens a bigger modal that surfaces
+  /// the sub-theme (editable) + the aggregated supplies (read-only,
+  /// scrollable) together. The cramped side-rail row is fine for at-a-
+  /// glance review; this sheet is for "I need to see all of this
+  /// week's supplies for shopping" or "let me set the sub-theme with
+  /// some breathing room."
+  Future<void> _openWeekDetails(List<DateTime> week) async {
+    final mondayKey = _dayKey(week.first);
+    await showAdaptiveSheet<void>(
+      context: context,
+      builder: (_) => _WeekDetailsSheet(
+        weekRangeLabel: _weekRangeLabel(week),
+        initialSubTheme: _subThemes[mondayKey] ?? '',
+        onSubThemeChanged: (v) {
+          setState(() {
+            if (v.isEmpty) {
+              _subThemes.remove(mondayKey);
+            } else {
+              _subThemes[mondayKey] = v;
+            }
+          });
+        },
+        materials: _aggregateMaterialsForWeek(week),
+      ),
+    );
+  }
+
+  String _weekRangeLabel(List<DateTime> week) {
+    final mon = week.first;
+    final fri = week.last;
+    if (mon.month == fri.month) {
+      return '${DateFormat.MMMd().format(mon)} – ${DateFormat.d().format(fri)}';
+    }
+    return '${DateFormat.MMMd().format(mon)} – ${DateFormat.MMMd().format(fri)}';
+  }
+
+  /// Bundle the visible context (monthly theme, week sub-theme,
+  /// active group's age range + name) for AI generation. Caller
+  /// passes whatever date the cell is for so we pick the right
+  /// week's sub-theme.
+  AiActivityContext _aiContextForDate(DateTime date) {
+    final groupId = _activeGroupId;
+    final groupsAsync = ref.read(groupsProvider);
+    final groups = groupsAsync.maybeWhen<List<Group>>(
+      data: (list) => list,
+      orElse: () => const <Group>[],
+    );
+    final group = groupId == null || groups.isEmpty
+        ? null
+        : groups.firstWhere(
+            (g) => g.id == groupId,
+            orElse: () => groups.first,
+          );
+    // Find the Monday of the date's week to look up the sub-theme.
+    final monday = date.subtract(Duration(days: date.weekday - 1));
+    return AiActivityContext(
+      monthlyTheme: _monthlyTheme,
+      subTheme: _subThemes[_dayKey(monday)],
+      ageRange: groupId == null ? null : _groupAgeRanges[groupId],
+      groupName: group?.name,
+    );
   }
 
   /// Tap on a filled cell — opens the read-only "what to do today"
@@ -243,6 +321,12 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
       ),
       body: Column(
         children: [
+          // Monthly theme — top-most input. Drives AI generation
+          // context for every cell in the visible month.
+          _MonthlyThemeBar(
+            value: _monthlyTheme,
+            onChanged: (v) => setState(() => _monthlyTheme = v),
+          ),
           // Group filter — required. Sits above the toolbar so it's
           // the first thing the user sees / picks.
           groupsAsync.when(
@@ -270,10 +354,31 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                   setState(() => _activeGroupId = groups.first.id);
                 });
               }
-              return _GroupFilterBar(
-                groups: groups,
-                activeId: _activeGroupId,
-                onSelect: (id) => setState(() => _activeGroupId = id),
+              return Column(
+                children: [
+                  _GroupFilterBar(
+                    groups: groups,
+                    activeId: _activeGroupId,
+                    onSelect: (id) => setState(() => _activeGroupId = id),
+                  ),
+                  // Age range for the active group — drives AI
+                  // generation context so a "Toddlers" group gets
+                  // 2-yr-old-appropriate steps. Free-text by intent;
+                  // teachers say "ages 3-5" and "preschool" both, and
+                  // the model handles either.
+                  if (_activeGroupId != null)
+                    _AgeRangeBar(
+                      groupId: _activeGroupId!,
+                      value: _groupAgeRanges[_activeGroupId!] ?? '',
+                      onChanged: (v) => setState(() {
+                        if (v.isEmpty) {
+                          _groupAgeRanges.remove(_activeGroupId);
+                        } else {
+                          _groupAgeRanges[_activeGroupId!] = v;
+                        }
+                      }),
+                    ),
+                ],
               );
             },
           ),
@@ -329,6 +434,7 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                                       materials: _aggregateMaterialsForWeek(
                                         week,
                                       ),
+                                      onTap: () => _openWeekDetails(week),
                                     ),
                                   ),
                                 ),
@@ -555,12 +661,18 @@ class _WeekSidePanel extends StatefulWidget {
     required this.subTheme,
     required this.onSubThemeChanged,
     required this.materials,
+    required this.onTap,
   });
 
   final String weekMondayKey;
   final String subTheme;
   final ValueChanged<String> onSubThemeChanged;
   final List<String> materials;
+
+  /// Tap on the panel — opens the week-details sheet. Not wired to
+  /// the inline TextField (so typing into the sub-theme inline still
+  /// works without bouncing into a modal).
+  final VoidCallback onTap;
 
   @override
   State<_WeekSidePanel> createState() => _WeekSidePanelState();
@@ -599,7 +711,14 @@ class _WeekSidePanelState extends State<_WeekSidePanel> {
           width: 0.5,
         ),
       ),
-      child: Padding(
+      child: InkWell(
+        // Tap on the panel body opens the week-details modal. The
+        // inner TextField gets pointer events first (so typing
+        // doesn't bounce to the modal), and the supplies list is
+        // also tappable for the modal as a side effect.
+        onTap: widget.onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
         padding: const EdgeInsets.all(AppSpacing.sm),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -671,6 +790,7 @@ class _WeekSidePanelState extends State<_WeekSidePanel> {
                     ),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -829,27 +949,34 @@ class _CellChooser extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    // FittedBox(scaleDown) around the icon row so very small cells
+    // (a 6-week month on a narrow phone window can drop a cell to
+    // ~30dp) shrink the icons to fit instead of overflowing the
+    // Column. Default cell sizes still render the full 24dp icons.
     return Center(
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _ChooserIcon(
-            icon: Icons.add,
-            background: cs.surface,
-            foreground: cs.onSurface,
-            borderColor: cs.outlineVariant,
-            onTap: onCreateBlank,
-          ),
-          const SizedBox(width: 4),
-          _ChooserIcon(
-            icon: Icons.auto_awesome_outlined,
-            background: cs.primaryContainer,
-            foreground: cs.onPrimaryContainer,
-            borderColor: cs.primary.withValues(alpha: 0.4),
-            onTap: onCreateAi,
-          ),
-        ],
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _ChooserIcon(
+              icon: Icons.add,
+              background: cs.surface,
+              foreground: cs.onSurface,
+              borderColor: cs.outlineVariant,
+              onTap: onCreateBlank,
+            ),
+            const SizedBox(width: 4),
+            _ChooserIcon(
+              icon: Icons.auto_awesome_outlined,
+              background: cs.primaryContainer,
+              foreground: cs.onPrimaryContainer,
+              borderColor: cs.primary.withValues(alpha: 0.4),
+              onTap: onCreateAi,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1389,6 +1516,255 @@ class _DetailsDisclosureState extends State<_DetailsDisclosure> {
               : const SizedBox.shrink(),
         ),
       ],
+    );
+  }
+}
+
+// =====================================================================
+// Top-of-screen bars (monthly theme + active group's age range)
+// =====================================================================
+
+/// Monthly theme input — top-most bar above the group filter. Drives
+/// AI generation context for every cell in the visible month. Uses
+/// the standard input chrome here (not the WYSIWYG no-chrome
+/// pattern) because this is a deliberate top-of-page form field, not
+/// a doc-feel inline edit.
+class _MonthlyThemeBar extends StatefulWidget {
+  const _MonthlyThemeBar({required this.value, required this.onChanged});
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_MonthlyThemeBar> createState() => _MonthlyThemeBarState();
+}
+
+class _MonthlyThemeBarState extends State<_MonthlyThemeBar> {
+  late final TextEditingController _ctrl =
+      TextEditingController(text: widget.value);
+
+  @override
+  void didUpdateWidget(covariant _MonthlyThemeBar old) {
+    super.didUpdateWidget(old);
+    if (widget.value != _ctrl.text) {
+      _ctrl.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      color: theme.colorScheme.surface,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.md,
+        AppSpacing.xs,
+      ),
+      child: TextField(
+        controller: _ctrl,
+        onChanged: widget.onChanged,
+        textInputAction: TextInputAction.done,
+        decoration: InputDecoration(
+          isDense: true,
+          prefixIcon: Icon(
+            Icons.workspace_premium_outlined,
+            size: 18,
+            color: theme.colorScheme.primary,
+          ),
+          labelText: 'Monthly theme',
+          hintText: 'e.g. Nature, Friendships, Ocean',
+          helperText: 'Used as context when AI generates activities',
+        ),
+      ),
+    );
+  }
+}
+
+/// Per-group age-range input. Active when a group is selected; the
+/// stored value is keyed by group id so switching groups shows that
+/// group's stored age range. Free-text by intent — teachers say
+/// "ages 3-5", "preschool", "toddlers", whatever — and the AI is
+/// good at pattern-matching either.
+class _AgeRangeBar extends StatefulWidget {
+  const _AgeRangeBar({
+    required this.groupId,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String groupId;
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_AgeRangeBar> createState() => _AgeRangeBarState();
+}
+
+class _AgeRangeBarState extends State<_AgeRangeBar> {
+  late final TextEditingController _ctrl =
+      TextEditingController(text: widget.value);
+
+  @override
+  void didUpdateWidget(covariant _AgeRangeBar old) {
+    super.didUpdateWidget(old);
+    // Group id changed → swap in that group's stored value. Same
+    // textfield, different binding.
+    if (widget.groupId != old.groupId || widget.value != _ctrl.text) {
+      _ctrl.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      color: theme.colorScheme.surfaceContainerLow,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        0,
+        AppSpacing.md,
+        AppSpacing.sm,
+      ),
+      child: TextField(
+        controller: _ctrl,
+        onChanged: widget.onChanged,
+        textInputAction: TextInputAction.done,
+        decoration: InputDecoration(
+          isDense: true,
+          prefixIcon: Icon(
+            Icons.cake_outlined,
+            size: 18,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          labelText: 'Age range for this group',
+          hintText: 'e.g. 3–5 years',
+        ),
+      ),
+    );
+  }
+}
+
+// =====================================================================
+// Week-details modal (sub-theme + supplies, given more breathing room)
+// =====================================================================
+
+/// Modal version of the side rail. Same fields, but rendered with
+/// room to breathe — useful when shopping for the week's supplies or
+/// authoring a sub-theme with more deliberation than the cramped
+/// inline rail allows.
+class _WeekDetailsSheet extends StatefulWidget {
+  const _WeekDetailsSheet({
+    required this.weekRangeLabel,
+    required this.initialSubTheme,
+    required this.onSubThemeChanged,
+    required this.materials,
+  });
+
+  final String weekRangeLabel;
+  final String initialSubTheme;
+  final ValueChanged<String> onSubThemeChanged;
+  final List<String> materials;
+
+  @override
+  State<_WeekDetailsSheet> createState() => _WeekDetailsSheetState();
+}
+
+class _WeekDetailsSheetState extends State<_WeekDetailsSheet> {
+  late final TextEditingController _subTheme =
+      TextEditingController(text: widget.initialSubTheme);
+
+  @override
+  void dispose() {
+    _subTheme.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final mq = MediaQuery.of(context);
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.sm,
+            AppSpacing.lg,
+            AppSpacing.lg,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AdaptiveSheetHeader(title: 'Week of ${widget.weekRangeLabel}'),
+              const SizedBox(height: AppSpacing.sm),
+              TextField(
+                controller: _subTheme,
+                onChanged: widget.onSubThemeChanged,
+                autofocus: widget.initialSubTheme.isEmpty,
+                textInputAction: TextInputAction.done,
+                decoration: const InputDecoration(
+                  labelText: 'Sub-theme',
+                  helperText: 'A thematic label for this week — '
+                      'used as AI generation context',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              const _SectionHeader(label: 'Supplies'),
+              const SizedBox(height: AppSpacing.sm),
+              if (widget.materials.isEmpty)
+                Text(
+                  "No supplies yet — they'll appear here once activities "
+                  'in this week list materials.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                )
+              else
+                Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  children: [
+                    for (final m in widget.materials)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainer,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: theme.colorScheme.outlineVariant,
+                            width: 0.5,
+                          ),
+                        ),
+                        child: Text(
+                          m,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

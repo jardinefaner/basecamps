@@ -417,14 +417,19 @@ class _HoverSidebar extends StatefulWidget {
 class _HoverSidebarState extends State<_HoverSidebar> {
   bool _expanded = false;
 
-  /// Compact rail width — wide enough for a 22dp icon + breathing
-  /// room on either side, narrow enough that the route pane still
-  /// dominates the viewport.
+  /// Permanent icon rail width. The rail is *always* rendered at this
+  /// width — collapsed/expanded state only changes whether the detail
+  /// panel slides in beside it. Icons in the rail therefore never
+  /// move between states, which is the Slack / Notion / Linear
+  /// pattern (and what fixes the "icons jump on expand" feel that
+  /// AnimatedSwitcher between two distinct widgets produces).
   static const double _kRailWidth = 64;
 
-  /// Expanded panel width — same 320dp the launcher's rows were
-  /// originally designed for.
+  /// Total width when the detail panel is open (rail + panel).
   static const double _kPanelWidth = 320;
+
+  /// Detail panel width = total minus rail.
+  static const double _kDetailWidth = _kPanelWidth - _kRailWidth; // 256
 
   @override
   Widget build(BuildContext context) {
@@ -442,39 +447,67 @@ class _HoverSidebarState extends State<_HoverSidebar> {
         width: _expanded ? _kPanelWidth : _kRailWidth,
         child: Material(
           color: theme.colorScheme.surfaceContainerLow,
-          // ClipRect so mid-animation the launcher's wider content
-          // doesn't bleed past the shrinking width.
+          // The trick: lay the inner content out at the FULL panel
+          // width even when the outer AnimatedContainer is narrower
+          // (mid-animation or fully-collapsed). OverflowBox forces
+          // that, ClipRect clips the overhang. Result: the rail's
+          // icons paint at exactly the same screen coordinates in
+          // both states, and the detail panel just becomes
+          // visible/invisible as the clip window grows.
           child: ClipRect(
-            // Local Overlay required: LauncherScreen wraps pinnable
-            // tiles in LongPressDraggable, which needs an Overlay
-            // ancestor for drag feedback. Drawer route (mobile)
-            // supplies one for free; here we're a plain Row child
-            // with no route Navigator, so we host our own.
-            child: Overlay(
-              initialEntries: [
-                OverlayEntry(
-                  // AnimatedSwitcher between rail and full panel —
-                  // a clean cross-fade so swapping content during
-                  // the width animation doesn't pop. Layout-builder
-                  // wrapper hands both modes the live (animated)
-                  // width so they don't try to lay out at full size
-                  // mid-transition and overflow.
-                  builder: (_) => Positioned.fill(
-                    child: SafeArea(
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 150),
-                        child: _expanded
-                            ? const LauncherScreen(
-                                key: ValueKey('panel'),
-                              )
-                            : const LauncherIconRail(
-                                key: ValueKey('rail'),
-                              ),
+            child: OverflowBox(
+              alignment: Alignment.centerLeft,
+              minWidth: _kPanelWidth,
+              maxWidth: _kPanelWidth,
+              child: SafeArea(
+                child: Stack(
+                  children: [
+                    // Detail panel — sits to the right of the rail.
+                    // Wraps in an Overlay because LauncherScreen
+                    // hosts LongPressDraggable feedback and needs
+                    // one as ancestor.
+                    Positioned(
+                      left: _kRailWidth,
+                      top: 0,
+                      bottom: 0,
+                      width: _kDetailWidth,
+                      child: Overlay(
+                        initialEntries: [
+                          OverlayEntry(
+                            builder: (_) => const Positioned.fill(
+                              child: LauncherScreen(),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
+                    // Hairline divider between rail and detail —
+                    // appears only when expanded so the collapsed
+                    // rail doesn't sit next to a stub line.
+                    if (_expanded)
+                      Positioned(
+                        left: _kRailWidth,
+                        top: 0,
+                        bottom: 0,
+                        width: 0.5,
+                        child: Container(
+                          color: theme.colorScheme.outlineVariant,
+                        ),
+                      ),
+                    // Permanent icon rail. Always at left:0 width:64
+                    // — never moves. The Material override gives it
+                    // the same fill as the surrounding panel so the
+                    // visual seam is just the divider above.
+                    const Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: _kRailWidth,
+                      child: LauncherIconRail(),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
