@@ -93,10 +93,15 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
     );
   }
 
-  /// FAB tap when a card is selected → open the full edit sheet
-  /// for that template (groups, room, notes, date range — the
-  /// metadata the inline left/right zones don't expose).
-  Future<void> _openEditForSelected(String templateId) async {
+  /// Tap-already-selected handler. Replaces the previous FAB → ✏️
+  /// flow: tapping a selected card opens its full edit sheet for
+  /// the rare metadata edits (groups, room, notes, date range).
+  Future<void> _openEditForCard(ScheduleItem item) async {
+    final templateId = item.templateId;
+    if (templateId == null) {
+      await _openDetail(item);
+      return;
+    }
     final repo = ref.read(scheduleRepositoryProvider);
     final template = await repo.getTemplate(templateId);
     if (template == null || !mounted) return;
@@ -106,57 +111,35 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
     );
   }
 
-  /// FAB tap when nothing is selected → add a new card to the
-  /// focused day, at the next open 15-min slot, with sensible
-  /// defaults. Scoped to the visible week (startDate=Mon,
-  /// endDate=Fri) so it doesn't accidentally become a forever-
-  /// recurring template — the user said "schedule ahead" → we
-  /// default to one-week scope. Promote-to-recurring lives in the
-  /// edit sheet (FAB→✏️).
-  Future<void> _addCardForFocusedDay() async {
+  /// Empty-slot click handler. Creates a fresh card scoped to the
+  /// visible week with the snapped slot's start time. Marks the
+  /// new id as the fresh-card so the title TextField autofocuses
+  /// on its first build.
+  Future<void> _onCreateAt({
+    required int dayOfWeek,
+    required int snappedStartMinutes,
+  }) async {
     final repo = ref.read(scheduleRepositoryProvider);
     final monday = ref.read(weekPlanWeekProvider);
-    final focusedDay = ref.read(weekPlanFocusedDayProvider);
     final groupFilter = ref.read(weekPlanGroupFilterProvider);
     final friday = monday.add(const Duration(days: 4));
 
-    // Compute the next open 15-min slot. "Open" = the latest
-    // endTime across the day's existing items, snapped up to the
-    // next quarter-hour. Empty day defaults to 9:00 AM.
-    final dayItems = await repo.templatesForDay(focusedDay);
-    var earliestStart = 9 * 60; // 9:00 fallback
-    for (final t in dayItems) {
-      final endMin = Hhmm.tryToMinutes(t.endTime) ?? 0;
-      if (endMin > earliestStart) earliestStart = endMin;
-    }
-    // Snap up to the next 15-min boundary so a 10:42 endTime
-    // produces a 10:45 next-slot (cleaner reads).
-    earliestStart = ((earliestStart + 14) ~/ 15) * 15;
-    if (earliestStart >= 23 * 60) {
-      // Day is full — just default to 16:00 (4pm) and let the
-      // user adjust. Better than refusing the click.
-      earliestStart = 16 * 60;
-    }
-
     final newId = await repo.addTemplate(
-      dayOfWeek: focusedDay,
-      startTime: Hhmm.fromMinutes(earliestStart),
-      endTime: Hhmm.fromMinutes(earliestStart + 30),
-      title: 'New activity',
-      // Group scoping mirrors the active filter:
-      //   * "All" view → all-groups card (visible to every group)
-      //   * specific group view → scope to that group
+      dayOfWeek: dayOfWeek,
+      startTime: Hhmm.fromMinutes(snappedStartMinutes),
+      // Default 30-min duration. The user resizes via edge-drag
+      // (next commit) or via the full edit sheet.
+      endTime: Hhmm.fromMinutes(snappedStartMinutes + 30),
+      title: '',
       groupIds: groupFilter == null ? const [] : [groupFilter],
       allGroups: groupFilter == null,
       startDate: monday,
       endDate: friday,
     );
 
-    // Auto-select the new card so the user can immediately tap
-    // its left zone for title or right zone for time. The
-    // sensible defaults are usually fine but the title is just
-    // "New activity" and almost always wants editing.
+    // Select + mark fresh so the card autofocuses its title input.
     ref.read(weekPlanSelectedTemplateProvider.notifier).select(newId);
+    ref.read(weekPlanFreshCardProvider.notifier).mark(newId);
   }
 
   /// Drop handler — fires when a long-press drag ends. Two paths:
@@ -263,8 +246,6 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
     // Read the visible week through Riverpod so back/forward
     // navigation rebuilds the canvas via provider invalidation.
     final monday = ref.watch(weekPlanWeekProvider);
-    final selectedTemplateId =
-        ref.watch(weekPlanSelectedTemplateProvider);
     final scheduleAsync = ref.watch(scheduleForWeekProvider(monday));
 
     return Scaffold(
@@ -284,28 +265,9 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
           const SizedBox(width: AppSpacing.sm),
         ],
       ),
-      // FAB transforms with selection state. `+` (add to focused
-      // day) when nothing's selected; `✏️` (open edit sheet for
-      // the selected template's metadata) when one is. Animated
-      // crossfade so the swap doesn't feel like the FAB jumped.
-      floatingActionButton: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 180),
-        transitionBuilder: (child, animation) =>
-            ScaleTransition(scale: animation, child: child),
-        child: selectedTemplateId == null
-            ? FloatingActionButton.extended(
-                key: const ValueKey('add'),
-                onPressed: _addCardForFocusedDay,
-                icon: const Icon(Icons.add),
-                label: const Text('Add'),
-              )
-            : FloatingActionButton.extended(
-                key: const ValueKey('edit-more'),
-                onPressed: () => _openEditForSelected(selectedTemplateId),
-                icon: const Icon(Icons.edit_outlined),
-                label: const Text('Edit details'),
-              ),
-      ),
+      // FAB removed — empty-slot click is the canonical add path
+      // and tap-on-selected opens the full edit sheet. Less chrome,
+      // more direct manipulation.
       body: Column(
         children: [
           _WeekNavRow(
@@ -315,9 +277,7 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
             onReset: () =>
                 ref.read(weekPlanWeekProvider.notifier).thisWeek(),
           ),
-          // Group filter chip rail. Lands here in step 2 since it
-          // controls what the canvas renders. Selection / FAB
-          // transform / drag / inline edit follow in steps 3–7.
+          // Group filter chip rail.
           const _GroupFilterRail(),
           Expanded(
             child: scheduleAsync.when(
@@ -327,6 +287,8 @@ class _WeekPlanScreenState extends ConsumerState<WeekPlanScreen> {
                 monday: monday,
                 byDay: byDay,
                 onTapCard: _openDetail,
+                onTapAlreadySelected: _openEditForCard,
+                onCreateAt: _onCreateAt,
                 onCardDrop: _onCardDrop,
               ),
             ),

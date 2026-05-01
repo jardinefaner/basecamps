@@ -97,6 +97,8 @@ class WeekPlanCanvas extends ConsumerStatefulWidget {
   const WeekPlanCanvas({
     required this.monday,
     required this.byDay,
+    required this.onTapAlreadySelected,
+    required this.onCreateAt,
     this.onTapCard,
     this.onCardDrop,
     super.key,
@@ -120,6 +122,19 @@ class WeekPlanCanvas extends ConsumerStatefulWidget {
   /// affordance, snackbars) at the screen level instead of leaking
   /// into the canvas widget.
   final WeekPlanDropHandler? onCardDrop;
+
+  /// Fires when a template card is tapped while it's already
+  /// selected. The screen uses this to open the full edit sheet —
+  /// replaces the FAB → ✏️ flow.
+  final ValueChanged<ScheduleItem> onTapAlreadySelected;
+
+  /// Click on an empty 15-min slot. Receives the snapped start
+  /// minute + the day-of-week so the screen can `addTemplate(...)`
+  /// and mark the new id as fresh-card for autofocus.
+  final Future<void> Function({
+    required int dayOfWeek,
+    required int snappedStartMinutes,
+  }) onCreateAt;
 
   @override
   ConsumerState<WeekPlanCanvas> createState() => _WeekPlanCanvasState();
@@ -251,7 +266,14 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
                                   selectedId: selectedId,
                                   dragState: dragState,
                                   onTapCard: widget.onTapCard,
+                                  onTapAlreadySelected:
+                                      widget.onTapAlreadySelected,
                                   onLongPressEnd: _onLongPressEnd,
+                                  onCreateAt: (snappedStart) =>
+                                      widget.onCreateAt(
+                                    dayOfWeek: d,
+                                    snappedStartMinutes: snappedStart,
+                                  ),
                                 ),
                               ),
                           ],
@@ -435,7 +457,7 @@ class _HourGutter extends StatelessWidget {
   }
 }
 
-class _DayColumn extends StatelessWidget {
+class _DayColumn extends ConsumerStatefulWidget {
   const _DayColumn({
     required this.date,
     required this.weekday,
@@ -444,7 +466,9 @@ class _DayColumn extends StatelessWidget {
     required this.selectedId,
     required this.dragState,
     required this.onTapCard,
+    required this.onTapAlreadySelected,
     required this.onLongPressEnd,
+    required this.onCreateAt,
   });
 
   final DateTime date;
@@ -454,12 +478,35 @@ class _DayColumn extends StatelessWidget {
   final String? selectedId;
   final WeekPlanDragState? dragState;
   final ValueChanged<ScheduleItem>? onTapCard;
+  final ValueChanged<ScheduleItem> onTapAlreadySelected;
   final void Function(LongPressEndDetails) onLongPressEnd;
+  final Future<void> Function(int snappedStartMinutes) onCreateAt;
+
+  @override
+  ConsumerState<_DayColumn> createState() => _DayColumnState();
+}
+
+class _DayColumnState extends ConsumerState<_DayColumn> {
+  /// Hovered slot's start minute, snapped to 15. Null when the
+  /// pointer is off the column body. Drives the faint hover
+  /// outline so the user can see where a click would land.
+  int? _hoveredSlotStart;
+
+  /// Round the local-y to the slot start that contains it.
+  int _slotStartFromLocalY(double localY) {
+    final raw = widget.scale.minutesAtY(localY);
+    final floor15 = (raw ~/ 15) * 15;
+    return floor15.clamp(
+      widget.scale.dayStartMinutes,
+      widget.scale.dayEndMinutes - 15,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isToday = _isToday(date);
+    final isToday = _isToday(widget.date);
+    final scale = widget.scale;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -474,7 +521,7 @@ class _DayColumn extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    DateFormat.E().format(date).toUpperCase(),
+                    DateFormat.E().format(widget.date).toUpperCase(),
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: isToday
                           ? theme.colorScheme.primary
@@ -485,7 +532,7 @@ class _DayColumn extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    DateFormat.d().format(date),
+                    DateFormat.d().format(widget.date),
                     style: theme.textTheme.titleMedium?.copyWith(
                       color: isToday
                           ? theme.colorScheme.primary
@@ -498,7 +545,7 @@ class _DayColumn extends StatelessWidget {
               ),
             ),
           ),
-          // Body: hour grid + cards positioned absolutely.
+          // Body: hour grid + empty-slot hover/click + cards.
           Expanded(
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -507,6 +554,7 @@ class _DayColumn extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Stack(
+                clipBehavior: Clip.none,
                 children: [
                   // Hour rule lines.
                   for (var h = 0;
@@ -536,9 +584,58 @@ class _DayColumn extends StatelessWidget {
                             .withValues(alpha: 0.18),
                       ),
                     ),
+                  // Empty-slot hover + tap-to-create layer. Sits
+                  // BELOW the cards so card hits beat empty-slot
+                  // hits — the empty-slot detector only fires on
+                  // the gaps between cards.
+                  Positioned.fill(
+                    child: MouseRegion(
+                      onHover: (event) {
+                        final slot =
+                            _slotStartFromLocalY(event.localPosition.dy);
+                        if (slot != _hoveredSlotStart) {
+                          setState(() => _hoveredSlotStart = slot);
+                        }
+                      },
+                      onExit: (_) =>
+                          setState(() => _hoveredSlotStart = null),
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTapDown: (details) async {
+                          final slot = _slotStartFromLocalY(
+                            details.localPosition.dy,
+                          );
+                          await widget.onCreateAt(slot);
+                        },
+                      ),
+                    ),
+                  ),
+                  // Hovered-slot outline. Painted over the gesture
+                  // layer (same Stack child order) so it stays
+                  // readable even when the cursor moves fast.
+                  if (_hoveredSlotStart != null)
+                    Positioned(
+                      top: scale.yFor(_hoveredSlotStart!),
+                      left: 4,
+                      right: 4,
+                      height: 15 * _kPxPerMinute,
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary
+                                .withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: theme.colorScheme.primary
+                                  .withValues(alpha: 0.4),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   // The cards. Hidden when this card is the drag
                   // source — the ghost overlay paints in its place.
-                  for (final item in items)
+                  for (final item in widget.items)
                     if (!item.isFullDay)
                       Positioned(
                         top: scale.yFor(item.startMinutes),
@@ -548,19 +645,29 @@ class _DayColumn extends StatelessWidget {
                                 _kPxPerMinute -
                             2,
                         child: Opacity(
-                          opacity: dragState?.templateId == item.templateId
-                              ? 0.25
-                              : 1,
+                          opacity:
+                              widget.dragState?.templateId == item.templateId
+                                  ? 0.25
+                                  : 1,
                           child: _PlanCard(
                             item: item,
-                            weekday: weekday,
+                            weekday: widget.weekday,
                             isSelected: item.templateId != null &&
-                                item.templateId == selectedId,
-                            onTap: onTapCard,
-                            onLongPressEnd: onLongPressEnd,
+                                item.templateId == widget.selectedId,
+                            onTap: widget.onTapCard,
+                            onTapAlreadySelected: widget.onTapAlreadySelected,
+                            onLongPressEnd: widget.onLongPressEnd,
                           ),
                         ),
                       ),
+                  // Selected-card time chips. Top-left = start;
+                  // bottom-left = end. Painted outside the card via
+                  // negative offsets (clipBehavior: Clip.none on the
+                  // body Stack so this works).
+                  for (final item in widget.items)
+                    if (item.templateId != null &&
+                        item.templateId == widget.selectedId)
+                      ..._buildTimeChips(item, scale, theme),
                 ],
               ),
             ),
@@ -568,6 +675,36 @@ class _DayColumn extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Render the start + end time chips for a selected card. Each
+  /// chip is a `Positioned` widget anchored *outside* the card via
+  /// negative offsets — start chip pokes above the top edge, end
+  /// chip pokes below the bottom edge. Both use compact "9:00a"
+  /// format so they read fast.
+  List<Widget> _buildTimeChips(
+    ScheduleItem item,
+    WeekPlanScale scale,
+    ThemeData theme,
+  ) {
+    return [
+      Positioned(
+        top: scale.yFor(item.startMinutes) - 14,
+        left: 4,
+        child: _TimeChip(
+          label: Hhmm.formatCompact(item.startTime),
+          theme: theme,
+        ),
+      ),
+      Positioned(
+        top: scale.yFor(item.endMinutes) - 6,
+        left: 4,
+        child: _TimeChip(
+          label: Hhmm.formatCompact(item.endTime),
+          theme: theme,
+        ),
+      ),
+    ];
   }
 
   static bool _isToday(DateTime date) {
@@ -578,19 +715,60 @@ class _DayColumn extends StatelessWidget {
   }
 }
 
-/// Step-4 card: tap to select; tap selected card's left half →
-/// inline title edit; tap right half → time picker. Tapping an
-/// entry/override falls through to [onTap] (detail sheet) — entries
-/// don't get inline edit because their schema is one-off and the
-/// detail flow already covers them. Step-5 layered on long-press
-/// drag (template-only) — the canvas owns the snap math via
-/// `onLongPressEnd`.
+/// Small time chip floating outside the selected card. Renders as
+/// a pill with the start/end label in primary color.
+class _TimeChip extends StatelessWidget {
+  const _TimeChip({required this.label, required this.theme});
+
+  final String label;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: theme.colorScheme.primary.withValues(alpha: 0.5),
+            width: 0.5,
+          ),
+        ),
+        child: Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.primary,
+            fontWeight: FontWeight.w600,
+            fontSize: 10,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Plan card for the week canvas.
+///
+///   * Body shows just the title — the canonical AppCard look.
+///     Times read from the side chips (`_TimeChip`, painted by the
+///     parent column) and the hour rail on the left.
+///   * Tap unselected → select. Tap already-selected → fires
+///     `onTapAlreadySelected` which opens the full edit sheet.
+///   * Long-press + drag → move (existing snap-to-15 commit-on-
+///     release).
+///   * Fresh-card mode (id matches `weekPlanFreshCardProvider`) →
+///     title TextField autofocuses; commit on Enter or blur. Empty
+///     title → delete the row (gives the user a clean cancel path
+///     for accidental empty-slot clicks).
 class _PlanCard extends ConsumerStatefulWidget {
   const _PlanCard({
     required this.item,
     required this.weekday,
     required this.isSelected,
     required this.onTap,
+    required this.onTapAlreadySelected,
     required this.onLongPressEnd,
   });
 
@@ -598,6 +776,7 @@ class _PlanCard extends ConsumerStatefulWidget {
   final int weekday;
   final bool isSelected;
   final ValueChanged<ScheduleItem>? onTap;
+  final ValueChanged<ScheduleItem> onTapAlreadySelected;
   final void Function(LongPressEndDetails) onLongPressEnd;
 
   @override
@@ -605,28 +784,35 @@ class _PlanCard extends ConsumerStatefulWidget {
 }
 
 class _PlanCardState extends ConsumerState<_PlanCard> {
-  // Local state for inline title editing. Only enters this mode
-  // when the card is already selected and the user taps the left
-  // zone again — gives a clear two-step path (select, then edit)
-  // that prevents accidental edits.
-  bool _editingTitle = false;
   late final TextEditingController _titleController =
       TextEditingController(text: widget.item.title);
   final FocusNode _titleFocus = FocusNode();
 
   @override
+  void initState() {
+    super.initState();
+    // Fresh-card → autofocus on first build.
+    final fresh = ref.read(weekPlanFreshCardProvider);
+    if (fresh != null && fresh == widget.item.templateId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _titleFocus.requestFocus();
+        _titleController.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: _titleController.text.length,
+        );
+      });
+    }
+  }
+
+  @override
   void didUpdateWidget(covariant _PlanCard old) {
     super.didUpdateWidget(old);
-    // Card got deselected (selection moved elsewhere) → exit edit
-    // mode without committing. The user can re-select and re-edit
-    // if they meant to.
-    if (old.isSelected && !widget.isSelected && _editingTitle) {
-      _editingTitle = false;
-    }
     // Source title changed (cloud sync, edit elsewhere) — refresh
     // the controller so the field reflects truth, but not while
     // the user is mid-edit (don't yank text out from under them).
-    if (!_editingTitle && widget.item.title != _titleController.text) {
+    if (!_titleFocus.hasFocus &&
+        widget.item.title != _titleController.text) {
       _titleController.text = widget.item.title;
     }
   }
@@ -639,13 +825,10 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
   }
 
   bool get _isTemplate => widget.item.templateId != null;
+  bool get _isFresh =>
+      ref.watch(weekPlanFreshCardProvider) == widget.item.templateId;
 
-  /// Tap on the LEFT half (title zone). State machine:
-  ///   1. unselected → select
-  ///   2. selected, not editing → enter edit mode (focus the
-  ///      TextField)
-  ///   3. selected, editing → no-op (the TextField has focus)
-  void _onLeftZoneTap() {
+  void _onTap() {
     if (!_isTemplate) {
       widget.onTap?.call(widget.item);
       return;
@@ -656,146 +839,35 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
           .select(widget.item.templateId!);
       return;
     }
-    // Already selected — enter title edit.
-    setState(() => _editingTitle = true);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _titleFocus.requestFocus();
-      _titleController.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: _titleController.text.length,
-      );
-    });
+    // Already selected → second tap opens the full edit sheet.
+    widget.onTapAlreadySelected(widget.item);
   }
 
-  /// Common durations exposed in the right-zone popup. Stops at
-  /// 3 hours — anything longer is a "block" or "trip" the user
-  /// is better off building through the full edit sheet.
-  static const List<int> _kDurationChoices = [
-    15,
-    30,
-    45,
-    60,
-    75,
-    90,
-    105,
-    120,
-    150,
-    180,
-  ];
-
-  /// Tap on the RIGHT half (duration zone). Same first-tap-selects
-  /// pattern as the left zone, then a second tap pops a popup menu
-  /// of common durations. Picking one shifts the end time (start
-  /// stays put). For a fully custom duration the user goes through
-  /// the FAB → ✏️ edit details sheet.
-  Future<void> _onRightZoneTap() async {
-    if (!_isTemplate) {
-      widget.onTap?.call(widget.item);
-      return;
-    }
-    if (!widget.isSelected) {
-      ref
-          .read(weekPlanSelectedTemplateProvider.notifier)
-          .select(widget.item.templateId!);
-      return;
-    }
-
-    final box = context.findRenderObject() as RenderBox?;
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (box == null || overlay == null) return;
-    // Anchor the menu just below the right zone so it doesn't cover
-    // the card itself. `position` is relative to the overlay (the
-    // root navigator's overlay) — we project the card's
-    // bottom-right corner into overlay-local coordinates.
-    final cardBottomRight = box.localToGlobal(
-      box.size.bottomRight(Offset.zero),
-      ancestor: overlay,
-    );
-    final position = RelativeRect.fromLTRB(
-      cardBottomRight.dx,
-      cardBottomRight.dy,
-      overlay.size.width - cardBottomRight.dx,
-      overlay.size.height - cardBottomRight.dy,
-    );
-
-    final currentDuration =
-        widget.item.endMinutes - widget.item.startMinutes;
-    final newDuration = await showMenu<int>(
-      context: context,
-      position: position,
-      items: [
-        for (final mins in _kDurationChoices)
-          PopupMenuItem<int>(
-            value: mins,
-            // Highlight the current duration so the user sees
-            // the menu opened in the right state.
-            child: Row(
-              children: [
-                Icon(
-                  mins == currentDuration ? Icons.check : null,
-                  size: 16,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 8),
-                Text(_DurationLabel.formatDuration(mins)),
-              ],
-            ),
-          ),
-      ],
-    );
-
-    if (newDuration == null ||
-        newDuration == currentDuration ||
-        !mounted) {
-      return;
-    }
-    final newEndMinutes = widget.item.startMinutes + newDuration;
-    if (newEndMinutes >= 24 * 60) {
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text("That'd push the end past midnight."),
-          ),
-        );
-      return;
-    }
-    final repo = ref.read(scheduleRepositoryProvider);
-    // Start stays put; only the end shifts.
-    await repo.shiftTemplateStart(
-      templateId: widget.item.templateId!,
-      newStartTime: widget.item.startTime,
-      newEndTime: Hhmm.fromMinutes(newEndMinutes),
-    );
-  }
-
-  /// Commit the title edit. Called on enter, on blur, or when
-  /// selection moves away. Idempotent — no-op when the value
-  /// hasn't changed.
+  /// Commit the title from the fresh-card TextField. Called on
+  /// Enter or `onTapOutside`. Empty title → delete the row (clean
+  /// cancel path for accidental empty-slot clicks).
   Future<void> _commitTitle() async {
-    if (!_editingTitle) return;
+    if (!_isFresh) return;
     final trimmed = _titleController.text.trim();
-    setState(() => _editingTitle = false);
-    if (trimmed.isEmpty || trimmed == widget.item.title) {
-      // Empty title is silently discarded (revert to what was
-      // there). Same-as-before is a no-op write.
-      _titleController.text = widget.item.title;
+    final repo = ref.read(scheduleRepositoryProvider);
+    if (trimmed.isEmpty) {
+      await repo.deleteTemplate(widget.item.templateId!);
+      ref.read(weekPlanFreshCardProvider.notifier).clear();
       return;
     }
-    final repo = ref.read(scheduleRepositoryProvider);
-    await repo.renameTemplate(
-      templateId: widget.item.templateId!,
-      newTitle: trimmed,
-    );
+    if (trimmed != widget.item.title) {
+      await repo.renameTemplate(
+        templateId: widget.item.templateId!,
+        newTitle: trimmed,
+      );
+    }
+    ref.read(weekPlanFreshCardProvider.notifier).clear();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final item = widget.item;
-    final tinyDuration =
-        item.endMinutes - item.startMinutes < 30; // <30 min = "tiny"
 
     // Match the AppCard look used everywhere else in the app:
     //   * default — neutral card surface, transparent border (kept
@@ -813,6 +885,7 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
         isSelected ? theme.colorScheme.primary : Colors.transparent;
     const borderWidth = 1.5;
 
+    final isFresh = _isFresh;
     final card = Material(
       color: cardColor,
       shape: RoundedRectangleBorder(
@@ -820,75 +893,53 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
         side: BorderSide(color: borderColor, width: borderWidth),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: InkWell(
-              onTap: _onLeftZoneTap,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 4, 6),
-                child: _editingTitle
-                    ? TextField(
-                        controller: _titleController,
-                        focusNode: _titleFocus,
-                        autofocus: true,
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: fg,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        cursorColor: fg,
-                        decoration: const InputDecoration(
-                          isDense: true,
-                          contentPadding: EdgeInsets.zero,
-                          border: InputBorder.none,
-                        ),
-                        onSubmitted: (_) => _commitTitle(),
-                        onTapOutside: (_) => _commitTitle(),
-                      )
-                    : Text(
-                        item.title,
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: fg,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: tinyDuration ? 1 : 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-              ),
-            ),
+      child: InkWell(
+        onTap: isFresh ? null : _onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 8,
           ),
-          // Hairline divider so the two tap zones read as distinct.
-          Container(
-            width: 0.5,
-            height: double.infinity,
-            color: theme.colorScheme.outlineVariant,
-          ),
-          Expanded(
-            flex: 2,
-            child: InkWell(
-              onTap: _onRightZoneTap,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(4, 6, 8, 6),
-                child: _DurationLabel(
-                  durationMinutes:
-                      item.endMinutes - item.startMinutes,
-                  color: fg,
-                  location:
-                      tinyDuration ? null : item.location,
+          child: isFresh
+              ? TextField(
+                  controller: _titleController,
+                  focusNode: _titleFocus,
+                  autofocus: true,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: fg,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  cursorColor: fg,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                    border: InputBorder.none,
+                    hintText: 'Activity name…',
+                    hintStyle: theme.textTheme.titleSmall?.copyWith(
+                      color: fg.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  onSubmitted: (_) => _commitTitle(),
+                  onTapOutside: (_) => _commitTitle(),
+                )
+              : Text(
+                  item.title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: fg,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
 
-    // Long-press wraps the whole card; taps go to the inner two
-    // InkWells. Skip the gesture for non-template items — entries
-    // can't be moved through this surface (their date is the
-    // source of truth).
-    if (!_isTemplate) return card;
+    // Long-press wraps the whole card. Skip for non-template items
+    // (entries can't move through this surface — their date is the
+    // source of truth) and for the fresh-card mode (the user is
+    // typing; a stray long-press shouldn't yank the card away).
+    if (!_isTemplate || isFresh) return card;
     return GestureDetector(
       onLongPressStart: _onLongPressStart,
       onLongPressMoveUpdate: _onLongPressMoveUpdate,
@@ -920,77 +971,6 @@ class _PlanCardState extends ConsumerState<_PlanCard> {
   }
 }
 
-/// Right-zone label: shows the activity's **duration** as a
-/// compact human label ("30 min", "1 hr", "1h 15m"). Replaces the
-/// previous start–end time pair — the start time is already
-/// implicit from the card's vertical position + the hour gutter
-/// on the left, so showing it again was redundant. Duration is
-/// the missing-info bit (the user can't infer "is this 30min or
-/// 90min?" from position alone if they don't measure pixels).
-///
-/// Optional [location] sits below the duration on stacked-body
-/// cards (≥30min). Tiny cards skip the location to avoid
-/// truncated overflow.
-class _DurationLabel extends StatelessWidget {
-  const _DurationLabel({
-    required this.durationMinutes,
-    required this.color,
-    this.location,
-  });
-
-  final int durationMinutes;
-  final Color color;
-  final String? location;
-
-  static String formatDuration(int minutes) {
-    if (minutes < 60) return '$minutes min';
-    final hours = minutes ~/ 60;
-    final mins = minutes % 60;
-    if (mins == 0) return hours == 1 ? '1 hr' : '$hours hr';
-    return '${hours}h ${mins}m';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final label = formatDuration(durationMinutes);
-    final hasLocation = location != null && location!.isNotEmpty;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      mainAxisAlignment: hasLocation
-          ? MainAxisAlignment.spaceBetween
-          : MainAxisAlignment.center,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.labelMedium?.copyWith(
-            color: color.withValues(alpha: 0.85),
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        if (hasLocation)
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text(
-              location!,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: color.withValues(alpha: 0.6),
-                fontStyle: FontStyle.italic,
-              ),
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.right,
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-/// Ghost card painted on top of the canvas while the user is mid-
-/// drag. Follows the pointer (offset by the original pickup
-/// position so the card "lifts from where the finger was"), and
-/// renders a duplicate icon overlay when Alt is held — that's the
-/// step-7 hint that release will copy rather than move.
 class _DragGhost extends StatelessWidget {
   const _DragGhost({
     required this.state,
@@ -1012,10 +992,8 @@ class _DragGhost extends StatelessWidget {
     final ghostTop = canvasLocal.dy - state.pickupOffsetLocal.dy;
 
     final canvasSize = box.size;
-    final ghostLeft =
-        canvasLocal.dx - state.pickupOffsetLocal.dx;
-    final ghostHeight =
-        state.durationMinutes * _kPxPerMinute - 2;
+    final ghostLeft = canvasLocal.dx - state.pickupOffsetLocal.dx;
+    final ghostHeight = state.durationMinutes * _kPxPerMinute - 2;
 
     final altHeld = HardwareKeyboard.instance.isAltPressed;
 
