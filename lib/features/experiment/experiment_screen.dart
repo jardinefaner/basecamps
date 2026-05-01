@@ -1,28 +1,40 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:basecamp/features/ai/openai_client.dart';
 import 'package:basecamp/theme/spacing.dart';
-import 'package:basecamp/ui/adaptive_sheet.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
 
-/// Sandbox surface for trying things out before they earn a real home.
+/// Sandbox surface for trying things out before they earn a real
+/// home. The current experiment: **WYSIWYG activity cards.**
 ///
-/// Current experiment: **inline-edit activity card.** The FAB drops a
-/// preformatted card onto the canvas with three placeholder labels —
-/// **Activity Name** (bold), Describe, and Reference Link (styled like
-/// a hyperlink). Each label is tap-to-edit in place: the placeholder
-/// disappears, a TextField takes over with the same style, the user
-/// types, and on blur/enter the field commits back to a Text. No
-/// page-by-page form, no save button — the card *is* the form.
+/// **Mental model:** the card *is* the document. There's no input
+/// chrome — no borders, no underlines, no field labels — so the
+/// edit state is visually identical to the display state. The only
+/// transition between "writing" and "reading" a card is the cursor
+/// blinking. No jumpiness because the TextField and the Text use
+/// the same [TextStyle], same line height, same hit area.
 ///
-/// Double-tap the card to open the advanced editor in an adaptive
-/// sheet (bottom on phones, side panel on web). That surface gives
-/// the same three fields more room to breathe — labels, multi-line
-/// description, link validation — without making the inline path
-/// feel like a watered-down version.
+/// **Edit lifecycle:**
+///   1. FAB `+` opens an action menu — *New activity* (blank card)
+///      or *AI activity* (describe / paste a link, model fills it in).
+///   2. While any card is being edited, the FAB morphs into `✓` Done.
+///      Tapping Done unfocuses + cleans up: empty fields disappear
+///      from the card, and a card with every field empty is removed
+///      entirely.
+///   3. Tapping a card in display mode re-enters edit mode (with
+///      placeholders for empty fields), so the user can append a
+///      description or link any time.
 ///
-/// Title is the only required field; the other two are optional.
-/// Drafts live in memory only — this screen has no persistence.
-/// When this experiment graduates, lift it into its own feature
-/// directory and wire it to the activity-library repo.
+/// **Display rule:** in display mode each field renders only if it
+/// has content. A title-only card shows just the title. The
+/// "Activity Name" / "Describe" / "Reference Link" placeholders
+/// appear only inside edit mode — display mode stays clean.
+///
+/// Drafts live in memory only. When the pattern graduates we'll
+/// back it with the activity-library repo; until then this is
+/// disposable.
 class ExperimentScreen extends StatefulWidget {
   const ExperimentScreen({super.key});
 
@@ -31,30 +43,93 @@ class ExperimentScreen extends StatefulWidget {
 }
 
 class _ExperimentScreenState extends State<ExperimentScreen> {
-  // In-memory only — this is a sandbox, not a feature. When the
-  // pattern graduates we'll back it with the activity-library repo;
-  // until then drafts just live for the lifetime of the screen.
+  // In-memory only — sandbox.
   final List<_ActivityDraft> _drafts = [];
 
-  void _addDraft() {
+  // Which draft (if any) is currently being edited. Only one card
+  // edits at a time — keeps the FAB state unambiguous (any non-null
+  // value here flips the FAB into Done) and means tapping a different
+  // card cleanly hands off edit mode without worrying about how to
+  // close the previous one.
+  _ActivityDraft? _editingDraft;
+
+  bool get _isEditing => _editingDraft != null;
+
+  void _addBlank() {
+    final draft = _ActivityDraft();
     setState(() {
-      _drafts.add(_ActivityDraft());
+      _drafts.add(draft);
+      _editingDraft = draft;
     });
   }
 
-  Future<void> _openAdvanced(_ActivityDraft draft) async {
-    await showAdaptiveSheet<void>(
+  Future<void> _showAddMenu() async {
+    await showModalBottomSheet<void>(
       context: context,
-      builder: (_) => _AdvancedActivityEditor(
-        draft: draft,
-        // Bubble the changes back as a setState so the underlying
-        // card re-renders with whatever the sheet edited. No save
-        // button on the sheet either — close is commit.
-        onChanged: () {
-          if (mounted) setState(() {});
-        },
+      showDragHandle: true,
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.add),
+              title: const Text('New activity'),
+              subtitle: const Text('Blank card to fill in'),
+              onTap: () {
+                Navigator.of(sheetCtx).pop();
+                _addBlank();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.auto_awesome_outlined),
+              title: const Text('AI activity'),
+              subtitle: const Text('Describe an idea or paste a link'),
+              onTap: () {
+                Navigator.of(sheetCtx).pop();
+                // Fire-and-forget — the composer manages its own
+                // lifecycle and we don't need to await here (the
+                // ListTile's onTap is sync).
+                unawaited(_openAiComposer());
+              },
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _openAiComposer() async {
+    final result = await showModalBottomSheet<_ActivityDraft>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => const _AiActivityComposer(),
+    );
+    if (!mounted || result == null) return;
+    // AI-generated cards land in display mode (already populated) —
+    // the user can tap to refine, but nothing's auto-edit so we don't
+    // shove the keyboard up unsolicited.
+    setState(() => _drafts.add(result));
+  }
+
+  void _enterEditMode(_ActivityDraft draft) {
+    if (_editingDraft == draft) return;
+    setState(() => _editingDraft = draft);
+  }
+
+  void _doneEditing() {
+    // Drop focus first so any pending controller writes have settled
+    // before we run cleanup on the underlying values.
+    FocusScope.of(context).unfocus();
+    setState(() {
+      // Cleanup: a card with no content at all (user tapped + then
+      // tapped Done without typing) shouldn't linger as a ghost.
+      _drafts.removeWhere(
+        (d) => d.title.isEmpty && d.description.isEmpty && d.link.isEmpty,
+      );
+      _editingDraft = null;
+    });
   }
 
   @override
@@ -62,73 +137,143 @@ class _ExperimentScreenState extends State<ExperimentScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Experiment')),
       body: _drafts.isEmpty
-          // Empty state intentionally barren — the FAB is the only
-          // affordance on a blank canvas. Once the user taps it, the
-          // first card slides in and the canvas takes over.
+          // Blank canvas — the FAB is the only affordance until the
+          // first card lands.
           ? const SizedBox.expand()
           : ListView.builder(
               padding: const EdgeInsets.all(AppSpacing.lg),
               itemCount: _drafts.length,
-              itemBuilder: (_, i) => Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: _ActivityDraftCard(
-                  // ValueKey on the draft instance so reordering
-                  // (future) doesn't recycle inline-edit state across
-                  // cards.
-                  key: ValueKey(_drafts[i]),
-                  draft: _drafts[i],
-                  onChanged: () => setState(() {}),
-                  onAdvancedEdit: () => _openAdvanced(_drafts[i]),
-                ),
-              ),
+              itemBuilder: (_, i) {
+                final draft = _drafts[i];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                  child: _ActivityDraftCard(
+                    // ValueKey on the draft instance so reordering or
+                    // deletion can't recycle one card's controllers
+                    // into another card's slot.
+                    key: ValueKey(draft),
+                    draft: draft,
+                    isEditing: _editingDraft == draft,
+                    onEnterEdit: () => _enterEditMode(draft),
+                  ),
+                );
+              },
             ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _addDraft,
-        tooltip: 'New activity',
-        child: const Icon(Icons.add),
+        onPressed: _isEditing ? _doneEditing : _showAddMenu,
+        tooltip: _isEditing ? 'Done' : 'Add activity',
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          transitionBuilder: (child, anim) =>
+              ScaleTransition(scale: anim, child: child),
+          child: Icon(
+            _isEditing ? Icons.check : Icons.add,
+            // Key by the bool so AnimatedSwitcher actually swaps; the
+            // icons would otherwise be considered "the same widget."
+            key: ValueKey(_isEditing),
+          ),
+        ),
       ),
     );
   }
 }
 
-/// Mutable draft model for an experimental activity card. Plain class,
-/// not a `@freezed` record, because the inline-edit UX writes back
-/// field-by-field and `copyWith` per keystroke would be churn.
+/// Mutable draft model. Plain class (not freezed) — the inline-edit
+/// loop mutates field-by-field and per-keystroke `copyWith` would
+/// just be churn for an in-memory sandbox.
 class _ActivityDraft {
   String title = '';
   String description = '';
   String link = '';
 }
 
-/// Preformatted card with three inline-editable fields:
-///   * **Activity Name** — bold, primary line. Required (the user is
-///     expected to fill this; we don't enforce it on the inline path
-///     since the only way to "commit" is the card existing — but the
-///     advanced editor labels it as required).
-///   * Describe — body text, one or two lines.
-///   * Reference Link — primary-tinted + underlined so it reads as a
-///     URL even before any text is entered.
+/// One activity card. WYSIWYG: in **display mode** it renders only
+/// the fields the user has filled in (a title-only card is just a
+/// bold title). In **edit mode** it renders all three slots as
+/// borderless [TextField]s using the exact same [TextStyle]s as the
+/// display [Text]s, so toggling between modes never shifts a pixel.
 ///
-/// Single-tap a field → the field becomes a TextField at the same
-/// style, autofocused, ready to type. Blur or enter commits.
-///
-/// Double-tap anywhere on the card → opens the advanced editor in an
-/// adaptive sheet. The two gestures coexist via Flutter's gesture
-/// arena: the field's onTap is delayed by the double-tap timeout when
-/// a parent onDoubleTap is registered, which is the standard cost of
-/// nesting these — acceptable here because the double-tap path is the
-/// power-user shortcut, not the primary flow.
-class _ActivityDraftCard extends StatelessWidget {
+/// Single-tap a display-mode card → enter edit mode. While in edit
+/// mode the parent's FAB shows Done; tapping it clears `_editingDraft`
+/// at the screen level, which kicks this card back into display mode
+/// (and runs the screen's empty-card cleanup pass).
+class _ActivityDraftCard extends StatefulWidget {
   const _ActivityDraftCard({
     required this.draft,
-    required this.onChanged,
-    required this.onAdvancedEdit,
+    required this.isEditing,
+    required this.onEnterEdit,
     super.key,
   });
 
   final _ActivityDraft draft;
-  final VoidCallback onChanged;
-  final VoidCallback onAdvancedEdit;
+  final bool isEditing;
+  final VoidCallback onEnterEdit;
+
+  @override
+  State<_ActivityDraftCard> createState() => _ActivityDraftCardState();
+}
+
+class _ActivityDraftCardState extends State<_ActivityDraftCard> {
+  late final TextEditingController _title =
+      TextEditingController(text: widget.draft.title);
+  late final TextEditingController _description =
+      TextEditingController(text: widget.draft.description);
+  late final TextEditingController _link =
+      TextEditingController(text: widget.draft.link);
+
+  // Title focus is the one we actively grab on first edit-mode entry
+  // (so a freshly-added blank card has the keyboard up on the title
+  // line). Description/link don't need their own focus nodes since
+  // the user explicitly taps them when ready.
+  final FocusNode _titleFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _title.addListener(_pushTitle);
+    _description.addListener(_pushDescription);
+    _link.addListener(_pushLink);
+    if (widget.isEditing && widget.draft.title.isEmpty) {
+      _focusTitleNextFrame();
+    }
+  }
+
+  // Listeners write back to the draft on every keystroke. They don't
+  // call setState — the parent screen doesn't need to rebuild on
+  // every character (only on edit/display transitions, which it
+  // controls itself via _editingDraft).
+  void _pushTitle() => widget.draft.title = _title.text;
+  void _pushDescription() => widget.draft.description = _description.text;
+  void _pushLink() => widget.draft.link = _link.text;
+
+  void _focusTitleNextFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _titleFocus.requestFocus();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _ActivityDraftCard old) {
+    super.didUpdateWidget(old);
+    // Card just transitioned into edit mode AND has no title yet →
+    // grab focus so the user can start typing immediately. We don't
+    // grab focus on every entry into edit mode — only the empty case
+    // where there's no ambiguity about which field is "next."
+    if (widget.isEditing &&
+        !old.isEditing &&
+        widget.draft.title.isEmpty) {
+      _focusTitleNextFrame();
+    }
+  }
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _description.dispose();
+    _link.dispose();
+    _titleFocus.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -144,282 +289,213 @@ class _ActivityDraftCard extends StatelessWidget {
       decorationColor: cs.primary,
     );
 
-    // Placeholders share the field's style but with the muted
-    // `onSurfaceVariant` color so they read as "tap to fill" rather
-    // than committed text. Same rule for the link placeholder — keep
-    // the underline so the affordance is recognisable even empty.
-    final placeholderTitleStyle = titleStyle.copyWith(
-      color: cs.onSurfaceVariant.withValues(alpha: 0.55),
-    );
-    final placeholderBodyStyle = bodyStyle.copyWith(
-      color: cs.onSurfaceVariant.withValues(alpha: 0.55),
-    );
-    final placeholderLinkStyle = linkStyle.copyWith(
-      color: cs.onSurfaceVariant.withValues(alpha: 0.55),
-      decorationColor: cs.onSurfaceVariant.withValues(alpha: 0.55),
+    // Placeholders share the field's exact style but with the muted
+    // `onSurfaceVariant` color so they read as "scaffolding" rather
+    // than committed text. Important for WYSIWYG: same fontSize, same
+    // weight, same decoration — only the color differs.
+    final placeholderColor = cs.onSurfaceVariant.withValues(alpha: 0.55);
+    final placeholderTitle = titleStyle.copyWith(color: placeholderColor);
+    final placeholderBody = bodyStyle.copyWith(color: placeholderColor);
+    final placeholderLink = linkStyle.copyWith(
+      color: placeholderColor,
+      decorationColor: placeholderColor,
     );
 
     return GestureDetector(
-      // Double-tap target covers the whole card — the user shouldn't
-      // have to aim for a button to graduate to advanced edit.
-      onDoubleTap: onAdvancedEdit,
-      // Opaque so the gesture detector receives taps even on empty
-      // padding between fields (otherwise the AppCard's transparent
-      // gaps swallow them).
+      // Display-mode tap → enter edit. Edit mode lets the inner
+      // TextFields handle their own taps (don't intercept or focus
+      // toggling won't work).
+      onTap: widget.isEditing ? null : widget.onEnterEdit,
+      // Opaque so taps on empty padding between fields still register
+      // (otherwise the AppCard's gaps would swallow them).
       behavior: HitTestBehavior.opaque,
       child: AppCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _InlineEditableText(
-              value: draft.title,
-              placeholder: 'Activity Name',
-              style: titleStyle,
-              placeholderStyle: placeholderTitleStyle,
-              onChanged: (v) {
-                draft.title = v;
-                onChanged();
-              },
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _InlineEditableText(
-              value: draft.description,
-              placeholder: 'Describe',
-              style: bodyStyle,
-              placeholderStyle: placeholderBodyStyle,
-              maxLines: 3,
-              onChanged: (v) {
-                draft.description = v;
-                onChanged();
-              },
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _InlineEditableText(
-              value: draft.link,
-              placeholder: 'Reference Link',
-              style: linkStyle,
-              placeholderStyle: placeholderLinkStyle,
-              keyboardType: TextInputType.url,
-              onChanged: (v) {
-                draft.link = v;
-                onChanged();
-              },
-            ),
-          ],
-        ),
+        child: widget.isEditing
+            ? _buildEditMode(
+                titleStyle: titleStyle,
+                bodyStyle: bodyStyle,
+                linkStyle: linkStyle,
+                placeholderTitle: placeholderTitle,
+                placeholderBody: placeholderBody,
+                placeholderLink: placeholderLink,
+              )
+            : _buildDisplayMode(
+                titleStyle: titleStyle,
+                bodyStyle: bodyStyle,
+                linkStyle: linkStyle,
+                placeholderTitle: placeholderTitle,
+              ),
       ),
+    );
+  }
+
+  /// Display-mode column: only fields with content. A card with just
+  /// a title is just a bold line. If everything is empty (transient
+  /// state right before edit mode kicks in), we render a muted
+  /// "Activity Name" so the card has a visible footprint to tap.
+  Widget _buildDisplayMode({
+    required TextStyle titleStyle,
+    required TextStyle bodyStyle,
+    required TextStyle linkStyle,
+    required TextStyle placeholderTitle,
+  }) {
+    final children = <Widget>[];
+    if (widget.draft.title.isNotEmpty) {
+      children.add(Text(widget.draft.title, style: titleStyle));
+    }
+    if (widget.draft.description.isNotEmpty) {
+      if (children.isNotEmpty) {
+        children.add(const SizedBox(height: AppSpacing.sm));
+      }
+      children.add(Text(widget.draft.description, style: bodyStyle));
+    }
+    if (widget.draft.link.isNotEmpty) {
+      if (children.isNotEmpty) {
+        children.add(const SizedBox(height: AppSpacing.sm));
+      }
+      children.add(Text(widget.draft.link, style: linkStyle));
+    }
+    if (children.isEmpty) {
+      // Truly empty card — render a muted title placeholder so the
+      // card is at least tappable. The screen's Done cleanup will
+      // delete this if the user never enters anything.
+      children.add(Text('Activity Name', style: placeholderTitle));
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: children,
+    );
+  }
+
+  /// Edit-mode column: all three fields as borderless TextFields.
+  /// Each TextField uses [InputDecoration.collapsed] so it renders
+  /// with zero chrome — no border, no underline, no padding beyond
+  /// the text glyphs themselves. Result: a TextField that occupies
+  /// the same vertical space as a Text with the same style, which is
+  /// what kills the toggle jumpiness.
+  Widget _buildEditMode({
+    required TextStyle titleStyle,
+    required TextStyle bodyStyle,
+    required TextStyle linkStyle,
+    required TextStyle placeholderTitle,
+    required TextStyle placeholderBody,
+    required TextStyle placeholderLink,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          controller: _title,
+          focusNode: _titleFocus,
+          style: titleStyle,
+          textInputAction: TextInputAction.next,
+          // cursorHeight matched to fontSize so the cursor doesn't
+          // tower over the glyphs (default cursor extends past line
+          // height a bit, which would shift the visual baseline).
+          cursorHeight: titleStyle.fontSize,
+          decoration: InputDecoration.collapsed(
+            hintText: 'Activity Name',
+            hintStyle: placeholderTitle,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        TextField(
+          controller: _description,
+          style: bodyStyle,
+          maxLines: null,
+          textInputAction: TextInputAction.newline,
+          cursorHeight: bodyStyle.fontSize,
+          decoration: InputDecoration.collapsed(
+            hintText: 'Describe',
+            hintStyle: placeholderBody,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        TextField(
+          controller: _link,
+          style: linkStyle,
+          keyboardType: TextInputType.url,
+          textInputAction: TextInputAction.done,
+          cursorHeight: linkStyle.fontSize,
+          decoration: InputDecoration.collapsed(
+            hintText: 'Reference Link',
+            hintStyle: placeholderLink,
+          ),
+        ),
+      ],
     );
   }
 }
 
-/// Single inline-editable text field. Renders as a styled [Text] with
-/// the placeholder when not editing; tap swaps in a [TextField] with
-/// the same visual style so there's zero layout shift between read
-/// and edit modes. Blur or `onSubmitted` commits and swaps back.
-///
-/// Why not always a TextField? Two reasons:
-///   1. A TextField always paints a cursor when focused and renders
-///      hint text in a different (typically lighter) style — the read
-///      state would never quite match a Text widget rendered with the
-///      same `style`.
-///   2. The double-tap-to-open-advanced gesture on the parent card
-///      conflicts with a TextField's own gesture handling; switching
-///      to Text in the read state lets the parent's onDoubleTap fire
-///      cleanly when the user isn't actively editing.
-class _InlineEditableText extends StatefulWidget {
-  const _InlineEditableText({
-    required this.value,
-    required this.placeholder,
-    required this.style,
-    required this.placeholderStyle,
-    required this.onChanged,
-    this.maxLines = 1,
-    this.keyboardType,
-  });
+// ---------------------------------------------------------------
+// AI activity composer
+// ---------------------------------------------------------------
 
-  final String value;
-  final String placeholder;
-  final TextStyle style;
-  final TextStyle placeholderStyle;
-  final ValueChanged<String> onChanged;
-  final int maxLines;
-  final TextInputType? keyboardType;
+/// URL detector — anything that looks like an HTTP(S) link in the
+/// user's freeform prompt. We pluck the URL out and assign it to
+/// the draft's `link` field directly rather than asking the model
+/// to echo it back, because (a) it's already verbatim from the user
+/// and (b) it removes a class of "the model paraphrased the URL"
+/// failures.
+final _urlPattern = RegExp(r'https?://\S+');
+
+/// Bottom-sheet composer. User types a description or pastes a link,
+/// taps Generate, the OpenAI proxy returns `{title, description}`,
+/// and we hand a populated [_ActivityDraft] back via Navigator.pop.
+class _AiActivityComposer extends StatefulWidget {
+  const _AiActivityComposer();
 
   @override
-  State<_InlineEditableText> createState() => _InlineEditableTextState();
+  State<_AiActivityComposer> createState() => _AiActivityComposerState();
 }
 
-class _InlineEditableTextState extends State<_InlineEditableText> {
-  bool _editing = false;
-  late final TextEditingController _ctrl;
-  late final FocusNode _focus;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = TextEditingController(text: widget.value);
-    _focus = FocusNode()..addListener(_onFocusChange);
-  }
-
-  @override
-  void didUpdateWidget(covariant _InlineEditableText old) {
-    super.didUpdateWidget(old);
-    // Sync the controller when the parent's value changes from
-    // outside (e.g. the advanced editor sheet wrote back) and we're
-    // not currently editing — otherwise the user's in-progress edit
-    // would get overwritten.
-    if (!_editing && widget.value != _ctrl.text) {
-      _ctrl.text = widget.value;
-    }
-  }
+class _AiActivityComposerState extends State<_AiActivityComposer> {
+  final _ctrl = TextEditingController();
+  bool _generating = false;
+  String? _error;
 
   @override
   void dispose() {
-    _focus
-      ..removeListener(_onFocusChange)
-      ..dispose();
     _ctrl.dispose();
     super.dispose();
   }
 
-  void _onFocusChange() {
-    // Blur = commit. Covers tapping elsewhere on the card, tapping
-    // another field, swiping to dismiss the keyboard, the user
-    // double-tapping into the advanced editor, etc.
-    if (!_focus.hasFocus && _editing) _commit();
-  }
-
-  void _startEdit() {
-    if (_editing) return;
+  Future<void> _generate() async {
+    final input = _ctrl.text.trim();
+    if (input.isEmpty || _generating) return;
     setState(() {
-      _editing = true;
-      _ctrl.text = widget.value;
+      _generating = true;
+      _error = null;
     });
-    // Focus on the next frame so the TextField has been built and
-    // can actually take focus.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _focus.requestFocus();
-    });
-  }
-
-  void _commit() {
-    if (!_editing) return;
-    setState(() => _editing = false);
-    widget.onChanged(_ctrl.text);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_editing) {
-      return TextField(
-        controller: _ctrl,
-        focusNode: _focus,
-        style: widget.style,
-        maxLines: widget.maxLines,
-        keyboardType: widget.keyboardType,
-        textInputAction: widget.maxLines == 1
-            ? TextInputAction.done
-            : TextInputAction.newline,
-        // Collapsed decoration removes the default underline + extra
-        // padding so the TextField occupies the same vertical space
-        // as the Text it replaces — no jumpiness when toggling.
-        decoration: const InputDecoration.collapsed(hintText: ''),
-        onSubmitted: widget.maxLines == 1 ? (_) => _commit() : null,
-      );
+    try {
+      final draft = await _generateActivityDraft(input);
+      if (!mounted) return;
+      Navigator.of(context).pop(draft);
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _generating = false;
+        // Trim the exception's class prefix — users don't need to
+        // see "OpenAiClientException(...)" to understand "the model
+        // didn't respond, try again."
+        _error = e.toString().replaceFirst(RegExp(r'^[^:]+:\s*'), '');
+      });
     }
-    final isEmpty = widget.value.isEmpty;
-    return GestureDetector(
-      // Opaque so taps on the line (including the empty space to the
-      // right of short text) all enter edit mode.
-      behavior: HitTestBehavior.opaque,
-      onTap: _startEdit,
-      child: Text(
-        isEmpty ? widget.placeholder : widget.value,
-        style: isEmpty ? widget.placeholderStyle : widget.style,
-        maxLines: widget.maxLines,
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }
-}
-
-/// Bottom-sheet (or side-panel on web) advanced editor. Same three
-/// fields as the inline card but rendered with full text-field
-/// chrome — labels, multi-line description, helper text — for users
-/// who want a more deliberate authoring experience than tap-to-edit.
-///
-/// Mirrors writes back through [onChanged] on every keystroke, so
-/// the underlying card stays in sync as the user types. No save
-/// button — close is commit (matching the inline path).
-class _AdvancedActivityEditor extends StatefulWidget {
-  const _AdvancedActivityEditor({
-    required this.draft,
-    required this.onChanged,
-  });
-
-  final _ActivityDraft draft;
-  final VoidCallback onChanged;
-
-  @override
-  State<_AdvancedActivityEditor> createState() =>
-      _AdvancedActivityEditorState();
-}
-
-class _AdvancedActivityEditorState extends State<_AdvancedActivityEditor> {
-  late final TextEditingController _title;
-  late final TextEditingController _description;
-  late final TextEditingController _link;
-
-  @override
-  void initState() {
-    super.initState();
-    _title = TextEditingController(text: widget.draft.title)
-      ..addListener(_pushTitle);
-    _description = TextEditingController(text: widget.draft.description)
-      ..addListener(_pushDescription);
-    _link = TextEditingController(text: widget.draft.link)
-      ..addListener(_pushLink);
-  }
-
-  // Field-specific listeners (rather than one shared one) so we don't
-  // write three values per keystroke — only the field that changed.
-  void _pushTitle() {
-    widget.draft.title = _title.text;
-    widget.onChanged();
-  }
-
-  void _pushDescription() {
-    widget.draft.description = _description.text;
-    widget.onChanged();
-  }
-
-  void _pushLink() {
-    widget.draft.link = _link.text;
-    widget.onChanged();
-  }
-
-  @override
-  void dispose() {
-    _title.dispose();
-    _description.dispose();
-    _link.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final mq = MediaQuery.of(context);
     return SafeArea(
-      // Top inset off — the sheet host (bottom-sheet drag handle on
-      // mobile, side-panel header on web) already positions content
-      // below the system chrome.
       top: false,
       child: Padding(
-        // Bottom-edge inset for the keyboard so the focused field
-        // never disappears under it on mobile.
+        // Lift above the keyboard so the input + button never get
+        // covered on mobile.
         padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
-        child: SingleChildScrollView(
+        child: Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.lg,
             AppSpacing.sm,
@@ -427,39 +503,51 @@ class _AdvancedActivityEditorState extends State<_AdvancedActivityEditor> {
             AppSpacing.lg,
           ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const AdaptiveSheetHeader(title: 'Edit activity'),
-              const SizedBox(height: AppSpacing.sm),
-              TextField(
-                controller: _title,
-                autofocus: widget.draft.title.isEmpty,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Activity Name',
-                  helperText: 'Required',
-                ),
+              Row(
+                children: [
+                  Icon(
+                    Icons.auto_awesome_outlined,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text('AI activity', style: theme.textTheme.titleMedium),
+                ],
               ),
-              const SizedBox(height: AppSpacing.lg),
+              const SizedBox(height: AppSpacing.md),
               TextField(
-                controller: _description,
-                maxLines: 4,
+                controller: _ctrl,
+                autofocus: true,
                 minLines: 2,
+                maxLines: 5,
                 textInputAction: TextInputAction.newline,
                 decoration: const InputDecoration(
-                  labelText: 'Describe',
-                  alignLabelWithHint: true,
+                  hintText: 'Describe an activity, or paste a link',
                 ),
               ),
-              const SizedBox(height: AppSpacing.lg),
-              TextField(
-                controller: _link,
-                keyboardType: TextInputType.url,
-                textInputAction: TextInputAction.done,
-                decoration: const InputDecoration(
-                  labelText: 'Reference Link',
-                  hintText: 'https://…',
+              if (_error != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  _error!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
                 ),
+              ],
+              const SizedBox(height: AppSpacing.md),
+              FilledButton.icon(
+                onPressed: _generating ? null : _generate,
+                icon: _generating
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child:
+                            CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.auto_awesome_outlined),
+                label: Text(_generating ? 'Generating…' : 'Generate'),
               ),
             ],
           ),
@@ -467,4 +555,70 @@ class _AdvancedActivityEditorState extends State<_AdvancedActivityEditor> {
       ),
     );
   }
+}
+
+/// Calls the OpenAI proxy with a JSON-mode prompt and turns the
+/// freeform `input` into a populated draft. URL detection runs
+/// locally — if the input contained a URL, we attach it verbatim to
+/// the draft's link field rather than trusting the model to echo it.
+Future<_ActivityDraft> _generateActivityDraft(String input) async {
+  if (!OpenAiClient.isAvailable) {
+    throw const _AiUnavailable();
+  }
+  final url = _urlPattern.firstMatch(input)?.group(0);
+
+  final body = await OpenAiClient.chat({
+    // gpt-4o-mini matches the rest of the AI features in the app —
+    // cheap, fast, and good enough for a one-paragraph generation.
+    'model': 'gpt-4o-mini',
+    'temperature': 0.4,
+    'response_format': {'type': 'json_object'},
+    'messages': [
+      {
+        'role': 'system',
+        'content':
+            'You generate short activity cards for early-childhood '
+            'educators. Return JSON with exactly two keys: '
+            '"title" (a short, title-cased name, max 8 words), '
+            '"description" (one or two concrete classroom-friendly '
+            'sentences). Do not include URLs, markdown, or extra keys.',
+      },
+      {
+        'role': 'user',
+        'content': url != null
+            ? 'Generate an activity card based on this link: $input'
+            : 'Generate an activity card based on this description: $input',
+      },
+    ],
+  });
+  final choices = body['choices'] as List<dynamic>?;
+  if (choices == null || choices.isEmpty) {
+    throw const _AiEmptyResponse();
+  }
+  final message = (choices.first as Map<String, dynamic>)['message']
+      as Map<String, dynamic>?;
+  final content = message?['content'] as String?;
+  if (content == null || content.trim().isEmpty) {
+    throw const _AiEmptyResponse();
+  }
+  final parsed = jsonDecode(content) as Map<String, dynamic>;
+  return _ActivityDraft()
+    ..title = (parsed['title'] as String? ?? '').trim()
+    ..description = (parsed['description'] as String? ?? '').trim()
+    // Use the user's pasted URL verbatim (or empty if they only
+    // described an idea). Never trust the model to round-trip the
+    // URL — it sometimes paraphrases it into a different host.
+    ..link = url ?? '';
+}
+
+class _AiUnavailable implements Exception {
+  const _AiUnavailable();
+  @override
+  String toString() => 'AI: Sign in to use AI generation.';
+}
+
+class _AiEmptyResponse implements Exception {
+  const _AiEmptyResponse();
+  @override
+  String toString() => 'AI: The model returned no content.';
 }
