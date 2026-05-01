@@ -295,26 +295,35 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
                   // Empty corner square aligned with the rail.
                   const SizedBox(width: _kHourLabelWidth),
                   Expanded(
-                    child: SingleChildScrollView(
-                      controller: _hHeader,
-                      scrollDirection: Axis.horizontal,
-                      // Rails don't accept their own scroll — only
-                      // mirror the body's. Two-way input would race
-                      // with the listener-based sync.
-                      physics: const NeverScrollableScrollPhysics(),
-                      child: SizedBox(
-                        width: bodyWidth,
-                        child: Row(
-                          children: [
-                            for (var d = 1; d <= scheduleDayCount; d++)
-                              SizedBox(
-                                width: _kDayColumnWidth,
-                                child: _DayHeader(
-                                  date: widget.monday
-                                      .add(Duration(days: d - 1)),
+                    // Rails don't take user input — only mirror the
+                    // body's scroll. ScrollConfiguration with
+                    // `scrollbars: false` hides Material 3's default
+                    // scrollbar that otherwise renders on every
+                    // SingleChildScrollView even when physics is
+                    // disabled (the user reported "scroll bar to the
+                    // left of the week plan" — same shape on the
+                    // headers).
+                    child: ScrollConfiguration(
+                      behavior: ScrollConfiguration.of(context)
+                          .copyWith(scrollbars: false),
+                      child: SingleChildScrollView(
+                        controller: _hHeader,
+                        scrollDirection: Axis.horizontal,
+                        physics: const NeverScrollableScrollPhysics(),
+                        child: SizedBox(
+                          width: bodyWidth,
+                          child: Row(
+                            children: [
+                              for (var d = 1; d <= scheduleDayCount; d++)
+                                SizedBox(
+                                  width: _kDayColumnWidth,
+                                  child: _DayHeader(
+                                    date: widget.monday
+                                        .add(Duration(days: d - 1)),
+                                  ),
                                 ),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -327,15 +336,20 @@ class _WeekPlanCanvasState extends ConsumerState<WeekPlanCanvas> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // LEFT RAIL: hour labels, follows body's vertical
-                  // scroll.
+                  // scroll. Same scrollbar suppression as the
+                  // header strip — rails don't take user input.
                   SizedBox(
                     width: _kHourLabelWidth,
-                    child: SingleChildScrollView(
-                      controller: _vRail,
-                      physics: const NeverScrollableScrollPhysics(),
-                      child: SizedBox(
-                        height: bodyHeight,
-                        child: _HourGutter(scale: scale, theme: theme),
+                    child: ScrollConfiguration(
+                      behavior: ScrollConfiguration.of(context)
+                          .copyWith(scrollbars: false),
+                      child: SingleChildScrollView(
+                        controller: _vRail,
+                        physics: const NeverScrollableScrollPhysics(),
+                        child: SizedBox(
+                          height: bodyHeight,
+                          child: _HourGutter(scale: scale, theme: theme),
+                        ),
                       ),
                     ),
                   ),
