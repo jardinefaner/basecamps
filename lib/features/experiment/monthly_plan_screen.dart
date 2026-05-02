@@ -694,11 +694,29 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
 
   /// Weeks of the visible month, each as a Mon–Fri list. Pads with
   /// adjacent-month dates so every row is a complete week.
+  ///
+  /// **Skips the leading week when the month starts on a weekend.**
+  /// If the 1st is Saturday or Sunday, the Mon–Fri week containing
+  /// it has zero in-month working days — five out-of-month cells
+  /// the user can't click into. We jump to the next Monday instead.
+  /// Same logic isn't needed at the trailing edge: when the last
+  /// day of the month is Sat/Sun, lastFriday rolls back to the
+  /// previous Friday (which is in-month), so the last visible week
+  /// still has clickable cells.
   List<List<DateTime>> _buildWeeks() {
     final first = DateTime(_viewMonth.year, _viewMonth.month);
     final last = DateTime(_viewMonth.year, _viewMonth.month + 1, 0);
 
-    final firstMonday = first.subtract(Duration(days: first.weekday - 1));
+    final DateTime firstMonday;
+    if (first.weekday <= 5) {
+      // Mon–Fri month start — back up to that week's Monday.
+      firstMonday = first.subtract(Duration(days: first.weekday - 1));
+    } else {
+      // Sat (weekday=6) or Sun (weekday=7) month start — advance
+      // to the next Monday so the leading week has at least one
+      // in-month day.
+      firstMonday = first.add(Duration(days: 8 - first.weekday));
+    }
     final lastFriday = last.weekday <= 5
         ? last.add(Duration(days: 5 - last.weekday))
         : last.subtract(Duration(days: last.weekday - 5));
@@ -1358,19 +1376,32 @@ class _WeekSidePanel extends StatefulWidget {
 class _WeekSidePanelState extends State<_WeekSidePanel> {
   late final TextEditingController _subThemeCtrl =
       TextEditingController(text: widget.subTheme);
+  // Focus tracking — see didUpdateWidget. Without this, fast typing
+  // on the sub-theme field gets stomped by stream re-emissions.
+  final FocusNode _subThemeFocus = FocusNode();
 
   @override
   void didUpdateWidget(covariant _WeekSidePanel old) {
     super.didUpdateWidget(old);
-    // External writes (different week reusing this state slot) sync
-    // back into the controller.
-    if (widget.subTheme != _subThemeCtrl.text) {
+    // Bug fix: only sync the controller when the field is NOT
+    // focused. Per-keystroke writes feed back through the Drift
+    // stream → Riverpod rebuild → didUpdateWidget here. If we
+    // overwrite the controller while the user is mid-typing, an
+    // earlier (stale) emission can stomp later characters — that's
+    // the "I typed Reading and got R back" bug. When the user has
+    // focus we trust the controller as the authoritative source;
+    // when they don't, an external write (different week reusing
+    // this state slot, another teacher's edit landing via realtime)
+    // is the legit source of truth.
+    if (!_subThemeFocus.hasFocus &&
+        widget.subTheme != _subThemeCtrl.text) {
       _subThemeCtrl.text = widget.subTheme;
     }
   }
 
   @override
   void dispose() {
+    _subThemeFocus.dispose();
     _subThemeCtrl.dispose();
     super.dispose();
   }
@@ -1405,6 +1436,7 @@ class _WeekSidePanelState extends State<_WeekSidePanel> {
             // visible when empty.
             TextField(
               controller: _subThemeCtrl,
+              focusNode: _subThemeFocus,
               onChanged: widget.onSubThemeChanged,
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
@@ -2822,6 +2854,11 @@ class _MonthlyThemeBar extends StatefulWidget {
 class _MonthlyThemeBarState extends State<_MonthlyThemeBar> {
   late final TextEditingController _ctrl =
       TextEditingController(text: widget.value);
+  // Focus tracking — see didUpdateWidget. Same bug class as
+  // _WeekSidePanelState's sub-theme field: per-keystroke writes
+  // feed back through the stream and a stale emission can stomp
+  // newer characters when the user is typing fast.
+  final FocusNode _focusNode = FocusNode();
   bool _suggesting = false;
   List<String> _suggestions = const [];
   String? _suggestError;
@@ -2829,13 +2866,18 @@ class _MonthlyThemeBarState extends State<_MonthlyThemeBar> {
   @override
   void didUpdateWidget(covariant _MonthlyThemeBar old) {
     super.didUpdateWidget(old);
-    if (widget.value != _ctrl.text) {
+    // Only adopt the external value when the user isn't actively
+    // typing. Otherwise a stream emission for "R" can overwrite
+    // the controller after the user has already typed "Re" — the
+    // "Reading → R on reload" bug.
+    if (!_focusNode.hasFocus && widget.value != _ctrl.text) {
       _ctrl.text = widget.value;
     }
   }
 
   @override
   void dispose() {
+    _focusNode.dispose();
     _ctrl.dispose();
     super.dispose();
   }
@@ -2892,6 +2934,7 @@ class _MonthlyThemeBarState extends State<_MonthlyThemeBar> {
           // affordance without sitting on top of typed input).
           TextField(
             controller: _ctrl,
+            focusNode: _focusNode,
             onChanged: widget.onChanged,
             textInputAction: TextInputAction.done,
             decoration: InputDecoration(
