@@ -493,6 +493,7 @@ class AiActivityAddonsSection extends StatefulWidget {
     this.previouslyGenerated,
     this.onGenerated,
     this.onRemoved,
+    this.onActiveChanged,
     super.key,
   });
 
@@ -514,6 +515,14 @@ class AiActivityAddonsSection extends StatefulWidget {
   /// add-on. When null, removal isn't surfaced as an action.
   final void Function(String specId)? onRemoved;
 
+  /// Fires when the section transitions between "showing the picker"
+  /// (false) and "loading or showing a generated result" (true).
+  /// Parent sheets use this to collapse adjacent sections (objectives,
+  /// steps, materials) so an open add-on has full vertical space —
+  /// otherwise the result content gets squeezed below the activity's
+  /// own metadata. Sandbox callsites can leave this null.
+  final ValueChanged<bool>? onActiveChanged;
+
   @override
   State<AiActivityAddonsSection> createState() =>
       _AiActivityAddonsSectionState();
@@ -525,8 +534,26 @@ class _AiActivityAddonsSectionState
   AddonResult? _result;
   String? _error;
 
+  /// True iff something other than the picker is on screen — either
+  /// a result is showing or we're mid-generation. The parent uses
+  /// this to hide its own sections so the add-on view has air.
+  bool get _isActive => _generating != null || _result != null;
+
+  /// Wraps `setState` so any change to `_generating` / `_result` is
+  /// followed by a parent notification when the active flag flips.
+  /// Captures the pre-mutation flag, lets the mutation run, then
+  /// fires the callback only on transitions.
+  void _setStateAndNotify(VoidCallback fn) {
+    final wasActive = _isActive;
+    setState(fn);
+    final nowActive = _isActive;
+    if (wasActive != nowActive) {
+      widget.onActiveChanged?.call(nowActive);
+    }
+  }
+
   Future<void> _generate(AddonSpec spec) async {
-    setState(() {
+    _setStateAndNotify(() {
       _generating = spec;
       _error = null;
       _result = null;
@@ -540,13 +567,13 @@ class _AiActivityAddonsSectionState
       if (!mounted) return;
       // Persist if the caller wired it up.
       widget.onGenerated?.call(spec.id, result.sections);
-      setState(() {
+      _setStateAndNotify(() {
         _generating = null;
         _result = result;
       });
     } on Object catch (e) {
       if (!mounted) return;
-      setState(() {
+      _setStateAndNotify(() {
         _generating = null;
         // Drop the exception class prefix so users see plain English.
         _error = e.toString().replaceFirst(RegExp(r'^[^:]+:\s*'), '');
@@ -564,14 +591,14 @@ class _AiActivityAddonsSectionState
           body: m['body'] ?? '',
         ),
     ];
-    setState(() {
+    _setStateAndNotify(() {
       _result = AddonResult(spec: spec, sections: sections);
       _error = null;
     });
   }
 
   void _backToPicker() {
-    setState(() {
+    _setStateAndNotify(() {
       _result = null;
       _error = null;
     });
@@ -580,7 +607,7 @@ class _AiActivityAddonsSectionState
   void _remove(AddonSpec spec) {
     widget.onRemoved?.call(spec.id);
     if (_result?.spec.id == spec.id) {
-      setState(() => _result = null);
+      _setStateAndNotify(() => _result = null);
     } else {
       setState(() {});
     }

@@ -2525,10 +2525,17 @@ class _PersistedAddonsSection extends ConsumerWidget {
   const _PersistedAddonsSection({
     required this.activity,
     required this.planContext,
+    this.onActiveChanged,
   });
 
   final _MonthlyActivity activity;
   final AiActivityContext? planContext;
+
+  /// Forwarded from `AiActivityAddonsSection.onActiveChanged`. Lets
+  /// the parent sheet collapse adjacent sections (objectives, steps,
+  /// materials) when an add-on is being viewed or generated, so the
+  /// content has full vertical space.
+  final ValueChanged<bool>? onActiveChanged;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2569,6 +2576,7 @@ class _PersistedAddonsSection extends ConsumerWidget {
           specId: specId,
         ));
       },
+      onActiveChanged: onActiveChanged,
     );
   }
 }
@@ -2581,7 +2589,7 @@ class _PersistedAddonsSection extends ConsumerWidget {
 /// who didn't author the lesson plan and is looking at today's day
 /// cold — has to know exactly what to run. The editor is reachable
 /// via the pencil in the top-right.
-class _ActivityFormattedSheet extends StatelessWidget {
+class _ActivityFormattedSheet extends StatefulWidget {
   const _ActivityFormattedSheet({
     required this.date,
     required this.activity,
@@ -2597,17 +2605,36 @@ class _ActivityFormattedSheet extends StatelessWidget {
   final VoidCallback onDelete;
 
   @override
+  State<_ActivityFormattedSheet> createState() =>
+      _ActivityFormattedSheetState();
+}
+
+class _ActivityFormattedSheetState extends State<_ActivityFormattedSheet> {
+  /// True while the embedded add-on section is loading or showing a
+  /// generated result. Drives whether objectives / steps / materials
+  /// / link / delete-button collapse — when an add-on is in view,
+  /// the user wants air around the result, not a wall of activity
+  /// metadata stacked above it.
+  bool _addonsActive = false;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final mq = MediaQuery.of(context);
-    final dateLabel = DateFormat('EEE MMM d').format(date);
+    final dateLabel = DateFormat('EEE MMM d').format(widget.date);
+    final activity = widget.activity;
     final steps = _splitSteps(activity.steps);
     final materials = activity.materials
         .split(',')
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty)
         .toList();
+    // Hide objectives/steps/materials/link while an add-on is in
+    // view. The activity title + description stay (they're context
+    // the add-on is responding to); everything below collapses so
+    // the add-on body has the screen.
+    final showMetadata = !_addonsActive;
 
     return SafeArea(
       top: false,
@@ -2641,7 +2668,7 @@ class _ActivityFormattedSheet extends StatelessWidget {
                   IconButton(
                     tooltip: 'Edit activity',
                     icon: const Icon(Icons.edit_outlined),
-                    onPressed: onEdit,
+                    onPressed: widget.onEdit,
                   ),
                   IconButton(
                     tooltip: 'Close',
@@ -2665,7 +2692,7 @@ class _ActivityFormattedSheet extends StatelessWidget {
                   style: theme.textTheme.bodyLarge?.copyWith(height: 1.45),
                 ),
               ],
-              if (activity.objectives.isNotEmpty) ...[
+              if (showMetadata && activity.objectives.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.xl),
                 const _SectionHeader(label: 'Objectives'),
                 const SizedBox(height: AppSpacing.xs),
@@ -2674,7 +2701,7 @@ class _ActivityFormattedSheet extends StatelessWidget {
                   style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
                 ),
               ],
-              if (steps.isNotEmpty) ...[
+              if (showMetadata && steps.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.xl),
                 const _SectionHeader(label: 'Steps'),
                 const SizedBox(height: AppSpacing.sm),
@@ -2710,7 +2737,7 @@ class _ActivityFormattedSheet extends StatelessWidget {
                     ),
                   ),
               ],
-              if (materials.isNotEmpty) ...[
+              if (showMetadata && materials.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.xl),
                 const _SectionHeader(label: 'Materials'),
                 const SizedBox(height: AppSpacing.xs),
@@ -2740,7 +2767,7 @@ class _ActivityFormattedSheet extends StatelessWidget {
                   ],
                 ),
               ],
-              if (activity.link.isNotEmpty) ...[
+              if (showMetadata && activity.link.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.xl),
                 const _SectionHeader(label: 'Reference'),
                 const SizedBox(height: AppSpacing.xs),
@@ -2752,11 +2779,15 @@ class _ActivityFormattedSheet extends StatelessWidget {
                   ),
                 ),
               ],
-              const SizedBox(height: AppSpacing.xxl),
+              SizedBox(
+                height: showMetadata ? AppSpacing.xxl : AppSpacing.lg,
+              ),
               // AI add-ons — embedded inline so the user can see
               // the activity above for reference while picking. The
               // section self-manages picker → loading → result
-              // state internally.
+              // state internally; when an add-on is open, we collapse
+              // the activity metadata above so the result has the
+              // viewport.
               Divider(
                 height: 1,
                 color: cs.outlineVariant,
@@ -2764,20 +2795,30 @@ class _ActivityFormattedSheet extends StatelessWidget {
               const SizedBox(height: AppSpacing.lg),
               _PersistedAddonsSection(
                 activity: activity,
-                planContext: planContext,
+                planContext: widget.planContext,
+                onActiveChanged: (active) {
+                  if (mounted) {
+                    setState(() => _addonsActive = active);
+                  }
+                },
               ),
-              const SizedBox(height: AppSpacing.xxl),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: cs.error,
-                  side: BorderSide(
-                    color: cs.error.withValues(alpha: 0.5),
+              // Delete button collapses while an add-on is open —
+              // it's a destructive action that has no business
+              // sitting under a generated discussion ladder.
+              if (showMetadata) ...[
+                const SizedBox(height: AppSpacing.xxl),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: cs.error,
+                    side: BorderSide(
+                      color: cs.error.withValues(alpha: 0.5),
+                    ),
                   ),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('Delete activity'),
+                  onPressed: widget.onDelete,
                 ),
-                icon: const Icon(Icons.delete_outline, size: 18),
-                label: const Text('Delete activity'),
-                onPressed: onDelete,
-              ),
+              ],
             ],
           ),
         ),
@@ -2847,6 +2888,13 @@ class _MonthlyActivityEditor extends ConsumerStatefulWidget {
 
 class _MonthlyActivityEditorState
     extends ConsumerState<_MonthlyActivityEditor> {
+  /// True while the embedded add-on section is loading or showing
+  /// a generated result. Hides the metadata disclosure (objectives,
+  /// steps, materials, link) and the delete button so the add-on
+  /// has air. Title + description fields stay visible — they're
+  /// the prompt context the add-on is responding to.
+  bool _addonsActive = false;
+
   late final TextEditingController _title =
       TextEditingController(text: widget.activity.title)
         ..addListener(_pushTitle);
@@ -2953,13 +3001,14 @@ class _MonthlyActivityEditorState
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
-              Divider(
-                height: 1,
-                color: theme.colorScheme.outlineVariant,
-              ),
-              _DetailsDisclosure(
-                initiallyExpanded: widget.activity.hasAnyMetadata,
-                children: [
+              if (!_addonsActive) ...[
+                Divider(
+                  height: 1,
+                  color: theme.colorScheme.outlineVariant,
+                ),
+                _DetailsDisclosure(
+                  initiallyExpanded: widget.activity.hasAnyMetadata,
+                  children: [
                   TextField(
                     controller: _objectives,
                     maxLines: null,
@@ -3008,31 +3057,41 @@ class _MonthlyActivityEditorState
                   ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.xl),
-              Divider(
-                height: 1,
-                color: theme.colorScheme.outlineVariant,
-              ),
-              const SizedBox(height: AppSpacing.lg),
+                const SizedBox(height: AppSpacing.xl),
+                Divider(
+                  height: 1,
+                  color: theme.colorScheme.outlineVariant,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+              ],
               // Same inline AI add-ons section as the formatted
               // preview — exposes them at edit-time too so authors
-              // can iterate without leaving the editor.
+              // can iterate without leaving the editor. When an
+              // add-on is open the disclosure + delete button above
+              // collapse so the result has the viewport.
               _PersistedAddonsSection(
                 activity: widget.activity,
                 planContext: widget.planContext,
+                onActiveChanged: (active) {
+                  if (mounted) {
+                    setState(() => _addonsActive = active);
+                  }
+                },
               ),
-              const SizedBox(height: AppSpacing.xl),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: theme.colorScheme.error,
-                  side: BorderSide(
-                    color: theme.colorScheme.error.withValues(alpha: 0.5),
+              if (!_addonsActive) ...[
+                const SizedBox(height: AppSpacing.xl),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: theme.colorScheme.error,
+                    side: BorderSide(
+                      color: theme.colorScheme.error.withValues(alpha: 0.5),
+                    ),
                   ),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('Delete activity'),
+                  onPressed: widget.onDelete,
                 ),
-                icon: const Icon(Icons.delete_outline, size: 18),
-                label: const Text('Delete activity'),
-                onPressed: widget.onDelete,
-              ),
+              ],
             ],
           ),
         ),
