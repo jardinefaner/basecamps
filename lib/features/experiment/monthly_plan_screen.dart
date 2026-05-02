@@ -133,13 +133,24 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   /// gets stamped.
   Future<String>? _pendingDraftInsert;
 
-  /// Latest in-flight `updateVariant` future from `_writeInlineEdit`.
-  /// _exitInlineEdit awaits this before flipping state so didUpdateWidget
-  /// in the cell syncs the controller from a settled stream emission
-  /// rather than a stale one mid-write — the "Reading → R on reload"
-  /// bug. Drift serializes writes per row, so awaiting the latest
-  /// queued one drains every earlier one too.
-  Future<void>? _lastInlineWrite;
+  /// Counter of in-flight `_writeInlineEdit` calls. Each call
+  /// increments on entry, decrements in its `finally`. When this
+  /// reaches zero, any waiter on `_drainInFlightWrites` is released.
+  ///
+  /// Why a counter (not just `_lastInlineWrite`): the latest-future
+  /// approach failed when `_exitInlineEdit` ran *during* the
+  /// `_pendingDraftInsert` await (i.e. before any keystroke chain
+  /// had resumed past it). At that moment `_lastInlineWrite` was
+  /// still null, so the exit didn't wait — but the queued chains
+  /// were about to resume, write title="Reading" to the row, and
+  /// re-mark dirty. The exit's own soft-delete then ran first,
+  /// the writes landed on a tombstoned row, the row was filtered
+  /// out of the variant stream, and the user saw their text vanish.
+  /// Counting in-flight calls + a Completer fixes that: exit waits
+  /// until every chain (including ones still suspended on the
+  /// pending insert) has fully completed.
+  int _writeInlineEditInFlight = 0;
+  Completer<void>? _writeInlineEditDrain;
 
   /// Cell that's currently focused (touch-tap on mobile, hover on
   /// web). Drives visibility of ✨ + × + dots so they don't clutter
@@ -302,7 +313,6 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
       _editingCellKey = key;
       _editingVariantId = existingId; // null on a fresh empty cell
       _pendingDraftInsert = null;
-      _lastInlineWrite = null;
       _focusedCellKey = key;
     });
   }
@@ -314,44 +324,67 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   /// `_pendingDraftInsert` collapses concurrent first-keystroke
   /// races into one in-flight insert.
   ///
-  /// **Persist even after exit.** The previous version bailed when
-  /// `_editingCellKey` flipped to null mid-flight (the user tapped
-  /// away during typing), but that orphaned every queued write that
-  /// hadn't yet resumed past the await — leading to the truncation
-  /// bug where "Reading" persisted as "R" because k2..k7's chains
-  /// bailed before their updateVariant calls fired. Now we run the
-  /// write regardless: the user typed, it gets saved.
+  /// **Persist even after exit.** Earlier versions bailed when
+  /// `_editingCellKey` flipped to null mid-flight, orphaning every
+  /// queued write that hadn't resumed past the await — that's how
+  /// "Reading" persisted as "R". Now we always run the write: the
+  /// user typed it, save it. The `_writeInlineEditInFlight` counter
+  /// + `_writeInlineEditDrain` Completer let `_exitInlineEdit`
+  /// block on ALL pending chains (not just the latest known
+  /// future) before deciding whether to soft-delete an empty
+  /// variant.
   Future<void> _writeInlineEdit({
     required DateTime date,
     String? title,
     String? description,
   }) async {
-    var id = _editingVariantId;
-    if (id == null) {
-      final groupId = _activeGroupId;
-      if (groupId == null) return;
-      _pendingDraftInsert ??= ref
-          .read(monthlyPlanRepositoryProvider)
-          .addVariant(groupId: groupId, date: _dayKey(date));
-      id = await _pendingDraftInsert;
-      if (id == null) return;
-      // setState only when we're still in edit mode; otherwise just
-      // capture the id locally and let the write below run. The
-      // setState is purely UI state for "which row's id is the
-      // editing target" — irrelevant if we're no longer editing.
-      if (mounted &&
-          _editingCellKey != null &&
-          _editingVariantId == null) {
-        setState(() => _editingVariantId = id);
+    _writeInlineEditInFlight += 1;
+    try {
+      var id = _editingVariantId;
+      if (id == null) {
+        final groupId = _activeGroupId;
+        if (groupId == null) return;
+        _pendingDraftInsert ??= ref
+            .read(monthlyPlanRepositoryProvider)
+            .addVariant(groupId: groupId, date: _dayKey(date));
+        id = await _pendingDraftInsert;
+        if (id == null) return;
+        // setState only when we're still in edit mode; otherwise just
+        // capture the id locally and let the write below run. The
+        // setState is purely UI state for "which row's id is the
+        // editing target" — irrelevant if we're no longer editing.
+        if (mounted &&
+            _editingCellKey != null &&
+            _editingVariantId == null) {
+          setState(() => _editingVariantId = id);
+        }
+      }
+      await ref.read(monthlyPlanRepositoryProvider).updateVariant(
+            id: id,
+            title: title,
+            description: description,
+          );
+    } finally {
+      _writeInlineEditInFlight -= 1;
+      if (_writeInlineEditInFlight == 0) {
+        _writeInlineEditDrain?.complete();
+        _writeInlineEditDrain = null;
       }
     }
-    final write = ref.read(monthlyPlanRepositoryProvider).updateVariant(
-          id: id,
-          title: title,
-          description: description,
-        );
-    _lastInlineWrite = write;
-    await write;
+  }
+
+  /// Block until every in-flight `_writeInlineEdit` call has fully
+  /// completed (Drift write + push enqueue done). Returns
+  /// immediately when nothing is in flight. Used by
+  /// `_exitInlineEdit` to make sure the row's final content has
+  /// landed before deciding whether the variant ended up empty
+  /// (and thus should be soft-deleted).
+  Future<void> _drainInFlightInlineWrites() {
+    if (_writeInlineEditInFlight == 0) {
+      return Future<void>.value();
+    }
+    _writeInlineEditDrain ??= Completer<void>();
+    return _writeInlineEditDrain!.future;
   }
 
   /// Exit edit mode. If a draft row was created during this session
@@ -383,19 +416,21 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
       }
       if (!mounted) return;
     }
-    // Drain any queued updateVariant calls. Drift serializes writes
-    // per row, so awaiting the latest queued future implicitly
-    // waits for every earlier one to complete too.
-    final lastWrite = _lastInlineWrite;
-    if (lastWrite != null) {
-      try {
-        await lastWrite;
-      } on Object {
-        // A failed write doesn't block exit — we just continue with
-        // whatever made it through.
-      }
-      if (!mounted) return;
+    // Drain every in-flight `_writeInlineEdit` call before deciding
+    // whether the row is empty. Without this, an exit firing during
+    // the very-fast typing window can land BEFORE the queued
+    // updateVariant calls run, soft-delete the row, and the queued
+    // writes then land on a tombstoned row that the variant stream
+    // filters out — the user's text vanishes. Counting in-flight
+    // calls + Completer makes this deterministic regardless of
+    // microtask ordering.
+    try {
+      await _drainInFlightInlineWrites();
+    } on Object {
+      // A failed write doesn't block exit — we just continue with
+      // whatever made it through.
     }
+    if (!mounted) return;
     final id = _editingVariantId;
     final isLast =
         _variantsAt(_dateFromKey(key), _groupFromKey(key)).length <= 1;
@@ -410,7 +445,6 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
       _editingCellKey = null;
       _editingVariantId = null;
       _pendingDraftInsert = null;
-      _lastInlineWrite = null;
       if (isEmpty && isLast) {
         _focusedCellKey = null;
       }

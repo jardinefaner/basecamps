@@ -125,6 +125,15 @@ class MonthlyPlanRepository {
             createdAt: Value(now),
           ),
         );
+    // CRITICAL bug fix (v60.3): mark theme/deleted_at as dirty so
+    // the sync engine's _pushRowNow takes the partial-UPDATE branch.
+    // Without this call, subsequent edits silently no-op'd in cloud:
+    // first write upserted the row, then every later write found
+    // dirty_fields empty + cloud-row present → "nothing to push" →
+    // local "Reading" never reached cloud, and a reload pulled the
+    // stale "R" back over the local state. THE truncation bug for
+    // theme + sub-theme.
+    await _db.markDirty('monthly_themes', id, ['theme', 'deleted_at']);
     unawaited(_sync.pushRow(monthlyThemesSpec, id));
   }
 
@@ -151,6 +160,12 @@ class MonthlyPlanRepository {
             createdAt: Value(now),
           ),
         );
+    // Same fix as setTheme — see that method's comment for why.
+    await _db.markDirty(
+      'weekly_subthemes',
+      id,
+      ['sub_theme', 'deleted_at'],
+    );
     unawaited(_sync.pushRow(weeklySubThemesSpec, id));
   }
 
