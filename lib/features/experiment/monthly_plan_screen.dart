@@ -1656,21 +1656,33 @@ class _WeekSidePanelState extends State<_WeekSidePanel> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Sub-theme — single-line text input. No chrome (matches
-            // the WYSIWYG idiom from the experiment), placeholder
-            // visible when empty.
+            // Sub-theme — distinct labeled input (v60). Was styled
+            // like a card title (bold + large) which read as a
+            // heading rather than an editable field; now matches the
+            // "Supplies" label idiom below: tiny uppercase label +
+            // body-weight text input. Visually obvious that you can
+            // type into it and that it's not the title of the
+            // section.
+            Text(
+              'Sub-theme',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: cs.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+              ),
+            ),
+            const SizedBox(height: 2),
             TextField(
               controller: _subThemeCtrl,
               focusNode: _subThemeFocus,
               onChanged: widget.onSubThemeChanged,
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
               ),
               decoration: InputDecoration(
-                hintText: 'Sub-theme',
-                hintStyle: theme.textTheme.titleSmall?.copyWith(
-                  color: cs.onSurfaceVariant.withValues(alpha: 0.55),
-                  fontWeight: FontWeight.w700,
+                hintText: 'e.g. Trees, Colors, Helpers',
+                hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurfaceVariant.withValues(alpha: 0.5),
                 ),
                 isDense: true,
                 isCollapsed: true,
@@ -1682,7 +1694,7 @@ class _WeekSidePanelState extends State<_WeekSidePanel> {
                 focusedBorder: InputBorder.none,
               ),
             ),
-            const SizedBox(height: AppSpacing.xs),
+            const SizedBox(height: AppSpacing.sm),
             Divider(
               height: 1,
               color: cs.outlineVariant.withValues(alpha: 0.4),
@@ -1692,7 +1704,8 @@ class _WeekSidePanelState extends State<_WeekSidePanel> {
               'Supplies',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: cs.onSurfaceVariant,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
               ),
             ),
             const SizedBox(height: 2),
@@ -2066,6 +2079,14 @@ class _DayCellState extends State<_DayCell> {
                     _buildContinuationPill(theme)
                   else if (!isOutOfMonth && hasContent)
                     _buildVariantPager(theme),
+                  // v60 — per-cell supplies. Sits BELOW the variant
+                  // pager with a divider, unioned across all variants
+                  // in the cell so toggling original/AI doesn't change
+                  // it. Hidden when the cell has no materials, so
+                  // empty-of-supplies cells aren't padded with dead
+                  // chrome.
+                  if (!isOutOfMonth && !widget.isEditing)
+                    _buildCellSupplies(theme),
                 ],
               ),
               // ✏︎ + × at top-right; ✨ + span ↔ at bottom-right.
@@ -2259,6 +2280,69 @@ class _DayCellState extends State<_DayCell> {
     return widget.variants.every(
       (v) => v.isSpanContinuation && v.isEmpty,
     );
+  }
+
+  /// v60 — per-cell supplies footer. Unions materials across every
+  /// variant in the cell (deduped, case-insensitive) so toggling
+  /// between original and AI doesn't change what's shown. Renders
+  /// nothing when the cell has no materials at all — empty rooms
+  /// stay empty, no leftover divider chrome.
+  ///
+  /// Visual is intentionally compact: a thin divider, a small
+  /// "Supplies" label (matching the side rail's idiom), then a
+  /// comma-joined wrap of items in muted body-small text. Long
+  /// lists wrap naturally and the cell grows to fit (same
+  /// IntrinsicHeight rule as title/description).
+  Widget _buildCellSupplies(ThemeData theme) {
+    final items = _aggregatedMaterials();
+    if (items.isEmpty) return const SizedBox.shrink();
+    final cs = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xs, bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Divider(
+            height: 1,
+            color: cs.outlineVariant.withValues(alpha: 0.4),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Supplies',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: cs.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            items.join(', '),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Cell-level material aggregation: union across every variant,
+  /// split on commas, dedup case-insensitively, sorted alphabetically
+  /// for stable rendering. Same rules the side rail uses, scoped to
+  /// this single cell.
+  List<String> _aggregatedMaterials() {
+    final seen = <String, String>{};
+    for (final v in widget.variants) {
+      for (final raw in v.materials.split(',')) {
+        final trimmed = raw.trim();
+        if (trimmed.isEmpty) continue;
+        seen.putIfAbsent(trimmed.toLowerCase(), () => trimmed);
+      }
+    }
+    final out = seen.values.toList()..sort();
+    return out;
   }
 
   /// Visual placeholder for a continuation day — a small "↪" pill
