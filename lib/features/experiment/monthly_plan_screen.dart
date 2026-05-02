@@ -2417,44 +2417,78 @@ class _DayCellState extends State<_DayCell> {
     return out;
   }
 
-  /// Visual placeholder for a continuation day — a small "↪" pill
-  /// with "continued" text. The user can tap × to remove this day
-  /// from the span (uses the existing onDeleteActive callback,
-  /// which the screen routes to deleteVariant by id) or tap the
-  /// edit pencil to add per-day content.
+  /// Continuation day rendering. v60.4 carries the head's title
+  /// here so a continuation cell isn't an anonymous "↪ continued"
+  /// blob — the user reads "Tree Stories · continued" and knows
+  /// at a glance which arc this day is part of. Tap on the cell
+  /// (background or the title text) enters inline edit on this
+  /// continuation row so the user can layer per-day notes on top
+  /// (like sub-themes — always tap-to-edit-inline).
   Widget _buildContinuationPill(ThemeData theme) {
     final cs = theme.colorScheme;
+    final spanId = widget.variants.first.spanId;
     return Padding(
       padding: const EdgeInsets.fromLTRB(2, 0, 2, 14),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm,
-            vertical: AppSpacing.xs,
-          ),
-          decoration: BoxDecoration(
-            color: cs.secondaryContainer.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.subdirectory_arrow_right,
-                size: 14,
-                color: cs.onSecondaryContainer,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                'continued',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: cs.onSecondaryContainer,
-                  fontWeight: FontWeight.w600,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.canEdit
+            ? () => _enterEditFocused(_CellFocusTarget.title)
+            : null,
+        child: Consumer(
+          builder: (context, ref, _) {
+            final spanRows = spanId == null
+                ? const <MonthlyActivity>[]
+                : (ref.watch(monthlySpanProvider(spanId)).asData?.value ??
+                    const <MonthlyActivity>[]);
+            final head = spanRows.isEmpty ? null : spanRows.first;
+            final headTitle = (head?.title ?? '').trim();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (headTitle.isNotEmpty)
+                  Text(
+                    headTitle,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface.withValues(alpha: 0.85),
+                    ),
+                  ),
+                if (headTitle.isNotEmpty) const SizedBox(height: 4),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.xs,
+                    ),
+                    decoration: BoxDecoration(
+                      color: cs.secondaryContainer.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.subdirectory_arrow_right,
+                          size: 14,
+                          color: cs.onSecondaryContainer,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'continued',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: cs.onSecondaryContainer,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            );
+          },
         ),
       ),
     );
