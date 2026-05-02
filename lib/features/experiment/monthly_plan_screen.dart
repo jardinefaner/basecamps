@@ -2364,8 +2364,14 @@ class _DayCellState extends State<_DayCell> {
     // on read-only / out-of-month / editing cells; and on cells
     // with no content (nothing to span).
     final activeVariant = _activeVariant;
+    // Hover/focus-gated: the drag handle only renders when the
+    // cell is currently focused (hover on web, tap-to-focus on
+    // mobile). Without this gate, every cell with content
+    // permanently shows a vertical bar on its right edge — visual
+    // clutter the user complained about ("lines everywhere").
     final canBeSpanSource = !isOutOfMonth &&
         widget.canEdit &&
+        widget.isFocused &&
         !widget.isEditing &&
         hasContent &&
         activeVariant != null &&
@@ -2388,7 +2394,14 @@ class _DayCellState extends State<_DayCell> {
           widget.onSpanDrop(details.data, widget.date),
       builder: (context, candidates, _) {
         final hovering = candidates.isNotEmpty;
+        // StackFit.passthrough so the parent Row's IntrinsicHeight
+        // + crossAxisAlignment.stretch propagates through this
+        // Stack to the body. Without it, loose fit lets the body
+        // stay at its natural size and cells of different content
+        // heights end up unequal even though the row reserves
+        // tallest-cell height.
         return Stack(
+          fit: StackFit.passthrough,
           children: [
             body,
             // Drop-target highlight when a drag is hovering over us.
@@ -2407,7 +2420,9 @@ class _DayCellState extends State<_DayCell> {
                   ),
                 ),
               ),
-            // Right-edge drag handle (the source for extending spans).
+            // Right-edge drag handle. Hover-only (gated above) so a
+            // resting cell stays visually clean — no permanent
+            // line on the right edge of every focused-or-not cell.
             if (dragSource != null)
               Positioned(
                 top: 0,
@@ -2796,18 +2811,22 @@ class _CellPreview extends StatelessWidget {
 /// so the icons read as one set.
 enum _AffordanceTone { muted, primary }
 
-/// v60.6 — drag handle on the right edge of a focused, head-only
-/// cell. Long-press to grab, then drag to a target day to extend
-/// (or trim) the span. Visual is intentionally subtle: a thin
-/// vertical bar with three small dots in the middle, only
-/// noticeably colored while the user is touching it (long-press
-/// activates the Draggable, at which point the feedback widget
-/// takes over).
+/// v60.6 — drag handle on the right edge of a focused (hovered)
+/// head cell. The user grabs the handle and drags to a target
+/// day to extend (or trim) the span. The handle is gated on
+/// `_DayCell.isFocused` upstream, so on web it's hover-only —
+/// no permanent visual chrome cluttering the cell.
 ///
-/// Long-press (not bare drag) avoids racing with the calendar's
-/// vertical scroll gesture arena — a horizontal drag from the
-/// edge of a cell could otherwise be claimed by the scroll
-/// container.
+/// Implementation notes:
+/// - `Draggable` (not LongPressDraggable) for snappier desktop
+///   feel. Mobile users tap-and-drag the small target on the right
+///   edge; the calendar's vertical scroll only has a chance to
+///   claim the gesture if the touch lands outside the handle's
+///   24dp hit zone.
+/// - Feedback widget is fixed-size (a small "Extend" pill) so the
+///   Overlay's unbounded constraints don't cause a layout error.
+/// - `Material(type: transparency)` wraps so theme propagation
+///   works in the Overlay where the feedback renders.
 class _SpanDragHandle extends StatelessWidget {
   const _SpanDragHandle({required this.data});
 
@@ -2817,46 +2836,81 @@ class _SpanDragHandle extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final restingHandle = MouseRegion(
-      cursor: SystemMouseCursors.resizeLeftRight,
-      child: SizedBox(
-        width: 14,
+
+    // Hit area is wider than the visible bar so the user has more
+    // room to grab — 24dp wide on the right edge of the cell.
+    // Visible bar is 4dp wide, vertically centered.
+    Widget handleVisual({required bool active}) {
+      return SizedBox(
+        width: 24,
+        height: double.infinity,
         child: Center(
           child: Container(
             width: 4,
-            height: 36,
             decoration: BoxDecoration(
-              color: cs.onSurfaceVariant.withValues(alpha: 0.35),
+              color: active
+                  ? cs.primary
+                  : cs.primary.withValues(alpha: 0.55),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
         ),
-      ),
-    );
+      );
+    }
+
+    // Feedback shown while the drag is in flight. Fixed-size so the
+    // Overlay (unbounded) doesn't error out.
     final feedback = Material(
       color: Colors.transparent,
-      child: SizedBox(
-        width: 14,
-        child: Center(
-          child: Container(
-            width: 4,
-            height: 36,
-            decoration: BoxDecoration(
-              color: cs.primary,
-              borderRadius: BorderRadius.circular(2),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 6,
+        ),
+        decoration: BoxDecoration(
+          color: cs.primary,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: cs.primary.withValues(alpha: 0.35),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-          ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.east, size: 14, color: cs.onPrimary),
+            const SizedBox(width: 4),
+            Text(
+              'Extend span',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: cs.onPrimary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ),
       ),
     );
-    return LongPressDraggable<_SpanDragData>(
-      data: data,
-      // Default delay (~500ms) — long enough to disambiguate from
-      // a vertical-scroll touch start, short enough to feel
-      // responsive once the user commits to a drag.
-      feedback: feedback,
-      childWhenDragging: Opacity(opacity: 0.3, child: restingHandle),
-      child: restingHandle,
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.grab,
+      child: Draggable<_SpanDragData>(
+        data: data,
+        // dragAnchorStrategy.pointerDragAnchorStrategy: feedback
+        // tracks the pointer, not the source widget origin — so
+        // the pill follows the cursor, which reads correctly on
+        // both web and mobile.
+        dragAnchorStrategy: pointerDragAnchorStrategy,
+        feedback: feedback,
+        // Slightly fade the handle while dragging so the user
+        // sees the source.
+        childWhenDragging:
+            Opacity(opacity: 0.3, child: handleVisual(active: true)),
+        child: handleVisual(active: false),
+      ),
     );
   }
 }
