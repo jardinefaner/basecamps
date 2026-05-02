@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Lab surface — **Monthly Plan.** Mon–Fri grid for a single month;
 /// each cell holds at most one activity per group. No time-of-day,
@@ -65,6 +66,39 @@ enum _ViewMode {
 /// having to tab/tap again.
 enum _CellFocusTarget { title, description }
 
+/// v60.6 — payload for the drag-edge span gesture. The user
+/// long-presses the right-edge handle on a head cell and drags to
+/// a target day; the dropped cell receives this payload via its
+/// `DragTarget<_SpanDragData>` and routes to the screen's
+/// extend/trim handler.
+class _SpanDragData {
+  const _SpanDragData({
+    required this.headId,
+    required this.spanId,
+    required this.headDate,
+    required this.groupId,
+  });
+
+  /// Row id of the head variant — what `extendSpanThroughDate`
+  /// expects. The head's spanId may be null (single-day variant
+  /// about to become a span); the repo mints one on first extend.
+  final String headId;
+
+  /// Pre-existing span id, when the source cell already has
+  /// continuations. Null when the source is single-day. Used by
+  /// the drop handler to decide trim-vs-extend (only existing
+  /// spans can be trimmed).
+  final String? spanId;
+
+  /// The head row's date. Drops at-or-before this date are
+  /// rejected (you can't extend backwards through the head).
+  final DateTime headDate;
+
+  /// Group id — drops onto cells in a different group are
+  /// rejected (cross-group span moves aren't a coherent operation).
+  final String groupId;
+}
+
 class MonthlyPlanScreen extends ConsumerStatefulWidget {
   const MonthlyPlanScreen({super.key});
 
@@ -74,13 +108,70 @@ class MonthlyPlanScreen extends ConsumerStatefulWidget {
 }
 
 class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
-  /// First-of-month for the visible month.
+  /// First-of-month for the visible month. Persisted via
+  /// SharedPreferences so a reload returns to the month the user
+  /// was looking at — restored asynchronously in initState (the
+  /// initial render uses today's month, then the post-load
+  /// setState swaps in the saved month if there was one). Saved
+  /// every time the user navigates a month.
   late DateTime _viewMonth = _firstOfMonth(DateTime.now());
 
   /// Currently-selected group filter. Required (no "All"). Defaults
   /// to the first group as soon as the groups stream resolves with at
-  /// least one entry. Kept null until that point.
+  /// least one entry. Kept null until that point. Persisted via
+  /// SharedPreferences alongside `_viewMonth`.
   String? _activeGroupId;
+
+  // ---- Persisted view state (v60.5) ---------------------------
+  // Reload restores the user to whichever (month, group) they were
+  // viewing. Without this, every reload kicks them back to the
+  // current month + first group, losing context — annoying when
+  // they're planning a future month.
+
+  static const _kPrefViewYearMonth = 'monthly_plan/view_ym';
+  static const _kPrefActiveGroupId = 'monthly_plan/active_group';
+
+  Future<void> _restoreViewState() async {
+    final prefs = await SharedPreferences.getInstance();
+    final ym = prefs.getString(_kPrefViewYearMonth);
+    final group = prefs.getString(_kPrefActiveGroupId);
+    if (!mounted) return;
+    setState(() {
+      if (ym != null) {
+        final parts = ym.split('-');
+        if (parts.length == 2) {
+          final year = int.tryParse(parts[0]);
+          final month = int.tryParse(parts[1]);
+          if (year != null && month != null && month >= 1 && month <= 12) {
+            _viewMonth = DateTime(year, month);
+          }
+        }
+      }
+      // Group restored optimistically; the post-frame validation in
+      // build() falls back to the lead's anchored group / first
+      // group when the saved one no longer exists in the program.
+      if (group != null && group.isNotEmpty) {
+        _activeGroupId = group;
+      }
+    });
+  }
+
+  Future<void> _persistViewMonth(DateTime month) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _kPrefViewYearMonth,
+      '${month.year}-${month.month.toString().padLeft(2, '0')}',
+    );
+  }
+
+  Future<void> _persistActiveGroup(String? id) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (id == null || id.isEmpty) {
+      await prefs.remove(_kPrefActiveGroupId);
+    } else {
+      await prefs.setString(_kPrefActiveGroupId, id);
+    }
+  }
 
   // v56 (Slice 2): variants moved to the cloud. Reads go through
   // monthlyActivitiesProvider (StreamProviderFamily keyed by
@@ -162,6 +253,17 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   /// be and the button is disabled. Inline (no modal) so the user
   /// stays in the calendar view through the round-trip.
   String? _generatingCellKey;
+
+  @override
+  void initState() {
+    super.initState();
+    // Restore the user's last-viewed (month, group) from
+    // SharedPreferences so a reload doesn't kick them back to
+    // today + first group. Async — the initial render uses the
+    // defaults and the post-load setState swaps in saved values
+    // if there were any.
+    unawaited(_restoreViewState());
+  }
 
   // Theme + sub-theme state moved to the cloud (v55, Slice 1).
   // Reads go through monthlyThemeProvider / weeklySubThemeProvider
@@ -274,10 +376,12 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
         _viewMonth.month + deltaMonths,
       );
     });
+    unawaited(_persistViewMonth(_viewMonth));
   }
 
   void _resetToThisMonth() {
     setState(() => _viewMonth = _firstOfMonth(DateTime.now()));
+    unawaited(_persistViewMonth(_viewMonth));
   }
 
   // -----------------------------------------------------------------
@@ -642,23 +746,42 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
     return false;
   }
 
-  /// v57 (Slice 3) — extend the active variant's span by one day.
-  /// Mints a span_id on the head if it doesn't have one yet, then
-  /// inserts a continuation row on the next consecutive day in the
-  /// same group. Other teachers see the new continuation cell
-  /// appear within the second via realtime.
-  Future<void> _extendSpan(DateTime date) async {
-    final groupId = _activeGroupId;
-    if (groupId == null) return;
-    final active = _activeAt(date, groupId);
-    if (active == null || active.isEmpty) return;
-    // The "head" the user wants to extend is whichever variant
-    // they're currently looking at — if they're on a continuation
-    // row, extend the same span; if they're on the first variant
-    // of a single-day cell, the repo mints a span on the fly.
-    await ref
-        .read(monthlyPlanRepositoryProvider)
-        .extendSpanByOneDay(active.id);
+  /// v60.6 — drag-edge span handler. The user long-presses the
+  /// drag handle on a head cell's right edge and drops on a target
+  /// day. Three cases:
+  ///   * Drop on a future day → extend the span's tail through
+  ///     that date (Mon–Fri only; weekends skipped).
+  ///   * Drop on a past day inside the existing span → trim the
+  ///     span back to that date (soft-deletes continuation rows
+  ///     past it).
+  ///   * Drop on the head day or earlier → no-op (can't drag the
+  ///     tail past the head).
+  Future<void> _onSpanDrop({
+    required _SpanDragData source,
+    required DateTime targetDate,
+  }) async {
+    if (source.groupId != _activeGroupId) return;
+    final target = DateTime(
+      targetDate.year,
+      targetDate.month,
+      targetDate.day,
+    );
+    final repo = ref.read(monthlyPlanRepositoryProvider);
+    if (target.isAfter(source.headDate)) {
+      // Extend (or no-op if target is already inside the span and
+      // not past the tail — the repo handles that).
+      await repo.extendSpanThroughDate(
+        headId: source.headId,
+        throughDate: target,
+      );
+    } else if (source.spanId != null &&
+        !target.isAtSameMomentAs(source.headDate)) {
+      // Trim back. Only meaningful if there's already a span.
+      await repo.trimSpanThroughDate(
+        spanId: source.spanId!,
+        throughDate: target,
+      );
+    }
   }
 
   /// Soft-delete the active variant (deletedAt stamp + null clear).
@@ -1222,12 +1345,16 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (!mounted) return;
                   setState(() => _activeGroupId = preferred);
+                  unawaited(_persistActiveGroup(preferred));
                 });
               }
               return _GroupFilterBar(
                 groups: groups,
                 activeId: _activeGroupId,
-                onSelect: (id) => setState(() => _activeGroupId = id),
+                onSelect: (id) {
+                  setState(() => _activeGroupId = id);
+                  unawaited(_persistActiveGroup(id));
+                },
               );
             },
           ),
@@ -1394,6 +1521,7 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                                               '${_dayKey(date)}',
                                             ),
                                             date: date,
+                                            groupId: _activeGroupId!,
                                             isCurrentMonth: date.month ==
                                                 _viewMonth.month,
                                             variants: variants,
@@ -1445,8 +1573,11 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                                             unawaited(_enterInlineEdit(date)),
                                         onCommitEdit: () =>
                                             unawaited(_exitInlineEdit()),
-                                        onExtendSpan: () =>
-                                            unawaited(_extendSpan(date)),
+                                        onSpanDrop: (source, targetDate) =>
+                                            unawaited(_onSpanDrop(
+                                          source: source,
+                                          targetDate: targetDate,
+                                        )),
                                       );
                                         },
                                       ),
@@ -1802,6 +1933,7 @@ class _WeekSidePanelState extends State<_WeekSidePanel> {
 class _DayCell extends StatefulWidget {
   const _DayCell({
     required this.date,
+    required this.groupId,
     required this.isCurrentMonth,
     required this.variants,
     required this.activeIndex,
@@ -1818,11 +1950,17 @@ class _DayCell extends StatefulWidget {
     required this.onDeleteActive,
     required this.onEditActive,
     required this.onCommitEdit,
-    required this.onExtendSpan,
+    required this.onSpanDrop,
     super.key,
   });
 
   final DateTime date;
+
+  /// Group this cell belongs to. v60.6 — needed for the span drag
+  /// data so cross-group drops can be rejected (a span lives in one
+  /// group; dragging from group A onto group B's cell is meaningless).
+  final String groupId;
+
   final bool isCurrentMonth;
   final List<_MonthlyActivity> variants;
   final int activeIndex;
@@ -1858,11 +1996,11 @@ class _DayCell extends StatefulWidget {
   // shows the formatted preview.
   final VoidCallback onCommitEdit;
 
-  /// v57 — extend the active variant's span by one day. Tapping the
-  /// "↔" affordance fires this callback; the screen routes to the
-  /// repo's `extendSpanByOneDay`. Continuation days are inserted on
-  /// the next consecutive calendar day in the same group.
-  final VoidCallback onExtendSpan;
+  /// v60.6 — drag-edge span gesture handler. Fires when the user
+  /// long-presses a head cell's right-edge handle and drops on a
+  /// target cell. The screen routes to extend (drop after head) or
+  /// trim (drop earlier inside the existing span).
+  final void Function(_SpanDragData source, DateTime targetDate) onSpanDrop;
 
   @override
   State<_DayCell> createState() => _DayCellState();
@@ -2153,34 +2291,19 @@ class _DayCellState extends State<_DayCell> {
                     ],
                   ),
                 ),
-                // Bottom-right column: AI ✨ on top, span "↔" below.
-                // Only the head of a span (or a single-day variant
-                // about to become one) gets the extend affordance —
-                // continuation days delete via × instead.
+                // Bottom-right: AI ✨. The old span "↔" tap-button
+                // is gone (v60.6) — span extension is now a drag of
+                // the cell's right-edge handle (rendered separately
+                // below) onto a target day.
                 Positioned(
                   bottom: 0,
                   right: 0,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      _CellAffordanceButton(
-                        icon: Icons.auto_awesome_outlined,
-                        tone: _AffordanceTone.primary,
-                        onTap: widget.isGenerating ? null : widget.onAi,
-                        tooltip: 'AI variant',
-                        loading: widget.isGenerating,
-                      ),
-                      if (_activeVariant?.isSpanContinuation != true) ...[
-                        const SizedBox(height: 4),
-                        _CellAffordanceButton(
-                          icon: Icons.last_page,
-                          tone: _AffordanceTone.muted,
-                          onTap: widget.onExtendSpan,
-                          tooltip: 'Extend across days',
-                        ),
-                      ],
-                    ],
+                  child: _CellAffordanceButton(
+                    icon: Icons.auto_awesome_outlined,
+                    tone: _AffordanceTone.primary,
+                    onTap: widget.isGenerating ? null : widget.onAi,
+                    tooltip: 'AI variant',
+                    loading: widget.isGenerating,
                   ),
                 ),
               ],
@@ -2191,15 +2314,81 @@ class _DayCellState extends State<_DayCell> {
       ),
     );
 
+    // v60.6 — wrap the cell in a DragTarget so it can receive a
+    // span-drag drop from any other cell's right-edge handle, AND
+    // overlay a LongPressDraggable handle on the right edge so the
+    // user can grab THIS cell's tail and drag it elsewhere. The
+    // handle is hidden on continuation rows (only the head extends);
+    // on read-only / out-of-month / editing cells; and on cells
+    // with no content (nothing to span).
+    final activeVariant = _activeVariant;
+    final canBeSpanSource = !isOutOfMonth &&
+        widget.canEdit &&
+        !widget.isEditing &&
+        hasContent &&
+        activeVariant != null &&
+        !activeVariant.isSpanContinuation;
+    final dragSource = canBeSpanSource
+        ? _SpanDragData(
+            headId: activeVariant.id,
+            spanId: activeVariant.spanId,
+            headDate: widget.date,
+            groupId: _groupIdForCell,
+          )
+        : null;
+
+    final wrappedBody = DragTarget<_SpanDragData>(
+      onWillAcceptWithDetails: (details) =>
+          // Reject drops onto self + cross-group drops.
+          details.data.headDate != widget.date &&
+          details.data.groupId == _groupIdForCell,
+      onAcceptWithDetails: (details) =>
+          widget.onSpanDrop(details.data, widget.date),
+      builder: (context, candidates, _) {
+        final hovering = candidates.isNotEmpty;
+        return Stack(
+          children: [
+            body,
+            // Drop-target highlight when a drag is hovering over us.
+            if (hovering)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: cs.primaryContainer.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: cs.primary.withValues(alpha: 0.6),
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            // Right-edge drag handle (the source for extending spans).
+            if (dragSource != null)
+              Positioned(
+                top: 0,
+                right: 0,
+                bottom: 0,
+                child: _SpanDragHandle(data: dragSource),
+              ),
+          ],
+        );
+      },
+    );
+
     // MouseRegion provides the hover-to-focus path on web. On touch
     // devices it's a no-op (no hover events fire); the parent's tap
     // dispatcher handles focus instead.
     return MouseRegion(
       onEnter: isOutOfMonth ? null : (_) => widget.onFocusEnter(),
       onExit: isOutOfMonth ? null : (_) => widget.onFocusExit(),
-      child: body,
+      child: wrappedBody,
     );
   }
+
+  String get _groupIdForCell => widget.groupId;
 
   /// Two-TextField inline editor. Title field is single-line + bold
   /// (with `textInputAction: next` so ↵ moves focus to the
@@ -2564,6 +2753,71 @@ class _CellPreview extends StatelessWidget {
 /// `primaryContainer` for `primary` (✨). Same shape across both
 /// so the icons read as one set.
 enum _AffordanceTone { muted, primary }
+
+/// v60.6 — drag handle on the right edge of a focused, head-only
+/// cell. Long-press to grab, then drag to a target day to extend
+/// (or trim) the span. Visual is intentionally subtle: a thin
+/// vertical bar with three small dots in the middle, only
+/// noticeably colored while the user is touching it (long-press
+/// activates the Draggable, at which point the feedback widget
+/// takes over).
+///
+/// Long-press (not bare drag) avoids racing with the calendar's
+/// vertical scroll gesture arena — a horizontal drag from the
+/// edge of a cell could otherwise be claimed by the scroll
+/// container.
+class _SpanDragHandle extends StatelessWidget {
+  const _SpanDragHandle({required this.data});
+
+  final _SpanDragData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final restingHandle = MouseRegion(
+      cursor: SystemMouseCursors.resizeLeftRight,
+      child: SizedBox(
+        width: 14,
+        child: Center(
+          child: Container(
+            width: 4,
+            height: 36,
+            decoration: BoxDecoration(
+              color: cs.onSurfaceVariant.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ),
+      ),
+    );
+    final feedback = Material(
+      color: Colors.transparent,
+      child: SizedBox(
+        width: 14,
+        child: Center(
+          child: Container(
+            width: 4,
+            height: 36,
+            decoration: BoxDecoration(
+              color: cs.primary,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ),
+      ),
+    );
+    return LongPressDraggable<_SpanDragData>(
+      data: data,
+      // Default delay (~500ms) — long enough to disambiguate from
+      // a vertical-scroll touch start, short enough to feel
+      // responsive once the user commits to a drag.
+      feedback: feedback,
+      childWhenDragging: Opacity(opacity: 0.3, child: restingHandle),
+      child: restingHandle,
+    );
+  }
+}
 
 class _CellAffordanceButton extends StatelessWidget {
   const _CellAffordanceButton({

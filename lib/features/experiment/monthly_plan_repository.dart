@@ -371,6 +371,125 @@ class MonthlyPlanRepository {
     unawaited(_sync.pushRow(monthlyActivitiesSpec, id));
   }
 
+  /// Extend the span at [headId] so its tail reaches [throughDate]
+  /// (Mon–Fri only — the calendar skips weekends). Inserts
+  /// continuation rows for every weekday between the current tail
+  /// and `throughDate`. If `throughDate` is on or before the
+  /// current tail, this is a no-op (use [trimSpanThroughDate] to
+  /// shrink). Used by the drag-edge gesture: source cell is the
+  /// head, drop target is the day the user wants the span to end.
+  Future<void> extendSpanThroughDate({
+    required String headId,
+    required DateTime throughDate,
+  }) async {
+    final programId = _programId;
+    if (programId == null) return;
+    final head = await (_db.select(_db.monthlyActivities)
+          ..where((r) => r.id.equals(headId))
+          ..limit(1))
+        .getSingleOrNull();
+    if (head == null) return;
+
+    // Mint a span_id on first extend so siblings can find each other.
+    final spanId = head.spanId ?? newId();
+    if (head.spanId == null) {
+      final now = DateTime.now();
+      await (_db.update(_db.monthlyActivities)
+            ..where((r) => r.id.equals(headId)))
+          .write(
+        MonthlyActivitiesCompanion(
+          spanId: Value(spanId),
+          spanPosition: const Value(0),
+          updatedAt: Value(now),
+        ),
+      );
+      await _db.markDirty(
+        'monthly_activities',
+        headId,
+        ['span_id', 'span_position'],
+      );
+      unawaited(_sync.pushRow(monthlyActivitiesSpec, headId));
+    }
+
+    // Find the tail (highest existing span_position) so we don't
+    // double-insert days that are already in the span.
+    final tail = await (_db.select(_db.monthlyActivities)
+          ..where((r) => r.spanId.equals(spanId))
+          ..where((r) => r.deletedAt.isNull())
+          ..orderBy([
+            (r) => OrderingTerm.desc(r.spanPosition),
+          ])
+          ..limit(1))
+        .getSingleOrNull();
+    final tailRow = tail ?? head;
+    final tailDate = _parseDayKey(tailRow.date);
+    final targetDate = DateTime(
+      throughDate.year,
+      throughDate.month,
+      throughDate.day,
+    );
+    if (!targetDate.isAfter(tailDate)) {
+      // Drop at-or-before the tail = no extension. Caller handles
+      // shrinking via trimSpanThroughDate when target is earlier.
+      return;
+    }
+
+    // Walk weekdays from tail+1 through targetDate inclusive.
+    var date = tailDate.add(const Duration(days: 1));
+    var pos = tailRow.spanPosition + 1;
+    while (!date.isAfter(targetDate)) {
+      // Skip Sat/Sun — calendar grid only renders Mon–Fri so
+      // weekend continuation rows would be invisible.
+      if (date.weekday <= 5) {
+        final id = newId();
+        final now = DateTime.now();
+        await _db.into(_db.monthlyActivities).insert(
+              MonthlyActivitiesCompanion.insert(
+                id: id,
+                programId: Value(programId),
+                groupId: head.groupId,
+                date: _formatDayKey(date),
+                position: Value(head.position),
+                spanId: Value(spanId),
+                spanPosition: Value(pos),
+                createdAt: Value(now),
+                updatedAt: Value(now),
+              ),
+            );
+        unawaited(_sync.pushRow(monthlyActivitiesSpec, id));
+        pos += 1;
+      }
+      date = date.add(const Duration(days: 1));
+    }
+  }
+
+  /// Shrink a span so its tail no longer extends past [throughDate].
+  /// Soft-deletes every continuation row whose date is *strictly
+  /// after* `throughDate`. If `throughDate` is on or before the
+  /// head, the entire span is collapsed (head row stays, all
+  /// continuations gone).
+  Future<void> trimSpanThroughDate({
+    required String spanId,
+    required DateTime throughDate,
+  }) async {
+    final targetDate = DateTime(
+      throughDate.year,
+      throughDate.month,
+      throughDate.day,
+    );
+    final continuations = await (_db.select(_db.monthlyActivities)
+          ..where((r) => r.spanId.equals(spanId))
+          ..where((r) => r.spanPosition.isBiggerThanValue(0))
+          ..where((r) => r.deletedAt.isNull()))
+        .get();
+    for (final row in continuations) {
+      final rowDate = _parseDayKey(row.date);
+      if (rowDate.isAfter(targetDate)) {
+        await deleteVariant(row.id);
+      }
+    }
+  }
+
   /// Trim the span at [spanId] by one day — soft-deletes the
   /// highest-position continuation row. If the span ends up with
   /// only the head, the head's span_id is left intact (cheap, no
