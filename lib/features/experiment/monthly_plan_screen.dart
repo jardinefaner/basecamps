@@ -127,6 +127,14 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   /// gets stamped.
   Future<String>? _pendingDraftInsert;
 
+  /// Latest in-flight `updateVariant` future from `_writeInlineEdit`.
+  /// _exitInlineEdit awaits this before flipping state so didUpdateWidget
+  /// in the cell syncs the controller from a settled stream emission
+  /// rather than a stale one mid-write — the "Reading → R on reload"
+  /// bug. Drift serializes writes per row, so awaiting the latest
+  /// queued one drains every earlier one too.
+  Future<void>? _lastInlineWrite;
+
   /// Cell that's currently focused (touch-tap on mobile, hover on
   /// web). Drives visibility of ✨ + × + dots so they don't clutter
   /// every cell at once.
@@ -288,6 +296,7 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
       _editingCellKey = key;
       _editingVariantId = existingId; // null on a fresh empty cell
       _pendingDraftInsert = null;
+      _lastInlineWrite = null;
       _focusedCellKey = key;
     });
   }
@@ -298,12 +307,19 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   /// pin its id so subsequent keystrokes update in place.
   /// `_pendingDraftInsert` collapses concurrent first-keystroke
   /// races into one in-flight insert.
+  ///
+  /// **Persist even after exit.** The previous version bailed when
+  /// `_editingCellKey` flipped to null mid-flight (the user tapped
+  /// away during typing), but that orphaned every queued write that
+  /// hadn't yet resumed past the await — leading to the truncation
+  /// bug where "Reading" persisted as "R" because k2..k7's chains
+  /// bailed before their updateVariant calls fired. Now we run the
+  /// write regardless: the user typed, it gets saved.
   Future<void> _writeInlineEdit({
     required DateTime date,
     String? title,
     String? description,
   }) async {
-    if (_editingCellKey == null) return;
     var id = _editingVariantId;
     if (id == null) {
       final groupId = _activeGroupId;
@@ -312,28 +328,39 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
           .read(monthlyPlanRepositoryProvider)
           .addVariant(groupId: groupId, date: _dayKey(date));
       id = await _pendingDraftInsert;
-      if (!mounted) return;
-      // The user might have exited edit mode while addVariant was
-      // in flight — guard against stamping a stale id onto a fresh
-      // edit session. Worst case: an empty draft hits the DB and
-      // gets cleaned up by the next exit.
       if (id == null) return;
-      if (_editingCellKey == null) return;
-      if (_editingVariantId == null) {
+      // setState only when we're still in edit mode; otherwise just
+      // capture the id locally and let the write below run. The
+      // setState is purely UI state for "which row's id is the
+      // editing target" — irrelevant if we're no longer editing.
+      if (mounted &&
+          _editingCellKey != null &&
+          _editingVariantId == null) {
         setState(() => _editingVariantId = id);
       }
     }
-    await ref.read(monthlyPlanRepositoryProvider).updateVariant(
+    final write = ref.read(monthlyPlanRepositoryProvider).updateVariant(
           id: id,
           title: title,
           description: description,
         );
+    _lastInlineWrite = write;
+    await write;
   }
 
   /// Exit edit mode. If a draft row was created during this session
   /// and is still empty, hard-delete it so the cell reverts to its
   /// empty visual. Lazy-create means most empty enter-and-bail
   /// sessions leave nothing to clean up.
+  ///
+  /// **Drains in-flight writes.** Per-keystroke `updateVariant`
+  /// calls are queued in Drift; if we flip `_editingCellKey` to
+  /// null before they all complete, the cell's `didUpdateWidget`
+  /// runs while the stream is still emitting earlier states and
+  /// can sync the controller from a stale value. Awaiting both the
+  /// pending draft insert AND the latest queued write here lets
+  /// the stream settle on the final state before we release the
+  /// edit-mode gate.
   Future<void> _exitInlineEdit() async {
     final key = _editingCellKey;
     if (key == null) return;
@@ -347,6 +374,19 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
         _editingVariantId = await pending;
       } on Object {
         _editingVariantId = null;
+      }
+      if (!mounted) return;
+    }
+    // Drain any queued updateVariant calls. Drift serializes writes
+    // per row, so awaiting the latest queued future implicitly
+    // waits for every earlier one to complete too.
+    final lastWrite = _lastInlineWrite;
+    if (lastWrite != null) {
+      try {
+        await lastWrite;
+      } on Object {
+        // A failed write doesn't block exit — we just continue with
+        // whatever made it through.
       }
       if (!mounted) return;
     }
@@ -364,6 +404,7 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
       _editingCellKey = null;
       _editingVariantId = null;
       _pendingDraftInsert = null;
+      _lastInlineWrite = null;
       if (isEmpty && isLast) {
         _focusedCellKey = null;
       }
@@ -1694,37 +1735,13 @@ class _WeekSidePanelState extends State<_WeekSidePanel> {
                 focusedBorder: InputBorder.none,
               ),
             ),
-            const SizedBox(height: AppSpacing.sm),
-            Divider(
-              height: 1,
-              color: cs.outlineVariant.withValues(alpha: 0.4),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              'Supplies',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: cs.onSurfaceVariant,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.6,
-              ),
-            ),
-            const SizedBox(height: 2),
-            // Aggregated supplies — laid out in TWO columns inside
-            // the side rail so a long week's supplies list doesn't
-            // push the whole row vertically as much. The list
-            // splits left-to-right (item 0, 1, 2 → left column;
-            // item 3, 4, 5 → right) — half the rows for the same
-            // count of supplies. Empty state stays as a single
-            // muted dash.
-            if (widget.materials.isEmpty)
-              Text(
-                '—',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: cs.onSurfaceVariant.withValues(alpha: 0.5),
-                ),
-              )
-            else
-              _SuppliesTwoColumns(items: widget.materials),
+            // v60.1 — supplies dropped from the side rail. The
+            // rail used to aggregate the week's supplies as a
+            // shopping list, but now each cell renders its own
+            // supplies inline (under the variant title/desc),
+            // which is closer to where the user thinks about
+            // them. Two places to keep in sync was clutter; cells
+            // win.
           ],
         ),
         ),
@@ -1733,58 +1750,10 @@ class _WeekSidePanelState extends State<_WeekSidePanel> {
   }
 }
 
-/// Two-column bulleted layout for the side rail's supplies list.
-/// **Column-major** fill — the left column fills top-to-bottom
-/// first; once it's exhausted, items spill into the right column.
-/// That matches how a printed list reads (newspaper-style) and
-/// keeps the most important supplies in the leftmost column.
-///
-/// No truncation — full text wraps to multiple lines if needed,
-/// matches the user's "all texts visible" rule for the calendar.
-class _SuppliesTwoColumns extends StatelessWidget {
-  const _SuppliesTwoColumns({required this.items});
-
-  final List<String> items;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    // Column-major split: left column gets ceil(N/2) items, right
-    // column gets the remaining floor(N/2). For odd counts the
-    // left column carries the extra (visual balance from the top).
-    final mid = (items.length + 1) ~/ 2;
-    final left = items.sublist(0, mid);
-    final right = items.sublist(mid);
-    Widget bulletColumn(List<String> entries) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final m in entries)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 1),
-              child: Text(
-                '• $m',
-                style: theme.textTheme.bodySmall,
-                // No maxLines / no ellipsis — long materials wrap
-                // and the cell grows to accommodate. Matches the
-                // monthly plan's "show all texts" rule.
-              ),
-            ),
-        ],
-      );
-    }
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: bulletColumn(left)),
-        const SizedBox(width: AppSpacing.xs),
-        Expanded(child: bulletColumn(right)),
-      ],
-    );
-  }
-}
+// _SuppliesTwoColumns removed (v60.1) — supplies render inline in
+// each cell now. The week side rail's role shrinks to just the
+// sub-theme; the per-cell footer is closer to where the user
+// thinks about supplies.
 
 // =====================================================================
 // Day cell
