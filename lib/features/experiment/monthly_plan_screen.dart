@@ -43,6 +43,22 @@ import 'package:intl/intl.dart';
 /// grid stays rectangular (Google Calendar idiom).
 ///
 /// Drafts live in memory only; sandbox until this graduates.
+///
+/// v59 — global view mode. The header has a single AI toggle next
+/// to the month nav: original ↔ AI for the whole calendar. Flipping
+/// to AI also opportunistically generates AI variants for any cell
+/// that has typed content but no AI yet (with a progress bar +
+/// cancel). Per-cell ✨ remains for individual regeneration.
+enum _ViewMode {
+  /// Show every cell's variant 0 (the user-typed original).
+  original,
+
+  /// Show every cell's last variant — the AI take, when one exists.
+  /// Cells with only an original fall back to the original; no
+  /// ghosting (we'd rather show real content than gray-out).
+  ai,
+}
+
 class MonthlyPlanScreen extends ConsumerStatefulWidget {
   const MonthlyPlanScreen({super.key});
 
@@ -65,13 +81,29 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   // (groupId, date)) and writes go through
   // monthlyPlanRepository.addVariant / updateVariant / deleteVariant.
   // The realtime channel keeps two teachers' carousels in sync.
+  //
+  // v59: per-cell variant index removed. View is now global — the
+  // header toggle flips the WHOLE calendar between original and AI.
+  // _activeIdxAt computes its return value from _viewMode rather
+  // than a per-cell stash. Inline editing edits whichever variant
+  // is in view.
 
-  /// Active variant index per cell, keyed by `"$groupId|$dayKey"`.
-  /// Stays in-memory because it's a per-user view preference — if
-  /// teacher A is looking at variant 1 and teacher B at variant 0,
-  /// that's fine. Defaults to 0 (the first/manual variant) when the
-  /// key is absent.
-  final Map<String, int> _activeVariantIndex = {};
+  /// Global view mode. Toggling re-renders every cell — AI shows
+  /// the latest AI variant when one exists; original shows variant
+  /// 0. Cells with no AI yet fall back to the original even in AI
+  /// view (no ghosting — we just show what's there).
+  _ViewMode _viewMode = _ViewMode.original;
+
+  // ---- Batch AI state ------------------------------------------
+  // When the user flips from original → AI, we opportunistically
+  // fill in AI variants for every cell that has content but lacks
+  // one. These fields drive the progress bar at the top of the
+  // calendar; cancel sets _batchCancelRequested true and the loop
+  // bails on its next iteration boundary.
+  bool _batching = false;
+  int _batchCount = 0;
+  int _batchTotal = 0;
+  bool _batchCancelRequested = false;
 
   /// Cell that's currently in inline-edit mode (the multi-line
   /// TextField rendering inside the cell). Only one cell edits at a
@@ -195,13 +227,13 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   int _activeIdxAt(DateTime d, String groupId) {
     final list = _variantsAt(d, groupId);
     if (list.isEmpty) return 0;
-    // Default to the LAST variant (the AI take when one exists).
-    // Cells with only the manual original collapse to index 0
-    // through the same default. The user toggles to the original
-    // via the swap-icon affordance on the cell.
-    final raw =
-        _activeVariantIndex[_activityKey(d, groupId)] ?? list.length - 1;
-    return raw.clamp(0, list.length - 1);
+    // v59 — view mode-driven. Original view = first variant (the
+    // user's typed text); AI view = last variant (the AI take, if
+    // one exists; otherwise falls back to first via clamp).
+    return switch (_viewMode) {
+      _ViewMode.original => 0,
+      _ViewMode.ai => list.length - 1,
+    };
   }
 
   _MonthlyActivity? _activeAt(DateTime d, String groupId) {
@@ -333,7 +365,6 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
       _editingVariantId = null;
       _pendingDraftInsert = null;
       if (isEmpty && isLast) {
-        _activeVariantIndex.remove(key);
         _focusedCellKey = null;
       }
     });
@@ -395,14 +426,10 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
       if (!mounted) return;
       setState(() {
         _generatingCellKey = null;
-        // After the stream re-emits, the AI take is at the tail.
-        // Clamping in _activeIdxAt resolves to that index even if
-        // we set it now (pre-emit) — the clamp will accept any
-        // value within the new bounds.
-        final newLen = existingAi != null
-            ? variants.length
-            : variants.length + 1;
-        _activeVariantIndex[key] = newLen - 1;
+        // v59 — view-mode-driven active variant. Flip to AI view
+        // so the user sees the freshly-generated take immediately
+        // without any per-cell index bookkeeping.
+        _viewMode = _ViewMode.ai;
       });
     } on Object catch (e) {
       if (!mounted) return;
@@ -417,12 +444,121 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
     }
   }
 
-  /// Switch the active variant via dot tap or PageView swipe.
-  void _switchVariant(DateTime date, int newIdx) {
+  // _switchVariant deleted in v59 — variant choice is now global.
+  // Cells render per the screen's _viewMode; the per-cell swap
+  // affordance is gone and the dots/per-cell index map are gone
+  // with it.
+
+  /// v59 — global view mode toggle. Tap the header icon: flips
+  /// the calendar between original and AI views. When flipping TO
+  /// AI, opportunistically fill any cells that have typed content
+  /// but no AI variant — that's the user's "cells with no AI,
+  /// generate AI" ask. Going back to original is a pure visual
+  /// flip; existing AI variants stick around for next time.
+  Future<void> _toggleViewMode() async {
+    if (_viewMode == _ViewMode.ai) {
+      setState(() => _viewMode = _ViewMode.original);
+      return;
+    }
+    setState(() => _viewMode = _ViewMode.ai);
+    await _fillAiGaps();
+  }
+
+  /// Iterate every visible (in-month) cell for the active group.
+  /// For each cell that has typed content (variant 0 non-empty)
+  /// but no AI variant yet, run an AI generation and persist the
+  /// result. Sequential — predictable progress reporting + avoids
+  /// hammering the model rate limits. Cancellable via the progress
+  /// bar's × button (sets `_batchCancelRequested` true).
+  Future<void> _fillAiGaps() async {
     final groupId = _activeGroupId;
     if (groupId == null) return;
-    final key = _activityKey(date, groupId);
-    setState(() => _activeVariantIndex[key] = newIdx);
+    // Snapshot cells needing work BEFORE the loop so the count
+    // doesn't drift if the user types into a cell mid-batch.
+    final pending = <DateTime>[];
+    for (final week in _buildWeeks()) {
+      for (final date in week) {
+        if (date.month != _viewMonth.month) continue;
+        final variants = _variantsAt(date, groupId);
+        if (variants.isEmpty) continue;
+        if (variants.first.isEmpty) continue; // no original to refine
+        if (variants.length > 1) continue; // already has AI
+        pending.add(date);
+      }
+    }
+    if (pending.isEmpty) return;
+    setState(() {
+      _batching = true;
+      _batchTotal = pending.length;
+      _batchCount = 0;
+      _batchCancelRequested = false;
+    });
+    final repo = ref.read(monthlyPlanRepositoryProvider);
+    try {
+      for (final date in pending) {
+        if (_batchCancelRequested) break;
+        try {
+          final variants = _variantsAt(date, groupId);
+          if (variants.isEmpty) continue;
+          final original = variants.first;
+          if (original.isEmpty) continue;
+          if (variants.length > 1) continue; // user generated mid-batch
+          final result = await generateAiVariant(
+            activity: original.toAiActivity(),
+            planContext: _aiContextForDate(date),
+          );
+          if (!mounted) return;
+          await repo.addVariant(
+            groupId: groupId,
+            date: _dayKey(date),
+            title: result.title,
+            description: result.description,
+            objectives: result.objectives,
+            steps: result.steps,
+            materials: result.materials,
+            link: result.link,
+          );
+          if (!mounted) return;
+        } on Object catch (e) {
+          // Continue past individual failures — one rate-limit hit
+          // shouldn't abort the whole batch. The cell stays at its
+          // previous state; the user can retry that one via its
+          // own ✨ button.
+          debugPrint('Batch AI failed for ${_dayKey(date)}: $e');
+        }
+        if (!mounted) return;
+        setState(() => _batchCount += 1);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _batching = false;
+          _batchCount = 0;
+          _batchTotal = 0;
+          _batchCancelRequested = false;
+        });
+      }
+    }
+  }
+
+  void _cancelBatch() {
+    setState(() => _batchCancelRequested = true);
+  }
+
+  /// True iff at least one in-month cell in the active group has
+  /// any AI variant. Drives the header icon's glyph + tooltip
+  /// (when false, the icon offers "generate for all"; when true,
+  /// it offers a view flip).
+  bool get _anyCellHasAi {
+    final groupId = _activeGroupId;
+    if (groupId == null) return false;
+    for (final week in _buildWeeks()) {
+      for (final date in week) {
+        if (date.month != _viewMonth.month) continue;
+        if (_variantsAt(date, groupId).length > 1) return true;
+      }
+    }
+    return false;
   }
 
   /// v57 (Slice 3) — extend the active variant's span by one day.
@@ -451,7 +587,6 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
   Future<void> _deleteActiveVariant(DateTime date) async {
     final groupId = _activeGroupId;
     if (groupId == null) return;
-    final key = _activityKey(date, groupId);
     final variants = _variantsAt(date, groupId);
     if (variants.isEmpty) return;
     final idx = _activeIdxAt(date, groupId);
@@ -460,14 +595,11 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
     if (!mounted) return;
     setState(() {
       // After deletion the list will shrink by 1 (post-stream-emit).
-      // Clamp the active index back. If the cell becomes empty,
-      // drop focus too — same UX as the in-memory path.
+      // If the cell becomes empty, drop focus. View-mode handles
+      // the per-cell active index automatically.
       final newLen = variants.length - 1;
       if (newLen <= 0) {
-        _activeVariantIndex.remove(key);
         _focusedCellKey = null;
-      } else {
-        _activeVariantIndex[key] = idx.clamp(0, newLen - 1);
       }
     });
   }
@@ -828,6 +960,40 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
           ),
         ),
         actions: [
+          // v59 — global AI toggle. Single icon that does double
+          // duty: flips view mode for every cell, AND on the
+          // original→AI flip fills any cells that have content
+          // but no AI yet ("cells with no AI, generate AI"). The
+          // glyph reflects what tapping does next, not what's
+          // currently shown:
+          //   * In original view → ✨ (offers AI; tap fills gaps
+          //     and flips to AI view).
+          //   * In AI view → ✏︎ pencil-edit (offers original; tap
+          //     just flips back).
+          //   * While batching → spinner instead of icon, button
+          //     disabled (the cancel × lives on the progress bar).
+          if (canEdit)
+            IconButton(
+              tooltip: switch (_viewMode) {
+                _ViewMode.original =>
+                  _anyCellHasAi ? 'Show AI versions' : 'Generate AI for all',
+                _ViewMode.ai => 'Show originals',
+              },
+              icon: _batching
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      _viewMode == _ViewMode.ai
+                          ? Icons.edit_note_outlined
+                          : Icons.auto_awesome_outlined,
+                    ),
+              onPressed: _batching
+                  ? null
+                  : () => unawaited(_toggleViewMode()),
+            ),
           IconButton(
             tooltip: 'Previous month',
             icon: const Icon(Icons.chevron_left),
@@ -847,6 +1013,72 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
       ),
       body: Column(
         children: [
+          // Batch-AI progress strip — visible only while filling
+          // gaps. Shows "Generating N of M" + a determinate bar +
+          // an × cancel. When done (or cancelled) it collapses
+          // back to nothing.
+          if (_batching)
+            Material(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xs,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.auto_awesome_outlined,
+                      size: 16,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onPrimaryContainer,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _batchCancelRequested
+                                ? 'Cancelling…'
+                                : 'Generating AI for $_batchCount of '
+                                    '$_batchTotal cells…',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelMedium
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onPrimaryContainer,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                          const SizedBox(height: 4),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(2),
+                            child: LinearProgressIndicator(
+                              value: _batchTotal == 0
+                                  ? 0
+                                  : _batchCount / _batchTotal,
+                              minHeight: 3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Cancel',
+                      icon: const Icon(Icons.close, size: 16),
+                      onPressed:
+                          _batchCancelRequested ? null : _cancelBatch,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+              ),
+            ),
           // Monthly theme — top-most input. Per-month, used as AI
           // generation context. The bar keys itself by month so
           // flipping months remounts cleanly with the right value
@@ -1068,18 +1300,13 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                                             for (final r in raw)
                                               _MonthlyActivity.fromDrift(r),
                                           ];
-                                          final activeIdx = (variants.isEmpty
-                                                  ? 0
-                                                  : (_activeVariantIndex[
-                                                              _activityKey(date,
-                                                                  _activeGroupId!)] ??
-                                                          0))
-                                              .clamp(
-                                            0,
-                                            variants.isEmpty
-                                                ? 0
-                                                : variants.length - 1,
-                                          );
+                                          // v59 — active index from
+                                          // global view mode. AI →
+                                          // last variant; original
+                                          // → variant 0. No per-cell
+                                          // index lookup any more.
+                                          final activeIdx =
+                                              _activeIdxAt(date, _activeGroupId!);
                                           return _DayCell(
                                             key: ValueKey(
                                               '${_activeGroupId!}|'
@@ -1129,8 +1356,6 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                                           date: date,
                                           description: v,
                                         )),
-                                        onSwitchVariant: (idx) =>
-                                            _switchVariant(date, idx),
                                         onAi: () =>
                                             unawaited(_onCellAi(date)),
                                         onDeleteActive: () =>
@@ -1567,7 +1792,6 @@ class _DayCell extends StatefulWidget {
     required this.onFocusExit,
     required this.onWriteTitle,
     required this.onWriteDescription,
-    required this.onSwitchVariant,
     required this.onAi,
     required this.onDeleteActive,
     required this.onEditActive,
@@ -1599,7 +1823,6 @@ class _DayCell extends StatefulWidget {
   // even if the cell unmounts mid-edit (group switch, scroll-off).
   final ValueChanged<String> onWriteTitle;
   final ValueChanged<String> onWriteDescription;
-  final ValueChanged<int> onSwitchVariant;
   final VoidCallback onAi;
   final VoidCallback onDeleteActive;
   // Re-enter inline edit on the active variant — paired with the ✏︎
@@ -1687,15 +1910,9 @@ class _DayCellState extends State<_DayCell> {
         widget.activeIndex.clamp(0, widget.variants.length - 1)];
   }
 
-  /// True when the currently-displayed variant is the AI take
-  /// (anything past the first variant). Drives the swap-icon
-  /// affordance — the icon flips its tooltip + glyph to read
-  /// "show AI" vs "show original" depending on what's currently
-  /// in view.
-  bool get _viewingAi {
-    if (widget.variants.length < 2) return false;
-    return widget.activeIndex == widget.variants.length - 1;
-  }
+  // _viewingAi getter dropped in v59 — view mode is global now,
+  // not per-cell. The swap-icon affordance lives in the calendar
+  // header and flips every cell at once.
 
   @override
   void didUpdateWidget(covariant _DayCell old) {
@@ -1851,12 +2068,10 @@ class _DayCellState extends State<_DayCell> {
                     _buildVariantPager(theme),
                 ],
               ),
-              // ⇄ + ✏︎ + × + ✨ affordances — visible when the cell
-              // is focused (hover on web, tap-to-focus on mobile) AND
-              // has content. Top-right cluster: [swap → edit → ×];
-              // AI ✨ + span ↔ stack at bottom-right. The swap icon
-              // toggles between the AI take (default visible when
-              // present) and the original text the teacher typed.
+              // ✏︎ + × at top-right; ✨ + span ↔ at bottom-right.
+              // v59 — the per-cell swap icon is gone. Variant choice
+              // is global now: a single toggle in the calendar header
+              // flips every cell between original and AI at once.
               if (showAffordances && hasContent && !widget.isEditing) ...[
                 Positioned(
                   top: 0,
@@ -1864,23 +2079,6 @@ class _DayCellState extends State<_DayCell> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Toggle is hidden when there's only one
-                      // variant (nothing to switch between).
-                      if (widget.variants.length > 1) ...[
-                        _CellAffordanceButton(
-                          icon: _viewingAi
-                              ? Icons.edit_note_outlined
-                              : Icons.auto_awesome_outlined,
-                          tone: _AffordanceTone.muted,
-                          onTap: () => widget.onSwitchVariant(
-                            _viewingAi ? 0 : widget.variants.length - 1,
-                          ),
-                          tooltip: _viewingAi
-                              ? 'Show original text'
-                              : 'Show AI version',
-                        ),
-                        const SizedBox(width: 4),
-                      ],
                       _CellAffordanceButton(
                         icon: Icons.edit_outlined,
                         tone: _AffordanceTone.muted,
