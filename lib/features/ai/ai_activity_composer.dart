@@ -439,14 +439,31 @@ Future<AiActivity> generateAiVariant({
             "the teacher's stated activity.\n"
             '- Polish the title and description (clearer wording, '
             'title case) but keep the same activity, same focus, '
-            "same content. Don't rename a read-aloud into a craft.\n\n"
+            "same content. Don't rename a read-aloud into a craft.\n"
+            '- If the teacher gave only a title (no description), '
+            'DO NOT invent a description. Return an empty string. '
+            'Inventing copy from a bare title leads to hallucinated '
+            "narrative the teacher didn't ask for.\n\n"
+            'WRITING STYLE:\n'
+            '- Be compact. Cut filler. The description should be ONE '
+            'short sentence, max two when truly needed. No padding.\n'
+            '- Skip closing fluff. Do NOT add a final sentence like '
+            'This activity will help children… or Children will '
+            "enjoy… — that's the kind of sentence we keep cutting. "
+            'End on the concrete bit.\n'
+            '- Avoid restating the title in the description.\n'
+            '- Concrete actions over abstractions. Prefer Sort blocks '
+            'by color into three bowls over Engage in a sorting '
+            'experience.\n\n'
             'Return JSON with these keys (title and description are '
             'required; the rest are optional and should be empty '
             'strings if you cannot infer them confidently):\n'
             '  "title": short, title-cased, max 8 words — same '
             "activity as the teacher's title\n"
-            '  "description": one or two concrete classroom-friendly '
-            "sentences expanding the teacher's description\n"
+            '  "description": ONE short sentence (two only when '
+            "genuinely needed), expanding the teacher's description "
+            'with concrete details. Empty string when the teacher '
+            'gave no description — do not invent.\n'
             '  "objectives": one to three sentences on what children '
             'will practice or learn\n'
             '  "steps": numbered, newline-separated steps for how to '
@@ -502,11 +519,13 @@ String _composeVariantPrompt(String ctxLine, String activityBlock) {
     ..add(
       'Flesh out this activity into a runnable card. Keep the same '
       'activity the teacher specified — same focus, same medium, '
-      'same content. Polish the title and expand the description '
-      'into one or two concrete classroom-friendly sentences. Add '
-      'objectives, steps, and materials that fit what the teacher '
-      'actually wrote. Do NOT swap the activity for a different '
-      'one, even if a different one would fit the theme.',
+      'same content. Polish the title. For description: ONE short '
+      'sentence, no padding, no closing this-will-help-children fluff. '
+      'If the teacher gave no description, return an empty string '
+      "for description — don't invent one. Add objectives, steps, "
+      'and materials that fit what the teacher actually wrote. Do '
+      'NOT swap the activity for a different one, even if a '
+      'different one would fit the theme.',
     );
   return parts.join('\n\n');
 }
