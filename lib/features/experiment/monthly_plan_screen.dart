@@ -59,6 +59,12 @@ enum _ViewMode {
   ai,
 }
 
+/// v60.2 — which inline-edit field should receive focus on entry.
+/// Defaults to title in most flows; tap-on-description sets
+/// `description` so the user lands on the right field without
+/// having to tab/tap again.
+enum _CellFocusTarget { title, description }
+
 class MonthlyPlanScreen extends ConsumerStatefulWidget {
   const MonthlyPlanScreen({super.key});
 
@@ -1840,6 +1846,24 @@ class _DayCellState extends State<_DayCell> {
   late final FocusNode _titleFocus = FocusNode();
   late final FocusNode _descFocus = FocusNode();
 
+  /// v60.2 — when the user taps directly on the rendered title or
+  /// description text, we enter inline edit mode and pre-focus the
+  /// matching field (rather than always landing on title). This
+  /// field captures which one was tapped between the tap firing
+  /// and the parent rebuild that flips `widget.isEditing` true,
+  /// when the postFrame focus request runs. Cleared after focus
+  /// is granted.
+  _CellFocusTarget? _initialFocus;
+
+  /// Tap-on-title or tap-on-description handler. Stamps the focus
+  /// target locally so the postFrame focus request in
+  /// didUpdateWidget picks the right node, then routes to the
+  /// screen's onEditActive (which kicks `_enterInlineEdit`).
+  void _enterEditFocused(_CellFocusTarget target) {
+    _initialFocus = target;
+    widget.onEditActive();
+  }
+
   bool get _isToday {
     final now = DateTime.now();
     return widget.date.year == now.year &&
@@ -1920,7 +1944,17 @@ class _DayCellState extends State<_DayCell> {
     if (widget.isEditing && !old.isEditing) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        _titleFocus.requestFocus();
+        // Honor the tap-on-text initial focus stamp (v60.2). Falls
+        // back to title when the entry path didn't specify (empty
+        // cell tap, edit-pencil affordance, etc.).
+        final target = _initialFocus ?? _CellFocusTarget.title;
+        _initialFocus = null;
+        switch (target) {
+          case _CellFocusTarget.title:
+            _titleFocus.requestFocus();
+          case _CellFocusTarget.description:
+            _descFocus.requestFocus();
+        }
         unawaited(_scrollIntoView());
       });
     }
@@ -2155,25 +2189,46 @@ class _DayCellState extends State<_DayCell> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          TextField(
-            controller: _titleCtrl,
-            focusNode: _titleFocus,
-            onChanged: widget.onWriteTitle,
-            style: titleStyle,
-            textInputAction: TextInputAction.next,
-            // ↵ on title moves to the description field — natural
-            // "type title, hit return, describe" flow.
-            onSubmitted: (_) => _descFocus.requestFocus(),
-            decoration: InputDecoration(
-              isDense: true,
-              isCollapsed: true,
-              filled: false,
-              contentPadding: EdgeInsets.zero,
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: InputBorder.none,
-              hintText: 'Activity Name',
-              hintStyle: titleStyle?.copyWith(color: mutedColor),
+          // v60.2 — title wraps to multiple lines instead of
+          // single-line clipping. maxLines: null lets it grow with
+          // the typed text; the Focus.onKeyEvent below intercepts
+          // Enter so it still moves focus to description (web
+          // hardware keyboard) instead of inserting a newline.
+          // Mobile relies on onSubmitted via textInputAction.next.
+          // Shift+Enter falls through if a power user really wants
+          // a literal newline in a title (rare).
+          Focus(
+            onKeyEvent: (node, event) {
+              if (event is KeyDownEvent &&
+                  event.logicalKey == LogicalKeyboardKey.enter &&
+                  !HardwareKeyboard.instance.isShiftPressed) {
+                _descFocus.requestFocus();
+                return KeyEventResult.handled;
+              }
+              return KeyEventResult.ignored;
+            },
+            child: TextField(
+              controller: _titleCtrl,
+              focusNode: _titleFocus,
+              onChanged: widget.onWriteTitle,
+              style: titleStyle,
+              maxLines: null,
+              keyboardType: TextInputType.text,
+              textInputAction: TextInputAction.next,
+              // ↵ on title moves to the description field — natural
+              // "type title, hit return, describe" flow.
+              onSubmitted: (_) => _descFocus.requestFocus(),
+              decoration: InputDecoration(
+                isDense: true,
+                isCollapsed: true,
+                filled: false,
+                contentPadding: EdgeInsets.zero,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                hintText: 'Activity Name',
+                hintStyle: titleStyle?.copyWith(color: mutedColor),
+              ),
             ),
           ),
           const SizedBox(height: 2),
@@ -2234,7 +2289,21 @@ class _DayCellState extends State<_DayCell> {
     return IndexedStack(
       index: widget.activeIndex,
       children: [
-        for (final v in widget.variants) _CellPreview(activity: v),
+        for (final v in widget.variants)
+          _CellPreview(
+            activity: v,
+            // v60.2 — tap on the rendered title or description text
+            // enters inline edit with the right field focused.
+            // Read-only viewers (canEdit=false) and continuation
+            // rows (no inline edit on those) leave both null so
+            // taps fall through to the outer cell InkWell.
+            onTapTitle: widget.canEdit && !v.isSpanContinuation
+                ? () => _enterEditFocused(_CellFocusTarget.title)
+                : null,
+            onTapDescription: widget.canEdit && !v.isSpanContinuation
+                ? () => _enterEditFocused(_CellFocusTarget.description)
+                : null,
+          ),
       ],
     );
   }
@@ -2359,9 +2428,22 @@ class _DayCellState extends State<_DayCell> {
 }
 
 class _CellPreview extends StatelessWidget {
-  const _CellPreview({required this.activity});
+  const _CellPreview({
+    required this.activity,
+    this.onTapTitle,
+    this.onTapDescription,
+  });
 
   final _MonthlyActivity activity;
+
+  /// Tap handlers for the title + description text. v60.2 — tapping
+  /// the title or description text directly enters inline edit
+  /// mode with the corresponding field focused, so the user
+  /// doesn't have to hit the pencil affordance separately. When
+  /// null (read-only viewer, span continuation), taps fall through
+  /// to the parent cell's outer InkWell.
+  final VoidCallback? onTapTitle;
+  final VoidCallback? onTapDescription;
 
   @override
   Widget build(BuildContext context) {
@@ -2375,20 +2457,28 @@ class _CellPreview extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (activity.title.isNotEmpty)
-            Text(
-              activity.title,
-              // No maxLines / ellipsis — the user explicitly wanted
-              // all text shown. The cell will grow to fit.
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onTapTitle,
+              child: Text(
+                activity.title,
+                // No maxLines / ellipsis — the user explicitly wanted
+                // all text shown. The cell will grow to fit.
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           if (activity.description.isNotEmpty) ...[
             const SizedBox(height: 2),
-            Text(
-              activity.description,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onTapDescription,
+              child: Text(
+                activity.description,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           ],
