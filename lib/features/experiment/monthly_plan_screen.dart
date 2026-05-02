@@ -10,6 +10,8 @@ import 'package:basecamp/features/ai/openai_client.dart';
 import 'package:basecamp/features/children/children_repository.dart'
     show groupsProvider;
 import 'package:basecamp/features/experiment/monthly_plan_repository.dart';
+import 'package:basecamp/features/sync/sync_engine.dart' show syncEngineProvider;
+import 'package:basecamp/features/sync/sync_specs.dart' show kAllSpecs;
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/adaptive_sheet.dart';
 import 'package:flutter/material.dart';
@@ -553,6 +555,15 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
         _focusedCellKey = null;
       }
     });
+    // Force-flush any pending debounced pushes for this cell
+    // before the user can navigate away (close tab, switch
+    // program, lock device). Otherwise a quick exit-and-close can
+    // leave the latest edits locally-dirty but never pushed —
+    // which surfaces in incognito / a fresh device as missing
+    // bits the user thought they saved.
+    unawaited(
+      ref.read(syncEngineProvider).flushPendingPushes(kAllSpecs),
+    );
   }
 
   /// AI variant — INLINE generation, no modal sheet. v56 with
@@ -1307,6 +1318,11 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                         .setTheme(yearMonth: yearMonth, theme: v),
                   );
                 },
+                onCommit: () => unawaited(
+                  ref
+                      .read(syncEngineProvider)
+                      .flushPendingPushes(kAllSpecs),
+                ),
               );
             },
           ),
@@ -1469,6 +1485,11 @@ class _MonthlyPlanScreenState extends ConsumerState<MonthlyPlanScreen> {
                                                   ),
                                             );
                                           },
+                                          onSubThemeCommit: () => unawaited(
+                                            ref
+                                                .read(syncEngineProvider)
+                                                .flushPendingPushes(kAllSpecs),
+                                          ),
                                           materials:
                                               _aggregateMaterialsForWeek(week),
                                           onTap: () => _openWeekDetails(week),
@@ -1794,6 +1815,7 @@ class _WeekSidePanel extends StatefulWidget {
     required this.onSubThemeChanged,
     required this.materials,
     required this.onTap,
+    this.onSubThemeCommit,
   });
 
   final String weekMondayKey;
@@ -1806,6 +1828,12 @@ class _WeekSidePanel extends StatefulWidget {
   /// works without bouncing into a modal).
   final VoidCallback onTap;
 
+  /// Fires when the sub-theme TextField loses focus — the natural
+  /// "I'm done typing" signal. The parent wires this to flush the
+  /// debounced sync push so a tab close / app background right
+  /// after typing doesn't lose the latest state.
+  final VoidCallback? onSubThemeCommit;
+
   @override
   State<_WeekSidePanel> createState() => _WeekSidePanelState();
 }
@@ -1816,6 +1844,18 @@ class _WeekSidePanelState extends State<_WeekSidePanel> {
   // Focus tracking — see didUpdateWidget. Without this, fast typing
   // on the sub-theme field gets stomped by stream re-emissions.
   final FocusNode _subThemeFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _subThemeFocus.addListener(_handleFocusChange);
+  }
+
+  void _handleFocusChange() {
+    if (!_subThemeFocus.hasFocus) {
+      widget.onSubThemeCommit?.call();
+    }
+  }
 
   @override
   void didUpdateWidget(covariant _WeekSidePanel old) {
@@ -1838,7 +1878,9 @@ class _WeekSidePanelState extends State<_WeekSidePanel> {
 
   @override
   void dispose() {
-    _subThemeFocus.dispose();
+    _subThemeFocus
+      ..removeListener(_handleFocusChange)
+      ..dispose();
     _subThemeCtrl.dispose();
     super.dispose();
   }
@@ -3562,12 +3604,18 @@ class _MonthlyThemeBar extends StatefulWidget {
     required this.month,
     required this.value,
     required this.onChanged,
+    this.onCommit,
     super.key,
   });
 
   final DateTime month;
   final String value;
   final ValueChanged<String> onChanged;
+
+  /// Fires on focus loss — natural "I'm done typing" signal so
+  /// the parent can flush debounced sync pushes before a tab close
+  /// or app background can swallow the latest state.
+  final VoidCallback? onCommit;
 
   @override
   State<_MonthlyThemeBar> createState() => _MonthlyThemeBarState();
@@ -3586,6 +3634,18 @@ class _MonthlyThemeBarState extends State<_MonthlyThemeBar> {
   String? _suggestError;
 
   @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_handleFocusChange);
+  }
+
+  void _handleFocusChange() {
+    if (!_focusNode.hasFocus) {
+      widget.onCommit?.call();
+    }
+  }
+
+  @override
   void didUpdateWidget(covariant _MonthlyThemeBar old) {
     super.didUpdateWidget(old);
     // Only adopt the external value when the user isn't actively
@@ -3599,7 +3659,9 @@ class _MonthlyThemeBarState extends State<_MonthlyThemeBar> {
 
   @override
   void dispose() {
-    _focusNode.dispose();
+    _focusNode
+      ..removeListener(_handleFocusChange)
+      ..dispose();
     _ctrl.dispose();
     super.dispose();
   }

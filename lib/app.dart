@@ -202,6 +202,18 @@ class _BasecampAppState extends ConsumerState<BasecampApp>
     } else if (!_foreground && wasForeground) {
       _periodicPullTimer?.cancel();
       _periodicPullTimer = null;
+      // Flush every pending debounced push BEFORE the system has
+      // a chance to suspend us. Without this, the 250ms push
+      // debounce can swallow recent edits when the user closes a
+      // browser tab, switches away on iOS, etc.: the timer dies
+      // with the page, the cloud never receives the write, and a
+      // re-open finds only "bits and pieces" of the session's
+      // edits. The drain runs synchronously through pushRowNow
+      // (no debounce), so on web `inactive`/`paused` lifecycle
+      // events kick this before unload.
+      unawaited(
+        ref.read(syncEngineProvider).flushPendingPushes(kAllSpecs),
+      );
     }
   }
 
