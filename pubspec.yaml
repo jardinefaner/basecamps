@@ -10,6 +10,11 @@ dependencies:
   camera: ^0.11.0
   drift: ^2.32.1
   drift_flutter: ^0.3.0
+  # Lab-only dep (v60.7) — used by the New Survey experiment, a
+  # chibi-character sandbox at /experiment/survey. Pure Flutter
+  # package (no native code), imported only from that screen
+  # + its sub-files; rest of the app's bundle is unaffected.
+  flame: ^1.30.0
   flutter:
     sdk: flutter
   flutter_riverpod: ^3.3.1

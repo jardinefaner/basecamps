@@ -6,6 +6,7 @@ import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/adaptive_sheet.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 /// Sandbox surface for trying things out before they earn a real home.
 /// Current experiment: **WYSIWYG activity cards.**
@@ -97,6 +98,21 @@ class _ExperimentScreenState extends State<ExperimentScreen> {
               onTap: () {
                 Navigator.of(sheetCtx).pop();
                 unawaited(_openAiComposer());
+              },
+            ),
+            // v60.7 — separate sandbox for the chibi-character
+            // experiment. Lives at /experiment/survey; entirely
+            // self-contained (its own Flame game, no shared state
+            // with the activity drafts above).
+            ListTile(
+              leading: const Icon(Icons.sports_esports_outlined),
+              title: const Text('New Survey'),
+              subtitle: const Text(
+                'Chibi-character sandbox · joystick + jump',
+              ),
+              onTap: () {
+                Navigator.of(sheetCtx).pop();
+                unawaited(context.push('/experiment/survey'));
               },
             ),
             const SizedBox(height: AppSpacing.md),

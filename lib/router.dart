@@ -11,6 +11,7 @@ import 'package:basecamp/features/curriculum/curriculum_hub_screen.dart';
 import 'package:basecamp/features/curriculum/curriculum_screen.dart';
 import 'package:basecamp/features/experiment/experiment_screen.dart';
 import 'package:basecamp/features/experiment/monthly_plan_screen.dart';
+import 'package:basecamp/features/experiment/survey/survey_screen.dart';
 import 'package:basecamp/features/forms/forms_hub_screen.dart';
 import 'package:basecamp/features/forms/polymorphic/definitions/parent_concern.dart';
 import 'package:basecamp/features/forms/polymorphic/generic_form_list_screen.dart';
@@ -411,6 +412,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/experiment',
         builder: (_, _) => const ExperimentScreen(),
+        routes: [
+          // v60.7 — Chibi-character sandbox. The activity-based
+          // experiment screen's FAB has a "New Survey" entry that
+          // pushes here. Self-contained Flame game; no shared state
+          // with the rest of the experiment surface.
+          GoRoute(
+            path: 'survey',
+            builder: (_, _) => const SurveyScreen(),
+          ),
+        ],
       ),
       // Monthly plan sandbox — Mon–Fri grid, one activity per cell,
       // no time-of-day. Different mental model from the week plan;

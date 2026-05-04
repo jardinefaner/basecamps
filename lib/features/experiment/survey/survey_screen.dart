@@ -1,0 +1,763 @@
+// New Survey experiment (v60.7) — chibi-character sandbox.
+//
+// Per the spec: a 4-part minimum character (head, body, feet, eye)
+// with optional shadow / weapon / decorations. This first slice
+// ships ONLY the four mandatory parts + joystick walking + jumping.
+// No combat, no weapons, no decorations, no shadow, no animations
+// beyond walk-bob and jump arc.
+//
+// Architecture (everything lives in this single file for now —
+// the spec calls for splitting into rig.dart / parts/* / etc., but
+// keeping it together while we iterate is cheaper than premature
+// extraction).
+//
+// Pipeline:
+//   1. Joystick → ChibiCharacter.update(dt)
+//   2. State advance (yaw smoothing, locomotion mode, jump arc)
+//   3. FramePose computed (bobs, lifts, foot phases)
+//   4. Skeleton snapshot built (Frame at every Slot)
+//   5. Each Part.onUpdate(dt, skel) — per-frame state
+//   6. Each Part.onBuild(BuildCtx) — emit (depth, draw) Ops
+//   7. Sort Ops back-to-front, draw
+//
+// Adding a new visual = subclass a Part, override onBuild, register
+// in Catalog. No render-pipeline plumbing.
+
+import 'dart:math' as math;
+
+import 'package:basecamp/theme/spacing.dart';
+import 'package:flame/components.dart';
+import 'package:flame/game.dart';
+import 'package:flame/palette.dart';
+import 'package:flutter/material.dart';
+
+// =====================================================================
+// V3 — pure 3D vector math
+// =====================================================================
+
+/// Immutable 3D vector. Used for everything from anchor positions
+/// to part-local offsets to camera math. `const` ctor lets us
+/// declare common offsets without per-frame allocation.
+class V3 {
+  const V3(this.x, this.y, this.z);
+  final double x;
+  final double y;
+  final double z;
+
+  static const V3 zero = V3(0, 0, 0);
+
+  V3 operator +(V3 o) => V3(x + o.x, y + o.y, z + o.z);
+  V3 operator -(V3 o) => V3(x - o.x, y - o.y, z - o.z);
+  V3 operator *(double s) => V3(x * s, y * s, z * s);
+
+  double get length => math.sqrt(x * x + y * y + z * z);
+}
+
+V3 v3Lerp(V3 a, V3 b, double t) =>
+    V3(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t);
+
+// =====================================================================
+// Slot — every named anchor a part can attach to
+// =====================================================================
+
+enum Slot {
+  // Ground
+  ground,
+
+  // Lower body
+  footLeft,
+  footRight,
+  hipLeft,
+  hipRight,
+  hipFront,
+  hipBack,
+  beltCenter,
+  tailBase,
+
+  // Torso
+  back,
+  chestFront,
+  shoulderLeft,
+  shoulderRight,
+  wingsLeft,
+  wingsRight,
+
+  // Neck
+  neckFront,
+  neckBack,
+
+  // Head
+  headBottom,
+  headTop,
+  headFront,
+  headBack,
+  headLeft,
+  headRight,
+  headTopLeft,
+  headTopRight,
+
+  // Above head
+  hairTop,
+  halo,
+
+  // Hands
+  handLeft,
+  handRight,
+}
+
+// =====================================================================
+// Frame — local 3D coordinate basis at an anchor
+// =====================================================================
+
+/// A right-handed (right, up, forward) basis at an origin.
+/// Parts read frames to position themselves relative to a Slot.
+class Frame {
+  const Frame({
+    required this.origin,
+    required this.right,
+    required this.up,
+    required this.forward,
+  });
+
+  factory Frame.upright(V3 origin) => Frame(
+        origin: origin,
+        right: const V3(1, 0, 0),
+        up: const V3(0, 1, 0),
+        forward: const V3(0, 0, 1),
+      );
+
+  final V3 origin;
+  final V3 right;
+  final V3 up;
+  final V3 forward;
+
+  /// Convert a local-space vector to world space.
+  V3 toWorld(V3 local) =>
+      origin + right * local.x + up * local.y + forward * local.z;
+
+  Frame translated(V3 delta) => Frame(
+        origin: origin + delta,
+        right: right,
+        up: up,
+        forward: forward,
+      );
+}
+
+// =====================================================================
+// FramePose — every per-frame scalar a part might read
+// =====================================================================
+
+class FramePose {
+  const FramePose({
+    required this.bodyCenterY,
+    required this.walkBobY,
+    required this.headBobY,
+    required this.footLeftPhase,
+    required this.footRightPhase,
+    required this.globalLiftY,
+    required this.t,
+    required this.yaw,
+    required this.pitch,
+  });
+
+  final double bodyCenterY;
+  final double walkBobY;
+  final double headBobY;
+
+  /// 0..1 sin phase per foot. 0 = grounded, 1 = peak lift.
+  final double footLeftPhase;
+  final double footRightPhase;
+
+  /// Vertical offset from a jump arc.
+  final double globalLiftY;
+
+  final double t; // current time, seconds since start
+  final double yaw;
+  final double pitch;
+}
+
+// =====================================================================
+// Skeleton — published frame snapshot for one render pass
+// =====================================================================
+
+class Skeleton {
+  Skeleton({
+    required this.pose,
+    required this.frames,
+  })  : cy = math.cos(pose.yaw),
+        sy = math.sin(pose.yaw),
+        cp = math.cos(pose.pitch),
+        sp = math.sin(pose.pitch);
+
+  final FramePose pose;
+  final Map<Slot, Frame> frames;
+
+  // Cached camera basis — reused across every proj() call this
+  // frame so we skip ~400 trig ops on a typical chibi.
+  final double cy;
+  final double sy;
+  final double cp;
+  final double sp;
+
+  /// Project a world-space point to screen space.
+  /// Fixed orthographic 3/4 view (FFT/Tactics-Ogre style):
+  /// Y projects to screen-Y, X+Z combine to screen-X with X
+  /// stretched and Z foreshortened. `depth` is +larger = closer
+  /// for the back-to-front sort.
+  Proj proj(V3 p) {
+    final x1 = p.x * cy + p.z * sy;
+    final y1 = p.y;
+    final z1 = -p.x * sy + p.z * cy;
+    return Proj(
+      Offset(x1, -y1 * cp + z1 * sp),
+      y1 * sp + z1 * cp,
+    );
+  }
+}
+
+class Proj {
+  const Proj(this.offset, this.depth);
+  final Offset offset;
+  final double depth;
+}
+
+// =====================================================================
+// Op — depth-tagged paint closure
+// =====================================================================
+
+class Op {
+  Op(this.depth, this.draw);
+  final double depth;
+  final void Function() draw;
+}
+
+// =====================================================================
+// BuildCtx — the only API a Part talks to
+// =====================================================================
+
+/// Helpers that emit depth-tagged Ops. Parts use these to draw —
+/// never paint the canvas directly outside an op closure, otherwise
+/// the back-to-front sort can't see the paint.
+class BuildCtx {
+  BuildCtx(this.skel, this.canvas, this.ops);
+
+  final Skeleton skel;
+  final Canvas canvas;
+  final List<Op> ops;
+
+  Frame at(Slot s) => skel.frames[s] ?? Frame.upright(V3.zero);
+  FramePose get pose => skel.pose;
+  Proj proj(V3 p) => skel.proj(p);
+
+  void op(double depth, void Function() draw) =>
+      ops.add(Op(depth, draw));
+
+  /// Sphere → flat circle on screen. Radius scaled by simple depth
+  /// fall-off so closer = bigger.
+  void circle3D(V3 center, double r, Paint paint) {
+    final p = proj(center);
+    final scale = 1 + p.depth * 0.0015;
+    op(p.depth, () => canvas.drawCircle(p.offset, r * scale, paint));
+  }
+
+  /// Rounded rod between two world points.
+  void segment(V3 a, V3 b, double width, Paint paint) {
+    final pa = proj(a);
+    final pb = proj(b);
+    final stroke = Paint()
+      ..color = paint.color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width
+      ..strokeCap = StrokeCap.round;
+    op((pa.depth + pb.depth) * 0.5, () {
+      canvas.drawLine(pa.offset, pb.offset, stroke);
+    });
+  }
+
+  /// Ground-plane oval (flat on the world XZ plane). Used for
+  /// shadows. The pitch-sin squashes a circle into the perspective
+  /// the rest of the rig uses.
+  void horizontalDisk(V3 center, double r, Paint paint) {
+    final p = proj(center);
+    op(p.depth, () {
+      canvas
+        ..save()
+        ..translate(p.offset.dx, p.offset.dy)
+        ..scale(1, skel.sp)
+        ..drawCircle(Offset.zero, r, paint)
+        ..restore();
+    });
+  }
+}
+
+// =====================================================================
+// Part — base class for everything that draws
+// =====================================================================
+
+abstract class Part {
+  String get id;
+  void onUpdate(double dt, Skeleton skel) {}
+  void onBuild(BuildCtx ctx);
+}
+
+abstract class HeadPart extends Part {}
+
+abstract class BodyPart extends Part {}
+
+abstract class FootPart extends Part {}
+
+abstract class EyePart extends Part {}
+
+// =====================================================================
+// Default concrete parts (the four required for a buildable chibi)
+// =====================================================================
+
+class SphereHead extends HeadPart {
+  @override
+  String get id => 'head_sphere';
+
+  static final _fillPaint = Paint()..color = const Color(0xFFF6EAD7);
+  static final _outlinePaint = Paint()
+    ..color = const Color(0xFF1A1A1A)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.5;
+
+  @override
+  void onBuild(BuildCtx ctx) {
+    final f = ctx.at(Slot.headBottom);
+    // Center the sphere in head space. The headBottom anchor sits
+    // where the neck meets the skull; we lift by ~head-radius so
+    // the sphere is centered above the anchor.
+    final center = f.toWorld(const V3(0, 30, 0));
+    const r = 30.0;
+    final p = ctx.proj(center);
+    final scale = 1 + p.depth * 0.0015;
+    ctx.op(p.depth, () {
+      ctx.canvas
+        ..drawCircle(p.offset, r * scale, _fillPaint)
+        ..drawCircle(p.offset, r * scale, _outlinePaint);
+    });
+  }
+}
+
+class CapsuleBody extends BodyPart {
+  @override
+  String get id => 'body_capsule';
+
+  static final _fillPaint = Paint()..color = const Color(0xFF7A8C9A);
+  static final _outlinePaint = Paint()
+    ..color = const Color(0xFF1A1A1A)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.5;
+
+  @override
+  void onBuild(BuildCtx ctx) {
+    final chest = ctx.at(Slot.chestFront);
+    // Capsule = stack of three depth-sorted ovals. Cheapest way
+    // to fake a 3D capsule with our simple proj. Slot.back is
+    // also reserved on the rig but unused here — future cape /
+    // backpack parts will read it.
+    final top = chest.origin + const V3(0, 18, 0);
+    final mid = chest.origin;
+    final bot = chest.origin + const V3(0, -18, 0);
+    for (final c in [top, mid, bot]) {
+      final p = ctx.proj(c);
+      final scale = 1 + p.depth * 0.0015;
+      ctx.op(p.depth - 0.01, () {
+        ctx.canvas
+          ..drawCircle(p.offset, 22 * scale, _fillPaint)
+          ..drawCircle(p.offset, 22 * scale, _outlinePaint);
+      });
+    }
+  }
+}
+
+class Feet extends FootPart {
+  @override
+  String get id => 'feet_default';
+
+  static final _fillPaint = Paint()..color = const Color(0xFF3A3A3A);
+  static final _outlinePaint = Paint()
+    ..color = const Color(0xFF1A1A1A)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.2;
+
+  @override
+  void onBuild(BuildCtx ctx) {
+    void drawFoot(Slot slot, double phase) {
+      final f = ctx.at(slot);
+      // Lift the foot through the walk cycle.
+      final lift = math.sin(phase * math.pi).clamp(0, 1) * 6.0;
+      final center = f.toWorld(V3(0, 4 + lift, 0));
+      final p = ctx.proj(center);
+      final scale = 1 + p.depth * 0.0015;
+      ctx.op(p.depth, () {
+        ctx.canvas.drawOval(
+          Rect.fromCenter(
+            center: p.offset,
+            width: 22 * scale,
+            height: 14 * scale,
+          ),
+          _fillPaint,
+        );
+        ctx.canvas.drawOval(
+          Rect.fromCenter(
+            center: p.offset,
+            width: 22 * scale,
+            height: 14 * scale,
+          ),
+          _outlinePaint,
+        );
+      });
+    }
+
+    drawFoot(Slot.footLeft, ctx.pose.footLeftPhase);
+    drawFoot(Slot.footRight, ctx.pose.footRightPhase);
+  }
+}
+
+class CyclopsEye extends EyePart {
+  @override
+  String get id => 'eye_cyclops';
+
+  static final _whitePaint = Paint()..color = const Color(0xFFFFFFFF);
+  static final _pupilPaint = Paint()..color = const Color(0xFF1A1A1A);
+  static final _outlinePaint = Paint()
+    ..color = const Color(0xFF1A1A1A)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.2;
+
+  @override
+  void onBuild(BuildCtx ctx) {
+    final f = ctx.at(Slot.headFront);
+    // Sit slightly in front of the head sphere so it doesn't get
+    // depth-sorted behind.
+    final center = f.toWorld(const V3(0, 32, -2));
+    final p = ctx.proj(center);
+    final scale = 1 + p.depth * 0.0015;
+    ctx.op(p.depth + 0.5, () {
+      // Eye white
+      ctx.canvas.drawOval(
+        Rect.fromCenter(
+          center: p.offset,
+          width: 24 * scale,
+          height: 18 * scale,
+        ),
+        _whitePaint,
+      );
+      ctx.canvas.drawOval(
+        Rect.fromCenter(
+          center: p.offset,
+          width: 24 * scale,
+          height: 18 * scale,
+        ),
+        _outlinePaint,
+      );
+      // Pupil
+      ctx.canvas.drawCircle(p.offset, 5 * scale, _pupilPaint);
+    });
+  }
+}
+
+// =====================================================================
+// Loadout — the immutable parts bundle on a character
+// =====================================================================
+
+class Loadout {
+  const Loadout({
+    required this.head,
+    required this.body,
+    required this.feet,
+    required this.eye,
+  });
+
+  final HeadPart head;
+  final BodyPart body;
+  final FootPart feet;
+  final EyePart eye;
+
+  List<Part> get parts => [feet, body, head, eye];
+}
+
+// =====================================================================
+// Catalog — picker-facing list of available variants
+// =====================================================================
+
+class Variant<T extends Part> {
+  const Variant(this.label, this.build);
+  final String label;
+  final T Function() build;
+}
+
+class Catalog {
+  static const heads = <Variant<HeadPart>>[
+    Variant('Sphere', SphereHead.new),
+  ];
+  static const bodies = <Variant<BodyPart>>[
+    Variant('Capsule', CapsuleBody.new),
+  ];
+  static const feet = <Variant<FootPart>>[
+    Variant('Default', Feet.new),
+  ];
+  static const eyes = <Variant<EyePart>>[
+    Variant('Cyclops', CyclopsEye.new),
+  ];
+}
+
+// =====================================================================
+// ChibiCharacter — the actual Flame component
+// =====================================================================
+
+class ChibiCharacter extends PositionComponent {
+  ChibiCharacter({required this.joystick}) : super(anchor: Anchor.center);
+
+  final JoystickComponent joystick;
+
+  Loadout _loadout = Loadout(
+    head: SphereHead(),
+    body: CapsuleBody(),
+    feet: Feet(),
+    eye: CyclopsEye(),
+  );
+
+  // World position in the simple 3D scene. y=0 = ground; y rises
+  // when the character jumps. (The character's screen position
+  // comes from PositionComponent.position, but world-space y is
+  // tracked here for the jump arc.)
+  double _worldY = 0;
+  double _verticalVelocity = 0;
+  bool _grounded = true;
+
+  // Walk cycle phase advances with locomotion magnitude.
+  double _walkPhase = 0;
+  double _yaw = 0;
+  double _t = 0;
+
+  /// Jump impulse triggered from the UI button.
+  void jump() {
+    if (!_grounded) return;
+    _verticalVelocity = 220;
+    _grounded = false;
+  }
+
+  // Setter for the parts bundle. Wired through the picker UI in a
+  // follow-up; currently only the default Loadout is used.
+  // ignore: use_setters_to_change_properties
+  void setLoadout(Loadout l) => _loadout = l;
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    _t += dt;
+
+    // Joystick → planar velocity. Flame's joystick.delta is a
+    // pixel-radius vector relative to the knob's resting center;
+    // .relativeDelta normalises into [-1,1] on each axis.
+    final dx = joystick.relativeDelta.x;
+    final dy = joystick.relativeDelta.y;
+    final mag = math.sqrt(dx * dx + dy * dy).clamp(0, 1);
+
+    // Translate the character on screen — with a cap so it can't
+    // leave the visible play area.
+    const speed = 140.0;
+    position += Vector2(dx, dy) * speed * dt;
+    final size = findGame()?.size ?? Vector2(800, 600);
+    position.x = position.x.clamp(40, size.x - 40);
+    position.y = position.y.clamp(80, size.y - 60);
+
+    // Yaw smoothly tracks the joystick direction.
+    if (mag > 0.05) {
+      final targetYaw = math.atan2(dx, -dy);
+      var delta = targetYaw - _yaw;
+      while (delta > math.pi) {
+        delta -= math.pi * 2;
+      }
+      while (delta < -math.pi) {
+        delta += math.pi * 2;
+      }
+      _yaw += delta * math.min(1, dt * 8);
+    }
+
+    // Walk cycle phase only advances when actually moving.
+    _walkPhase = (_walkPhase + dt * 6 * mag) % 1.0;
+
+    // Vertical (jump) integration.
+    if (!_grounded) {
+      _verticalVelocity -= 700 * dt; // gravity
+      _worldY += _verticalVelocity * dt;
+      if (_worldY <= 0) {
+        _worldY = 0;
+        _verticalVelocity = 0;
+        _grounded = true;
+      }
+    }
+  }
+
+  @override
+  void render(Canvas canvas) {
+    super.render(canvas);
+
+    // Per-frame pose.
+    final pose = FramePose(
+      bodyCenterY: 50 + _worldY,
+      walkBobY: math.sin(_walkPhase * math.pi * 2) * 1.5,
+      headBobY: math.sin(_walkPhase * math.pi * 2 + 1) * 1.0,
+      footLeftPhase: (_walkPhase + 0.5) % 1.0,
+      footRightPhase: _walkPhase,
+      globalLiftY: _worldY,
+      t: _t,
+      yaw: _yaw,
+      pitch: 0.6, // ~34° camera tilt; static
+    );
+
+    // Build the rig — frames at every Slot.
+    final feetY = pose.globalLiftY;
+    final bodyY = feetY + 50 + pose.walkBobY;
+    final headY = bodyY + 30 + pose.headBobY;
+    final frames = <Slot, Frame>{
+      Slot.ground: Frame.upright(V3.zero),
+      Slot.footLeft: Frame.upright(V3(-10, feetY, 0)),
+      Slot.footRight: Frame.upright(V3(10, feetY, 0)),
+      Slot.hipLeft: Frame.upright(V3(-10, bodyY - 18, 0)),
+      Slot.hipRight: Frame.upright(V3(10, bodyY - 18, 0)),
+      Slot.hipFront: Frame.upright(V3(0, bodyY - 18, -10)),
+      Slot.hipBack: Frame.upright(V3(0, bodyY - 18, 10)),
+      Slot.beltCenter: Frame.upright(V3(0, bodyY - 14, 0)),
+      Slot.tailBase: Frame.upright(V3(0, bodyY - 14, 12)),
+      Slot.back: Frame.upright(V3(0, bodyY, 14)),
+      Slot.chestFront: Frame.upright(V3(0, bodyY, -10)),
+      Slot.shoulderLeft: Frame.upright(V3(-22, bodyY + 10, 0)),
+      Slot.shoulderRight: Frame.upright(V3(22, bodyY + 10, 0)),
+      Slot.wingsLeft: Frame.upright(V3(-12, bodyY + 8, 8)),
+      Slot.wingsRight: Frame.upright(V3(12, bodyY + 8, 8)),
+      Slot.neckFront: Frame.upright(V3(0, bodyY + 22, -8)),
+      Slot.neckBack: Frame.upright(V3(0, bodyY + 22, 8)),
+      Slot.headBottom: Frame.upright(V3(0, headY - 30, 0)),
+      Slot.headTop: Frame.upright(V3(0, headY + 30, 0)),
+      Slot.headFront: Frame.upright(V3(0, headY, -28)),
+      Slot.headBack: Frame.upright(V3(0, headY, 28)),
+      Slot.headLeft: Frame.upright(V3(-28, headY, 0)),
+      Slot.headRight: Frame.upright(V3(28, headY, 0)),
+      Slot.headTopLeft: Frame.upright(V3(-18, headY + 22, 0)),
+      Slot.headTopRight: Frame.upright(V3(18, headY + 22, 0)),
+      Slot.hairTop: Frame.upright(V3(0, headY + 28, 0)),
+      Slot.halo: Frame.upright(V3(0, headY + 50, 0)),
+      Slot.handLeft: Frame.upright(V3(-30, bodyY - 4, 0)),
+      Slot.handRight: Frame.upright(V3(30, bodyY - 4, 0)),
+    };
+
+    final skel = Skeleton(pose: pose, frames: frames);
+    final ops = <Op>[];
+    final ctx = BuildCtx(skel, canvas, ops);
+
+    // Per-frame state advance + ops emission.
+    for (final part in _loadout.parts) {
+      part.onUpdate(0, skel);
+    }
+    for (final part in _loadout.parts) {
+      part.onBuild(ctx);
+    }
+
+    ops.sort((a, b) => a.depth.compareTo(b.depth));
+    for (final op in ops) {
+      op.draw();
+    }
+  }
+}
+
+// =====================================================================
+// Game host
+// =====================================================================
+
+class _SurveyGame extends FlameGame with HasGameReference {
+  late final JoystickComponent joystick;
+  late final ChibiCharacter chibi;
+
+  // External handle so the screen's "Jump" button can poke us.
+  void requestJump() => chibi.jump();
+
+  @override
+  Color backgroundColor() => const Color(0xFFE8E5DD);
+
+  @override
+  Future<void> onLoad() async {
+    super.onLoad();
+
+    final knobPaint = BasicPalette.darkGray.paint();
+    final bgPaint = BasicPalette.gray.withAlpha(96).paint();
+    joystick = JoystickComponent(
+      knob: CircleComponent(radius: 22, paint: knobPaint),
+      background: CircleComponent(radius: 56, paint: bgPaint),
+      margin: const EdgeInsets.only(left: 28, bottom: 28),
+    );
+    add(joystick);
+
+    chibi = ChibiCharacter(joystick: joystick)
+      ..position = Vector2(size.x * 0.5, size.y * 0.55)
+      ..size = Vector2(120, 160);
+    add(chibi);
+  }
+}
+
+// =====================================================================
+// Survey screen
+// =====================================================================
+
+class SurveyScreen extends StatefulWidget {
+  const SurveyScreen({super.key});
+
+  @override
+  State<SurveyScreen> createState() => _SurveyScreenState();
+}
+
+class _SurveyScreenState extends State<SurveyScreen> {
+  late final _SurveyGame _game = _SurveyGame();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('New Survey'),
+        // Subtitle-style hint about what this is, in case the user
+        // lands here without context.
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(28),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              0,
+              AppSpacing.lg,
+              AppSpacing.sm,
+            ),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Chibi sandbox · 4 mandatory parts · joystick + jump',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      body: Stack(
+        children: [
+          GameWidget<_SurveyGame>(game: _game),
+          // Jump button — bottom-right, mirroring the joystick on
+          // the bottom-left. Touch on web works the same as mobile.
+          Positioned(
+            right: 28,
+            bottom: 28,
+            child: FloatingActionButton(
+              onPressed: _game.requestJump,
+              tooltip: 'Jump',
+              child: const Icon(Icons.arrow_upward),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
