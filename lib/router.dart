@@ -451,6 +451,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: 'play',
                 builder: (_, state) => SurveyScreen(
                   surveyId: state.pathParameters['id'],
+                  // Optional ?resume=<sessionId> — when present,
+                  // the kiosk re-opens that session and continues
+                  // from the first unanswered question.
+                  resumeSessionId: state.uri.queryParameters['resume'],
                 ),
               ),
             ],

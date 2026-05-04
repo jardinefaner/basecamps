@@ -35,18 +35,29 @@ String currentAcademicYear({DateTime? now}) {
   return '$start–${start + 1}';
 }
 
-/// The end-of-survey thank-you card. The [jarSnapshot] is the
-/// rasterized live Flame canvas captured from the kiosk the moment
-/// the kid answered the last question — it includes their actual
-/// marbles in their settled positions.
+/// The end-of-survey thank-you card. The jar inside the card comes
+/// from one of two sources:
+///   * [jarSnapshot] — PNG of the live Flame canvas captured at
+///     survey-complete, used by the kiosk's end-of-flow path so
+///     the child sees their actual settled marbles.
+///   * [moodValues] — list of 0/1/2 from the recorded responses,
+///     used by the results-screen "preview a past session" path
+///     where there's no live canvas to capture (the session ended
+///     hours / days ago). The painter recreates a static jar with
+///     one orb per answered mood question.
+///
+/// Exactly one of the two should be supplied. If both are null,
+/// the card falls back to a plain placeholder rather than crashing.
 class FeelingsJarCard extends StatefulWidget {
   const FeelingsJarCard({
-    required this.jarSnapshot,
     required this.siteName,
     required this.classroom,
     required this.onDone,
     super.key,
+    this.jarSnapshot,
+    this.moodValues,
     this.academicYear,
+    this.doneLabel = 'Pass to next friend',
   });
 
   /// PNG bytes of the live game canvas at end-of-survey. May be
@@ -55,11 +66,21 @@ class FeelingsJarCard extends StatefulWidget {
   /// flow.
   final Uint8List? jarSnapshot;
 
+  /// Mood values (0/1/2) per answered Likert question — used to
+  /// re-render a static jar when no live snapshot exists. Order
+  /// is preserved; the painter packs them visually.
+  final List<int>? moodValues;
+
   final String siteName;
   final String classroom;
 
   /// Pre-computed for testability; defaults to `currentAcademicYear()`.
   final String? academicYear;
+
+  /// Label on the dismiss button. Defaults to "Pass to next
+  /// friend" (kiosk flow); the results-screen preview overrides
+  /// to "Close".
+  final String doneLabel;
 
   /// Called when the child / teacher dismisses the card to
   /// continue to the next child. The kiosk wires this to its
@@ -184,6 +205,7 @@ class _FeelingsJarCardState extends State<FeelingsJarCard> {
                           aspectRatio: 0.78, // narrow + tall jar
                           child: _SealedJarSnapshot(
                             snapshot: widget.jarSnapshot,
+                            moodValues: widget.moodValues,
                           ),
                         ),
                         const SizedBox(height: AppSpacing.xl),
@@ -224,7 +246,7 @@ class _FeelingsJarCardState extends State<FeelingsJarCard> {
                   ),
                   TextButton(
                     onPressed: widget.onDone,
-                    child: const Text('Pass to next friend'),
+                    child: Text(widget.doneLabel),
                   ),
                 ],
               ),
@@ -279,34 +301,49 @@ class _NameField extends StatelessWidget {
   }
 }
 
-/// The jar slot in the printable card. Renders the live snapshot
-/// (or a soft fallback if capture failed) with a wooden cap +
-/// ribbon painted on top to "seal" it for printing.
+/// The jar slot in the printable card. One of three rendering
+/// paths, in order of preference:
+///   1. **Live snapshot** — PNG of the kiosk's Flame canvas. Used
+///      at end-of-survey when we have the actual settled marbles.
+///   2. **Static repaint** — re-built from mood values. Used when
+///      a teacher views a past session from the results sheet
+///      (no live canvas exists).
+///   3. **Empty placeholder** — neither was supplied.
+/// In all cases, a wooden cap + ribbon is painted ON TOP so the
+/// jar reads as "sealed for print".
 class _SealedJarSnapshot extends StatelessWidget {
-  const _SealedJarSnapshot({required this.snapshot});
+  const _SealedJarSnapshot({
+    required this.snapshot,
+    required this.moodValues,
+  });
 
   final Uint8List? snapshot;
+  final List<int>? moodValues;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final Widget jarLayer;
+        if (snapshot != null) {
+          jarLayer = Image.memory(
+            snapshot!,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+          );
+        } else if (moodValues != null) {
+          jarLayer = CustomPaint(
+            painter: _StaticJarPainter(moods: moodValues!),
+          );
+        } else {
+          jarLayer = const _JarSnapshotFallback();
+        }
         return Stack(
           alignment: Alignment.topCenter,
           children: [
-            // The captured jar — fills the slot, contains the
-            // child's actual marbles in their settled positions.
-            Positioned.fill(
-              child: snapshot == null
-                  ? const _JarSnapshotFallback()
-                  : Image.memory(
-                      snapshot!,
-                      fit: BoxFit.contain,
-                      filterQuality: FilterQuality.high,
-                    ),
-            ),
+            Positioned.fill(child: jarLayer),
             // Cap + ribbon overlay — sized relative to the slot so
-            // the bow lands at the rim of the snapshot's jar.
+            // the bow lands at the rim of the jar.
             Positioned(
               top: 0,
               child: SizedBox(
@@ -338,6 +375,171 @@ class _JarSnapshotFallback extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Mood-value → orb body color (mirrors the kiosk palette).
+const Map<int, Color> _kMoodBodyColors = <int, Color>{
+  0: Color(0xFFFCEBEB), // disagree → soft pink
+  1: Color(0xFFFAEEDA), // kind of agree → soft yellow
+  2: Color(0xFFE1F5EE), // agree → soft green
+};
+const Map<int, Color> _kMoodRingColors = <int, Color>{
+  0: Color(0xFFF09595),
+  1: Color(0xFFFAC775),
+  2: Color(0xFF5DCAA5),
+};
+
+/// Repaints the jar shape + N marbles from mood values. Used when
+/// we don't have a live snapshot (results-screen preview of a
+/// past session). The rendering doesn't have to physics-match the
+/// kiosk — it just needs to read as "the jar with their marbles."
+class _StaticJarPainter extends CustomPainter {
+  _StaticJarPainter({required this.moods});
+
+  final List<int> moods;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final centerX = w / 2;
+
+    // Jar body: tall narrow mason silhouette, leaving room at top
+    // for the cap+ribbon overlay (~18% of canvas).
+    final jarTop = h * 0.18;
+    final jarBottom = h * 0.96;
+    final neckW = w * 0.55;
+    final bodyW = w * 0.78;
+    final jarRect = Rect.fromLTRB(
+      centerX - bodyW / 2,
+      jarTop,
+      centerX + bodyW / 2,
+      jarBottom,
+    );
+
+    // Glass body — soft gradient + thin outline.
+    final jarPath = _jarBodyPath(jarRect, neckW: neckW);
+    final glassPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFFF7FBF8), Color(0xFFE5EFE9)],
+      ).createShader(jarRect);
+    canvas
+      ..drawPath(jarPath, glassPaint)
+      ..drawPath(
+        jarPath,
+        Paint()
+          ..color = const Color(0xFF7D8B88)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4,
+      )
+      // Vertical highlight stripe on the left.
+      ..save()
+      ..clipPath(jarPath)
+      ..drawRect(
+        Rect.fromLTWH(jarRect.left + 8, jarRect.top + 8, 10, jarRect.height - 16),
+        Paint()..color = Colors.white.withValues(alpha: 0.55),
+      )
+      ..restore();
+
+    // Settle the orbs along the jar bottom in horizontal bands.
+    if (moods.isEmpty) return;
+    final maxR = jarRect.width * 0.10;
+    final minR = jarRect.width * 0.045;
+    final r =
+        (maxR - (moods.length - 3) * 0.6).clamp(minR, maxR);
+    final inset = r + 4;
+    final innerLeft = jarRect.left + inset;
+    final innerRight = jarRect.right - inset;
+    final rowWidth = innerRight - innerLeft;
+    final perRow = (rowWidth / (r * 2 + 2)).floor().clamp(1, moods.length);
+
+    var idx = 0;
+    var rowIdx = 0;
+    while (idx < moods.length) {
+      final remaining = moods.length - idx;
+      final inRow = remaining < perRow ? remaining : perRow;
+      final rowSpan = inRow * (r * 2 + 2) - 2;
+      final startX = jarRect.center.dx - rowSpan / 2 + r;
+      final y = jarRect.bottom - inset - rowIdx * (r * 1.85);
+      final stopY = jarRect.top + jarRect.height * 0.08;
+      if (y < stopY) break;
+      for (var i = 0; i < inRow; i++) {
+        final mood = moods[idx + i];
+        final cx = startX + i * (r * 2 + 2) + (rowIdx.isOdd ? r : 0);
+        if (cx + r > innerRight) continue;
+        _paintOrb(canvas, Offset(cx, y), r, mood);
+      }
+      idx += inRow;
+      rowIdx += 1;
+    }
+  }
+
+  Path _jarBodyPath(Rect rect, {required double neckW}) {
+    final cx = rect.center.dx;
+    final shoulderH = rect.height * 0.08;
+    const baseR = 14.0;
+    return Path()
+      ..moveTo(cx - neckW / 2, rect.top)
+      ..cubicTo(
+        cx + neckW / 2 + 12,
+        rect.top + shoulderH * 0.2,
+        rect.right,
+        rect.top + shoulderH * 0.6,
+        rect.right,
+        rect.top + shoulderH,
+      )
+      ..lineTo(rect.right, rect.bottom - baseR)
+      ..arcToPoint(
+        Offset(rect.right - baseR, rect.bottom),
+        radius: const Radius.circular(14),
+      )
+      ..lineTo(rect.left + baseR, rect.bottom)
+      ..arcToPoint(
+        Offset(rect.left, rect.bottom - baseR),
+        radius: const Radius.circular(14),
+      )
+      ..lineTo(rect.left, rect.top + shoulderH)
+      ..cubicTo(
+        rect.left,
+        rect.top + shoulderH * 0.6,
+        cx - neckW / 2 - 12,
+        rect.top + shoulderH * 0.2,
+        cx - neckW / 2,
+        rect.top,
+      )
+      ..close();
+  }
+
+  void _paintOrb(Canvas canvas, Offset center, double r, int mood) {
+    final body = _kMoodBodyColors[mood] ?? const Color(0xFFEFEFEF);
+    final ring = _kMoodRingColors[mood] ?? const Color(0xFFB5B5B5);
+    canvas
+      ..drawCircle(center, r, Paint()..color = body)
+      ..drawCircle(
+        center,
+        r,
+        Paint()
+          ..color = ring
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = r * 0.18,
+      )
+      ..drawCircle(
+        center.translate(-r * 0.32, -r * 0.32),
+        r * 0.28,
+        Paint()..color = Colors.white.withValues(alpha: 0.7),
+      );
+  }
+
+  @override
+  bool shouldRepaint(covariant _StaticJarPainter old) {
+    if (old.moods.length != moods.length) return true;
+    for (var i = 0; i < moods.length; i++) {
+      if (old.moods[i] != moods[i]) return true;
+    }
+    return false;
   }
 }
 

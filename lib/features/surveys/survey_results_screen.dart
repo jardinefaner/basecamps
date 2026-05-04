@@ -20,6 +20,7 @@ import 'dart:io';
 
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/surveys/canonical_questions.dart';
+import 'package:basecamp/features/surveys/feelings_jar_card.dart';
 import 'package:basecamp/features/surveys/multi_select_overlay.dart';
 import 'package:basecamp/features/surveys/survey_csv_exporter.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
@@ -126,6 +127,63 @@ class SurveyResultsScreen extends ConsumerWidget {
   }
 }
 
+/// `true` when this child's run reached the end-of-survey beat.
+/// Mirrors the `endSession(completed: true)` write path:
+/// completion is `endedAt != null && childCount >= 1`.
+bool _isSessionComplete(SurveySession s) =>
+    s.endedAt != null && s.childCount >= 1;
+
+/// Tap handler for a child row. Behavior:
+///   * Incomplete session  → push the kiosk with a `resume=<id>`
+///                            query param. The kiosk re-opens the
+///                            session and jumps to the first
+///                            unanswered question.
+///   * Complete session    → show the FeelingsJarCard in a modal
+///                            so the teacher (or the kid back for
+///                            another keepsake) can re-print it.
+void _onChildRowTapped({
+  required BuildContext context,
+  required SurveyConfig survey,
+  required SurveyResultRow row,
+}) {
+  if (_isSessionComplete(row.session)) {
+    final moods = <int>[
+      for (final q in survey.questions)
+        if (q.type == SurveyQuestionType.mood)
+          if (row.responsesByQuestionId[q.id]?.moodValue case final int v) v,
+    ];
+    unawaited(
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          fullscreenDialog: true,
+          builder: (_) => Scaffold(
+            appBar: AppBar(
+              title: const Text('Feelings Jar'),
+            ),
+            body: FeelingsJarCard(
+              moodValues: moods,
+              siteName: survey.siteName,
+              classroom: survey.classroom,
+              doneLabel: 'Close',
+              onDone: () => Navigator.of(context).pop(),
+            ),
+          ),
+        ),
+      ),
+    );
+    return;
+  }
+  // Incomplete — resume the kiosk on this session.
+  unawaited(
+    context.push(
+      Uri(
+        path: '/surveys/${survey.id}/play',
+        queryParameters: <String, String>{'resume': row.session.id},
+      ).toString(),
+    ),
+  );
+}
+
 /// Build the CSV from the current results stream value, then
 /// hand off to the platform share / save flow.
 ///
@@ -178,23 +236,66 @@ Future<void> _exportCsv(
     }
 
     // Mobile + desktop: write the CSV to a temp file, hand off.
-    final tempDir = await getTemporaryDirectory();
-    final filePath = p.join(tempDir.path, filename);
+    // We write to **app docs**, not temp, so the file stays put if
+    // the share sheet itself fails — the teacher can then find it
+    // by path from the snackbar instead of losing the export.
+    final docs = await getApplicationDocumentsDirectory();
+    final filePath = p.join(docs.path, filename);
     await File(filePath).writeAsString(csv);
     debugPrint('[csv] wrote $filePath');
-    await SharePlus.instance.share(
-      ShareParams(
-        files: <XFile>[XFile(filePath, name: filename, mimeType: 'text/csv')],
-        subject: '${survey.siteName} · ${survey.classroom} survey',
-        text: '$filename — ${rows.length} '
-            'response${rows.length == 1 ? '' : 's'} from '
-            '${survey.classroom}.',
-      ),
-    );
+    try {
+      final result = await SharePlus.instance.share(
+        ShareParams(
+          files: <XFile>[
+            XFile(filePath, name: filename, mimeType: 'text/csv'),
+          ],
+          subject: '${survey.siteName} · ${survey.classroom} survey',
+          text: '$filename — ${rows.length} '
+              'response${rows.length == 1 ? '' : 's'} from '
+              '${survey.classroom}.',
+        ),
+      );
+      debugPrint('[csv] share result: ${result.status}');
+      if (result.status == ShareResultStatus.unavailable) {
+        messenger.showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 12),
+            content: Text(
+              'Share sheet unavailable. Saved to:\n$filePath',
+            ),
+            action: SnackBarAction(
+              label: 'Copy path',
+              onPressed: () =>
+                  Clipboard.setData(ClipboardData(text: filePath)),
+            ),
+          ),
+        );
+      }
+    } on Object catch (e, st) {
+      debugPrint('[csv] share failed: $e\n$st');
+      // Share failed but the file did write — surface the path so
+      // the teacher can pull it via Files / adb / a file manager.
+      messenger.showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 15),
+          content: Text(
+            'Saved to $filePath (share failed: $e)',
+          ),
+          action: SnackBarAction(
+            label: 'Copy path',
+            onPressed: () =>
+                Clipboard.setData(ClipboardData(text: filePath)),
+          ),
+        ),
+      );
+    }
   } on Object catch (e, st) {
     debugPrint('[csv] export failed: $e\n$st');
     messenger.showSnackBar(
-      SnackBar(content: Text('Could not export CSV: $e')),
+      SnackBar(
+        duration: const Duration(seconds: 10),
+        content: Text('Could not export CSV: $e'),
+      ),
     );
   }
 }
@@ -448,66 +549,112 @@ class _GridDataRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dateFmt = DateFormat.Md().add_jm();
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: theme.colorScheme.outlineVariant,
-            width: 0.5,
+    final complete = _isSessionComplete(row.session);
+    final inProgress =
+        row.session.endedAt == null; // session was never closed
+    final incomplete = row.session.endedAt != null && !complete;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _onChildRowTapped(
+          context: context,
+          survey: survey,
+          row: row,
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: theme.colorScheme.outlineVariant,
+                width: 0.5,
+              ),
+            ),
+          ),
+          height: rowHeight,
+          child: Row(
+            children: [
+              SizedBox(
+                width: firstColWidth,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Child #$index',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          if (complete)
+                            const Icon(
+                              Icons.check_circle,
+                              size: 14,
+                              color: Color(0xFF3A9C7B),
+                            )
+                          else if (inProgress)
+                            const Icon(
+                              Icons.play_circle_outline,
+                              size: 14,
+                              color: Color(0xFFB47A48),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        dateFmt.format(row.session.startedAt.toLocal()),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      if (incomplete) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'incomplete · tap to resume',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.error,
+                          ),
+                        ),
+                      ] else if (inProgress) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'in progress · tap to continue',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: const Color(0xFFB47A48),
+                          ),
+                        ),
+                      ] else if (complete) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'tap to view jar',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              for (final q in survey.questions)
+                SizedBox(
+                  width: columnWidthFor(q),
+                  child: _AnswerCell(
+                    question: q,
+                    response: row.responsesByQuestionId[q.id],
+                    theme: theme,
+                  ),
+                ),
+            ],
           ),
         ),
-      ),
-      height: rowHeight,
-      child: Row(
-        children: [
-          SizedBox(
-            width: firstColWidth,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.sm,
-                vertical: AppSpacing.xs,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Child #$index',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    dateFmt.format(row.session.startedAt.toLocal()),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  if (row.session.endedAt != null &&
-                      row.session.childCount == 0) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      'incomplete',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          for (final q in survey.questions)
-            SizedBox(
-              width: columnWidthFor(q),
-              child: _AnswerCell(
-                question: q,
-                response: row.responsesByQuestionId[q.id],
-                theme: theme,
-              ),
-            ),
-        ],
       ),
     );
   }
@@ -721,36 +868,77 @@ class _CardList extends StatelessWidget {
       separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
       itemBuilder: (context, i) {
         final row = rows[i];
-        return Container(
-          padding: AppSpacing.cardPadding,
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            borderRadius: AppSpacing.cardBorderRadius,
-            border: Border.all(
-              color: theme.colorScheme.outlineVariant,
-              width: 0.5,
-            ),
+        final complete = _isSessionComplete(row.session);
+        final inProgress = row.session.endedAt == null;
+        final tapHint = complete
+            ? 'tap to view jar'
+            : inProgress
+                ? 'in progress · tap to continue'
+                : 'incomplete · tap to resume';
+        final tapHintColor = complete
+            ? theme.colorScheme.outline
+            : inProgress
+                ? const Color(0xFFB47A48)
+                : theme.colorScheme.error;
+        return InkWell(
+          borderRadius: AppSpacing.cardBorderRadius,
+          onTap: () => _onChildRowTapped(
+            context: context,
+            survey: survey,
+            row: row,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    'Child #${rows.length - i}',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    dateFmt.format(row.session.startedAt.toLocal()),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+          child: Container(
+            padding: AppSpacing.cardPadding,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: AppSpacing.cardBorderRadius,
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant,
+                width: 0.5,
               ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Child #${rows.length - i}',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    if (complete)
+                      const Icon(
+                        Icons.check_circle,
+                        size: 14,
+                        color: Color(0xFF3A9C7B),
+                      )
+                    else if (inProgress)
+                      const Icon(
+                        Icons.play_circle_outline,
+                        size: 14,
+                        color: Color(0xFFB47A48),
+                      ),
+                    const Spacer(),
+                    Text(
+                      dateFmt.format(row.session.startedAt.toLocal()),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    tapHint,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: tapHintColor,
+                    ),
+                  ),
+                ),
               const SizedBox(height: AppSpacing.sm),
               for (final q in survey.questions) ...[
                 Padding(
@@ -788,7 +976,8 @@ class _CardList extends StatelessWidget {
                         .withValues(alpha: 0.5),
                   ),
               ],
-            ],
+              ],
+            ),
           ),
         );
       },

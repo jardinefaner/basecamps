@@ -101,6 +101,39 @@ class SurveyRepository {
 
   // ——— Sessions ——————————————————————————————————————————————
 
+  /// One session by id (or null if missing). Used by the results-
+  /// screen tap-to-resume flow.
+  Future<SurveySession?> getSession(String sessionId) async {
+    return (_db.select(_db.surveySessions)
+          ..where((s) => s.id.equals(sessionId)))
+        .getSingleOrNull();
+  }
+
+  /// All responses for [sessionId]. Used by tap-to-resume to
+  /// decide which question the child stopped on, and by the
+  /// preview-card path to feed mood values into the painter.
+  Future<List<SurveyResponse>> getResponsesForSession(
+    String sessionId,
+  ) async {
+    return (_db.select(_db.surveyResponses)
+          ..where((r) => r.sessionId.equals(sessionId)))
+        .get();
+  }
+
+  /// Re-open a session that had been ended (e.g. teacher tapped
+  /// in to resume from the results sheet). Clears `endedAt` and
+  /// `childCount` so a fresh "complete" can land later.
+  Future<void> reopenSession(String sessionId) async {
+    await (_db.update(_db.surveySessions)
+          ..where((s) => s.id.equals(sessionId)))
+        .write(
+      const SurveySessionsCompanion(
+        endedAt: Value<DateTime?>(null),
+        childCount: Value<int>(0),
+      ),
+    );
+  }
+
   /// Open a fresh session for a child going through the kiosk.
   /// Returns the session id for the caller to pass back when
   /// recording responses + closing.

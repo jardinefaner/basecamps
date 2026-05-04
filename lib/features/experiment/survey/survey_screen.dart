@@ -4020,7 +4020,11 @@ const _kFaceMoods = <FaceMood>[
 // =====================================================================
 
 class SurveyScreen extends ConsumerStatefulWidget {
-  const SurveyScreen({super.key, this.surveyId});
+  const SurveyScreen({
+    super.key,
+    this.surveyId,
+    this.resumeSessionId,
+  });
 
   /// When non-null, the screen runs in **kiosk mode** — loads the
   /// survey config, opens a session, and writes a Response per
@@ -4028,6 +4032,13 @@ class SurveyScreen extends ConsumerStatefulWidget {
   /// it runs in **sandbox mode** — the original chibi-marble
   /// playground with random questions and no persistence.
   final String? surveyId;
+
+  /// When supplied (only valid in kiosk mode), the screen resumes
+  /// an existing session instead of starting a new one. Used by
+  /// the results-screen tap-to-resume flow for sessions a child
+  /// abandoned mid-flow. The kiosk re-derives the next question
+  /// to ask by skipping any already-answered question ids.
+  final String? resumeSessionId;
 
   @override
   ConsumerState<SurveyScreen> createState() => _SurveyScreenState();
@@ -4119,11 +4130,50 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
     final repo = ref.read(surveyRepositoryProvider);
     final survey = await repo.getById(widget.surveyId!);
     if (!mounted || survey == null) return;
-    final sessionId = await repo.startSession(survey.id);
+
+    // Resume path: a session id was passed in. Re-open it (so
+    // subsequent recordResponse calls keep landing in the same
+    // session row) and skip the question index forward past any
+    // already-answered question ids.
+    final resumeId = widget.resumeSessionId;
+    String sessionId;
+    var startIndex = 0;
+    if (resumeId != null) {
+      final existing = await repo.getSession(resumeId);
+      if (existing != null && existing.surveyId == survey.id) {
+        await repo.reopenSession(resumeId);
+        final answered = await repo.getResponsesForSession(resumeId);
+        final answeredIds = answered.map((r) => r.questionId).toSet();
+        // First question without a recorded response — that's where
+        // the child left off.
+        for (var i = 0; i < survey.questions.length; i++) {
+          if (!answeredIds.contains(survey.questions[i].id)) {
+            startIndex = i;
+            break;
+          }
+          // If every question is already answered, jump to the
+          // last index and let _onSurveyComplete fire on next
+          // advance — the card will pop up so the teacher can
+          // print it.
+          if (i == survey.questions.length - 1) {
+            startIndex = i;
+          }
+        }
+        sessionId = resumeId;
+      } else {
+        // Resume id was bogus / from another survey — fall back
+        // to a fresh session.
+        sessionId = await repo.startSession(survey.id);
+      }
+    } else {
+      sessionId = await repo.startSession(survey.id);
+    }
+
     if (!mounted) return;
     setState(() {
       _survey = survey;
       _sessionId = sessionId;
+      _questionIndex = startIndex;
       _questionStartedAt = DateTime.now();
     });
     _playCurrentQuestionAudio();
