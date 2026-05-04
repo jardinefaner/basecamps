@@ -26,6 +26,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:basecamp/features/surveys/survey_models.dart';
+import 'package:basecamp/features/surveys/survey_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
@@ -34,6 +36,7 @@ import 'package:flame/palette.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // =====================================================================
 // V3 — pure 3D vector math
@@ -3312,13 +3315,26 @@ extension _FabActionUi on _FabAction {
 
 class _SurveyGame extends FlameGame
     with HasGameReference, HasKeyboardHandlerComponents {
+  _SurveyGame({this.moods, this.onAnswered});
+
+  /// Override the set of mood marbles spawned in the world. When
+  /// null, falls back to `_kFaceMoods` (the full 5-face sandbox
+  /// catalog). Kiosk mode passes a 3-mood list (sd / ns / sa) so
+  /// the world matches BASECamp's 3-point Likert scale.
+  final List<FaceMood>? moods;
+
+  /// Called whenever a marble enters the jar — the kiosk listens
+  /// to record a SurveyResponse + advance to the next question.
+  /// Null in sandbox mode where there's no survey to advance.
+  final void Function(FaceMood mood)? onAnswered;
+
   late final JoystickComponent joystick;
   late final KeyboardInput keyboardInput;
   late final ChibiCharacter chibi;
   late final _Jar jar;
 
-  /// The three pickable marbles in the world (one per mood).
-  /// Index = slot index = mood index in `_kFaceMoods`.
+  /// The pickable marbles currently in the world. Length = the
+  /// length of `moods` (or 5 if `moods` is null).
   late final List<_MarbleNode> _marbles;
 
   /// World-space "rest" position for each slot. Used to spawn
@@ -3514,6 +3530,11 @@ class _SurveyGame extends FlameGame
       tint: m.tint,
       seq: _celebrationSeq,
     );
+
+    // Kiosk mode: notify the survey controller so it can record
+    // the response + advance to the next question. No-op in
+    // sandbox mode.
+    onAnswered?.call(m.mood);
   }
 
   /// Lowest screen-Y (= visually highest) of any in-jar marble in
@@ -3920,24 +3941,31 @@ class _SurveyGame extends FlameGame
     // order from most negative (left) to most positive (right). All
     // sit JUST BELOW THE QUESTION PLATE (not near the jar lid) so
     // they're the first thing the user sees + reaches.
+    // Mood set: kiosk mode supplies 3 (BASECamp 3-point Likert);
+    // sandbox falls back to all 5 faces.
+    final activeMoods = moods ?? _kFaceMoods;
     final centerX = size.x / 2;
     final spread = math.min<double>(size.x * 0.40, 320);
     const restY = 130.0; // ~80px under the plate, accounting for safe-area.
     _marbleRestPositions = <Vector2>[
-      for (var i = 0; i < _kFaceMoods.length; i++)
+      for (var i = 0; i < activeMoods.length; i++)
         Vector2(
-          centerX - spread + (i / (_kFaceMoods.length - 1)) * spread * 2,
+          activeMoods.length == 1
+              ? centerX
+              : centerX -
+                  spread +
+                  (i / (activeMoods.length - 1)) * spread * 2,
           restY,
         ),
     ];
     _marbles = <_MarbleNode>[
-      for (var i = 0; i < _kFaceMoods.length; i++)
+      for (var i = 0; i < activeMoods.length; i++)
         _MarbleNode(
           slotIdx: i,
-          mood: _kFaceMoods[i],
+          mood: activeMoods[i],
           // Tint comes from the mood's spec palette (not a shared
           // shuffle pool any more).
-          tint: _kFacePalettes[_kFaceMoods[i]]!.body,
+          tint: _kFacePalettes[activeMoods[i]]!.body,
           seed: 100 + i * 17,
           spawnPos: _marbleRestPositions[i],
           restPos: _marbleRestPositions[i],
@@ -3983,21 +4011,38 @@ const _kFaceMoods = <FaceMood>[
 // Survey screen
 // =====================================================================
 
-class SurveyScreen extends StatefulWidget {
-  const SurveyScreen({super.key});
+class SurveyScreen extends ConsumerStatefulWidget {
+  const SurveyScreen({super.key, this.surveyId});
+
+  /// When non-null, the screen runs in **kiosk mode** — loads the
+  /// survey config, opens a session, and writes a Response per
+  /// marble drop, advancing through the question list. When null,
+  /// it runs in **sandbox mode** — the original chibi-marble
+  /// playground with random questions and no persistence.
+  final String? surveyId;
 
   @override
-  State<SurveyScreen> createState() => _SurveyScreenState();
+  ConsumerState<SurveyScreen> createState() => _SurveyScreenState();
 }
 
-class _SurveyScreenState extends State<SurveyScreen> {
-  late final _SurveyGame _game = _SurveyGame();
+/// Maps the 5 painted face designs (F1-F5) onto BASECamp's
+/// 3-point Likert answer codes (0 = disagree, 1 = kind of agree,
+/// 2 = agree). The kiosk only spawns these three; the F2 (disagree)
+/// and F4 (agree) designs from the spec are unused by BASECamp.
+const Map<FaceMood, int> _kKioskMoodToValue = <FaceMood, int>{
+  FaceMood.stronglyDisagree: 0,
+  FaceMood.notSure: 1,
+  FaceMood.stronglyAgree: 2,
+};
 
-  /// Random question chosen on screen mount. Stable for the
-  /// session — flipping every frame would be jarring; users want
-  /// to read once and answer.
-  late final _SurveyQuestion _question =
-      _kSurveyQuestions[math.Random().nextInt(_kSurveyQuestions.length)];
+const List<FaceMood> _kKioskMoods = <FaceMood>[
+  FaceMood.stronglyDisagree,
+  FaceMood.notSure,
+  FaceMood.stronglyAgree,
+];
+
+class _SurveyScreenState extends ConsumerState<SurveyScreen> {
+  late final _SurveyGame _game;
 
   /// Key on the question plate's outer Container. After every
   /// frame we read its bounds and push them down to the game so
@@ -4005,13 +4050,158 @@ class _SurveyScreenState extends State<SurveyScreen> {
   /// work with (Flutter does the layout; the game just consumes).
   final GlobalKey _plateKey = GlobalKey();
 
+  // ——— Kiosk-mode state (null in sandbox mode) ———
+  SurveyConfig? _survey;
+  String? _sessionId;
+  int _questionIndex = 0;
+  int _childCount = 0;
+  DateTime _questionStartedAt = DateTime.now();
+  bool _showingAllDone = false;
+
+  /// Random question used in sandbox mode only. Computed lazily
+  /// the first time `_currentPrompt` reads it.
+  late final _SurveyQuestion _sandboxQuestion =
+      _kSurveyQuestions[math.Random().nextInt(_kSurveyQuestions.length)];
+
+  bool get _isKiosk => widget.surveyId != null;
+
+  /// What the question plate should display right now.
+  String get _currentPrompt {
+    if (!_isKiosk) return _sandboxQuestion.question;
+    final survey = _survey;
+    if (survey == null) return 'Loading…';
+    if (_showingAllDone) return 'All done — thank you! 🎉';
+    final q = survey.questions[_questionIndex];
+    return q.prompt;
+  }
+
   @override
   void initState() {
     super.initState();
+    _game = _SurveyGame(
+      moods: _isKiosk ? _kKioskMoods : null,
+      onAnswered: _isKiosk ? _onMoodAnswered : null,
+    );
     // Publish plate bounds once after first layout, then on every
     // build. The post-frame callback is the canonical "after
     // layout has settled" hook.
     WidgetsBinding.instance.addPostFrameCallback(_publishPlateBounds);
+    if (_isKiosk) {
+      unawaited(_initializeKiosk());
+    }
+  }
+
+  Future<void> _initializeKiosk() async {
+    final repo = ref.read(surveyRepositoryProvider);
+    final survey = await repo.getById(widget.surveyId!);
+    if (!mounted || survey == null) return;
+    final sessionId = await repo.startSession(survey.id);
+    if (!mounted) return;
+    setState(() {
+      _survey = survey;
+      _sessionId = sessionId;
+      _questionStartedAt = DateTime.now();
+    });
+  }
+
+  @override
+  void dispose() {
+    // If the teacher exits mid-flow, mark the session abandoned.
+    final sessionId = _sessionId;
+    if (sessionId != null && _isKiosk) {
+      // Best-effort cleanup; if the app is being torn down the
+      // write may not flush.
+      unawaited(
+        ref.read(surveyRepositoryProvider).endSession(
+              sessionId,
+              completed: false,
+            ),
+      );
+    }
+    super.dispose();
+  }
+
+  /// Called by `_SurveyGame.onAnswered` when a marble crosses the
+  /// jar mouth in kiosk mode. Records the response, advances the
+  /// question index, and (if we just answered the last question)
+  /// fires the "All done!" beat.
+  Future<void> _onMoodAnswered(FaceMood mood) async {
+    final survey = _survey;
+    final sessionId = _sessionId;
+    if (survey == null || sessionId == null) return;
+    final question = survey.questions[_questionIndex];
+    if (question.type != SurveyQuestionType.mood) {
+      // Shouldn't happen — non-mood questions skip the marble
+      // world. Ignore the drop instead of polluting responses.
+      return;
+    }
+    final moodValue = _kKioskMoodToValue[mood];
+    if (moodValue == null) return; // F2/F4 designs aren't kiosk-spawned
+    final reactionMs =
+        DateTime.now().difference(_questionStartedAt).inMilliseconds;
+    await ref.read(surveyRepositoryProvider).recordMoodAnswer(
+          surveyId: survey.id,
+          sessionId: sessionId,
+          questionId: question.id,
+          moodValue: moodValue,
+          reactionTimeMs: reactionMs,
+          isPractice: question.isPractice,
+        );
+    if (!mounted) return;
+    _advance();
+  }
+
+  /// Move to the next question, or trigger the end-of-survey beat
+  /// if we just finished the last one.
+  void _advance() {
+    final survey = _survey;
+    if (survey == null) return;
+    if (_questionIndex + 1 >= survey.questions.length) {
+      _onSurveyComplete();
+    } else {
+      setState(() {
+        _questionIndex += 1;
+        _questionStartedAt = DateTime.now();
+      });
+    }
+  }
+
+  /// "All done!" close beat. Closes the session as completed,
+  /// shows the celebration overlay for ~3s, then resets the
+  /// kiosk for the next child.
+  void _onSurveyComplete() {
+    final sessionId = _sessionId;
+    final survey = _survey;
+    if (sessionId == null || survey == null) return;
+    setState(() {
+      _showingAllDone = true;
+      _childCount += 1;
+    });
+    // Close this child's session. Best effort — UI reset is the
+    // user-visible signal that things are progressing.
+    unawaited(
+      ref.read(surveyRepositoryProvider).endSession(
+            sessionId,
+            completed: true,
+          ),
+    );
+    Future.delayed(const Duration(seconds: 3), _resetForNextChild);
+  }
+
+  /// Reset state for the next child to walk up.
+  Future<void> _resetForNextChild() async {
+    if (!mounted) return;
+    final survey = _survey;
+    if (survey == null) return;
+    final repo = ref.read(surveyRepositoryProvider);
+    final newSessionId = await repo.startSession(survey.id);
+    if (!mounted) return;
+    setState(() {
+      _sessionId = newSessionId;
+      _questionIndex = 0;
+      _questionStartedAt = DateTime.now();
+      _showingAllDone = false;
+    });
   }
 
   void _publishPlateBounds(Duration _) {
@@ -4122,7 +4312,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
                       ],
                     ),
                     child: Text(
-                      _question.question,
+                      _currentPrompt,
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.w600,
@@ -4164,9 +4354,129 @@ class _SurveyScreenState extends State<SurveyScreen> {
               ),
             ),
           ),
+          // Kiosk-only overlays (no-op in sandbox mode).
+          if (_isKiosk) ..._buildKioskOverlays(theme),
         ],
       ),
     );
+  }
+
+  /// Overlays drawn on top of the game in kiosk mode:
+  ///
+  ///   * For non-Likert questions (multi-select / open-ended), a
+  ///     full-screen "Coming in next slice — tap to skip"
+  ///     placeholder. Slice 3 / 3.5 will replace these with real
+  ///     question UIs.
+  ///   * After the last question is answered, an "All done!"
+  ///     celebration that sits for 3s then auto-resets to the
+  ///     next child.
+  List<Widget> _buildKioskOverlays(ThemeData theme) {
+    final survey = _survey;
+    if (survey == null) {
+      return <Widget>[
+        const Positioned.fill(
+          child: ColoredBox(
+            color: Color(0xCCFFFFFF),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ),
+      ];
+    }
+    if (_showingAllDone) {
+      return <Widget>[
+        Positioned.fill(
+          child: ColoredBox(
+            color: theme.colorScheme.surface.withValues(alpha: 0.92),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.xxxl),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'All done!',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      'Thank you. Pass it along to the next friend.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                    Text(
+                      '$_childCount response${_childCount == 1 ? '' : 's'} so far',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ];
+    }
+    // Non-Likert question? Show a placeholder skip card. The kiosk
+    // currently only handles `mood` questions; multi-select +
+    // open-ended ship in slice 3 / 3.5.
+    final q = survey.questions[_questionIndex];
+    if (q.type != SurveyQuestionType.mood) {
+      return <Widget>[
+        Positioned.fill(
+          child: ColoredBox(
+            color: theme.colorScheme.surface.withValues(alpha: 0.92),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.xxxl),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      q.type == SurveyQuestionType.multiSelect
+                          ? Icons.checklist_rtl
+                          : Icons.mic_none,
+                      size: 48,
+                      color: theme.colorScheme.outlineVariant,
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    Text(
+                      q.prompt,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      q.type == SurveyQuestionType.multiSelect
+                          ? 'Multi-select question UI ships next slice.'
+                          : 'Voice-answer question UI ships next slice.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                    FilledButton(
+                      onPressed: _advance,
+                      child: const Text('Skip for now'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ];
+    }
+    return const <Widget>[];
   }
 }
 

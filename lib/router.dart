@@ -442,7 +442,9 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
               GoRoute(
                 path: ':id/play',
-                builder: (_, _) => const SurveyScreen(),
+                builder: (_, state) => SurveyScreen(
+                  surveyId: state.pathParameters['id'],
+                ),
               ),
             ],
           ),

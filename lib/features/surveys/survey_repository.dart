@@ -87,6 +87,121 @@ class SurveyRepository {
     return diff == 0;
   }
 
+  // ——— Sessions ——————————————————————————————————————————————
+
+  /// Open a fresh session for a child going through the kiosk.
+  /// Returns the session id for the caller to pass back when
+  /// recording responses + closing.
+  Future<String> startSession(String surveyId) async {
+    final id = newId();
+    await _db.into(_db.surveySessions).insert(
+          SurveySessionsCompanion(
+            id: Value(id),
+            surveyId: Value(surveyId),
+            startedAt: Value(DateTime.now().toUtc()),
+          ),
+        );
+    return id;
+  }
+
+  /// Close a session. `completed = true` when the child reached
+  /// the end of the question list; `false` when the kiosk was
+  /// exited mid-flow (teacher PIN, app close, etc).
+  Future<void> endSession(
+    String sessionId, {
+    required bool completed,
+  }) async {
+    await (_db.update(_db.surveySessions)
+          ..where((s) => s.id.equals(sessionId)))
+        .write(
+      SurveySessionsCompanion(
+        endedAt: Value(DateTime.now().toUtc()),
+        childCount: Value(completed ? 1 : 0),
+      ),
+    );
+  }
+
+  // ——— Responses ————————————————————————————————————————————————
+
+  /// Record a Likert (mood) answer. `moodValue` is 0 (disagree),
+  /// 1 (kind of agree), or 2 (agree). `reactionTimeMs` is from
+  /// when the question first appeared to when the marble was
+  /// dropped — a signal of confidence vs hesitation.
+  Future<void> recordMoodAnswer({
+    required String surveyId,
+    required String sessionId,
+    required String questionId,
+    required int moodValue,
+    required int reactionTimeMs,
+    required bool isPractice,
+  }) async {
+    await _db.into(_db.surveyResponses).insert(
+          SurveyResponsesCompanion(
+            id: Value(newId()),
+            surveyId: Value(surveyId),
+            sessionId: Value(sessionId),
+            questionId: Value(questionId),
+            answerType: const Value('mood'),
+            moodValue: Value(moodValue),
+            reactionTimeMs: Value(reactionTimeMs),
+            durationMs: Value(reactionTimeMs),
+            isPractice: Value(isPractice),
+          ),
+        );
+  }
+
+  /// Record a multi-select answer (the activities checkbox
+  /// question). `selectedOptionIds` is the set of activity ids the
+  /// child checked. Stored as JSON in `selections_json`.
+  Future<void> recordMultiSelectAnswer({
+    required String surveyId,
+    required String sessionId,
+    required String questionId,
+    required List<String> selectedOptionIds,
+    required int durationMs,
+    required bool isPractice,
+  }) async {
+    await _db.into(_db.surveyResponses).insert(
+          SurveyResponsesCompanion(
+            id: Value(newId()),
+            surveyId: Value(surveyId),
+            sessionId: Value(sessionId),
+            questionId: Value(questionId),
+            answerType: const Value('multi_select'),
+            selectionsJson: Value(jsonEncode(selectedOptionIds)),
+            durationMs: Value(durationMs),
+            isPractice: Value(isPractice),
+          ),
+        );
+  }
+
+  /// Record an open-ended answer. `audioFilePath` is relative to
+  /// the app docs folder. `transcription` is filled in
+  /// asynchronously after Deepgram STT finishes — this method just
+  /// stamps the audio path; transcription updates with
+  /// `updateTranscription` when ready.
+  Future<void> recordOpenEndedAnswer({
+    required String surveyId,
+    required String sessionId,
+    required String questionId,
+    required String audioFilePath,
+    required int durationMs,
+    required bool isPractice,
+  }) async {
+    await _db.into(_db.surveyResponses).insert(
+          SurveyResponsesCompanion(
+            id: Value(newId()),
+            surveyId: Value(surveyId),
+            sessionId: Value(sessionId),
+            questionId: Value(questionId),
+            answerType: const Value('audio'),
+            audioFilePath: Value(audioFilePath),
+            durationMs: Value(durationMs),
+            isPractice: Value(isPractice),
+          ),
+        );
+  }
+
   /// Soft-delete: stamp deletedAt. The row stays so historical
   /// responses keep resolving the parent survey for the results
   /// sheet, but pickers + the list filter it out.
