@@ -1112,9 +1112,19 @@ class KeyboardInput extends Component with KeyboardHandler {
 /// Mood of a face — drives the mouth shape.
 enum FaceMood { sad, neutral, smiley }
 
-/// Pure paint helper. v60.10 — bolder mouth strokes (smile/frown
-/// were too subtle to read at marble size) + independent
-/// left/right pupil drift (eyes wander or "look at each other").
+/// Pure paint helper. v60.11 — chunky expressive faces inspired by
+/// the "watercolor chibi marble" reference the user shared. Each
+/// mood gets:
+///   - per-mood eyebrows (smiley = arched up, neutral = flat,
+///     sad = inner-up worried),
+///   - large round eyes with a glossy highlight dot,
+///   - a distinct mouth shape (smiley = wide curved grin with
+///     tongue, neutral = small flat line, sad = open frown),
+///   - mood-specific extras (smiley = blush dots; sad = tear).
+///
+/// All measurements are radius-relative so the same painter scales
+/// from the 28px world marble up to whatever radius a future
+/// "giant marble" or close-up needs.
 class _FacePainter {
   const _FacePainter({
     required this.mood,
@@ -1138,76 +1148,232 @@ class _FacePainter {
     ..style = PaintingStyle.stroke
     ..strokeWidth = 1.5;
   static final _pupil = Paint()..color = const Color(0xFF1A1A1A);
-  static final _mouth = Paint()
+  static final _mouthStroke = Paint()
     ..color = const Color(0xFF1A1A1A)
     ..style = PaintingStyle.stroke
     ..strokeWidth = 2.6
     ..strokeCap = StrokeCap.round
     ..strokeJoin = StrokeJoin.round;
+  static final _browStroke = Paint()
+    ..color = const Color(0xFF1A1A1A)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2.4
+    ..strokeCap = StrokeCap.round;
+  static final _mouthFillSmiley = Paint()..color = const Color(0xFF7A2C3D);
+  static final _mouthFillSad = Paint()..color = const Color(0xFF6D2C3E);
+  static final _tongue = Paint()..color = const Color(0xFFE57A8D);
+  static final _blush = Paint()..color = const Color(0x66E8758B);
+  static final _tearFill = Paint()..color = const Color(0xFF6FC4F0);
+  static final _tearOutline = Paint()
+    ..color = const Color(0xFF1A1A1A)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.0;
 
   void paintAt(Canvas canvas, Offset center, double radius) {
     canvas
       ..save()
       ..translate(center.dx, center.dy);
 
-    final eyeY = -radius * 0.12;
-    final eyeR = radius * 0.20;
+    final eyeY = -radius * 0.10;
+    final eyeR = radius * 0.26;
     final eyeSpacing = radius * 0.36;
     final open = (1 - blinkPhase).clamp(0.05, 1.0);
 
+    // ===== Eyebrows =====
+    // Drawn first (above + behind the eyes). We draw a short stroke
+    // and rotate it by `tilt` (CW positive — Flutter's +y is down,
+    // so positive tilt makes the right end of the line go DOWN).
+    //
+    // For a brow, "inner end up" reads as worried. Left brow's
+    // inner end is on its right side, so positive tilt makes inner
+    // go DOWN (= angry/determined) and negative tilt makes inner
+    // go UP (= worried). Right brow is mirrored.
+    final browY = eyeY - eyeR * 0.95;
+    final browLen = eyeR * 1.6;
+    void drawBrow(double x, double tilt) {
+      canvas
+        ..save()
+        ..translate(x, browY)
+        ..rotate(tilt)
+        ..drawLine(
+          Offset(-browLen / 2, 0),
+          Offset(browLen / 2, 0),
+          _browStroke,
+        )
+        ..restore();
+    }
+
+    switch (mood) {
+      case FaceMood.smiley:
+        // Outer-down, inner-up = relaxed/cheerful arch.
+        drawBrow(-eyeSpacing, -0.20);
+        drawBrow(eyeSpacing, 0.20);
+      case FaceMood.neutral:
+        drawBrow(-eyeSpacing, 0.04);
+        drawBrow(eyeSpacing, -0.04);
+      case FaceMood.sad:
+        // Inner-up worried angle.
+        drawBrow(-eyeSpacing, -0.42);
+        drawBrow(eyeSpacing, 0.42);
+    }
+
+    // ===== Eyes =====
     void drawEye(double x, double drift) {
+      // Round body — slightly taller than wide for a chibi feel,
+      // squashed by the blink curve.
       final rect = Rect.fromCenter(
         center: Offset(x, eyeY),
-        width: eyeR * 1.5,
-        height: eyeR * 2.0 * open,
+        width: eyeR * 1.6,
+        height: eyeR * 2.1 * open,
       );
       canvas
         ..drawOval(rect, _eyeWhite)
         ..drawOval(rect, _eyeOutline);
       if (open > 0.25) {
-        canvas.drawCircle(
-          Offset(x + drift * eyeR * 0.55, eyeY + 1),
-          eyeR * 0.6 * open,
-          _pupil,
+        // Fat pupil — fills most of the eye, leaves room for the
+        // glossy highlight on the upper-left.
+        final pupilCenter = Offset(
+          x + drift * eyeR * 0.45,
+          eyeY + eyeR * 0.10,
         );
+        // Highlight dot — gives the marble that "shiny watercolor"
+        // read from the reference. Positioned upper-left of the
+        // pupil, regardless of drift direction (a fixed light
+        // source rather than a tracked-eye highlight).
+        canvas
+          ..drawCircle(pupilCenter, eyeR * 0.62 * open, _pupil)
+          ..drawCircle(
+            Offset(x - eyeR * 0.18, eyeY - eyeR * 0.20),
+            eyeR * 0.22 * open,
+            _eyeWhite,
+          );
+        // Sad mood gets a second smaller "wet" highlight bottom-
+        // right of the pupil — sells the "watery eyes" read.
+        if (mood == FaceMood.sad) {
+          canvas.drawCircle(
+            Offset(x + eyeR * 0.30, eyeY + eyeR * 0.32),
+            eyeR * 0.12 * open,
+            _eyeWhite,
+          );
+        }
       }
     }
 
     drawEye(-eyeSpacing, pupilLeft);
     drawEye(eyeSpacing, pupilRight);
 
-    // Mouth — bigger, bolder so smile/frown read at marble size.
-    final mouthY = radius * 0.32;
-    final mouthW = radius * 0.50;
-    final mouthCurve = radius * 0.42;
-    final path = Path();
+    // ===== Mouth =====
+    final mouthY = radius * 0.40;
+    final mouthW = radius * 0.45;
     switch (mood) {
       case FaceMood.smiley:
-        path
-          ..moveTo(-mouthW, mouthY - mouthCurve * 0.15)
-          ..quadraticBezierTo(
-            0,
-            mouthY + mouthCurve,
-            mouthW,
-            mouthY - mouthCurve * 0.15,
+        // Wide curved smile with the inside filled (pink) and a
+        // tongue blob bottom-center. Reads as "open mouth grin"
+        // from a glance. We clip to the bottom half of the mouth
+        // ellipse so the upper edge stays a clean lip line.
+        final mouthRect = Rect.fromCenter(
+          center: Offset(0, mouthY),
+          width: mouthW * 1.7,
+          height: mouthW * 1.0,
+        );
+        canvas
+          ..save()
+          ..clipRect(Rect.fromLTRB(
+            -mouthW, mouthY - 1, mouthW * 1.2, mouthY + mouthW,
+          ))
+          ..drawOval(mouthRect, _mouthFillSmiley)
+          ..drawCircle(
+            Offset(mouthW * 0.05, mouthY + mouthW * 0.30),
+            mouthW * 0.32,
+            _tongue,
+          )
+          ..restore()
+          // Outline — bottom half of the ellipse + flat top lip.
+          ..drawArc(mouthRect, 0, math.pi, false, _mouthStroke)
+          ..drawLine(
+            Offset(-mouthW * 0.85, mouthY),
+            Offset(mouthW * 0.85, mouthY),
+            _mouthStroke,
+          )
+          // Blush dots, tucked under each eye on the cheek.
+          ..drawOval(
+            Rect.fromCenter(
+              center: Offset(-radius * 0.55, radius * 0.18),
+              width: radius * 0.34,
+              height: radius * 0.22,
+            ),
+            _blush,
+          )
+          ..drawOval(
+            Rect.fromCenter(
+              center: Offset(radius * 0.55, radius * 0.18),
+              width: radius * 0.34,
+              height: radius * 0.22,
+            ),
+            _blush,
           );
       case FaceMood.neutral:
-        path
-          ..moveTo(-mouthW * 0.85, mouthY + 2)
-          ..lineTo(mouthW * 0.85, mouthY + 2);
-      case FaceMood.sad:
-        path
-          ..moveTo(-mouthW, mouthY + mouthCurve * 1.15)
+        // Small flat-ish line, very slight wave so it doesn't read
+        // as a hard frown.
+        final p = Path()
+          ..moveTo(-mouthW * 0.7, mouthY)
           ..quadraticBezierTo(
+            -mouthW * 0.35,
+            mouthY - 2,
             0,
             mouthY,
-            mouthW,
-            mouthY + mouthCurve * 1.15,
+          )
+          ..quadraticBezierTo(
+            mouthW * 0.35,
+            mouthY + 2,
+            mouthW * 0.7,
+            mouthY,
+          );
+        canvas.drawPath(p, _mouthStroke);
+      case FaceMood.sad:
+        // Open downturned mouth — small filled oval with a frown
+        // line above it for the lip.
+        final mouthRect = Rect.fromCenter(
+          center: Offset(0, mouthY + radius * 0.05),
+          width: mouthW * 1.05,
+          height: mouthW * 0.7,
+        );
+        canvas
+          ..drawOval(mouthRect, _mouthFillSad)
+          ..drawOval(mouthRect, _mouthStroke);
+        // Tear — sits just below the right eye.
+        final tearTop = Offset(eyeSpacing + eyeR * 0.6, eyeY + eyeR * 0.95);
+        final tearBottom = Offset(
+          eyeSpacing + eyeR * 0.6,
+          eyeY + eyeR * 1.95,
+        );
+        final tearPath = Path()
+          ..moveTo(tearTop.dx, tearTop.dy)
+          ..quadraticBezierTo(
+            tearTop.dx + eyeR * 0.45,
+            (tearTop.dy + tearBottom.dy) / 2,
+            tearBottom.dx,
+            tearBottom.dy,
+          )
+          ..quadraticBezierTo(
+            tearTop.dx - eyeR * 0.45,
+            (tearTop.dy + tearBottom.dy) / 2,
+            tearTop.dx,
+            tearTop.dy,
+          )
+          ..close();
+        canvas
+          ..drawPath(tearPath, _tearFill)
+          ..drawPath(tearPath, _tearOutline)
+          // Highlight on the tear so it reads as wet, not just a
+          // blue blob.
+          ..drawCircle(
+            Offset(tearTop.dx - eyeR * 0.10, tearTop.dy + eyeR * 0.4),
+            eyeR * 0.10,
+            _eyeWhite,
           );
     }
-    canvas
-      ..drawPath(path, _mouth)
-      ..restore();
+    canvas.restore();
   }
 }
 
@@ -1275,9 +1441,13 @@ double blinkPhaseAt(double t, {int seed = 0}) {
 class _Jar extends PositionComponent {
   _Jar({required Vector2 size}) : super(size: size, anchor: Anchor.topLeft);
 
-  /// Marble radius — matches `_FallingMarble._radius`. Used to
-  /// compute the slot grid.
-  static const double _marbleR = 16;
+  /// Marble radius — should match `_MarbleNode._radius` (the world
+  /// marble's base render radius). Used to compute the slot grid
+  /// inside the jar so dropped marbles sit cleanly in rows.
+  /// Slightly under the render radius so they pack a hair tighter
+  /// than visual size — a watercolor-style "jar full of marbles"
+  /// reads better with a touch of overlap than spaced grid cells.
+  static const double _marbleR = 22;
 
   /// How squashed the rim/base ellipses are vs a perfect circle.
   /// 0.25 = quite flat, gives the FFT-style 3/4 view tilt.
@@ -1429,10 +1599,11 @@ class _MarbleNode extends PositionComponent {
     position.setFrom(spawnPos);
   }
 
-  /// Base render radius before depth-scaling. Slightly larger than
-  /// the old falling-marble radius so the world emojis read clearly
-  /// when shrunk at the top of the screen.
-  static const double _radius = 18;
+  /// Base render radius before depth-scaling. v60.11 — sized up to
+  /// 28 so the chunkier expressive faces (eyebrows, blush, tear,
+  /// open mouths) all read clearly even when the marble shrinks at
+  /// the top of the screen.
+  static const double _radius = 28;
   static const double _gravity = 1100;
 
   /// Which of the three face slots this marble belongs to (0..2).
@@ -1509,13 +1680,14 @@ class _MarbleNode extends PositionComponent {
       case _MarbleState.held:
         // Glide above the chibi's head. Use the chibi's depth-scale
         // so a tiny far-away chibi carries a tiny marble just above
-        // its head, not a comically oversized one.
+        // its head, not a comically oversized one. Lifted higher
+        // (90 vs old 70) to clear the bigger marble + ear hitbox.
         if (game is _SurveyGame) {
           final c = game.chibi;
           final cs = c.scale.x;
           position
             ..x = c.position.x
-            ..y = c.position.y - 70 * cs + math.sin(_t * 4 + seed) * 1.5;
+            ..y = c.position.y - 90 * cs + math.sin(_t * 4 + seed) * 1.5;
         }
       case _MarbleState.flying:
         _vy += _gravity * dt;
@@ -1657,7 +1829,8 @@ class _SurveyGame extends FlameGame
   /// "just standing next to" a marble — small enough that the chibi
   /// has to actually walk over to a slot, big enough that a
   /// distracted user with twitchy joystick still triggers cleanly.
-  static const double _pickRange = 80;
+  /// v60.11 — bumped to track the bigger 28px marbles.
+  static const double _pickRange = 95;
 
   /// What the FAB does next. UI binds via ValueListenableBuilder.
   final ValueNotifier<_FabAction> fabAction = ValueNotifier(_FabAction.jump);
