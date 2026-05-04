@@ -1837,8 +1837,15 @@ class _Jar extends PositionComponent {
   }
 
   /// How squashed the rim/base ellipses are vs a perfect circle.
-  /// 0.25 = quite flat, gives the FFT-style 3/4 view tilt.
-  static const double _rimFlatten = 0.25;
+  /// 0.32 = a fairly deep ellipse — sells the "looking down into a
+  /// real cylinder" read instead of a flat ring.
+  static const double _rimFlatten = 0.32;
+
+  /// Glass wall thickness. The visible outer outline draws at the
+  /// component's full extent; the interior cylinder marbles bounce
+  /// off is inset by this much per side. The faint inner outline
+  /// draws at the interior edge so the user reads "thick glass."
+  static const double _glassThickness = 6;
 
   // ——— Mason-jar profile ——————————————————————————————————————
   // All in local coords (origin at top-left of the component box).
@@ -1864,10 +1871,39 @@ class _Jar extends PositionComponent {
   /// Centerline X.
   double get cx => bodyW / 2;
 
+  // ——— Interior cylinder (where marbles actually live) —————————
+  // Inset from the visible outer wall by `_glassThickness` per side
+  // so the front/back outlines float beyond the marble container,
+  // giving the read of solid glass.
+  double get interiorR => bodyW / 2 - _glassThickness;
+  double get interiorRimRy => rimRy - _glassThickness * _rimFlatten;
+  double get interiorBaseRy => baseRy - _glassThickness * _rimFlatten;
+
+  /// Vertical screen-Y of the interior floor (where the marble pile
+  /// sits in 3D). Slightly above the visible base so the floor
+  /// reads as sitting on top of glass thickness.
+  double get interiorFloorScreenY =>
+      position.y + size.y - baseRy + _glassThickness * 0.4;
+
+  /// Top of the body cylinder section in screen-Y. Marbles falling
+  /// from the throw arc transition into 3D physics at this Y.
+  double get interiorBodyTopScreenY =>
+      position.y + shoulderEndY + _glassThickness;
+
+  /// Total interior body height in jar-local Y (floor at 0, top of
+  /// cylinder at this value). Used for overflow detection.
+  double get interiorBodyHeight =>
+      (size.y - baseRy) - shoulderEndY - _glassThickness * 0.4;
+
   Rect get topRimRect => Rect.fromCenter(
         center: Offset(cx, rimRy),
         width: neckW,
         height: rimRy * 2,
+      );
+  Rect get interiorTopRimRect => Rect.fromCenter(
+        center: Offset(cx, rimRy),
+        width: neckW - _glassThickness * 2,
+        height: (rimRy - _glassThickness * _rimFlatten) * 2,
       );
   Rect get neckBottomRect => Rect.fromCenter(
         center: Offset(cx, neckBottomY),
@@ -1903,6 +1939,14 @@ class _Jar extends PositionComponent {
     ..style = PaintingStyle.stroke
     ..strokeWidth = 2;
   static final _threadShade = Paint()..color = const Color(0x33000000);
+
+  /// Faint dark line for the inner edge of the glass — sits just
+  /// inside the outer wall outline so the user reads two edges
+  /// (outer + inner) and the gap between as glass thickness.
+  static final _innerEdge = Paint()
+    ..color = const Color(0x551A1A1A)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.0;
 
   /// Path of the jar's interior silhouette in local coords. Used
   /// by `_JarFront` to clip the tinted-glass overlay so it only
@@ -1951,12 +1995,16 @@ class _Jar extends PositionComponent {
   void render(Canvas canvas) {
     super.render(canvas);
     // === BACK PASS ===
-    // Back of base + back of rim ellipses, then the smoky back-wall
-    // tint clipped to the interior silhouette so the inside of the
-    // jar reads as "we're looking THROUGH glass into a space."
+    // Outer back-of-base + back-of-rim outlines, plus the inner
+    // back-of-rim outline (a touch thinner) drawn just inside the
+    // outer one — together they sell glass thickness on the back
+    // side. Then the smoky back-wall tint clipped to the interior
+    // silhouette gives the "looking through to a back wall" read.
+    final innerRim = interiorTopRimRect;
     canvas
       ..drawArc(baseRect, math.pi, math.pi, false, _outline)
       ..drawArc(topRimRect, math.pi, math.pi, false, _outlineThin)
+      ..drawArc(innerRim, math.pi, math.pi, false, _innerEdge)
       ..save()
       ..clipPath(interiorPath())
       ..drawRect(
@@ -2038,6 +2086,10 @@ class _JarFront extends PositionComponent {
         Rect.fromLTRB(0, shoulderEndY, jar.size.x, h - baseRy),
         _Jar._glassFront,
       )
+      // Inner edge stroke — traces the interior silhouette so the
+      // user sees BOTH outer and inner outlines and the gap reads
+      // as solid glass thickness.
+      ..drawPath(jar.interiorPath(), _Jar._innerEdge)
       ..restore()
       // ——— Front-of-base, body outline, threaded neck, rim ———
       ..drawArc(jar.baseRect, 0, math.pi, false, _Jar._outline)
@@ -2066,13 +2118,13 @@ class _JarFront extends PositionComponent {
         ..drawOval(ridge, _Jar._outlineThin);
     }
 
-    // Neck-bottom + top rim.
+    // Neck-bottom + top rim. Outer rim ellipse + a subtle inner rim
+    // ellipse just inside it so the opening reads as glass-walled.
     canvas
       ..drawOval(jar.neckBottomRect, _Jar._outlineThin)
       ..drawArc(jar.topRimRect, 0, math.pi, false, _Jar._outline)
-      // Full rim ellipse at the very front so the opening reads
-      // cleanly even with marbles peeking over the lip.
-      ..drawOval(jar.topRimRect, _Jar._outlineThin);
+      ..drawOval(jar.topRimRect, _Jar._outlineThin)
+      ..drawArc(jar.interiorTopRimRect, 0, math.pi, false, _Jar._innerEdge);
 
     // ——— Specular highlights ———
     // Soft stripe down the left side of the cylinder + a sharp
@@ -2110,13 +2162,19 @@ class _JarFront extends PositionComponent {
 
 /// Lifecycle of a face marble.
 ///
-/// idle    → in the world, springs around its rest slot, dodges
-///           the chibi, gently nudges other idle siblings.
-/// held    → carried above the chibi's head.
-/// flying  → projectile arc en route to the jar's mouth.
-/// inJar   → inside the jar; gravity + walls + collisions with
-///           other in-jar marbles. Comes to rest from damping.
-enum _MarbleState { idle, held, flying, inJar }
+/// idle     → in the world, springs around its rest slot, dodges
+///            the chibi, gently nudges other idle siblings.
+/// held     → carried above the chibi's head.
+/// flying   → projectile arc en route to the jar's mouth (or to a
+///            spillover target if the jar's full).
+/// inJar    → inside the cylinder, in 3D. Has (jarX, jarY, jarZ)
+///            with gravity acting on jarY only and lateral motion
+///            in the (X, Z) plane. Walls + floor + 3D pairwise
+///            collisions. Renders via a (X, Y, Z)→screen projection.
+/// spilled  → overflow. Sits forever on the table around the jar,
+///            collides with chibi + other loose marbles, but isn't
+///            pickable. Decoration that records every drop.
+enum _MarbleState { idle, held, flying, inJar, spilled }
 
 /// One face emoji in the world. Same component handles every
 /// lifecycle state — pickable, held, flying, bouncing in the jar.
@@ -2168,8 +2226,11 @@ class _MarbleNode extends PositionComponent {
   /// idle marbles when something lands in the jar.
   Color tint;
 
-  late final _EyeDrift _eyeL = _EyeDrift(seed: seed * 31 + 1);
-  late final _EyeDrift _eyeR = _EyeDrift(seed: seed * 31 + 2);
+  /// One shared eye-drift driver for both eyes. v60.14 — the older
+  /// design had two independent drifts (one per eye) which read as
+  /// "wonky / scary" when one eye drifted while the other stayed.
+  /// Real eyes track together; both pupils now read the same value.
+  late final _EyeDrift _eyeDrift = _EyeDrift(seed: seed * 31 + 1);
   late final _MicroAnimController _microAnim = _MicroAnimController(
     mood: mood,
     seed: seed * 911 + 7,
@@ -2196,10 +2257,30 @@ class _MarbleNode extends PositionComponent {
   /// trigger a squash from the collision pass.
   double squash = 0;
 
+  // ——— 3D in-jar coordinates ———
+  // Active only while `state == inJar`. Origin: jar's interior
+  // floor center. (jarX, jarZ) span the floor circle (R = interior
+  // radius). jarY is height above floor (positive up). jarVy +ve
+  // = rising; gravity decreases jarVy each tick.
+  double jarX = 0;
+  double jarY = 0;
+  double jarZ = 0;
+  double jarVx = 0;
+  double jarVy = 0;
+  double jarVz = 0;
+
   /// One-shot guard so we only fire `onMarbleEnteredJar` once per
   /// throw, even if the marble crosses the rim line on multiple
   /// frames (it can re-enter from below if the jar gets crowded).
   bool _enteredJar = false;
+
+  /// Where the throw arc lands and the post-flight state begins.
+  /// Set by `throwToJar`; read by the flying-state branch.
+  /// `_postFlightState` is `inJar` for normal throws and `spilled`
+  /// for overflow throws.
+  _MarbleState _postFlightState = _MarbleState.inJar;
+  double _targetJarX = 0;
+  double _targetJarZ = 0;
 
   void pickUp() {
     state = _MarbleState.held;
@@ -2217,23 +2298,76 @@ class _MarbleNode extends PositionComponent {
     vy = 0;
   }
 
-  /// Convert to a flying projectile aimed at the jar's mouth. The
-  /// marble follows an arc; on crossing the rim it transitions to
-  /// `inJar` with momentum, where physics takes over (gravity +
-  /// wall + sibling collisions).
+  /// Convert to a flying projectile aimed at the jar — chibi
+  /// position controls where in the cylinder the marble lands.
+  /// Lateral offset (chibi.x relative to jar center) maps to
+  /// `jarX`; chibi's distance above the rim maps to `jarZ` (right
+  /// at the rim → front of cylinder; farther up → back).
+  ///
+  /// If the column at that target is already piled to the rim, we
+  /// re-target to a spillover trajectory: arc lands on the table
+  /// just outside the jar (the side closer to the chibi) and the
+  /// marble enters `spilled` state on touchdown.
   void throwToJar(_SurveyGame game) {
     state = _MarbleState.flying;
     _enteredJar = false;
-    final mouthY = game.jar.position.y + 4;
-    final mouthCenterX = game.jar.position.x + game.jar.size.x / 2;
-    // Aim within ~70% of the rim width so dropped marbles spread
-    // across the jar instead of stacking in a single column.
-    final spread = game.jar.size.x * 0.35;
-    final aimX =
-        mouthCenterX + (math.Random().nextDouble() * 2 - 1) * spread;
-    final dx = aimX - position.x;
-    final dy = mouthY - position.y;
-    const flightTime = 0.65;
+    final jar = game.jar;
+    final chibi = game.chibi;
+    final innerR = jar.interiorR - _radius;
+
+    // ——— Chibi-driven target inside the cylinder ———
+    final chibiOffsetX = chibi.position.x - (jar.position.x + jar.cx);
+    final chibiAboveRim = (jar.position.y - chibi.position.y).clamp(0.0, 200.0);
+    // tX is lateral target inside the cylinder. tZ comes from how
+    // close the chibi is to the rim: chibi 0px above rim → +0.7R
+    // (front), chibi 200px above → -0.7R (back).
+    final tX = chibiOffsetX.clamp(-innerR * 0.85, innerR * 0.85);
+    final tZ = (innerR * 0.7) -
+        (chibiAboveRim / 200.0) * (innerR * 1.4);
+    // Snap target inside the unit circle so corners aren't outside
+    // the cylinder.
+    final tD = math.sqrt(tX * tX + tZ * tZ);
+    final clampedTX = (tD > innerR * 0.85) ? tX * (innerR * 0.85 / tD) : tX;
+    final clampedTZ = (tD > innerR * 0.85) ? tZ * (innerR * 0.85 / tD) : tZ;
+    _targetJarX = clampedTX;
+    _targetJarZ = clampedTZ;
+
+    // ——— Overflow check ———
+    // Look at all in-jar marbles within ~1 marble diameter of this
+    // (X,Z) cell and find the highest one. If that pile + 2r tops
+    // the body cylinder, this throw spills.
+    final pileH = game.pileHeightAt(clampedTX, clampedTZ);
+    final overflow = pileH + _radius * 2 > jar.interiorBodyHeight;
+
+    if (overflow) {
+      _postFlightState = _MarbleState.spilled;
+      // Target a point just OUTSIDE the jar on the same side as
+      // the chibi. Arc lands at that screen point on the floor
+      // line (the visible base of the jar).
+      final outsideX = chibi.position.x < jar.position.x + jar.cx
+          ? jar.position.x - 24
+          : jar.position.x + jar.size.x + 24;
+      final outsideY = jar.position.y + jar.size.y - jar.baseRy * 0.4;
+      _aimArc(outsideX, outsideY, 0.55);
+    } else {
+      _postFlightState = _MarbleState.inJar;
+      // Aim arc to where the target (jarX, jarY=top, jarZ)
+      // projects to in screen space — that way when we transition
+      // on touchdown there's no visual snap.
+      final landX = jar.position.x + jar.cx + clampedTX;
+      final floorY = jar.interiorFloorScreenY +
+          (clampedTZ / jar.interiorR) * jar.interiorBaseRy;
+      final landY = floorY - jar.interiorBodyHeight;
+      _aimArc(landX, landY, 0.55);
+    }
+  }
+
+  /// Throw-arc velocity solver: given a target (x, y) and a fixed
+  /// flight time, compute (vx, vy) so gravity + initial velocity
+  /// land exactly there.
+  void _aimArc(double targetX, double targetY, double flightTime) {
+    final dx = targetX - position.x;
+    final dy = targetY - position.y;
     vx = dx / flightTime;
     vy = (dy - 0.5 * _gravity * flightTime * flightTime) / flightTime;
   }
@@ -2242,8 +2376,7 @@ class _MarbleNode extends PositionComponent {
   void update(double dt) {
     super.update(dt);
     _t += dt;
-    _eyeL.update(dt);
-    _eyeR.update(dt);
+    _eyeDrift.update(dt);
     // Micro-animations only run while the marble is out in the
     // world — playing emotes mid-throw or mid-bounce in the jar
     // would fight the physics. Idle + held are the "alive" states.
@@ -2266,28 +2399,43 @@ class _MarbleNode extends PositionComponent {
           ..x += vx * dt
           ..y += vy * dt;
         if (game is _SurveyGame && !_enteredJar) {
-          final mouthY = game.jar.position.y + 6;
-          if (position.y >= mouthY) {
+          // Trigger transition once the marble crosses the
+          // visible-jar mouth Y (rim edge). For inJar we seed
+          // (jarX, jarY=top, jarZ) from the saved target; for
+          // spilled we just fall onto the table.
+          final triggerY = game.jar.position.y + game.jar.rimRy * 0.6;
+          if (position.y >= triggerY) {
             _enteredJar = true;
-            state = _MarbleState.inJar;
-            squash = 0.5;
-            game.onMarbleEnteredJar(this);
+            squash = 0.45;
+            if (_postFlightState == _MarbleState.inJar) {
+              // Snap to 3D coords — screen position will be
+              // recomputed by _projectFromJar each frame.
+              jarX = _targetJarX;
+              jarZ = _targetJarZ;
+              jarY = game.jar.interiorBodyHeight;
+              // Carry some downward momentum: take the screen vy
+              // (positive = falling) and push it into -jarVy so the
+              // marble continues plunging into the cylinder.
+              jarVy = -math.max<double>(150, vy);
+              jarVx = 0;
+              jarVz = 0;
+              vx = 0;
+              vy = 0;
+              state = _MarbleState.inJar;
+              game.onMarbleEnteredJar(this);
+            } else {
+              // Spilled: keep screen-velocity carry-through, let
+              // the spilled-state branch finish the fall onto the
+              // table. Arc was already aimed at the table line.
+              state = _MarbleState.spilled;
+              game.onMarbleEnteredJar(this);
+            }
           }
         }
       case _MarbleState.inJar:
-        // Gravity + walls/floor here. Pairwise marble collisions
-        // are resolved in `_SurveyGame.update` (one pass per frame
-        // for all marbles, after they've all integrated).
-        vy += _gravity * dt;
-        // Air drag on horizontal motion so marbles don't chatter
-        // forever along the floor.
-        vx *= math.pow(0.4, dt).toDouble();
-        position
-          ..x += vx * dt
-          ..y += vy * dt;
-        if (game is _SurveyGame) {
-          _resolveJarWalls(game.jar);
-        }
+        if (game is _SurveyGame) _updateInJar(dt, game.jar);
+      case _MarbleState.spilled:
+        _updateSpilled(dt, game);
     }
 
     // Y-based render priority so marbles closer to the camera
@@ -2342,57 +2490,116 @@ class _MarbleNode extends PositionComponent {
       ..y = c.position.y - 90 * cs + math.sin(_t * 4 + seed) * 1.5;
   }
 
-  /// Bounce off the inside of the mason jar. The interior wall is
-  /// not a single straight line — it tapers at the shoulder and
-  /// widens through the body. We compute the wall X for the marble's
-  /// current Y (interior half-width as a function of height) and
-  /// bounce off that.
+  /// 3D physics inside the mason jar's body cylinder.
   ///
-  /// Floor + side walls only; the top is open. Below the rim and
-  /// above the shoulder we use the neck width; below the shoulder
-  /// we use the body width.
-  void _resolveJarWalls(_Jar jar) {
-    const r = _radius;
-    final localY = position.y - jar.position.y;
-    final cx = jar.position.x + jar.cx;
-    final bodyHalf = jar.bodyW / 2;
-    final neckHalf = jar.neckW / 2;
-    // Interior half-width at this height. Smooth shoulder lerp so a
-    // marble climbing the wall doesn't pop sideways at the neck.
-    double interiorHalf;
-    if (localY <= jar.neckBottomY) {
-      interiorHalf = neckHalf;
-    } else if (localY >= jar.shoulderEndY) {
-      interiorHalf = bodyHalf;
-    } else {
-      final t = (localY - jar.neckBottomY) /
-          (jar.shoulderEndY - jar.neckBottomY);
-      interiorHalf = neckHalf + (bodyHalf - neckHalf) * t;
-    }
-    final left = cx - interiorHalf + r;
-    final right = cx + interiorHalf - r;
-    final bottom = jar.position.y + jar.size.y - jar.baseRy - r;
+  /// Coordinates are jar-local: origin at the floor's center,
+  /// (jarX, jarZ) on the floor plane, jarY rising. Gravity acts on
+  /// jarY only; the (X, Z) plane is just air drag + collisions.
+  /// Cylinder wall = unit-circle constraint in (X, Z); floor = a
+  /// hard floor at jarY=0 with vertical bounce + lateral friction.
+  ///
+  /// Pairwise marble-marble collision is handled by the game
+  /// (3D sphere-sphere) so integration order doesn't bias it.
+  ///
+  /// At the end we project (jarX, jarY, jarZ) → screen-space
+  /// `position` so the rest of the renderer + Y-priority sort
+  /// works as-is.
+  void _updateInJar(double dt, _Jar jar) {
+    // Gravity (positive jarY = up), so subtract g*dt from jarVy.
+    jarVy -= _gravity * dt;
+    // Air drag on lateral motion only (vertical fall is
+    // gravity-dominated).
+    final drag = math.pow(0.5, dt).toDouble();
+    jarVx *= drag;
+    jarVz *= drag;
 
-    if (position.x < left) {
-      position.x = left;
-      if (vx < 0) {
-        if (-vx > 80) squash = math.max(squash, 0.4);
-        vx = -vx * 0.4;
+    jarX += jarVx * dt;
+    jarY += jarVy * dt;
+    jarZ += jarVz * dt;
+
+    final innerR = jar.interiorR - _radius;
+
+    // Cylinder wall: project onto the inner circle if outside.
+    final radial2 = jarX * jarX + jarZ * jarZ;
+    if (radial2 > innerR * innerR && radial2 > 1e-6) {
+      final radial = math.sqrt(radial2);
+      final nx = jarX / radial;
+      final nz = jarZ / radial;
+      // Snap back onto the wall.
+      jarX = nx * innerR;
+      jarZ = nz * innerR;
+      // Reflect outward velocity.
+      final velRadial = jarVx * nx + jarVz * nz;
+      if (velRadial > 0) {
+        const restitution = 0.45;
+        if (velRadial > 80) squash = math.max(squash, 0.4);
+        jarVx -= (1 + restitution) * velRadial * nx;
+        jarVz -= (1 + restitution) * velRadial * nz;
       }
     }
-    if (position.x > right) {
-      position.x = right;
-      if (vx > 0) {
-        if (vx > 80) squash = math.max(squash, 0.4);
-        vx = -vx * 0.4;
+
+    // Floor (jarY = 0).
+    if (jarY < 0) {
+      jarY = 0;
+      if (jarVy < 0) {
+        final speed = -jarVy;
+        if (speed > 80) squash = math.max(squash, 0.5);
+        jarVy = -jarVy * 0.4;
+        // Floor friction on lateral velocity.
+        jarVx *= 0.7;
+        jarVz *= 0.7;
       }
     }
-    if (position.y > bottom) {
-      position.y = bottom;
+
+    // Project to screen position for rendering + sort.
+    _projectFromJar(jar);
+  }
+
+  /// Map (jarX, jarY, jarZ) → screen-space `position`.
+  ///
+  /// Floor screen-Y at depth z is `floorCenterY + (z/R) * baseRy` —
+  /// at z=-R (back wall) it's at the TOP of the base ellipse,
+  /// at z=+R (front glass) it's at the BOTTOM. Add height by
+  /// subtracting jarY from the floor Y.
+  void _projectFromJar(_Jar jar) {
+    final screenX = jar.position.x + jar.cx + jarX;
+    final floorScreenY = jar.interiorFloorScreenY +
+        (jarZ / jar.interiorR) * jar.interiorBaseRy;
+    final screenY = floorScreenY - jarY;
+    position
+      ..x = screenX
+      ..y = screenY;
+  }
+
+  /// Spilled-state physics. Marble has overflowed the jar and is
+  /// now a loose object on the table around it. Falls under gravity
+  /// in screen space, bounces off the table (ground line) with
+  /// lateral friction, and accumulates around the jar.
+  ///
+  /// Wall + plate + jar-exterior bounces are handled by the game's
+  /// `_resolveWorldCollisions` pass alongside idle marbles, so
+  /// chibi-marble + marble-marble collisions Just Work for spilled
+  /// marbles too. This branch is just the local integration.
+  void _updateSpilled(double dt, FlameGame? game) {
+    if (game is! _SurveyGame) return;
+    final jar = game.jar;
+    // Gravity in screen-Y.
+    vy += _gravity * 0.55 * dt;
+    final drag = math.pow(0.5, dt).toDouble();
+    vx *= drag;
+    position
+      ..x += vx * dt
+      ..y += vy * dt;
+    // Ground line — table around the jar's base. Use the visible
+    // base ellipse's bottom plus a hair so spilled marbles look
+    // like they're sitting *just* outside the jar's footprint.
+    final groundY =
+        jar.position.y + jar.size.y - jar.baseRy * 0.4 - _radius;
+    if (position.y > groundY) {
+      position.y = groundY;
       if (vy > 0) {
-        if (vy > 80) squash = math.max(squash, 0.5);
-        vy = -vy * 0.4;
-        // Floor friction
+        if (vy > 100) squash = math.max(squash, 0.45);
+        vy = -vy * 0.3;
         vx *= 0.7;
       }
     }
@@ -2408,7 +2615,19 @@ class _MarbleNode extends PositionComponent {
     final game = findGame();
     final h = game?.size.y ?? 600;
     final depth = depthScaleForY(position.y, h);
-    final baseScale = depth * pulse;
+    // Subtle additional depth read for marbles inside the jar:
+    // jarZ in [-innerR, +innerR] maps to [-1, +1], times 0.075 to
+    // give roughly ±7.5% scale variation between back wall and
+    // front glass. Subtle on purpose — too much makes the cylinder
+    // feel cartoonish.
+    var jarDepthBoost = 1.0;
+    if (state == _MarbleState.inJar && game is _SurveyGame) {
+      final innerR = game.jar.interiorR;
+      if (innerR > 1e-6) {
+        jarDepthBoost = 1 + (jarZ / innerR) * 0.075;
+      }
+    }
+    final baseScale = depth * pulse * jarDepthBoost;
     final r = _radius * baseScale;
 
     // Combine impact-squash with micro-anim scale. The micro-anim
@@ -2511,8 +2730,11 @@ class _MarbleNode extends PositionComponent {
       blinkPhase: blink,
       lidLeft: mods.lidL,
       lidRight: mods.lidR,
-      pupilLeft: mods.pupilL ?? _eyeL.value,
-      pupilRight: mods.pupilR ?? _eyeR.value,
+      // Both pupils share the same drift value so eyes track
+      // together (real eye behavior). Per-eye micro-anim overrides
+      // (e.g. side_eye sets both to a forced direction) still win.
+      pupilLeft: mods.pupilL ?? _eyeDrift.value,
+      pupilRight: mods.pupilR ?? _eyeDrift.value,
       mouthMod: mods.mouthMod,
       tearDrip: mods.tearDrip,
     ).paintAt(canvas, Offset.zero, _radius);
@@ -2825,15 +3047,35 @@ class _SurveyGame extends FlameGame
     );
   }
 
-  /// Pairwise marble collision pass for marbles already inside the
-  /// jar. Runs once per frame after every marble has integrated its
-  /// own update — that way overlap correction happens in one place
-  /// without integration order leaking into collision response.
+  /// Find the highest occupied jarY at a given (X, Z) cell. Used
+  /// by `_MarbleNode.throwToJar` to detect overflow before
+  /// committing to an in-jar landing.
+  double pileHeightAt(double targetX, double targetZ) {
+    var maxY = 0.0;
+    const r = _MarbleNode._radius;
+    const cellR2 = (r * 1.6) * (r * 1.6);
+    for (final c in children) {
+      if (c is! _MarbleNode || c.state != _MarbleState.inJar) continue;
+      final dx = c.jarX - targetX;
+      final dz = c.jarZ - targetZ;
+      if (dx * dx + dz * dz < cellR2) {
+        if (c.jarY > maxY) maxY = c.jarY;
+      }
+    }
+    return maxY;
+  }
+
+  /// 3D pairwise sphere-sphere collision for in-jar marbles. After
+  /// every marble has integrated its own physics (gravity + walls
+  /// in `_updateInJar`), we sweep the pairs once per frame and
+  /// resolve overlaps. Position fixups in jar-local space; impulse
+  /// exchange along the 3D contact normal with restitution.
   ///
-  /// Cost: O(n²) where n is the number of in-jar marbles. With
-  /// realistic survey volumes (a few dozen drops over a session)
-  /// this is single-digit microseconds per frame on web; not worth
-  /// a spatial hash.
+  /// Re-projects screen position after fixing jar coords so the
+  /// renderer + Y-priority sort see corrected screen-Y this frame.
+  ///
+  /// Cost: O(n²) for n = in-jar marbles. With realistic survey
+  /// volumes this is microseconds; not worth a spatial hash.
   void _resolveJarCollisions() {
     final inJar = <_MarbleNode>[];
     for (final c in children) {
@@ -2843,47 +3085,57 @@ class _SurveyGame extends FlameGame
     }
     const r = _MarbleNode._radius;
     const minDist = r * 2;
+    const minDist2 = minDist * minDist;
     for (var i = 0; i < inJar.length; i++) {
       final a = inJar[i];
       for (var j = i + 1; j < inJar.length; j++) {
         final b = inJar[j];
-        final dx = b.position.x - a.position.x;
-        final dy = b.position.y - a.position.y;
-        final d2 = dx * dx + dy * dy;
-        if (d2 >= minDist * minDist || d2 < 1e-6) continue;
+        final dx = b.jarX - a.jarX;
+        final dy = b.jarY - a.jarY;
+        final dz = b.jarZ - a.jarZ;
+        final d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 >= minDist2 || d2 < 1e-6) continue;
         final d = math.sqrt(d2);
         final overlap = minDist - d;
         final nx = dx / d;
         final ny = dy / d;
-        // Positional separation — split equally between the pair.
-        a.position
-          ..x -= nx * overlap * 0.5
-          ..y -= ny * overlap * 0.5;
-        b.position
-          ..x += nx * overlap * 0.5
-          ..y += ny * overlap * 0.5;
-        // Bounce: project relative velocity onto the contact
-        // normal; if they're closing, exchange momentum (with
-        // restitution for energy loss).
-        final rvx = b.vx - a.vx;
-        final rvy = b.vy - a.vy;
-        final velAlongNormal = rvx * nx + rvy * ny;
+        final nz = dz / d;
+        // Split overlap correction.
+        a
+          ..jarX -= nx * overlap * 0.5
+          ..jarY -= ny * overlap * 0.5
+          ..jarZ -= nz * overlap * 0.5;
+        b
+          ..jarX += nx * overlap * 0.5
+          ..jarY += ny * overlap * 0.5
+          ..jarZ += nz * overlap * 0.5;
+        // Closing-velocity impulse exchange (3D).
+        final rvx = b.jarVx - a.jarVx;
+        final rvy = b.jarVy - a.jarVy;
+        final rvz = b.jarVz - a.jarVz;
+        final velAlongNormal = rvx * nx + rvy * ny + rvz * nz;
         if (velAlongNormal < 0) {
           const restitution = 0.45;
           final impulse = -(1 + restitution) * velAlongNormal / 2;
           a
-            ..vx -= impulse * nx
-            ..vy -= impulse * ny;
+            ..jarVx -= impulse * nx
+            ..jarVy -= impulse * ny
+            ..jarVz -= impulse * nz;
           b
-            ..vx += impulse * nx
-            ..vy += impulse * ny;
-          // Squash both on a hard hit so the collision reads.
+            ..jarVx += impulse * nx
+            ..jarVy += impulse * ny
+            ..jarVz += impulse * nz;
           if (-velAlongNormal > 80) {
             a.squash = math.max(a.squash, 0.4);
             b.squash = math.max(b.squash, 0.4);
           }
         }
       }
+    }
+    // Re-project after collision fix so screen-Y reflects post-
+    // collision jar coords this frame.
+    for (final m in inJar) {
+      m._projectFromJar(jar);
     }
   }
 
@@ -2908,9 +3160,14 @@ class _SurveyGame extends FlameGame
   /// chibi's hand). Marbles that are flying / inJar follow their
   /// own paths and are handled by `_resolveJarCollisions`.
   void _resolveWorldCollisions() {
+    // "Loose" marbles = both idle (can be picked up) and spilled
+    // (decoration, but still physical objects). Both participate
+    // in walls + plate + jar-exterior + pairwise + chibi-kick.
     final idle = <_MarbleNode>[];
     for (final c in children) {
-      if (c is _MarbleNode && c.state == _MarbleState.idle) {
+      if (c is _MarbleNode &&
+          (c.state == _MarbleState.idle ||
+              c.state == _MarbleState.spilled)) {
         idle.add(c);
       }
     }
@@ -2919,12 +3176,16 @@ class _SurveyGame extends FlameGame
     const r = _MarbleNode._radius;
 
     // ==== World bounds ====
-    // Bounce idle marbles off the playable rectangle, keep them
-    // above the jar's top so they don't slide down past it.
+    // Idle marbles live in the upper play area — clamp them above
+    // the jar's top so they don't slide down past it. Spilled
+    // marbles live BELOW that line (around the jar's base) so they
+    // skip the upper-bound check; they only get the screen-edge
+    // clamp + their own ground line in `_updateSpilled`.
     const playLeft = r;
     final playRight = size.x - r;
     const playTop = 60.0;
     final playBottom = jar.position.y - r;
+    final screenBottom = size.y - r;
     for (final m in idle) {
       if (m.position.x < playLeft) {
         m.position.x = playLeft;
@@ -2933,12 +3194,20 @@ class _SurveyGame extends FlameGame
         m.position.x = playRight;
         if (m.vx > 0) m.vx = -m.vx * 0.55;
       }
-      if (m.position.y < playTop) {
-        m.position.y = playTop;
-        if (m.vy < 0) m.vy = -m.vy * 0.55;
-      } else if (m.position.y > playBottom) {
-        m.position.y = playBottom;
-        if (m.vy > 0) m.vy = -m.vy * 0.55;
+      if (m.state == _MarbleState.idle) {
+        if (m.position.y < playTop) {
+          m.position.y = playTop;
+          if (m.vy < 0) m.vy = -m.vy * 0.55;
+        } else if (m.position.y > playBottom) {
+          m.position.y = playBottom;
+          if (m.vy > 0) m.vy = -m.vy * 0.55;
+        }
+      } else {
+        // spilled — only the bottom-of-screen clamp.
+        if (m.position.y > screenBottom) {
+          m.position.y = screenBottom;
+          if (m.vy > 0) m.vy = -m.vy * 0.3;
+        }
       }
     }
 
@@ -2978,23 +3247,37 @@ class _SurveyGame extends FlameGame
     }
 
     // ==== Jar-exterior bounce ====
-    // Above the jar's top, push idle marbles up off the rim if
-    // they roll over its boundary. Treat the rim ellipse as a
-    // hard ceiling — circle vs upper half of ellipse approximated
-    // by clamping against the rim's bounding rect.
+    // Idle marbles can't roll over the rim ceiling. Spilled
+    // marbles can't tunnel into the body silhouette from the
+    // sides (they sit BESIDE the jar, not behind/in front).
     final rimRect = jar.topRimRect.translate(jar.position.x, jar.position.y);
+    final jarLeft = jar.position.x;
+    final jarRight = jar.position.x + jar.size.x;
+    final jarBodyTopY = jar.position.y + jar.shoulderEndY;
     for (final m in idle) {
-      // Only consider marbles roughly above + horizontally over
-      // the jar. Ignore the rest (already handled by world Y
-      // bound check above).
-      if (m.position.x < rimRect.left - r) continue;
-      if (m.position.x > rimRect.right + r) continue;
-      // Top of the rim (lifted by marble radius).
-      final rimTopY = rimRect.top - r;
-      if (m.position.y > rimTopY) {
-        m.position.y = rimTopY;
-        if (m.vy > 0) m.vy = -m.vy * 0.45;
-        m.squash = math.max(m.squash, 0.3);
+      if (m.state == _MarbleState.idle) {
+        // Rim ceiling for idle marbles above the jar.
+        if (m.position.x < rimRect.left - r) continue;
+        if (m.position.x > rimRect.right + r) continue;
+        final rimTopY = rimRect.top - r;
+        if (m.position.y > rimTopY) {
+          m.position.y = rimTopY;
+          if (m.vy > 0) m.vy = -m.vy * 0.45;
+          m.squash = math.max(m.squash, 0.3);
+        }
+      } else {
+        // Spilled marbles bounce off the jar's body sides — keeps
+        // them out of the cylinder footprint at table level.
+        if (m.position.y < jarBodyTopY) continue;
+        if (m.position.x > jarLeft - r &&
+            m.position.x < jarLeft + r * 0.5) {
+          m.position.x = jarLeft - r;
+          if (m.vx > 0) m.vx = -m.vx * 0.4;
+        } else if (m.position.x < jarRight + r &&
+            m.position.x > jarRight - r * 0.5) {
+          m.position.x = jarRight + r;
+          if (m.vx < 0) m.vx = -m.vx * 0.4;
+        }
       }
     }
 
@@ -3143,17 +3426,18 @@ class _SurveyGame extends FlameGame
     keyboardInput = KeyboardInput();
     add(keyboardInput);
 
-    // Major jar in the foreground — bigger than the first pass so
-    // it reads as the closest prop in the scene, dominating the
-    // lower half. ~45% width × 38% height; bottom edge near 95%
-    // screen so it sits firmly on the ground line. Pairs with the
-    // depth-scale curve: chibi shrinks toward the top, jar holds
-    // its full size at the bottom = clear horizon read.
-    final jarSize = Vector2(size.x * 0.45, size.y * 0.38);
+    // Mason jar with fixed proportions — width clamped between
+    // 320 and 540 so it looks the same shape on a tight phone
+    // screen as on a wide web window. Aspect ratio 1 : 1.05 (a
+    // hair taller than wide) gives the squat tall-wide mason
+    // silhouette. Bottom hugs ~96% screen so it sits low.
+    final jarW = (size.x * 0.6).clamp(320.0, 540.0);
+    final jarH = jarW * 1.05;
+    final jarSize = Vector2(jarW, jarH);
     jar = _Jar(size: jarSize)
       ..position = Vector2(
         (size.x - jarSize.x) / 2,
-        size.y * 0.95 - jarSize.y,
+        size.y * 0.96 - jarSize.y,
       );
     add(jar);
     // Front-of-jar pass — extreme priority so it always renders
@@ -3171,20 +3455,20 @@ class _SurveyGame extends FlameGame
       ..size = Vector2(120, 160);
     add(chibi);
 
-    // Three world marbles, spread across the upper play area at
-    // varying Y so they sit on different "depth bands" — left and
-    // right slots a hair lower (closer) than the center slot. Far
-    // enough apart that the chibi has to actually walk between
-    // them rather than picking up two with one stop.
-    final leftX = size.x * 0.18;
-    final centerX = size.x * 0.5;
-    final rightX = size.x * 0.82;
-    final lowY = size.y * 0.30;
-    final highY = size.y * 0.22;
+    // Three world marbles, anchored RELATIVE to the jar's top
+    // (instead of as a percentage of screen height). With the jar
+    // pinned to the bottom 60-70% of screen, a fixed offset above
+    // its rim keeps the rest slots in roughly the same spot
+    // regardless of screen size. Lateral spread tied to the screen
+    // width so the slots breathe across wide windows.
+    final centerX = size.x / 2;
+    final lateralOffset = math.min<double>(size.x * 0.30, 220);
+    final lowY = jar.position.y - 70;
+    final highY = jar.position.y - 110;
     _marbleRestPositions = <Vector2>[
-      Vector2(leftX, lowY), // sad
+      Vector2(centerX - lateralOffset, lowY), // sad
       Vector2(centerX, highY), // neutral (farther = higher Y)
-      Vector2(rightX, lowY), // smiley
+      Vector2(centerX + lateralOffset, lowY), // smiley
     ];
     final initialTints = _tintsForShuffle(0);
     _marbles = <_MarbleNode>[
@@ -3622,8 +3906,11 @@ class _CelebrationPainter extends CustomPainter {
       _FacePainter(
         mood: p.mood,
         blinkPhase: blinkPhaseAt(t * 1.5, seed: p.phaseSeed),
+        // Synced pupils — same drift on both eyes so the
+        // celebration emojis don't have the "wonky one-eye-tracks"
+        // look the marble nodes used to.
         pupilLeft: math.sin(t * 3 + p.phaseSeed) * 0.6,
-        pupilRight: math.cos(t * 2.5 + p.phaseSeed) * 0.6,
+        pupilRight: math.sin(t * 3 + p.phaseSeed) * 0.6,
       ).paintAt(canvas, Offset.zero, p.radius);
       if (alpha < 0.99) canvas.restore();
 
