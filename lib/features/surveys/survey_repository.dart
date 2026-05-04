@@ -158,6 +158,7 @@ class SurveyRepository {
             reactionTimeMs: Value(reactionTimeMs),
             durationMs: Value(reactionTimeMs),
             isPractice: Value(isPractice),
+            createdAt: Value(DateTime.now().toUtc()),
           ),
         );
   }
@@ -183,6 +184,7 @@ class SurveyRepository {
             selectionsJson: Value(jsonEncode(selectedOptionIds)),
             durationMs: Value(durationMs),
             isPractice: Value(isPractice),
+            createdAt: Value(DateTime.now().toUtc()),
           ),
         );
   }
@@ -215,6 +217,7 @@ class SurveyRepository {
             transcription: Value(transcription),
             durationMs: Value(durationMs),
             isPractice: Value(isPractice),
+            createdAt: Value(DateTime.now().toUtc()),
           ),
         );
     return id;

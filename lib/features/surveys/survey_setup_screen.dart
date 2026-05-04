@@ -60,6 +60,13 @@ class _SurveySetupScreenState extends ConsumerState<SurveySetupScreen> {
         audioMode: _audioMode,
         voice: _voice,
       );
+      // Pre-warm the audio cache so the kiosk doesn't pause on the
+      // first question while it fetches an MP3. Best-effort —
+      // failures are silent (the kiosk falls back to running with
+      // no audio for any phrase that didn't resolve).
+      unawaited(
+        ref.read(surveyAudioServiceProvider).prewarmForSurvey(survey),
+      );
       if (!mounted) return;
       // Replace the setup route with the results screen so a
       // back-press lands the teacher at the survey list (not the

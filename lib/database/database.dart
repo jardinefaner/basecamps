@@ -1694,7 +1694,8 @@ class AppDatabase extends _$AppDatabase {
       '"reaction_time_ms" INTEGER NULL, '
       '"duration_ms" INTEGER NULL, '
       '"is_practice" INTEGER NOT NULL DEFAULT 0, '
-      '"created_at" INTEGER NOT NULL, '
+      '"created_at" INTEGER NOT NULL '
+      "DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000), "
       'PRIMARY KEY ("id"))',
     );
   }
