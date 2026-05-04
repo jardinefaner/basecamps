@@ -23,6 +23,7 @@
 // Adding a new visual = subclass a Part, override onBuild, register
 // in Catalog. No render-pipeline plumbing.
 
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:basecamp/theme/spacing.dart';
@@ -996,6 +997,155 @@ class KeyboardInput extends Component with KeyboardHandler {
 }
 
 // =====================================================================
+// Survey jar — clear container in the world that catches dropped
+// emoji marbles
+// =====================================================================
+
+/// 15% width × 25% height (per the user's spec). The jar is purely
+/// visual — it doesn't physically constrain marbles, just provides
+/// a target settle position via [reserveSlot].
+///
+/// Marble pile: stack from the bottom up, left-to-right, in a grid
+/// whose cell size is the marble diameter + a small gap. New
+/// marbles claim a slot via `reserveSlot()` (which counts every
+/// marble whether in flight or at rest, so concurrent drops don't
+/// race for the same slot) and target that slot's settle position.
+class _Jar extends PositionComponent {
+  _Jar({required Vector2 size}) : super(size: size, anchor: Anchor.topLeft);
+
+  /// Marble radius (matches `_FallingMarble._radius`).
+  static const double _marbleR = 12;
+
+  /// Outer body — light glass tint with a thicker dark outline so
+  /// the silhouette reads even on the cell-shaded background.
+  static final _glassFill = Paint()..color = const Color(0x22B5D8E4);
+  static final _glassOutline = Paint()
+    ..color = const Color(0xFF1A1A1A)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2.5;
+  static final _glassHighlight = Paint()
+    ..color = const Color(0x55FFFFFF)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2.5;
+
+  /// Reserved slot count — each `reserveSlot` increments. Drives
+  /// the next marble's (col, row) inside the jar grid.
+  int _reserved = 0;
+
+  @override
+  void render(Canvas canvas) {
+    super.render(canvas);
+    // Body — wide rectangle with rounded bottom (squat-jar shape).
+    final body = RRect.fromRectAndCorners(
+      Rect.fromLTWH(0, 0, size.x, size.y),
+      topLeft: const Radius.circular(6),
+      topRight: const Radius.circular(6),
+      bottomLeft: const Radius.circular(20),
+      bottomRight: const Radius.circular(20),
+    );
+    canvas
+      ..drawRRect(body, _glassFill)
+      ..drawRRect(body, _glassOutline)
+      // Vertical highlight stripe — gives the "glass" feel without
+      // a full gradient/shader.
+      ..drawLine(
+        Offset(size.x * 0.18, size.y * 0.18),
+        Offset(size.x * 0.18, size.y * 0.78),
+        _glassHighlight,
+      );
+  }
+
+  /// Claim the next slot in the marble grid + return the world-
+  /// space position the marble should settle at.
+  Vector2 reserveSlot() {
+    final perRow = math.max(
+      1,
+      (size.x / (_marbleR * 2 + 2)).floor(),
+    );
+    final slot = _reserved;
+    _reserved += 1;
+    final row = slot ~/ perRow;
+    final col = slot % perRow;
+    final cellW = size.x / perRow;
+    final x = position.x + (col + 0.5) * cellW;
+    final y = position.y +
+        size.y -
+        _marbleR -
+        4 -
+        row * (_marbleR * 2 + 2);
+    return Vector2(x, y);
+  }
+
+  /// World-space top of the jar — used as the spawn Y for falling
+  /// marbles so they appear to drop in from above.
+  double get topY => position.y - 12;
+}
+
+// =====================================================================
+// Falling marble — emoji circle that drops into the jar with gravity
+// =====================================================================
+
+class _FallingMarble extends PositionComponent {
+  _FallingMarble({
+    required this.emoji,
+    required Vector2 spawnWorldPos,
+    required this.settleY,
+  }) : super(anchor: Anchor.center) {
+    position.setFrom(spawnWorldPos);
+  }
+
+  static const double _radius = 12;
+  static const double _gravity = 1100;
+
+  final String emoji;
+  final double settleY;
+
+  double _vy = 0;
+  bool _atRest = false;
+
+  static final _fillPaint = Paint()..color = const Color(0xFFFFFFFF);
+  static final _outlinePaint = Paint()
+    ..color = const Color(0xFF1A1A1A)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.5;
+
+  // Cache the TextPainter so we don't re-layout the emoji glyph
+  // on every render frame — emoji shaping is non-trivial.
+  late final TextPainter _glyph = TextPainter(
+    text: TextSpan(
+      text: emoji,
+      style: const TextStyle(fontSize: 16),
+    ),
+    textDirection: TextDirection.ltr,
+  )..layout();
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    if (_atRest) return;
+    _vy += _gravity * dt;
+    position.y += _vy * dt;
+    if (position.y >= settleY) {
+      position.y = settleY;
+      _atRest = true;
+      _vy = 0;
+    }
+  }
+
+  @override
+  void render(Canvas canvas) {
+    super.render(canvas);
+    canvas
+      ..drawCircle(Offset.zero, _radius, _fillPaint)
+      ..drawCircle(Offset.zero, _radius, _outlinePaint);
+    _glyph.paint(
+      canvas,
+      Offset(-_glyph.width / 2, -_glyph.height / 2),
+    );
+  }
+}
+
+// =====================================================================
 // Game host
 // =====================================================================
 
@@ -1004,9 +1154,26 @@ class _SurveyGame extends FlameGame
   late final JoystickComponent joystick;
   late final KeyboardInput keyboardInput;
   late final ChibiCharacter chibi;
+  late final _Jar jar;
 
   // External handle so the screen's "Jump" button can poke us.
   void requestJump() => chibi.jump();
+
+  /// Spawn a marble at the top of the jar's column for [emoji] and
+  /// let gravity do the rest. Called by the question-plate UI when
+  /// the user taps a marble button.
+  void dropMarble(String emoji) {
+    final settle = jar.reserveSlot();
+    final marble = _FallingMarble(
+      emoji: emoji,
+      spawnWorldPos: Vector2(settle.x, jar.topY),
+      settleY: settle.y,
+    );
+    // FlameGame.add returns a Future; we don't need to await —
+    // the marble starts falling on the next tick once mounted.
+    // ignore: discarded_futures
+    add(marble);
+  }
 
   @override
   Color backgroundColor() => const Color(0xFFE8E5DD);
@@ -1027,15 +1194,65 @@ class _SurveyGame extends FlameGame
     keyboardInput = KeyboardInput();
     add(keyboardInput);
 
+    // Jar in the lower-middle of the world. Per spec: 15% width,
+    // 25% height of screen. Centered horizontally.
+    final jarSize = Vector2(size.x * 0.15, size.y * 0.25);
+    jar = _Jar(size: jarSize)
+      ..position = Vector2(
+        (size.x - jarSize.x) / 2,
+        size.y * 0.55,
+      );
+    add(jar);
+
+    // Chibi above the jar so the user can still walk around. The
+    // chibi's footprint is small (visually ~120px) so it doesn't
+    // occlude the jar much.
     chibi = ChibiCharacter(
       joystick: joystick,
       keyboardInput: keyboardInput,
     )
-      ..position = Vector2(size.x * 0.5, size.y * 0.55)
+      ..position = Vector2(size.x * 0.7, size.y * 0.4)
       ..size = Vector2(120, 160);
     add(chibi);
   }
 }
+
+// =====================================================================
+// Question pool
+// =====================================================================
+
+/// One survey question + the three emoji choices that show up as
+/// marble buttons under it. Three is intentional — small enough to
+/// glance at, big enough for "low / mid / high" or
+/// "yes / maybe / no" scales.
+class _SurveyQuestion {
+  const _SurveyQuestion({required this.question, required this.emojis});
+  final String question;
+  final List<String> emojis;
+}
+
+const _kSurveyQuestions = <_SurveyQuestion>[
+  _SurveyQuestion(
+    question: 'How are you feeling today?',
+    emojis: ['😀', '😐', '😢'],
+  ),
+  _SurveyQuestion(
+    question: 'Pick a snack.',
+    emojis: ['🍎', '🍌', '🍇'],
+  ),
+  _SurveyQuestion(
+    question: 'What is the weather like for you?',
+    emojis: ['🌞', '⛅', '🌧️'],
+  ),
+  _SurveyQuestion(
+    question: 'Energy level right now?',
+    emojis: ['⚡', '💤', '🔥'],
+  ),
+  _SurveyQuestion(
+    question: 'Pick a vibe.',
+    emojis: ['🌊', '🌱', '🌌'],
+  ),
+];
 
 // =====================================================================
 // Survey screen
@@ -1050,6 +1267,12 @@ class SurveyScreen extends StatefulWidget {
 
 class _SurveyScreenState extends State<SurveyScreen> {
   late final _SurveyGame _game = _SurveyGame();
+
+  /// Random question chosen on screen mount. Stable for the
+  /// session — flipping every frame would be jarring; users want
+  /// to read once and answer.
+  late final _SurveyQuestion _question =
+      _kSurveyQuestions[math.Random().nextInt(_kSurveyQuestions.length)];
 
   @override
   Widget build(BuildContext context) {
@@ -1084,6 +1307,66 @@ class _SurveyScreenState extends State<SurveyScreen> {
       body: Stack(
         children: [
           GameWidget<_SurveyGame>(game: _game),
+          // Hovering question plate + marble tray. Sits above the
+          // game world (top of the Stack); the marbles below the
+          // plate are tappable buttons that drop a Flame
+          // _FallingMarble into the jar in the world below.
+          Positioned(
+            top: 16,
+            left: 16,
+            right: 16,
+            child: SafeArea(
+              bottom: false,
+              child: Column(
+                children: [
+                  // Plate
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.md,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant,
+                        width: 0.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      _question.question,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  // Marble tray — three tappable circles, each
+                  // rendering its emoji. Click → drop into jar.
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      for (final emoji in _question.emojis) ...[
+                        _MarbleButton(
+                          emoji: emoji,
+                          onTap: () => _game.dropMarble(emoji),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
           // Jump button — bottom-right, mirroring the joystick on
           // the bottom-left. Touch on web works the same as mobile.
           Positioned(
@@ -1096,6 +1379,65 @@ class _SurveyScreenState extends State<SurveyScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// =====================================================================
+// Marble button — tappable emoji circle in the question tray
+// =====================================================================
+
+/// 44dp circle with the emoji centered. Pressed-scale gives a tap
+/// feedback so the user sees the click register before the marble
+/// shows up falling in the jar.
+class _MarbleButton extends StatefulWidget {
+  const _MarbleButton({required this.emoji, required this.onTap});
+
+  final String emoji;
+  final VoidCallback onTap;
+
+  @override
+  State<_MarbleButton> createState() => _MarbleButtonState();
+}
+
+class _MarbleButtonState extends State<_MarbleButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        duration: const Duration(milliseconds: 90),
+        scale: _pressed ? 0.88 : 1,
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: theme.colorScheme.surface,
+            border: Border.all(
+              color: theme.colorScheme.outlineVariant,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            widget.emoji,
+            style: const TextStyle(fontSize: 22),
+          ),
+        ),
       ),
     );
   }
