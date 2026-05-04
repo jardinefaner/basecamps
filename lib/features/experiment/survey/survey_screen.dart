@@ -32,6 +32,7 @@ import 'package:flame/game.dart';
 import 'package:flame/input.dart';
 import 'package:flame/palette.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 // =====================================================================
@@ -1578,14 +1579,21 @@ class _Jar extends PositionComponent {
 /// held    → currently carried by the chibi above its head.
 /// flying  → projectile arc toward the jar; gravity-driven.
 /// settled → landed in the jar, immovable from here on.
-enum _MarbleState { idle, held, flying, settled }
+/// Lifecycle of a face marble.
+///
+/// idle    → in the world, springs around its rest slot, dodges
+///           the chibi, gently nudges other idle siblings.
+/// held    → carried above the chibi's head.
+/// flying  → projectile arc en route to the jar's mouth.
+/// inJar   → inside the jar; gravity + walls + collisions with
+///           other in-jar marbles. Comes to rest from damping.
+enum _MarbleState { idle, held, flying, inJar }
 
-/// One face emoji in the world. Replaces the earlier separate
-/// `_FallingMarble` — same component handles the pickable rest
-/// state, the held state, the throw arc, and the resting-in-jar
-/// state. State transitions are explicit (`pickUp`, `releaseToRest`,
-/// `throwTo`); the rest of the game just mutates `state` indirectly
-/// through those.
+/// One face emoji in the world. Same component handles every
+/// lifecycle state — pickable, held, flying, bouncing in the jar.
+/// State transitions go through explicit methods (`pickUp`,
+/// `releaseToRest`, `throwToJar`); the rest of the game pokes the
+/// `state` enum indirectly through those.
 class _MarbleNode extends PositionComponent {
   _MarbleNode({
     required this.slotIdx,
@@ -1600,15 +1608,24 @@ class _MarbleNode extends PositionComponent {
   }
 
   /// Base render radius before depth-scaling. v60.11 — sized up to
-  /// 28 so the chunkier expressive faces (eyebrows, blush, tear,
-  /// open mouths) all read clearly even when the marble shrinks at
-  /// the top of the screen.
+  /// 28 so the chunkier expressive faces all read clearly even when
+  /// the marble shrinks at the top of the screen.
   static const double _radius = 28;
   static const double _gravity = 1100;
 
+  /// Avoidance radius. Idle marbles inside this circle around the
+  /// chibi feel a repulsion force. Smaller than `_pickRange` so the
+  /// chibi reaches "pickable" before the marble is fully shoved.
+  static const double _avoidRadius = 75;
+
+  /// Cap on idle-state velocity so a panicked marble can't outrun
+  /// the chibi. Tuned so the marble juuust gets out of the way and
+  /// the chibi catches it on the next step.
+  static const double _idleVMax = 180;
+
   /// Which of the three face slots this marble belongs to (0..2).
-  /// On settle, the game spawns a fresh marble for this slot at the
-  /// same rest position.
+  /// On entry to the jar, the game spawns a fresh marble for this
+  /// slot at the same rest position.
   final int slotIdx;
   final FaceMood mood;
   final int seed;
@@ -1628,14 +1645,29 @@ class _MarbleNode extends PositionComponent {
   bool highlighted = false;
 
   double _t = 0;
-  double _vx = 0;
-  double _vy = 0;
-  double _settleY = 0;
+
+  /// Velocity. Used by every dynamic state (idle avoidance, flying
+  /// arc, in-jar physics). Library-private so the game can read +
+  /// write during pairwise collision passes.
+  double vx = 0;
+  double vy = 0;
+
+  /// Squash-and-stretch animation phase, 0..1. Starts at 1 on
+  /// impact (jar entry, wall bounce, marble-on-marble collision)
+  /// and decays — `render` reads this to scale the marble's local
+  /// canvas with a damped wobble. Library-private so the game can
+  /// trigger a squash from the collision pass.
+  double squash = 0;
+
+  /// One-shot guard so we only fire `onMarbleEnteredJar` once per
+  /// throw, even if the marble crosses the rim line on multiple
+  /// frames (it can re-enter from below if the jar gets crowded).
+  bool _enteredJar = false;
 
   void pickUp() {
     state = _MarbleState.held;
-    _vx = 0;
-    _vy = 0;
+    vx = 0;
+    vy = 0;
     highlighted = false;
   }
 
@@ -1644,21 +1676,29 @@ class _MarbleNode extends PositionComponent {
   void releaseToRest() {
     state = _MarbleState.idle;
     position.setFrom(_restPos);
-    _vx = 0;
-    _vy = 0;
+    vx = 0;
+    vy = 0;
   }
 
-  /// Convert to a flying projectile that lands at (targetX,
-  /// targetY). Solves for vy0 so the marble crests and falls into
-  /// the jar mouth in a fixed flight time, regardless of distance.
-  void throwTo(double targetX, double targetY) {
+  /// Convert to a flying projectile aimed at the jar's mouth. The
+  /// marble follows an arc; on crossing the rim it transitions to
+  /// `inJar` with momentum, where physics takes over (gravity +
+  /// wall + sibling collisions).
+  void throwToJar(_SurveyGame game) {
     state = _MarbleState.flying;
-    _settleY = targetY;
-    final dx = targetX - position.x;
-    final dy = targetY - position.y;
-    const flightTime = 0.7;
-    _vx = dx / flightTime;
-    _vy = (dy - 0.5 * _gravity * flightTime * flightTime) / flightTime;
+    _enteredJar = false;
+    final mouthY = game.jar.position.y + 4;
+    final mouthCenterX = game.jar.position.x + game.jar.size.x / 2;
+    // Aim within ~70% of the rim width so dropped marbles spread
+    // across the jar instead of stacking in a single column.
+    final spread = game.jar.size.x * 0.35;
+    final aimX =
+        mouthCenterX + (math.Random().nextDouble() * 2 - 1) * spread;
+    final dx = aimX - position.x;
+    final dy = mouthY - position.y;
+    const flightTime = 0.65;
+    vx = dx / flightTime;
+    vy = (dy - 0.5 * _gravity * flightTime * flightTime) / flightTime;
   }
 
   @override
@@ -1667,41 +1707,44 @@ class _MarbleNode extends PositionComponent {
     _t += dt;
     _eyeL.update(dt);
     _eyeR.update(dt);
+    if (squash > 0) {
+      squash = math.max(0, squash - dt * 3.0);
+    }
 
     final game = findGame();
     switch (state) {
       case _MarbleState.idle:
-        // Subtle in-place bob keeps the marble alive; X stays glued
-        // to the rest slot so a held-then-released marble snaps
-        // back cleanly.
-        position
-          ..x = _restPos.x
-          ..y = _restPos.y + math.sin(_t * 2 + seed) * 1.5;
+        _updateIdle(dt, game);
       case _MarbleState.held:
-        // Glide above the chibi's head. Use the chibi's depth-scale
-        // so a tiny far-away chibi carries a tiny marble just above
-        // its head, not a comically oversized one. Lifted higher
-        // (90 vs old 70) to clear the bigger marble + ear hitbox.
-        if (game is _SurveyGame) {
-          final c = game.chibi;
-          final cs = c.scale.x;
-          position
-            ..x = c.position.x
-            ..y = c.position.y - 90 * cs + math.sin(_t * 4 + seed) * 1.5;
-        }
+        _updateHeld(game);
       case _MarbleState.flying:
-        _vy += _gravity * dt;
+        vy += _gravity * dt;
         position
-          ..x += _vx * dt
-          ..y += _vy * dt;
-        if (position.y >= _settleY) {
-          position.y = _settleY;
-          state = _MarbleState.settled;
-          if (game is _SurveyGame) game.onMarbleSettled(this);
+          ..x += vx * dt
+          ..y += vy * dt;
+        if (game is _SurveyGame && !_enteredJar) {
+          final mouthY = game.jar.position.y + 6;
+          if (position.y >= mouthY) {
+            _enteredJar = true;
+            state = _MarbleState.inJar;
+            squash = 0.5;
+            game.onMarbleEnteredJar(this);
+          }
         }
-      case _MarbleState.settled:
-        // Resting in the jar; nothing to do.
-        break;
+      case _MarbleState.inJar:
+        // Gravity + walls/floor here. Pairwise marble collisions
+        // are resolved in `_SurveyGame.update` (one pass per frame
+        // for all marbles, after they've all integrated).
+        vy += _gravity * dt;
+        // Air drag on horizontal motion so marbles don't chatter
+        // forever along the floor.
+        vx *= math.pow(0.4, dt).toDouble();
+        position
+          ..x += vx * dt
+          ..y += vy * dt;
+        if (game is _SurveyGame) {
+          _resolveJarWalls(game.jar);
+        }
     }
 
     // Y-based render priority so marbles closer to the camera
@@ -1709,6 +1752,107 @@ class _MarbleNode extends PositionComponent {
     // the chibi when the chibi is behind them. Cheap fake-depth
     // sort that doesn't need per-frame z-buffering.
     priority = position.y.round();
+  }
+
+  /// Idle physics: spring toward `_restPos` + repulsion from the
+  /// chibi + repulsion from other idle marbles. Damped, capped, so
+  /// nothing runaway. The marble springs back the moment the chibi
+  /// leaves its avoidance bubble.
+  void _updateIdle(double dt, FlameGame? game) {
+    if (game is! _SurveyGame) return;
+
+    var fx = (_restPos.x - position.x) * 6;
+    var fy = (_restPos.y - position.y) * 6;
+
+    // Chibi push-away.
+    final c = game.chibi;
+    final dx = position.x - c.position.x;
+    final dy = position.y - c.position.y;
+    final d2 = dx * dx + dy * dy;
+    if (d2 < _avoidRadius * _avoidRadius && d2 > 1e-6) {
+      final d = math.sqrt(d2);
+      final strength = (_avoidRadius - d) / _avoidRadius * 700;
+      fx += (dx / d) * strength;
+      fy += (dy / d) * strength;
+    }
+
+    // Sibling push-away — only against other idle marbles, so a
+    // freshly spawned slot replacement doesn't yank a held marble.
+    for (final other in game._marbles) {
+      if (identical(other, this)) continue;
+      if (other.state != _MarbleState.idle) continue;
+      final ox = position.x - other.position.x;
+      final oy = position.y - other.position.y;
+      final od2 = ox * ox + oy * oy;
+      const minDist = _radius * 2.2;
+      if (od2 < minDist * minDist && od2 > 1e-6) {
+        final od = math.sqrt(od2);
+        final strength = (minDist - od) / minDist * 400;
+        fx += (ox / od) * strength;
+        fy += (oy / od) * strength;
+      }
+    }
+
+    vx += fx * dt;
+    vy += fy * dt;
+    // Damping (~0.92 per 1/60 frame).
+    final damp = math.pow(0.04, dt).toDouble();
+    vx *= damp;
+    vy *= damp;
+    // Velocity cap so the chibi can always catch up.
+    final v2 = vx * vx + vy * vy;
+    if (v2 > _idleVMax * _idleVMax) {
+      final v = math.sqrt(v2);
+      vx = vx / v * _idleVMax;
+      vy = vy / v * _idleVMax;
+    }
+    position
+      ..x += vx * dt
+      ..y += vy * dt;
+  }
+
+  void _updateHeld(FlameGame? game) {
+    if (game is! _SurveyGame) return;
+    final c = game.chibi;
+    final cs = c.scale.x;
+    position
+      ..x = c.position.x
+      ..y = c.position.y - 90 * cs + math.sin(_t * 4 + seed) * 1.5;
+  }
+
+  /// Bounce off the inside of the jar. Floor and side walls only —
+  /// the top is open so a too-full jar can spill upward (we don't
+  /// model that escape today; just don't trap them artificially).
+  void _resolveJarWalls(_Jar jar) {
+    const r = _radius;
+    final rimRy = jar.size.x * _Jar._rimFlatten / 2;
+    final left = jar.position.x + r;
+    final right = jar.position.x + jar.size.x - r;
+    final bottom = jar.position.y + jar.size.y - rimRy - r;
+
+    if (position.x < left) {
+      position.x = left;
+      if (vx < 0) {
+        if (-vx > 80) squash = math.max(squash, 0.4);
+        vx = -vx * 0.4;
+      }
+    }
+    if (position.x > right) {
+      position.x = right;
+      if (vx > 0) {
+        if (vx > 80) squash = math.max(squash, 0.4);
+        vx = -vx * 0.4;
+      }
+    }
+    if (position.y > bottom) {
+      position.y = bottom;
+      if (vy > 0) {
+        if (vy > 80) squash = math.max(squash, 0.5);
+        vy = -vy * 0.4;
+        // Floor friction
+        vx *= 0.7;
+      }
+    }
   }
 
   @override
@@ -1720,8 +1864,14 @@ class _MarbleNode extends PositionComponent {
     final game = findGame();
     final h = game?.size.y ?? 600;
     final depth = depthScaleForY(position.y, h);
-    final s = depth * pulse;
-    final r = _radius * s;
+    final baseScale = depth * pulse;
+    final r = _radius * baseScale;
+
+    // Damped squash-and-stretch on impact: width grows while
+    // height shrinks, oscillates a couple of times, decays to 0.
+    final wobble = math.sin(squash * math.pi * 2.5) * squash * 0.22;
+    final sx = baseScale * (1 + wobble);
+    final sy = baseScale * (1 - wobble);
 
     final shadow = Paint()
       ..color = const Color(0x33000000)
@@ -1732,21 +1882,26 @@ class _MarbleNode extends PositionComponent {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.6;
 
+    // Shadow at full radius (no squash) so contact stays grounded.
+    // Then apply the squash transform for body + face.
+    final blink = blinkPhaseAt(_t, seed: seed);
     canvas
       ..drawCircle(Offset(0, r * 0.4), r * 0.85, shadow)
-      ..drawCircle(Offset.zero, r, fill)
-      ..drawCircle(Offset.zero, r, outline);
-
-    final blink = blinkPhaseAt(_t, seed: seed);
+      ..save()
+      ..scale(sx, sy)
+      ..drawCircle(Offset.zero, _radius, fill)
+      ..drawCircle(Offset.zero, _radius, outline);
     _FacePainter(
       mood: mood,
       blinkPhase: blink,
       pupilLeft: _eyeL.value,
       pupilRight: _eyeR.value,
-    ).paintAt(canvas, Offset.zero, r);
+    ).paintAt(canvas, Offset.zero, _radius);
+    canvas.restore();
 
     // Soft halo when pickable + highlighted — reads as "you can
-    // grab me." Disabled in held / flying / settled states.
+    // grab me." Outside the squash transform so it stays a clean
+    // circle even mid-impact.
     if (highlighted && state == _MarbleState.idle) {
       final halo = Paint()
         ..color = const Color(0x66FFFFFF)
@@ -1755,6 +1910,27 @@ class _MarbleNode extends PositionComponent {
       canvas.drawCircle(Offset.zero, r + 5, halo);
     }
   }
+}
+
+// =====================================================================
+// Celebration trigger — what fires when a marble lands in the jar
+// =====================================================================
+
+/// One pulse of celebration. The Flutter overlay listens to a
+/// `ValueNotifier<_CelebrationEvent?>`; on every change it spawns
+/// a fresh batch of face-emoji particles. `seq` exists so the
+/// listener can detect repeat fires of the same mood (otherwise
+/// the notifier would consider equal-by-value events as no change).
+class _CelebrationEvent {
+  const _CelebrationEvent({
+    required this.mood,
+    required this.tint,
+    required this.seq,
+  });
+
+  final FaceMood mood;
+  final Color tint;
+  final int seq;
 }
 
 // =====================================================================
@@ -1825,15 +2001,24 @@ class _SurveyGame extends FlameGame
   /// thrown into the jar.
   bool nearJar = false;
 
-  /// Pickup proximity threshold in screen pixels. Tuned to feel
-  /// "just standing next to" a marble — small enough that the chibi
-  /// has to actually walk over to a slot, big enough that a
-  /// distracted user with twitchy joystick still triggers cleanly.
-  /// v60.11 — bumped to track the bigger 28px marbles.
-  static const double _pickRange = 95;
+  /// Pickup proximity threshold in screen pixels. v60.12 — pushed
+  /// to 150 so the chibi doesn't have to stand on top of a marble
+  /// to grab it; "close enough" is enough. Pairs with the marble's
+  /// chibi-avoidance (radius 75): the marble starts rolling away
+  /// at 75 but stays grabbable out to 150.
+  static const double _pickRange = 150;
 
   /// What the FAB does next. UI binds via ValueListenableBuilder.
   final ValueNotifier<_FabAction> fabAction = ValueNotifier(_FabAction.jump);
+
+  /// Fires every time a marble lands in the jar — the Flutter
+  /// celebration overlay listens and bursts a stream of face
+  /// emojis across the screen. The seq counter changes on every
+  /// fire so the listener detects re-fires even when the same mood
+  /// is dropped twice in a row.
+  final ValueNotifier<_CelebrationEvent?> celebrationTrigger =
+      ValueNotifier(null);
+  int _celebrationSeq = 0;
 
   /// Screen-space rect of the question plate. The plate is a
   /// Flutter overlay (Stack-positioned above the GameWidget) so
@@ -1965,23 +2150,28 @@ class _SurveyGame extends FlameGame
       case _FabAction.drop:
         final h = heldMarble;
         if (h != null) {
-          // Reserve a slot inside the jar's marble grid; the marble
-          // arcs there and the jar accepts it.
-          final settle = jar.reserveSlot();
-          h.throwTo(settle.x, settle.y);
+          // Hand the marble to its own throw routine — it picks
+          // an aim point inside the jar mouth and computes the
+          // arc velocity. From that moment, physics takes over.
+          h.throwToJar(this);
           heldMarble = null;
         }
     }
     updateProximity();
   }
 
-  /// Called by `_MarbleNode` the instant it lands inside the jar.
-  /// 1. Rotate the palette anchor → recompute the visible triple.
-  /// 2. Re-tint every still-idle marble (so the user sees the rest
-  ///    of the world swap colors as a felt-time response).
-  /// 3. Spawn a fresh marble in the now-empty slot so the world
-  ///    keeps three pickable faces around.
-  void onMarbleSettled(_MarbleNode m) {
+  /// Called by `_MarbleNode` the instant it crosses into the jar
+  /// mouth. Three things happen, in order:
+  ///   1. Color palette rotates → visible triple recomputed.
+  ///   2. Every still-idle marble re-tints (the user sees the rest
+  ///      of the world swap colors — felt-time response).
+  ///   3. A fresh marble for the now-empty slot spawns at the rest
+  ///      position so the world keeps three pickable faces around.
+  ///   4. Celebration overlay fires (mood + tint + seq).
+  ///
+  /// The newly-arrived marble (`m`) keeps living — it's now in
+  /// `inJar` state and bouncing among siblings via `_resolveCollisions`.
+  void onMarbleEnteredJar(_MarbleNode m) {
     _shuffleIdx += 1;
     final newTints = _tintsForShuffle(_shuffleIdx);
     for (final other in _marbles) {
@@ -2005,6 +2195,83 @@ class _SurveyGame extends FlameGame
     // resolves on the next tick.
     // ignore: discarded_futures
     add(replacement);
+
+    // Celebration trigger — Flutter overlay reads mood + tint and
+    // bursts a stream of face emojis.
+    _celebrationSeq += 1;
+    celebrationTrigger.value = _CelebrationEvent(
+      mood: m.mood,
+      tint: m.tint,
+      seq: _celebrationSeq,
+    );
+  }
+
+  /// Pairwise marble collision pass for marbles already inside the
+  /// jar. Runs once per frame after every marble has integrated its
+  /// own update — that way overlap correction happens in one place
+  /// without integration order leaking into collision response.
+  ///
+  /// Cost: O(n²) where n is the number of in-jar marbles. With
+  /// realistic survey volumes (a few dozen drops over a session)
+  /// this is single-digit microseconds per frame on web; not worth
+  /// a spatial hash.
+  void _resolveJarCollisions() {
+    final inJar = <_MarbleNode>[];
+    for (final c in children) {
+      if (c is _MarbleNode && c.state == _MarbleState.inJar) {
+        inJar.add(c);
+      }
+    }
+    const r = _MarbleNode._radius;
+    const minDist = r * 2;
+    for (var i = 0; i < inJar.length; i++) {
+      final a = inJar[i];
+      for (var j = i + 1; j < inJar.length; j++) {
+        final b = inJar[j];
+        final dx = b.position.x - a.position.x;
+        final dy = b.position.y - a.position.y;
+        final d2 = dx * dx + dy * dy;
+        if (d2 >= minDist * minDist || d2 < 1e-6) continue;
+        final d = math.sqrt(d2);
+        final overlap = minDist - d;
+        final nx = dx / d;
+        final ny = dy / d;
+        // Positional separation — split equally between the pair.
+        a.position
+          ..x -= nx * overlap * 0.5
+          ..y -= ny * overlap * 0.5;
+        b.position
+          ..x += nx * overlap * 0.5
+          ..y += ny * overlap * 0.5;
+        // Bounce: project relative velocity onto the contact
+        // normal; if they're closing, exchange momentum (with
+        // restitution for energy loss).
+        final rvx = b.vx - a.vx;
+        final rvy = b.vy - a.vy;
+        final velAlongNormal = rvx * nx + rvy * ny;
+        if (velAlongNormal < 0) {
+          const restitution = 0.45;
+          final impulse = -(1 + restitution) * velAlongNormal / 2;
+          a
+            ..vx -= impulse * nx
+            ..vy -= impulse * ny;
+          b
+            ..vx += impulse * nx
+            ..vy += impulse * ny;
+          // Squash both on a hard hit so the collision reads.
+          if (-velAlongNormal > 80) {
+            a.squash = math.max(a.squash, 0.4);
+            b.squash = math.max(b.squash, 0.4);
+          }
+        }
+      }
+    }
+  }
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    _resolveJarCollisions();
   }
 
   @override
@@ -2209,6 +2476,14 @@ class _SurveyScreenState extends State<SurveyScreen> {
       body: Stack(
         children: [
           GameWidget<_SurveyGame>(game: _game),
+          // Celebration burst — fullscreen face-emoji particles
+          // when a marble lands in the jar. Sits ABOVE the game
+          // (so emojis fly over the chibi) but BELOW the plate +
+          // FAB (so they don't occlude UI). IgnorePointer is
+          // baked into the overlay so it never absorbs taps.
+          Positioned.fill(
+            child: _CelebrationOverlay(trigger: _game.celebrationTrigger),
+          ),
           // Plate sits centered + narrow at the top so it reads as
           // "far in the distance" against the foreground jar. The
           // chibi shrinks as it walks toward the plate (depth
@@ -2297,3 +2572,211 @@ class _SurveyScreenState extends State<SurveyScreen> {
 // (The Flutter `_MarbleButton` + `_MarbleFacePainter` widgets used
 // to live here. They're gone — the marbles are now world-space
 // `_MarbleNode` components the chibi walks up to and picks up.)
+
+// =====================================================================
+// Celebration overlay — fullscreen face-emoji particle burst
+// =====================================================================
+
+/// Fullscreen "you picked one!" feedback. Listens to a
+/// `ValueNotifier<_CelebrationEvent?>` from the game; on every
+/// fire it bursts ~30 face emojis (matching the dropped mood +
+/// tint) up from the bottom of the screen. They float, spin a
+/// touch, and fade — no layout impact, no input absorption (sits
+/// inside an `IgnorePointer`).
+///
+/// Rendered via a single `CustomPaint` over the whole Stack — the
+/// particles are not Flame components so they overlay the chibi
+/// world cleanly without joining the Flame priority sort.
+class _CelebrationOverlay extends StatefulWidget {
+  const _CelebrationOverlay({required this.trigger});
+
+  final ValueNotifier<_CelebrationEvent?> trigger;
+
+  @override
+  State<_CelebrationOverlay> createState() => _CelebrationOverlayState();
+}
+
+class _CelebrationOverlayState extends State<_CelebrationOverlay>
+    with SingleTickerProviderStateMixin {
+  final List<_CelebrationParticle> _particles = <_CelebrationParticle>[];
+  late final Ticker _ticker;
+  Duration _lastTick = Duration.zero;
+  int _lastSeq = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.trigger.addListener(_onTrigger);
+    _ticker = createTicker(_tick);
+    // Ticker.start() returns a Future that completes when the
+    // ticker is stopped. We dispose() in dispose(), so this is a
+    // safe fire-and-forget.
+    // ignore: discarded_futures
+    _ticker.start();
+  }
+
+  @override
+  void dispose() {
+    widget.trigger.removeListener(_onTrigger);
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  void _onTrigger() {
+    final ev = widget.trigger.value;
+    if (ev == null || ev.seq == _lastSeq) return;
+    _lastSeq = ev.seq;
+    final size = MediaQuery.of(context).size;
+    final rng = math.Random(ev.seq * 977);
+    setState(() {
+      for (var i = 0; i < 28; i++) {
+        // Spawn from across the bottom edge with random horizontal
+        // velocity, strong upward kick, and a per-particle lifespan.
+        // `spawnDelay` staggers them so the burst rolls out across
+        // ~200ms instead of all spawning on frame 1 (more "stream"
+        // less "wall of confetti").
+        _particles.add(_CelebrationParticle(
+          mood: ev.mood,
+          tint: ev.tint,
+          x: rng.nextDouble() * size.width,
+          y: size.height + 40,
+          vx: (rng.nextDouble() - 0.5) * 200,
+          vy: -(260 + rng.nextDouble() * 280),
+          life: 1.6 + rng.nextDouble() * 0.8,
+          radius: 18 + rng.nextDouble() * 16,
+          spin: (rng.nextDouble() - 0.5) * 4,
+          spawnDelay: i * 0.025,
+          phaseSeed: rng.nextInt(1 << 20),
+        ));
+      }
+    });
+  }
+
+  void _tick(Duration elapsed) {
+    final raw = (elapsed - _lastTick).inMicroseconds / 1e6;
+    _lastTick = elapsed;
+    if (_particles.isEmpty) return;
+    // Cap dt so a tab-resume doesn't fast-forward physics by 5s.
+    final dt = raw.clamp(0.0, 0.05);
+    setState(() {
+      for (final p in _particles) {
+        p.age += dt;
+        if (p.age < p.spawnDelay) continue;
+        // Light gravity; particles still fall, but slower than the
+        // marbles so they linger on screen for a celebratory moment.
+        p
+          ..x += p.vx * dt
+          ..y += p.vy * dt
+          ..vy += 240 * dt
+          ..rotation += p.spin * dt;
+      }
+      _particles.removeWhere((p) => p.age - p.spawnDelay > p.life);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: CustomPaint(
+        size: Size.infinite,
+        painter: _CelebrationPainter(particles: _particles),
+      ),
+    );
+  }
+}
+
+class _CelebrationParticle {
+  _CelebrationParticle({
+    required this.mood,
+    required this.tint,
+    required this.x,
+    required this.y,
+    required this.vx,
+    required this.vy,
+    required this.life,
+    required this.radius,
+    required this.spin,
+    required this.spawnDelay,
+    required this.phaseSeed,
+  });
+
+  final FaceMood mood;
+  final Color tint;
+  double x;
+  double y;
+  double vx;
+  double vy;
+  final double life;
+  final double radius;
+  final double spin;
+  final double spawnDelay;
+  final int phaseSeed;
+  double age = 0;
+  double rotation = 0;
+}
+
+class _CelebrationPainter extends CustomPainter {
+  _CelebrationPainter({required this.particles});
+
+  final List<_CelebrationParticle> particles;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final p in particles) {
+      if (p.age < p.spawnDelay) continue;
+      final t = p.age - p.spawnDelay;
+      // Fade-in over the first 0.15s, fade-out over the last 0.4s.
+      final fadeIn = (t / 0.15).clamp(0.0, 1.0);
+      final remaining = p.life - t;
+      final fadeOut = (remaining / 0.4).clamp(0.0, 1.0);
+      final alpha = (fadeIn * fadeOut).clamp(0.0, 1.0);
+      // Pop-and-shrink scale: 1.15 at peak, down to 0.7 at end of
+      // life. Keeps the burst feeling springy.
+      final scaleT = (t / p.life).clamp(0.0, 1.0);
+      final scale = 1.15 - 0.45 * scaleT;
+      canvas
+        ..save()
+        ..translate(p.x, p.y)
+        ..rotate(p.rotation)
+        ..scale(scale, scale);
+
+      // Alpha-aware fills/strokes — repaint per-particle since the
+      // alpha varies.
+      final fill = Paint()
+        ..color = p.tint.withValues(alpha: alpha);
+      final outlineA = Paint()
+        ..color = const Color(0xFF1A1A1A).withValues(alpha: alpha)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6;
+      canvas
+        ..drawCircle(Offset.zero, p.radius, fill)
+        ..drawCircle(Offset.zero, p.radius, outlineA);
+      // Face. The shared painter doesn't accept an alpha override,
+      // so we apply one via a saveLayer when the particle is
+      // mid-fade. Cheap enough at ~30 particles.
+      if (alpha < 0.99) {
+        final paint = Paint()
+          ..colorFilter = ColorFilter.mode(
+            Colors.white.withValues(alpha: alpha),
+            BlendMode.modulate,
+          );
+        canvas.saveLayer(
+          Rect.fromCircle(center: Offset.zero, radius: p.radius * 1.2),
+          paint,
+        );
+      }
+      _FacePainter(
+        mood: p.mood,
+        blinkPhase: blinkPhaseAt(t * 1.5, seed: p.phaseSeed),
+        pupilLeft: math.sin(t * 3 + p.phaseSeed) * 0.6,
+        pupilRight: math.cos(t * 2.5 + p.phaseSeed) * 0.6,
+      ).paintAt(canvas, Offset.zero, p.radius);
+      if (alpha < 0.99) canvas.restore();
+
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CelebrationPainter old) => true;
+}
