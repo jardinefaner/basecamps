@@ -778,6 +778,12 @@ class ChibiCharacter extends PositionComponent {
   double _yaw = 0;
   double _t = 0;
 
+  /// Screen-space velocity this frame (px/sec). Written each
+  /// `update` from joystick + keyboard input so the game's
+  /// chibi-marble collision pass can transfer momentum on contact.
+  /// Zero when the chibi isn't being moved.
+  Vector2 velocity = Vector2.zero();
+
   // Reused-across-frames render scratch buffers. Per the spec:
   // > The Op list is reused frame-to-frame (_ops.clear() instead
   // > of new List) to avoid per-frame List growth.
@@ -831,7 +837,9 @@ class ChibiCharacter extends PositionComponent {
     final size = game?.size ?? Vector2(800, 600);
     final depthScale = depthScaleForY(position.y, size.y);
     final speed = 140.0 * depthScale;
-    position += Vector2(dx, dy) * speed * dt;
+    final stepVel = Vector2(dx, dy) * speed;
+    velocity = stepVel;
+    position += stepVel * dt;
 
     // Walkable region: above the jar's top, below the plate's
     // bottom. The jar is the foreground prop the user can throw
@@ -2134,15 +2142,19 @@ class _MarbleNode extends PositionComponent {
   static const double _radius = 28;
   static const double _gravity = 1100;
 
-  /// Avoidance radius. Idle marbles inside this circle around the
-  /// chibi feel a repulsion force. Smaller than `_pickRange` so the
-  /// chibi reaches "pickable" before the marble is fully shoved.
-  static const double _avoidRadius = 75;
+  /// Cap on idle-state velocity. v60.13 — raised from 180 so
+  /// kicked marbles can roll a real distance before damping pulls
+  /// them back. Hard contact with the chibi (handled in
+  /// `_resolveWorldCollisions`) is the primary motion source now;
+  /// the soft force-field at this radius just nudges nearby
+  /// marbles a little so they react before the hit lands.
+  static const double _idleVMax = 360;
 
-  /// Cap on idle-state velocity so a panicked marble can't outrun
-  /// the chibi. Tuned so the marble juuust gets out of the way and
-  /// the chibi catches it on the next step.
-  static const double _idleVMax = 180;
+  /// Hitbox half-width approximation for the chibi (matches the
+  /// plate-collision constant in ChibiCharacter). The world
+  /// collision pass uses this to push idle marbles out of overlap.
+  static const double _chibiHalfW = 26;
+  static const double _chibiHalfH = 50;
 
   /// Which of the three face slots this marble belongs to (0..2).
   /// On entry to the jar, the game spawns a fresh marble for this
@@ -2285,52 +2297,31 @@ class _MarbleNode extends PositionComponent {
     priority = position.y.round();
   }
 
-  /// Idle physics: spring toward `_restPos` + repulsion from the
-  /// chibi + repulsion from other idle marbles. Damped, capped, so
-  /// nothing runaway. The marble springs back the moment the chibi
-  /// leaves its avoidance bubble.
+  /// Idle physics: weak spring toward the rest slot + linear
+  /// damping. That's it — every other interaction (chibi kicks,
+  /// marble-marble bounces, walls, plate, jar exterior) happens in
+  /// `_SurveyGame._resolveWorldCollisions` which runs AFTER all
+  /// marbles integrate. Centralizing collision in the game keeps
+  /// pairwise reactions consistent (no integration-order bias).
+  ///
+  /// The spring is intentionally weak: a kicked marble can roll
+  /// halfway across the screen before damping + spring pull it
+  /// home, which makes the world feel like it's actually got
+  /// physics rather than rubber-banded magnets.
   void _updateIdle(double dt, FlameGame? game) {
     if (game is! _SurveyGame) return;
 
-    var fx = (_restPos.x - position.x) * 6;
-    var fy = (_restPos.y - position.y) * 6;
-
-    // Chibi push-away.
-    final c = game.chibi;
-    final dx = position.x - c.position.x;
-    final dy = position.y - c.position.y;
-    final d2 = dx * dx + dy * dy;
-    if (d2 < _avoidRadius * _avoidRadius && d2 > 1e-6) {
-      final d = math.sqrt(d2);
-      final strength = (_avoidRadius - d) / _avoidRadius * 700;
-      fx += (dx / d) * strength;
-      fy += (dy / d) * strength;
-    }
-
-    // Sibling push-away — only against other idle marbles, so a
-    // freshly spawned slot replacement doesn't yank a held marble.
-    for (final other in game._marbles) {
-      if (identical(other, this)) continue;
-      if (other.state != _MarbleState.idle) continue;
-      final ox = position.x - other.position.x;
-      final oy = position.y - other.position.y;
-      final od2 = ox * ox + oy * oy;
-      const minDist = _radius * 2.2;
-      if (od2 < minDist * minDist && od2 > 1e-6) {
-        final od = math.sqrt(od2);
-        final strength = (minDist - od) / minDist * 400;
-        fx += (ox / od) * strength;
-        fy += (oy / od) * strength;
-      }
-    }
+    final fx = (_restPos.x - position.x) * 2.0;
+    final fy = (_restPos.y - position.y) * 2.0;
 
     vx += fx * dt;
     vy += fy * dt;
-    // Damping (~0.92 per 1/60 frame).
-    final damp = math.pow(0.04, dt).toDouble();
+    // Linear damping ~0.985 per 1/60 frame (much gentler than the
+    // old 0.92, so kicked marbles really roll).
+    final damp = math.pow(0.4, dt).toDouble();
     vx *= damp;
     vy *= damp;
-    // Velocity cap so the chibi can always catch up.
+    // Velocity cap.
     final v2 = vx * vx + vy * vy;
     if (v2 > _idleVMax * _idleVMax) {
       final v = math.sqrt(v2);
@@ -2896,9 +2887,240 @@ class _SurveyGame extends FlameGame
     }
   }
 
+  /// Physics pass for marbles still out in the world (idle state).
+  /// Runs after every idle marble has integrated its spring.
+  ///
+  /// Resolves, in order:
+  ///   1. World-bounds bounce (off the playable rectangle).
+  ///   2. Plate-AABB bounce (the immovable question plate).
+  ///   3. Jar-exterior bounce (treat the jar as a no-go obstacle
+  ///      from the outside — keeps idle marbles above the rim
+  ///      instead of letting them slide down the side and tunnel
+  ///      into the body).
+  ///   4. Pairwise marble-marble collision with momentum exchange.
+  ///   5. Chibi-marble collision: positional separation + an
+  ///      impulse that adds the chibi's current velocity to the
+  ///      marble (proportional to how head-on the contact is). A
+  ///      head-on bump kicks the marble; a glancing brush nudges
+  ///      it.
+  ///
+  /// Held marbles are excluded from every step (they're in the
+  /// chibi's hand). Marbles that are flying / inJar follow their
+  /// own paths and are handled by `_resolveJarCollisions`.
+  void _resolveWorldCollisions() {
+    final idle = <_MarbleNode>[];
+    for (final c in children) {
+      if (c is _MarbleNode && c.state == _MarbleState.idle) {
+        idle.add(c);
+      }
+    }
+    if (idle.isEmpty) return;
+
+    const r = _MarbleNode._radius;
+
+    // ==== World bounds ====
+    // Bounce idle marbles off the playable rectangle, keep them
+    // above the jar's top so they don't slide down past it.
+    const playLeft = r;
+    final playRight = size.x - r;
+    const playTop = 60.0;
+    final playBottom = jar.position.y - r;
+    for (final m in idle) {
+      if (m.position.x < playLeft) {
+        m.position.x = playLeft;
+        if (m.vx < 0) m.vx = -m.vx * 0.55;
+      } else if (m.position.x > playRight) {
+        m.position.x = playRight;
+        if (m.vx > 0) m.vx = -m.vx * 0.55;
+      }
+      if (m.position.y < playTop) {
+        m.position.y = playTop;
+        if (m.vy < 0) m.vy = -m.vy * 0.55;
+      } else if (m.position.y > playBottom) {
+        m.position.y = playBottom;
+        if (m.vy > 0) m.vy = -m.vy * 0.55;
+      }
+    }
+
+    // ==== Plate AABB ====
+    final plate = plateBounds;
+    if (plate != null) {
+      for (final m in idle) {
+        final cx = m.position.x;
+        final cy = m.position.y;
+        final overlapX = (cx + r).clamp(plate.left, plate.right) -
+            (cx - r).clamp(plate.left, plate.right);
+        final overlapY = (cy + r).clamp(plate.top, plate.bottom) -
+            (cy - r).clamp(plate.top, plate.bottom);
+        if (overlapX > 0 && overlapY > 0) {
+          if (overlapX < overlapY) {
+            // Push along X.
+            if (cx < (plate.left + plate.right) / 2) {
+              m.position.x = plate.left - r;
+              if (m.vx > 0) m.vx = -m.vx * 0.55;
+            } else {
+              m.position.x = plate.right + r;
+              if (m.vx < 0) m.vx = -m.vx * 0.55;
+            }
+          } else {
+            // Push along Y.
+            if (cy < (plate.top + plate.bottom) / 2) {
+              m.position.y = plate.top - r;
+              if (m.vy > 0) m.vy = -m.vy * 0.55;
+            } else {
+              m.position.y = plate.bottom + r;
+              if (m.vy < 0) m.vy = -m.vy * 0.55;
+            }
+          }
+          m.squash = math.max(m.squash, 0.3);
+        }
+      }
+    }
+
+    // ==== Jar-exterior bounce ====
+    // Above the jar's top, push idle marbles up off the rim if
+    // they roll over its boundary. Treat the rim ellipse as a
+    // hard ceiling — circle vs upper half of ellipse approximated
+    // by clamping against the rim's bounding rect.
+    final rimRect = jar.topRimRect.translate(jar.position.x, jar.position.y);
+    for (final m in idle) {
+      // Only consider marbles roughly above + horizontally over
+      // the jar. Ignore the rest (already handled by world Y
+      // bound check above).
+      if (m.position.x < rimRect.left - r) continue;
+      if (m.position.x > rimRect.right + r) continue;
+      // Top of the rim (lifted by marble radius).
+      final rimTopY = rimRect.top - r;
+      if (m.position.y > rimTopY) {
+        m.position.y = rimTopY;
+        if (m.vy > 0) m.vy = -m.vy * 0.45;
+        m.squash = math.max(m.squash, 0.3);
+      }
+    }
+
+    // ==== Marble-marble pairwise collision ====
+    const minDist = r * 2;
+    for (var i = 0; i < idle.length; i++) {
+      final a = idle[i];
+      for (var j = i + 1; j < idle.length; j++) {
+        final b = idle[j];
+        final dx = b.position.x - a.position.x;
+        final dy = b.position.y - a.position.y;
+        final d2 = dx * dx + dy * dy;
+        if (d2 >= minDist * minDist || d2 < 1e-6) continue;
+        final d = math.sqrt(d2);
+        final overlap = minDist - d;
+        final nx = dx / d;
+        final ny = dy / d;
+        a.position
+          ..x -= nx * overlap * 0.5
+          ..y -= ny * overlap * 0.5;
+        b.position
+          ..x += nx * overlap * 0.5
+          ..y += ny * overlap * 0.5;
+        final rvx = b.vx - a.vx;
+        final rvy = b.vy - a.vy;
+        final velAlongNormal = rvx * nx + rvy * ny;
+        if (velAlongNormal < 0) {
+          const restitution = 0.55;
+          final impulse = -(1 + restitution) * velAlongNormal / 2;
+          a
+            ..vx -= impulse * nx
+            ..vy -= impulse * ny;
+          b
+            ..vx += impulse * nx
+            ..vy += impulse * ny;
+          if (-velAlongNormal > 60) {
+            a.squash = math.max(a.squash, 0.35);
+            b.squash = math.max(b.squash, 0.35);
+          }
+        }
+      }
+    }
+
+    // ==== Chibi-marble collision (kick) ====
+    // Treat the chibi as a screen-space rectangle (matches the
+    // existing plate-collision footprint). On overlap, push the
+    // marble out and add the chibi's velocity to it — head-on
+    // hits transfer the most momentum, glancing brushes nudge.
+    final chibiPos = chibi.position;
+    final chibiScale = chibi.scale.x;
+    final hw = _MarbleNode._chibiHalfW * chibiScale;
+    final hh = _MarbleNode._chibiHalfH * chibiScale;
+    final chibiLeft = chibiPos.x - hw;
+    final chibiRight = chibiPos.x + hw;
+    final chibiTop = chibiPos.y - hh;
+    final chibiBottom = chibiPos.y + hh;
+    final chibiVel = chibi.velocity;
+    for (final m in idle) {
+      // Closest point on the chibi rect to the marble center.
+      final closestX = m.position.x.clamp(chibiLeft, chibiRight);
+      final closestY = m.position.y.clamp(chibiTop, chibiBottom);
+      final dx = m.position.x - closestX;
+      final dy = m.position.y - closestY;
+      final d2 = dx * dx + dy * dy;
+      if (d2 >= r * r) continue;
+      // Overlap. Compute push-out normal: marble center → closest
+      // point, but if the marble center is INSIDE the rect we
+      // pick the smaller-overlap axis.
+      double nx;
+      double ny;
+      double sep;
+      if (d2 > 1e-6) {
+        final d = math.sqrt(d2);
+        nx = dx / d;
+        ny = dy / d;
+        sep = r - d;
+      } else {
+        // Center inside the rect — push out along smallest axis.
+        final dxL = m.position.x - chibiLeft;
+        final dxR = chibiRight - m.position.x;
+        final dyT = m.position.y - chibiTop;
+        final dyB = chibiBottom - m.position.y;
+        final minH = math.min(dxL, dxR);
+        final minV = math.min(dyT, dyB);
+        if (minH < minV) {
+          nx = (dxL < dxR) ? -1.0 : 1.0;
+          ny = 0;
+          sep = minH + r;
+        } else {
+          nx = 0;
+          ny = (dyT < dyB) ? -1.0 : 1.0;
+          sep = minV + r;
+        }
+      }
+      m.position
+        ..x += nx * sep
+        ..y += ny * sep;
+
+      // Kick: project chibi velocity onto the contact normal
+      // (only the closing component) and add it (×kick gain) to
+      // the marble. A standing-still chibi imparts nothing; a
+      // sprinting head-on hit imparts maximum energy.
+      final velAlongNormal = chibiVel.x * nx + chibiVel.y * ny;
+      if (velAlongNormal > 0) {
+        const kickGain = 1.8;
+        m
+          ..vx += nx * velAlongNormal * kickGain
+          ..vy += ny * velAlongNormal * kickGain;
+        if (velAlongNormal > 80) {
+          m.squash = math.max(m.squash, 0.5);
+        }
+      } else {
+        // Even if the chibi is stationary, when there's overlap
+        // the marble should pop away a touch — pretend the
+        // chibi gave it a 60px/s tap so it doesn't stick.
+        m
+          ..vx += nx * 60
+          ..vy += ny * 60;
+      }
+    }
+  }
+
   @override
   void update(double dt) {
     super.update(dt);
+    _resolveWorldCollisions();
     _resolveJarCollisions();
   }
 
