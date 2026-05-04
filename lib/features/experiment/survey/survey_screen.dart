@@ -760,8 +760,21 @@ class ChibiCharacter extends PositionComponent {
     position.y = position.y.clamp(80, size.y - 60);
 
     // Yaw smoothly tracks the joystick direction.
+    //
+    // Sign convention here is fiddly: the rig's `headFront` sits
+    // at world z=-22 (toward camera) when yaw=0, so yaw=0 = facing
+    // camera. A positive yaw rotates the rig CCW from above, which
+    // visually puts headFront on screen-LEFT — meaning the
+    // character is showing its right shoulder. So:
+    //   joystick right (dx>0) → want character facing screen-right
+    //                            → world facing +X → yaw = -π/2
+    //   joystick left (dx<0)  → want facing screen-left
+    //                            → world facing -X → yaw = +π/2
+    //   joystick up (dy<0)    → facing screen-up = world -Z = yaw 0
+    //   joystick down (dy>0)  → facing screen-down = world +Z = yaw π
+    // → targetYaw = atan2(-dx, -dy).
     if (mag > 0.05) {
-      final targetYaw = math.atan2(dx, -dy);
+      final targetYaw = math.atan2(-dx, -dy);
       var delta = targetYaw - _yaw;
       while (delta > math.pi) {
         delta -= math.pi * 2;
