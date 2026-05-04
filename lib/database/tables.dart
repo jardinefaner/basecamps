@@ -1714,3 +1714,129 @@ class WeeklySubThemes extends Table {
   @override
   String? get tableName => 'weekly_subthemes';
 }
+
+/// v59 — BASECamp Student Survey scaffolding (Slice 1).
+///
+/// One Survey row per teacher-configured kiosk session set: site,
+/// classroom, age band, PIN gate, audio + voice settings, and the
+/// list of questions (serialized as JSON for now — questions don't
+/// need to be queried by content). A single device can host many
+/// surveys (one per classroom or per occasion).
+@DataClassName('Survey')
+class Surveys extends Table {
+  TextColumn get id => text()();
+  TextColumn get programId => text().nullable()();
+  TextColumn get siteName => text()();
+  TextColumn get classroom => text()();
+
+  /// Age band: 'tk', 'k', 'g1', 'g2', 'g3'. Drives default question
+  /// wording + UI sizing.
+  TextColumn get ageBand => text()();
+
+  /// SHA-256 hex of the teacher's 4-digit kiosk-exit PIN. Salted
+  /// with the survey id so the same PIN across surveys hashes to
+  /// different bytes.
+  TextColumn get pinHash => text()();
+
+  /// 'full' (questions + nudges), 'questions_only', or 'silent'.
+  TextColumn get audioMode =>
+      text().withDefault(const Constant('full'))();
+
+  /// Deepgram Aura voice id ('asteria', 'luna', 'orion', etc.).
+  TextColumn get voiceId =>
+      text().withDefault(const Constant('asteria'))();
+
+  /// Question list as JSON array. Each entry has id / type / prompt
+  /// / options / isPractice fields. JSON-blob keeps the migration
+  /// simple — we don't need to query individual questions.
+  TextColumn get questionsJson => text()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  String? get tableName => 'surveys';
+}
+
+/// v59 — One row per child-going-through-the-kiosk. Opens when a
+/// child taps "Start", closes when the teacher exits via the PIN
+/// gate (or when an explicit "Done" is reached). Used for grouping
+/// responses + counting "how many kids went through."
+@DataClassName('SurveySession')
+class SurveySessions extends Table {
+  TextColumn get id => text()();
+  TextColumn get surveyId => text()();
+  DateTimeColumn get startedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get endedAt => dateTime().nullable()();
+
+  /// How many children completed the question set during this
+  /// session. Increments on each "All done!" beat.
+  IntColumn get childCount => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  String? get tableName => 'survey_sessions';
+}
+
+/// v59 — One row per child-question. Slice 2 wires the kiosk to
+/// write here on every drop / multi-select commit / open-ended
+/// recording.
+@DataClassName('SurveyResponse')
+class SurveyResponses extends Table {
+  TextColumn get id => text()();
+  TextColumn get surveyId => text()();
+  TextColumn get sessionId => text()();
+  TextColumn get questionId => text()();
+
+  /// 'mood' (Likert 0–2), 'multi_select' (set of options), or
+  /// 'audio' (open-ended voice answer).
+  TextColumn get answerType => text()();
+
+  /// 0 = disagree, 1 = kind of agree, 2 = agree. Set when
+  /// answerType = 'mood'; null otherwise.
+  IntColumn get moodValue => integer().nullable()();
+
+  /// JSON array of selected option ids. Set when answerType =
+  /// 'multi_select'; null otherwise.
+  TextColumn get selectionsJson => text().nullable()();
+
+  /// Local file path to the recorded audio (relative to app docs
+  /// folder). Set when answerType = 'audio'; null otherwise.
+  TextColumn get audioFilePath => text().nullable()();
+
+  /// Deepgram Nova-2 transcription of the audio, filled in
+  /// asynchronously after the recording is saved. May lag the
+  /// audioFilePath by a few seconds.
+  TextColumn get transcription => text().nullable()();
+
+  /// ms from when the question first appeared to when the child
+  /// committed an answer. Signal of confidence vs hesitation.
+  IntColumn get reactionTimeMs => integer().nullable()();
+
+  /// ms the question was on screen total (includes any retries
+  /// before commit).
+  IntColumn get durationMs => integer().nullable()();
+
+  /// Practice questions are flagged so they can be excluded from
+  /// the default CSV summary.
+  BoolColumn get isPractice =>
+      boolean().withDefault(const Constant(false))();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  String? get tableName => 'survey_responses';
+}

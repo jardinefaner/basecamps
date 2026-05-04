@@ -68,6 +68,9 @@ QueryExecutor _openConnection() {
     MonthlyThemes,
     WeeklySubThemes,
     MonthlyActivities,
+    Surveys,
+    SurveySessions,
+    SurveyResponses,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -76,7 +79,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 58;
+  int get schemaVersion => 59;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -115,6 +118,7 @@ class AppDatabase extends _$AppDatabase {
           await _healV56MonthlyActivitiesTable();
           await _healV57MonthlyActivitySpanColumns();
           await _healV58MonthlyActivityAddonsColumn();
+          await _healV59SurveyTables();
           await _healDirtyFieldsColumns();
         },
         onCreate: (m) => m.createAll(),
@@ -1641,6 +1645,57 @@ class AppDatabase extends _$AppDatabase {
     await _runSilent(
       'ALTER TABLE "monthly_activities" '
       'ADD COLUMN "addons" TEXT NULL',
+    );
+  }
+
+  /// v59 schema heal — BASECamp Student Survey scaffolding. Three
+  /// new tables: surveys (configuration), survey_sessions (one
+  /// per kiosk run), survey_responses (one per child-question).
+  /// Same belt-and-suspenders pattern as v55-58 — CREATE IF NOT
+  /// EXISTS so a partial upgrade (web IDB closed mid-migration,
+  /// app force-killed during launch) self-heals.
+  Future<void> _healV59SurveyTables() async {
+    await _runSilent(
+      'CREATE TABLE IF NOT EXISTS "surveys" '
+      '("id" TEXT NOT NULL, '
+      '"program_id" TEXT NULL, '
+      '"site_name" TEXT NOT NULL, '
+      '"classroom" TEXT NOT NULL, '
+      '"age_band" TEXT NOT NULL, '
+      '"pin_hash" TEXT NOT NULL, '
+      '"audio_mode" TEXT NOT NULL DEFAULT \'full\', '
+      '"voice_id" TEXT NOT NULL DEFAULT \'asteria\', '
+      '"questions_json" TEXT NOT NULL, '
+      '"created_at" INTEGER NOT NULL, '
+      '"updated_at" INTEGER NOT NULL, '
+      '"deleted_at" INTEGER NULL, '
+      'PRIMARY KEY ("id"))',
+    );
+    await _runSilent(
+      'CREATE TABLE IF NOT EXISTS "survey_sessions" '
+      '("id" TEXT NOT NULL, '
+      '"survey_id" TEXT NOT NULL, '
+      '"started_at" INTEGER NOT NULL, '
+      '"ended_at" INTEGER NULL, '
+      '"child_count" INTEGER NOT NULL DEFAULT 0, '
+      'PRIMARY KEY ("id"))',
+    );
+    await _runSilent(
+      'CREATE TABLE IF NOT EXISTS "survey_responses" '
+      '("id" TEXT NOT NULL, '
+      '"survey_id" TEXT NOT NULL, '
+      '"session_id" TEXT NOT NULL, '
+      '"question_id" TEXT NOT NULL, '
+      '"answer_type" TEXT NOT NULL, '
+      '"mood_value" INTEGER NULL, '
+      '"selections_json" TEXT NULL, '
+      '"audio_file_path" TEXT NULL, '
+      '"transcription" TEXT NULL, '
+      '"reaction_time_ms" INTEGER NULL, '
+      '"duration_ms" INTEGER NULL, '
+      '"is_practice" INTEGER NOT NULL DEFAULT 0, '
+      '"created_at" INTEGER NOT NULL, '
+      'PRIMARY KEY ("id"))',
     );
   }
 

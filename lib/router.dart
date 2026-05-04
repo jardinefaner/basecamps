@@ -35,6 +35,8 @@ import 'package:basecamp/features/rooms/rooms_screen.dart';
 import 'package:basecamp/features/schedule/schedule_editor_screen.dart';
 import 'package:basecamp/features/settings/program_settings_screen.dart';
 import 'package:basecamp/features/setup/setup_hub_screen.dart';
+import 'package:basecamp/features/surveys/survey_list_screen.dart';
+import 'package:basecamp/features/surveys/survey_setup_screen.dart';
 import 'package:basecamp/features/sync/sync_audit_screen.dart';
 import 'package:basecamp/features/themes/themes_screen.dart';
 import 'package:basecamp/features/today/today_screen.dart';
@@ -420,6 +422,29 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'survey',
             builder: (_, _) => const SurveyScreen(),
+          ),
+          // BASECamp Student Survey tool (Slice 1):
+          //   /experiment/surveys           — list of saved surveys
+          //   /experiment/surveys/new       — setup form
+          //   /experiment/surveys/:id/play  — kiosk launch (slice 2
+          //                                   wires actual response
+          //                                   capture; for now this
+          //                                   just opens the chibi
+          //                                   sandbox so a teacher
+          //                                   can preview).
+          GoRoute(
+            path: 'surveys',
+            builder: (_, _) => const SurveyListScreen(),
+            routes: [
+              GoRoute(
+                path: 'new',
+                builder: (_, _) => const SurveySetupScreen(),
+              ),
+              GoRoute(
+                path: ':id/play',
+                builder: (_, _) => const SurveyScreen(),
+              ),
+            ],
           ),
         ],
       ),

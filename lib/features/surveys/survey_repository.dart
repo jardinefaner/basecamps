@@ -1,0 +1,160 @@
+// Survey repository (Slice 1) — local-only persistence for the
+// new BASECamp Student Survey tool. CRUD on `surveys`, plus
+// helpers for the kiosk + the results sheet (slice 5).
+//
+// Sync wiring isn't included yet — surveys are device-local until
+// the feature graduates from experiment. When we promote, register
+// `surveys` / `survey_sessions` / `survey_responses` in
+// sync_specs.dart and the existing engine handles realtime + push.
+
+import 'dart:convert';
+
+import 'package:basecamp/core/id.dart';
+import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/surveys/canonical_questions.dart';
+import 'package:basecamp/features/surveys/survey_models.dart';
+import 'package:crypto/crypto.dart';
+import 'package:drift/drift.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+class SurveyRepository {
+  SurveyRepository(this._db);
+
+  final AppDatabase _db;
+
+  /// All non-deleted surveys, newest first. Wraps Drift's row →
+  /// `SurveyConfig` mapping so the UI gets in-memory objects.
+  Stream<List<SurveyConfig>> watchAll() {
+    final query = _db.select(_db.surveys)
+      ..where((s) => s.deletedAt.isNull())
+      ..orderBy([
+        (s) => OrderingTerm(expression: s.createdAt, mode: OrderingMode.desc),
+      ]);
+    return query.watch().map(
+          (rows) => rows.map(_fromRow).toList(),
+        );
+  }
+
+  /// One survey by id. Returns null if missing or soft-deleted.
+  Future<SurveyConfig?> getById(String id) async {
+    final row = await (_db.select(_db.surveys)
+          ..where((s) => s.id.equals(id) & s.deletedAt.isNull()))
+        .getSingleOrNull();
+    if (row == null) return null;
+    return _fromRow(row);
+  }
+
+  /// Create a new survey. PIN is hashed before being stored — we
+  /// salt with the survey id so the same 4 digits across surveys
+  /// produce different hashes.
+  Future<SurveyConfig> create({
+    required String siteName,
+    required String classroom,
+    required SurveyAgeBand ageBand,
+    required String pinDigits,
+    required SurveyAudioMode audioMode,
+    required SurveyVoice voice,
+    List<SurveyQuestion>? questions,
+  }) async {
+    final id = newId();
+    final now = DateTime.now().toUtc();
+    final qs = questions ?? kBasecampCanonicalQuestions;
+    final config = SurveyConfig(
+      id: id,
+      siteName: siteName.trim(),
+      classroom: classroom.trim(),
+      ageBand: ageBand,
+      pinHash: _hashPin(pinDigits, id),
+      audioMode: audioMode,
+      voice: voice,
+      questions: qs,
+      createdAt: now,
+      updatedAt: now,
+    );
+    await _db.into(_db.surveys).insert(_toCompanion(config));
+    return config;
+  }
+
+  /// Verify a 4-digit PIN against the survey's stored hash.
+  /// Constant-time comparison so timing attacks can't probe digits.
+  bool verifyPin(SurveyConfig survey, String pinDigits) {
+    final candidate = _hashPin(pinDigits, survey.id);
+    if (candidate.length != survey.pinHash.length) return false;
+    var diff = 0;
+    for (var i = 0; i < candidate.length; i++) {
+      diff |= candidate.codeUnitAt(i) ^ survey.pinHash.codeUnitAt(i);
+    }
+    return diff == 0;
+  }
+
+  /// Soft-delete: stamp deletedAt. The row stays so historical
+  /// responses keep resolving the parent survey for the results
+  /// sheet, but pickers + the list filter it out.
+  Future<void> softDelete(String id) async {
+    await (_db.update(_db.surveys)..where((s) => s.id.equals(id))).write(
+      SurveysCompanion(
+        deletedAt: Value(DateTime.now().toUtc()),
+        updatedAt: Value(DateTime.now().toUtc()),
+      ),
+    );
+  }
+
+  // ——— Mappings ——————————————————————————————————————————————
+
+  SurveyConfig _fromRow(Survey row) {
+    return SurveyConfig(
+      id: row.id,
+      siteName: row.siteName,
+      classroom: row.classroom,
+      ageBand: SurveyAgeBand.fromCode(row.ageBand),
+      pinHash: row.pinHash,
+      audioMode: SurveyAudioMode.fromCode(row.audioMode),
+      voice: SurveyVoice.fromCode(row.voiceId),
+      questions: SurveyConfig.parseQuestions(row.questionsJson),
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    );
+  }
+
+  SurveysCompanion _toCompanion(SurveyConfig config) => SurveysCompanion(
+        id: Value(config.id),
+        siteName: Value(config.siteName),
+        classroom: Value(config.classroom),
+        ageBand: Value(config.ageBand.code),
+        pinHash: Value(config.pinHash),
+        audioMode: Value(config.audioMode.code),
+        voiceId: Value(config.voice.code),
+        questionsJson: Value(config.questionsJson()),
+        createdAt: Value(config.createdAt),
+        updatedAt: Value(config.updatedAt),
+      );
+
+  /// SHA-256 of `salt|pin`. Salt is the survey id so the same
+  /// 4-digit PIN ("1234") used across surveys produces different
+  /// hashes per survey.
+  String _hashPin(String pinDigits, String salt) {
+    final bytes = utf8.encode('$salt|${pinDigits.trim()}');
+    return sha256.convert(bytes).toString();
+  }
+}
+
+/// Riverpod provider for `SurveyRepository`. Reads the shared
+/// `databaseProvider` so all features see the same DB.
+final surveyRepositoryProvider = Provider<SurveyRepository>((ref) {
+  final db = ref.watch(databaseProvider);
+  return SurveyRepository(db);
+});
+
+/// Live list of surveys (non-deleted, newest first). Watches the
+/// table via Drift's stream.
+final surveysListProvider = StreamProvider<List<SurveyConfig>>((ref) {
+  return ref.watch(surveyRepositoryProvider).watchAll();
+});
+
+/// Single-survey lookup by id. `family` keyed on the id.
+// Single-survey lookup by id. `family` keyed on the id.
+// ignore: specify_nonobvious_property_types
+final surveyByIdProvider =
+    FutureProvider.family<SurveyConfig?, String>((ref, id) {
+  return ref.watch(surveyRepositoryProvider).getById(id);
+});
