@@ -1121,6 +1121,13 @@ class KeyboardInput extends Component with KeyboardHandler {
 /// Mood of a face — drives the mouth shape.
 enum FaceMood { sad, neutral, smiley }
 
+/// Global "ink" color used for every painted face stroke + body
+/// outline on a marble. v60.15 — warm dark brown (`#2A2620`)
+/// instead of pure black so the lines read as hand-drawn ink and
+/// not vector-perfect strokes. Anything in the marble world that
+/// would have been `Color(0xFF1A1A1A)` should reference this.
+const Color _kInk = Color(0xFF2A2620);
+
 /// Pure paint helper. v60.11 — chunky expressive faces inspired by
 /// the "watercolor chibi marble" reference the user shared. Each
 /// mood gets:
@@ -1144,6 +1151,8 @@ class _FacePainter {
     this.pupilRight = 0,
     this.mouthMod = 0,
     this.tearDrip = 0,
+    this.browIdx = 0,
+    this.mouthIdx = 0,
   });
 
   final FaceMood mood;
@@ -1155,7 +1164,10 @@ class _FacePainter {
   final double? lidLeft;
   final double? lidRight;
 
-  /// Per-eye horizontal pupil drift in [-1, 1].
+  /// Per-eye horizontal pupil drift in [-1, 1]. v60.14 — both eyes
+  /// now follow the same drift value (synchronized) so they track
+  /// together like real eyes; per-side lids still let the wink
+  /// animation close one eye independently.
   final double pupilLeft;
   final double pupilRight;
 
@@ -1170,32 +1182,60 @@ class _FacePainter {
   /// cheek; fades out as it reaches the chin.
   final double tearDrip;
 
+  /// Brow + mouth variant indices (per-mood expression library).
+  /// Each marble picks a base pair at construction; micro-anims can
+  /// override mid-emote for variety (e.g. mid-laugh smiley flips
+  /// from open-grin to wide-shout). Indices are clamped to the
+  /// available variants per mood.
+  final int browIdx;
+  final int mouthIdx;
+
   static final _eyeWhite = Paint()..color = const Color(0xFFFFFFFF);
   static final _eyeOutline = Paint()
-    ..color = const Color(0xFF1A1A1A)
+    ..color = _kInk
     ..style = PaintingStyle.stroke
     ..strokeWidth = 1.5;
-  static final _pupil = Paint()..color = const Color(0xFF1A1A1A);
+  static final _pupil = Paint()..color = _kInk;
   static final _mouthStroke = Paint()
-    ..color = const Color(0xFF1A1A1A)
+    ..color = _kInk
     ..style = PaintingStyle.stroke
     ..strokeWidth = 2.6
     ..strokeCap = StrokeCap.round
     ..strokeJoin = StrokeJoin.round;
   static final _browStroke = Paint()
-    ..color = const Color(0xFF1A1A1A)
+    ..color = _kInk
     ..style = PaintingStyle.stroke
-    ..strokeWidth = 2.4
+    ..strokeWidth = 2.6
     ..strokeCap = StrokeCap.round;
   static final _mouthFillSmiley = Paint()..color = const Color(0xFF7A2C3D);
   static final _mouthFillSad = Paint()..color = const Color(0xFF6D2C3E);
   static final _tongue = Paint()..color = const Color(0xFFE57A8D);
   static final _blush = Paint()..color = const Color(0x66E8758B);
+  static final _stressMark = Paint()
+    ..color = _kInk
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.4
+    ..strokeCap = StrokeCap.round;
   static final _tearFill = Paint()..color = const Color(0xFF6FC4F0);
   static final _tearOutline = Paint()
-    ..color = const Color(0xFF1A1A1A)
+    ..color = _kInk
     ..style = PaintingStyle.stroke
     ..strokeWidth = 1.0;
+
+  // ——— Variant counts per mood ———
+  // Returned for caller (the marble) so it can pick a random base
+  // index that's actually in range.
+  static int browVariantsFor(FaceMood m) => 2;
+  static int mouthVariantsFor(FaceMood m) {
+    switch (m) {
+      case FaceMood.smiley:
+        return 3;
+      case FaceMood.neutral:
+        return 2;
+      case FaceMood.sad:
+        return 3;
+    }
+  }
 
   void paintAt(Canvas canvas, Offset center, double radius) {
     canvas
@@ -1236,18 +1276,42 @@ class _FacePainter {
         ..restore();
     }
 
+    // Per-mood brow variant library. Each mood has 2 brow shapes
+    // (see `browVariantsFor`); micro-anim overrides can flip mid-
+    // emote for variety.
+    final brow = browIdx %
+        _FacePainter.browVariantsFor(mood); // safety wrap
     switch (mood) {
       case FaceMood.smiley:
-        // Outer-down, inner-up = relaxed/cheerful arch.
-        drawBrow(-eyeSpacing, -0.20);
-        drawBrow(eyeSpacing, 0.20);
+        if (brow == 0) {
+          // 0: arch-relaxed — outer-down, inner-up gentle
+          drawBrow(-eyeSpacing, -0.20);
+          drawBrow(eyeSpacing, 0.20);
+        } else {
+          // 1: arch-high — both inner ends lifted high (excited)
+          drawBrow(-eyeSpacing, -0.42);
+          drawBrow(eyeSpacing, 0.42);
+        }
       case FaceMood.neutral:
-        drawBrow(-eyeSpacing, 0.04);
-        drawBrow(eyeSpacing, -0.04);
+        if (brow == 0) {
+          // 0: flat — barely tilted (default deadpan)
+          drawBrow(-eyeSpacing, 0.04);
+          drawBrow(eyeSpacing, -0.04);
+        } else {
+          // 1: knit — inner ends slightly down (mild concern)
+          drawBrow(-eyeSpacing, 0.18);
+          drawBrow(eyeSpacing, -0.18);
+        }
       case FaceMood.sad:
-        // Inner-up worried angle.
-        drawBrow(-eyeSpacing, -0.42);
-        drawBrow(eyeSpacing, 0.42);
+        if (brow == 0) {
+          // 0: worried — steep inner-up
+          drawBrow(-eyeSpacing, -0.42);
+          drawBrow(eyeSpacing, 0.42);
+        } else {
+          // 1: drooped — both ends sloped inward-down (defeated)
+          drawBrow(-eyeSpacing, 0.32);
+          drawBrow(eyeSpacing, -0.32);
+        }
     }
 
     // ===== Eyes =====
@@ -1303,37 +1367,64 @@ class _FacePainter {
     // pieces it needs.
     final smileyWiden = (mood == FaceMood.smiley) ? 1 + mouthMod * 0.18 : 1.0;
     final sadShakeX = (mood == FaceMood.sad) ? mouthMod * 1.6 : 0.0;
+    final mIdx = mouthIdx % _FacePainter.mouthVariantsFor(mood);
     switch (mood) {
       case FaceMood.smiley:
-        // Wide curved smile with the inside filled (pink) and a
-        // tongue blob bottom-center. Reads as "open mouth grin"
-        // from a glance. We clip to the bottom half of the mouth
-        // ellipse so the upper edge stays a clean lip line.
-        final mouthRect = Rect.fromCenter(
-          center: Offset(0, mouthY),
-          width: mouthW * 1.7 * smileyWiden,
-          height: mouthW * 1.0 * (1 + mouthMod * 0.10),
-        );
+        // Smiley mouth library:
+        //   0: open grin with tongue (the default)
+        //   1: closed half-smile (a gentler, calmer smile)
+        //   2: wide-open shout (laughing/yelling, no tongue)
+        if (mIdx == 1) {
+          // closed half-smile — single curved arc, smaller
+          final p = Path()
+            ..moveTo(-mouthW * 0.7, mouthY - 1)
+            ..quadraticBezierTo(
+              0,
+              mouthY + mouthW * 0.35 * smileyWiden,
+              mouthW * 0.7,
+              mouthY - 1,
+            );
+          canvas.drawPath(p, _mouthStroke);
+        } else if (mIdx == 2) {
+          // wide-open shout — big rounded rect mouth, no tongue
+          final shoutRect = Rect.fromCenter(
+            center: Offset(0, mouthY + radius * 0.04),
+            width: mouthW * 1.5 * smileyWiden,
+            height: mouthW * 1.1 * (1 + mouthMod * 0.10),
+          );
+          canvas
+            ..drawOval(shoutRect, _mouthFillSmiley)
+            ..drawOval(shoutRect, _mouthStroke);
+        } else {
+          // open grin with tongue (default)
+          final mouthRect = Rect.fromCenter(
+            center: Offset(0, mouthY),
+            width: mouthW * 1.7 * smileyWiden,
+            height: mouthW * 1.0 * (1 + mouthMod * 0.10),
+          );
+          canvas
+            ..save()
+            ..clipRect(Rect.fromLTRB(
+              -mouthW, mouthY - 1, mouthW * 1.2, mouthY + mouthW,
+            ))
+            ..drawOval(mouthRect, _mouthFillSmiley)
+            ..drawCircle(
+              Offset(mouthW * 0.05, mouthY + mouthW * 0.30),
+              mouthW * 0.32,
+              _tongue,
+            )
+            ..restore()
+            ..drawArc(mouthRect, 0, math.pi, false, _mouthStroke)
+            ..drawLine(
+              Offset(-mouthW * 0.85, mouthY),
+              Offset(mouthW * 0.85, mouthY),
+              _mouthStroke,
+            );
+        }
+        // Blush dots, tucked under each eye on the cheek (every
+        // smiley variant gets these — they're the "happy cheeks"
+        // signature).
         canvas
-          ..save()
-          ..clipRect(Rect.fromLTRB(
-            -mouthW, mouthY - 1, mouthW * 1.2, mouthY + mouthW,
-          ))
-          ..drawOval(mouthRect, _mouthFillSmiley)
-          ..drawCircle(
-            Offset(mouthW * 0.05, mouthY + mouthW * 0.30),
-            mouthW * 0.32,
-            _tongue,
-          )
-          ..restore()
-          // Outline — bottom half of the ellipse + flat top lip.
-          ..drawArc(mouthRect, 0, math.pi, false, _mouthStroke)
-          ..drawLine(
-            Offset(-mouthW * 0.85, mouthY),
-            Offset(mouthW * 0.85, mouthY),
-            _mouthStroke,
-          )
-          // Blush dots, tucked under each eye on the cheek.
           ..drawOval(
             Rect.fromCenter(
               center: Offset(-radius * 0.55, radius * 0.18),
@@ -1351,35 +1442,92 @@ class _FacePainter {
             _blush,
           );
       case FaceMood.neutral:
-        // Small flat-ish line, very slight wave so it doesn't read
-        // as a hard frown.
-        final p = Path()
-          ..moveTo(-mouthW * 0.7, mouthY)
-          ..quadraticBezierTo(
-            -mouthW * 0.35,
-            mouthY - 2,
-            0,
-            mouthY,
-          )
-          ..quadraticBezierTo(
-            mouthW * 0.35,
-            mouthY + 2,
-            mouthW * 0.7,
-            mouthY,
+        // Neutral mouth library:
+        //   0: tiny wavy line (default deadpan)
+        //   1: small "o" pout
+        if (mIdx == 1) {
+          final pout = Rect.fromCenter(
+            center: Offset(0, mouthY),
+            width: mouthW * 0.4,
+            height: mouthW * 0.32,
           );
-        canvas.drawPath(p, _mouthStroke);
+          canvas.drawOval(pout, _mouthStroke);
+        } else {
+          final p = Path()
+            ..moveTo(-mouthW * 0.7, mouthY)
+            ..quadraticBezierTo(
+              -mouthW * 0.35,
+              mouthY - 2,
+              0,
+              mouthY,
+            )
+            ..quadraticBezierTo(
+              mouthW * 0.35,
+              mouthY + 2,
+              mouthW * 0.7,
+              mouthY,
+            );
+          canvas.drawPath(p, _mouthStroke);
+        }
       case FaceMood.sad:
-        // Open downturned mouth — small filled oval with a frown
-        // line above it for the lip. Lateral `sadShakeX` shifts the
-        // mouth a hair when `mouthMod` is animated (sob / quiver).
-        final mouthRect = Rect.fromCenter(
-          center: Offset(sadShakeX, mouthY + radius * 0.05),
-          width: mouthW * 1.05,
-          height: mouthW * 0.7,
-        );
-        canvas
-          ..drawOval(mouthRect, _mouthFillSad)
-          ..drawOval(mouthRect, _mouthStroke);
+        // Sad mouth library:
+        //   0: open downturned filled oval (default)
+        //   1: clenched grimace (line with downturn, no fill)
+        //   2: agape shout (round open with corners drooping)
+        if (mIdx == 1) {
+          // clenched grimace — flat line bowed down with little
+          // hash marks at the corners (tension)
+          final p = Path()
+            ..moveTo(-mouthW * 0.85 + sadShakeX, mouthY)
+            ..quadraticBezierTo(
+              sadShakeX,
+              mouthY + mouthW * 0.5,
+              mouthW * 0.85 + sadShakeX,
+              mouthY,
+            );
+          canvas.drawPath(p, _mouthStroke);
+        } else if (mIdx == 2) {
+          // agape shout — circular open with drooped outer corners
+          final shoutRect = Rect.fromCenter(
+            center: Offset(sadShakeX, mouthY + radius * 0.06),
+            width: mouthW * 0.95,
+            height: mouthW * 0.85,
+          );
+          canvas
+            ..drawOval(shoutRect, _mouthFillSad)
+            ..drawOval(shoutRect, _mouthStroke);
+        } else {
+          // default: open downturned filled oval
+          final mouthRect = Rect.fromCenter(
+            center: Offset(sadShakeX, mouthY + radius * 0.05),
+            width: mouthW * 1.05,
+            height: mouthW * 0.7,
+          );
+          canvas
+            ..drawOval(mouthRect, _mouthFillSad)
+            ..drawOval(mouthRect, _mouthStroke);
+        }
+        // Stress-wave marks under each eye (the "stressed cheeks"
+        // signature). Two short bowed strokes per side.
+        for (final side in const <double>[-1, 1]) {
+          final cx = side * (radius * 0.55);
+          final cy = radius * 0.16;
+          final p = Path()
+            ..moveTo(cx - radius * 0.12, cy)
+            ..quadraticBezierTo(
+              cx - radius * 0.04,
+              cy - radius * 0.06,
+              cx + radius * 0.04,
+              cy,
+            )
+            ..quadraticBezierTo(
+              cx + radius * 0.12,
+              cy + radius * 0.06,
+              cx + radius * 0.20,
+              cy,
+            );
+          canvas.drawPath(p, _stressMark);
+        }
         // Tear — sits just below the right eye.
         final tearTop = Offset(eyeSpacing + eyeR * 0.6, eyeY + eyeR * 0.95);
         final tearBottom = Offset(
@@ -1521,6 +1669,12 @@ class _MicroAnimMods {
 
   /// Smiley-only: warm halo glow alpha multiplier.
   double glow = 0;
+
+  /// Mid-emote brow / mouth swap. The marble has a stable base
+  /// (chosen at construction); when an animation wants a different
+  /// expression for its duration it sets these. null = use base.
+  int? browOverride;
+  int? mouthOverride;
 }
 
 /// Stochastic per-marble emote driver. Picks a mood-appropriate
@@ -1645,13 +1799,18 @@ class _MicroAnimController {
     switch (_type) {
       case 'laugh':
         // Rapid up-bounces while body squashes wider on each ha.
+        // Flips smiley expression to wide-shout (mouth idx 2) +
+        // arch-high brows (idx 1) for the duration so a laughing
+        // marble visibly throws its head back.
         final beat = math.sin(_elapsed * 14);
         m
           ..ty = -beat.abs() * 4 * env
           ..sx = 1 + beat * 0.06 * env
           ..sy = 1 - beat * 0.06 * env
           ..mouthMod = beat * 0.7 * env
-          ..glow = env * 0.3;
+          ..glow = env * 0.3
+          ..mouthOverride = 2
+          ..browOverride = 1;
       case 'wink':
         // Left vs right chosen by _param1. Lid closes for the
         // middle 0.3s of the 0.6s anim, then reopens.
@@ -1837,9 +1996,11 @@ class _Jar extends PositionComponent {
   }
 
   /// How squashed the rim/base ellipses are vs a perfect circle.
-  /// 0.32 = a fairly deep ellipse — sells the "looking down into a
-  /// real cylinder" read instead of a flat ring.
-  static const double _rimFlatten = 0.32;
+  /// 0.20 reads as a clean cylinder seen from slightly above —
+  /// deep enough to give 3/4-view depth but shallow enough that
+  /// the rim doesn't eat the body. (0.32 from the previous pass
+  /// made the body cavity too short to hold even one full marble.)
+  static const double _rimFlatten = 0.20;
 
   /// Glass wall thickness. The visible outer outline draws at the
   /// component's full extent; the interior cylinder marbles bounce
@@ -1849,21 +2010,24 @@ class _Jar extends PositionComponent {
 
   // ——— Mason-jar profile ——————————————————————————————————————
   // All in local coords (origin at top-left of the component box).
-  // Body width = component width; neck is ~28% narrower than body.
+  // Body width = component width; neck is ~15% narrower than body
+  // (subtle — a real mason jar's threaded neck barely tapers in).
   double get bodyW => size.x;
-  double get neckW => size.x * 0.72;
+  double get neckW => size.x * 0.85;
 
   /// Rim ellipse half-height (the rim spans Y in [0, 2*rimRy]).
   double get rimRy => bodyW * _rimFlatten / 2;
 
-  /// Total height of the threaded screw neck (3 ridges + gaps).
-  double get threadH => rimRy * 1.4;
+  /// Total height of the threaded screw neck (compact band of
+  /// ridges right below the rim).
+  double get threadH => rimRy * 0.6;
 
   /// Bottom Y of the threaded neck.
   double get neckBottomY => 2 * rimRy + threadH;
 
-  /// Where the shoulder curve lands on the body width.
-  double get shoulderEndY => neckBottomY + rimRy * 1.2;
+  /// Where the shoulder curve lands on the body width. Steeper
+  /// than before so the body section gets the bulk of the height.
+  double get shoulderEndY => neckBottomY + rimRy * 0.6;
 
   /// Bottom of the base ellipse.
   double get baseRy => rimRy * 0.95;
@@ -2236,6 +2400,15 @@ class _MarbleNode extends PositionComponent {
     seed: seed * 911 + 7,
   );
 
+  /// Stable per-marble random base brow + mouth indices, picked
+  /// once at construction so a given marble keeps the same neutral
+  /// expression across re-renders. Micro-anim mods can override
+  /// mid-emote (e.g. mid-laugh smiley flips to wide-shout).
+  late final int _baseBrowIdx =
+      math.Random(seed * 17 + 3).nextInt(_FacePainter.browVariantsFor(mood));
+  late final int _baseMouthIdx = math.Random(seed * 17 + 5)
+      .nextInt(_FacePainter.mouthVariantsFor(mood));
+
   _MarbleState state = _MarbleState.idle;
 
   /// True when the chibi is close enough to pick this up (or switch
@@ -2316,14 +2489,19 @@ class _MarbleNode extends PositionComponent {
     final innerR = jar.interiorR - _radius;
 
     // ——— Chibi-driven target inside the cylinder ———
+    // Lateral: chibi.x relative to jar center, clamped to inside.
+    // Depth: how close the chibi is to the rim, mapped across the
+    // full play-area-Y range so the user can actually reach both
+    // front + back of the cylinder regardless of screen size.
     final chibiOffsetX = chibi.position.x - (jar.position.x + jar.cx);
-    final chibiAboveRim = (jar.position.y - chibi.position.y).clamp(0.0, 200.0);
-    // tX is lateral target inside the cylinder. tZ comes from how
-    // close the chibi is to the rim: chibi 0px above rim → +0.7R
-    // (front), chibi 200px above → -0.7R (back).
+    // Highest reachable Y above the rim is `playTop` (~80) clamped
+    // up — anything tighter than 16 we treat as right-at-rim.
+    final maxAboveRim = math.max<double>(jar.position.y - 80, 32);
+    final aboveRim = (jar.position.y - chibi.position.y).clamp(0.0, maxAboveRim);
+    final aboveT = ((aboveRim - 16) / (maxAboveRim - 16)).clamp(0.0, 1.0);
     final tX = chibiOffsetX.clamp(-innerR * 0.85, innerR * 0.85);
-    final tZ = (innerR * 0.7) -
-        (chibiAboveRim / 200.0) * (innerR * 1.4);
+    // aboveT 0 → +0.7R (front, chibi at rim); 1 → -0.7R (back).
+    final tZ = innerR * 0.7 * (1 - 2 * aboveT);
     // Snap target inside the unit circle so corners aren't outside
     // the cylinder.
     final tD = math.sqrt(tX * tX + tZ * tZ);
@@ -2348,7 +2526,7 @@ class _MarbleNode extends PositionComponent {
           ? jar.position.x - 24
           : jar.position.x + jar.size.x + 24;
       final outsideY = jar.position.y + jar.size.y - jar.baseRy * 0.4;
-      _aimArc(outsideX, outsideY, 0.55);
+      _aimArc(outsideX, outsideY, 0.78);
     } else {
       _postFlightState = _MarbleState.inJar;
       // Aim arc to where the target (jarX, jarY=top, jarZ)
@@ -2358,7 +2536,7 @@ class _MarbleNode extends PositionComponent {
       final floorY = jar.interiorFloorScreenY +
           (clampedTZ / jar.interiorR) * jar.interiorBaseRy;
       final landY = floorY - jar.interiorBodyHeight;
-      _aimArc(landX, landY, 0.55);
+      _aimArc(landX, landY, 0.78);
     }
   }
 
@@ -2399,20 +2577,29 @@ class _MarbleNode extends PositionComponent {
           ..x += vx * dt
           ..y += vy * dt;
         if (game is _SurveyGame && !_enteredJar) {
-          // Trigger transition once the marble crosses the
-          // visible-jar mouth Y (rim edge). For inJar we seed
-          // (jarX, jarY=top, jarZ) from the saved target; for
-          // spilled we just fall onto the table.
-          final triggerY = game.jar.position.y + game.jar.rimRy * 0.6;
+          final jar = game.jar;
+          final triggerY = jar.position.y + jar.rimRy * 0.6;
           if (position.y >= triggerY) {
+            // Side-entry guard: at the moment the marble crosses
+            // the rim Y line, check whether its screen-X is
+            // actually inside the rim's mouth. If it isn't, the
+            // throw missed (the chibi was too far to the side and
+            // the arc went around the jar) — redirect to spilled
+            // instead of teleporting through the side wall.
+            final rimLeft = jar.position.x + (jar.bodyW - jar.neckW) / 2;
+            final rimRight = jar.position.x +
+                (jar.bodyW - jar.neckW) / 2 +
+                jar.neckW;
+            final insideRim =
+                position.x > rimLeft && position.x < rimRight;
             _enteredJar = true;
             squash = 0.45;
-            if (_postFlightState == _MarbleState.inJar) {
+            if (_postFlightState == _MarbleState.inJar && insideRim) {
               // Snap to 3D coords — screen position will be
               // recomputed by _projectFromJar each frame.
               jarX = _targetJarX;
               jarZ = _targetJarZ;
-              jarY = game.jar.interiorBodyHeight;
+              jarY = jar.interiorBodyHeight;
               // Carry some downward momentum: take the screen vy
               // (positive = falling) and push it into -jarVy so the
               // marble continues plunging into the cylinder.
@@ -2424,9 +2611,9 @@ class _MarbleNode extends PositionComponent {
               state = _MarbleState.inJar;
               game.onMarbleEnteredJar(this);
             } else {
-              // Spilled: keep screen-velocity carry-through, let
-              // the spilled-state branch finish the fall onto the
-              // table. Arc was already aimed at the table line.
+              // Either the throw missed the rim (insideRim=false)
+              // or the jar was full (postFlightState=spilled).
+              // Either way, the marble lands on the table.
               state = _MarbleState.spilled;
               game.onMarbleEnteredJar(this);
             }
@@ -2445,31 +2632,23 @@ class _MarbleNode extends PositionComponent {
     priority = position.y.round();
   }
 
-  /// Idle physics: weak spring toward the rest slot + linear
-  /// damping. That's it — every other interaction (chibi kicks,
-  /// marble-marble bounces, walls, plate, jar exterior) happens in
-  /// `_SurveyGame._resolveWorldCollisions` which runs AFTER all
-  /// marbles integrate. Centralizing collision in the game keeps
-  /// pairwise reactions consistent (no integration-order bias).
+  /// Idle physics: pure damping + a velocity cap. No spring.
+  /// v60.16 — real-marble fantasy. A marble at rest stays at rest
+  /// until something hits it; a kicked marble rolls and slows from
+  /// friction, settling wherever it ends up. The pickup logic
+  /// already finds the nearest one of any mood, so gameplay still
+  /// works — you walk to wherever the marble actually is.
   ///
-  /// The spring is intentionally weak: a kicked marble can roll
-  /// halfway across the screen before damping + spring pull it
-  /// home, which makes the world feel like it's actually got
-  /// physics rather than rubber-banded magnets.
+  /// All other interactions (chibi kick, marble-marble bounce,
+  /// walls, plate, jar-exterior) live in `_resolveWorldCollisions`.
   void _updateIdle(double dt, FlameGame? game) {
     if (game is! _SurveyGame) return;
-
-    final fx = (_restPos.x - position.x) * 2.0;
-    final fy = (_restPos.y - position.y) * 2.0;
-
-    vx += fx * dt;
-    vy += fy * dt;
-    // Linear damping ~0.985 per 1/60 frame (much gentler than the
-    // old 0.92, so kicked marbles really roll).
-    final damp = math.pow(0.4, dt).toDouble();
+    // Friction-style damping. ~0.6/sec linear-ish drag — kicked
+    // marbles roll a real distance and grind to a stop in a few
+    // seconds, no rubber-band spring pulling them home.
+    final damp = math.pow(0.55, dt).toDouble();
     vx *= damp;
     vy *= damp;
-    // Velocity cap.
     final v2 = vx * vx + vy * vy;
     if (v2 > _idleVMax * _idleVMax) {
       final v = math.sqrt(v2);
@@ -2499,16 +2678,15 @@ class _MarbleNode extends PositionComponent {
   /// hard floor at jarY=0 with vertical bounce + lateral friction.
   ///
   /// Pairwise marble-marble collision is handled by the game
-  /// (3D sphere-sphere) so integration order doesn't bias it.
+  /// (3D sphere-sphere). After pairwise resolution the game also
+  /// re-clamps to the cylinder via `clampToJar` so a marble pushed
+  /// out of bounds by a neighbor doesn't stay there for a frame.
   ///
   /// At the end we project (jarX, jarY, jarZ) → screen-space
   /// `position` so the rest of the renderer + Y-priority sort
   /// works as-is.
   void _updateInJar(double dt, _Jar jar) {
-    // Gravity (positive jarY = up), so subtract g*dt from jarVy.
     jarVy -= _gravity * dt;
-    // Air drag on lateral motion only (vertical fall is
-    // gravity-dominated).
     final drag = math.pow(0.5, dt).toDouble();
     jarVx *= drag;
     jarVz *= drag;
@@ -2517,42 +2695,59 @@ class _MarbleNode extends PositionComponent {
     jarY += jarVy * dt;
     jarZ += jarVz * dt;
 
+    clampToJar(jar);
+    _projectFromJar(jar);
+  }
+
+  /// Cylinder wall + floor clamp. Idempotent — safe to call
+  /// repeatedly per frame (game pairwise pass calls it after
+  /// resolving overlaps to keep marbles inside the jar).
+  ///
+  /// Low restitution (0.22) + a stick-to-wall threshold under
+  /// 30 px/s means a slow marble brushing the wall doesn't
+  /// chatter; it just clamps to the boundary and keeps lateral
+  /// motion zeroed along the wall normal.
+  void clampToJar(_Jar jar) {
     final innerR = jar.interiorR - _radius;
 
-    // Cylinder wall: project onto the inner circle if outside.
     final radial2 = jarX * jarX + jarZ * jarZ;
     if (radial2 > innerR * innerR && radial2 > 1e-6) {
       final radial = math.sqrt(radial2);
       final nx = jarX / radial;
       final nz = jarZ / radial;
-      // Snap back onto the wall.
       jarX = nx * innerR;
       jarZ = nz * innerR;
-      // Reflect outward velocity.
       final velRadial = jarVx * nx + jarVz * nz;
       if (velRadial > 0) {
-        const restitution = 0.45;
-        if (velRadial > 80) squash = math.max(squash, 0.4);
-        jarVx -= (1 + restitution) * velRadial * nx;
-        jarVz -= (1 + restitution) * velRadial * nz;
+        if (velRadial < 30) {
+          // Stick: zero the outward component, keep tangent flow.
+          jarVx -= velRadial * nx;
+          jarVz -= velRadial * nz;
+        } else {
+          const restitution = 0.22;
+          if (velRadial > 80) squash = math.max(squash, 0.4);
+          jarVx -= (1 + restitution) * velRadial * nx;
+          jarVz -= (1 + restitution) * velRadial * nz;
+        }
       }
     }
 
-    // Floor (jarY = 0).
     if (jarY < 0) {
       jarY = 0;
       if (jarVy < 0) {
         final speed = -jarVy;
-        if (speed > 80) squash = math.max(squash, 0.5);
-        jarVy = -jarVy * 0.4;
-        // Floor friction on lateral velocity.
+        if (speed < 30) {
+          // Stick: zero the bounce, just rest on floor.
+          jarVy = 0;
+        } else {
+          if (speed > 80) squash = math.max(squash, 0.5);
+          jarVy = -jarVy * 0.22;
+        }
+        // Floor friction on lateral.
         jarVx *= 0.7;
         jarVz *= 0.7;
       }
     }
-
-    // Project to screen position for rendering + sort.
-    _projectFromJar(jar);
   }
 
   /// Map (jarX, jarY, jarZ) → screen-space `position`.
@@ -2737,6 +2932,11 @@ class _MarbleNode extends PositionComponent {
       pupilRight: mods.pupilR ?? _eyeDrift.value,
       mouthMod: mods.mouthMod,
       tearDrip: mods.tearDrip,
+      // Base brow + mouth come from this marble's stable identity;
+      // micro-anim mods can override mid-emote (e.g. mid-laugh
+      // smiley flips to wide-shout for a beat).
+      browIdx: mods.browOverride ?? _baseBrowIdx,
+      mouthIdx: mods.mouthOverride ?? _baseMouthIdx,
     ).paintAt(canvas, Offset.zero, _radius);
     canvas.restore();
 
@@ -3132,10 +3332,15 @@ class _SurveyGame extends FlameGame
         }
       }
     }
-    // Re-project after collision fix so screen-Y reflects post-
-    // collision jar coords this frame.
+    // Re-clamp + re-project after pairwise so a marble pushed past
+    // the cylinder wall by a neighbor doesn't stay outside for a
+    // frame (which is the source of "marble jittering against the
+    // wall" — pairwise pushes it out, integration clamps it next
+    // frame, neighbor pushes again, etc).
     for (final m in inJar) {
-      m._projectFromJar(jar);
+      m
+        ..clampToJar(jar)
+        .._projectFromJar(jar);
     }
   }
 
@@ -3428,11 +3633,12 @@ class _SurveyGame extends FlameGame
 
     // Mason jar with fixed proportions — width clamped between
     // 320 and 540 so it looks the same shape on a tight phone
-    // screen as on a wide web window. Aspect ratio 1 : 1.05 (a
-    // hair taller than wide) gives the squat tall-wide mason
-    // silhouette. Bottom hugs ~96% screen so it sits low.
+    // screen as on a wide web window. Aspect ratio 1 : 1.2 (taller
+    // than wide) gives the classic mason jar silhouette where the
+    // body cylinder is the dominant section. Bottom hugs ~96%
+    // screen so it sits low.
     final jarW = (size.x * 0.6).clamp(320.0, 540.0);
-    final jarH = jarW * 1.05;
+    final jarH = jarW * 1.2;
     final jarSize = Vector2(jarW, jarH);
     jar = _Jar(size: jarSize)
       ..position = Vector2(
