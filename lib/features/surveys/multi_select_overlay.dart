@@ -129,7 +129,7 @@ class _MultiSelectQuestionOverlayState
                       option: option,
                       selected: _selected.contains(option.id),
                       onTap: () => _toggle(option),
-                      iconForId: _iconForOptionId,
+                      iconForId: multiSelectIconForId,
                     );
                   },
                 ),
@@ -176,8 +176,9 @@ class _MultiSelectQuestionOverlayState
 /// Per-activity icon — keyed off the canonical option id so the
 /// asset is stable across renames of the label text. Falls back
 /// to a generic check icon for unknown ids (e.g. teacher-edited
-/// custom activities).
-IconData _iconForOptionId(String id) {
+/// custom activities). Exported so the results sheet's chip
+/// cluster can reuse the same iconography.
+IconData multiSelectIconForId(String id) {
   switch (id) {
     case 'act_supplies':
       return Icons.inventory_2_outlined;

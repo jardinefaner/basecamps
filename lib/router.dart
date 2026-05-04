@@ -36,6 +36,7 @@ import 'package:basecamp/features/schedule/schedule_editor_screen.dart';
 import 'package:basecamp/features/settings/program_settings_screen.dart';
 import 'package:basecamp/features/setup/setup_hub_screen.dart';
 import 'package:basecamp/features/surveys/survey_list_screen.dart';
+import 'package:basecamp/features/surveys/survey_results_screen.dart';
 import 'package:basecamp/features/surveys/survey_setup_screen.dart';
 import 'package:basecamp/features/sync/sync_audit_screen.dart';
 import 'package:basecamp/features/themes/themes_screen.dart';
@@ -440,11 +441,23 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: 'new',
                 builder: (_, _) => const SurveySetupScreen(),
               ),
+              // /:id is the results sheet (default landing for a
+              // saved survey). The kiosk lives at /:id/play and
+              // is reached from the results page's "Start kiosk"
+              // action.
               GoRoute(
-                path: ':id/play',
-                builder: (_, state) => SurveyScreen(
-                  surveyId: state.pathParameters['id'],
+                path: ':id',
+                builder: (_, state) => SurveyResultsScreen(
+                  surveyId: state.pathParameters['id']!,
                 ),
+                routes: [
+                  GoRoute(
+                    path: 'play',
+                    builder: (_, state) => SurveyScreen(
+                      surveyId: state.pathParameters['id'],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

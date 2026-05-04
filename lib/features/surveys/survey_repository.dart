@@ -17,6 +17,18 @@ import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+/// One row in the results sheet — a single child's run through
+/// the kiosk. `responsesByQuestionId` lets the UI look up the
+/// answer for each question column without iterating.
+class SurveyResultRow {
+  const SurveyResultRow({
+    required this.session,
+    required this.responsesByQuestionId,
+  });
+  final SurveySession session;
+  final Map<String, SurveyResponse> responsesByQuestionId;
+}
+
 class SurveyRepository {
   SurveyRepository(this._db);
 
@@ -216,6 +228,42 @@ class SurveyRepository {
         .write(SurveyResponsesCompanion(transcription: Value(text)));
   }
 
+  // ——— Results (Slice 5) ———————————————————————————————————
+
+  /// Live stream of result rows for [surveyId]. Each row is one
+  /// session (= one child going through the kiosk) with all of
+  /// its responses keyed by questionId. Newest sessions first.
+  Stream<List<SurveyResultRow>> watchResults(String surveyId) {
+    final sessions = _db.select(_db.surveySessions)
+      ..where((s) => s.surveyId.equals(surveyId))
+      ..orderBy([
+        (s) => OrderingTerm(
+              expression: s.startedAt,
+              mode: OrderingMode.desc,
+            ),
+      ]);
+    return sessions.watch().asyncMap((sessionRows) async {
+      if (sessionRows.isEmpty) return <SurveyResultRow>[];
+      final ids = sessionRows.map((s) => s.id).toList();
+      final responses = await (_db.select(_db.surveyResponses)
+            ..where((r) => r.sessionId.isIn(ids)))
+          .get();
+      final byId = <String, List<SurveyResponse>>{};
+      for (final r in responses) {
+        byId.putIfAbsent(r.sessionId, () => <SurveyResponse>[]).add(r);
+      }
+      return sessionRows
+          .map((s) => SurveyResultRow(
+                session: s,
+                responsesByQuestionId: <String, SurveyResponse>{
+                  for (final r in (byId[s.id] ?? const <SurveyResponse>[]))
+                    r.questionId: r,
+                },
+              ))
+          .toList();
+    });
+  }
+
   /// Soft-delete: stamp deletedAt. The row stays so historical
   /// responses keep resolving the parent survey for the results
   /// sheet, but pickers + the list filter it out.
@@ -286,4 +334,12 @@ final surveysListProvider = StreamProvider<List<SurveyConfig>>((ref) {
 final surveyByIdProvider =
     FutureProvider.family<SurveyConfig?, String>((ref, id) {
   return ref.watch(surveyRepositoryProvider).getById(id);
+});
+
+/// Live result rows for a survey. Updates as children complete
+/// kiosk sessions.
+// ignore: specify_nonobvious_property_types
+final surveyResultsProvider =
+    StreamProvider.family<List<SurveyResultRow>, String>((ref, id) {
+  return ref.watch(surveyRepositoryProvider).watchResults(id);
 });

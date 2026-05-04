@@ -61,12 +61,11 @@ class _SurveySetupScreenState extends ConsumerState<SurveySetupScreen> {
         voice: _voice,
       );
       if (!mounted) return;
-      // Replace the setup route with the kiosk so a back-press
-      // from the kiosk drops the teacher back at the survey list,
-      // not the setup form they just filled in.
-      context.pushReplacement(
-        '/experiment/surveys/${survey.id}/play',
-      );
+      // Replace the setup route with the results screen so a
+      // back-press lands the teacher at the survey list (not the
+      // setup form they just filled in). The teacher tap "Start
+      // kiosk" from the results screen when they're ready.
+      context.pushReplacement('/experiment/surveys/${survey.id}');
     } on Object catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

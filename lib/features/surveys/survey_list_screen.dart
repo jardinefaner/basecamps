@@ -145,9 +145,11 @@ class _SurveyCard extends StatelessWidget {
     final dateFmt = DateFormat.yMMMd().add_jm();
     return InkWell(
       borderRadius: AppSpacing.cardBorderRadius,
-      onTap: () => context.push(
-        '/experiment/surveys/${survey.id}/play',
-      ),
+      // Tap a card → results sheet for this survey. The kiosk is
+      // launched via the "Start kiosk" action on the results
+      // screen so a teacher always sees what's been captured
+      // before handing the device to the next child.
+      onTap: () => context.push('/experiment/surveys/${survey.id}'),
       child: Container(
         padding: AppSpacing.cardPadding,
         decoration: BoxDecoration(
