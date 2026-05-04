@@ -543,11 +543,19 @@ class _AiActivityAddonsSectionState
   void initState() {
     super.initState();
     // Auto-open the first saved add-on when the section mounts, so
-    // a returning user lands on their saved content instead of
-    // having to tap through the picker. They can still tap "back"
-    // to see the picker. Done in a post-frame callback so the
-    // initial `onActiveChanged(true)` fires AFTER the parent's
-    // build settles (calling setState during initState would crash).
+    // a returning user lands on their saved content directly. We
+    // set `_result` straight on `this` (NOT through setState) —
+    // initState runs before the first build, so the first frame
+    // already renders the result; the picker is never shown.
+    //
+    // The parent-side `onActiveChanged(true)` notification still
+    // has to defer to a post-frame callback because firing it
+    // during initState would call setState on the parent before
+    // its first build completes. One frame later, the parent
+    // collapses its metadata sections (objectives / steps /
+    // materials / link). The picker → result flicker that the
+    // earlier post-frame-only version had is gone — the only
+    // post-frame work now is the parent's collapse.
     final saved = widget.previouslyGenerated;
     if (saved != null && saved.isNotEmpty) {
       final firstSpecId = saved.keys.first;
@@ -555,13 +563,22 @@ class _AiActivityAddonsSectionState
         (s) => s.id == firstSpecId,
         orElse: () => addonSpecs.first,
       );
-      // Only auto-open if the saved id actually matched a known
-      // spec; otherwise the user sees the picker and a "spec
-      // missing" entry doesn't crash anything.
       if (spec.id == firstSpecId) {
+        _result = AddonResult(
+          spec: spec,
+          sections: [
+            for (final m in saved[firstSpecId]!)
+              AddonSection(
+                heading: m['heading'] ?? '',
+                body: m['body'] ?? '',
+              ),
+          ],
+        );
+        // Notify the parent so it can collapse metadata. Deferred
+        // so we don't call setState on it before its first build.
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          _openPersisted(spec, saved[firstSpecId]!);
+          widget.onActiveChanged?.call(true);
         });
       }
     }
