@@ -61,6 +61,29 @@ V3 v3Lerp(V3 a, V3 b, double t) =>
     V3(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t);
 
 // =====================================================================
+// Depth scale — fakes 3D by shrinking things higher on the screen
+// =====================================================================
+
+/// Map a screen-space Y to a "depth scale" for fake-3D shrinkage.
+/// Top of the visible play area = farther away = smaller; bottom =
+/// closer to camera = full size. Used by the chibi (Y-scale walking
+/// feels like the character is really moving toward / away from the
+/// camera) and by world props that want the same horizon read.
+///
+/// We use the playable strip [80 .. screenH-60] so the curve doesn't
+/// hit its extremes for the parts of the screen the chibi can't
+/// actually reach (above the plate / below the jar).
+double depthScaleForY(double y, double screenH) {
+  const farthest = 0.55;
+  const closest = 1.0;
+  const top = 80.0;
+  final bottom = screenH - 60;
+  if (bottom <= top) return closest;
+  final t = ((y - top) / (bottom - top)).clamp(0.0, 1.0);
+  return farthest + (closest - farthest) * t;
+}
+
+// =====================================================================
 // Slot — every named anchor a part can attach to
 // =====================================================================
 
@@ -800,26 +823,38 @@ class ChibiCharacter extends PositionComponent {
     }
 
     // Translate the character on screen — with a cap so it can't
-    // leave the visible play area.
-    const speed = 140.0;
-    position += Vector2(dx, dy) * speed * dt;
+    // leave the visible play area. Speed itself is depth-scaled in
+    // the same direction the chibi visually shrinks, so walking
+    // "into the distance" feels like real horizon-distance travel
+    // (you cover less screen-pixels per second the smaller you are).
     final game = findGame();
     final size = game?.size ?? Vector2(800, 600);
+    final depthScale = depthScaleForY(position.y, size.y);
+    final speed = 140.0 * depthScale;
+    position += Vector2(dx, dy) * speed * dt;
+
+    // Walkable region: above the jar's top, below the plate's
+    // bottom. The jar is the foreground prop the user can throw
+    // marbles into — they can't walk into it.
+    final game2 = (game is _SurveyGame) ? game : null;
+    final jarTop = game2?.jar.position.y ?? size.y;
     position.x = position.x.clamp(40, size.x - 40);
-    position.y = position.y.clamp(80, size.y - 60);
+    position.y = position.y.clamp(80, jarTop - 16);
 
     // Plate collision (v60.9). The question plate is rendered as
     // a Flutter overlay; we collide against its screen-space AABB
     // so the chibi can't walk through it. Push out along the
     // shortest-overlap axis so the chibi slides naturally around
     // edges instead of teleporting around the plate.
-    final plate = (game is _SurveyGame) ? game.plateBounds : null;
+    final plate = game2?.plateBounds;
     if (plate != null) {
       // Chibi collision footprint — narrower than its render size
       // because the visible chibi only fills the lower ~half of
-      // its component bounds (head extends up).
-      const halfW = 26.0;
-      const halfH = 50.0;
+      // its component bounds (head extends up). Scale the
+      // footprint with the same depth-scale we apply to the
+      // visuals so a tiny far-away chibi has a tiny hitbox.
+      final halfW = 26.0 * depthScale;
+      final halfH = 50.0 * depthScale;
       final cx = position.x;
       final cy = position.y;
       final left = plate.left;
@@ -847,6 +882,13 @@ class ChibiCharacter extends PositionComponent {
         }
       }
     }
+
+    // Apply the depth scale to the visual after position settles
+    // so chibi at the top of the screen reads as "in the distance"
+    // and at the bottom (near jar) reads as "in the foreground."
+    // Re-read after the clamp/collisions in case Y was pushed.
+    final finalScale = depthScaleForY(position.y, size.y);
+    scale.setAll(finalScale);
 
     // Yaw smoothly tracks the joystick direction.
     //
@@ -1554,21 +1596,22 @@ class _SurveyGame extends FlameGame
     keyboardInput = KeyboardInput();
     add(keyboardInput);
 
-    // Major jar in the lower-middle of the world — 25% width ×
-    // 30% height of screen so it reads as the centerpiece, not a
-    // small side prop. Centered horizontally; sits at ~55% screen
-    // top so its bottom is near the visible ground line.
-    final jarSize = Vector2(size.x * 0.25, size.y * 0.30);
+    // Major jar in the foreground — bigger than the first pass so
+    // it reads as the closest prop in the scene, dominating the
+    // lower half. ~45% width × 38% height; bottom edge near 95%
+    // screen so it sits firmly on the ground line. Pairs with the
+    // depth-scale curve: chibi shrinks toward the top, jar holds
+    // its full size at the bottom = clear horizon read.
+    final jarSize = Vector2(size.x * 0.45, size.y * 0.38);
     jar = _Jar(size: jarSize)
       ..position = Vector2(
         (size.x - jarSize.x) / 2,
-        size.y * 0.55,
+        size.y * 0.95 - jarSize.y,
       );
     add(jar);
 
-    // Chibi above the jar so the user can still walk around. The
-    // chibi's footprint is small (visually ~120px) so it doesn't
-    // occlude the jar much.
+    // Chibi spawns mid-screen above the jar. Walks with depth
+    // scaling — moves to top of screen → shrinks into the distance.
     chibi = ChibiCharacter(
       joystick: joystick,
       keyboardInput: keyboardInput,
@@ -1711,49 +1754,53 @@ class _SurveyScreenState extends State<SurveyScreen> {
           // game world (top of the Stack); the marbles below the
           // plate are tappable buttons that drop a Flame
           // _FallingMarble into the jar in the world below.
+          // Plate sits centered + narrow at the top so it reads as
+          // "far in the distance" against the foreground jar. The
+          // chibi shrinks as it walks toward the plate (depth scale)
+          // — small plate up there reinforces the horizon illusion.
           Positioned(
-            top: 16,
-            left: 16,
-            right: 16,
+            top: 12,
+            left: 0,
+            right: 0,
             child: SafeArea(
               bottom: false,
-              child: Column(
-                children: [
-                  // Plate. Keyed so we can read its post-layout
-                  // bounds via `_publishPlateBounds` and push them
-                  // into the game for chibi collision (the user
-                  // wants the plate to be immovable — chibi can't
-                  // pass through it).
-                  Container(
-                    key: _plateKey,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.lg,
-                      vertical: AppSpacing.md,
-                    ),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: theme.colorScheme.outlineVariant,
-                        width: 0.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.08),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 240),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        key: _plateKey,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                          vertical: AppSpacing.sm,
                         ),
-                      ],
-                    ),
-                    child: Text(
-                      _question.question,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surface,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: theme.colorScheme.outlineVariant,
+                            width: 0.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.08),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          _question.question,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
+                      const SizedBox(height: AppSpacing.md),
                   // Marble tray — three tappable face marbles
                   // (sad / neutral / smiley). Each animates
                   // continuously (blink + pupil drift) so the
@@ -1763,28 +1810,32 @@ class _SurveyScreenState extends State<SurveyScreen> {
                   // marble lands in the jar). Tints come from the
                   // game so the in-flight marble's color and the
                   // tapped marble button always match.
-                  ValueListenableBuilder<List<Color>>(
-                    valueListenable: _game.trayTints,
-                    builder: (context, tints, _) => Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        for (var i = 0; i < _kFaceMoods.length; i++) ...[
-                          _MarbleButton(
-                            mood: _kFaceMoods[i],
-                            seed: i,
-                            tint: tints[i],
-                            onTap: () => _game.dropMarble(
-                              _kFaceMoods[i],
-                              tint: tints[i],
-                            ),
-                          ),
-                          if (i < _kFaceMoods.length - 1)
-                            const SizedBox(width: AppSpacing.md),
-                        ],
-                      ],
-                    ),
+                      ValueListenableBuilder<List<Color>>(
+                        valueListenable: _game.trayTints,
+                        builder: (context, tints, _) => Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            for (var i = 0;
+                                i < _kFaceMoods.length;
+                                i++) ...[
+                              _MarbleButton(
+                                mood: _kFaceMoods[i],
+                                seed: i,
+                                tint: tints[i],
+                                onTap: () => _game.dropMarble(
+                                  _kFaceMoods[i],
+                                  tint: tints[i],
+                                ),
+                              ),
+                              if (i < _kFaceMoods.length - 1)
+                                const SizedBox(width: AppSpacing.md),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
