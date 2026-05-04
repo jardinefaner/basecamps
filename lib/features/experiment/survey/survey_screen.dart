@@ -1061,57 +1061,53 @@ class KeyboardInput extends Component with KeyboardHandler {
 /// Mood of a face — drives the mouth shape.
 enum FaceMood { sad, neutral, smiley }
 
-/// Pure paint helper. Caller draws the marble background circle
-/// first; this stamps eyes + mouth on top, parameterised by an
-/// animation phase so blinks + pupil drift are continuous.
-///
-/// All sizes are derived from `radius` so the same painter works
-/// at any marble size (the tray buttons, the falling-into-jar
-/// marbles, and conceivably the chibi's own face).
+/// Pure paint helper. v60.10 — bolder mouth strokes (smile/frown
+/// were too subtle to read at marble size) + independent
+/// left/right pupil drift (eyes wander or "look at each other").
 class _FacePainter {
   const _FacePainter({
     required this.mood,
     this.blinkPhase = 0,
-    this.pupilOffset = 0,
+    this.pupilLeft = 0,
+    this.pupilRight = 0,
   });
 
   final FaceMood mood;
 
-  /// 0 = eyes fully open, 1 = fully closed. The blink curve is
-  /// driven externally by an animation source so the painter is
-  /// pure (no internal timer).
+  /// 0 = eyes fully open, 1 = fully closed.
   final double blinkPhase;
 
-  /// Horizontal pupil drift in [-1, 1]. 0 = looking forward.
-  final double pupilOffset;
+  /// Per-eye horizontal pupil drift in [-1, 1].
+  final double pupilLeft;
+  final double pupilRight;
 
   static final _eyeWhite = Paint()..color = const Color(0xFFFFFFFF);
   static final _eyeOutline = Paint()
     ..color = const Color(0xFF1A1A1A)
     ..style = PaintingStyle.stroke
-    ..strokeWidth = 1.4;
+    ..strokeWidth = 1.5;
   static final _pupil = Paint()..color = const Color(0xFF1A1A1A);
   static final _mouth = Paint()
     ..color = const Color(0xFF1A1A1A)
     ..style = PaintingStyle.stroke
-    ..strokeWidth = 1.6
-    ..strokeCap = StrokeCap.round;
+    ..strokeWidth = 2.6
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round;
 
   void paintAt(Canvas canvas, Offset center, double radius) {
     canvas
       ..save()
       ..translate(center.dx, center.dy);
 
-    // Eyes — ovals with pupils. blinkPhase squashes vertical extent.
     final eyeY = -radius * 0.12;
-    final eyeR = radius * 0.18;
+    final eyeR = radius * 0.20;
     final eyeSpacing = radius * 0.36;
     final open = (1 - blinkPhase).clamp(0.05, 1.0);
 
-    void drawEye(double x) {
+    void drawEye(double x, double drift) {
       final rect = Rect.fromCenter(
         center: Offset(x, eyeY),
-        width: eyeR * 1.4,
+        width: eyeR * 1.5,
         height: eyeR * 2.0 * open,
       );
       canvas
@@ -1119,38 +1115,75 @@ class _FacePainter {
         ..drawOval(rect, _eyeOutline);
       if (open > 0.25) {
         canvas.drawCircle(
-          Offset(x + pupilOffset * eyeR * 0.5, eyeY + 1),
-          eyeR * 0.55 * open,
+          Offset(x + drift * eyeR * 0.55, eyeY + 1),
+          eyeR * 0.6 * open,
           _pupil,
         );
       }
     }
 
-    drawEye(-eyeSpacing);
-    drawEye(eyeSpacing);
+    drawEye(-eyeSpacing, pupilLeft);
+    drawEye(eyeSpacing, pupilRight);
 
-    // Mouth — bezier curve whose control point flips with mood.
-    final mouthY = radius * 0.30;
-    final mouthW = radius * 0.55;
-    final mouthCurve = radius * 0.22;
+    // Mouth — bigger, bolder so smile/frown read at marble size.
+    final mouthY = radius * 0.32;
+    final mouthW = radius * 0.50;
+    final mouthCurve = radius * 0.42;
     final path = Path();
     switch (mood) {
       case FaceMood.smiley:
         path
-          ..moveTo(-mouthW, mouthY)
-          ..quadraticBezierTo(0, mouthY + mouthCurve, mouthW, mouthY);
+          ..moveTo(-mouthW, mouthY - mouthCurve * 0.15)
+          ..quadraticBezierTo(
+            0,
+            mouthY + mouthCurve,
+            mouthW,
+            mouthY - mouthCurve * 0.15,
+          );
       case FaceMood.neutral:
         path
-          ..moveTo(-mouthW, mouthY + 2)
-          ..lineTo(mouthW, mouthY + 2);
+          ..moveTo(-mouthW * 0.85, mouthY + 2)
+          ..lineTo(mouthW * 0.85, mouthY + 2);
       case FaceMood.sad:
         path
-          ..moveTo(-mouthW, mouthY + mouthCurve)
-          ..quadraticBezierTo(0, mouthY, mouthW, mouthY + mouthCurve);
+          ..moveTo(-mouthW, mouthY + mouthCurve * 1.15)
+          ..quadraticBezierTo(
+            0,
+            mouthY,
+            mouthW,
+            mouthY + mouthCurve * 1.15,
+          );
     }
     canvas
       ..drawPath(path, _mouth)
       ..restore();
+  }
+}
+
+/// Random-walk eye animator. Each instance picks a fresh
+/// horizontal target every 1.5–4.5s and lerps toward it. Two
+/// instances per face (left + right) so eyes drift independently;
+/// the pair occasionally converges by chance, which reads as
+/// "looking at each other." Stateful — instantiate once per face,
+/// call `update(dt)` per frame, read `value`.
+class _EyeDrift {
+  _EyeDrift({int? seed})
+      : _rng = math.Random(seed ?? math.Random().nextInt(1 << 31));
+
+  final math.Random _rng;
+  double _current = 0;
+  double _target = 0;
+  double _untilNext = 0;
+
+  double get value => _current;
+
+  void update(double dt) {
+    _untilNext -= dt;
+    if (_untilNext <= 0) {
+      _target = (_rng.nextDouble() - 0.5) * 1.6; // -0.8..0.8
+      _untilNext = 1.5 + _rng.nextDouble() * 3.0;
+    }
+    _current += (_target - _current) * math.min(1, dt * 4);
   }
 }
 
@@ -1323,8 +1356,13 @@ class _FallingMarble extends PositionComponent {
     required Vector2 spawnWorldPos,
     required this.settleY,
     required this.seed,
+    required this.tint,
+    double initialVx = 0,
+    double initialVy = 0,
   }) : super(anchor: Anchor.center) {
     position.setFrom(spawnWorldPos);
+    _vx = initialVx;
+    _vy = initialVy;
   }
 
   static const double _radius = 16;
@@ -1335,57 +1373,60 @@ class _FallingMarble extends PositionComponent {
   final int seed;
 
   double _vy = 0;
+  double _vx = 0;
   bool _atRest = false;
   double _t = 0;
 
-  // Per-mood subtle tint behind the face — keeps the three faces
-  // distinguishable at a glance even when they're stacked deep
-  // in the jar.
-  static final _smileyFill = Paint()..color = const Color(0xFFFFE89B);
-  static final _neutralFill = Paint()..color = const Color(0xFFE6E6E6);
-  static final _sadFill = Paint()..color = const Color(0xFFB8D7F1);
+  late final _EyeDrift _eyeL = _EyeDrift(seed: seed * 31 + 1);
+  late final _EyeDrift _eyeR = _EyeDrift(seed: seed * 31 + 2);
   static final _outlinePaint = Paint()
     ..color = const Color(0xFF1A1A1A)
     ..style = PaintingStyle.stroke
     ..strokeWidth = 1.6;
 
-  Paint get _fillPaint {
-    switch (mood) {
-      case FaceMood.smiley:
-        return _smileyFill;
-      case FaceMood.neutral:
-        return _neutralFill;
-      case FaceMood.sad:
-        return _sadFill;
-    }
-  }
+  /// External fill — the tray marble's tint at the moment of drop.
+  /// Carried through so the user sees the SAME color marble land
+  /// in the jar.
+  Color tint;
 
   @override
   void update(double dt) {
     super.update(dt);
     _t += dt;
+    _eyeL.update(dt);
+    _eyeR.update(dt);
     if (_atRest) return;
     _vy += _gravity * dt;
-    position.y += _vy * dt;
+    position
+      ..x += _vx * dt
+      ..y += _vy * dt;
     if (position.y >= settleY) {
       position.y = settleY;
       _atRest = true;
       _vy = 0;
+      _vx = 0;
+      // Notify the game so it can shuffle tray colors as a
+      // landing flourish.
+      final game = findGame();
+      if (game is _SurveyGame) {
+        game.onMarbleSettled();
+      }
     }
   }
 
   @override
   void render(Canvas canvas) {
     super.render(canvas);
+    final fill = Paint()..color = tint;
     canvas
-      ..drawCircle(Offset.zero, _radius, _fillPaint)
+      ..drawCircle(Offset.zero, _radius, fill)
       ..drawCircle(Offset.zero, _radius, _outlinePaint);
     final blink = blinkPhaseAt(_t, seed: seed);
-    final pupil = math.sin(_t * 1.4 + seed) * 0.4;
     _FacePainter(
       mood: mood,
       blinkPhase: blink,
-      pupilOffset: pupil,
+      pupilLeft: _eyeL.value,
+      pupilRight: _eyeR.value,
     ).paintAt(canvas, Offset.zero, _radius);
   }
 }
@@ -1422,20 +1463,70 @@ class _SurveyGame extends FlameGame
   // External handle so the screen's "Jump" button can poke us.
   void requestJump() => chibi.jump();
 
+  /// Tray marble tints, exposed to the Flutter overlay. Each entry
+  /// is the fill color for the matching slot in `_kFaceMoods`. The
+  /// list rotates every time a marble lands in the jar — the user
+  /// asked: "the colors of the emojis change color whenever a
+  /// marble gets in the jar."
+  ///
+  /// We expose a `ValueNotifier` so the Flutter widget can rebuild
+  /// without us having to wire a setState callback through the
+  /// component tree.
+  final ValueNotifier<List<Color>> trayTints = ValueNotifier(<Color>[
+    _palette[0],
+    _palette[1],
+    _palette[2],
+  ]);
+
+  /// Cycle of pastel marble fills the tray rotates through. Six
+  /// entries so consecutive shuffles always pick a fresh-looking
+  /// triple (we step by two from a moving anchor, so the three
+  /// visible colors all change every shuffle).
+  static const List<Color> _palette = <Color>[
+    Color(0xFFB8D7F1), // soft blue
+    Color(0xFFE6E6E6), // neutral gray
+    Color(0xFFFFE89B), // warm yellow
+    Color(0xFFEFB7C2), // pink
+    Color(0xFFC8E6B7), // mint
+    Color(0xFFD4B7E6), // lavender
+  ];
+
+  int _shuffleIdx = 0;
+
+  /// Called by `_FallingMarble` the moment it settles on its slot.
+  /// Rotates the visible tray colors so the user sees a clear
+  /// "something happened" beat tied to the drop landing — not the
+  /// click. Felt-time, not button-time.
+  void onMarbleSettled() {
+    _shuffleIdx += 1;
+    final base = _shuffleIdx % _palette.length;
+    trayTints.value = <Color>[
+      _palette[base],
+      _palette[(base + 2) % _palette.length],
+      _palette[(base + 4) % _palette.length],
+    ];
+  }
+
   /// Spawn a face marble for the given mood at the top of its column. The
   /// Jar's `reserveSlot()` returns the slot position; we spawn at
   /// the slot's X but the jar's top Y so it visibly drops in from
   /// above. Each marble carries a unique `seed` (the slot index)
   /// so blink + pupil drift are out-of-phase across the pile —
   /// otherwise rows of marbles would blink in lockstep.
+  ///
+  /// `tint` is the fill at the moment of tap so the user sees the
+  /// SAME color drop in (the tray rotates colors on every settle —
+  /// without a snapshot, the in-flight marble would visually swap
+  /// mid-air).
   int _droppedCount = 0;
-  void dropMarble(FaceMood mood) {
+  void dropMarble(FaceMood mood, {required Color tint}) {
     final settle = jar.reserveSlot();
     final marble = _FallingMarble(
       mood: mood,
       spawnWorldPos: Vector2(settle.x, jar.topY),
       settleY: settle.y,
       seed: _droppedCount,
+      tint: tint,
     );
     _droppedCount += 1;
     // FlameGame.add returns a Future; we don't need to await —
@@ -1667,19 +1758,31 @@ class _SurveyScreenState extends State<SurveyScreen> {
                   // (sad / neutral / smiley). Each animates
                   // continuously (blink + pupil drift) so the
                   // tray feels alive, not a static button row.
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      for (var i = 0; i < _kFaceMoods.length; i++) ...[
-                        _MarbleButton(
-                          mood: _kFaceMoods[i],
-                          seed: i,
-                          onTap: () => _game.dropMarble(_kFaceMoods[i]),
-                        ),
-                        if (i < _kFaceMoods.length - 1)
-                          const SizedBox(width: AppSpacing.md),
+                  // ValueListenableBuilder so the tray re-paints
+                  // when the game shuffles colors (every time a
+                  // marble lands in the jar). Tints come from the
+                  // game so the in-flight marble's color and the
+                  // tapped marble button always match.
+                  ValueListenableBuilder<List<Color>>(
+                    valueListenable: _game.trayTints,
+                    builder: (context, tints, _) => Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        for (var i = 0; i < _kFaceMoods.length; i++) ...[
+                          _MarbleButton(
+                            mood: _kFaceMoods[i],
+                            seed: i,
+                            tint: tints[i],
+                            onTap: () => _game.dropMarble(
+                              _kFaceMoods[i],
+                              tint: tints[i],
+                            ),
+                          ),
+                          if (i < _kFaceMoods.length - 1)
+                            const SizedBox(width: AppSpacing.md),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ],
               ),
@@ -1706,19 +1809,22 @@ class _SurveyScreenState extends State<SurveyScreen> {
 // Marble button — animated face circle in the question tray
 // =====================================================================
 
-/// 56dp face circle. The face animates continuously (blink + pupil
-/// drift) via a Ticker; pressed-scale gives tap feedback. Per-mood
-/// background tint matches the falling-marble fill so the user
-/// sees the SAME marble drop into the jar.
+/// 56dp face circle. The face animates continuously (blink + pair
+/// of independently drifting pupils) via a Ticker; pressed-scale
+/// gives tap feedback. The fill `tint` is supplied by the parent
+/// (the game's `trayTints` notifier) so it stays in lock-step with
+/// the marble that drops into the jar.
 class _MarbleButton extends StatefulWidget {
   const _MarbleButton({
     required this.mood,
     required this.seed,
+    required this.tint,
     required this.onTap,
   });
 
   final FaceMood mood;
   final int seed;
+  final Color tint;
   final VoidCallback onTap;
 
   @override
@@ -1728,13 +1834,22 @@ class _MarbleButton extends StatefulWidget {
 class _MarbleButtonState extends State<_MarbleButton>
     with SingleTickerProviderStateMixin {
   late final Ticker _ticker;
+  late final _EyeDrift _eyeL = _EyeDrift(seed: widget.seed * 31 + 1);
+  late final _EyeDrift _eyeR = _EyeDrift(seed: widget.seed * 31 + 2);
   double _t = 0;
+  Duration _lastTick = Duration.zero;
   bool _pressed = false;
 
   @override
   void initState() {
     super.initState();
     _ticker = createTicker((elapsed) {
+      // Frame-rate-independent dt so eye drift speed matches the
+      // Flame world's drift, regardless of refresh rate.
+      final dt = (elapsed - _lastTick).inMicroseconds / 1e6;
+      _lastTick = elapsed;
+      _eyeL.update(dt);
+      _eyeR.update(dt);
       setState(() {
         _t = elapsed.inMicroseconds / 1e6;
       });
@@ -1753,17 +1868,6 @@ class _MarbleButtonState extends State<_MarbleButton>
     super.dispose();
   }
 
-  Color get _fillColor {
-    switch (widget.mood) {
-      case FaceMood.smiley:
-        return const Color(0xFFFFE89B);
-      case FaceMood.neutral:
-        return const Color(0xFFE6E6E6);
-      case FaceMood.sad:
-        return const Color(0xFFB8D7F1);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -1780,9 +1884,10 @@ class _MarbleButtonState extends State<_MarbleButton>
           child: CustomPaint(
             painter: _MarbleFacePainter(
               mood: widget.mood,
-              fill: _fillColor,
+              fill: widget.tint,
               blinkPhase: blinkPhaseAt(_t, seed: widget.seed),
-              pupilOffset: math.sin(_t * 1.4 + widget.seed) * 0.4,
+              pupilLeft: _eyeL.value,
+              pupilRight: _eyeR.value,
             ),
           ),
         ),
@@ -1799,13 +1904,15 @@ class _MarbleFacePainter extends CustomPainter {
     required this.mood,
     required this.fill,
     required this.blinkPhase,
-    required this.pupilOffset,
+    required this.pupilLeft,
+    required this.pupilRight,
   });
 
   final FaceMood mood;
   final Color fill;
   final double blinkPhase;
-  final double pupilOffset;
+  final double pupilLeft;
+  final double pupilRight;
 
   static final _outline = Paint()
     ..color = const Color(0xFF1A1A1A)
@@ -1827,14 +1934,16 @@ class _MarbleFacePainter extends CustomPainter {
     _FacePainter(
       mood: mood,
       blinkPhase: blinkPhase,
-      pupilOffset: pupilOffset,
+      pupilLeft: pupilLeft,
+      pupilRight: pupilRight,
     ).paintAt(canvas, c, r);
   }
 
   @override
   bool shouldRepaint(covariant _MarbleFacePainter old) =>
       old.blinkPhase != blinkPhase ||
-      old.pupilOffset != pupilOffset ||
+      old.pupilLeft != pupilLeft ||
+      old.pupilRight != pupilRight ||
       old.mood != mood ||
       old.fill != fill;
 }
