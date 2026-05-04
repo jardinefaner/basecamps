@@ -1802,146 +1802,304 @@ double blinkPhaseAt(double t, {int seed = 0}) {
 /// every marble whether in flight or at rest, so concurrent drops
 /// don't race for the same slot) and target that slot's settle
 /// position.
+/// Mason jar — clear glass with a threaded screw-top neck, a
+/// shoulder curve down to the cylinder body, and a rounded base.
+/// Drawn in two passes so marbles can sit visually INSIDE the jar
+/// (between the back wall and the front glass):
+///
+///   _Jar          — priority -1000, paints the back parts:
+///                   back-of-base, back-of-rim, back-of-shoulder,
+///                   back-wall tint. Drawn first.
+///   marbles       — priority = position.y, sorted between.
+///   _JarFront     — priority +1000000, paints the front parts on
+///                   top of the marbles: front body wall (with the
+///                   tinted-glass overlay), side walls, front-of-
+///                   base curve, threaded neck (front), front-of-
+///                   rim arc, specular highlight stripe.
+///
+/// `_rimFlatten` (the ratio of rim ellipse height to width) is
+/// shared so the marble's `_resolveJarWalls` can use the same
+/// geometry to bounce off the inside.
+///
+/// All drawing uses geometry helpers on `_Jar` (so `_JarFront` can
+/// pull the same numbers without duplicating constants).
 class _Jar extends PositionComponent {
-  _Jar({required Vector2 size}) : super(size: size, anchor: Anchor.topLeft);
-
-  /// Marble radius — should match `_MarbleNode._radius` (the world
-  /// marble's base render radius). Used to compute the slot grid
-  /// inside the jar so dropped marbles sit cleanly in rows.
-  /// Slightly under the render radius so they pack a hair tighter
-  /// than visual size — a watercolor-style "jar full of marbles"
-  /// reads better with a touch of overlap than spaced grid cells.
-  static const double _marbleR = 22;
+  _Jar({required Vector2 size}) : super(size: size, anchor: Anchor.topLeft) {
+    priority = -1000; // back parts always draw before marbles
+  }
 
   /// How squashed the rim/base ellipses are vs a perfect circle.
   /// 0.25 = quite flat, gives the FFT-style 3/4 view tilt.
   static const double _rimFlatten = 0.25;
 
-  static final _glassFill = Paint()..color = const Color(0x33C2DEEA);
-  static final _backWallTint = Paint()..color = const Color(0x44A6C5D2);
-  static final _glassOutline = Paint()
-    ..color = const Color(0xFF1A1A1A)
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 3;
-  static final _glassHighlight = Paint()
-    ..color = const Color(0x55FFFFFF)
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 3;
-  static final _rimDark = Paint()
-    ..color = const Color(0xFF1A1A1A)
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 3;
+  // ——— Mason-jar profile ——————————————————————————————————————
+  // All in local coords (origin at top-left of the component box).
+  // Body width = component width; neck is ~28% narrower than body.
+  double get bodyW => size.x;
+  double get neckW => size.x * 0.72;
 
-  /// Reserved slot count — each `reserveSlot` increments.
-  int _reserved = 0;
+  /// Rim ellipse half-height (the rim spans Y in [0, 2*rimRy]).
+  double get rimRy => bodyW * _rimFlatten / 2;
+
+  /// Total height of the threaded screw neck (3 ridges + gaps).
+  double get threadH => rimRy * 1.4;
+
+  /// Bottom Y of the threaded neck.
+  double get neckBottomY => 2 * rimRy + threadH;
+
+  /// Where the shoulder curve lands on the body width.
+  double get shoulderEndY => neckBottomY + rimRy * 1.2;
+
+  /// Bottom of the base ellipse.
+  double get baseRy => rimRy * 0.95;
+
+  /// Centerline X.
+  double get cx => bodyW / 2;
+
+  Rect get topRimRect => Rect.fromCenter(
+        center: Offset(cx, rimRy),
+        width: neckW,
+        height: rimRy * 2,
+      );
+  Rect get neckBottomRect => Rect.fromCenter(
+        center: Offset(cx, neckBottomY),
+        width: neckW,
+        height: rimRy * 1.4,
+      );
+  Rect get baseRect => Rect.fromCenter(
+        center: Offset(cx, size.y - baseRy),
+        width: bodyW,
+        height: baseRy * 2,
+      );
+
+  // ——— Paints (shared) ————————————————————————————————————————
+  static final _outline = Paint()
+    ..color = const Color(0xFF1A1A1A)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2.4;
+  static final _outlineThin = Paint()
+    ..color = const Color(0xFF1A1A1A)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.4;
+  static final _glassTint = Paint()..color = const Color(0x22C2DEEA);
+  static final _glassFront = Paint()..color = const Color(0x33D5E8F0);
+  static final _backWallTint = Paint()..color = const Color(0x33778899);
+  static final _innerShadow = Paint()
+    ..color = const Color(0x33000000)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+  static final _highlightSoft = Paint()
+    ..color = const Color(0x55FFFFFF)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+  static final _highlightSharp = Paint()
+    ..color = const Color(0x99FFFFFF)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2;
+  static final _threadShade = Paint()..color = const Color(0x33000000);
+
+  /// Path of the jar's interior silhouette in local coords. Used
+  /// by `_JarFront` to clip the tinted-glass overlay so it only
+  /// dims marbles inside the jar (not the area outside its bounds).
+  Path interiorPath() {
+    final p = Path();
+    final rimY = rimRy;
+    final neckY = neckBottomY;
+    final shoulderY = shoulderEndY;
+    final bodyBottomY = size.y - baseRy;
+    final neckHalf = neckW / 2;
+    final bodyHalf = bodyW / 2;
+    // Start at top-left of rim, trace down-left side, curve around
+    // base, back up the right side, close at top-right of rim.
+    p
+      ..moveTo(cx - neckHalf, rimY)
+      // Down the neck (vertical).
+      ..lineTo(cx - neckHalf, neckY)
+      // Shoulder curve out to body width.
+      ..quadraticBezierTo(
+        cx - neckHalf,
+        shoulderY,
+        cx - bodyHalf,
+        shoulderY,
+      )
+      // Down the body.
+      ..lineTo(cx - bodyHalf, bodyBottomY)
+      // Across the bottom (the base ellipse's lower half).
+      ..arcTo(baseRect, math.pi, math.pi, false)
+      // Up the right body.
+      ..lineTo(cx + bodyHalf, shoulderY)
+      // Right shoulder curve in to neck.
+      ..quadraticBezierTo(
+        cx + neckHalf,
+        shoulderY,
+        cx + neckHalf,
+        neckY,
+      )
+      // Up the right neck to the rim.
+      ..lineTo(cx + neckHalf, rimY)
+      ..close();
+    return p;
+  }
 
   @override
   void render(Canvas canvas) {
     super.render(canvas);
-    final w = size.x;
-    final h = size.y;
-    final rimRy = w * _rimFlatten / 2;
-
-    // 1) Back wall arc — bottom half of the rim ellipse, drawn
-    // BEFORE the front so the front wall overlaps it. Gives a
-    // depth read.
-    final rimRect = Rect.fromCenter(
-      center: Offset(w / 2, rimRy),
-      width: w,
-      height: rimRy * 2,
-    );
-    canvas.drawArc(rimRect, 0, math.pi, false, _rimDark);
-
-    // 2) Body fill — rounded rectangle from rim center down to
-    // base center.
-    final bodyRect = RRect.fromLTRBAndCorners(
-      0,
-      rimRy,
-      w,
-      h - rimRy,
-      bottomLeft: Radius.circular(rimRy),
-      bottomRight: Radius.circular(rimRy),
-    );
+    // === BACK PASS ===
+    // Back of base + back of rim ellipses, then the smoky back-wall
+    // tint clipped to the interior silhouette so the inside of the
+    // jar reads as "we're looking THROUGH glass into a space."
     canvas
-      ..drawRRect(bodyRect, _glassFill)
-      // Tint on the back-wall portion (top quarter inside the body)
-      // for a hint of "depth through the glass".
+      ..drawArc(baseRect, math.pi, math.pi, false, _outline)
+      ..drawArc(topRimRect, math.pi, math.pi, false, _outlineThin)
+      ..save()
+      ..clipPath(interiorPath())
       ..drawRect(
-        Rect.fromLTRB(0, rimRy, w, rimRy + rimRy * 1.2),
+        Rect.fromLTRB(0, rimRy, size.x, neckBottomY + rimRy * 1.6),
         _backWallTint,
-      );
+      )
+      ..drawPath(interiorPath(), _innerShadow)
+      ..restore();
+  }
 
-    // 3) Side walls — two vertical lines from the rim corners to
-    // the bottom of the body, where they round into the base curve.
-    // 4) Base — bottom ellipse (split into two arcs).
-    // 5) Rim — top ellipse, last so it sits over the body edges.
-    // 6) Specular stripe — vertical highlight on the left wall.
-    final baseRect = Rect.fromCenter(
-      center: Offset(w / 2, h - rimRy),
-      width: w,
-      height: rimRy * 2,
+  /// World-space top of the jar — the rim's top edge in screen
+  /// coords. Marbles aim here when thrown.
+  double get topY => position.y;
+}
+
+/// Front pass for the mason jar. Sits at extreme priority so it
+/// always draws AFTER every marble — that's how the front glass
+/// occludes the marbles inside.
+class _JarFront extends PositionComponent {
+  _JarFront({required this.jar})
+      : super(
+          size: jar.size,
+          position: jar.position,
+          priority: 1000000,
+        );
+
+  final _Jar jar;
+
+  @override
+  void render(Canvas canvas) {
+    super.render(canvas);
+    final cx = jar.cx;
+    final bodyW = jar.bodyW;
+    final neckW = jar.neckW;
+    final rimRy = jar.rimRy;
+    final neckBottomY = jar.neckBottomY;
+    final shoulderEndY = jar.shoulderEndY;
+    final baseRy = jar.baseRy;
+    final h = jar.size.y;
+    final neckHalf = neckW / 2;
+    final bodyHalf = bodyW / 2;
+
+    // Front silhouette outline (clipped front of the body): traces
+    // the same interior path as the back's clip, drawn as outline.
+    final frontOutlinePath = Path()
+      ..moveTo(cx - neckHalf, rimRy)
+      ..lineTo(cx - neckHalf, neckBottomY)
+      ..quadraticBezierTo(
+        cx - neckHalf,
+        shoulderEndY,
+        cx - bodyHalf,
+        shoulderEndY,
+      )
+      ..lineTo(cx - bodyHalf, h - baseRy)
+      ..arcTo(jar.baseRect, math.pi, math.pi, false)
+      ..lineTo(cx + bodyHalf, shoulderEndY)
+      ..quadraticBezierTo(
+        cx + neckHalf,
+        shoulderEndY,
+        cx + neckHalf,
+        neckBottomY,
+      )
+      ..lineTo(cx + neckHalf, rimRy);
+
+    // ——— Tinted-glass overlay over the marbles ———
+    // Clipped to the interior shape so only the inside of the jar
+    // is dimmed; outside stays the world bg.
+    canvas
+      ..save()
+      ..clipPath(jar.interiorPath())
+      ..drawRect(
+        Rect.fromLTRB(0, 0, jar.size.x, jar.size.y),
+        _Jar._glassTint,
+      )
+      // Front-glass milky cast — concentrated on the lower-front
+      // of the body (where the curved glass would pick up most of
+      // the ambient light).
+      ..drawRect(
+        Rect.fromLTRB(0, shoulderEndY, jar.size.x, h - baseRy),
+        _Jar._glassFront,
+      )
+      ..restore()
+      // ——— Front-of-base, body outline, threaded neck, rim ———
+      ..drawArc(jar.baseRect, 0, math.pi, false, _Jar._outline)
+      ..drawPath(frontOutlinePath, _Jar._outline);
+
+    // Threaded neck: two horizontal ridge ellipses between the top
+    // rim and the neck-bottom ellipse, each with a soft shade band
+    // underneath (sells the screw-thread relief).
+    const threadCount = 2;
+    for (var i = 0; i < threadCount; i++) {
+      final t = (i + 1) / (threadCount + 1);
+      final y = rimRy * 2 + (neckBottomY - rimRy * 2) * t;
+      final ridge = Rect.fromCenter(
+        center: Offset(cx, y),
+        width: neckW * (0.96 + 0.04 * math.sin(t * math.pi)),
+        height: rimRy * 0.55,
+      );
+      canvas
+        ..drawArc(
+          ridge.translate(0, 1.5),
+          0,
+          math.pi,
+          false,
+          _Jar._threadShade,
+        )
+        ..drawOval(ridge, _Jar._outlineThin);
+    }
+
+    // Neck-bottom + top rim.
+    canvas
+      ..drawOval(jar.neckBottomRect, _Jar._outlineThin)
+      ..drawArc(jar.topRimRect, 0, math.pi, false, _Jar._outline)
+      // Full rim ellipse at the very front so the opening reads
+      // cleanly even with marbles peeking over the lip.
+      ..drawOval(jar.topRimRect, _Jar._outlineThin);
+
+    // ——— Specular highlights ———
+    // Soft stripe down the left side of the cylinder + a sharp
+    // narrow accent line — together they sell curved glass lit
+    // from above-left. Plus a faint top-rim arc highlight.
+    final specRect = Rect.fromLTRB(
+      cx - bodyHalf + 6,
+      shoulderEndY + 4,
+      cx - bodyHalf + 22,
+      h - baseRy - 4,
     );
     canvas
-      ..drawLine(Offset(0, rimRy), Offset(0, h - rimRy), _glassOutline)
-      ..drawLine(Offset(w, rimRy), Offset(w, h - rimRy), _glassOutline)
-      ..drawArc(baseRect, 0, math.pi, false, _glassOutline)
-      ..drawArc(baseRect, math.pi, math.pi, false, _glassOutline)
-      ..drawOval(rimRect, _glassOutline)
+      ..drawRRect(
+        RRect.fromRectAndRadius(specRect, const Radius.circular(8)),
+        _Jar._highlightSoft,
+      )
       ..drawLine(
-        Offset(w * 0.15, rimRy + 6),
-        Offset(w * 0.15, h - rimRy - 6),
-        _glassHighlight,
+        Offset(cx - bodyHalf + 14, shoulderEndY + 12),
+        Offset(cx - bodyHalf + 14, h - baseRy - 14),
+        _Jar._highlightSharp,
+      )
+      ..drawArc(
+        jar.topRimRect.deflate(2),
+        math.pi * 1.1,
+        math.pi * 0.7,
+        false,
+        _Jar._highlightSharp,
       );
   }
-
-  /// Claim the next slot in the marble grid + return the world-
-  /// space position the marble should settle at.
-  Vector2 reserveSlot() {
-    final w = size.x;
-    final h = size.y;
-    final rimRy = w * _rimFlatten / 2;
-    // Marble fillable region: from a hair below the rim down to
-    // the inside of the base curve.
-    final fillTop = rimRy + 6;
-    final fillBottom = h - rimRy - 4;
-    final perRow = math.max(
-      1,
-      (w / (_marbleR * 2 + 2)).floor(),
-    );
-    final slot = _reserved;
-    _reserved += 1;
-    final row = slot ~/ perRow;
-    final col = slot % perRow;
-    final cellW = w / perRow;
-    final x = position.x + (col + 0.5) * cellW;
-    final maxRows = math.max(
-      1,
-      ((fillBottom - fillTop) / (_marbleR * 2 + 2)).floor(),
-    );
-    final clampedRow = row.clamp(0, maxRows - 1);
-    final y = position.y +
-        fillBottom -
-        _marbleR -
-        clampedRow * (_marbleR * 2 + 2);
-    return Vector2(x, y);
-  }
-
-  /// World-space top of the jar — used as the spawn Y for falling
-  /// marbles so they appear to drop in from above.
-  double get topY => position.y - 12;
 }
 
 // =====================================================================
 // World marble nodes — pickable face emojis the chibi interacts with
 // =====================================================================
 
-/// Lifecycle of a face marble in the world.
-///
-/// idle    → sitting in its slot, gently bobbing, pickable on
-///           proximity.
-/// held    → currently carried by the chibi above its head.
-/// flying  → projectile arc toward the jar; gravity-driven.
-/// settled → landed in the jar, immovable from here on.
 /// Lifecycle of a face marble.
 ///
 /// idle    → in the world, springs around its rest slot, dodges
@@ -2193,15 +2351,36 @@ class _MarbleNode extends PositionComponent {
       ..y = c.position.y - 90 * cs + math.sin(_t * 4 + seed) * 1.5;
   }
 
-  /// Bounce off the inside of the jar. Floor and side walls only —
-  /// the top is open so a too-full jar can spill upward (we don't
-  /// model that escape today; just don't trap them artificially).
+  /// Bounce off the inside of the mason jar. The interior wall is
+  /// not a single straight line — it tapers at the shoulder and
+  /// widens through the body. We compute the wall X for the marble's
+  /// current Y (interior half-width as a function of height) and
+  /// bounce off that.
+  ///
+  /// Floor + side walls only; the top is open. Below the rim and
+  /// above the shoulder we use the neck width; below the shoulder
+  /// we use the body width.
   void _resolveJarWalls(_Jar jar) {
     const r = _radius;
-    final rimRy = jar.size.x * _Jar._rimFlatten / 2;
-    final left = jar.position.x + r;
-    final right = jar.position.x + jar.size.x - r;
-    final bottom = jar.position.y + jar.size.y - rimRy - r;
+    final localY = position.y - jar.position.y;
+    final cx = jar.position.x + jar.cx;
+    final bodyHalf = jar.bodyW / 2;
+    final neckHalf = jar.neckW / 2;
+    // Interior half-width at this height. Smooth shoulder lerp so a
+    // marble climbing the wall doesn't pop sideways at the neck.
+    double interiorHalf;
+    if (localY <= jar.neckBottomY) {
+      interiorHalf = neckHalf;
+    } else if (localY >= jar.shoulderEndY) {
+      interiorHalf = bodyHalf;
+    } else {
+      final t = (localY - jar.neckBottomY) /
+          (jar.shoulderEndY - jar.neckBottomY);
+      interiorHalf = neckHalf + (bodyHalf - neckHalf) * t;
+    }
+    final left = cx - interiorHalf + r;
+    final right = cx + interiorHalf - r;
+    final bottom = jar.position.y + jar.size.y - jar.baseRy - r;
 
     if (position.x < left) {
       position.x = left;
@@ -2252,11 +2431,40 @@ class _MarbleNode extends PositionComponent {
     final shadow = Paint()
       ..color = const Color(0x33000000)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
-    final fill = Paint()..color = tint;
     final outline = Paint()
       ..color = const Color(0xFF1A1A1A)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.6;
+    // 3D sphere shading: radial gradient from a bright top-left
+    // highlight to a darker bottom-right. Driven entirely by the
+    // marble's `tint` so each color shades naturally without us
+    // having to hand-pick light/dark stops per palette entry.
+    final lightTint = Color.lerp(tint, Colors.white, 0.45) ?? tint;
+    final darkTint = Color.lerp(tint, Colors.black, 0.30) ?? tint;
+    final shadeRect = Rect.fromCircle(
+      center: Offset.zero,
+      radius: _radius,
+    );
+    final fill = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(-0.45, -0.55),
+        radius: 1.05,
+        colors: <Color>[lightTint, tint, darkTint],
+        stops: const <double>[0, 0.55, 1],
+      ).createShader(shadeRect);
+    // Inner shadow ring at the bottom edge — sells the "this is a
+    // sphere not a flat disc" read.
+    final rimShade = Paint()
+      ..color = const Color(0x33000000)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
+    // Crisp specular highlight on the upper-left of the body —
+    // bigger than the eye highlight so the marble reads as glossy
+    // not matte.
+    final specPaint = Paint()
+      ..color = const Color(0xCCFFFFFF)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
 
     // Optional smiley-beam halo, drawn first so it sits behind the
     // body. Translates with the body but doesn't rotate or scale.
@@ -2288,7 +2496,24 @@ class _MarbleNode extends PositionComponent {
       ..translate(mods.tx, mods.ty)
       ..rotate(mods.rot)
       ..scale(sx, sy)
+      // Sphere body: gradient fill, inner-bottom rim shade, then
+      // upper-left specular highlight oval for the glossy read.
       ..drawCircle(Offset.zero, _radius, fill)
+      ..save()
+      ..clipPath(Path()..addOval(
+          Rect.fromCircle(center: Offset.zero, radius: _radius)))
+      ..drawCircle(const Offset(_radius * 0.20, _radius * 0.30),
+          _radius * 0.96, rimShade)
+      ..drawOval(
+        const Rect.fromLTWH(
+          -_radius * 0.32 - _radius * 0.85 / 2,
+          -_radius * 0.42 - _radius * 0.55 / 2,
+          _radius * 0.85,
+          _radius * 0.55,
+        ),
+        specPaint,
+      )
+      ..restore()
       ..drawCircle(Offset.zero, _radius, outline);
     _FacePainter(
       mood: mood,
@@ -2709,6 +2934,10 @@ class _SurveyGame extends FlameGame
         size.y * 0.95 - jarSize.y,
       );
     add(jar);
+    // Front-of-jar pass — extreme priority so it always renders
+    // AFTER every marble. The marbles sit "inside the jar" because
+    // this front layer's tinted glass + outline overlays them.
+    add(_JarFront(jar: jar));
 
     // Chibi spawns mid-screen above the jar. Walks with depth
     // scaling — moves to top of screen → shrinks into the distance.
