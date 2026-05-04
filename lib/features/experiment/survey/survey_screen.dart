@@ -32,7 +32,6 @@ import 'package:flame/game.dart';
 import 'package:flame/input.dart';
 import 'package:flame/palette.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 // =====================================================================
@@ -890,6 +889,16 @@ class ChibiCharacter extends PositionComponent {
     final finalScale = depthScaleForY(position.y, size.y);
     scale.setAll(finalScale);
 
+    // Y-based render priority — pairs with `_MarbleNode`'s same
+    // assignment so the chibi can pass behind a marble that's
+    // closer to the camera (higher Y) and in front of one that's
+    // farther (lower Y). Cheap fake-depth sort.
+    priority = position.y.round();
+
+    // Push the action context to the game on every move so the
+    // FAB stays in sync with where we are.
+    game2?.updateProximity();
+
     // Yaw smoothly tracks the joystick direction.
     //
     // Sign convention here is fiddly: the rig's `headFront` sits
@@ -1389,47 +1398,97 @@ class _Jar extends PositionComponent {
 }
 
 // =====================================================================
-// Falling marble — emoji circle that drops into the jar with gravity
+// World marble nodes — pickable face emojis the chibi interacts with
 // =====================================================================
 
-class _FallingMarble extends PositionComponent {
-  _FallingMarble({
+/// Lifecycle of a face marble in the world.
+///
+/// idle    → sitting in its slot, gently bobbing, pickable on
+///           proximity.
+/// held    → currently carried by the chibi above its head.
+/// flying  → projectile arc toward the jar; gravity-driven.
+/// settled → landed in the jar, immovable from here on.
+enum _MarbleState { idle, held, flying, settled }
+
+/// One face emoji in the world. Replaces the earlier separate
+/// `_FallingMarble` — same component handles the pickable rest
+/// state, the held state, the throw arc, and the resting-in-jar
+/// state. State transitions are explicit (`pickUp`, `releaseToRest`,
+/// `throwTo`); the rest of the game just mutates `state` indirectly
+/// through those.
+class _MarbleNode extends PositionComponent {
+  _MarbleNode({
+    required this.slotIdx,
     required this.mood,
-    required Vector2 spawnWorldPos,
-    required this.settleY,
-    required this.seed,
     required this.tint,
-    double initialVx = 0,
-    double initialVy = 0,
-  }) : super(anchor: Anchor.center) {
-    position.setFrom(spawnWorldPos);
-    _vx = initialVx;
-    _vy = initialVy;
+    required this.seed,
+    required Vector2 spawnPos,
+    required Vector2 restPos,
+  })  : _restPos = restPos.clone(),
+        super(anchor: Anchor.center) {
+    position.setFrom(spawnPos);
   }
 
-  static const double _radius = 16;
-  static const double _gravity = 1200;
+  /// Base render radius before depth-scaling. Slightly larger than
+  /// the old falling-marble radius so the world emojis read clearly
+  /// when shrunk at the top of the screen.
+  static const double _radius = 18;
+  static const double _gravity = 1100;
 
+  /// Which of the three face slots this marble belongs to (0..2).
+  /// On settle, the game spawns a fresh marble for this slot at the
+  /// same rest position.
+  final int slotIdx;
   final FaceMood mood;
-  final double settleY;
   final int seed;
+  final Vector2 _restPos;
 
-  double _vy = 0;
-  double _vx = 0;
-  bool _atRest = false;
-  double _t = 0;
+  /// Tint is mutable so the game can shuffle palette colors on the
+  /// idle marbles when something lands in the jar.
+  Color tint;
 
   late final _EyeDrift _eyeL = _EyeDrift(seed: seed * 31 + 1);
   late final _EyeDrift _eyeR = _EyeDrift(seed: seed * 31 + 2);
-  static final _outlinePaint = Paint()
-    ..color = const Color(0xFF1A1A1A)
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 1.6;
 
-  /// External fill — the tray marble's tint at the moment of drop.
-  /// Carried through so the user sees the SAME color marble land
-  /// in the jar.
-  Color tint;
+  _MarbleState state = _MarbleState.idle;
+
+  /// True when the chibi is close enough to pick this up (or switch
+  /// to it). Drives the soft halo + size pulse.
+  bool highlighted = false;
+
+  double _t = 0;
+  double _vx = 0;
+  double _vy = 0;
+  double _settleY = 0;
+
+  void pickUp() {
+    state = _MarbleState.held;
+    _vx = 0;
+    _vy = 0;
+    highlighted = false;
+  }
+
+  /// Drop back onto the world slot — used when the chibi switches
+  /// from this marble to another. Snaps for now; could animate.
+  void releaseToRest() {
+    state = _MarbleState.idle;
+    position.setFrom(_restPos);
+    _vx = 0;
+    _vy = 0;
+  }
+
+  /// Convert to a flying projectile that lands at (targetX,
+  /// targetY). Solves for vy0 so the marble crests and falls into
+  /// the jar mouth in a fixed flight time, regardless of distance.
+  void throwTo(double targetX, double targetY) {
+    state = _MarbleState.flying;
+    _settleY = targetY;
+    final dx = targetX - position.x;
+    final dy = targetY - position.y;
+    const flightTime = 0.7;
+    _vx = dx / flightTime;
+    _vy = (dy - 0.5 * _gravity * flightTime * flightTime) / flightTime;
+  }
 
   @override
   void update(double dt) {
@@ -1437,39 +1496,129 @@ class _FallingMarble extends PositionComponent {
     _t += dt;
     _eyeL.update(dt);
     _eyeR.update(dt);
-    if (_atRest) return;
-    _vy += _gravity * dt;
-    position
-      ..x += _vx * dt
-      ..y += _vy * dt;
-    if (position.y >= settleY) {
-      position.y = settleY;
-      _atRest = true;
-      _vy = 0;
-      _vx = 0;
-      // Notify the game so it can shuffle tray colors as a
-      // landing flourish.
-      final game = findGame();
-      if (game is _SurveyGame) {
-        game.onMarbleSettled();
-      }
+
+    final game = findGame();
+    switch (state) {
+      case _MarbleState.idle:
+        // Subtle in-place bob keeps the marble alive; X stays glued
+        // to the rest slot so a held-then-released marble snaps
+        // back cleanly.
+        position
+          ..x = _restPos.x
+          ..y = _restPos.y + math.sin(_t * 2 + seed) * 1.5;
+      case _MarbleState.held:
+        // Glide above the chibi's head. Use the chibi's depth-scale
+        // so a tiny far-away chibi carries a tiny marble just above
+        // its head, not a comically oversized one.
+        if (game is _SurveyGame) {
+          final c = game.chibi;
+          final cs = c.scale.x;
+          position
+            ..x = c.position.x
+            ..y = c.position.y - 70 * cs + math.sin(_t * 4 + seed) * 1.5;
+        }
+      case _MarbleState.flying:
+        _vy += _gravity * dt;
+        position
+          ..x += _vx * dt
+          ..y += _vy * dt;
+        if (position.y >= _settleY) {
+          position.y = _settleY;
+          state = _MarbleState.settled;
+          if (game is _SurveyGame) game.onMarbleSettled(this);
+        }
+      case _MarbleState.settled:
+        // Resting in the jar; nothing to do.
+        break;
     }
+
+    // Y-based render priority so marbles closer to the camera
+    // (lower screen Y) draw over marbles farther away — and over
+    // the chibi when the chibi is behind them. Cheap fake-depth
+    // sort that doesn't need per-frame z-buffering.
+    priority = position.y.round();
   }
 
   @override
   void render(Canvas canvas) {
     super.render(canvas);
+    final pulse = (highlighted && state == _MarbleState.idle)
+        ? 1 + math.sin(_t * 6) * 0.07
+        : 1.0;
+    final game = findGame();
+    final h = game?.size.y ?? 600;
+    final depth = depthScaleForY(position.y, h);
+    final s = depth * pulse;
+    final r = _radius * s;
+
+    final shadow = Paint()
+      ..color = const Color(0x33000000)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
     final fill = Paint()..color = tint;
+    final outline = Paint()
+      ..color = const Color(0xFF1A1A1A)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6;
+
     canvas
-      ..drawCircle(Offset.zero, _radius, fill)
-      ..drawCircle(Offset.zero, _radius, _outlinePaint);
+      ..drawCircle(Offset(0, r * 0.4), r * 0.85, shadow)
+      ..drawCircle(Offset.zero, r, fill)
+      ..drawCircle(Offset.zero, r, outline);
+
     final blink = blinkPhaseAt(_t, seed: seed);
     _FacePainter(
       mood: mood,
       blinkPhase: blink,
       pupilLeft: _eyeL.value,
       pupilRight: _eyeR.value,
-    ).paintAt(canvas, Offset.zero, _radius);
+    ).paintAt(canvas, Offset.zero, r);
+
+    // Soft halo when pickable + highlighted — reads as "you can
+    // grab me." Disabled in held / flying / settled states.
+    if (highlighted && state == _MarbleState.idle) {
+      final halo = Paint()
+        ..color = const Color(0x66FFFFFF)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3;
+      canvas.drawCircle(Offset.zero, r + 5, halo);
+    }
+  }
+}
+
+// =====================================================================
+// FAB action — what the floating action button does right now
+// =====================================================================
+
+/// What the FAB does on the next tap. Swaps based on chibi proximity
+/// to marbles and to the jar; pushed into a `ValueNotifier` so the
+/// Flutter UI can rebuild without polling.
+enum _FabAction { jump, pickup, drop, switchMarble }
+
+extension _FabActionUi on _FabAction {
+  String get label {
+    switch (this) {
+      case _FabAction.jump:
+        return 'Jump';
+      case _FabAction.pickup:
+        return 'Pick up';
+      case _FabAction.drop:
+        return 'Drop in jar';
+      case _FabAction.switchMarble:
+        return 'Switch';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case _FabAction.jump:
+        return Icons.arrow_upward;
+      case _FabAction.pickup:
+        return Icons.back_hand_outlined;
+      case _FabAction.drop:
+        return Icons.south;
+      case _FabAction.switchMarble:
+        return Icons.swap_horiz;
+    }
   }
 }
 
@@ -1483,6 +1632,35 @@ class _SurveyGame extends FlameGame
   late final KeyboardInput keyboardInput;
   late final ChibiCharacter chibi;
   late final _Jar jar;
+
+  /// The three pickable marbles in the world (one per mood).
+  /// Index = slot index = mood index in `_kFaceMoods`.
+  late final List<_MarbleNode> _marbles;
+
+  /// World-space "rest" position for each slot. Used to spawn
+  /// fresh marbles after one is dropped into the jar.
+  late final List<Vector2> _marbleRestPositions;
+
+  /// Currently held marble, or null when nothing is being carried.
+  _MarbleNode? heldMarble;
+
+  /// Closest pickable (idle) marble within range, or null when the
+  /// chibi isn't close to any. When holding a marble this points to
+  /// a candidate to switch to.
+  _MarbleNode? nearestMarble;
+
+  /// True when the chibi is positioned where a held marble can be
+  /// thrown into the jar.
+  bool nearJar = false;
+
+  /// Pickup proximity threshold in screen pixels. Tuned to feel
+  /// "just standing next to" a marble — small enough that the chibi
+  /// has to actually walk over to a slot, big enough that a
+  /// distracted user with twitchy joystick still triggers cleanly.
+  static const double _pickRange = 80;
+
+  /// What the FAB does next. UI binds via ValueListenableBuilder.
+  final ValueNotifier<_FabAction> fabAction = ValueNotifier(_FabAction.jump);
 
   /// Screen-space rect of the question plate. The plate is a
   /// Flutter overlay (Stack-positioned above the GameWidget) so
@@ -1502,26 +1680,8 @@ class _SurveyGame extends FlameGame
   // ignore: use_setters_to_change_properties
   void setPlateBounds(Rect r) => plateBounds = r;
 
-  // External handle so the screen's "Jump" button can poke us.
-  void requestJump() => chibi.jump();
-
-  /// Tray marble tints, exposed to the Flutter overlay. Each entry
-  /// is the fill color for the matching slot in `_kFaceMoods`. The
-  /// list rotates every time a marble lands in the jar — the user
-  /// asked: "the colors of the emojis change color whenever a
-  /// marble gets in the jar."
-  ///
-  /// We expose a `ValueNotifier` so the Flutter widget can rebuild
-  /// without us having to wire a setState callback through the
-  /// component tree.
-  final ValueNotifier<List<Color>> trayTints = ValueNotifier(<Color>[
-    _palette[0],
-    _palette[1],
-    _palette[2],
-  ]);
-
-  /// Cycle of pastel marble fills the tray rotates through. Six
-  /// entries so consecutive shuffles always pick a fresh-looking
+  /// Cycle of pastel marble fills the world marbles rotate through.
+  /// Six entries so consecutive shuffles always pick a fresh-looking
   /// triple (we step by two from a moving anchor, so the three
   /// visible colors all change every shuffle).
   static const List<Color> _palette = <Color>[
@@ -1533,48 +1693,145 @@ class _SurveyGame extends FlameGame
     Color(0xFFD4B7E6), // lavender
   ];
 
-  int _shuffleIdx = 0;
-
-  /// Called by `_FallingMarble` the moment it settles on its slot.
-  /// Rotates the visible tray colors so the user sees a clear
-  /// "something happened" beat tied to the drop landing — not the
-  /// click. Felt-time, not button-time.
-  void onMarbleSettled() {
-    _shuffleIdx += 1;
-    final base = _shuffleIdx % _palette.length;
-    trayTints.value = <Color>[
+  /// Returns the three colors currently shown by the world marbles,
+  /// indexed by slot. Rotates through the palette on every settle.
+  List<Color> _tintsForShuffle(int idx) {
+    final base = idx % _palette.length;
+    return <Color>[
       _palette[base],
       _palette[(base + 2) % _palette.length],
       _palette[(base + 4) % _palette.length],
     ];
   }
 
-  /// Spawn a face marble for the given mood at the top of its column. The
-  /// Jar's `reserveSlot()` returns the slot position; we spawn at
-  /// the slot's X but the jar's top Y so it visibly drops in from
-  /// above. Each marble carries a unique `seed` (the slot index)
-  /// so blink + pupil drift are out-of-phase across the pile —
-  /// otherwise rows of marbles would blink in lockstep.
-  ///
-  /// `tint` is the fill at the moment of tap so the user sees the
-  /// SAME color drop in (the tray rotates colors on every settle —
-  /// without a snapshot, the in-flight marble would visually swap
-  /// mid-air).
-  int _droppedCount = 0;
-  void dropMarble(FaceMood mood, {required Color tint}) {
-    final settle = jar.reserveSlot();
-    final marble = _FallingMarble(
-      mood: mood,
-      spawnWorldPos: Vector2(settle.x, jar.topY),
-      settleY: settle.y,
-      seed: _droppedCount,
-      tint: tint,
+  int _shuffleIdx = 0;
+  int _spawnCounter = 0;
+
+  /// Recompute proximity state — what's the chibi nearest to, and
+  /// what should the FAB do? Called from chibi.update(); cheap
+  /// (3 distance checks + a couple of bbox checks).
+  void updateProximity() {
+    if (!isMounted) return;
+    final chibiPos = chibi.position;
+
+    // Nearest pickable (idle, non-held) marble within range.
+    _MarbleNode? best;
+    var bestDist = _pickRange;
+    for (final m in _marbles) {
+      if (m.state != _MarbleState.idle) continue;
+      if (identical(m, heldMarble)) continue;
+      final dx = m.position.x - chibiPos.x;
+      final dy = m.position.y - chibiPos.y;
+      final d = math.sqrt(dx * dx + dy * dy);
+      if (d < bestDist) {
+        bestDist = d;
+        best = m;
+      }
+    }
+    for (final m in _marbles) {
+      m.highlighted = identical(m, best);
+    }
+    nearestMarble = best;
+
+    // Near jar: chibi positioned over (or just above) the jar
+    // mouth. The mouth is the rim ellipse at the top of the jar;
+    // we approximate with a horizontal band starting ~80px above
+    // the jar's top edge and extending to its top.
+    final jarLeft = jar.position.x;
+    final jarRight = jar.position.x + jar.size.x;
+    final jarTopY = jar.position.y;
+    final overJarHorizontally =
+        chibiPos.x >= jarLeft - 30 && chibiPos.x <= jarRight + 30;
+    final inDropBand =
+        chibiPos.y >= jarTopY - 110 && chibiPos.y <= jarTopY + 30;
+    nearJar = overJarHorizontally && inDropBand;
+
+    // Decide FAB action.
+    _FabAction next;
+    if (heldMarble != null) {
+      if (nearJar) {
+        next = _FabAction.drop;
+      } else if (best != null) {
+        next = _FabAction.switchMarble;
+      } else {
+        next = _FabAction.jump;
+      }
+    } else {
+      if (best != null) {
+        next = _FabAction.pickup;
+      } else {
+        next = _FabAction.jump;
+      }
+    }
+    if (fabAction.value != next) fabAction.value = next;
+  }
+
+  /// FAB tap dispatcher. Reads the current `fabAction` and acts.
+  /// Re-runs proximity at the end so the icon updates immediately
+  /// after the action resolves.
+  void performFabAction() {
+    switch (fabAction.value) {
+      case _FabAction.jump:
+        chibi.jump();
+      case _FabAction.pickup:
+        final n = nearestMarble;
+        if (n != null) {
+          heldMarble = n;
+          n.pickUp();
+          nearestMarble = null;
+        }
+      case _FabAction.switchMarble:
+        final n = nearestMarble;
+        final h = heldMarble;
+        if (n != null && h != null) {
+          h.releaseToRest();
+          heldMarble = n;
+          n.pickUp();
+          nearestMarble = null;
+        }
+      case _FabAction.drop:
+        final h = heldMarble;
+        if (h != null) {
+          // Reserve a slot inside the jar's marble grid; the marble
+          // arcs there and the jar accepts it.
+          final settle = jar.reserveSlot();
+          h.throwTo(settle.x, settle.y);
+          heldMarble = null;
+        }
+    }
+    updateProximity();
+  }
+
+  /// Called by `_MarbleNode` the instant it lands inside the jar.
+  /// 1. Rotate the palette anchor → recompute the visible triple.
+  /// 2. Re-tint every still-idle marble (so the user sees the rest
+  ///    of the world swap colors as a felt-time response).
+  /// 3. Spawn a fresh marble in the now-empty slot so the world
+  ///    keeps three pickable faces around.
+  void onMarbleSettled(_MarbleNode m) {
+    _shuffleIdx += 1;
+    final newTints = _tintsForShuffle(_shuffleIdx);
+    for (final other in _marbles) {
+      if (other.state == _MarbleState.idle ||
+          other.state == _MarbleState.held) {
+        other.tint = newTints[other.slotIdx];
+      }
+    }
+    // Spawn the replacement for this slot.
+    final replacement = _MarbleNode(
+      slotIdx: m.slotIdx,
+      mood: m.mood,
+      tint: newTints[m.slotIdx],
+      seed: ++_spawnCounter * 7 + m.slotIdx,
+      spawnPos: _marbleRestPositions[m.slotIdx],
+      restPos: _marbleRestPositions[m.slotIdx],
     );
-    _droppedCount += 1;
-    // FlameGame.add returns a Future; we don't need to await —
-    // the marble starts falling on the next tick once mounted.
+    _marbles[m.slotIdx] = replacement;
+    // FlameGame.add returns a Future; fire-and-forget is correct
+    // here — the new marble starts updating once its mount future
+    // resolves on the next tick.
     // ignore: discarded_futures
-    add(marble);
+    add(replacement);
   }
 
   @override
@@ -1619,6 +1876,35 @@ class _SurveyGame extends FlameGame
       ..position = Vector2(size.x * 0.7, size.y * 0.4)
       ..size = Vector2(120, 160);
     add(chibi);
+
+    // Three world marbles, spread across the upper play area at
+    // varying Y so they sit on different "depth bands" — left and
+    // right slots a hair lower (closer) than the center slot. Far
+    // enough apart that the chibi has to actually walk between
+    // them rather than picking up two with one stop.
+    final leftX = size.x * 0.18;
+    final centerX = size.x * 0.5;
+    final rightX = size.x * 0.82;
+    final lowY = size.y * 0.30;
+    final highY = size.y * 0.22;
+    _marbleRestPositions = <Vector2>[
+      Vector2(leftX, lowY), // sad
+      Vector2(centerX, highY), // neutral (farther = higher Y)
+      Vector2(rightX, lowY), // smiley
+    ];
+    final initialTints = _tintsForShuffle(0);
+    _marbles = <_MarbleNode>[
+      for (var i = 0; i < _kFaceMoods.length; i++)
+        _MarbleNode(
+          slotIdx: i,
+          mood: _kFaceMoods[i],
+          tint: initialTints[i],
+          seed: 100 + i * 17,
+          spawnPos: _marbleRestPositions[i],
+          restPos: _marbleRestPositions[i],
+        ),
+    ];
+    _marbles.forEach(add);
   }
 }
 
@@ -1750,14 +2036,12 @@ class _SurveyScreenState extends State<SurveyScreen> {
       body: Stack(
         children: [
           GameWidget<_SurveyGame>(game: _game),
-          // Hovering question plate + marble tray. Sits above the
-          // game world (top of the Stack); the marbles below the
-          // plate are tappable buttons that drop a Flame
-          // _FallingMarble into the jar in the world below.
           // Plate sits centered + narrow at the top so it reads as
           // "far in the distance" against the foreground jar. The
-          // chibi shrinks as it walks toward the plate (depth scale)
-          // — small plate up there reinforces the horizon illusion.
+          // chibi shrinks as it walks toward the plate (depth
+          // scale) — small plate up there reinforces the horizon
+          // illusion. The marble tray is now in the world (Flame
+          // _MarbleNode components) — no Flutter overlay tray.
           Positioned(
             top: 12,
             left: 0,
@@ -1767,87 +2051,68 @@ class _SurveyScreenState extends State<SurveyScreen> {
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 240),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        key: _plateKey,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.md,
-                          vertical: AppSpacing.sm,
-                        ),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surface,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: theme.colorScheme.outlineVariant,
-                            width: 0.5,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.08),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Text(
-                          _question.question,
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: theme.colorScheme.onSurface,
-                          ),
-                        ),
+                  child: Container(
+                    key: _plateKey,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.sm,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant,
+                        width: 0.5,
                       ),
-                      const SizedBox(height: AppSpacing.md),
-                  // Marble tray — three tappable face marbles
-                  // (sad / neutral / smiley). Each animates
-                  // continuously (blink + pupil drift) so the
-                  // tray feels alive, not a static button row.
-                  // ValueListenableBuilder so the tray re-paints
-                  // when the game shuffles colors (every time a
-                  // marble lands in the jar). Tints come from the
-                  // game so the in-flight marble's color and the
-                  // tapped marble button always match.
-                      ValueListenableBuilder<List<Color>>(
-                        valueListenable: _game.trayTints,
-                        builder: (context, tints, _) => Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            for (var i = 0;
-                                i < _kFaceMoods.length;
-                                i++) ...[
-                              _MarbleButton(
-                                mood: _kFaceMoods[i],
-                                seed: i,
-                                tint: tints[i],
-                                onTap: () => _game.dropMarble(
-                                  _kFaceMoods[i],
-                                  tint: tints[i],
-                                ),
-                              ),
-                              if (i < _kFaceMoods.length - 1)
-                                const SizedBox(width: AppSpacing.md),
-                            ],
-                          ],
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
                         ),
+                      ],
+                    ),
+                    child: Text(
+                      _question.question,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onSurface,
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-          // Jump button — bottom-right, mirroring the joystick on
-          // the bottom-left. Touch on web works the same as mobile.
+          // Context-switching FAB — bottom-right, mirroring the
+          // joystick. Icon + tooltip swap based on what the chibi
+          // can do right now (jump / pick up / drop / switch).
           Positioned(
             right: 28,
             bottom: 28,
-            child: FloatingActionButton(
-              onPressed: _game.requestJump,
-              tooltip: 'Jump',
-              child: const Icon(Icons.arrow_upward),
+            child: ValueListenableBuilder<_FabAction>(
+              valueListenable: _game.fabAction,
+              builder: (context, action, _) => FloatingActionButton(
+                onPressed: _game.performFabAction,
+                tooltip: action.label,
+                // Different background tint for held-marble actions
+                // so the user gets a strong visual cue that "FAB is
+                // doing something different now." Pickup/switch
+                // tinted slightly warmer; drop tinted toward primary.
+                backgroundColor: action == _FabAction.drop
+                    ? theme.colorScheme.primary
+                    : null,
+                foregroundColor: action == _FabAction.drop
+                    ? theme.colorScheme.onPrimary
+                    : null,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  transitionBuilder: (child, anim) =>
+                      ScaleTransition(scale: anim, child: child),
+                  child: Icon(action.icon, key: ValueKey(action)),
+                ),
+              ),
             ),
           ),
         ],
@@ -1856,145 +2121,6 @@ class _SurveyScreenState extends State<SurveyScreen> {
   }
 }
 
-// =====================================================================
-// Marble button — animated face circle in the question tray
-// =====================================================================
-
-/// 56dp face circle. The face animates continuously (blink + pair
-/// of independently drifting pupils) via a Ticker; pressed-scale
-/// gives tap feedback. The fill `tint` is supplied by the parent
-/// (the game's `trayTints` notifier) so it stays in lock-step with
-/// the marble that drops into the jar.
-class _MarbleButton extends StatefulWidget {
-  const _MarbleButton({
-    required this.mood,
-    required this.seed,
-    required this.tint,
-    required this.onTap,
-  });
-
-  final FaceMood mood;
-  final int seed;
-  final Color tint;
-  final VoidCallback onTap;
-
-  @override
-  State<_MarbleButton> createState() => _MarbleButtonState();
-}
-
-class _MarbleButtonState extends State<_MarbleButton>
-    with SingleTickerProviderStateMixin {
-  late final Ticker _ticker;
-  late final _EyeDrift _eyeL = _EyeDrift(seed: widget.seed * 31 + 1);
-  late final _EyeDrift _eyeR = _EyeDrift(seed: widget.seed * 31 + 2);
-  double _t = 0;
-  Duration _lastTick = Duration.zero;
-  bool _pressed = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _ticker = createTicker((elapsed) {
-      // Frame-rate-independent dt so eye drift speed matches the
-      // Flame world's drift, regardless of refresh rate.
-      final dt = (elapsed - _lastTick).inMicroseconds / 1e6;
-      _lastTick = elapsed;
-      _eyeL.update(dt);
-      _eyeR.update(dt);
-      setState(() {
-        _t = elapsed.inMicroseconds / 1e6;
-      });
-    });
-    // Ticker.start() returns a Future that completes when the
-    // ticker is stopped — fire-and-forget for our case (the
-    // dispose() call cancels). The lint complains; the cascade is
-    // correct.
-    // ignore: discarded_futures
-    _ticker.start();
-  }
-
-  @override
-  void dispose() {
-    _ticker.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTap: widget.onTap,
-      child: AnimatedScale(
-        duration: const Duration(milliseconds: 90),
-        scale: _pressed ? 0.88 : 1,
-        child: SizedBox(
-          width: 56,
-          height: 56,
-          child: CustomPaint(
-            painter: _MarbleFacePainter(
-              mood: widget.mood,
-              fill: widget.tint,
-              blinkPhase: blinkPhaseAt(_t, seed: widget.seed),
-              pupilLeft: _eyeL.value,
-              pupilRight: _eyeR.value,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// CustomPainter wrapper around `_FacePainter` for the Flutter
-/// marble-button widget. Draws the marble background circle +
-/// outline, then delegates to the shared face painter.
-class _MarbleFacePainter extends CustomPainter {
-  _MarbleFacePainter({
-    required this.mood,
-    required this.fill,
-    required this.blinkPhase,
-    required this.pupilLeft,
-    required this.pupilRight,
-  });
-
-  final FaceMood mood;
-  final Color fill;
-  final double blinkPhase;
-  final double pupilLeft;
-  final double pupilRight;
-
-  static final _outline = Paint()
-    ..color = const Color(0xFF1A1A1A)
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 1.6;
-  static final _shadow = Paint()
-    ..color = const Color(0x33000000)
-    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final r = size.shortestSide / 2;
-    final c = Offset(size.width / 2, size.height / 2);
-    final fillPaint = Paint()..color = fill;
-    canvas
-      ..drawCircle(c.translate(0, 2), r - 1, _shadow)
-      ..drawCircle(c, r - 1, fillPaint)
-      ..drawCircle(c, r - 1, _outline);
-    _FacePainter(
-      mood: mood,
-      blinkPhase: blinkPhase,
-      pupilLeft: pupilLeft,
-      pupilRight: pupilRight,
-    ).paintAt(canvas, c, r);
-  }
-
-  @override
-  bool shouldRepaint(covariant _MarbleFacePainter old) =>
-      old.blinkPhase != blinkPhase ||
-      old.pupilLeft != pupilLeft ||
-      old.pupilRight != pupilRight ||
-      old.mood != mood ||
-      old.fill != fill;
-}
+// (The Flutter `_MarbleButton` + `_MarbleFacePainter` widgets used
+// to live here. They're gone — the marbles are now world-space
+// `_MarbleNode` components the chibi walks up to and picks up.)
