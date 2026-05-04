@@ -86,7 +86,8 @@ jobs:
           flutter build web --release \
             --base-href "/basecamps/" \
             --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
-            --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+            --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }} \
+            --dart-define=APP_SHARE_URL=https://jardinefaner.github.io/basecamps
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

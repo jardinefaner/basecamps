@@ -348,17 +348,21 @@ class _InviteDialog extends StatelessWidget {
   final VoidCallback onRevokeAndReissue;
 
   /// Compose the onboarding message that lands in the recipient's
-  /// inbox / SMS / DM. Structure:
+  /// inbox / SMS / DM.
   ///
-  ///   1. Personal greeting + sender + program
-  ///   2. One-line "what is Basecamp" value prop (first-timers
-  ///      don't know what they're being invited to)
-  ///   3. The code, prominent on its own line
-  ///   4. Numbered claim steps (lower the friction of "what do I
-  ///      do with this?")
-  ///   5. App URL
-  ///   6. Expiry note + a "reply if stuck" fallback so the
-  ///      recipient has a path back to the sender for help
+  /// Designed around a **one-tap claim link** that pre-fills the
+  /// invite code, so the recipient doesn't have to copy + paste
+  /// anything. The bare code is included as a fallback for cases
+  /// where the link is mangled (some email clients break long
+  /// URLs across lines, some messaging apps strip the hash).
+  ///
+  /// Structure:
+  ///   1. Greeting + who invited them + what Basecamp is, in one
+  ///      breath.
+  ///   2. The claim link (URL contains the code, e.g.
+  ///      `<host>/basecamps/#/redeem/FLHN…`).
+  ///   3. The bare code as a typed-in fallback.
+  ///   4. One-line "sign in when prompted" + expiry + reply hook.
   ///
   /// Plain text — every share target accepts it and the message
   /// reads cleanly even when pasted into a 3rd-party app that
@@ -367,35 +371,45 @@ class _InviteDialog extends StatelessWidget {
     final firstName = adult.name.split(' ').first;
     final roleLabel = _roleLabel(adult);
     final expiryLabel = _humanizeExpiry(expiresAt);
-    const valueProp = 'Basecamp is where the team coordinates each '
-        "day — schedule, plans, observations, all in one place.";
-    const steps = [
-      '1. Open the app on your phone or in a browser',
-      '2. Sign in (Google or email — whichever works)',
-      '3. Tap "Have an invite code?" on the welcome screen',
-      '4. Paste the code above',
-    ];
+    final claimLink = _claimLink(inviteCode);
+    final introBuf = StringBuffer(
+      '$senderName invited you to join $programName on Basecamp',
+    );
+    if (roleLabel.isNotEmpty) {
+      introBuf.write(' as $roleLabel');
+    }
+    introBuf.write(
+      " — the team's daily coordination space for schedule, plans, "
+      'and observations.',
+    );
     final lines = <String>[
       'Hi $firstName,',
       '',
-      '$senderName invited you to join $programName on Basecamp.',
-      'Your profile is already set up — sign in with the code '
-          'below to claim it.',
+      introBuf.toString(),
       '',
-      valueProp,
-      if (roleLabel.isNotEmpty) '',
-      if (roleLabel.isNotEmpty) 'Your profile: $roleLabel',
+      'Tap to claim your profile:',
+      claimLink,
       '',
-      'Code: $inviteCode',
+      "If the link doesn't work, the code is: $inviteCode",
       '',
-      ...steps,
+      'Sign in with Google or email when prompted. Code expires $expiryLabel.',
       '',
-      'Open the app: ${Env.appShareUrl}',
-      '',
-      '(Code expires $expiryLabel. Reply to this message if anything '
-          'is unclear — happy to walk you through it.)',
+      'Reply if anything is unclear — happy to walk you through it.',
     ];
     return lines.join('\n');
+  }
+
+  /// Deep link to the `/redeem/:code` route on the deployed web
+  /// bundle. go_router uses hash routing on web by default, so a
+  /// route like `/redeem/<code>` lives behind the `#` fragment.
+  /// `Env.appShareUrl` already includes the base path
+  /// (`/basecamps`), so we just append the hash route.
+  String _claimLink(String code) {
+    const base = Env.appShareUrl;
+    final trimmed = base.endsWith('/')
+        ? base.substring(0, base.length - 1)
+        : base;
+    return '$trimmed/#/redeem/$code';
   }
 
   String _roleLabel(Adult a) {

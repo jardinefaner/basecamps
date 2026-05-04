@@ -191,13 +191,28 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Deep-link redeem path (/redeem/:code) is the landing page for
       // someone tapping a shared invite link — they're explicitly
       // joining their first program, so the no-active-program gate
-      // below must not bounce them off it. We also let signed-out
-      // users through to /sign-in normally; once they auth back in,
-      // they can re-tap the link (TODO: preserve `state.uri` across
-      // sign-in for a one-shot bounce-back).
+      // below must not bounce them off it.
       final goingToRedeem = state.matchedLocation.startsWith('/redeem/');
-      if (session == null && !goingToSignIn) return '/sign-in';
-      if (session != null && goingToSignIn) return '/today';
+      // Bounce-back across sign-in: when a signed-out user lands on
+      // a deep link (e.g. /redeem/:code from an invite email), we
+      // tuck the original location into a `?next=` query param so
+      // the post-sign-in branch below can route them straight there
+      // instead of dumping them on /today (and losing the code).
+      if (session == null && !goingToSignIn) {
+        if (state.matchedLocation == '/sign-in') return null;
+        final next = Uri.encodeComponent(state.uri.toString());
+        return '/sign-in?next=$next';
+      }
+      if (session != null && goingToSignIn) {
+        final next = state.uri.queryParameters['next'];
+        if (next != null && next.isNotEmpty) {
+          // Don't trust query params blindly — only bounce to
+          // app-internal paths, never an external URL someone
+          // could have appended.
+          if (next.startsWith('/')) return next;
+        }
+        return '/today';
+      }
       // No-active-program gate (Slice 3): a signed-in user without
       // a current program belongs on /welcome, where they pick
       // Create-vs-Join. Skip the redirect when they're already

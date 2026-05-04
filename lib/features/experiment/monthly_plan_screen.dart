@@ -3088,11 +3088,11 @@ class _ActivityFormattedSheet extends StatefulWidget {
 
 class _ActivityFormattedSheetState extends State<_ActivityFormattedSheet> {
   /// True while the embedded add-on section is loading or showing a
-  /// generated result. We use this to hide the **delete-activity**
-  /// button (a destructive action shouldn't sit under an open
-  /// generated supplement). Activity metadata — objectives, steps,
-  /// materials, link — stays visible so the running adult can read
-  /// the addon alongside the steps it's supplementing.
+  /// generated result. When true: collapse objectives / steps /
+  /// materials / link / delete — the user wanted "go straight to
+  /// the addon, with just title + description on top." Title and
+  /// description stay (they're prompt context); everything else
+  /// gets out of the way.
   bool _addonsActive = false;
 
   @override
@@ -3108,9 +3108,7 @@ class _ActivityFormattedSheetState extends State<_ActivityFormattedSheet> {
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty)
         .toList();
-    // Activity metadata stays visible regardless of add-on state
-    // — the add-on is supplemental to the steps, not a replacement
-    // for them. Only the delete button collapses (see below).
+    final showMetadata = !_addonsActive;
     return SafeArea(
       top: false,
       child: Padding(
@@ -3167,7 +3165,7 @@ class _ActivityFormattedSheetState extends State<_ActivityFormattedSheet> {
                   style: theme.textTheme.bodyLarge?.copyWith(height: 1.45),
                 ),
               ],
-              if (activity.objectives.isNotEmpty) ...[
+              if (showMetadata && activity.objectives.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.xl),
                 const _SectionHeader(label: 'Objectives'),
                 const SizedBox(height: AppSpacing.xs),
@@ -3176,7 +3174,7 @@ class _ActivityFormattedSheetState extends State<_ActivityFormattedSheet> {
                   style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
                 ),
               ],
-              if (steps.isNotEmpty) ...[
+              if (showMetadata && steps.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.xl),
                 const _SectionHeader(label: 'Steps'),
                 const SizedBox(height: AppSpacing.sm),
@@ -3212,7 +3210,7 @@ class _ActivityFormattedSheetState extends State<_ActivityFormattedSheet> {
                     ),
                   ),
               ],
-              if (materials.isNotEmpty) ...[
+              if (showMetadata && materials.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.xl),
                 const _SectionHeader(label: 'Materials'),
                 const SizedBox(height: AppSpacing.xs),
@@ -3242,7 +3240,7 @@ class _ActivityFormattedSheetState extends State<_ActivityFormattedSheet> {
                   ],
                 ),
               ],
-              if (activity.link.isNotEmpty) ...[
+              if (showMetadata && activity.link.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.xl),
                 const _SectionHeader(label: 'Reference'),
                 const SizedBox(height: AppSpacing.xs),
@@ -3254,7 +3252,9 @@ class _ActivityFormattedSheetState extends State<_ActivityFormattedSheet> {
                   ),
                 ),
               ],
-              const SizedBox(height: AppSpacing.xxl),
+              SizedBox(
+                height: showMetadata ? AppSpacing.xxl : AppSpacing.lg,
+              ),
               // AI add-ons — embedded inline so the user can see
               // the activity above for reference while picking. The
               // section self-manages picker → loading → result
@@ -3474,67 +3474,69 @@ class _MonthlyActivityEditorState
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
-              Divider(
-                height: 1,
-                color: theme.colorScheme.outlineVariant,
-              ),
-              _DetailsDisclosure(
-                initiallyExpanded: widget.activity.hasAnyMetadata,
-                children: [
-                  TextField(
-                    controller: _objectives,
-                    maxLines: null,
-                    minLines: 2,
-                    textInputAction: TextInputAction.newline,
-                    decoration: const InputDecoration(
-                      labelText: 'Objectives',
-                      helperText: 'What children will learn or practice',
-                      alignLabelWithHint: true,
+              if (!_addonsActive) ...[
+                Divider(
+                  height: 1,
+                  color: theme.colorScheme.outlineVariant,
+                ),
+                _DetailsDisclosure(
+                  initiallyExpanded: widget.activity.hasAnyMetadata,
+                  children: [
+                    TextField(
+                      controller: _objectives,
+                      maxLines: null,
+                      minLines: 2,
+                      textInputAction: TextInputAction.newline,
+                      decoration: const InputDecoration(
+                        labelText: 'Objectives',
+                        helperText: 'What children will learn or practice',
+                        alignLabelWithHint: true,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  TextField(
-                    controller: _steps,
-                    maxLines: null,
-                    minLines: 3,
-                    textInputAction: TextInputAction.newline,
-                    decoration: const InputDecoration(
-                      labelText: 'Steps',
-                      helperText: 'Step-by-step how to run it',
-                      alignLabelWithHint: true,
+                    const SizedBox(height: AppSpacing.lg),
+                    TextField(
+                      controller: _steps,
+                      maxLines: null,
+                      minLines: 3,
+                      textInputAction: TextInputAction.newline,
+                      decoration: const InputDecoration(
+                        labelText: 'Steps',
+                        helperText: 'Step-by-step how to run it',
+                        alignLabelWithHint: true,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  TextField(
-                    controller: _materials,
-                    maxLines: null,
-                    minLines: 1,
-                    textInputAction: TextInputAction.newline,
-                    decoration: const InputDecoration(
-                      labelText: 'Materials',
-                      helperText: 'Comma-separated — these aggregate '
-                          'into the side rail',
-                      alignLabelWithHint: true,
+                    const SizedBox(height: AppSpacing.lg),
+                    TextField(
+                      controller: _materials,
+                      maxLines: null,
+                      minLines: 1,
+                      textInputAction: TextInputAction.newline,
+                      decoration: const InputDecoration(
+                        labelText: 'Materials',
+                        helperText: 'Comma-separated — these aggregate '
+                            'into the side rail',
+                        alignLabelWithHint: true,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  TextField(
-                    controller: _link,
-                    keyboardType: TextInputType.url,
-                    textInputAction: TextInputAction.done,
-                    decoration: const InputDecoration(
-                      labelText: 'Reference Link',
-                      hintText: 'https://…',
+                    const SizedBox(height: AppSpacing.lg),
+                    TextField(
+                      controller: _link,
+                      keyboardType: TextInputType.url,
+                      textInputAction: TextInputAction.done,
+                      decoration: const InputDecoration(
+                        labelText: 'Reference Link',
+                        hintText: 'https://…',
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              Divider(
-                height: 1,
-                color: theme.colorScheme.outlineVariant,
-              ),
-              const SizedBox(height: AppSpacing.lg),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                Divider(
+                  height: 1,
+                  color: theme.colorScheme.outlineVariant,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+              ],
               // Same inline AI add-ons section as the formatted
               // preview — exposes them at edit-time too so authors
               // can iterate without leaving the editor. When an

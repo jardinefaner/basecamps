@@ -11,13 +11,18 @@ abstract final class Env {
 
   /// Public URL where recipients open the app to redeem invites.
   /// Pass `--dart-define=APP_SHARE_URL=https://your.deploy.url` at
-  /// build time. The default is intentionally a placeholder so a
-  /// deploy without the override surfaces the missing config in
-  /// the share message rather than silently shipping a broken
-  /// link.
+  /// build time. The default points at the live GitHub Pages
+  /// deploy so a build without the override still works; override
+  /// it for staging / a custom domain.
+  ///
+  /// Note: base path matters. The web bundle ships under
+  /// `/basecamps/` (see .github/workflows/web.yml), and go_router
+  /// uses hash routing by default on web — so a deep link to a
+  /// route like `/redeem/<code>` looks like
+  /// `https://<host>/basecamps/#/redeem/<code>`.
   static const String appShareUrl = String.fromEnvironment(
     'APP_SHARE_URL',
-    defaultValue: 'https://basecamp.app',
+    defaultValue: 'https://jardinefaner.github.io/basecamps',
   );
 
   // OPENAI_API_KEY removed from the client (commit 452eb75). All

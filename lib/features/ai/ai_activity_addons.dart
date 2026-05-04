@@ -539,6 +539,34 @@ class _AiActivityAddonsSectionState
   /// this to hide its own sections so the add-on view has air.
   bool get _isActive => _generating != null || _result != null;
 
+  @override
+  void initState() {
+    super.initState();
+    // Auto-open the first saved add-on when the section mounts, so
+    // a returning user lands on their saved content instead of
+    // having to tap through the picker. They can still tap "back"
+    // to see the picker. Done in a post-frame callback so the
+    // initial `onActiveChanged(true)` fires AFTER the parent's
+    // build settles (calling setState during initState would crash).
+    final saved = widget.previouslyGenerated;
+    if (saved != null && saved.isNotEmpty) {
+      final firstSpecId = saved.keys.first;
+      final spec = addonSpecs.firstWhere(
+        (s) => s.id == firstSpecId,
+        orElse: () => addonSpecs.first,
+      );
+      // Only auto-open if the saved id actually matched a known
+      // spec; otherwise the user sees the picker and a "spec
+      // missing" entry doesn't crash anything.
+      if (spec.id == firstSpecId) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _openPersisted(spec, saved[firstSpecId]!);
+        });
+      }
+    }
+  }
+
   /// Wraps `setState` so any change to `_generating` / `_result` is
   /// followed by a parent notification when the active flag flips.
   /// Captures the pre-mutation flag, lets the mutation run, then
