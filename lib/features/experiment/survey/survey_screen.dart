@@ -27,6 +27,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:basecamp/features/surveys/canonical_questions.dart';
+import 'package:basecamp/features/surveys/kiosk_exit_pin_modal.dart';
 import 'package:basecamp/features/surveys/multi_select_overlay.dart';
 import 'package:basecamp/features/surveys/open_ended_overlay.dart';
 import 'package:basecamp/features/surveys/survey_audio_service.dart';
@@ -4062,6 +4063,11 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
   DateTime _questionStartedAt = DateTime.now();
   bool _showingAllDone = false;
 
+  /// Timestamps of the most recent taps on the AppBar title.
+  /// Three taps within 800ms → triple-tap; opens the PIN modal.
+  /// Stored as a small ring buffer so we don't accumulate forever.
+  final List<DateTime> _titleTapTimes = <DateTime>[];
+
   /// Random question used in sandbox mode only. Computed lazily
   /// the first time `_currentPrompt` reads it.
   late final _SurveyQuestion _sandboxQuestion =
@@ -4269,6 +4275,41 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
     Future.delayed(const Duration(seconds: 3), _resetForNextChild);
   }
 
+  /// Triple-tap on the AppBar title is the only way out of the
+  /// kiosk. Three taps within 800ms → opens the PIN modal. The
+  /// ring buffer keeps memory bounded; we only ever look at the
+  /// last 3 timestamps.
+  void _onTitleTap() {
+    if (!_isKiosk) return;
+    final now = DateTime.now();
+    _titleTapTimes.add(now);
+    while (_titleTapTimes.length > 3) {
+      _titleTapTimes.removeAt(0);
+    }
+    if (_titleTapTimes.length < 3) return;
+    final span =
+        _titleTapTimes.last.difference(_titleTapTimes.first).inMilliseconds;
+    if (span > 800) return;
+    _titleTapTimes.clear();
+    unawaited(_handleExitTap());
+  }
+
+  Future<void> _handleExitTap() async {
+    final survey = _survey;
+    if (survey == null) return;
+    // Pause any audio so the modal isn't fighting a question read.
+    final audio = ref.read(surveyAudioServiceProvider);
+    await audio.stop();
+    if (!mounted) return;
+    final ok = await KioskExitPinModal.show(context, survey);
+    if (!mounted) return;
+    if (ok) {
+      // dispose() closes the session as `completed: false` —
+      // exactly what we want for "teacher exited mid-flow."
+      Navigator.of(context).pop();
+    }
+  }
+
   /// Reset state for the next child to walk up.
   Future<void> _resetForNextChild() async {
     if (!mounted) return;
@@ -4319,11 +4360,19 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
     // area changes keep the plate's collision rect accurate. The
     // post-frame callback runs after this build commits.
     WidgetsBinding.instance.addPostFrameCallback(_publishPlateBounds);
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: AppBar(
-        title: const Text('New Survey'),
-        // Subtitle-style hint about what this is, in case the user
-        // lands here without context.
+        // Kiosk mode: title is site + classroom and is tappable
+        // (3 taps within 800ms → PIN modal). The system back
+        // button is also hidden because PopScope blocks it.
+        automaticallyImplyLeading: !_isKiosk,
+        title: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _onTitleTap,
+          child: _isKiosk
+              ? _kioskTitle(theme)
+              : const Text('New Survey'),
+        ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(28),
           child: Padding(
@@ -4336,8 +4385,12 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Chibi sandbox · joystick / WASD / arrows · jump = '
-                'tap or space',
+                _isKiosk
+                    ? 'Child ${_childCount + 1} · '
+                        'Question ${_questionIndex + 1} of '
+                        '${_survey?.questions.length ?? '…'}'
+                    : 'Chibi sandbox · joystick / WASD / arrows · '
+                        'jump = tap or space',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -4440,6 +4493,40 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
           if (_isKiosk) ..._buildKioskOverlays(theme),
         ],
       ),
+    );
+    // Kiosk mode: PopScope blocks the system back gesture so a
+    // child can't accidentally exit. The only way out is the
+    // teacher's PIN-gated triple-tap on the title. Sandbox mode
+    // pops normally.
+    if (!_isKiosk) return scaffold;
+    return PopScope(canPop: false, child: scaffold);
+  }
+
+  /// Title widget for kiosk mode — site name on top with the
+  /// classroom underneath. Tap-target stays full-width so a
+  /// teacher can land taps confidently.
+  Widget _kioskTitle(ThemeData theme) {
+    final survey = _survey;
+    if (survey == null) {
+      return const Text('Loading…');
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          survey.siteName,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Text(
+          survey.classroom,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 
