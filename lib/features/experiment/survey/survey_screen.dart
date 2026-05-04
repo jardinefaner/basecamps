@@ -28,8 +28,10 @@ import 'dart:math' as math;
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
+import 'package:flame/input.dart';
 import 'package:flame/palette.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 // =====================================================================
 // V3 — pure 3D vector math
@@ -648,19 +650,25 @@ class TwinEye extends EyePart {
 // =====================================================================
 
 class Loadout {
-  const Loadout({
+  Loadout({
     required this.head,
     required this.body,
     required this.feet,
     required this.eye,
-  });
+  }) : parts = List<Part>.unmodifiable(<Part>[feet, body, head, eye]);
 
   final HeadPart head;
   final BodyPart body;
   final FootPart feet;
   final EyePart eye;
 
-  List<Part> get parts => [feet, body, head, eye];
+  /// Pre-computed render-order list: feet → body → head → eye. Spec
+  /// emphasizes "later entries draw over earlier ones"; depth sort
+  /// inside the BuildCtx still handles cross-cluster ordering, but
+  /// this is the build-call sequence. Cached as a field so the
+  /// per-frame render loop doesn't allocate a fresh list every
+  /// time it iterates.
+  final List<Part> parts;
 }
 
 // =====================================================================
@@ -699,9 +707,18 @@ class Catalog {
 // =====================================================================
 
 class ChibiCharacter extends PositionComponent {
-  ChibiCharacter({required this.joystick}) : super(anchor: Anchor.center);
+  ChibiCharacter({
+    required this.joystick,
+    this.keyboardInput,
+  }) : super(anchor: Anchor.center);
 
   final JoystickComponent joystick;
+
+  /// Optional secondary input source — used on web/desktop where
+  /// dragging a virtual joystick with the mouse is awkward. Null
+  /// on platforms where it isn't wired (mobile-only); the chibi
+  /// just falls back to the joystick.
+  final KeyboardInput? keyboardInput;
 
   // Default loadout: bunny with normal twin eyes. Per the Catalog
   // ordering above, `Catalog.heads.first.build()` would also yield
@@ -727,6 +744,14 @@ class ChibiCharacter extends PositionComponent {
   double _yaw = 0;
   double _t = 0;
 
+  // Reused-across-frames render scratch buffers. Per the spec:
+  // > The Op list is reused frame-to-frame (_ops.clear() instead
+  // > of new List) to avoid per-frame List growth.
+  // Same idea for the slot→Frame map: a bounded set (28 entries)
+  // we mutate in place rather than re-allocate per render.
+  final List<Op> _ops = <Op>[];
+  final Map<Slot, Frame> _frames = <Slot, Frame>{};
+
   /// Jump impulse triggered from the UI button.
   void jump() {
     if (!_grounded) return;
@@ -744,12 +769,24 @@ class ChibiCharacter extends PositionComponent {
     super.update(dt);
     _t += dt;
 
-    // Joystick → planar velocity. Flame's joystick.delta is a
-    // pixel-radius vector relative to the knob's resting center;
-    // .relativeDelta normalises into [-1,1] on each axis.
-    final dx = joystick.relativeDelta.x;
-    final dy = joystick.relativeDelta.y;
-    final mag = math.sqrt(dx * dx + dy * dy).clamp(0, 1);
+    // Combine joystick + keyboard input into a single planar
+    // delta. Joystick: Flame's `relativeDelta` already normalises
+    // to [-1,1] per axis. Keyboard: the WASD/arrows controller
+    // emits raw -1/0/+1 per axis. Sum them and clamp to a unit
+    // disc so diagonal keyboard input doesn't move √2× faster.
+    final kx = keyboardInput?.delta.x ?? 0;
+    final ky = keyboardInput?.delta.y ?? 0;
+    var dx = joystick.relativeDelta.x + kx;
+    var dy = joystick.relativeDelta.y + ky;
+    final raw = math.sqrt(dx * dx + dy * dy);
+    if (raw > 1) {
+      dx /= raw;
+      dy /= raw;
+    }
+    final mag = raw > 1 ? 1.0 : raw;
+    if (keyboardInput?.consumeJump() ?? false) {
+      jump();
+    }
 
     // Translate the character on screen — with a cap so it can't
     // leave the visible play area.
@@ -827,60 +864,134 @@ class ChibiCharacter extends PositionComponent {
     //   8–42    body capsule (center 25, half-height 17)
     //   42–86   head sphere (center 64, radius 22)
     //   86–125  bunny ears (when present)
-    const headRadius = 22.0;
+    const headRadius = _kHeadRadius;
     const bodyHalfHeight = 17.0;
     final feetY = pose.globalLiftY;
     final bodyY = feetY + 25 + pose.walkBobY;
     final headY = feetY + 64 + pose.headBobY;
-    final frames = <Slot, Frame>{
-      Slot.ground: Frame.upright(V3.zero),
-      Slot.footLeft: Frame.upright(V3(-9, feetY, 0)),
-      Slot.footRight: Frame.upright(V3(9, feetY, 0)),
-      Slot.hipLeft: Frame.upright(V3(-12, bodyY - bodyHalfHeight, 0)),
-      Slot.hipRight: Frame.upright(V3(12, bodyY - bodyHalfHeight, 0)),
-      Slot.hipFront: Frame.upright(V3(0, bodyY - bodyHalfHeight, -8)),
-      Slot.hipBack: Frame.upright(V3(0, bodyY - bodyHalfHeight, 8)),
-      Slot.beltCenter: Frame.upright(V3(0, bodyY - 10, 0)),
-      Slot.tailBase: Frame.upright(V3(0, bodyY - 8, 10)),
-      Slot.back: Frame.upright(V3(0, bodyY + 4, 10)),
-      Slot.chestFront: Frame.upright(V3(0, bodyY, -10)),
-      Slot.shoulderLeft: Frame.upright(V3(-18, bodyY + 10, 0)),
-      Slot.shoulderRight: Frame.upright(V3(18, bodyY + 10, 0)),
-      Slot.wingsLeft: Frame.upright(V3(-12, bodyY + 8, 8)),
-      Slot.wingsRight: Frame.upright(V3(12, bodyY + 8, 8)),
-      Slot.neckFront: Frame.upright(V3(0, bodyY + 16, -6)),
-      Slot.neckBack: Frame.upright(V3(0, bodyY + 16, 6)),
+    // Reuse the long-lived `_frames` map across frames — bounded
+    // 28 entries; clear+refill is cheaper than allocate-and-GC,
+    // especially on lower-end Android where the new-gen GC takes
+    // measurable pause time on every frame's worth of garbage.
+    _frames
+      ..clear()
+      ..[Slot.ground] = Frame.upright(V3.zero)
+      ..[Slot.footLeft] = Frame.upright(V3(-9, feetY, 0))
+      ..[Slot.footRight] = Frame.upright(V3(9, feetY, 0))
+      ..[Slot.hipLeft] = Frame.upright(V3(-12, bodyY - bodyHalfHeight, 0))
+      ..[Slot.hipRight] = Frame.upright(V3(12, bodyY - bodyHalfHeight, 0))
+      ..[Slot.hipFront] = Frame.upright(V3(0, bodyY - bodyHalfHeight, -8))
+      ..[Slot.hipBack] = Frame.upright(V3(0, bodyY - bodyHalfHeight, 8))
+      ..[Slot.beltCenter] = Frame.upright(V3(0, bodyY - 10, 0))
+      ..[Slot.tailBase] = Frame.upright(V3(0, bodyY - 8, 10))
+      ..[Slot.back] = Frame.upright(V3(0, bodyY + 4, 10))
+      ..[Slot.chestFront] = Frame.upright(V3(0, bodyY, -10))
+      ..[Slot.shoulderLeft] = Frame.upright(V3(-18, bodyY + 10, 0))
+      ..[Slot.shoulderRight] = Frame.upright(V3(18, bodyY + 10, 0))
+      ..[Slot.wingsLeft] = Frame.upright(V3(-12, bodyY + 8, 8))
+      ..[Slot.wingsRight] = Frame.upright(V3(12, bodyY + 8, 8))
+      ..[Slot.neckFront] = Frame.upright(V3(0, bodyY + 16, -6))
+      ..[Slot.neckBack] = Frame.upright(V3(0, bodyY + 16, 6))
       // Head anchors — sphere center is at headY, radius 22.
-      Slot.headBottom: Frame.upright(V3(0, headY - headRadius, 0)),
-      Slot.headTop: Frame.upright(V3(0, headY + headRadius, 0)),
-      Slot.headFront: Frame.upright(V3(0, headY, -headRadius)),
-      Slot.headBack: Frame.upright(V3(0, headY, headRadius)),
-      Slot.headLeft: Frame.upright(V3(-headRadius, headY, 0)),
-      Slot.headRight: Frame.upright(V3(headRadius, headY, 0)),
-      Slot.headTopLeft: Frame.upright(V3(-13, headY + 14, 0)),
-      Slot.headTopRight: Frame.upright(V3(13, headY + 14, 0)),
-      Slot.hairTop: Frame.upright(V3(0, headY + headRadius, 0)),
-      Slot.halo: Frame.upright(V3(0, headY + headRadius + 18, 0)),
-      Slot.handLeft: Frame.upright(V3(-22, bodyY - 6, 0)),
-      Slot.handRight: Frame.upright(V3(22, bodyY - 6, 0)),
-    };
+      ..[Slot.headBottom] = Frame.upright(V3(0, headY - headRadius, 0))
+      ..[Slot.headTop] = Frame.upright(V3(0, headY + headRadius, 0))
+      ..[Slot.headFront] = Frame.upright(V3(0, headY, -headRadius))
+      ..[Slot.headBack] = Frame.upright(V3(0, headY, headRadius))
+      ..[Slot.headLeft] = Frame.upright(V3(-headRadius, headY, 0))
+      ..[Slot.headRight] = Frame.upright(V3(headRadius, headY, 0))
+      ..[Slot.headTopLeft] = Frame.upright(V3(-13, headY + 14, 0))
+      ..[Slot.headTopRight] = Frame.upright(V3(13, headY + 14, 0))
+      ..[Slot.hairTop] = Frame.upright(V3(0, headY + headRadius, 0))
+      ..[Slot.halo] = Frame.upright(V3(0, headY + headRadius + 18, 0))
+      ..[Slot.handLeft] = Frame.upright(V3(-22, bodyY - 6, 0))
+      ..[Slot.handRight] = Frame.upright(V3(22, bodyY - 6, 0));
 
-    final skel = Skeleton(pose: pose, frames: frames);
-    final ops = <Op>[];
-    final ctx = BuildCtx(skel, canvas, ops);
+    // Reuse the ops list — `clear()` keeps the underlying buffer,
+    // so subsequent frames don't trigger growable-list re-grow.
+    // Per the spec: "_ops.clear() instead of new List".
+    _ops.clear();
+    final skel = Skeleton(pose: pose, frames: _frames);
+    final ctx = BuildCtx(skel, canvas, _ops);
 
-    // Per-frame state advance + ops emission.
-    for (final part in _loadout.parts) {
-      part.onUpdate(0, skel);
+    // Per-frame state advance + ops emission. Iterating
+    // `_loadout.parts` (a cached unmodifiable List, see Loadout)
+    // avoids the previous getter-allocates-fresh-list pattern.
+    final parts = _loadout.parts;
+    for (var i = 0; i < parts.length; i++) {
+      parts[i].onUpdate(0, skel);
     }
-    for (final part in _loadout.parts) {
-      part.onBuild(ctx);
+    for (var i = 0; i < parts.length; i++) {
+      parts[i].onBuild(ctx);
     }
 
-    ops.sort((a, b) => a.depth.compareTo(b.depth));
-    for (final op in ops) {
-      op.draw();
+    _ops.sort((a, b) => a.depth.compareTo(b.depth));
+    for (var i = 0; i < _ops.length; i++) {
+      _ops[i].draw();
     }
+  }
+}
+
+// =====================================================================
+// Keyboard input — web/desktop alternative to the joystick
+// =====================================================================
+
+/// Tracks WASD / arrow-key state into a unit-vector delta plus a
+/// one-shot jump flag. ChibiCharacter reads these alongside the
+/// joystick — sums + clamps the two so a user pressing both at
+/// once doesn't move twice as fast.
+///
+/// Long-lived (one instance per game), receives keyboard events
+/// through `KeyboardHandler` (mixed in here, hosted on a game
+/// that mixes in `HasKeyboardHandlerComponents`).
+class KeyboardInput extends Component with KeyboardHandler {
+  final Vector2 delta = Vector2.zero();
+  bool _jumpQueued = false;
+
+  /// Reads + resets the queued jump flag in one shot. Lets the
+  /// chibi handle "user pressed Space" without us having to debounce
+  /// repeated key-repeat events.
+  bool consumeJump() {
+    if (!_jumpQueued) return false;
+    _jumpQueued = false;
+    return true;
+  }
+
+  @override
+  bool onKeyEvent(KeyEvent event, Set<LogicalKeyboardKey> keysPressed) {
+    // Recompute the delta from the live `keysPressed` set — handles
+    // chord changes (e.g. release one key while another is still
+    // held) without leaking stuck-on movement.
+    var x = 0;
+    var y = 0;
+    if (keysPressed.contains(LogicalKeyboardKey.arrowUp) ||
+        keysPressed.contains(LogicalKeyboardKey.keyW)) {
+      y -= 1;
+    }
+    if (keysPressed.contains(LogicalKeyboardKey.arrowDown) ||
+        keysPressed.contains(LogicalKeyboardKey.keyS)) {
+      y += 1;
+    }
+    if (keysPressed.contains(LogicalKeyboardKey.arrowLeft) ||
+        keysPressed.contains(LogicalKeyboardKey.keyA)) {
+      x -= 1;
+    }
+    if (keysPressed.contains(LogicalKeyboardKey.arrowRight) ||
+        keysPressed.contains(LogicalKeyboardKey.keyD)) {
+      x += 1;
+    }
+    delta
+      ..x = x.toDouble()
+      ..y = y.toDouble();
+
+    // Queue a jump on Space-press. Auto-repeat re-sends KeyDown
+    // for held keys; the chibi's `_grounded` check ignores extras
+    // anyway, but consume-on-read keeps the contract clean.
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.space) {
+      _jumpQueued = true;
+      return true;
+    }
+    return delta.x != 0 || delta.y != 0;
   }
 }
 
@@ -888,8 +999,10 @@ class ChibiCharacter extends PositionComponent {
 // Game host
 // =====================================================================
 
-class _SurveyGame extends FlameGame with HasGameReference {
+class _SurveyGame extends FlameGame
+    with HasGameReference, HasKeyboardHandlerComponents {
   late final JoystickComponent joystick;
+  late final KeyboardInput keyboardInput;
   late final ChibiCharacter chibi;
 
   // External handle so the screen's "Jump" button can poke us.
@@ -911,7 +1024,13 @@ class _SurveyGame extends FlameGame with HasGameReference {
     );
     add(joystick);
 
-    chibi = ChibiCharacter(joystick: joystick)
+    keyboardInput = KeyboardInput();
+    add(keyboardInput);
+
+    chibi = ChibiCharacter(
+      joystick: joystick,
+      keyboardInput: keyboardInput,
+    )
       ..position = Vector2(size.x * 0.5, size.y * 0.55)
       ..size = Vector2(120, 160);
     add(chibi);
@@ -952,7 +1071,8 @@ class _SurveyScreenState extends State<SurveyScreen> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Chibi sandbox · 4 mandatory parts · joystick + jump',
+                'Chibi sandbox · joystick / WASD / arrows · jump = '
+                'tap or space',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
