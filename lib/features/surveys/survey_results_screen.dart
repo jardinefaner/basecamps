@@ -14,18 +14,26 @@
 //
 // Slice 6 wires the "Export CSV" button.
 
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/surveys/canonical_questions.dart';
 import 'package:basecamp/features/surveys/multi_select_overlay.dart';
+import 'package:basecamp/features/surveys/survey_csv_exporter.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
 import 'package:basecamp/features/surveys/survey_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 class SurveyResultsScreen extends ConsumerWidget {
   const SurveyResultsScreen({required this.surveyId, super.key});
@@ -58,14 +66,15 @@ class SurveyResultsScreen extends ConsumerWidget {
                   ),
             orElse: () => const SizedBox.shrink(),
           ),
-          IconButton(
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('CSV export ships in slice 6.'),
-              ),
-            ),
-            icon: const Icon(Icons.file_download_outlined),
-            tooltip: 'Export CSV',
+          surveyAsync.maybeWhen(
+            data: (survey) => survey == null
+                ? const SizedBox.shrink()
+                : IconButton(
+                    onPressed: () => _exportCsv(context, ref, survey),
+                    icon: const Icon(Icons.file_download_outlined),
+                    tooltip: 'Export CSV',
+                  ),
+            orElse: () => const SizedBox.shrink(),
           ),
           const SizedBox(width: AppSpacing.sm),
         ],
@@ -113,6 +122,62 @@ class SurveyResultsScreen extends ConsumerWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// Build the CSV from the current results stream value, then
+/// hand off to the platform share / save flow.
+///
+/// Mobile: native share sheet via `share_plus`.
+/// Web: copies the CSV to clipboard (no native share for files
+/// in pure Flutter web; clipboard is the most universal "do
+/// something with this" path that works in any browser).
+/// Desktop: falls through to share_plus's desktop adapter.
+Future<void> _exportCsv(
+  BuildContext context,
+  WidgetRef ref,
+  SurveyConfig survey,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    // Wait for the next emission of the results stream so we
+    // capture an immediate, complete snapshot.
+    final rows =
+        await ref.read(surveyResultsProvider(survey.id).future);
+    final csv = kSurveyCsvExporter.exportToCsv(survey, rows);
+    final filename = kSurveyCsvExporter.fileName(survey);
+
+    if (kIsWeb) {
+      // Web fallback — clipboard. share_plus's web build only
+      // supports text shares, not file shares from a plain
+      // browser tab. Pasting into Sheets / Excel works fine.
+      await Clipboard.setData(ClipboardData(text: csv));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Copied $filename to clipboard. '
+              'Paste into Sheets or Excel.'),
+        ),
+      );
+      return;
+    }
+
+    // Mobile + desktop: write the CSV to a temp file, hand off.
+    final tempDir = await getTemporaryDirectory();
+    final filePath = p.join(tempDir.path, filename);
+    await File(filePath).writeAsString(csv);
+    await SharePlus.instance.share(
+      ShareParams(
+        files: <XFile>[XFile(filePath, name: filename, mimeType: 'text/csv')],
+        subject: '${survey.siteName} · ${survey.classroom} survey',
+        text: '$filename — ${rows.length} '
+            'response${rows.length == 1 ? '' : 's'} from '
+            '${survey.classroom}.',
+      ),
+    );
+  } on Object catch (e) {
+    messenger.showSnackBar(
+      SnackBar(content: Text('Could not export CSV: $e')),
     );
   }
 }
