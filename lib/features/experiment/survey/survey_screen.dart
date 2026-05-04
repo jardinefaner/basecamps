@@ -1132,6 +1132,17 @@ enum FaceMood {
   stronglyAgree,    // F5 — teal, bounce + chomp + 3 sparkles
 }
 
+/// Animation variant for a marble's continuous idle loop. Each
+/// face has 4 distinct variants (per
+/// `emoji_animation_variants_4x5_grid.html`); a marble picks one
+/// at random when it spawns and plays it for its lifetime.
+///
+/// idle       — A: the base personality (shiver, sway, bob, etc.)
+/// breathing  — B: slow organic scale pulse with subtler features
+/// fidget     — C: nervous rapid energy
+/// emote      — D: dramatic expression with extra particles
+enum MarbleVariant { idle, breathing, fidget, emote }
+
 /// Per-face color triple. Body = the flat circle fill; ring = a
 /// slightly-darker shade of the body for the outline; ink = the
 /// dark accent used for brows, eyes, mouth.
@@ -1208,10 +1219,12 @@ const Map<FaceMood, _FacePalette> _kFacePalettes = <FaceMood, _FacePalette>{
 class _FacePainter {
   const _FacePainter({
     required this.mood,
+    this.variant = MarbleVariant.idle,
     this.t = 0,
   });
 
   final FaceMood mood;
+  final MarbleVariant variant;
   final double t;
 
   void paintAt(Canvas canvas, Offset center, double radius) {
@@ -1740,81 +1753,248 @@ class _MicroAnimMods {
 ///   F4 agree            — gentle vertical bob (2s loop, -3px)
 ///   F5 stronglyAgree    — bouncy wiggle (1.2s loop, -5px + ±4°)
 class _MicroAnimController {
-  _MicroAnimController({required this.mood});
+  _MicroAnimController({
+    required this.mood,
+    this.variant = MarbleVariant.idle,
+  });
 
   final FaceMood mood;
+  final MarbleVariant variant;
 
   void update(double dt) {
     // No state — output is a pure function of the marble's `_t`.
   }
 
   _MicroAnimMods compute(double t) {
+    switch (variant) {
+      case MarbleVariant.idle:
+        return _idleBody(t);
+      case MarbleVariant.breathing:
+        return _breathingBody(t);
+      case MarbleVariant.fidget:
+        return _fidgetBody(t);
+      case MarbleVariant.emote:
+        return _emoteBody(t);
+    }
+  }
+
+  // ============================================================
+  // Variant A: idle — base personality (the spec's row 1)
+  // ============================================================
+  _MicroAnimMods _idleBody(double t) {
     final m = _MicroAnimMods();
+    const deg = math.pi / 180;
     switch (mood) {
       case FaceMood.stronglyDisagree:
-        // Spec keyframes (2.5s):
-        //   0%   tx=0,  rot=0
-        //  15%   tx=-2, rot=-1°
-        //  30%   tx=+2, rot=+1°
-        //  45%   tx=-1, rot=0
-        //  60%   tx=0,  rot=0
-        // ...holds 0 until 100%.
         final c = (t / 2.5) % 1;
-        const deg = math.pi / 180;
         if (c < 0.15) {
           final p = c / 0.15;
           m
-            ..tx = -2 * p
-            ..rot = -1 * deg * p;
+            ..tx = -3 * p
+            ..rot = -2 * deg * p;
         } else if (c < 0.30) {
           final p = (c - 0.15) / 0.15;
           m
-            ..tx = -2 + 4 * p
-            ..rot = -1 * deg + 2 * deg * p;
-        } else if (c < 0.45) {
-          final p = (c - 0.30) / 0.15;
+            ..tx = -3 + 6 * p
+            ..rot = -2 * deg + 4 * deg * p;
+        } else if (c < 0.50) {
+          final p = (c - 0.30) / 0.20;
           m
-            ..tx = 2 - 3 * p
-            ..rot = 1 * deg * (1 - p);
-        } else if (c < 0.60) {
-          final p = (c - 0.45) / 0.15;
+            ..tx = 3 - 4 * p
+            ..rot = 2 * deg * (1 - p);
+        } else if (c < 0.70) {
+          final p = (c - 0.50) / 0.20;
           m
             ..tx = -1 + p
             ..rot = 0;
         }
       case FaceMood.disagree:
-        // Sine sway: rot oscillates -3°..0..-3° over 3s.
-        final c = (t / 3) % 1;
-        m.rot = -math.sin(c * math.pi * 2).abs() * 3 * (math.pi / 180);
+        final c = (t / 3.5) % 1;
+        m.rot = -math.sin(c * math.pi * 2).abs() * 4 * deg;
       case FaceMood.notSure:
-        break; // head stays still
+        break;
       case FaceMood.agree:
-        // Vertical bob: ty -3px at midcycle on 2s loop.
         final c = (t / 2) % 1;
-        m.ty = -math.sin(c * math.pi * 2).abs() * 3;
+        m.ty = -math.sin(c * math.pi * 2).abs() * 4;
       case FaceMood.stronglyAgree:
-        // Bouncy wiggle on 1.2s loop:
-        //   0–25%  rise to (-5px, -4°)
-        //  25–75%  hold up while rotation swings -4° → +4°
-        //  75–100% fall back to (0, 0)
         final c = (t / 1.2) % 1;
-        const deg = math.pi / 180;
         if (c < 0.25) {
           final p = c / 0.25;
           m
-            ..ty = -5 * p
-            ..rot = -4 * deg * p;
+            ..ty = -6 * p
+            ..rot = -5 * deg * p;
         } else if (c < 0.75) {
           final p = (c - 0.25) / 0.5;
           m
-            ..ty = -5
-            ..rot = (-4 + 8 * p) * deg;
+            ..ty = -6
+            ..rot = (-5 + 10 * p) * deg;
         } else {
           final p = (c - 0.75) / 0.25;
           m
-            ..ty = -5 * (1 - p)
-            ..rot = 4 * deg * (1 - p);
+            ..ty = -6 * (1 - p)
+            ..rot = 5 * deg * (1 - p);
         }
+    }
+    return m;
+  }
+
+  // ============================================================
+  // Variant B: breathing — slow organic scale pulse
+  // ============================================================
+  _MicroAnimMods _breathingBody(double t) {
+    final m = _MicroAnimMods();
+    switch (mood) {
+      case FaceMood.stronglyDisagree:
+        // Shrink to 0.94 mid-cycle (4s).
+        final c = (t / 4) % 1;
+        final s = 1 - math.sin(c * math.pi * 2).abs() * 0.06;
+        m
+          ..sx = s
+          ..sy = s;
+      case FaceMood.disagree:
+        // Shrink + tiny y bob (5s).
+        final c = (t / 5) % 1;
+        final s = 1 - math.sin(c * math.pi * 2).abs() * 0.03;
+        m
+          ..sx = s
+          ..sy = s
+          ..ty = math.sin(c * math.pi * 2).abs() * 2;
+      case FaceMood.notSure:
+        // Expand to 1.03 (4s).
+        final c = (t / 4) % 1;
+        final s = 1 + math.sin(c * math.pi * 2).abs() * 0.03;
+        m
+          ..sx = s
+          ..sy = s;
+      case FaceMood.agree:
+        // Swell to 1.05 (3s).
+        final c = (t / 3) % 1;
+        final s = 1 + math.sin(c * math.pi * 2).abs() * 0.05;
+        m
+          ..sx = s
+          ..sy = s;
+      case FaceMood.stronglyAgree:
+        // Radiate: 1 → 1.08 → 0.97 (2s).
+        final c = (t / 2) % 1;
+        double s;
+        if (c < 0.30) {
+          s = 1 + (c / 0.30) * 0.08;
+        } else if (c < 0.60) {
+          s = 1.08 - ((c - 0.30) / 0.30) * 0.11;
+        } else {
+          s = 0.97 + ((c - 0.60) / 0.40) * 0.03;
+        }
+        m
+          ..sx = s
+          ..sy = s;
+    }
+    return m;
+  }
+
+  // ============================================================
+  // Variant C: fidget — nervous rapid energy
+  // ============================================================
+  _MicroAnimMods _fidgetBody(double t) {
+    final m = _MicroAnimMods();
+    const deg = math.pi / 180;
+    switch (mood) {
+      case FaceMood.stronglyDisagree:
+        // Rapid tremble (1.8s): rotation rocks -3..3..-2..2..0
+        final c = (t / 1.8) % 1;
+        if (c < 0.10) {
+          m.rot = -3 * deg * (c / 0.10);
+        } else if (c < 0.20) {
+          final p = (c - 0.10) / 0.10;
+          m.rot = (-3 + 6 * p) * deg;
+        } else if (c < 0.30) {
+          final p = (c - 0.20) / 0.10;
+          m.rot = (3 - 5 * p) * deg;
+        } else if (c < 0.40) {
+          final p = (c - 0.30) / 0.10;
+          m.rot = (-2 + 4 * p) * deg;
+        } else if (c < 0.50) {
+          final p = (c - 0.40) / 0.10;
+          m.rot = 2 * deg * (1 - p);
+        }
+      case FaceMood.disagree:
+        // Eyes wander (no body anim — handled in painter).
+        break;
+      case FaceMood.notSure:
+        // Head shuffle X (2s).
+        final c = (t / 2) % 1;
+        m.tx = math.sin(c * math.pi * 2) * 2;
+      case FaceMood.agree:
+        // Jitter hop + rotate (1s).
+        final c = (t / 1) % 1;
+        if (c < 0.33) {
+          final p = c / 0.33;
+          m
+            ..ty = -3 * p
+            ..rot = 2 * deg * p;
+        } else if (c < 0.66) {
+          final p = (c - 0.33) / 0.33;
+          m
+            ..ty = -3 + 1 * p
+            ..rot = (2 - 4 * p) * deg;
+        } else {
+          final p = (c - 0.66) / 0.34;
+          m
+            ..ty = -2 * (1 - p)
+            ..rot = -2 * deg * (1 - p);
+        }
+      case FaceMood.stronglyAgree:
+        // Hyper bounce (0.6s loop): -8px + 6° + 1.05 scale at peak.
+        final c = (t / 0.6) % 1;
+        final peak = math.sin(c * math.pi).abs();
+        m
+          ..ty = -8 * peak
+          ..rot = 6 * deg * peak
+          ..sx = 1 + 0.05 * peak
+          ..sy = 1 + 0.05 * peak;
+    }
+    return m;
+  }
+
+  // ============================================================
+  // Variant D: emote — dramatic expression
+  // ============================================================
+  _MicroAnimMods _emoteBody(double t) {
+    final m = _MicroAnimMods();
+    const deg = math.pi / 180;
+    switch (mood) {
+      case FaceMood.stronglyDisagree:
+        // Subtle bob — 70-80% of cycle dips 3px (3s loop).
+        final c = (t / 3) % 1;
+        if (c >= 0.70 && c < 0.80) {
+          final p = (c - 0.70) / 0.10;
+          m.ty = 3 * (p < 0.5 ? p * 2 : (1 - p) * 2);
+        }
+      case FaceMood.disagree:
+        // Big sway (4s): -6° → 0° → +3° → 0
+        final c = (t / 4) % 1;
+        if (c < 0.50) {
+          m.rot = math.sin(c / 0.50 * math.pi) * -6 * deg;
+        } else {
+          m.rot = math.sin((c - 0.50) / 0.50 * math.pi) * 3 * deg;
+        }
+      case FaceMood.notSure:
+        // No body anim — brow lift in painter.
+        break;
+      case FaceMood.agree:
+        // Vertical bob with scale (1.5s).
+        final c = (t / 1.5) % 1;
+        final peak = math.sin(c * math.pi * 2).abs();
+        m
+          ..ty = -3 * peak
+          ..sx = 1 + 0.04 * peak
+          ..sy = 1 + 0.04 * peak;
+      case FaceMood.stronglyAgree:
+        // Rotation rocking (0.8s): -8° → +8° with slight scale.
+        final c = (t / 0.8) % 1;
+        m
+          ..rot = math.sin(c * math.pi * 2) * 8 * deg
+          ..sx = 1.02
+          ..sy = 1.02;
     }
     return m;
   }
@@ -2271,6 +2451,13 @@ class _MarbleNode extends PositionComponent {
   final int seed;
   final Vector2 _restPos;
 
+  /// Animation variant — idle / breathing / fidget / emote. Picked
+  /// at construction (seeded from `seed`) and stable for the life
+  /// of this marble. Replacement marbles spawned after a jar drop
+  /// re-roll this so the world feels varied across plays.
+  late final MarbleVariant variant = MarbleVariant
+      .values[math.Random(seed * 53 + 7).nextInt(MarbleVariant.values.length)];
+
   /// Tint is mutable so the game can shuffle palette colors on the
   /// idle marbles when something lands in the jar.
   Color tint;
@@ -2281,7 +2468,7 @@ class _MarbleNode extends PositionComponent {
   /// Real eyes track together; both pupils now read the same value.
   late final _EyeDrift _eyeDrift = _EyeDrift(seed: seed * 31 + 1);
   late final _MicroAnimController _microAnim =
-      _MicroAnimController(mood: mood);
+      _MicroAnimController(mood: mood, variant: variant);
 
   _MarbleState state = _MarbleState.idle;
 
@@ -2628,7 +2815,8 @@ class _MarbleNode extends PositionComponent {
       ..translate(mods.tx, mods.ty)
       ..rotate(mods.rot)
       ..scale(sx, sy);
-    _FacePainter(mood: mood, t: _t).paintAt(canvas, Offset.zero, _radius);
+    _FacePainter(mood: mood, variant: variant, t: _t)
+        .paintAt(canvas, Offset.zero, _radius);
     canvas.restore();
 
     // Soft halo when pickable + highlighted — drawn outside all
