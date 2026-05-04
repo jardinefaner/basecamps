@@ -32,6 +32,7 @@ import 'package:flame/game.dart';
 import 'package:flame/input.dart';
 import 'package:flame/palette.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 // =====================================================================
@@ -585,9 +586,9 @@ class CyclopsEye extends EyePart {
 }
 
 /// "Twin" eye — two ovals with pupils, the standard humanoid /
-/// animal eye layout. Used by the bunny default and any future
-/// loadout that wants normal-looking eyes instead of a single
-/// cyclopean one.
+/// animal eye layout. v60.9: blinks every few seconds (driven by
+/// `blinkPhaseAt(t)` reading `pose.t`); pupils drift gently with
+/// a sine of t so the chibi feels alive at idle.
 class TwinEye extends EyePart {
   @override
   String get id => 'eye_twin';
@@ -602,6 +603,12 @@ class TwinEye extends EyePart {
   @override
   void onBuild(BuildCtx ctx) {
     final f = ctx.at(Slot.headFront);
+    // Animation: shared blink rhythm via pose.t. Two eyes blink
+    // together (same seed). Pupil drift uses a slower sine so
+    // they wander a bit.
+    final blink = blinkPhaseAt(ctx.pose.t);
+    final open = (1 - blink).clamp(0.05, 1.0);
+    final pupil = math.sin(ctx.pose.t * 0.8) * 0.4;
 
     void drawEye(double xOffset) {
       // headFront is at face-plane level; offset forward by z=-2 so
@@ -611,11 +618,12 @@ class TwinEye extends EyePart {
       final scale = 1 + p.depth * 0.0015;
       ctx.op(p.depth + 0.5, () {
         ctx.canvas
+          // Eye white — vertical extent squashes by `open` for blink.
           ..drawOval(
             Rect.fromCenter(
               center: p.offset,
               width: 11 * scale,
-              height: 14 * scale,
+              height: 14 * scale * open,
             ),
             _whitePaint,
           )
@@ -623,20 +631,22 @@ class TwinEye extends EyePart {
             Rect.fromCenter(
               center: p.offset,
               width: 11 * scale,
-              height: 14 * scale,
+              height: 14 * scale * open,
             ),
             _outlinePaint,
-          )
-          // Pupil — slightly oval, vertical, sits center-low so the
-          // eye reads as "looking forward" not "spaced out".
-          ..drawOval(
+          );
+        // Pupil — only render when the eye is open enough to host
+        // it; otherwise it'd render as a smear behind a closed lid.
+        if (open > 0.25) {
+          ctx.canvas.drawOval(
             Rect.fromCenter(
-              center: p.offset.translate(0, 1),
+              center: p.offset.translate(pupil * 2 * scale, 1),
               width: 4.5 * scale,
-              height: 6.5 * scale,
+              height: 6.5 * scale * open,
             ),
             _pupilPaint,
           );
+        }
       });
     }
 
@@ -793,9 +803,50 @@ class ChibiCharacter extends PositionComponent {
     // leave the visible play area.
     const speed = 140.0;
     position += Vector2(dx, dy) * speed * dt;
-    final size = findGame()?.size ?? Vector2(800, 600);
+    final game = findGame();
+    final size = game?.size ?? Vector2(800, 600);
     position.x = position.x.clamp(40, size.x - 40);
     position.y = position.y.clamp(80, size.y - 60);
+
+    // Plate collision (v60.9). The question plate is rendered as
+    // a Flutter overlay; we collide against its screen-space AABB
+    // so the chibi can't walk through it. Push out along the
+    // shortest-overlap axis so the chibi slides naturally around
+    // edges instead of teleporting around the plate.
+    final plate = (game is _SurveyGame) ? game.plateBounds : null;
+    if (plate != null) {
+      // Chibi collision footprint — narrower than its render size
+      // because the visible chibi only fills the lower ~half of
+      // its component bounds (head extends up).
+      const halfW = 26.0;
+      const halfH = 50.0;
+      final cx = position.x;
+      final cy = position.y;
+      final left = plate.left;
+      final right = plate.right;
+      final top = plate.top;
+      final bottom = plate.bottom;
+      final overlapX = (cx + halfW).clamp(left, right) -
+          (cx - halfW).clamp(left, right);
+      final overlapY = (cy + halfH).clamp(top, bottom) -
+          (cy - halfH).clamp(top, bottom);
+      if (overlapX > 0 && overlapY > 0) {
+        // Push out along the smaller penetration axis.
+        if (overlapX < overlapY) {
+          if (cx < (left + right) / 2) {
+            position.x = left - halfW;
+          } else {
+            position.x = right + halfW;
+          }
+        } else {
+          if (cy < (top + bottom) / 2) {
+            position.y = top - halfH;
+          } else {
+            position.y = bottom + halfH;
+          }
+        }
+      }
+    }
 
     // Yaw smoothly tracks the joystick direction.
     //
@@ -842,11 +893,17 @@ class ChibiCharacter extends PositionComponent {
   void render(Canvas canvas) {
     super.render(canvas);
 
-    // Per-frame pose.
+    // Per-frame pose. Idle breathing micro-anim (v60.9): even when
+    // _walkPhase isn't advancing (joystick at rest), the body
+    // gently rises + falls and the head bobs slightly — the chibi
+    // never goes fully static, so it reads as alive rather than a
+    // dropped statue.
+    final idleBob = math.sin(_t * 2.0) * 1.2;
+    final idleHead = math.sin(_t * 2.0 + 1.4) * 0.8;
     final pose = FramePose(
       bodyCenterY: 50 + _worldY,
-      walkBobY: math.sin(_walkPhase * math.pi * 2) * 1.5,
-      headBobY: math.sin(_walkPhase * math.pi * 2 + 1) * 1.0,
+      walkBobY: math.sin(_walkPhase * math.pi * 2) * 1.5 + idleBob,
+      headBobY: math.sin(_walkPhase * math.pi * 2 + 1) * 1.0 + idleHead,
       footLeftPhase: (_walkPhase + 0.5) % 1.0,
       footRightPhase: _walkPhase,
       globalLiftY: _worldY,
@@ -997,60 +1054,224 @@ class KeyboardInput extends Component with KeyboardHandler {
 }
 
 // =====================================================================
-// Survey jar — clear container in the world that catches dropped
-// emoji marbles
+// Animated face painter — used by marble buttons + falling marbles
+// + the chibi's eyes
 // =====================================================================
 
-/// 15% width × 25% height (per the user's spec). The jar is purely
-/// visual — it doesn't physically constrain marbles, just provides
-/// a target settle position via [reserveSlot].
+/// Mood of a face — drives the mouth shape.
+enum FaceMood { sad, neutral, smiley }
+
+/// Pure paint helper. Caller draws the marble background circle
+/// first; this stamps eyes + mouth on top, parameterised by an
+/// animation phase so blinks + pupil drift are continuous.
 ///
-/// Marble pile: stack from the bottom up, left-to-right, in a grid
-/// whose cell size is the marble diameter + a small gap. New
-/// marbles claim a slot via `reserveSlot()` (which counts every
-/// marble whether in flight or at rest, so concurrent drops don't
-/// race for the same slot) and target that slot's settle position.
+/// All sizes are derived from `radius` so the same painter works
+/// at any marble size (the tray buttons, the falling-into-jar
+/// marbles, and conceivably the chibi's own face).
+class _FacePainter {
+  const _FacePainter({
+    required this.mood,
+    this.blinkPhase = 0,
+    this.pupilOffset = 0,
+  });
+
+  final FaceMood mood;
+
+  /// 0 = eyes fully open, 1 = fully closed. The blink curve is
+  /// driven externally by an animation source so the painter is
+  /// pure (no internal timer).
+  final double blinkPhase;
+
+  /// Horizontal pupil drift in [-1, 1]. 0 = looking forward.
+  final double pupilOffset;
+
+  static final _eyeWhite = Paint()..color = const Color(0xFFFFFFFF);
+  static final _eyeOutline = Paint()
+    ..color = const Color(0xFF1A1A1A)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.4;
+  static final _pupil = Paint()..color = const Color(0xFF1A1A1A);
+  static final _mouth = Paint()
+    ..color = const Color(0xFF1A1A1A)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.6
+    ..strokeCap = StrokeCap.round;
+
+  void paintAt(Canvas canvas, Offset center, double radius) {
+    canvas
+      ..save()
+      ..translate(center.dx, center.dy);
+
+    // Eyes — ovals with pupils. blinkPhase squashes vertical extent.
+    final eyeY = -radius * 0.12;
+    final eyeR = radius * 0.18;
+    final eyeSpacing = radius * 0.36;
+    final open = (1 - blinkPhase).clamp(0.05, 1.0);
+
+    void drawEye(double x) {
+      final rect = Rect.fromCenter(
+        center: Offset(x, eyeY),
+        width: eyeR * 1.4,
+        height: eyeR * 2.0 * open,
+      );
+      canvas
+        ..drawOval(rect, _eyeWhite)
+        ..drawOval(rect, _eyeOutline);
+      if (open > 0.25) {
+        canvas.drawCircle(
+          Offset(x + pupilOffset * eyeR * 0.5, eyeY + 1),
+          eyeR * 0.55 * open,
+          _pupil,
+        );
+      }
+    }
+
+    drawEye(-eyeSpacing);
+    drawEye(eyeSpacing);
+
+    // Mouth — bezier curve whose control point flips with mood.
+    final mouthY = radius * 0.30;
+    final mouthW = radius * 0.55;
+    final mouthCurve = radius * 0.22;
+    final path = Path();
+    switch (mood) {
+      case FaceMood.smiley:
+        path
+          ..moveTo(-mouthW, mouthY)
+          ..quadraticBezierTo(0, mouthY + mouthCurve, mouthW, mouthY);
+      case FaceMood.neutral:
+        path
+          ..moveTo(-mouthW, mouthY + 2)
+          ..lineTo(mouthW, mouthY + 2);
+      case FaceMood.sad:
+        path
+          ..moveTo(-mouthW, mouthY + mouthCurve)
+          ..quadraticBezierTo(0, mouthY, mouthW, mouthY + mouthCurve);
+    }
+    canvas
+      ..drawPath(path, _mouth)
+      ..restore();
+  }
+}
+
+/// Compute a blink phase (0 = open → 1 = closed → 0 = open) given
+/// a continuous time source. Encapsulates the "blink every N
+/// seconds for ~150ms" cycle so multiple consumers (chibi eye,
+/// marble buttons, falling marbles) all share one rhythm shape.
+///
+/// `seed` lets sibling marbles blink slightly out-of-phase so a
+/// row of three faces doesn't blink in lockstep. Pass any int.
+double blinkPhaseAt(double t, {int seed = 0}) {
+  // Period: 3.5–5.5s depending on seed. Each blink lasts 0.16s.
+  final period = 3.5 + ((seed * 1733) % 1000) / 500.0; // 3.5..5.5
+  final localT = (t + seed * 0.7) % period;
+  if (localT > 0.16) return 0;
+  // Triangle wave 0→1→0 over the 0.16s blink window.
+  final p = localT / 0.16;
+  return p < 0.5 ? p * 2 : (1 - p) * 2;
+}
+
+// =====================================================================
+// Survey jar — clear container in the world that catches dropped
+// face marbles
+// =====================================================================
+
+/// "Major jar" — a substantial clear container in the world. Per
+/// the user's revised spec: bigger than the first pass, with a
+/// proper 3D illusion. Drawn as a wide squat cylinder using two
+/// ellipses (rim + base) and connecting walls, plus a vertical
+/// highlight stripe for the glass feel.
+///
+/// Marble pile: stacks from the bottom up, left-to-right, in a
+/// grid whose cell size is the marble diameter + a small gap.
+/// New marbles claim a slot via `reserveSlot()` (which counts
+/// every marble whether in flight or at rest, so concurrent drops
+/// don't race for the same slot) and target that slot's settle
+/// position.
 class _Jar extends PositionComponent {
   _Jar({required Vector2 size}) : super(size: size, anchor: Anchor.topLeft);
 
-  /// Marble radius (matches `_FallingMarble._radius`).
-  static const double _marbleR = 12;
+  /// Marble radius — matches `_FallingMarble._radius`. Used to
+  /// compute the slot grid.
+  static const double _marbleR = 16;
 
-  /// Outer body — light glass tint with a thicker dark outline so
-  /// the silhouette reads even on the cell-shaded background.
-  static final _glassFill = Paint()..color = const Color(0x22B5D8E4);
+  /// How squashed the rim/base ellipses are vs a perfect circle.
+  /// 0.25 = quite flat, gives the FFT-style 3/4 view tilt.
+  static const double _rimFlatten = 0.25;
+
+  static final _glassFill = Paint()..color = const Color(0x33C2DEEA);
+  static final _backWallTint = Paint()..color = const Color(0x44A6C5D2);
   static final _glassOutline = Paint()
     ..color = const Color(0xFF1A1A1A)
     ..style = PaintingStyle.stroke
-    ..strokeWidth = 2.5;
+    ..strokeWidth = 3;
   static final _glassHighlight = Paint()
     ..color = const Color(0x55FFFFFF)
     ..style = PaintingStyle.stroke
-    ..strokeWidth = 2.5;
+    ..strokeWidth = 3;
+  static final _rimDark = Paint()
+    ..color = const Color(0xFF1A1A1A)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 3;
 
-  /// Reserved slot count — each `reserveSlot` increments. Drives
-  /// the next marble's (col, row) inside the jar grid.
+  /// Reserved slot count — each `reserveSlot` increments.
   int _reserved = 0;
 
   @override
   void render(Canvas canvas) {
     super.render(canvas);
-    // Body — wide rectangle with rounded bottom (squat-jar shape).
-    final body = RRect.fromRectAndCorners(
-      Rect.fromLTWH(0, 0, size.x, size.y),
-      topLeft: const Radius.circular(6),
-      topRight: const Radius.circular(6),
-      bottomLeft: const Radius.circular(20),
-      bottomRight: const Radius.circular(20),
+    final w = size.x;
+    final h = size.y;
+    final rimRy = w * _rimFlatten / 2;
+
+    // 1) Back wall arc — bottom half of the rim ellipse, drawn
+    // BEFORE the front so the front wall overlaps it. Gives a
+    // depth read.
+    final rimRect = Rect.fromCenter(
+      center: Offset(w / 2, rimRy),
+      width: w,
+      height: rimRy * 2,
+    );
+    canvas.drawArc(rimRect, 0, math.pi, false, _rimDark);
+
+    // 2) Body fill — rounded rectangle from rim center down to
+    // base center.
+    final bodyRect = RRect.fromLTRBAndCorners(
+      0,
+      rimRy,
+      w,
+      h - rimRy,
+      bottomLeft: Radius.circular(rimRy),
+      bottomRight: Radius.circular(rimRy),
     );
     canvas
-      ..drawRRect(body, _glassFill)
-      ..drawRRect(body, _glassOutline)
-      // Vertical highlight stripe — gives the "glass" feel without
-      // a full gradient/shader.
+      ..drawRRect(bodyRect, _glassFill)
+      // Tint on the back-wall portion (top quarter inside the body)
+      // for a hint of "depth through the glass".
+      ..drawRect(
+        Rect.fromLTRB(0, rimRy, w, rimRy + rimRy * 1.2),
+        _backWallTint,
+      );
+
+    // 3) Side walls — two vertical lines from the rim corners to
+    // the bottom of the body, where they round into the base curve.
+    // 4) Base — bottom ellipse (split into two arcs).
+    // 5) Rim — top ellipse, last so it sits over the body edges.
+    // 6) Specular stripe — vertical highlight on the left wall.
+    final baseRect = Rect.fromCenter(
+      center: Offset(w / 2, h - rimRy),
+      width: w,
+      height: rimRy * 2,
+    );
+    canvas
+      ..drawLine(Offset(0, rimRy), Offset(0, h - rimRy), _glassOutline)
+      ..drawLine(Offset(w, rimRy), Offset(w, h - rimRy), _glassOutline)
+      ..drawArc(baseRect, 0, math.pi, false, _glassOutline)
+      ..drawArc(baseRect, math.pi, math.pi, false, _glassOutline)
+      ..drawOval(rimRect, _glassOutline)
       ..drawLine(
-        Offset(size.x * 0.18, size.y * 0.18),
-        Offset(size.x * 0.18, size.y * 0.78),
+        Offset(w * 0.15, rimRy + 6),
+        Offset(w * 0.15, h - rimRy - 6),
         _glassHighlight,
       );
   }
@@ -1058,21 +1279,32 @@ class _Jar extends PositionComponent {
   /// Claim the next slot in the marble grid + return the world-
   /// space position the marble should settle at.
   Vector2 reserveSlot() {
+    final w = size.x;
+    final h = size.y;
+    final rimRy = w * _rimFlatten / 2;
+    // Marble fillable region: from a hair below the rim down to
+    // the inside of the base curve.
+    final fillTop = rimRy + 6;
+    final fillBottom = h - rimRy - 4;
     final perRow = math.max(
       1,
-      (size.x / (_marbleR * 2 + 2)).floor(),
+      (w / (_marbleR * 2 + 2)).floor(),
     );
     final slot = _reserved;
     _reserved += 1;
     final row = slot ~/ perRow;
     final col = slot % perRow;
-    final cellW = size.x / perRow;
+    final cellW = w / perRow;
     final x = position.x + (col + 0.5) * cellW;
+    final maxRows = math.max(
+      1,
+      ((fillBottom - fillTop) / (_marbleR * 2 + 2)).floor(),
+    );
+    final clampedRow = row.clamp(0, maxRows - 1);
     final y = position.y +
-        size.y -
+        fillBottom -
         _marbleR -
-        4 -
-        row * (_marbleR * 2 + 2);
+        clampedRow * (_marbleR * 2 + 2);
     return Vector2(x, y);
   }
 
@@ -1087,41 +1319,51 @@ class _Jar extends PositionComponent {
 
 class _FallingMarble extends PositionComponent {
   _FallingMarble({
-    required this.emoji,
+    required this.mood,
     required Vector2 spawnWorldPos,
     required this.settleY,
+    required this.seed,
   }) : super(anchor: Anchor.center) {
     position.setFrom(spawnWorldPos);
   }
 
-  static const double _radius = 12;
-  static const double _gravity = 1100;
+  static const double _radius = 16;
+  static const double _gravity = 1200;
 
-  final String emoji;
+  final FaceMood mood;
   final double settleY;
+  final int seed;
 
   double _vy = 0;
   bool _atRest = false;
+  double _t = 0;
 
-  static final _fillPaint = Paint()..color = const Color(0xFFFFFFFF);
+  // Per-mood subtle tint behind the face — keeps the three faces
+  // distinguishable at a glance even when they're stacked deep
+  // in the jar.
+  static final _smileyFill = Paint()..color = const Color(0xFFFFE89B);
+  static final _neutralFill = Paint()..color = const Color(0xFFE6E6E6);
+  static final _sadFill = Paint()..color = const Color(0xFFB8D7F1);
   static final _outlinePaint = Paint()
     ..color = const Color(0xFF1A1A1A)
     ..style = PaintingStyle.stroke
-    ..strokeWidth = 1.5;
+    ..strokeWidth = 1.6;
 
-  // Cache the TextPainter so we don't re-layout the emoji glyph
-  // on every render frame — emoji shaping is non-trivial.
-  late final TextPainter _glyph = TextPainter(
-    text: TextSpan(
-      text: emoji,
-      style: const TextStyle(fontSize: 16),
-    ),
-    textDirection: TextDirection.ltr,
-  )..layout();
+  Paint get _fillPaint {
+    switch (mood) {
+      case FaceMood.smiley:
+        return _smileyFill;
+      case FaceMood.neutral:
+        return _neutralFill;
+      case FaceMood.sad:
+        return _sadFill;
+    }
+  }
 
   @override
   void update(double dt) {
     super.update(dt);
+    _t += dt;
     if (_atRest) return;
     _vy += _gravity * dt;
     position.y += _vy * dt;
@@ -1138,10 +1380,13 @@ class _FallingMarble extends PositionComponent {
     canvas
       ..drawCircle(Offset.zero, _radius, _fillPaint)
       ..drawCircle(Offset.zero, _radius, _outlinePaint);
-    _glyph.paint(
-      canvas,
-      Offset(-_glyph.width / 2, -_glyph.height / 2),
-    );
+    final blink = blinkPhaseAt(_t, seed: seed);
+    final pupil = math.sin(_t * 1.4 + seed) * 0.4;
+    _FacePainter(
+      mood: mood,
+      blinkPhase: blink,
+      pupilOffset: pupil,
+    ).paintAt(canvas, Offset.zero, _radius);
   }
 }
 
@@ -1156,19 +1401,43 @@ class _SurveyGame extends FlameGame
   late final ChibiCharacter chibi;
   late final _Jar jar;
 
+  /// Screen-space rect of the question plate. The plate is a
+  /// Flutter overlay (Stack-positioned above the GameWidget) so
+  /// it doesn't render through Flame, but we still want the chibi
+  /// to *collide* with it — the user wants the plate to be
+  /// immovable, "no one can move it." The chibi reads this rect
+  /// in `update` and AABB-pushes itself out if it overlaps.
+  ///
+  /// Coordinates match the screen-space positioning the Flutter
+  /// Stack uses (16px from each side, ~70dp tall plate). Updated
+  /// by the screen on every layout via `setPlateBounds`.
+  Rect? plateBounds;
+  // Setter-style helper. The lint pushes us toward `set
+  // plateBounds(...)` but this shape stays consistent with the
+  // existing `setLoadout` helpers and is what the screen's
+  // post-frame callback already calls.
+  // ignore: use_setters_to_change_properties
+  void setPlateBounds(Rect r) => plateBounds = r;
+
   // External handle so the screen's "Jump" button can poke us.
   void requestJump() => chibi.jump();
 
-  /// Spawn a marble at the top of the jar's column for [emoji] and
-  /// let gravity do the rest. Called by the question-plate UI when
-  /// the user taps a marble button.
-  void dropMarble(String emoji) {
+  /// Spawn a face marble for the given mood at the top of its column. The
+  /// Jar's `reserveSlot()` returns the slot position; we spawn at
+  /// the slot's X but the jar's top Y so it visibly drops in from
+  /// above. Each marble carries a unique `seed` (the slot index)
+  /// so blink + pupil drift are out-of-phase across the pile —
+  /// otherwise rows of marbles would blink in lockstep.
+  int _droppedCount = 0;
+  void dropMarble(FaceMood mood) {
     final settle = jar.reserveSlot();
     final marble = _FallingMarble(
-      emoji: emoji,
+      mood: mood,
       spawnWorldPos: Vector2(settle.x, jar.topY),
       settleY: settle.y,
+      seed: _droppedCount,
     );
+    _droppedCount += 1;
     // FlameGame.add returns a Future; we don't need to await —
     // the marble starts falling on the next tick once mounted.
     // ignore: discarded_futures
@@ -1194,9 +1463,11 @@ class _SurveyGame extends FlameGame
     keyboardInput = KeyboardInput();
     add(keyboardInput);
 
-    // Jar in the lower-middle of the world. Per spec: 15% width,
-    // 25% height of screen. Centered horizontally.
-    final jarSize = Vector2(size.x * 0.15, size.y * 0.25);
+    // Major jar in the lower-middle of the world — 25% width ×
+    // 30% height of screen so it reads as the centerpiece, not a
+    // small side prop. Centered horizontally; sits at ~55% screen
+    // top so its bottom is near the visible ground line.
+    final jarSize = Vector2(size.x * 0.25, size.y * 0.30);
     jar = _Jar(size: jarSize)
       ..position = Vector2(
         (size.x - jarSize.x) / 2,
@@ -1221,37 +1492,30 @@ class _SurveyGame extends FlameGame
 // Question pool
 // =====================================================================
 
-/// One survey question + the three emoji choices that show up as
-/// marble buttons under it. Three is intentional — small enough to
-/// glance at, big enough for "low / mid / high" or
-/// "yes / maybe / no" scales.
+/// A survey question. v60.9 — the answer marbles are always the
+/// satisfaction scale (sad / neutral / smiley), so we don't carry
+/// per-question emojis any more; we just rotate the question text.
+/// Different question, same three marble faces.
 class _SurveyQuestion {
-  const _SurveyQuestion({required this.question, required this.emojis});
+  const _SurveyQuestion(this.question);
   final String question;
-  final List<String> emojis;
 }
 
 const _kSurveyQuestions = <_SurveyQuestion>[
-  _SurveyQuestion(
-    question: 'How are you feeling today?',
-    emojis: ['😀', '😐', '😢'],
-  ),
-  _SurveyQuestion(
-    question: 'Pick a snack.',
-    emojis: ['🍎', '🍌', '🍇'],
-  ),
-  _SurveyQuestion(
-    question: 'What is the weather like for you?',
-    emojis: ['🌞', '⛅', '🌧️'],
-  ),
-  _SurveyQuestion(
-    question: 'Energy level right now?',
-    emojis: ['⚡', '💤', '🔥'],
-  ),
-  _SurveyQuestion(
-    question: 'Pick a vibe.',
-    emojis: ['🌊', '🌱', '🌌'],
-  ),
+  _SurveyQuestion('How are you feeling today?'),
+  _SurveyQuestion('How was your morning?'),
+  _SurveyQuestion('Energy level right now?'),
+  _SurveyQuestion("How do you feel about today's plan?"),
+  _SurveyQuestion('How was your last activity?'),
+];
+
+/// Fixed answer set — always sad / neutral / smiley, in that
+/// reading order. The marble button row + the falling-marble
+/// drop flow both consume this list directly.
+const _kFaceMoods = <FaceMood>[
+  FaceMood.sad,
+  FaceMood.neutral,
+  FaceMood.smiley,
 ];
 
 // =====================================================================
@@ -1274,9 +1538,54 @@ class _SurveyScreenState extends State<SurveyScreen> {
   late final _SurveyQuestion _question =
       _kSurveyQuestions[math.Random().nextInt(_kSurveyQuestions.length)];
 
+  /// Key on the question plate's outer Container. After every
+  /// frame we read its bounds and push them down to the game so
+  /// the chibi's collision check has a real screen-space rect to
+  /// work with (Flutter does the layout; the game just consumes).
+  final GlobalKey _plateKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    // Publish plate bounds once after first layout, then on every
+    // build. The post-frame callback is the canonical "after
+    // layout has settled" hook.
+    WidgetsBinding.instance.addPostFrameCallback(_publishPlateBounds);
+  }
+
+  void _publishPlateBounds(Duration _) {
+    if (!mounted) return;
+    final ctx = _plateKey.currentContext;
+    if (ctx == null) return;
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    // The plate's overlay sits inside the Stack, which is laid out
+    // edge-to-edge with the game canvas. localToGlobal gives screen-
+    // space coords; the game's `size` is the same screen-space
+    // (Flame's GameWidget fills its slot 1:1 with logical pixels),
+    // so we can pass the rect through unmodified.
+    final topLeft = box.localToGlobal(Offset.zero);
+    final scaffoldRO = context.findRenderObject() as RenderBox?;
+    final scaffoldOrigin =
+        scaffoldRO?.localToGlobal(Offset.zero) ?? Offset.zero;
+    final localTopLeft = topLeft - scaffoldOrigin;
+    _game.setPlateBounds(localTopLeft & box.size);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Layout can shift on theme/size changes — re-publish.
+    WidgetsBinding.instance.addPostFrameCallback(_publishPlateBounds);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Re-measure every frame so rotation / window resize / safe-
+    // area changes keep the plate's collision rect accurate. The
+    // post-frame callback runs after this build commits.
+    WidgetsBinding.instance.addPostFrameCallback(_publishPlateBounds);
     return Scaffold(
       appBar: AppBar(
         title: const Text('New Survey'),
@@ -1319,8 +1628,13 @@ class _SurveyScreenState extends State<SurveyScreen> {
               bottom: false,
               child: Column(
                 children: [
-                  // Plate
+                  // Plate. Keyed so we can read its post-layout
+                  // bounds via `_publishPlateBounds` and push them
+                  // into the game for chibi collision (the user
+                  // wants the plate to be immovable — chibi can't
+                  // pass through it).
                   Container(
+                    key: _plateKey,
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.lg,
                       vertical: AppSpacing.md,
@@ -1349,17 +1663,21 @@ class _SurveyScreenState extends State<SurveyScreen> {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  // Marble tray — three tappable circles, each
-                  // rendering its emoji. Click → drop into jar.
+                  // Marble tray — three tappable face marbles
+                  // (sad / neutral / smiley). Each animates
+                  // continuously (blink + pupil drift) so the
+                  // tray feels alive, not a static button row.
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      for (final emoji in _question.emojis) ...[
+                      for (var i = 0; i < _kFaceMoods.length; i++) ...[
                         _MarbleButton(
-                          emoji: emoji,
-                          onTap: () => _game.dropMarble(emoji),
+                          mood: _kFaceMoods[i],
+                          seed: i,
+                          onTap: () => _game.dropMarble(_kFaceMoods[i]),
                         ),
-                        const SizedBox(width: AppSpacing.md),
+                        if (i < _kFaceMoods.length - 1)
+                          const SizedBox(width: AppSpacing.md),
                       ],
                     ],
                   ),
@@ -1385,28 +1703,69 @@ class _SurveyScreenState extends State<SurveyScreen> {
 }
 
 // =====================================================================
-// Marble button — tappable emoji circle in the question tray
+// Marble button — animated face circle in the question tray
 // =====================================================================
 
-/// 44dp circle with the emoji centered. Pressed-scale gives a tap
-/// feedback so the user sees the click register before the marble
-/// shows up falling in the jar.
+/// 56dp face circle. The face animates continuously (blink + pupil
+/// drift) via a Ticker; pressed-scale gives tap feedback. Per-mood
+/// background tint matches the falling-marble fill so the user
+/// sees the SAME marble drop into the jar.
 class _MarbleButton extends StatefulWidget {
-  const _MarbleButton({required this.emoji, required this.onTap});
+  const _MarbleButton({
+    required this.mood,
+    required this.seed,
+    required this.onTap,
+  });
 
-  final String emoji;
+  final FaceMood mood;
+  final int seed;
   final VoidCallback onTap;
 
   @override
   State<_MarbleButton> createState() => _MarbleButtonState();
 }
 
-class _MarbleButtonState extends State<_MarbleButton> {
+class _MarbleButtonState extends State<_MarbleButton>
+    with SingleTickerProviderStateMixin {
+  late final Ticker _ticker;
+  double _t = 0;
   bool _pressed = false;
 
   @override
+  void initState() {
+    super.initState();
+    _ticker = createTicker((elapsed) {
+      setState(() {
+        _t = elapsed.inMicroseconds / 1e6;
+      });
+    });
+    // Ticker.start() returns a Future that completes when the
+    // ticker is stopped — fire-and-forget for our case (the
+    // dispose() call cancels). The lint complains; the cascade is
+    // correct.
+    // ignore: discarded_futures
+    _ticker.start();
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  Color get _fillColor {
+    switch (widget.mood) {
+      case FaceMood.smiley:
+        return const Color(0xFFFFE89B);
+      case FaceMood.neutral:
+        return const Color(0xFFE6E6E6);
+      case FaceMood.sad:
+        return const Color(0xFFB8D7F1);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return GestureDetector(
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) => setState(() => _pressed = false),
@@ -1415,30 +1774,67 @@ class _MarbleButtonState extends State<_MarbleButton> {
       child: AnimatedScale(
         duration: const Duration(milliseconds: 90),
         scale: _pressed ? 0.88 : 1,
-        child: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: theme.colorScheme.surface,
-            border: Border.all(
-              color: theme.colorScheme.outlineVariant,
+        child: SizedBox(
+          width: 56,
+          height: 56,
+          child: CustomPaint(
+            painter: _MarbleFacePainter(
+              mood: widget.mood,
+              fill: _fillColor,
+              blinkPhase: blinkPhaseAt(_t, seed: widget.seed),
+              pupilOffset: math.sin(_t * 1.4 + widget.seed) * 0.4,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            widget.emoji,
-            style: const TextStyle(fontSize: 22),
           ),
         ),
       ),
     );
   }
+}
+
+/// CustomPainter wrapper around `_FacePainter` for the Flutter
+/// marble-button widget. Draws the marble background circle +
+/// outline, then delegates to the shared face painter.
+class _MarbleFacePainter extends CustomPainter {
+  _MarbleFacePainter({
+    required this.mood,
+    required this.fill,
+    required this.blinkPhase,
+    required this.pupilOffset,
+  });
+
+  final FaceMood mood;
+  final Color fill;
+  final double blinkPhase;
+  final double pupilOffset;
+
+  static final _outline = Paint()
+    ..color = const Color(0xFF1A1A1A)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.6;
+  static final _shadow = Paint()
+    ..color = const Color(0x33000000)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = size.shortestSide / 2;
+    final c = Offset(size.width / 2, size.height / 2);
+    final fillPaint = Paint()..color = fill;
+    canvas
+      ..drawCircle(c.translate(0, 2), r - 1, _shadow)
+      ..drawCircle(c, r - 1, fillPaint)
+      ..drawCircle(c, r - 1, _outline);
+    _FacePainter(
+      mood: mood,
+      blinkPhase: blinkPhase,
+      pupilOffset: pupilOffset,
+    ).paintAt(canvas, c, r);
+  }
+
+  @override
+  bool shouldRepaint(covariant _MarbleFacePainter old) =>
+      old.blinkPhase != blinkPhase ||
+      old.pupilOffset != pupilOffset ||
+      old.mood != mood ||
+      old.fill != fill;
 }
