@@ -49,10 +49,16 @@ enum SurveyAudioMode {
   }
 }
 
-/// Deepgram Aura voice id. We bundle audio for all 10 voices in
-/// `assets/audio/<voiceId>/...` so any choice resolves locally
-/// without an API call at runtime. The teacher picks one in setup
-/// and it's the voice the kiosk plays for the entire survey.
+/// Deepgram **Aura-2** voice id. We bundle audio for all 10
+/// voices in `assets/audio/<voiceId>/...` so any choice resolves
+/// locally without an API call at runtime. The teacher picks one
+/// in setup and it's the voice the kiosk plays for the entire
+/// survey.
+///
+/// Aura-2 is Deepgram's newer (Q4'24) higher-fidelity TTS model;
+/// every voice id here exists in that catalog. The legacy Aura-1
+/// "angus" is gone in 2 — we use **atlas** (warm, casual male) as
+/// the closest replacement.
 enum SurveyVoice {
   asteria('asteria', 'Asteria', VoiceGender.female, 'Warm, friendly US'),
   luna('luna', 'Luna', VoiceGender.female, 'Younger, cheerful US'),
@@ -61,7 +67,7 @@ enum SurveyVoice {
   hera('hera', 'Hera', VoiceGender.female, 'Smooth, soothing US'),
   orion('orion', 'Orion', VoiceGender.male, 'Approachable US'),
   arcas('arcas', 'Arcas', VoiceGender.male, 'Natural, casual US'),
-  angus('angus', 'Angus', VoiceGender.male, 'Warm Irish'),
+  atlas('atlas', 'Atlas', VoiceGender.male, 'Warm, casual US'),
   perseus('perseus', 'Perseus', VoiceGender.male, 'Confident US'),
   orpheus('orpheus', 'Orpheus', VoiceGender.male, 'Professional US');
 

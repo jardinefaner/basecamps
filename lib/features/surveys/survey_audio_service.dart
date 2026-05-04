@@ -81,11 +81,12 @@ class SurveyAudioService {
       <String, Future<String?>>{};
 
   /// Deepgram TTS endpoint — proxied via Bearer JWT from the
-  /// `deepgram-token` Supabase edge function. The model id is
-  /// `aura-<voice>-en` and we ask for MP3 output.
+  /// `deepgram-token` Supabase edge function. We use **Aura-2**
+  /// (`aura-2-<voice>-en`), Deepgram's higher-fidelity / lower-
+  /// latency successor to the original Aura. MP3 output.
   Uri _ttsUri(SurveyVoice voice) => Uri.parse(
         'https://api.deepgram.com/v1/speak'
-        '?model=aura-${voice.code}-en'
+        '?model=aura-2-${voice.code}-en'
         '&encoding=mp3',
       );
 

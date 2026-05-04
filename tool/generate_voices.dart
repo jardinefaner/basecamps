@@ -112,10 +112,10 @@ Future<List<int>> _renderTts({
   required String voiceCode,
   required String text,
 }) async {
-  // Deepgram Aura. The model id is `aura-<voice>-en`. MP3 output.
+  // Deepgram Aura-2. Model id: `aura-2-<voice>-en`. MP3 output.
   final uri = Uri.parse(
     'https://api.deepgram.com/v1/speak'
-    '?model=aura-$voiceCode-en'
+    '?model=aura-2-$voiceCode-en'
     '&encoding=mp3',
   );
   final response = await http.post(
