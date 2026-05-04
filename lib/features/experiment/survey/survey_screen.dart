@@ -2304,18 +2304,6 @@ class _MarbleNode extends PositionComponent {
   /// trigger a squash from the collision pass.
   double squash = 0;
 
-  // ——— 3D in-jar coordinates ———
-  // Active only while `state == inJar`. Origin: jar's interior
-  // floor center. (jarX, jarZ) span the floor circle (R = interior
-  // radius). jarY is height above floor (positive up). jarVy +ve
-  // = rising; gravity decreases jarVy each tick.
-  double jarX = 0;
-  double jarY = 0;
-  double jarZ = 0;
-  double jarVx = 0;
-  double jarVy = 0;
-  double jarVz = 0;
-
   /// One-shot guard so we only fire `onMarbleEnteredJar` once per
   /// throw, even if the marble crosses the rim line on multiple
   /// frames (it can re-enter from below if the jar gets crowded).
@@ -2326,8 +2314,6 @@ class _MarbleNode extends PositionComponent {
   /// `_postFlightState` is `inJar` for normal throws and `spilled`
   /// for overflow throws.
   _MarbleState _postFlightState = _MarbleState.inJar;
-  double _targetJarX = 0;
-  double _targetJarZ = 0;
 
   void pickUp() {
     state = _MarbleState.held;
@@ -2345,78 +2331,42 @@ class _MarbleNode extends PositionComponent {
     vy = 0;
   }
 
-  /// Convert to a flying projectile aimed at the jar — chibi
-  /// position controls where in the cylinder the marble lands.
-  /// Lateral offset (chibi.x relative to jar center) maps to
-  /// `jarX`; chibi's distance above the rim maps to `jarZ` (right
-  /// at the rim → front of cylinder; farther up → back).
+  /// Convert to a flying projectile aimed at the jar's mouth.
+  /// 2D drop: aim at a point just inside the rim with a small
+  /// random X jitter (the jar is narrow enough that the marble
+  /// will basically stack vertically once inside; jitter just
+  /// keeps adjacent throws from landing at the exact same X).
   ///
-  /// If the column at that target is already piled to the rim, we
-  /// re-target to a spillover trajectory: arc lands on the table
-  /// just outside the jar (the side closer to the chibi) and the
-  /// marble enters `spilled` state on touchdown.
+  /// Overflow check (geometric): if the highest in-jar marble in
+  /// this column is within ~2r of the rim, this throw can't fit
+  /// — re-target to a spillover trajectory landing on the table
+  /// next to the jar.
   void throwToJar(_SurveyGame game) {
     state = _MarbleState.flying;
     _enteredJar = false;
     final jar = game.jar;
     final chibi = game.chibi;
-    final innerR = jar.interiorR - _radius;
+    final cx = jar.position.x + jar.cx;
+    final mouthY = jar.position.y + jar.rimRy;
+    // Available lateral play inside the rim minus marble radius.
+    final spread = math.max<double>(jar.neckW / 2 - _radius, 0);
+    final aimX = cx + (math.Random().nextDouble() * 2 - 1) * spread * 0.6;
 
-    // ——— Chibi-driven target inside the cylinder ———
-    // Lateral: chibi.x relative to jar center, clamped to inside.
-    // Depth: how close the chibi is to the rim, mapped across the
-    // full play-area-Y range so the user can actually reach both
-    // front + back of the cylinder regardless of screen size.
-    final chibiOffsetX = chibi.position.x - (jar.position.x + jar.cx);
-    // Highest reachable Y above the rim is `playTop` (~80) clamped
-    // up — anything tighter than 16 we treat as right-at-rim.
-    final maxAboveRim = math.max<double>(jar.position.y - 80, 32);
-    final aboveRim = (jar.position.y - chibi.position.y).clamp(0.0, maxAboveRim);
-    final aboveT = ((aboveRim - 16) / (maxAboveRim - 16)).clamp(0.0, 1.0);
-    final tX = chibiOffsetX.clamp(-innerR * 0.85, innerR * 0.85);
-    // aboveT 0 → +0.7R (front, chibi at rim); 1 → -0.7R (back).
-    final tZ = innerR * 0.7 * (1 - 2 * aboveT);
-    // Snap target inside the unit circle so corners aren't outside
-    // the cylinder.
-    final tD = math.sqrt(tX * tX + tZ * tZ);
-    final clampedTX = (tD > innerR * 0.85) ? tX * (innerR * 0.85 / tD) : tX;
-    final clampedTZ = (tD > innerR * 0.85) ? tZ * (innerR * 0.85 / tD) : tZ;
-    _targetJarX = clampedTX;
-    _targetJarZ = clampedTZ;
-
-    // ——— Overflow check ———
-    // Two gates:
-    //   1. Hard count cap — if the jar already holds the max
-    //      (`_SurveyGame._jarCapacity`), the throw spills no matter
-    //      what column it would land in. Lets the user watch the
-    //      jar fill up to a known number, then accumulate around it.
-    //   2. Per-column pile height — if the targeted (X,Z) cell is
-    //      already piled to the rim (rare before count gates), spill.
-    final atCapacity = game.countInJar() >= _SurveyGame._jarCapacity;
-    final pileH = game.pileHeightAt(clampedTX, clampedTZ);
-    final overflow = atCapacity ||
-        pileH + _radius * 2 > jar.interiorBodyHeight;
+    // Overflow: would the new marble's center land above the rim?
+    final pileTopY = game.pileTopAt(aimX);
+    final rimThreshold = jar.position.y + jar.rimRy * 0.6;
+    final overflow = (pileTopY - _radius * 2) < rimThreshold;
 
     if (overflow) {
       _postFlightState = _MarbleState.spilled;
-      // Target a point just OUTSIDE the jar on the same side as
-      // the chibi. Arc lands at that screen point on the floor
-      // line (the visible base of the jar).
-      final outsideX = chibi.position.x < jar.position.x + jar.cx
+      final outsideX = chibi.position.x < cx
           ? jar.position.x - 24
           : jar.position.x + jar.size.x + 24;
       final outsideY = jar.position.y + jar.size.y - jar.baseRy * 0.4;
       _aimArc(outsideX, outsideY, 0.78);
     } else {
       _postFlightState = _MarbleState.inJar;
-      // Aim arc to where the target (jarX, jarY=top, jarZ)
-      // projects to in screen space — that way when we transition
-      // on touchdown there's no visual snap.
-      final landX = jar.position.x + jar.cx + clampedTX;
-      final floorY = jar.interiorFloorScreenY +
-          (clampedTZ / jar.interiorR) * jar.interiorBaseRy;
-      final landY = floorY - jar.interiorBodyHeight;
-      _aimArc(landX, landY, 0.78);
+      _aimArc(aimX, mouthY, 0.78);
     }
   }
 
@@ -2475,19 +2425,9 @@ class _MarbleNode extends PositionComponent {
             _enteredJar = true;
             squash = 0.45;
             if (_postFlightState == _MarbleState.inJar && insideRim) {
-              // Snap to 3D coords — screen position will be
-              // recomputed by _projectFromJar each frame.
-              jarX = _targetJarX;
-              jarZ = _targetJarZ;
-              jarY = jar.interiorBodyHeight;
-              // Carry some downward momentum: take the screen vy
-              // (positive = falling) and push it into -jarVy so the
-              // marble continues plunging into the cylinder.
-              jarVy = -math.max<double>(150, vy);
-              jarVx = 0;
-              jarVz = 0;
-              vx = 0;
-              vy = 0;
+              // 2D pipeline: keep the screen-space velocity. Gravity
+              // continues from here, the cylinder walls + the floor
+              // catch the marble naturally.
               state = _MarbleState.inJar;
               game.onMarbleEnteredJar(this);
             } else {
@@ -2549,101 +2489,72 @@ class _MarbleNode extends PositionComponent {
       ..y = c.position.y - 90 * cs + math.sin(_t * 4 + seed) * 1.5;
   }
 
-  /// 3D physics inside the mason jar's body cylinder.
+  /// 2D in-jar physics (screen-space). Gravity pulls down, walls
+  /// catch the marble left/right, the floor catches it at the
+  /// bottom. Marble center sits at `floorY = visible_base_top -
+  /// radius` when at rest so the marble visually sits ON the floor
+  /// rather than centered on it.
   ///
-  /// Coordinates are jar-local: origin at the floor's center,
-  /// (jarX, jarZ) on the floor plane, jarY rising. Gravity acts on
-  /// jarY only; the (X, Z) plane is just air drag + collisions.
-  /// Cylinder wall = unit-circle constraint in (X, Z); floor = a
-  /// hard floor at jarY=0 with vertical bounce + lateral friction.
+  /// Pairwise marble-marble collision is handled by the game in
+  /// `_resolveJarCollisions` (2D circle-circle). `clampToJar` is
+  /// idempotent so it can be called twice per frame (after
+  /// integration, then again after pairwise) without weird drift.
   ///
-  /// Pairwise marble-marble collision is handled by the game
-  /// (3D sphere-sphere). After pairwise resolution the game also
-  /// re-clamps to the cylinder via `clampToJar` so a marble pushed
-  /// out of bounds by a neighbor doesn't stay there for a frame.
-  ///
-  /// At the end we project (jarX, jarY, jarZ) → screen-space
-  /// `position` so the rest of the renderer + Y-priority sort
-  /// works as-is.
+  /// Bouncier than before: restitution 0.65 on walls + floor, no
+  /// stick-to-wall threshold. A marble dropped in keeps bouncing
+  /// until friction grinds it to rest — about 6 collisions for a
+  /// hard drop (0.65^6 ≈ 7.5% of initial velocity left).
   void _updateInJar(double dt, _Jar jar) {
-    jarVy -= _gravity * dt;
-    final drag = math.pow(0.5, dt).toDouble();
-    jarVx *= drag;
-    jarVz *= drag;
-
-    jarX += jarVx * dt;
-    jarY += jarVy * dt;
-    jarZ += jarVz * dt;
-
-    clampToJar(jar);
-    _projectFromJar(jar);
-  }
-
-  /// Cylinder wall + floor clamp. Idempotent — safe to call
-  /// repeatedly per frame (game pairwise pass calls it after
-  /// resolving overlaps to keep marbles inside the jar).
-  ///
-  /// Low restitution (0.22) + a stick-to-wall threshold under
-  /// 30 px/s means a slow marble brushing the wall doesn't
-  /// chatter; it just clamps to the boundary and keeps lateral
-  /// motion zeroed along the wall normal.
-  void clampToJar(_Jar jar) {
-    final innerR = jar.interiorR - _radius;
-
-    final radial2 = jarX * jarX + jarZ * jarZ;
-    if (radial2 > innerR * innerR && radial2 > 1e-6) {
-      final radial = math.sqrt(radial2);
-      final nx = jarX / radial;
-      final nz = jarZ / radial;
-      jarX = nx * innerR;
-      jarZ = nz * innerR;
-      final velRadial = jarVx * nx + jarVz * nz;
-      if (velRadial > 0) {
-        if (velRadial < 30) {
-          // Stick: zero the outward component, keep tangent flow.
-          jarVx -= velRadial * nx;
-          jarVz -= velRadial * nz;
-        } else {
-          const restitution = 0.22;
-          if (velRadial > 80) squash = math.max(squash, 0.4);
-          jarVx -= (1 + restitution) * velRadial * nx;
-          jarVz -= (1 + restitution) * velRadial * nz;
-        }
-      }
-    }
-
-    if (jarY < 0) {
-      jarY = 0;
-      if (jarVy < 0) {
-        final speed = -jarVy;
-        if (speed < 30) {
-          // Stick: zero the bounce, just rest on floor.
-          jarVy = 0;
-        } else {
-          if (speed > 80) squash = math.max(squash, 0.5);
-          jarVy = -jarVy * 0.22;
-        }
-        // Floor friction on lateral.
-        jarVx *= 0.7;
-        jarVz *= 0.7;
-      }
-    }
-  }
-
-  /// Map (jarX, jarY, jarZ) → screen-space `position`.
-  ///
-  /// Floor screen-Y at depth z is `floorCenterY + (z/R) * baseRy` —
-  /// at z=-R (back wall) it's at the TOP of the base ellipse,
-  /// at z=+R (front glass) it's at the BOTTOM. Add height by
-  /// subtracting jarY from the floor Y.
-  void _projectFromJar(_Jar jar) {
-    final screenX = jar.position.x + jar.cx + jarX;
-    final floorScreenY = jar.interiorFloorScreenY +
-        (jarZ / jar.interiorR) * jar.interiorBaseRy;
-    final screenY = floorScreenY - jarY;
+    vy += _gravity * dt;
+    final drag = math.pow(0.6, dt).toDouble();
+    vx *= drag;
     position
-      ..x = screenX
-      ..y = screenY;
+      ..x += vx * dt
+      ..y += vy * dt;
+    clampToJar(jar);
+  }
+
+  /// Wall + floor clamp in screen space. Idempotent.
+  void clampToJar(_Jar jar) {
+    const restitution = 0.65;
+    final cx = jar.position.x + jar.cx;
+    final innerR = jar.interiorR;
+    final left = cx - innerR + _radius;
+    final right = cx + innerR - _radius;
+    // Floor: just inside the bottom of the visible base ellipse,
+    // shifted up by marble radius so the marble's BOTTOM sits on
+    // the floor (not its center). Eliminates the "drawn through
+    // the bottom" bug.
+    final floorY = jar.position.y +
+        jar.size.y -
+        jar.baseRy * 0.4 -
+        _Jar._glassThickness -
+        _radius;
+
+    if (position.x < left) {
+      position.x = left;
+      if (vx < 0) {
+        if (-vx > 80) squash = math.max(squash, 0.4);
+        vx = -vx * restitution;
+      }
+    }
+    if (position.x > right) {
+      position.x = right;
+      if (vx > 0) {
+        if (vx > 80) squash = math.max(squash, 0.4);
+        vx = -vx * restitution;
+      }
+    }
+    if (position.y > floorY) {
+      position.y = floorY;
+      if (vy > 0) {
+        if (vy > 80) squash = math.max(squash, 0.5);
+        vy = -vy * restitution;
+        // Light floor friction so a marble landing flat eventually
+        // stops sliding.
+        vx *= 0.85;
+      }
+    }
   }
 
   /// Spilled-state physics. Marble has overflowed the jar and is
@@ -2690,19 +2601,7 @@ class _MarbleNode extends PositionComponent {
     final game = findGame();
     final h = game?.size.y ?? 600;
     final depth = depthScaleForY(position.y, h);
-    // Subtle additional depth read for marbles inside the jar:
-    // jarZ in [-innerR, +innerR] maps to [-1, +1], times 0.075 to
-    // give roughly ±7.5% scale variation between back wall and
-    // front glass. Subtle on purpose — too much makes the cylinder
-    // feel cartoonish.
-    var jarDepthBoost = 1.0;
-    if (state == _MarbleState.inJar && game is _SurveyGame) {
-      final innerR = game.jar.interiorR;
-      if (innerR > 1e-6) {
-        jarDepthBoost = 1 + (jarZ / innerR) * 0.075;
-      }
-    }
-    final baseScale = depth * pulse * jarDepthBoost;
+    final baseScale = depth * pulse;
     final r = _radius * baseScale;
 
     // Combine impact-squash with micro-anim scale. The micro-anim
@@ -3013,53 +2912,31 @@ class _SurveyGame extends FlameGame
     );
   }
 
-  /// Hard cap on how many marbles can sit inside the jar. Throw
-  /// #16+ goes to spillover (lands on the table around the jar's
-  /// base). Picked so the user can visibly watch the pile climb
-  /// without it ever ramming the rim — fits comfortably in the
-  /// vertical body cavity at the new 1:1.5 aspect.
-  static const int _jarCapacity = 15;
-
-  /// Count of marbles currently inside the jar (any state of in-
-  /// jar physics). Used by `throwToJar` to short-circuit on hard
-  /// capacity before doing the per-column pile-height check.
-  int countInJar() {
-    var n = 0;
-    for (final c in children) {
-      if (c is _MarbleNode && c.state == _MarbleState.inJar) n += 1;
-    }
-    return n;
-  }
-
-  /// Find the highest occupied jarY at a given (X, Z) cell. Used
-  /// by `_MarbleNode.throwToJar` to detect overflow before
-  /// committing to an in-jar landing.
-  double pileHeightAt(double targetX, double targetZ) {
-    var maxY = 0.0;
+  /// Lowest screen-Y (= visually highest) of any in-jar marble in
+  /// a column near `targetX`. Used by `throwToJar` to detect when
+  /// the pile has reached the rim. Returns +infinity if no marbles
+  /// in the column (i.e. there's nothing stacked there yet).
+  double pileTopAt(double targetX) {
+    var minY = double.infinity;
     const r = _MarbleNode._radius;
-    const cellR2 = (r * 1.6) * (r * 1.6);
+    const reach = r * 1.6;
     for (final c in children) {
       if (c is! _MarbleNode || c.state != _MarbleState.inJar) continue;
-      final dx = c.jarX - targetX;
-      final dz = c.jarZ - targetZ;
-      if (dx * dx + dz * dz < cellR2) {
-        if (c.jarY > maxY) maxY = c.jarY;
-      }
+      if ((c.position.x - targetX).abs() > reach) continue;
+      if (c.position.y < minY) minY = c.position.y;
     }
-    return maxY;
+    return minY;
   }
 
-  /// 3D pairwise sphere-sphere collision for in-jar marbles. After
-  /// every marble has integrated its own physics (gravity + walls
-  /// in `_updateInJar`), we sweep the pairs once per frame and
-  /// resolve overlaps. Position fixups in jar-local space; impulse
-  /// exchange along the 3D contact normal with restitution.
+  /// 2D pairwise circle-circle collision for in-jar marbles. After
+  /// every marble integrates its own gravity + walls in
+  /// `_updateInJar`, we sweep pairs once per frame, resolve any
+  /// overlaps with positional separation, and exchange momentum
+  /// along the contact normal with restitution.
   ///
-  /// Re-projects screen position after fixing jar coords so the
-  /// renderer + Y-priority sort see corrected screen-Y this frame.
-  ///
-  /// Cost: O(n²) for n = in-jar marbles. With realistic survey
-  /// volumes this is microseconds; not worth a spatial hash.
+  /// Re-clamps each marble after pairwise so a marble pushed past
+  /// the wall by a neighbor doesn't stay outside the cylinder for
+  /// a frame.
   void _resolveJarCollisions() {
     final inJar = <_MarbleNode>[];
     for (final c in children) {
@@ -3074,41 +2951,32 @@ class _SurveyGame extends FlameGame
       final a = inJar[i];
       for (var j = i + 1; j < inJar.length; j++) {
         final b = inJar[j];
-        final dx = b.jarX - a.jarX;
-        final dy = b.jarY - a.jarY;
-        final dz = b.jarZ - a.jarZ;
-        final d2 = dx * dx + dy * dy + dz * dz;
+        final dx = b.position.x - a.position.x;
+        final dy = b.position.y - a.position.y;
+        final d2 = dx * dx + dy * dy;
         if (d2 >= minDist2 || d2 < 1e-6) continue;
         final d = math.sqrt(d2);
         final overlap = minDist - d;
         final nx = dx / d;
         final ny = dy / d;
-        final nz = dz / d;
-        // Split overlap correction.
-        a
-          ..jarX -= nx * overlap * 0.5
-          ..jarY -= ny * overlap * 0.5
-          ..jarZ -= nz * overlap * 0.5;
-        b
-          ..jarX += nx * overlap * 0.5
-          ..jarY += ny * overlap * 0.5
-          ..jarZ += nz * overlap * 0.5;
-        // Closing-velocity impulse exchange (3D).
-        final rvx = b.jarVx - a.jarVx;
-        final rvy = b.jarVy - a.jarVy;
-        final rvz = b.jarVz - a.jarVz;
-        final velAlongNormal = rvx * nx + rvy * ny + rvz * nz;
+        a.position
+          ..x -= nx * overlap * 0.5
+          ..y -= ny * overlap * 0.5;
+        b.position
+          ..x += nx * overlap * 0.5
+          ..y += ny * overlap * 0.5;
+        final rvx = b.vx - a.vx;
+        final rvy = b.vy - a.vy;
+        final velAlongNormal = rvx * nx + rvy * ny;
         if (velAlongNormal < 0) {
-          const restitution = 0.45;
+          const restitution = 0.65;
           final impulse = -(1 + restitution) * velAlongNormal / 2;
           a
-            ..jarVx -= impulse * nx
-            ..jarVy -= impulse * ny
-            ..jarVz -= impulse * nz;
+            ..vx -= impulse * nx
+            ..vy -= impulse * ny;
           b
-            ..jarVx += impulse * nx
-            ..jarVy += impulse * ny
-            ..jarVz += impulse * nz;
+            ..vx += impulse * nx
+            ..vy += impulse * ny;
           if (-velAlongNormal > 80) {
             a.squash = math.max(a.squash, 0.4);
             b.squash = math.max(b.squash, 0.4);
@@ -3116,15 +2984,10 @@ class _SurveyGame extends FlameGame
         }
       }
     }
-    // Re-clamp + re-project after pairwise so a marble pushed past
-    // the cylinder wall by a neighbor doesn't stay outside for a
-    // frame (which is the source of "marble jittering against the
-    // wall" — pairwise pushes it out, integration clamps it next
-    // frame, neighbor pushes again, etc).
+    // Re-clamp after pairwise — a neighbor may have pushed someone
+    // out of the cylinder; pull them back before the next frame.
     for (final m in inJar) {
-      m
-        ..clampToJar(jar)
-        .._projectFromJar(jar);
+      m.clampToJar(jar);
     }
   }
 
@@ -3415,13 +3278,12 @@ class _SurveyGame extends FlameGame
     keyboardInput = KeyboardInput();
     add(keyboardInput);
 
-    // Mason jar with fixed proportions — narrow + tall so the
-    // user watches the pile climb visibly as marbles are added.
-    // Width 220–360 (clamped on phone vs web), aspect ratio 1 :
-    // 1.5 (clearly vertical). Bottom hugs ~96% screen so it sits
-    // low.
-    final jarW = (size.x * 0.4).clamp(220.0, 360.0);
-    final jarH = jarW * 1.5;
+    // Mason jar — narrow + tall test-tube proportions. Width
+    // clamped to ~1.5× the marble diameter so marbles stack
+    // mostly vertically (one per row), and aspect 1:3 makes the
+    // body the dominant section so the pile climbs visibly.
+    final jarW = (size.x * 0.18).clamp(100.0, 140.0);
+    final jarH = jarW * 3.0;
     final jarSize = Vector2(jarW, jarH);
     jar = _Jar(size: jarSize)
       ..position = Vector2(
@@ -3452,15 +3314,14 @@ class _SurveyGame extends FlameGame
     // width so the slots breathe across wide windows.
     // 5 marbles spread across the upper play area — Likert reading
     // order from most negative (left) to most positive (right). All
-    // sit at the same Y just above the jar's rim so they feel like a
-    // single row of pickable answers.
+    // sit JUST BELOW THE QUESTION PLATE (not near the jar lid) so
+    // they're the first thing the user sees + reaches.
     final centerX = size.x / 2;
     final spread = math.min<double>(size.x * 0.40, 320);
-    final restY = jar.position.y - 70;
+    const restY = 130.0; // ~80px under the plate, accounting for safe-area.
     _marbleRestPositions = <Vector2>[
       for (var i = 0; i < _kFaceMoods.length; i++)
         Vector2(
-          // Distribute evenly across [centerX - spread, centerX + spread].
           centerX - spread + (i / (_kFaceMoods.length - 1)) * spread * 2,
           restY,
         ),
