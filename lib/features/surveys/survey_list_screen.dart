@@ -63,7 +63,7 @@ class SurveyListScreen extends ConsumerWidget {
             : _SurveyList(surveys: list, theme: theme),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/experiment/surveys/new'),
+        onPressed: () => context.push('/surveys/new'),
         icon: const Icon(Icons.add),
         label: const Text('New survey'),
       ),
@@ -149,7 +149,7 @@ class _SurveyCard extends StatelessWidget {
       // launched via the "Start kiosk" action on the results
       // screen so a teacher always sees what's been captured
       // before handing the device to the next child.
-      onTap: () => context.push('/experiment/surveys/${survey.id}'),
+      onTap: () => context.push('/surveys/${survey.id}'),
       child: Container(
         padding: AppSpacing.cardPadding,
         decoration: BoxDecoration(

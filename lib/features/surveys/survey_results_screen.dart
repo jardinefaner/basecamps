@@ -1,6 +1,6 @@
 // Survey results sheet (Slice 5) — the Excel-styled grid for
 // reviewing what children have answered. Sits at
-// `/experiment/surveys/:id` (the default landing for a saved
+// `/surveys/:id` (the default landing for a saved
 // survey); a "Start kiosk" button on this page opens
 // `/:id/play` for the next round of children.
 //
@@ -59,7 +59,7 @@ class SurveyResultsScreen extends ConsumerWidget {
                 ? const SizedBox.shrink()
                 : TextButton.icon(
                     onPressed: () => context.push(
-                      '/experiment/surveys/${survey.id}/play',
+                      '/surveys/${survey.id}/play',
                     ),
                     icon: const Icon(Icons.play_arrow),
                     label: const Text('Start kiosk'),

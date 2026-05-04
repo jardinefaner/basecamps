@@ -1182,6 +1182,16 @@ class _DestinationData {
       path: '/more/parents',
       category: _DestCategory.people,
     ),
+    // Student surveys — kiosk + results sheet for the BASECamp
+    // Likert survey. Lives under People because the data is per-
+    // child, even though the kiosk is a fully-locked-down device
+    // surface that gets handed to kids.
+    _DestinationData(
+      label: 'Student surveys',
+      icon: Icons.poll_outlined,
+      path: '/surveys',
+      category: _DestCategory.people,
+    ),
     // Curriculum — the multi-week authoring stack lives behind one
     // hub now (themes, lesson sequences, templates collapsed). The
     // activity library remains separate because it's used outside

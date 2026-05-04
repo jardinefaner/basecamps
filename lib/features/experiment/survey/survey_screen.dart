@@ -4212,13 +4212,12 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
     _advance();
   }
 
-  /// Called by the open-ended overlay once a kid finishes
-  /// recording. The relative path + duration are written
-  /// immediately; STT transcription drops in via a background
-  /// task in a future slice (the teacher can always re-listen
-  /// to the audio from the results sheet).
+  /// Called by the open-ended overlay once the kid taps stop.
+  /// Live STT means the transcription is already final by the
+  /// time we get here — write it directly, no follow-up update
+  /// needed. Audio file isn't kept (live streaming flow).
   Future<void> _onOpenEndedCommit(
-    String relativeAudioPath,
+    String transcription,
     int durationMs,
   ) async {
     final survey = _survey;
@@ -4229,7 +4228,7 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
           surveyId: survey.id,
           sessionId: sessionId,
           questionId: question.id,
-          audioFilePath: relativeAudioPath,
+          transcription: transcription,
           durationMs: durationMs,
           isPractice: question.isPractice,
         );

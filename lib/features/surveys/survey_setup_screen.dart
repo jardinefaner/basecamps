@@ -65,7 +65,7 @@ class _SurveySetupScreenState extends ConsumerState<SurveySetupScreen> {
       // back-press lands the teacher at the survey list (not the
       // setup form they just filled in). The teacher tap "Start
       // kiosk" from the results screen when they're ready.
-      context.pushReplacement('/experiment/surveys/${survey.id}');
+      context.pushReplacement('/surveys/${survey.id}');
     } on Object catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

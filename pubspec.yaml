@@ -52,3 +52,22 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    # Pre-rendered Deepgram Aura voice samples for the BASECamp
+    # Student Survey. Generated locally with
+    # `dart run tool/generate_voices.dart` (requires
+    # DEEPGRAM_API_KEY env var); resulting MP3s are committed to
+    # the repo so every dev / CI build / shipped binary gets the
+    # same audio. Asset paths are voice-folder globs so the build
+    # picks up new files automatically as the canonical phrase
+    # list grows.
+    - assets/audio/asteria/
+    - assets/audio/luna/
+    - assets/audio/stella/
+    - assets/audio/athena/
+    - assets/audio/hera/
+    - assets/audio/orion/
+    - assets/audio/arcas/
+    - assets/audio/angus/
+    - assets/audio/perseus/
+    - assets/audio/orpheus/

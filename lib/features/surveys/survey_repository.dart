@@ -187,21 +187,21 @@ class SurveyRepository {
         );
   }
 
-  /// Record an open-ended answer. `audioFilePath` is relative to
-  /// the app docs folder. `transcription` is filled in
-  /// asynchronously after Deepgram STT finishes — this method just
-  /// stamps the audio path; transcription updates with
-  /// `updateTranscription` when ready.
+  /// Record an open-ended answer. Either or both of
+  /// [audioFilePath] / [transcription] can be supplied — the live
+  /// streaming flow saves transcription only, while a future
+  /// "save audio backup too" mode could pass both.
   ///
-  /// Returns the row id so the caller can correlate when the
-  /// background transcription finishes.
+  /// Returns the row id so the caller can correlate when a
+  /// follow-up update lands.
   Future<String> recordOpenEndedAnswer({
     required String surveyId,
     required String sessionId,
     required String questionId,
-    required String audioFilePath,
     required int durationMs,
     required bool isPractice,
+    String? audioFilePath,
+    String? transcription,
   }) async {
     final id = newId();
     await _db.into(_db.surveyResponses).insert(
@@ -212,6 +212,7 @@ class SurveyRepository {
             questionId: Value(questionId),
             answerType: const Value('audio'),
             audioFilePath: Value(audioFilePath),
+            transcription: Value(transcription),
             durationMs: Value(durationMs),
             isPractice: Value(isPractice),
           ),

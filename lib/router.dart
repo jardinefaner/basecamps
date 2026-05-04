@@ -424,40 +424,34 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: 'survey',
             builder: (_, _) => const SurveyScreen(),
           ),
-          // BASECamp Student Survey tool (Slice 1):
-          //   /experiment/surveys           — list of saved surveys
-          //   /experiment/surveys/new       — setup form
-          //   /experiment/surveys/:id/play  — kiosk launch (slice 2
-          //                                   wires actual response
-          //                                   capture; for now this
-          //                                   just opens the chibi
-          //                                   sandbox so a teacher
-          //                                   can preview).
+        ],
+      ),
+      // BASECamp Student Survey tool — graduated from the
+      // experiment lab to a top-level destination. Reachable
+      // from the launcher's Surveys tile under People.
+      //   /surveys           — list of saved surveys
+      //   /surveys/new       — teacher setup form
+      //   /surveys/:id       — results sheet (default landing)
+      //   /surveys/:id/play  — locked-down kiosk for the kids
+      GoRoute(
+        path: '/surveys',
+        builder: (_, _) => const SurveyListScreen(),
+        routes: [
           GoRoute(
-            path: 'surveys',
-            builder: (_, _) => const SurveyListScreen(),
+            path: 'new',
+            builder: (_, _) => const SurveySetupScreen(),
+          ),
+          GoRoute(
+            path: ':id',
+            builder: (_, state) => SurveyResultsScreen(
+              surveyId: state.pathParameters['id']!,
+            ),
             routes: [
               GoRoute(
-                path: 'new',
-                builder: (_, _) => const SurveySetupScreen(),
-              ),
-              // /:id is the results sheet (default landing for a
-              // saved survey). The kiosk lives at /:id/play and
-              // is reached from the results page's "Start kiosk"
-              // action.
-              GoRoute(
-                path: ':id',
-                builder: (_, state) => SurveyResultsScreen(
-                  surveyId: state.pathParameters['id']!,
+                path: 'play',
+                builder: (_, state) => SurveyScreen(
+                  surveyId: state.pathParameters['id'],
                 ),
-                routes: [
-                  GoRoute(
-                    path: 'play',
-                    builder: (_, state) => SurveyScreen(
-                      surveyId: state.pathParameters['id'],
-                    ),
-                  ),
-                ],
               ),
             ],
           ),
