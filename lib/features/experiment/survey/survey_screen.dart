@@ -28,6 +28,7 @@ import 'dart:math' as math;
 
 import 'package:basecamp/features/surveys/canonical_questions.dart';
 import 'package:basecamp/features/surveys/multi_select_overlay.dart';
+import 'package:basecamp/features/surveys/open_ended_overlay.dart';
 import 'package:basecamp/features/surveys/survey_audio_service.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
 import 'package:basecamp/features/surveys/survey_repository.dart';
@@ -4205,6 +4206,31 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
     _advance();
   }
 
+  /// Called by the open-ended overlay once a kid finishes
+  /// recording. The relative path + duration are written
+  /// immediately; STT transcription drops in via a background
+  /// task in a future slice (the teacher can always re-listen
+  /// to the audio from the results sheet).
+  Future<void> _onOpenEndedCommit(
+    String relativeAudioPath,
+    int durationMs,
+  ) async {
+    final survey = _survey;
+    final sessionId = _sessionId;
+    if (survey == null || sessionId == null) return;
+    final question = survey.questions[_questionIndex];
+    await ref.read(surveyRepositoryProvider).recordOpenEndedAnswer(
+          surveyId: survey.id,
+          sessionId: sessionId,
+          questionId: question.id,
+          audioFilePath: relativeAudioPath,
+          durationMs: durationMs,
+          isPractice: question.isPractice,
+        );
+    if (!mounted) return;
+    _advance();
+  }
+
   /// Move to the next question, or trigger the end-of-survey beat
   /// if we just finished the last one.
   void _advance() {
@@ -4504,44 +4530,13 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
     if (q.type == SurveyQuestionType.openEnded) {
       return <Widget>[
         Positioned.fill(
-          child: ColoredBox(
-            color: theme.colorScheme.surface.withValues(alpha: 0.92),
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.xxxl),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.mic_none,
-                      size: 48,
-                      color: theme.colorScheme.outlineVariant,
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    Text(
-                      q.prompt,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Text(
-                      'Voice-answer question UI ships next slice.',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
-                    FilledButton(
-                      onPressed: _advance,
-                      child: const Text('Skip for now'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          child: OpenEndedQuestionOverlay(
+            key: ValueKey('oe_${q.id}'),
+            question: q,
+            voice: survey.voice,
+            audioMode: survey.audioMode,
+            onCommit: _onOpenEndedCommit,
+            onSkip: _advance,
           ),
         ),
       ];

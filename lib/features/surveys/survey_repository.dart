@@ -180,7 +180,10 @@ class SurveyRepository {
   /// asynchronously after Deepgram STT finishes — this method just
   /// stamps the audio path; transcription updates with
   /// `updateTranscription` when ready.
-  Future<void> recordOpenEndedAnswer({
+  ///
+  /// Returns the row id so the caller can correlate when the
+  /// background transcription finishes.
+  Future<String> recordOpenEndedAnswer({
     required String surveyId,
     required String sessionId,
     required String questionId,
@@ -188,9 +191,10 @@ class SurveyRepository {
     required int durationMs,
     required bool isPractice,
   }) async {
+    final id = newId();
     await _db.into(_db.surveyResponses).insert(
           SurveyResponsesCompanion(
-            id: Value(newId()),
+            id: Value(id),
             surveyId: Value(surveyId),
             sessionId: Value(sessionId),
             questionId: Value(questionId),
@@ -200,6 +204,16 @@ class SurveyRepository {
             isPractice: Value(isPractice),
           ),
         );
+    return id;
+  }
+
+  /// Patch in a transcription on a previously-recorded open-ended
+  /// answer. Called from the background STT task once Deepgram
+  /// returns a transcript.
+  Future<void> updateTranscription(String responseId, String text) async {
+    await (_db.update(_db.surveyResponses)
+          ..where((r) => r.id.equals(responseId)))
+        .write(SurveyResponsesCompanion(transcription: Value(text)));
   }
 
   /// Soft-delete: stamp deletedAt. The row stays so historical
