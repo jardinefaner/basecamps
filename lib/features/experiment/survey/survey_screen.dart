@@ -25,8 +25,10 @@
 
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:basecamp/features/surveys/canonical_questions.dart';
+import 'package:basecamp/features/surveys/feelings_jar_card.dart';
 import 'package:basecamp/features/surveys/kiosk_exit_pin_modal.dart';
 import 'package:basecamp/features/surveys/multi_select_overlay.dart';
 import 'package:basecamp/features/surveys/open_ended_overlay.dart';
@@ -39,6 +41,7 @@ import 'package:flame/game.dart';
 import 'package:flame/input.dart';
 import 'package:flame/palette.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -4063,6 +4066,17 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
   DateTime _questionStartedAt = DateTime.now();
   bool _showingAllDone = false;
 
+  /// RepaintBoundary key wrapping the GameWidget. We snapshot the
+  /// jar (with all the kid's marbles in their settled positions)
+  /// the moment they answer the last question, before any reset
+  /// fires, and embed that PNG in the printable thank-you card.
+  final GlobalKey _gameSnapshotKey = GlobalKey();
+
+  /// PNG of the live game canvas captured at end-of-survey. Null
+  /// until `_onSurveyComplete` finishes the capture; the
+  /// FeelingsJarCard handles null with a placeholder.
+  Uint8List? _jarSnapshot;
+
   /// Timestamps of the most recent taps on the AppBar title.
   /// Three taps within 800ms → triple-tap; opens the PIN modal.
   /// Stored as a small ring buffer so we don't accumulate forever.
@@ -4242,7 +4256,7 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
     final survey = _survey;
     if (survey == null) return;
     if (_questionIndex + 1 >= survey.questions.length) {
-      _onSurveyComplete();
+      unawaited(_onSurveyComplete());
     } else {
       setState(() {
         _questionIndex += 1;
@@ -4252,14 +4266,22 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
     }
   }
 
-  /// "All done!" close beat. Closes the session as completed,
-  /// shows the celebration overlay for ~3s, then resets the
-  /// kiosk for the next child.
-  void _onSurveyComplete() {
+  /// End-of-survey close beat. Snapshots the live jar (so the
+  /// child's actual marbles get embedded in the thank-you card),
+  /// closes the session as completed, then shows the printable
+  /// thank-you card. The card has its own "Pass to next friend"
+  /// button — no auto-reset, the teacher / next child decides
+  /// when to advance.
+  Future<void> _onSurveyComplete() async {
     final sessionId = _sessionId;
     final survey = _survey;
     if (sessionId == null || survey == null) return;
+    // Capture the jar BEFORE flipping `_showingAllDone` — the
+    // celebration overlay would otherwise hide the marbles.
+    final snapshot = await _captureJarSnapshot();
+    if (!mounted) return;
     setState(() {
+      _jarSnapshot = snapshot;
       _showingAllDone = true;
       _childCount += 1;
     });
@@ -4271,7 +4293,25 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
             completed: true,
           ),
     );
-    Future.delayed(const Duration(seconds: 3), _resetForNextChild);
+  }
+
+  /// Snapshot the GameWidget via its RepaintBoundary. Returns null
+  /// on any failure — the thank-you card has a graceful fallback
+  /// so the kid still sees their card even if capture didn't work.
+  Future<Uint8List?> _captureJarSnapshot() async {
+    try {
+      final ctx = _gameSnapshotKey.currentContext;
+      if (ctx == null) return null;
+      final boundary =
+          ctx.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return null;
+      final image = await boundary.toImage(pixelRatio: 2.5);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      return bytes?.buffer.asUint8List();
+    } on Object catch (e, st) {
+      debugPrint('[survey] jar snapshot failed: $e\n$st');
+      return null;
+    }
   }
 
   /// Triple-tap on the AppBar title is the only way out of the
@@ -4322,6 +4362,7 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
       _questionIndex = 0;
       _questionStartedAt = DateTime.now();
       _showingAllDone = false;
+      _jarSnapshot = null;
     });
     _playCurrentQuestionAudio();
   }
@@ -4400,7 +4441,12 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
       ),
       body: Stack(
         children: [
-          GameWidget<_SurveyGame>(game: _game),
+          // RepaintBoundary so we can `toImage()` the live jar at
+          // end-of-survey for the printable thank-you card.
+          RepaintBoundary(
+            key: _gameSnapshotKey,
+            child: GameWidget<_SurveyGame>(game: _game),
+          ),
           // Celebration burst — fullscreen face-emoji particles
           // when a marble lands in the jar. Sits ABOVE the game
           // (so emojis fly over the chibi) but BELOW the plate +
@@ -4553,40 +4599,11 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
     if (_showingAllDone) {
       return <Widget>[
         Positioned.fill(
-          child: ColoredBox(
-            color: theme.colorScheme.surface.withValues(alpha: 0.92),
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.xxxl),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'All done!',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Text(
-                      'Thank you. Pass it along to the next friend.',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
-                    Text(
-                      '$_childCount response${_childCount == 1 ? '' : 's'} so far',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.outline,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          child: FeelingsJarCard(
+            jarSnapshot: _jarSnapshot,
+            siteName: survey.siteName,
+            classroom: survey.classroom,
+            onDone: _resetForNextChild,
           ),
         ),
       ];

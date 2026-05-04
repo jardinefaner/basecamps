@@ -141,12 +141,27 @@ Future<void> _exportCsv(
 ) async {
   final messenger = ScaffoldMessenger.of(context);
   try {
-    // Wait for the next emission of the results stream so we
-    // capture an immediate, complete snapshot.
-    final rows =
-        await ref.read(surveyResultsProvider(survey.id).future);
+    // Read straight from the repository instead of waiting on the
+    // StreamProvider's `.future` — that future resolves on the
+    // *next* emission, which can hang if the stream is idle (no
+    // new sessions opening). A single-shot pull from the repo
+    // gives us an immediate snapshot.
+    final rows = await ref
+        .read(surveyRepositoryProvider)
+        .watchResults(survey.id)
+        .first;
+    if (rows.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('No responses yet — nothing to export.'),
+        ),
+      );
+      return;
+    }
     final csv = kSurveyCsvExporter.exportToCsv(survey, rows);
     final filename = kSurveyCsvExporter.fileName(survey);
+    debugPrint('[csv] $filename · ${rows.length} sessions · '
+        '${csv.length} chars');
 
     if (kIsWeb) {
       // Web fallback — clipboard. share_plus's web build only
@@ -166,6 +181,7 @@ Future<void> _exportCsv(
     final tempDir = await getTemporaryDirectory();
     final filePath = p.join(tempDir.path, filename);
     await File(filePath).writeAsString(csv);
+    debugPrint('[csv] wrote $filePath');
     await SharePlus.instance.share(
       ShareParams(
         files: <XFile>[XFile(filePath, name: filename, mimeType: 'text/csv')],
@@ -175,7 +191,8 @@ Future<void> _exportCsv(
             '${survey.classroom}.',
       ),
     );
-  } on Object catch (e) {
+  } on Object catch (e, st) {
+    debugPrint('[csv] export failed: $e\n$st');
     messenger.showSnackBar(
       SnackBar(content: Text('Could not export CSV: $e')),
     );
