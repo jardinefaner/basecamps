@@ -2324,6 +2324,31 @@ class _JarFront extends PositionComponent {
 // World marble nodes — pickable face emojis the chibi interacts with
 // =====================================================================
 
+/// Number of body-texture variants in the marble pool. Decoupled
+/// from mood — any marble can roll any texture. Variants:
+///   0  smooth   — clean gradient sphere (no overlay)
+///   1  crackled — short dark hairline cracks across the body
+///   2  speckled — scattered tiny dark dots (granite-ish)
+///   3  blotchy  — 2-3 darker translucent patches
+///   4  glossy   — extra bright sheen blob (very polished)
+const int _kBodyTextureCount = 5;
+
+/// Cached parameters for one element of a body texture (a crack, a
+/// dot, a blotch). Stored in unit-radius space (0.0..1.0 from
+/// center); each render scales by the marble's actual radius.
+class _TextureMark {
+  const _TextureMark({
+    required this.x,
+    required this.y,
+    required this.size,
+    required this.angle,
+  });
+  final double x;
+  final double y;
+  final double size;
+  final double angle;
+}
+
 /// Lifecycle of a face marble.
 ///
 /// idle     → in the world, springs around its rest slot, dodges
@@ -2408,6 +2433,79 @@ class _MarbleNode extends PositionComponent {
       math.Random(seed * 17 + 3).nextInt(_FacePainter.browVariantsFor(mood));
   late final int _baseMouthIdx = math.Random(seed * 17 + 5)
       .nextInt(_FacePainter.mouthVariantsFor(mood));
+
+  /// Stable per-marble body-texture pick. Decoupled from mood:
+  /// any color marble can have any texture (smooth / crackled /
+  /// speckled / blotchy / glossy). Selected from a global pool so
+  /// the world's marbles look varied even when they share a mood.
+  late final int _bodyTexIdx =
+      math.Random(seed * 23 + 11).nextInt(_kBodyTextureCount);
+
+  /// Precomputed per-vertex silhouette radii for the bumpy outline.
+  /// 14 vertices, each at 0.93..1.07 × the nominal radius — gives
+  /// the body an irregular hand-painted edge instead of a perfect
+  /// circle. Generated once at construction, reused every frame.
+  late final List<double> _silhouetteRadii = _buildSilhouetteRadii();
+
+  /// Precomputed body-texture decorations (positions + sizes for
+  /// dots / blotches / cracks). Variant 0 (smooth) leaves this
+  /// empty; the rest fill it with a stable random pattern.
+  late final List<_TextureMark> _textureMarks = _buildTextureMarks();
+
+  List<double> _buildSilhouetteRadii() {
+    final rng = math.Random(seed * 41 + 19);
+    return List<double>.generate(
+      14,
+      (_) => 1 + (rng.nextDouble() - 0.5) * 0.14,
+    );
+  }
+
+  List<_TextureMark> _buildTextureMarks() {
+    final rng = math.Random(seed * 53 + 31);
+    final marks = <_TextureMark>[];
+    switch (_bodyTexIdx) {
+      case 1: // crackled — 3-5 short dark line segments
+        final n = 3 + rng.nextInt(3);
+        for (var i = 0; i < n; i++) {
+          marks.add(_TextureMark(
+            x: (rng.nextDouble() - 0.5) * 1.2,
+            y: (rng.nextDouble() - 0.5) * 1.2,
+            size: 0.4 + rng.nextDouble() * 0.5,
+            angle: rng.nextDouble() * math.pi,
+          ));
+        }
+      case 2: // speckled — small dots scattered
+        final n = 7 + rng.nextInt(5);
+        for (var i = 0; i < n; i++) {
+          final angle = rng.nextDouble() * math.pi * 2;
+          final dist = rng.nextDouble() * 0.7;
+          marks.add(_TextureMark(
+            x: math.cos(angle) * dist,
+            y: math.sin(angle) * dist,
+            size: 0.04 + rng.nextDouble() * 0.05,
+            angle: 0,
+          ));
+        }
+      case 3: // blotchy — 2-3 translucent patches
+        final n = 2 + rng.nextInt(2);
+        for (var i = 0; i < n; i++) {
+          final angle = rng.nextDouble() * math.pi * 2;
+          final dist = rng.nextDouble() * 0.4;
+          marks.add(_TextureMark(
+            x: math.cos(angle) * dist,
+            y: math.sin(angle) * dist,
+            size: 0.30 + rng.nextDouble() * 0.18,
+            angle: 0,
+          ));
+        }
+      case 4: // glossy — extra-bright sheen blob (no marks needed,
+        // handled inline as a single overlay in render)
+        break;
+      default:
+        break; // 0 = smooth, no marks
+    }
+    return marks;
+  }
 
   _MarbleState state = _MarbleState.idle;
 
@@ -2800,6 +2898,94 @@ class _MarbleNode extends PositionComponent {
     }
   }
 
+  /// Build the bumpy silhouette path at a given radius. Smooth
+  /// closed curve through midpoints of the precomputed vertices;
+  /// each vertex acts as a quadratic-bezier control, pulling the
+  /// curve outward by its (slightly randomized) radius. The result
+  /// is an organic, hand-painted edge instead of a perfect circle.
+  Path _silhouettePath(double r) {
+    final n = _silhouetteRadii.length;
+    final pts = List<Offset>.generate(n, (i) {
+      final angle = i * math.pi * 2 / n - math.pi / 2;
+      final radius = _silhouetteRadii[i] * r;
+      return Offset(math.cos(angle) * radius, math.sin(angle) * radius);
+    });
+    Offset mid(Offset a, Offset b) =>
+        Offset((a.dx + b.dx) / 2, (a.dy + b.dy) / 2);
+    final p = Path();
+    final start = mid(pts[n - 1], pts[0]);
+    p.moveTo(start.dx, start.dy);
+    for (var i = 0; i < n; i++) {
+      final next = pts[(i + 1) % n];
+      final m = mid(pts[i], next);
+      p.quadraticBezierTo(pts[i].dx, pts[i].dy, m.dx, m.dy);
+    }
+    p.close();
+    return p;
+  }
+
+  /// Paint the body-texture overlay for this marble's variant.
+  /// All marks live inside the silhouette (the caller clips to it
+  /// before invoking) and are drawn in unit-radius space scaled by
+  /// `r`.
+  void _paintBodyTexture(Canvas canvas, double r) {
+    switch (_bodyTexIdx) {
+      case 0:
+        // smooth — nothing to paint
+        return;
+      case 1: // crackled
+        final paint = Paint()
+          ..color = const Color(0x33000000)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.9
+          ..strokeCap = StrokeCap.round;
+        for (final m in _textureMarks) {
+          final cx = m.x * r * 0.6;
+          final cy = m.y * r * 0.6;
+          final len = m.size * r * 0.5;
+          final dx = math.cos(m.angle) * len / 2;
+          final dy = math.sin(m.angle) * len / 2;
+          canvas.drawLine(
+            Offset(cx - dx, cy - dy),
+            Offset(cx + dx, cy + dy),
+            paint,
+          );
+        }
+      case 2: // speckled
+        final paint = Paint()..color = const Color(0x44000000);
+        for (final m in _textureMarks) {
+          canvas.drawCircle(
+            Offset(m.x * r, m.y * r),
+            m.size * r,
+            paint,
+          );
+        }
+      case 3: // blotchy
+        final paint = Paint()
+          ..color = const Color(0x33000000)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+        for (final m in _textureMarks) {
+          canvas.drawCircle(
+            Offset(m.x * r, m.y * r),
+            m.size * r,
+            paint,
+          );
+        }
+      case 4: // glossy — extra-bright sheen blob over the body
+        final paint = Paint()
+          ..color = const Color(0x66FFFFFF)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: Offset(-r * 0.18, -r * 0.10),
+            width: r * 1.20,
+            height: r * 0.55,
+          ),
+          paint,
+        );
+    }
+  }
+
   @override
   void render(Canvas canvas) {
     super.render(canvas);
@@ -2836,10 +3022,6 @@ class _MarbleNode extends PositionComponent {
     final shadow = Paint()
       ..color = const Color(0x33000000)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
-    final outline = Paint()
-      ..color = const Color(0xFF1A1A1A)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6;
     // 3D sphere shading: radial gradient from a bright top-left
     // highlight to a darker bottom-right. Driven entirely by the
     // marble's `tint` so each color shades naturally without us
@@ -2864,12 +3046,19 @@ class _MarbleNode extends PositionComponent {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
-    // Crisp specular highlight on the upper-left of the body —
-    // bigger than the eye highlight so the marble reads as glossy
-    // not matte.
-    final specPaint = Paint()
-      ..color = const Color(0xCCFFFFFF)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
+    // Sharp pinpoint glint — small, bright, no blur — sells the
+    // glass-marble look. A larger soft halo behind it adds depth.
+    final glintHalo = Paint()
+      ..color = const Color(0x99FFFFFF)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+    final glintPin = Paint()..color = const Color(0xFFFFFFFF);
+    // Imperfect-ink outline: warm dark + slightly thicker than the
+    // hard black version so each marble reads as hand-drawn.
+    final inkOutline = Paint()
+      ..color = _kInk
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2
+      ..strokeJoin = StrokeJoin.round;
 
     // Optional smiley-beam halo, drawn first so it sits behind the
     // body. Translates with the body but doesn't rotate or scale.
@@ -2895,31 +3084,40 @@ class _MarbleNode extends PositionComponent {
     );
 
     // Body + face — translated, rotated, scaled per mods + squash.
+    // The body silhouette is a slightly-bumpy closed curve through
+    // the precomputed vertex radii (instead of a perfect circle),
+    // so each marble reads as hand-painted, not vector-perfect.
     final blink = blinkPhaseAt(_t, seed: seed);
+    final silhouette = _silhouettePath(_radius);
     canvas
       ..save()
       ..translate(mods.tx, mods.ty)
       ..rotate(mods.rot)
       ..scale(sx, sy)
-      // Sphere body: gradient fill, inner-bottom rim shade, then
-      // upper-left specular highlight oval for the glossy read.
-      ..drawCircle(Offset.zero, _radius, fill)
+      ..drawPath(silhouette, fill)
       ..save()
-      ..clipPath(Path()..addOval(
-          Rect.fromCircle(center: Offset.zero, radius: _radius)))
+      ..clipPath(silhouette)
+      // Inner-bottom rim shade for sphere read.
       ..drawCircle(const Offset(_radius * 0.20, _radius * 0.30),
-          _radius * 0.96, rimShade)
-      ..drawOval(
-        const Rect.fromLTWH(
-          -_radius * 0.32 - _radius * 0.85 / 2,
-          -_radius * 0.42 - _radius * 0.55 / 2,
-          _radius * 0.85,
-          _radius * 0.55,
-        ),
-        specPaint,
+          _radius * 0.96, rimShade);
+    // Per-marble body texture overlay (crackles / speckles /
+    // blotches / glossy sheen). Smooth marbles get nothing here.
+    _paintBodyTexture(canvas, _radius);
+    // Sharp upper-left glint: a soft halo behind a tiny pinpoint
+    // to read as glossy glass instead of matte.
+    canvas
+      ..drawCircle(
+        const Offset(-_radius * 0.34, -_radius * 0.42),
+        _radius * 0.22,
+        glintHalo,
+      )
+      ..drawCircle(
+        const Offset(-_radius * 0.40, -_radius * 0.48),
+        _radius * 0.08,
+        glintPin,
       )
       ..restore()
-      ..drawCircle(Offset.zero, _radius, outline);
+      ..drawPath(silhouette, inkOutline);
     _FacePainter(
       mood: mood,
       blinkPhase: blink,
