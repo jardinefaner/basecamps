@@ -3088,10 +3088,11 @@ class _ActivityFormattedSheet extends StatefulWidget {
 
 class _ActivityFormattedSheetState extends State<_ActivityFormattedSheet> {
   /// True while the embedded add-on section is loading or showing a
-  /// generated result. Drives whether objectives / steps / materials
-  /// / link / delete-button collapse — when an add-on is in view,
-  /// the user wants air around the result, not a wall of activity
-  /// metadata stacked above it.
+  /// generated result. We use this to hide the **delete-activity**
+  /// button (a destructive action shouldn't sit under an open
+  /// generated supplement). Activity metadata — objectives, steps,
+  /// materials, link — stays visible so the running adult can read
+  /// the addon alongside the steps it's supplementing.
   bool _addonsActive = false;
 
   @override
@@ -3107,12 +3108,9 @@ class _ActivityFormattedSheetState extends State<_ActivityFormattedSheet> {
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty)
         .toList();
-    // Hide objectives/steps/materials/link while an add-on is in
-    // view. The activity title + description stay (they're context
-    // the add-on is responding to); everything below collapses so
-    // the add-on body has the screen.
-    final showMetadata = !_addonsActive;
-
+    // Activity metadata stays visible regardless of add-on state
+    // — the add-on is supplemental to the steps, not a replacement
+    // for them. Only the delete button collapses (see below).
     return SafeArea(
       top: false,
       child: Padding(
@@ -3169,7 +3167,7 @@ class _ActivityFormattedSheetState extends State<_ActivityFormattedSheet> {
                   style: theme.textTheme.bodyLarge?.copyWith(height: 1.45),
                 ),
               ],
-              if (showMetadata && activity.objectives.isNotEmpty) ...[
+              if (activity.objectives.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.xl),
                 const _SectionHeader(label: 'Objectives'),
                 const SizedBox(height: AppSpacing.xs),
@@ -3178,7 +3176,7 @@ class _ActivityFormattedSheetState extends State<_ActivityFormattedSheet> {
                   style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
                 ),
               ],
-              if (showMetadata && steps.isNotEmpty) ...[
+              if (steps.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.xl),
                 const _SectionHeader(label: 'Steps'),
                 const SizedBox(height: AppSpacing.sm),
@@ -3214,7 +3212,7 @@ class _ActivityFormattedSheetState extends State<_ActivityFormattedSheet> {
                     ),
                   ),
               ],
-              if (showMetadata && materials.isNotEmpty) ...[
+              if (materials.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.xl),
                 const _SectionHeader(label: 'Materials'),
                 const SizedBox(height: AppSpacing.xs),
@@ -3244,7 +3242,7 @@ class _ActivityFormattedSheetState extends State<_ActivityFormattedSheet> {
                   ],
                 ),
               ],
-              if (showMetadata && activity.link.isNotEmpty) ...[
+              if (activity.link.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.xl),
                 const _SectionHeader(label: 'Reference'),
                 const SizedBox(height: AppSpacing.xs),
@@ -3256,9 +3254,7 @@ class _ActivityFormattedSheetState extends State<_ActivityFormattedSheet> {
                   ),
                 ),
               ],
-              SizedBox(
-                height: showMetadata ? AppSpacing.xxl : AppSpacing.lg,
-              ),
+              const SizedBox(height: AppSpacing.xxl),
               // AI add-ons — embedded inline so the user can see
               // the activity above for reference while picking. The
               // section self-manages picker → loading → result
@@ -3282,7 +3278,7 @@ class _ActivityFormattedSheetState extends State<_ActivityFormattedSheet> {
               // Delete button collapses while an add-on is open —
               // it's a destructive action that has no business
               // sitting under a generated discussion ladder.
-              if (showMetadata) ...[
+              if (!_addonsActive) ...[
                 const SizedBox(height: AppSpacing.xxl),
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
@@ -3366,10 +3362,10 @@ class _MonthlyActivityEditor extends ConsumerStatefulWidget {
 class _MonthlyActivityEditorState
     extends ConsumerState<_MonthlyActivityEditor> {
   /// True while the embedded add-on section is loading or showing
-  /// a generated result. Hides the metadata disclosure (objectives,
-  /// steps, materials, link) and the delete button so the add-on
-  /// has air. Title + description fields stay visible — they're
-  /// the prompt context the add-on is responding to.
+  /// a generated result. Used to collapse the delete button while
+  /// an add-on is open. Activity fields (objectives, steps,
+  /// materials, link) stay visible so the author can edit them
+  /// alongside the generated supplement.
   bool _addonsActive = false;
 
   late final TextEditingController _title =
@@ -3478,14 +3474,13 @@ class _MonthlyActivityEditorState
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
-              if (!_addonsActive) ...[
-                Divider(
-                  height: 1,
-                  color: theme.colorScheme.outlineVariant,
-                ),
-                _DetailsDisclosure(
-                  initiallyExpanded: widget.activity.hasAnyMetadata,
-                  children: [
+              Divider(
+                height: 1,
+                color: theme.colorScheme.outlineVariant,
+              ),
+              _DetailsDisclosure(
+                initiallyExpanded: widget.activity.hasAnyMetadata,
+                children: [
                   TextField(
                     controller: _objectives,
                     maxLines: null,
@@ -3534,13 +3529,12 @@ class _MonthlyActivityEditorState
                   ),
                 ],
               ),
-                const SizedBox(height: AppSpacing.xl),
-                Divider(
-                  height: 1,
-                  color: theme.colorScheme.outlineVariant,
-                ),
-                const SizedBox(height: AppSpacing.lg),
-              ],
+              const SizedBox(height: AppSpacing.xl),
+              Divider(
+                height: 1,
+                color: theme.colorScheme.outlineVariant,
+              ),
+              const SizedBox(height: AppSpacing.lg),
               // Same inline AI add-ons section as the formatted
               // preview — exposes them at edit-time too so authors
               // can iterate without leaving the editor. When an
