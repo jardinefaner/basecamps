@@ -312,6 +312,10 @@ abstract class EyePart extends Part {}
 // Default concrete parts (the four required for a buildable chibi)
 // =====================================================================
 
+/// Skull radius shared between SphereHead + BunnyHead so part
+/// geometry stays in lock-step with the rig's `headRadius`.
+const double _kHeadRadius = 22;
+
 class SphereHead extends HeadPart {
   @override
   String get id => 'head_sphere';
@@ -325,17 +329,132 @@ class SphereHead extends HeadPart {
   @override
   void onBuild(BuildCtx ctx) {
     final f = ctx.at(Slot.headBottom);
-    // Center the sphere in head space. The headBottom anchor sits
-    // where the neck meets the skull; we lift by ~head-radius so
-    // the sphere is centered above the anchor.
-    final center = f.toWorld(const V3(0, 30, 0));
-    const r = 30.0;
+    // Center the sphere in head space. headBottom is at headY -
+    // headRadius, so lift by headRadius to land at headY.
+    final center = f.toWorld(const V3(0, _kHeadRadius, 0));
     final p = ctx.proj(center);
     final scale = 1 + p.depth * 0.0015;
     ctx.op(p.depth, () {
       ctx.canvas
-        ..drawCircle(p.offset, r * scale, _fillPaint)
-        ..drawCircle(p.offset, r * scale, _outlinePaint);
+        ..drawCircle(p.offset, _kHeadRadius * scale, _fillPaint)
+        ..drawCircle(p.offset, _kHeadRadius * scale, _outlinePaint);
+    });
+  }
+}
+
+/// Bunny-shaped head — a sphere skull with two long upright ears.
+/// In the spec, ears are a Decoration layer; this part bakes them
+/// directly into the head until the decoration system ships, so
+/// the default loadout can be "bunny" with no extra plumbing.
+///
+/// Each ear is a tall oval with a pink inner oval (the inside of
+/// the ear). They lean outward slightly + back, anchoring at the
+/// `headTopLeft` / `headTopRight` slots so future cosmetic layers
+/// (a hat, a halo) sit above them naturally.
+class BunnyHead extends HeadPart {
+  @override
+  String get id => 'head_bunny';
+
+  static final _furPaint = Paint()..color = const Color(0xFFF6EAD7);
+  static final _innerEarPaint = Paint()..color = const Color(0xFFEFB7C2);
+  static final _outlinePaint = Paint()
+    ..color = const Color(0xFF1A1A1A)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.5;
+
+  @override
+  void onBuild(BuildCtx ctx) {
+    final headBottom = ctx.at(Slot.headBottom);
+
+    // 1) Skull — sphere centered at headY (= headBottom + radius).
+    final skullCenter = headBottom.toWorld(const V3(0, _kHeadRadius, 0));
+    final pSkull = ctx.proj(skullCenter);
+    final skullScale = 1 + pSkull.depth * 0.0015;
+    ctx.op(pSkull.depth, () {
+      ctx.canvas
+        ..drawCircle(pSkull.offset, _kHeadRadius * skullScale, _furPaint)
+        ..drawCircle(
+          pSkull.offset,
+          _kHeadRadius * skullScale,
+          _outlinePaint,
+        );
+    });
+
+    // 2) Ears — one per side, anchored at the head-top corners.
+    // The ear base sits a hair above the anchor, and the tip
+    // lifts ~36 units up + leans outward by `tilt`.
+    void drawEar(Slot anchor, double tilt) {
+      final f = ctx.at(anchor);
+      final base = f.toWorld(V3(tilt * 2, 0, 0));
+      final tip = f.toWorld(V3(tilt * 8, 36, 0));
+      final p = ctx.proj(base);
+      final pTip = ctx.proj(tip);
+      final scale = 1 + p.depth * 0.0015;
+      // Ear depth slightly behind the skull so the skull's outline
+      // overlaps the ear's bottom edge (reads as "ear behind face").
+      final earDepth = p.depth - 0.4;
+      ctx.op(earDepth, () {
+        final mid = Offset(
+          (p.offset.dx + pTip.offset.dx) / 2,
+          (p.offset.dy + pTip.offset.dy) / 2,
+        );
+        final dx = pTip.offset.dx - p.offset.dx;
+        final dy = pTip.offset.dy - p.offset.dy;
+        final length = math.sqrt(dx * dx + dy * dy);
+        final angle = math.atan2(dy, dx) - math.pi / 2;
+        ctx.canvas
+          ..save()
+          ..translate(mid.dx, mid.dy)
+          ..rotate(angle)
+          ..drawOval(
+            Rect.fromCenter(
+              center: Offset.zero,
+              width: 14 * scale,
+              height: length,
+            ),
+            _furPaint,
+          )
+          ..drawOval(
+            Rect.fromCenter(
+              center: Offset.zero,
+              width: 14 * scale,
+              height: length,
+            ),
+            _outlinePaint,
+          )
+          // Inner ear — a smaller pink oval, slightly toward the tip
+          // side so it reads as "ear opening pointing forward".
+          ..drawOval(
+            Rect.fromCenter(
+              center: const Offset(0, -2),
+              width: 7 * scale,
+              height: length * 0.7,
+            ),
+            _innerEarPaint,
+          )
+          ..restore();
+      });
+    }
+
+    drawEar(Slot.headTopLeft, -1);
+    drawEar(Slot.headTopRight, 1);
+
+    // 3) Tiny pink nose dot, sitting on the face plane below the
+    // eyes. Gives the face the unmistakable bunny read without
+    // adding a separate Decoration part.
+    final headFront = ctx.at(Slot.headFront);
+    final nose = headFront.toWorld(const V3(0, -6, -2));
+    final pNose = ctx.proj(nose);
+    final noseScale = 1 + pNose.depth * 0.0015;
+    ctx.op(pNose.depth + 0.6, () {
+      ctx.canvas.drawOval(
+        Rect.fromCenter(
+          center: pNose.offset,
+          width: 5 * noseScale,
+          height: 4 * noseScale,
+        ),
+        _innerEarPaint,
+      );
     });
   }
 }
@@ -353,22 +472,23 @@ class CapsuleBody extends BodyPart {
   @override
   void onBuild(BuildCtx ctx) {
     final chest = ctx.at(Slot.chestFront);
-    // Capsule = stack of three depth-sorted ovals. Cheapest way
-    // to fake a 3D capsule with our simple proj. Slot.back is
-    // also reserved on the rig but unused here — future cape /
-    // backpack parts will read it.
-    final top = chest.origin + const V3(0, 18, 0);
-    final mid = chest.origin;
-    final bot = chest.origin + const V3(0, -18, 0);
-    for (final c in [top, mid, bot]) {
-      final p = ctx.proj(c);
-      final scale = 1 + p.depth * 0.0015;
-      ctx.op(p.depth - 0.01, () {
-        ctx.canvas
-          ..drawCircle(p.offset, 22 * scale, _fillPaint)
-          ..drawCircle(p.offset, 22 * scale, _outlinePaint);
-      });
-    }
+    // Single rounded oval centered on the chest anchor — a chibi
+    // body that reads as "small torso" rather than the previous
+    // three-circle stack which looked like a snowman of the same
+    // height as the head. Slot.back is reserved on the rig for
+    // future cape / backpack parts; unused here.
+    final p = ctx.proj(chest.origin);
+    final scale = 1 + p.depth * 0.0015;
+    ctx.op(p.depth - 0.01, () {
+      final rect = Rect.fromCenter(
+        center: p.offset,
+        width: 32 * scale,
+        height: 36 * scale,
+      );
+      ctx.canvas
+        ..drawOval(rect, _fillPaint)
+        ..drawOval(rect, _outlinePaint);
+    });
   }
 }
 
@@ -430,32 +550,96 @@ class CyclopsEye extends EyePart {
   @override
   void onBuild(BuildCtx ctx) {
     final f = ctx.at(Slot.headFront);
-    // Sit slightly in front of the head sphere so it doesn't get
-    // depth-sorted behind.
-    final center = f.toWorld(const V3(0, 32, -2));
+    // headFront is already at face-plane level (y=headY). Sit
+    // slightly forward of it (z=-2) so we don't lose to depth
+    // sorting against the skull surface.
+    final center = f.toWorld(const V3(0, 0, -2));
     final p = ctx.proj(center);
     final scale = 1 + p.depth * 0.0015;
     ctx.op(p.depth + 0.5, () {
       // Eye white
-      ctx.canvas.drawOval(
-        Rect.fromCenter(
-          center: p.offset,
-          width: 24 * scale,
-          height: 18 * scale,
-        ),
-        _whitePaint,
-      );
-      ctx.canvas.drawOval(
-        Rect.fromCenter(
-          center: p.offset,
-          width: 24 * scale,
-          height: 18 * scale,
-        ),
-        _outlinePaint,
-      );
-      // Pupil
-      ctx.canvas.drawCircle(p.offset, 5 * scale, _pupilPaint);
+      ctx.canvas
+        ..drawOval(
+          Rect.fromCenter(
+            center: p.offset,
+            width: 24 * scale,
+            height: 18 * scale,
+          ),
+          _whitePaint,
+        )
+        ..drawOval(
+          Rect.fromCenter(
+            center: p.offset,
+            width: 24 * scale,
+            height: 18 * scale,
+          ),
+          _outlinePaint,
+        )
+        // Pupil
+        ..drawCircle(p.offset, 5 * scale, _pupilPaint);
     });
+  }
+}
+
+/// "Twin" eye — two ovals with pupils, the standard humanoid /
+/// animal eye layout. Used by the bunny default and any future
+/// loadout that wants normal-looking eyes instead of a single
+/// cyclopean one.
+class TwinEye extends EyePart {
+  @override
+  String get id => 'eye_twin';
+
+  static final _whitePaint = Paint()..color = const Color(0xFFFFFFFF);
+  static final _pupilPaint = Paint()..color = const Color(0xFF1A1A1A);
+  static final _outlinePaint = Paint()
+    ..color = const Color(0xFF1A1A1A)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.2;
+
+  @override
+  void onBuild(BuildCtx ctx) {
+    final f = ctx.at(Slot.headFront);
+
+    void drawEye(double xOffset) {
+      // headFront is at face-plane level; offset forward by z=-2 so
+      // we don't lose to depth sorting against the skull.
+      final center = f.toWorld(V3(xOffset, 2, -2));
+      final p = ctx.proj(center);
+      final scale = 1 + p.depth * 0.0015;
+      ctx.op(p.depth + 0.5, () {
+        ctx.canvas
+          ..drawOval(
+            Rect.fromCenter(
+              center: p.offset,
+              width: 11 * scale,
+              height: 14 * scale,
+            ),
+            _whitePaint,
+          )
+          ..drawOval(
+            Rect.fromCenter(
+              center: p.offset,
+              width: 11 * scale,
+              height: 14 * scale,
+            ),
+            _outlinePaint,
+          )
+          // Pupil — slightly oval, vertical, sits center-low so the
+          // eye reads as "looking forward" not "spaced out".
+          ..drawOval(
+            Rect.fromCenter(
+              center: p.offset.translate(0, 1),
+              width: 4.5 * scale,
+              height: 6.5 * scale,
+            ),
+            _pupilPaint,
+          );
+      });
+    }
+
+    // Symmetric pair, ~8 units apart on the face plane.
+    drawEye(-8);
+    drawEye(8);
   }
 }
 
@@ -491,6 +675,9 @@ class Variant<T extends Part> {
 
 class Catalog {
   static const heads = <Variant<HeadPart>>[
+    // Bunny first so it's the default in any picker / loadout
+    // that auto-picks `Catalog.heads.first`.
+    Variant('Bunny', BunnyHead.new),
     Variant('Sphere', SphereHead.new),
   ];
   static const bodies = <Variant<BodyPart>>[
@@ -500,6 +687,9 @@ class Catalog {
     Variant('Default', Feet.new),
   ];
   static const eyes = <Variant<EyePart>>[
+    // Twin first — normal humanoid/animal eye layout, the default
+    // for the bunny build.
+    Variant('Twin', TwinEye.new),
     Variant('Cyclops', CyclopsEye.new),
   ];
 }
@@ -513,11 +703,15 @@ class ChibiCharacter extends PositionComponent {
 
   final JoystickComponent joystick;
 
+  // Default loadout: bunny with normal twin eyes. Per the Catalog
+  // ordering above, `Catalog.heads.first.build()` would also yield
+  // BunnyHead — using the explicit constructors here keeps the
+  // default discoverable from a quick read of this file.
   Loadout _loadout = Loadout(
-    head: SphereHead(),
+    head: BunnyHead(),
     body: CapsuleBody(),
     feet: Feet(),
-    eye: CyclopsEye(),
+    eye: TwinEye(),
   );
 
   // World position in the simple 3D scene. y=0 = ground; y rises
@@ -610,40 +804,52 @@ class ChibiCharacter extends PositionComponent {
       pitch: 0.6, // ~34° camera tilt; static
     );
 
-    // Build the rig — frames at every Slot.
+    // Build the rig — frames at every Slot. Chibi proportions:
+    // small body, large head, head sits cleanly above body with no
+    // overlap. Constants are in the same arbitrary unit space the
+    // parts read; the projector handles screen scaling.
+    //
+    // Vertical stack (bottom → top):
+    //   0–8     feet
+    //   8–42    body capsule (center 25, half-height 17)
+    //   42–86   head sphere (center 64, radius 22)
+    //   86–125  bunny ears (when present)
+    const headRadius = 22.0;
+    const bodyHalfHeight = 17.0;
     final feetY = pose.globalLiftY;
-    final bodyY = feetY + 50 + pose.walkBobY;
-    final headY = bodyY + 30 + pose.headBobY;
+    final bodyY = feetY + 25 + pose.walkBobY;
+    final headY = feetY + 64 + pose.headBobY;
     final frames = <Slot, Frame>{
       Slot.ground: Frame.upright(V3.zero),
-      Slot.footLeft: Frame.upright(V3(-10, feetY, 0)),
-      Slot.footRight: Frame.upright(V3(10, feetY, 0)),
-      Slot.hipLeft: Frame.upright(V3(-10, bodyY - 18, 0)),
-      Slot.hipRight: Frame.upright(V3(10, bodyY - 18, 0)),
-      Slot.hipFront: Frame.upright(V3(0, bodyY - 18, -10)),
-      Slot.hipBack: Frame.upright(V3(0, bodyY - 18, 10)),
-      Slot.beltCenter: Frame.upright(V3(0, bodyY - 14, 0)),
-      Slot.tailBase: Frame.upright(V3(0, bodyY - 14, 12)),
-      Slot.back: Frame.upright(V3(0, bodyY, 14)),
+      Slot.footLeft: Frame.upright(V3(-9, feetY, 0)),
+      Slot.footRight: Frame.upright(V3(9, feetY, 0)),
+      Slot.hipLeft: Frame.upright(V3(-12, bodyY - bodyHalfHeight, 0)),
+      Slot.hipRight: Frame.upright(V3(12, bodyY - bodyHalfHeight, 0)),
+      Slot.hipFront: Frame.upright(V3(0, bodyY - bodyHalfHeight, -8)),
+      Slot.hipBack: Frame.upright(V3(0, bodyY - bodyHalfHeight, 8)),
+      Slot.beltCenter: Frame.upright(V3(0, bodyY - 10, 0)),
+      Slot.tailBase: Frame.upright(V3(0, bodyY - 8, 10)),
+      Slot.back: Frame.upright(V3(0, bodyY + 4, 10)),
       Slot.chestFront: Frame.upright(V3(0, bodyY, -10)),
-      Slot.shoulderLeft: Frame.upright(V3(-22, bodyY + 10, 0)),
-      Slot.shoulderRight: Frame.upright(V3(22, bodyY + 10, 0)),
+      Slot.shoulderLeft: Frame.upright(V3(-18, bodyY + 10, 0)),
+      Slot.shoulderRight: Frame.upright(V3(18, bodyY + 10, 0)),
       Slot.wingsLeft: Frame.upright(V3(-12, bodyY + 8, 8)),
       Slot.wingsRight: Frame.upright(V3(12, bodyY + 8, 8)),
-      Slot.neckFront: Frame.upright(V3(0, bodyY + 22, -8)),
-      Slot.neckBack: Frame.upright(V3(0, bodyY + 22, 8)),
-      Slot.headBottom: Frame.upright(V3(0, headY - 30, 0)),
-      Slot.headTop: Frame.upright(V3(0, headY + 30, 0)),
-      Slot.headFront: Frame.upright(V3(0, headY, -28)),
-      Slot.headBack: Frame.upright(V3(0, headY, 28)),
-      Slot.headLeft: Frame.upright(V3(-28, headY, 0)),
-      Slot.headRight: Frame.upright(V3(28, headY, 0)),
-      Slot.headTopLeft: Frame.upright(V3(-18, headY + 22, 0)),
-      Slot.headTopRight: Frame.upright(V3(18, headY + 22, 0)),
-      Slot.hairTop: Frame.upright(V3(0, headY + 28, 0)),
-      Slot.halo: Frame.upright(V3(0, headY + 50, 0)),
-      Slot.handLeft: Frame.upright(V3(-30, bodyY - 4, 0)),
-      Slot.handRight: Frame.upright(V3(30, bodyY - 4, 0)),
+      Slot.neckFront: Frame.upright(V3(0, bodyY + 16, -6)),
+      Slot.neckBack: Frame.upright(V3(0, bodyY + 16, 6)),
+      // Head anchors — sphere center is at headY, radius 22.
+      Slot.headBottom: Frame.upright(V3(0, headY - headRadius, 0)),
+      Slot.headTop: Frame.upright(V3(0, headY + headRadius, 0)),
+      Slot.headFront: Frame.upright(V3(0, headY, -headRadius)),
+      Slot.headBack: Frame.upright(V3(0, headY, headRadius)),
+      Slot.headLeft: Frame.upright(V3(-headRadius, headY, 0)),
+      Slot.headRight: Frame.upright(V3(headRadius, headY, 0)),
+      Slot.headTopLeft: Frame.upright(V3(-13, headY + 14, 0)),
+      Slot.headTopRight: Frame.upright(V3(13, headY + 14, 0)),
+      Slot.hairTop: Frame.upright(V3(0, headY + headRadius, 0)),
+      Slot.halo: Frame.upright(V3(0, headY + headRadius + 18, 0)),
+      Slot.handLeft: Frame.upright(V3(-22, bodyY - 6, 0)),
+      Slot.handRight: Frame.upright(V3(22, bodyY - 6, 0)),
     };
 
     final skel = Skeleton(pose: pose, frames: frames);
