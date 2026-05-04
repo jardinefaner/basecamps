@@ -7,6 +7,9 @@
 // 2.5 alongside the bundled audio assets. The play buttons are
 // wired but currently just show a "coming soon" snack.
 
+import 'dart:async';
+
+import 'package:basecamp/features/surveys/survey_audio_service.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
 import 'package:basecamp/features/surveys/survey_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -323,7 +326,7 @@ class _AudioModePicker extends StatelessWidget {
   }
 }
 
-class _VoicePicker extends StatelessWidget {
+class _VoicePicker extends ConsumerWidget {
   const _VoicePicker({
     required this.value,
     required this.onChanged,
@@ -335,7 +338,7 @@ class _VoicePicker extends StatelessWidget {
   final ThemeData theme;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final female = SurveyVoice.female;
     final male = SurveyVoice.male;
     return Column(
@@ -370,7 +373,7 @@ class _VoicePicker extends StatelessWidget {
   }
 }
 
-class _VoiceTile extends StatelessWidget {
+class _VoiceTile extends ConsumerWidget {
   const _VoiceTile({
     required this.voice,
     required this.selected,
@@ -383,17 +386,15 @@ class _VoiceTile extends StatelessWidget {
   final VoidCallback onSelected;
   final ThemeData theme;
 
-  void _previewSample(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Voice samples ship in slice 2.5.'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+  void _previewSample(BuildContext context, WidgetRef ref) {
+    final audio = ref.read(surveyAudioServiceProvider);
+    // Fire-and-forget: when assets aren't generated yet the
+    // service silently no-ops (returns without playing).
+    unawaited(audio.playSample(voice));
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Material(
       color: selected
           ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
@@ -448,7 +449,7 @@ class _VoiceTile extends StatelessWidget {
                 ),
               ),
               IconButton(
-                onPressed: () => _previewSample(context),
+                onPressed: () => _previewSample(context, ref),
                 icon: const Icon(Icons.play_circle_outline),
                 visualDensity: VisualDensity.compact,
                 tooltip: 'Preview',

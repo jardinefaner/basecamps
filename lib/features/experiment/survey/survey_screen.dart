@@ -26,6 +26,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:basecamp/features/surveys/canonical_questions.dart';
+import 'package:basecamp/features/surveys/survey_audio_service.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
 import 'package:basecamp/features/surveys/survey_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -4102,6 +4104,23 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
       _sessionId = sessionId;
       _questionStartedAt = DateTime.now();
     });
+    _playCurrentQuestionAudio();
+  }
+
+  /// Play (or re-play) the current question's prompt aloud, if
+  /// audio mode allows. Silent for non-mood placeholders + the
+  /// All-done overlay; the painter overlays already convey state.
+  void _playCurrentQuestionAudio() {
+    final survey = _survey;
+    if (survey == null) return;
+    if (survey.audioMode == SurveyAudioMode.silent) return;
+    if (_showingAllDone) return;
+    if (_questionIndex >= survey.questions.length) return;
+    final q = survey.questions[_questionIndex];
+    if (q.type != SurveyQuestionType.mood) return;
+    final audio = ref.read(surveyAudioServiceProvider);
+    // Fire-and-forget: audio failure is silent by design.
+    unawaited(audio.playQuestion(survey.voice, q.prompt));
   }
 
   @override
@@ -4148,6 +4167,16 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
           isPractice: question.isPractice,
         );
     if (!mounted) return;
+    // Maybe play a "you did it" nudge (10% probability, with the
+    // service's own cooldown). Best-effort; silent by design when
+    // audio mode is questions_only / silent.
+    unawaited(
+      ref.read(surveyAudioServiceProvider).maybePlayNudge(
+            voice: survey.voice,
+            audioMode: survey.audioMode,
+            category: SurveyNudgeCategory.drop,
+          ),
+    );
     _advance();
   }
 
@@ -4163,6 +4192,7 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
         _questionIndex += 1;
         _questionStartedAt = DateTime.now();
       });
+      _playCurrentQuestionAudio();
     }
   }
 
@@ -4202,6 +4232,7 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
       _questionStartedAt = DateTime.now();
       _showingAllDone = false;
     });
+    _playCurrentQuestionAudio();
   }
 
   void _publishPlateBounds(Duration _) {
