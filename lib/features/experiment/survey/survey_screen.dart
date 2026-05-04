@@ -1262,8 +1262,9 @@ class _FacePainter {
 
   // ============================================================
   // F1: Strongly disagree — angry slanted brows, vertical-oval
-  // pupils, U-frown that contracts (3s), tear that drips (2s),
-  // soft pink cheeks.
+  // pupils, soft pink cheeks. Variant-specific: idle does mouth
+  // contract + 1 tear drip; breathing pulses tear opacity + brow
+  // bobs; fidget squashes eyes rapidly; emote sobs with 2 tears.
   // ============================================================
   void _paintStronglyDisagree(Canvas canvas, double s, _FacePalette p) {
     final ink = Paint()
@@ -1274,81 +1275,199 @@ class _FacePainter {
     final fill = Paint()..color = p.ink;
     final hi = Paint()..color = p.body;
 
-    // Brows: angry slant.
+    // Per-variant tunings (defaults = idle).
+    var mouthScaleX = 1.0;
+    var mouthScaleY = 1.0;
+    var eyeScaleY = 1.0;
+    var browDy = 0.0;
+    var browRot = 0.0;
+    switch (variant) {
+      case MarbleVariant.idle:
+        final mc = ((t / 3) % 1) * math.pi * 2;
+        mouthScaleX = 1 + math.sin(mc) * -0.075;
+      case MarbleVariant.breathing:
+        final c = (t / 4) % 1;
+        browDy = math.sin(c * math.pi * 2) * 2;
+        browRot = math.sin(c * math.pi * 2) * -3 * math.pi / 180;
+      case MarbleVariant.fidget:
+        final c = (t / 0.8) % 1;
+        eyeScaleY = 1 - math.sin(c * math.pi * 2).abs() * 0.15;
+      case MarbleVariant.emote:
+        final c = (t / 1.5) % 1;
+        final pulse = math.sin(c * math.pi * 2).abs();
+        mouthScaleX = 1 + pulse * 0.15;
+        mouthScaleY = 1 - pulse * 0.15;
+    }
+
+    // Brows: angry slant, with optional translate/rotate.
+    // Eyes: vertical ovals + white highlight, optional Y squash.
+    // Mouth — U-frown with optional sob scale.
     canvas
+      ..save()
+      ..translate(0, browDy)
+      ..rotate(browRot)
       ..drawLine(Offset(-18 * s, -14 * s), Offset(-8 * s, -8 * s), ink)
       ..drawLine(Offset(18 * s, -14 * s), Offset(8 * s, -8 * s), ink)
-      // Eyes: vertical ovals (rx=4, ry=5 in spec) with white
-      // highlights upper-left.
+      ..restore()
+      ..save()
+      ..scale(1, eyeScaleY)
       ..drawOval(
-        Rect.fromCenter(center: Offset(-12 * s, 0), width: 8 * s, height: 10 * s),
+        Rect.fromCenter(
+          center: Offset(-12 * s, 0),
+          width: 8 * s,
+          height: 10 * s,
+        ),
         fill,
       )
       ..drawOval(
-        Rect.fromCenter(center: Offset(12 * s, 0), width: 8 * s, height: 10 * s),
+        Rect.fromCenter(
+          center: Offset(12 * s, 0),
+          width: 8 * s,
+          height: 10 * s,
+        ),
         fill,
       )
       ..drawCircle(Offset(-10 * s, -2 * s), 1.5 * s, hi)
-      ..drawCircle(Offset(14 * s, -2 * s), 1.5 * s, hi);
-
-    // Mouth — U-frown (corners up, dip in middle is high).
-    // Contracts horizontally (1.0 → 0.85 → 1.0) on a 3s loop.
-    final mouthCycle = ((t / 3) % 1) * math.pi * 2;
-    final mouthScaleX = 1 + math.sin(mouthCycle) * -0.075;
+      ..drawCircle(Offset(14 * s, -2 * s), 1.5 * s, hi)
+      ..restore()
+      ..save()
+      ..translate(0, 16 * s)
+      ..scale(mouthScaleX, mouthScaleY);
     final mouthPath = Path()
-      ..moveTo(-14 * s * mouthScaleX, 16 * s)
-      ..quadraticBezierTo(0, 6 * s, 14 * s * mouthScaleX, 16 * s);
-    canvas.drawPath(mouthPath, ink);
+      ..moveTo(-14 * s, 0)
+      ..quadraticBezierTo(0, -10 * s, 14 * s, 0);
+    canvas
+      ..drawPath(mouthPath, ink)
+      ..restore();
 
-    // Tear — keyframed drip on a 2s loop.
-    //   0.00–0.60  fall: y 0→6, opacity 0.7→0.3
-    //   0.60–0.61  cut to: y 0, opacity 0
-    //   0.61–0.80  hold: opacity 0
-    //   0.80–1.00  fade-in: opacity 0→0.7, y 0
-    final tCycle = (t / 2) % 1;
-    double tearDy = 0;
-    double tearOpacity = 0;
-    if (tCycle < 0.60) {
-      final p = tCycle / 0.60;
-      tearDy = p * 6 * s;
-      tearOpacity = 0.7 - p * 0.4;
-    } else if (tCycle < 0.61) {
-      tearOpacity = 0;
-    } else if (tCycle < 0.80) {
-      tearOpacity = 0;
-    } else {
-      tearOpacity = (tCycle - 0.80) / 0.20 * 0.7;
-    }
-    if (tearOpacity > 0.01 && p.tear != null) {
-      final tearPath = Path()
-        ..moveTo(16 * s, 4 * s + tearDy)
-        ..quadraticBezierTo(18 * s, 10 * s + tearDy, 16 * s, 14 * s + tearDy)
-        ..quadraticBezierTo(14 * s, 16 * s + tearDy, 13 * s, 14 * s + tearDy)
-        ..quadraticBezierTo(12 * s, 10 * s + tearDy, 13 * s, 6 * s + tearDy)
-        ..close();
-      canvas.drawPath(
-        tearPath,
-        Paint()..color = p.tear!.withValues(alpha: tearOpacity),
-      );
+    // Variant-specific tears.
+    if (p.tear != null) {
+      final tearColor = p.tear!;
+      switch (variant) {
+        case MarbleVariant.idle:
+          // 2s drip: y 0→6, opacity 0.7→0.3 then reset.
+          final c = (t / 2) % 1;
+          double dy = 0;
+          double opacity = 0;
+          if (c < 0.60) {
+            dy = (c / 0.60) * 6 * s;
+            opacity = 0.7 - (c / 0.60) * 0.4;
+          } else if (c < 0.80) {
+            opacity = 0;
+          } else {
+            opacity = (c - 0.80) / 0.20 * 0.7;
+          }
+          if (opacity > 0.01) _drawF1Tear(canvas, s, 16, 4, dy, tearColor, opacity);
+        case MarbleVariant.breathing:
+          // 3s pulse: opacity 0.6 → 0.3 + scale 1 → 0.7 mid, then fade.
+          final c = (t / 3) % 1;
+          double opacity = 0;
+          double scale = 1;
+          double dy = 0;
+          if (c < 0.50) {
+            opacity = 0.6 - (c / 0.50) * 0.3;
+            scale = 1 - (c / 0.50) * 0.3;
+            dy = (c / 0.50) * 5 * s;
+          } else if (c < 0.80) {
+            opacity = 0;
+          } else {
+            opacity = (c - 0.80) / 0.20 * 0.6;
+          }
+          if (opacity > 0.01) {
+            _drawF1Tear(canvas, s * scale, 16, 4, dy, tearColor, opacity);
+          }
+        case MarbleVariant.fidget:
+          break; // no tear
+        case MarbleVariant.emote:
+          // Two tears falling on staggered 2s loops.
+          for (var i = 0; i < 2; i++) {
+            final c = ((t + i * 0.6) / 2) % 1;
+            final dx = (i == 0 ? -4 : 3) * s * c;
+            final dy = (i == 0 ? 18 : 16) * s * c;
+            final opacity = (i == 0 ? 0.6 : 0.5) * (1 - c);
+            final cx = i == 0 ? -15 * s : 15 * s;
+            if (opacity > 0.01) {
+              final tearPath = Path()
+                ..moveTo(cx + dx, 6 * s + dy)
+                ..quadraticBezierTo(
+                  cx + dx + s,
+                  10 * s + dy,
+                  cx + dx,
+                  14 * s + dy,
+                )
+                ..quadraticBezierTo(
+                  cx + dx - s,
+                  12 * s + dy,
+                  cx + dx - s,
+                  10 * s + dy,
+                )
+                ..close();
+              canvas.drawPath(
+                tearPath,
+                Paint()..color = tearColor.withValues(alpha: opacity),
+              );
+            }
+          }
+      }
     }
 
-    // Cheeks — static soft blush, ring color at 30%.
-    final cheek = Paint()
-      ..color = p.cheek.withValues(alpha: 0.3);
+    // Cheeks (slightly bigger on emote).
+    final cheekRx = (variant == MarbleVariant.emote ? 14 : 12) * s;
+    final cheekRy = (variant == MarbleVariant.emote ? 10 : 8) * s;
+    final cheekAlpha = variant == MarbleVariant.emote ? 0.4 : 0.3;
+    final cheek = Paint()..color = p.cheek.withValues(alpha: cheekAlpha);
     canvas
       ..drawOval(
-        Rect.fromCenter(center: Offset(-22 * s, 8 * s), width: 12 * s, height: 8 * s),
+        Rect.fromCenter(
+          center: Offset(-22 * s, 8 * s),
+          width: cheekRx,
+          height: cheekRy,
+        ),
         cheek,
       )
       ..drawOval(
-        Rect.fromCenter(center: Offset(22 * s, 8 * s), width: 12 * s, height: 8 * s),
+        Rect.fromCenter(
+          center: Offset(22 * s, 8 * s),
+          width: cheekRx,
+          height: cheekRy,
+        ),
         cheek,
       );
   }
 
+  /// Single F1 tear shape — used by both idle (1 tear) and
+  /// breathing (1 pulsing tear) variants.
+  void _drawF1Tear(Canvas canvas, double s, double cx, double cy,
+      double dy, Color color, double opacity) {
+    final path = Path()
+      ..moveTo(cx * s, cy * s + dy)
+      ..quadraticBezierTo(
+        (cx + 2) * s,
+        (cy + 6) * s + dy,
+        cx * s,
+        (cy + 10) * s + dy,
+      )
+      ..quadraticBezierTo(
+        (cx - 2) * s,
+        (cy + 12) * s + dy,
+        (cx - 3) * s,
+        (cy + 10) * s + dy,
+      )
+      ..quadraticBezierTo(
+        (cx - 4) * s,
+        (cy + 6) * s + dy,
+        (cx - 3) * s,
+        (cy + 2) * s + dy,
+      )
+      ..close();
+    canvas.drawPath(path, Paint()..color = color.withValues(alpha: opacity));
+  }
+
   // ============================================================
-  // F2: Disagree — drooped slanted brows that bob slightly with
-  // sway, round pupils with highlight, gentle frown, faint cheeks.
+  // F2: Disagree — drooped brows, round pupils, gentle frown,
+  // faint cheeks. Variants: idle bobs brows with sway; breathing
+  // sneaks a midcycle blink; fidget wanders eyes Y + tiny lip
+  // morph; emote sheds a sweat drop.
   // ============================================================
   void _paintDisagree(Canvas canvas, double s, _FacePalette p) {
     final ink = Paint()
@@ -1359,11 +1478,47 @@ class _FacePainter {
     final fill = Paint()..color = p.ink;
     final hi = Paint()..color = p.body;
 
-    // Brows: drooped slant. Each brow drifts in Y with the sway
-    // cycle (3s). Left bobs +1.5px at midcycle, right +1px.
-    final swayCycle = ((t / 3) % 1) * math.pi * 2;
-    final browLY = math.sin(swayCycle) * 1.5;
-    final browRY = math.sin(swayCycle) * 1.0;
+    // Per-variant tunings.
+    var browLY = 0.0;
+    var browRY = 0.0;
+    var eyeDy = 0.0;
+    var eyeScaleY = 1.0;
+    var lipDip = 8.0; // Y of mouth bottom curve apex; smaller = deeper.
+    switch (variant) {
+      case MarbleVariant.idle:
+        final c = ((t / 3.5) % 1) * math.pi * 2;
+        browLY = math.sin(c) * 1.5;
+        browRY = math.sin(c) * 1.0;
+      case MarbleVariant.breathing:
+        // Eye blink at midcycle of 5s loop: closed scaleY 0.1 for
+        // a brief moment around 50%.
+        final c = (t / 5) % 1;
+        if (c >= 0.48 && c <= 0.52) {
+          final p = (c - 0.48) / 0.04;
+          eyeScaleY = 1 - (p < 0.5 ? p * 2 : (1 - p) * 2) * 0.9;
+        }
+      case MarbleVariant.fidget:
+        // Eyes wander Y (2.5s): 0 → +2 → -1 → +1 → 0
+        final c = (t / 2.5) % 1;
+        if (c < 0.25) {
+          eyeDy = (c / 0.25) * 2;
+        } else if (c < 0.50) {
+          eyeDy = 2 - ((c - 0.25) / 0.25) * 3;
+        } else if (c < 0.75) {
+          eyeDy = -1 + ((c - 0.50) / 0.25) * 2;
+        } else {
+          eyeDy = 1 - ((c - 0.75) / 0.25);
+        }
+        // Lip dip subtly varies — picks slightly higher dip ~85-95%.
+        final lc = (t / 3) % 1;
+        if (lc >= 0.85 && lc <= 0.95) {
+          lipDip = 9;
+        }
+      case MarbleVariant.emote:
+        break; // body rocking; sweat handled below
+    }
+
+    // Brows.
     canvas
       ..drawLine(
         Offset(-18 * s, -12 * s + browLY),
@@ -1374,36 +1529,106 @@ class _FacePainter {
         Offset(18 * s, -12 * s + browRY),
         Offset(8 * s, -10 * s + browRY),
         ink,
-      )
-      // Eyes: round circles + highlights.
-      ..drawCircle(Offset(-12 * s, 0), 4 * s, fill)
-      ..drawCircle(Offset(12 * s, 0), 4 * s, fill)
-      ..drawCircle(Offset(-10.5 * s, -1.5 * s), 1.5 * s, hi)
-      ..drawCircle(Offset(13.5 * s, -1.5 * s), 1.5 * s, hi);
+      );
 
-    // Mouth: gentle frown (Q-curve down).
+    // Eyes (with optional Y wander + blink scaleY).
+    // ignore: cascade_invocations
+    canvas
+      ..save()
+      ..translate(0, eyeDy * s);
+    if (eyeScaleY < 0.99) {
+      canvas
+        ..save()
+        ..scale(1, eyeScaleY)
+        ..drawCircle(Offset(-12 * s, 0), 4 * s, fill)
+        ..drawCircle(Offset(12 * s, 0), 4 * s, fill)
+        ..restore()
+        ..drawCircle(Offset(-10.5 * s, -1.5 * s), 1.5 * s, hi)
+        ..drawCircle(Offset(13.5 * s, -1.5 * s), 1.5 * s, hi);
+    } else {
+      canvas
+        ..drawCircle(Offset(-12 * s, 0), 4 * s, fill)
+        ..drawCircle(Offset(12 * s, 0), 4 * s, fill)
+        ..drawCircle(Offset(-10.5 * s, -1.5 * s), 1.5 * s, hi)
+        ..drawCircle(Offset(13.5 * s, -1.5 * s), 1.5 * s, hi);
+    }
+    canvas.restore();
+
+    // Mouth: gentle frown.
     final mouthPath = Path()
       ..moveTo(-10 * s, 14 * s)
-      ..quadraticBezierTo(0, 8 * s, 10 * s, 14 * s);
+      ..quadraticBezierTo(0, lipDip * s, 10 * s, 14 * s);
     canvas.drawPath(mouthPath, ink);
 
-    // Cheeks: soft pink at 20%.
-    final cheek = Paint()
-      ..color = p.cheek.withValues(alpha: 0.2);
+    // Cheeks.
+    final cheek = Paint()..color = p.cheek.withValues(alpha: 0.2);
     canvas
       ..drawOval(
-        Rect.fromCenter(center: Offset(-22 * s, 8 * s), width: 12 * s, height: 8 * s),
+        Rect.fromCenter(
+          center: Offset(-22 * s, 8 * s),
+          width: 12 * s,
+          height: 8 * s,
+        ),
         cheek,
       )
       ..drawOval(
-        Rect.fromCenter(center: Offset(22 * s, 8 * s), width: 12 * s, height: 8 * s),
+        Rect.fromCenter(
+          center: Offset(22 * s, 8 * s),
+          width: 12 * s,
+          height: 8 * s,
+        ),
         cheek,
       );
+
+    // Emote: sweat drop falling from upper-right (3s loop).
+    if (variant == MarbleVariant.emote) {
+      final c = (t / 3) % 1;
+      var opacity = 0.0;
+      var dy = -2.0;
+      var dx = 0.0;
+      if (c < 0.80) {
+        opacity = 0.5 * (1 - c / 0.80 * 0.6); // 0.5 → 0.2
+        dy = -2 + c / 0.80 * 12;
+        dx = c / 0.80 * 2;
+      } else {
+        opacity = 0;
+      }
+      if (opacity > 0.01) {
+        final sweat = Path()
+          ..moveTo(20 * s + dx * s, -14 * s + dy * s)
+          ..quadraticBezierTo(
+            22 * s + dx * s,
+            -10 * s + dy * s,
+            20 * s + dx * s,
+            -6 * s + dy * s,
+          )
+          ..quadraticBezierTo(
+            18 * s + dx * s,
+            -4 * s + dy * s,
+            17 * s + dx * s,
+            -6 * s + dy * s,
+          )
+          ..quadraticBezierTo(
+            16 * s + dx * s,
+            -10 * s + dy * s,
+            17 * s + dx * s,
+            -12 * s + dy * s,
+          )
+          ..close();
+        canvas.drawPath(
+          sweat,
+          Paint()
+            ..color = const Color(0xFF85B7EB).withValues(alpha: opacity),
+        );
+      }
+    }
   }
 
   // ============================================================
-  // F3: Not sure — flat horizontal brows, eyes look L/R/center on
-  // a 4s loop, blink (lid wipe) at the center reset, flat mouth.
+  // F3: Not sure — flat horizontal brows, round pupils, flat
+  // mouth. Variants: idle = look L/R + center-reset blink (4s);
+  // breathing = mouth purse (lip scaleX shrinks at 35% of 6s);
+  // fidget = rapid eye dart; emote = brow lift + puff cloud.
   // ============================================================
   void _paintNotSure(Canvas canvas, double s, _FacePalette p) {
     final ink = Paint()
@@ -1414,35 +1639,55 @@ class _FacePainter {
     final fill = Paint()..color = p.ink;
     final hi = Paint()..color = p.body;
 
+    var lookX = 0.0;
+    var blinkOpen = 1.0;
+    var browDy = 0.0;
+    var mouthScaleX = 1.0;
+    switch (variant) {
+      case MarbleVariant.idle:
+        final c = (t / 4) % 1;
+        if (c >= 0.25 && c <= 0.40) {
+          lookX = -3 * s;
+        } else if (c >= 0.45 && c <= 0.60) {
+          lookX = 3 * s;
+        }
+        if (c >= 0.42 && c < 0.48) {
+          final lt = (c - 0.42) / 0.06;
+          blinkOpen = 1 - (lt < 0.5 ? lt * 2 : (1 - lt) * 2);
+        }
+      case MarbleVariant.breathing:
+        // Mouth purse: scaleX shrinks to 0.6 around 35% of 6s.
+        final c = (t / 6) % 1;
+        if (c >= 0.30 && c <= 0.40) {
+          final lt = (c - 0.30) / 0.10;
+          final dip = lt < 0.5 ? lt * 2 : (1 - lt) * 2;
+          mouthScaleX = 1 - dip * 0.4;
+        }
+      case MarbleVariant.fidget:
+        // Eyes dart rapidly — alternating L/R every 0.75s.
+        final c = (t / 1.5) % 1;
+        lookX = (c < 0.5 ? -4 : 4) * s;
+      case MarbleVariant.emote:
+        // Brow lift around 50-60% of 3s loop.
+        final c = (t / 3) % 1;
+        if (c >= 0.45 && c <= 0.60) {
+          final lt = (c - 0.45) / 0.15;
+          browDy = -3 * (lt < 0.5 ? lt * 2 : (1 - lt) * 2);
+        }
+    }
+
     // Flat horizontal brows.
     canvas
-      ..drawLine(Offset(-18 * s, -12 * s), Offset(-6 * s, -12 * s), ink)
-      ..drawLine(Offset(18 * s, -12 * s), Offset(6 * s, -12 * s), ink);
-
-    // Eyes look-around on a 4s loop. Spec keyframes:
-    //   0–20%   center
-    //   25–40%  left (-3px)
-    //   45–60%  right (+3px)
-    //   65–100% center
-    final lookCycle = (t / 4) % 1;
-    double lookX = 0;
-    if (lookCycle >= 0.25 && lookCycle <= 0.40) {
-      lookX = -3 * s;
-    } else if (lookCycle >= 0.45 && lookCycle <= 0.60) {
-      lookX = 3 * s;
-    } else {
-      lookX = 0;
-    }
-
-    // Blink at the center reset (around 44–46% of the cycle).
-    // Spec uses a rect-lid scaleY wipe; we approximate with a
-    // squashed eye.
-    var blinkOpen = 1.0;
-    if (lookCycle >= 0.42 && lookCycle < 0.48) {
-      // Triangle 0→1→0 over the 0.06 window.
-      final localT = (lookCycle - 0.42) / 0.06;
-      blinkOpen = 1 - (localT < 0.5 ? localT * 2 : (1 - localT) * 2);
-    }
+      ..drawLine(
+        Offset(-18 * s, -12 * s + browDy),
+        Offset(-6 * s, -12 * s + browDy),
+        ink,
+      )
+      ..drawLine(
+        Offset(18 * s, -12 * s + browDy),
+        Offset(6 * s, -12 * s + browDy),
+        ink,
+      );
 
     final eyeR = 4 * s;
     Rect eyeRect(double cx) => Rect.fromCenter(
@@ -1467,14 +1712,36 @@ class _FacePainter {
         );
     }
 
-    // Flat mouth line.
-    canvas.drawLine(Offset(-8 * s, 14 * s), Offset(8 * s, 14 * s), ink);
+    // Flat mouth (with optional purse).
+    canvas
+      ..save()
+      ..translate(0, 14 * s)
+      ..scale(mouthScaleX, 1)
+      ..drawLine(Offset(-8 * s, 0), Offset(8 * s, 0), ink)
+      ..restore();
+
+    // Emote-only: puff cloud appears 60-80% of 4s loop.
+    if (variant == MarbleVariant.emote) {
+      final c = (t / 4) % 1;
+      if (c >= 0.60 && c <= 0.80) {
+        final lt = (c - 0.60) / 0.20;
+        final opacity = (lt < 0.25 ? lt * 4 : (1 - lt) * 1.33).clamp(0.0, 0.45);
+        final scale = 0.5 + lt * 1.0;
+        final puffDy = -lt * 4 * s;
+        canvas.drawCircle(
+          Offset(24 * s, 12 * s + puffDy),
+          4 * s * scale,
+          Paint()..color = p.ring.withValues(alpha: opacity),
+        );
+      }
+    }
   }
 
   // ============================================================
-  // F4: Agree — outward-up brows, round pupils + highlights,
-  // smile, green cheek glow that pulses, single sparkle cross
-  // top-left that pulses.
+  // F4: Agree — outward-up brows, round pupils, smile, cheek
+  // pulse, sparkle. Variants: idle = pulsing cheeks + sparkle;
+  // breathing = bigger cheek pulse synced to body; fidget =
+  // sparkle spinning; emote = floating heart.
   // ============================================================
   void _paintAgree(Canvas canvas, double s, _FacePalette p) {
     final ink = Paint()
@@ -1485,7 +1752,7 @@ class _FacePainter {
     final fill = Paint()..color = p.ink;
     final hi = Paint()..color = p.body;
 
-    // Brows + eyes (round + highlights).
+    // Brows + eyes.
     canvas
       ..drawLine(Offset(-18 * s, -14 * s), Offset(-8 * s, -16 * s), ink)
       ..drawLine(Offset(18 * s, -14 * s), Offset(8 * s, -16 * s), ink)
@@ -1500,38 +1767,141 @@ class _FacePainter {
       ..quadraticBezierTo(0, 20 * s, 10 * s, 12 * s);
     canvas.drawPath(mouthPath, ink);
 
-    // Cheek pulse on 2s loop: opacity 0.25 → 0.40 → 0.25.
-    final cheekT = (t / 2) % 1;
-    final cheekAlpha = 0.25 + math.sin(cheekT * math.pi * 2) * 0.075;
-    final cheek = Paint()
-      ..color = p.cheek.withValues(alpha: cheekAlpha);
+    // Cheeks: per-variant alpha + size.
+    var cheekAlpha = 0.25;
+    var cheekRx = 14.0;
+    switch (variant) {
+      case MarbleVariant.idle:
+        final c = (t / 2) % 1;
+        cheekAlpha = 0.25 + math.sin(c * math.pi * 2) * 0.075;
+      case MarbleVariant.breathing:
+        // Sync to body breath (3s) — bigger pulse.
+        final c = (t / 3) % 1;
+        final pulse = math.sin(c * math.pi * 2);
+        cheekAlpha = 0.275 + pulse * 0.125; // 0.15 → 0.40
+        cheekRx = 14 + pulse * 1; // 13 → 15 px
+      case MarbleVariant.fidget:
+        cheekAlpha = 0.3;
+      case MarbleVariant.emote:
+        cheekAlpha = 0.3;
+    }
+    final cheek = Paint()..color = p.cheek.withValues(alpha: cheekAlpha);
     canvas
       ..drawOval(
-        Rect.fromCenter(center: Offset(-22 * s, 8 * s), width: 14 * s, height: 8 * s),
+        Rect.fromCenter(
+          center: Offset(-22 * s, 8 * s),
+          width: cheekRx * s,
+          height: 8 * s,
+        ),
         cheek,
       )
       ..drawOval(
-        Rect.fromCenter(center: Offset(22 * s, 8 * s), width: 14 * s, height: 8 * s),
+        Rect.fromCenter(
+          center: Offset(22 * s, 8 * s),
+          width: cheekRx * s,
+          height: 8 * s,
+        ),
         cheek,
       );
 
-    // Sparkle cross — pulses 0→0.6 opacity, 0→1 scale on 1.5s loop.
-    final sparkT = (t / 1.5) % 1;
-    final sparkAlpha = math.sin(sparkT * math.pi);
-    if (sparkAlpha > 0.02 && p.sparkle != null) {
-      final sx = sparkAlpha;
-      final sparkPaint = Paint()
-        ..color = p.sparkle!.withValues(alpha: sparkAlpha * 0.6)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..strokeCap = StrokeCap.round;
-      canvas
-        ..save()
-        ..translate(-30 * s, -20 * s)
-        ..scale(sx, sx)
-        ..drawLine(Offset(0, -4 * s), Offset(0, 4 * s), sparkPaint)
-        ..drawLine(Offset(-4 * s, 0), Offset(4 * s, 0), sparkPaint)
-        ..restore();
+    if (p.sparkle != null) {
+      final sparkleColor = p.sparkle!;
+      switch (variant) {
+        case MarbleVariant.idle:
+          // Single sparkle pulses 1.8s.
+          final c = (t / 1.8) % 1;
+          final alpha = math.sin(c * math.pi);
+          if (alpha > 0.02) {
+            final paint = Paint()
+              ..color = sparkleColor.withValues(alpha: alpha * 0.6)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2
+              ..strokeCap = StrokeCap.round;
+            canvas
+              ..save()
+              ..translate(-30 * s, -22 * s)
+              ..scale(alpha, alpha)
+              ..drawLine(Offset(0, -4 * s), Offset(0, 4 * s), paint)
+              ..drawLine(Offset(-4 * s, 0), Offset(4 * s, 0), paint)
+              ..restore();
+          }
+        case MarbleVariant.breathing:
+          break; // body+cheek breath does the work
+        case MarbleVariant.fidget:
+          // Sparkle scale + rotate alternate (0.6s).
+          final c = (t / 0.6) % 1;
+          final paint = Paint()
+            ..color = sparkleColor.withValues(alpha: 0.7 * c)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..strokeCap = StrokeCap.round;
+          canvas
+            ..save()
+            ..translate(-28 * s, -20 * s)
+            ..scale(c, c)
+            ..rotate(c * 20 * math.pi / 180)
+            ..drawLine(Offset(0, -4 * s), Offset(0, 4 * s), paint)
+            ..drawLine(Offset(-4 * s, 0), Offset(4 * s, 0), paint)
+            ..restore();
+        case MarbleVariant.emote:
+          // Floating heart: spawns near upper-left, drifts up-left
+          // and fades on a 1.5s loop.
+          final c = (t / 1.5) % 1;
+          final scale = c < 0.30 ? c / 0.30 : 1.0;
+          final dx = -c * 6 * s;
+          final dy = -c * 14 * s;
+          final alpha = (c < 0.30 ? c / 0.30 * 0.7 : 0.7 * (1 - c)).clamp(
+            0.0,
+            0.7,
+          );
+          if (alpha > 0.02) {
+            final heart = Path()
+              ..moveTo(-22 * s + dx, -22 * s + dy)
+              ..cubicTo(
+                -22 * s + dx,
+                -28 * s + dy,
+                -16 * s + dx,
+                -30 * s + dy,
+                -16 * s + dx,
+                -24 * s + dy,
+              )
+              ..cubicTo(
+                -16 * s + dx,
+                -30 * s + dy,
+                -10 * s + dx,
+                -28 * s + dy,
+                -10 * s + dx,
+                -22 * s + dy,
+              )
+              ..cubicTo(
+                -10 * s + dx,
+                -18 * s + dy,
+                -16 * s + dx,
+                -14 * s + dy,
+                -16 * s + dx,
+                -12 * s + dy,
+              )
+              ..cubicTo(
+                -16 * s + dx,
+                -14 * s + dy,
+                -22 * s + dx,
+                -18 * s + dy,
+                -22 * s + dx,
+                -22 * s + dy,
+              )
+              ..close();
+            canvas
+              ..save()
+              ..translate(-16 * s + dx, -22 * s + dy)
+              ..scale(scale, scale)
+              ..translate(16 * s - dx, 22 * s - dy)
+              ..drawPath(
+                heart,
+                Paint()..color = sparkleColor.withValues(alpha: alpha),
+              )
+              ..restore();
+          }
+      }
     }
   }
 
@@ -1619,34 +1989,80 @@ class _FacePainter {
         cheek,
       );
 
-    // 3 sparkles on staggered 1s loops at offsets 0, 0.3, 0.6.
+    // Variant-specific sparkle/glow behavior.
     if (p.sparkle != null) {
-      _drawSparkleCross(
-        canvas,
-        Offset(-32 * s, -26 * s),
-        s,
-        p.sparkle!,
-        t % 1,
-        2,
-        0.8,
-      );
-      _drawSparkleCross(
-        canvas,
-        Offset(34 * s, -28 * s),
-        s,
-        p.sparkle!,
-        ((t + 0.3) / 1.0) % 1,
-        1.5,
-        0.7,
-      );
-      _drawSparkleDot(
-        canvas,
-        Offset(28 * s, 20 * s),
-        s,
-        p.sparkle!,
-        ((t + 0.6) / 1.0) % 1,
-        0.6,
-      );
+      final spark = p.sparkle!;
+      switch (variant) {
+        case MarbleVariant.idle:
+          // 3 sparkles staggered on 1s loops at offsets 0/0.3/0.6.
+          _drawSparkleCross(canvas, Offset(-32 * s, -26 * s), s, spark,
+              t % 1, 2, 0.8);
+          _drawSparkleCross(canvas, Offset(34 * s, -28 * s), s, spark,
+              (t + 0.3) % 1, 1.5, 0.7);
+          _drawSparkleDot(
+              canvas, Offset(28 * s, 20 * s), s, spark, (t + 0.6) % 1, 0.6);
+        case MarbleVariant.breathing:
+          // Glow halo behind the body — pulses radius + opacity (2s).
+          // Drawn here on top, but with low alpha + maskFilter so it
+          // reads as a backlit aura rather than a foreground disk.
+          final c = (t / 2) % 1;
+          final pulse = math.sin(c * math.pi * 2);
+          final radius = 40 + pulse * 4;
+          final alpha = 0.13 + pulse * 0.05; // 0.08..0.18
+          canvas.drawCircle(
+            Offset.zero,
+            radius * s,
+            Paint()
+              ..color = spark.withValues(alpha: alpha)
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+          );
+        case MarbleVariant.fidget:
+          // 3 sparkles SPINNING — each rotates around its own
+          // origin at a different rate.
+          for (var i = 0; i < 3; i++) {
+            final period = 0.4 + i * 0.1;
+            final angle = (t / period) * math.pi * 2 * (i.isEven ? 1 : -1);
+            final positions = [
+              Offset(-32 * s, -26 * s),
+              Offset(34 * s, -28 * s),
+              Offset(28 * s, 22 * s),
+            ];
+            final alpha = 0.5 + 0.5 * math.sin((t / period) * math.pi * 2);
+            canvas
+              ..save()
+              ..translate(positions[i].dx, positions[i].dy)
+              ..rotate(angle)
+              ..drawCircle(
+                Offset.zero,
+                (3 - i * 0.5) * s,
+                Paint()..color = spark.withValues(alpha: alpha),
+              )
+              ..restore();
+          }
+        case MarbleVariant.emote:
+          // 8 sun rays around the body, rotating slowly. Plus a
+          // small sparkle particle ring around outer edge.
+          final rayAngle = (t / 1.5) * math.pi * 2;
+          final rayPaint = Paint()
+            ..color = spark.withValues(alpha: 0.30)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..strokeCap = StrokeCap.round;
+          canvas
+            ..save()
+            ..rotate(rayAngle);
+          for (var i = 0; i < 8; i++) {
+            final theta = i * math.pi / 4;
+            final r1 = 42 * s;
+            final r2 = 46 * s;
+            canvas.drawLine(
+              Offset(math.cos(theta) * r1, math.sin(theta) * r1),
+              Offset(math.cos(theta) * r2, math.sin(theta) * r2),
+              rayPaint,
+            );
+          }
+          canvas.restore();
+      }
     }
   }
 
