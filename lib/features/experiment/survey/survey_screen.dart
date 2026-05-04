@@ -27,6 +27,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:basecamp/features/surveys/canonical_questions.dart';
+import 'package:basecamp/features/surveys/multi_select_overlay.dart';
 import 'package:basecamp/features/surveys/survey_audio_service.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
 import 'package:basecamp/features/surveys/survey_repository.dart';
@@ -4180,6 +4181,30 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
     _advance();
   }
 
+  /// Called when the kid commits a multi-select activity answer.
+  /// Empty list = "skipped via commit" — same effect as Skip,
+  /// recorded with no selections so the results sheet can tell
+  /// "the kid saw the question" apart from "the kid never reached
+  /// it" (the latter has no row at all).
+  Future<void> _onMultiSelectCommit(List<String> selectedIds) async {
+    final survey = _survey;
+    final sessionId = _sessionId;
+    if (survey == null || sessionId == null) return;
+    final question = survey.questions[_questionIndex];
+    final durationMs =
+        DateTime.now().difference(_questionStartedAt).inMilliseconds;
+    await ref.read(surveyRepositoryProvider).recordMultiSelectAnswer(
+          surveyId: survey.id,
+          sessionId: sessionId,
+          questionId: question.id,
+          selectedOptionIds: selectedIds,
+          durationMs: durationMs,
+          isPractice: question.isPractice,
+        );
+    if (!mounted) return;
+    _advance();
+  }
+
   /// Move to the next question, or trigger the end-of-survey beat
   /// if we just finished the last one.
   void _advance() {
@@ -4456,9 +4481,27 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
     }
     // Non-Likert question? Show a placeholder skip card. The kiosk
     // currently only handles `mood` questions; multi-select +
-    // open-ended ship in slice 3 / 3.5.
+    // open-ended ships in slice 3.5.
     final q = survey.questions[_questionIndex];
-    if (q.type != SurveyQuestionType.mood) {
+    if (q.type == SurveyQuestionType.multiSelect) {
+      return <Widget>[
+        Positioned.fill(
+          child: MultiSelectQuestionOverlay(
+            // Re-key on the question id so switching from question
+            // N to N+1 (both multiSelect) tears down + rebuilds
+            // the overlay, clearing the selection set + re-reading
+            // the new prompt.
+            key: ValueKey('ms_${q.id}'),
+            question: q,
+            voice: survey.voice,
+            audioMode: survey.audioMode,
+            onCommit: _onMultiSelectCommit,
+            onSkip: _advance,
+          ),
+        ),
+      ];
+    }
+    if (q.type == SurveyQuestionType.openEnded) {
       return <Widget>[
         Positioned.fill(
           child: ColoredBox(
@@ -4470,9 +4513,7 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      q.type == SurveyQuestionType.multiSelect
-                          ? Icons.checklist_rtl
-                          : Icons.mic_none,
+                      Icons.mic_none,
                       size: 48,
                       color: theme.colorScheme.outlineVariant,
                     ),
@@ -4486,9 +4527,7 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
                     ),
                     const SizedBox(height: AppSpacing.md),
                     Text(
-                      q.type == SurveyQuestionType.multiSelect
-                          ? 'Multi-select question UI ships next slice.'
-                          : 'Voice-answer question UI ships next slice.',
+                      'Voice-answer question UI ships next slice.',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
