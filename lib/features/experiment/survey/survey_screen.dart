@@ -2425,14 +2425,25 @@ class _MarbleNode extends PositionComponent {
     seed: seed * 911 + 7,
   );
 
-  /// Stable per-marble random base brow + mouth indices, picked
-  /// once at construction so a given marble keeps the same neutral
-  /// expression across re-renders. Micro-anim mods can override
-  /// mid-emote (e.g. mid-laugh smiley flips to wide-shout).
-  late final int _baseBrowIdx =
+  /// Per-marble base brow + mouth indices. Initialized to a random
+  /// pick at construction, then cycled every 4–8 seconds when no
+  /// micro-anim is running so the rest face drifts through the
+  /// library. Micro-anim mods still override mid-emote (e.g. mid-
+  /// laugh smiley flips to wide-shout for the duration).
+  late int _baseBrowIdx =
       math.Random(seed * 17 + 3).nextInt(_FacePainter.browVariantsFor(mood));
-  late final int _baseMouthIdx = math.Random(seed * 17 + 5)
+  late int _baseMouthIdx = math.Random(seed * 17 + 5)
       .nextInt(_FacePainter.mouthVariantsFor(mood));
+
+  /// RNG seeded once for cycling expression picks across this
+  /// marble's lifetime so each marble's drift sequence is unique
+  /// but reproducible.
+  late final math.Random _expressionRng = math.Random(seed * 67 + 13);
+
+  /// Seconds until the next base-expression shift. Starts staggered
+  /// so the three marbles don't shift in lockstep.
+  late double _untilExpressionShift =
+      2 + _expressionRng.nextDouble() * 6;
 
   /// Stable per-marble body-texture pick. Decoupled from mood:
   /// any color marble can have any texture (smooth / crackled /
@@ -2609,11 +2620,17 @@ class _MarbleNode extends PositionComponent {
     _targetJarZ = clampedTZ;
 
     // ——— Overflow check ———
-    // Look at all in-jar marbles within ~1 marble diameter of this
-    // (X,Z) cell and find the highest one. If that pile + 2r tops
-    // the body cylinder, this throw spills.
+    // Two gates:
+    //   1. Hard count cap — if the jar already holds the max
+    //      (`_SurveyGame._jarCapacity`), the throw spills no matter
+    //      what column it would land in. Lets the user watch the
+    //      jar fill up to a known number, then accumulate around it.
+    //   2. Per-column pile height — if the targeted (X,Z) cell is
+    //      already piled to the rim (rare before count gates), spill.
+    final atCapacity = game.countInJar() >= _SurveyGame._jarCapacity;
     final pileH = game.pileHeightAt(clampedTX, clampedTZ);
-    final overflow = pileH + _radius * 2 > jar.interiorBodyHeight;
+    final overflow = atCapacity ||
+        pileH + _radius * 2 > jar.interiorBodyHeight;
 
     if (overflow) {
       _postFlightState = _MarbleState.spilled;
@@ -2658,6 +2675,21 @@ class _MarbleNode extends PositionComponent {
     // would fight the physics. Idle + held are the "alive" states.
     if (state == _MarbleState.idle || state == _MarbleState.held) {
       _microAnim.update(dt);
+      // Cycle the base expression every 4–8s when nothing's
+      // happening, so the rest face drifts through the library
+      // instead of feeling locked. Pause the timer while a micro-
+      // anim is active (the override does the talking) — we don't
+      // want the base to swap mid-laugh and undo the override.
+      if (_microAnim._type.isEmpty) {
+        _untilExpressionShift -= dt;
+        if (_untilExpressionShift <= 0) {
+          _baseBrowIdx = _expressionRng
+              .nextInt(_FacePainter.browVariantsFor(mood));
+          _baseMouthIdx = _expressionRng
+              .nextInt(_FacePainter.mouthVariantsFor(mood));
+          _untilExpressionShift = 4 + _expressionRng.nextDouble() * 4;
+        }
+      }
     }
     if (squash > 0) {
       squash = math.max(0, squash - dt * 3.0);
@@ -3445,6 +3477,24 @@ class _SurveyGame extends FlameGame
     );
   }
 
+  /// Hard cap on how many marbles can sit inside the jar. Throw
+  /// #16+ goes to spillover (lands on the table around the jar's
+  /// base). Picked so the user can visibly watch the pile climb
+  /// without it ever ramming the rim — fits comfortably in the
+  /// vertical body cavity at the new 1:1.5 aspect.
+  static const int _jarCapacity = 15;
+
+  /// Count of marbles currently inside the jar (any state of in-
+  /// jar physics). Used by `throwToJar` to short-circuit on hard
+  /// capacity before doing the per-column pile-height check.
+  int countInJar() {
+    var n = 0;
+    for (final c in children) {
+      if (c is _MarbleNode && c.state == _MarbleState.inJar) n += 1;
+    }
+    return n;
+  }
+
   /// Find the highest occupied jarY at a given (X, Z) cell. Used
   /// by `_MarbleNode.throwToJar` to detect overflow before
   /// committing to an in-jar landing.
@@ -3829,14 +3879,13 @@ class _SurveyGame extends FlameGame
     keyboardInput = KeyboardInput();
     add(keyboardInput);
 
-    // Mason jar with fixed proportions — width clamped between
-    // 320 and 540 so it looks the same shape on a tight phone
-    // screen as on a wide web window. Aspect ratio 1 : 1.2 (taller
-    // than wide) gives the classic mason jar silhouette where the
-    // body cylinder is the dominant section. Bottom hugs ~96%
-    // screen so it sits low.
-    final jarW = (size.x * 0.6).clamp(320.0, 540.0);
-    final jarH = jarW * 1.2;
+    // Mason jar with fixed proportions — narrow + tall so the
+    // user watches the pile climb visibly as marbles are added.
+    // Width 220–360 (clamped on phone vs web), aspect ratio 1 :
+    // 1.5 (clearly vertical). Bottom hugs ~96% screen so it sits
+    // low.
+    final jarW = (size.x * 0.4).clamp(220.0, 360.0);
+    final jarH = jarW * 1.5;
     final jarSize = Vector2(jarW, jarH);
     jar = _Jar(size: jarSize)
       ..position = Vector2(
