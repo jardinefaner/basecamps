@@ -1130,18 +1130,37 @@ class _FacePainter {
   const _FacePainter({
     required this.mood,
     this.blinkPhase = 0,
+    this.lidLeft,
+    this.lidRight,
     this.pupilLeft = 0,
     this.pupilRight = 0,
+    this.mouthMod = 0,
+    this.tearDrip = 0,
   });
 
   final FaceMood mood;
 
-  /// 0 = eyes fully open, 1 = fully closed.
+  /// 0 = eyes fully open, 1 = fully closed. Default rhythm; can be
+  /// overridden per side via `lidLeft` / `lidRight` (used by the
+  /// wink / slow-blink / droop micro-animations).
   final double blinkPhase;
+  final double? lidLeft;
+  final double? lidRight;
 
   /// Per-eye horizontal pupil drift in [-1, 1].
   final double pupilLeft;
   final double pupilRight;
+
+  /// Mood-specific mouth modifier in roughly [-1, 1].
+  ///   smiley — widens the smile (laugh): 0 = normal, +1 ≈ +15% wide.
+  ///   sad — lateral shake of the frown (quiver / sob).
+  ///   neutral — no effect.
+  final double mouthMod;
+
+  /// Sad-only: extra-tear-drip progress in [0, 1]. Adds a second
+  /// teardrop that starts under the eye and slides down past the
+  /// cheek; fades out as it reaches the chin.
+  final double tearDrip;
 
   static final _eyeWhite = Paint()..color = const Color(0xFFFFFFFF);
   static final _eyeOutline = Paint()
@@ -1178,7 +1197,12 @@ class _FacePainter {
     final eyeY = -radius * 0.10;
     final eyeR = radius * 0.26;
     final eyeSpacing = radius * 0.36;
-    final open = (1 - blinkPhase).clamp(0.05, 1.0);
+    // Per-eye lid: micro-anim overrides take precedence; otherwise
+    // both eyes share the default `blinkPhase` rhythm.
+    final lidL = lidLeft ?? blinkPhase;
+    final lidR = lidRight ?? blinkPhase;
+    final openL = (1 - lidL).clamp(0.05, 1.0);
+    final openR = (1 - lidR).clamp(0.05, 1.0);
 
     // ===== Eyebrows =====
     // Drawn first (above + behind the eyes). We draw a short stroke
@@ -1219,7 +1243,7 @@ class _FacePainter {
     }
 
     // ===== Eyes =====
-    void drawEye(double x, double drift) {
+    void drawEye(double x, double drift, double open) {
       // Round body — slightly taller than wide for a chibi feel,
       // squashed by the blink curve.
       final rect = Rect.fromCenter(
@@ -1260,12 +1284,17 @@ class _FacePainter {
       }
     }
 
-    drawEye(-eyeSpacing, pupilLeft);
-    drawEye(eyeSpacing, pupilRight);
+    drawEye(-eyeSpacing, pupilLeft, openL);
+    drawEye(eyeSpacing, pupilRight, openR);
 
     // ===== Mouth =====
     final mouthY = radius * 0.40;
     final mouthW = radius * 0.45;
+    // mouthMod: smiley widens (laugh), sad shakes laterally,
+    // neutral ignores. Computed up front so each branch picks the
+    // pieces it needs.
+    final smileyWiden = (mood == FaceMood.smiley) ? 1 + mouthMod * 0.18 : 1.0;
+    final sadShakeX = (mood == FaceMood.sad) ? mouthMod * 1.6 : 0.0;
     switch (mood) {
       case FaceMood.smiley:
         // Wide curved smile with the inside filled (pink) and a
@@ -1274,8 +1303,8 @@ class _FacePainter {
         // ellipse so the upper edge stays a clean lip line.
         final mouthRect = Rect.fromCenter(
           center: Offset(0, mouthY),
-          width: mouthW * 1.7,
-          height: mouthW * 1.0,
+          width: mouthW * 1.7 * smileyWiden,
+          height: mouthW * 1.0 * (1 + mouthMod * 0.10),
         );
         canvas
           ..save()
@@ -1333,9 +1362,10 @@ class _FacePainter {
         canvas.drawPath(p, _mouthStroke);
       case FaceMood.sad:
         // Open downturned mouth — small filled oval with a frown
-        // line above it for the lip.
+        // line above it for the lip. Lateral `sadShakeX` shifts the
+        // mouth a hair when `mouthMod` is animated (sob / quiver).
         final mouthRect = Rect.fromCenter(
-          center: Offset(0, mouthY + radius * 0.05),
+          center: Offset(sadShakeX, mouthY + radius * 0.05),
           width: mouthW * 1.05,
           height: mouthW * 0.7,
         );
@@ -1373,6 +1403,46 @@ class _FacePainter {
             eyeR * 0.10,
             _eyeWhite,
           );
+        // Extra drip — a second teardrop that slides from under
+        // the eye down past the cheek, fading near the chin. Driven
+        // by the `tear_drip` micro-animation.
+        if (tearDrip > 0) {
+          final dripT = tearDrip.clamp(0.0, 1.0);
+          // Ride from under the LEFT eye (asymmetric with the
+          // baseline tear under the right eye) so both cheeks get
+          // a tear when this animation plays.
+          final cx = -eyeSpacing - eyeR * 0.55;
+          final cy = eyeY + eyeR * 1.0 + dripT * radius * 0.55;
+          // Fade out as it nears the chin.
+          final dripAlpha =
+              (1 - ((dripT - 0.7) / 0.3).clamp(0.0, 1.0)).clamp(0.0, 1.0);
+          final dripFill = Paint()
+            ..color = _tearFill.color.withValues(alpha: dripAlpha);
+          final dripOutline = Paint()
+            ..color = _tearOutline.color.withValues(alpha: dripAlpha)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.0;
+          final dripTop = Offset(cx, cy - eyeR * 0.55);
+          final dripBottom = Offset(cx, cy + eyeR * 0.55);
+          final dripPath = Path()
+            ..moveTo(dripTop.dx, dripTop.dy)
+            ..quadraticBezierTo(
+              dripTop.dx + eyeR * 0.40,
+              (dripTop.dy + dripBottom.dy) / 2,
+              dripBottom.dx,
+              dripBottom.dy,
+            )
+            ..quadraticBezierTo(
+              dripTop.dx - eyeR * 0.40,
+              (dripTop.dy + dripBottom.dy) / 2,
+              dripTop.dx,
+              dripTop.dy,
+            )
+            ..close();
+          canvas
+            ..drawPath(dripPath, dripFill)
+            ..drawPath(dripPath, dripOutline);
+        }
     }
     canvas.restore();
   }
@@ -1402,6 +1472,299 @@ class _EyeDrift {
       _untilNext = 1.5 + _rng.nextDouble() * 3.0;
     }
     _current += (_target - _current) * math.min(1, dt * 4);
+  }
+}
+
+// =====================================================================
+// Micro-animations — one-shot mood-flavored emotes layered onto
+// the marble's idle baseline (blink + pupil drift).
+// =====================================================================
+
+/// Mod bag: one frame's worth of overrides the marble applies on
+/// top of its baseline pose. Defaults are "no effect" so a marble
+/// in `idle` micro-anim state renders identically to before the
+/// system existed.
+class _MicroAnimMods {
+  /// Body translate.
+  double tx = 0;
+  double ty = 0;
+
+  /// Body rotation (radians).
+  double rot = 0;
+
+  /// Body extra scale, multiplied into the existing base/squash.
+  double sx = 1;
+  double sy = 1;
+
+  /// Per-eye lid override in [0..1] (null = use baseline blink).
+  double? lidL;
+  double? lidR;
+
+  /// Pupil drift override — set when an animation wants to lock
+  /// the pupils (e.g. `stoic`, `side_eye`). null = use _EyeDrift.
+  double? pupilL;
+  double? pupilR;
+
+  /// Mood-specific mouth modifier (see `_FacePainter.mouthMod`).
+  double mouthMod = 0;
+
+  /// Sad-only: extra-tear drip progress in [0..1].
+  double tearDrip = 0;
+
+  /// Smiley-only: warm halo glow alpha multiplier.
+  double glow = 0;
+}
+
+/// Stochastic per-marble emote driver. Picks a mood-appropriate
+/// micro-animation every few seconds, runs it for its scripted
+/// duration, then idles before the next pick. Each animation just
+/// fills out a `_MicroAnimMods` for the current frame; the marble
+/// applies the mods at render time on top of blink + pupil drift.
+class _MicroAnimController {
+  _MicroAnimController({required this.mood, required int seed})
+      : _rng = math.Random(seed),
+        _untilNext = 1.5 + math.Random(seed).nextDouble() * 2.5;
+
+  final FaceMood mood;
+  final math.Random _rng;
+
+  /// Active animation type; empty string = idle.
+  String _type = '';
+  double _elapsed = 0;
+  double _duration = 0;
+  double _untilNext;
+
+  /// One-time per-anim parameters chosen at start (e.g. wink eye
+  /// side, side-eye direction, tilt direction). Stable across the
+  /// animation's lifetime so it doesn't flip mid-play.
+  double _param1 = 0;
+
+  static const _smileyPool = <String>[
+    'laugh',
+    'wink',
+    'wiggle',
+    'puff',
+    'beam',
+  ];
+  static const _neutralPool = <String>[
+    'slow_blink',
+    'side_eye',
+    'sigh',
+    'tilt',
+    'stoic',
+  ];
+  static const _sadPool = <String>[
+    'shudder',
+    'tear_drip',
+    'quiver',
+    'slump',
+    'droop',
+  ];
+
+  void update(double dt) {
+    if (_type.isEmpty) {
+      _untilNext -= dt;
+      if (_untilNext <= 0) {
+        _start();
+      }
+    } else {
+      _elapsed += dt;
+      if (_elapsed >= _duration) {
+        _type = '';
+        _elapsed = 0;
+        // Re-arm with a randomized rest so the three marbles never
+        // all fire at the same time.
+        _untilNext = 1.5 + _rng.nextDouble() * 2.8;
+      }
+    }
+  }
+
+  void _start() {
+    final pool = switch (mood) {
+      FaceMood.smiley => _smileyPool,
+      FaceMood.neutral => _neutralPool,
+      FaceMood.sad => _sadPool,
+    };
+    _type = pool[_rng.nextInt(pool.length)];
+    _elapsed = 0;
+    _duration = _durationFor(_type);
+    _param1 = _rng.nextDouble() < 0.5 ? -1.0 : 1.0;
+  }
+
+  double _durationFor(String type) {
+    switch (type) {
+      case 'laugh':
+        return 1.1;
+      case 'wink':
+        return 0.6;
+      case 'wiggle':
+        return 1.2;
+      case 'puff':
+        return 0.8;
+      case 'beam':
+        return 1;
+      case 'slow_blink':
+        return 0.75;
+      case 'side_eye':
+        return 1.5;
+      case 'sigh':
+        return 1.2;
+      case 'tilt':
+        return 1.1;
+      case 'stoic':
+        return 1;
+      case 'shudder':
+        return 0.7;
+      case 'tear_drip':
+        return 1.4;
+      case 'quiver':
+        return 0.9;
+      case 'slump':
+        return 1.2;
+      case 'droop':
+        return 1.3;
+    }
+    return 0.5;
+  }
+
+  _MicroAnimMods compute() {
+    final m = _MicroAnimMods();
+    if (_type.isEmpty) return m;
+    final t = (_elapsed / _duration).clamp(0.0, 1.0);
+    // Bell-curve envelope so emotes ease in and out.
+    final env = math.sin(t * math.pi);
+
+    switch (_type) {
+      case 'laugh':
+        // Rapid up-bounces while body squashes wider on each ha.
+        final beat = math.sin(_elapsed * 14);
+        m
+          ..ty = -beat.abs() * 4 * env
+          ..sx = 1 + beat * 0.06 * env
+          ..sy = 1 - beat * 0.06 * env
+          ..mouthMod = beat * 0.7 * env
+          ..glow = env * 0.3;
+      case 'wink':
+        // Left vs right chosen by _param1. Lid closes for the
+        // middle 0.3s of the 0.6s anim, then reopens.
+        if (_elapsed >= 0.15 && _elapsed <= 0.45) {
+          if (_param1 < 0) {
+            m.lidL = 1.0;
+          } else {
+            m.lidR = 1.0;
+          }
+        }
+        m
+          ..rot = math.sin(_elapsed * 6) * 0.04
+          ..mouthMod = env * 0.3;
+      case 'wiggle':
+        m
+          ..rot = math.sin(_elapsed * 9) * 0.10 * env
+          ..ty = -math.sin(_elapsed * 5).abs() * 2 * env;
+      case 'puff':
+        // Inflate wide then deflate.
+        m
+          ..sx = 1 + env * 0.18
+          ..sy = 1 - env * 0.05
+          ..mouthMod = env * 0.4;
+      case 'beam':
+        m
+          ..glow = env
+          ..sx = 1 + env * 0.05
+          ..sy = 1 + env * 0.05
+          ..mouthMod = env * 0.5;
+      case 'slow_blink':
+        // Long blink: 0.2s closing, 0.35s held closed, 0.2s opening.
+        if (_elapsed < 0.2) {
+          final p = _elapsed / 0.2;
+          m
+            ..lidL = p
+            ..lidR = p;
+        } else if (_elapsed < 0.55) {
+          m
+            ..lidL = 1.0
+            ..lidR = 1.0;
+        } else {
+          final p = ((_elapsed - 0.55) / 0.2).clamp(0.0, 1.0);
+          m
+            ..lidL = 1.0 - p
+            ..lidR = 1.0 - p;
+        }
+      case 'side_eye':
+        // Snap pupils to one side, hold, return to center.
+        final dir = _param1;
+        if (_elapsed < 0.35) {
+          final p = _elapsed / 0.35;
+          m
+            ..pupilL = dir * p
+            ..pupilR = dir * p;
+        } else if (_elapsed < 1.05) {
+          m
+            ..pupilL = dir
+            ..pupilR = dir;
+        } else {
+          final p = ((_elapsed - 1.05) / 0.45).clamp(0.0, 1.0);
+          m
+            ..pupilL = dir * (1 - p)
+            ..pupilR = dir * (1 - p);
+        }
+      case 'sigh':
+        // Stretch up then sag back down past resting.
+        if (t < 0.4) {
+          final p = t / 0.4;
+          m
+            ..sy = 1 + p * 0.10
+            ..ty = -p * 4;
+        } else {
+          final p = (t - 0.4) / 0.6;
+          m
+            ..sy = 1.10 - p * 0.16
+            ..ty = -4 + p * 6;
+        }
+      case 'tilt':
+        // Tip to one side and hold for ~half the anim, then return.
+        m.rot = _param1 * env * 0.10;
+      case 'stoic':
+        // Lock pupils dead-center, freeze the natural drift.
+        m
+          ..pupilL = 0
+          ..pupilR = 0;
+      case 'shudder':
+        // High-frequency horizontal jitter (sob).
+        m
+          ..tx = math.sin(_elapsed * 35) * 2.5 * env
+          ..mouthMod = math.sin(_elapsed * 35) * env;
+      case 'tear_drip':
+        m.tearDrip = t;
+      case 'quiver':
+        m
+          ..mouthMod = math.sin(_elapsed * 18) * env
+          ..tx = math.sin(_elapsed * 18) * 0.6 * env;
+      case 'slump':
+        // Squash down → slow rebound to mid-height.
+        if (t < 0.4) {
+          final p = t / 0.4;
+          m
+            ..sy = 1 - p * 0.18
+            ..sx = 1 + p * 0.10
+            ..ty = p * 4;
+        } else {
+          final p = (t - 0.4) / 0.6;
+          m
+            ..sy = 0.82 + p * 0.10
+            ..sx = 1.10 - p * 0.05
+            ..ty = 4 - p * 2;
+        }
+      case 'droop':
+        // Half-close lids and hold; relax during the tail.
+        final hold = (env * 0.55).clamp(0.0, 0.55);
+        m
+          ..lidL = hold
+          ..lidR = hold
+          ..ty = hold * 2;
+    }
+
+    return m;
   }
 }
 
@@ -1637,6 +2000,10 @@ class _MarbleNode extends PositionComponent {
 
   late final _EyeDrift _eyeL = _EyeDrift(seed: seed * 31 + 1);
   late final _EyeDrift _eyeR = _EyeDrift(seed: seed * 31 + 2);
+  late final _MicroAnimController _microAnim = _MicroAnimController(
+    mood: mood,
+    seed: seed * 911 + 7,
+  );
 
   _MarbleState state = _MarbleState.idle;
 
@@ -1707,6 +2074,12 @@ class _MarbleNode extends PositionComponent {
     _t += dt;
     _eyeL.update(dt);
     _eyeR.update(dt);
+    // Micro-animations only run while the marble is out in the
+    // world — playing emotes mid-throw or mid-bounce in the jar
+    // would fight the physics. Idle + held are the "alive" states.
+    if (state == _MarbleState.idle || state == _MarbleState.held) {
+      _microAnim.update(dt);
+    }
     if (squash > 0) {
       squash = math.max(0, squash - dt * 3.0);
     }
@@ -1858,6 +2231,7 @@ class _MarbleNode extends PositionComponent {
   @override
   void render(Canvas canvas) {
     super.render(canvas);
+    final mods = _microAnim.compute();
     final pulse = (highlighted && state == _MarbleState.idle)
         ? 1 + math.sin(_t * 6) * 0.07
         : 1.0;
@@ -1867,11 +2241,13 @@ class _MarbleNode extends PositionComponent {
     final baseScale = depth * pulse;
     final r = _radius * baseScale;
 
-    // Damped squash-and-stretch on impact: width grows while
-    // height shrinks, oscillates a couple of times, decays to 0.
+    // Combine impact-squash with micro-anim scale. The micro-anim
+    // mods are layered on top of (not in place of) the squash so a
+    // marble laughing while bouncing in the jar looks like both
+    // animations happening at once, not whichever-won.
     final wobble = math.sin(squash * math.pi * 2.5) * squash * 0.22;
-    final sx = baseScale * (1 + wobble);
-    final sy = baseScale * (1 - wobble);
+    final sx = baseScale * (1 + wobble) * mods.sx;
+    final sy = baseScale * (1 - wobble) * mods.sy;
 
     final shadow = Paint()
       ..color = const Color(0x33000000)
@@ -1882,32 +2258,59 @@ class _MarbleNode extends PositionComponent {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.6;
 
-    // Shadow at full radius (no squash) so contact stays grounded.
-    // Then apply the squash transform for body + face.
+    // Optional smiley-beam halo, drawn first so it sits behind the
+    // body. Translates with the body but doesn't rotate or scale.
+    if (mods.glow > 0) {
+      final glowAlpha = (mods.glow * 90).round().clamp(0, 255);
+      final glow = Paint()
+        ..color = Color.fromARGB(glowAlpha, 255, 244, 180)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
+      canvas.drawCircle(
+        Offset(mods.tx, mods.ty),
+        r * 1.55,
+        glow,
+      );
+    }
+
+    // Shadow at full radius (no squash) — keeps contact grounded.
+    // Follows the body's translate but ignores rotation + squash so
+    // it doesn't slide or stretch when the body bounces.
+    canvas.drawCircle(
+      Offset(mods.tx, mods.ty + r * 0.4),
+      r * 0.85,
+      shadow,
+    );
+
+    // Body + face — translated, rotated, scaled per mods + squash.
     final blink = blinkPhaseAt(_t, seed: seed);
     canvas
-      ..drawCircle(Offset(0, r * 0.4), r * 0.85, shadow)
       ..save()
+      ..translate(mods.tx, mods.ty)
+      ..rotate(mods.rot)
       ..scale(sx, sy)
       ..drawCircle(Offset.zero, _radius, fill)
       ..drawCircle(Offset.zero, _radius, outline);
     _FacePainter(
       mood: mood,
       blinkPhase: blink,
-      pupilLeft: _eyeL.value,
-      pupilRight: _eyeR.value,
+      lidLeft: mods.lidL,
+      lidRight: mods.lidR,
+      pupilLeft: mods.pupilL ?? _eyeL.value,
+      pupilRight: mods.pupilR ?? _eyeR.value,
+      mouthMod: mods.mouthMod,
+      tearDrip: mods.tearDrip,
     ).paintAt(canvas, Offset.zero, _radius);
     canvas.restore();
 
-    // Soft halo when pickable + highlighted — reads as "you can
-    // grab me." Outside the squash transform so it stays a clean
-    // circle even mid-impact.
+    // Soft halo when pickable + highlighted — drawn outside all
+    // transforms so it stays a clean circle even mid-impact /
+    // mid-emote.
     if (highlighted && state == _MarbleState.idle) {
       final halo = Paint()
         ..color = const Color(0x66FFFFFF)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3;
-      canvas.drawCircle(Offset.zero, r + 5, halo);
+      canvas.drawCircle(Offset(mods.tx, mods.ty), r + 5, halo);
     }
   }
 }
