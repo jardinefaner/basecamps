@@ -1118,489 +1118,562 @@ class KeyboardInput extends Component with KeyboardHandler {
 // + the chibi's eyes
 // =====================================================================
 
-/// Mood of a face — drives the mouth shape.
-enum FaceMood { sad, neutral, smiley }
-
-/// Global "ink" color used for every painted face stroke + body
-/// outline on a marble. v60.15 — warm dark brown (`#2A2620`)
-/// instead of pure black so the lines read as hand-drawn ink and
-/// not vector-perfect strokes. Anything in the marble world that
-/// would have been `Color(0xFF1A1A1A)` should reference this.
-const Color _kInk = Color(0xFF2A2620);
-
-/// Pure paint helper. v60.11 — chunky expressive faces inspired by
-/// the "watercolor chibi marble" reference the user shared. Each
-/// mood gets:
-///   - per-mood eyebrows (smiley = arched up, neutral = flat,
-///     sad = inner-up worried),
-///   - large round eyes with a glossy highlight dot,
-///   - a distinct mouth shape (smiley = wide curved grin with
-///     tongue, neutral = small flat line, sad = open frown),
-///   - mood-specific extras (smiley = blush dots; sad = tear).
+/// 5-point Likert mood. Each value drives a unique face design
+/// (palette + facial features + idle micro-animation).
 ///
-/// All measurements are radius-relative so the same painter scales
-/// from the 28px world marble up to whatever radius a future
-/// "giant marble" or close-up needs.
+/// Order matches the survey reading order from "most negative" to
+/// "most positive" so the world marble layout (left → right) feels
+/// natural.
+enum FaceMood {
+  stronglyDisagree, // F1 — red, shiver + tear + mouth contract
+  disagree,         // F2 — coral, sway + brow droop
+  notSure,          // F3 — amber, look L/R + blink
+  agree,            // F4 — green, bob + cheek pulse + sparkle
+  stronglyAgree,    // F5 — teal, bounce + chomp + 3 sparkles
+}
+
+/// Per-face color triple. Body = the flat circle fill; ring = a
+/// slightly-darker shade of the body for the outline; ink = the
+/// dark accent used for brows, eyes, mouth.
+class _FacePalette {
+  const _FacePalette({
+    required this.body,
+    required this.ring,
+    required this.ink,
+    required this.cheek,
+    this.tear,
+    this.sparkle,
+  });
+  final Color body;
+  final Color ring;
+  final Color ink;
+  final Color cheek;
+  final Color? tear;
+  final Color? sparkle;
+}
+
+/// Per-face palette table. Numbers come straight from the
+/// emoji-character-animation spec (`emoji_character_animation_spec.html`).
+const Map<FaceMood, _FacePalette> _kFacePalettes = <FaceMood, _FacePalette>{
+  FaceMood.stronglyDisagree: _FacePalette(
+    body: Color(0xFFFCEBEB),
+    ring: Color(0xFFF09595),
+    ink: Color(0xFFA32D2D),
+    cheek: Color(0xFFF09595),
+    tear: Color(0xFF85B7EB),
+  ),
+  FaceMood.disagree: _FacePalette(
+    body: Color(0xFFFAECE7),
+    ring: Color(0xFFF0997B),
+    ink: Color(0xFF712B13),
+    cheek: Color(0xFFF09595),
+  ),
+  FaceMood.notSure: _FacePalette(
+    body: Color(0xFFFAEEDA),
+    ring: Color(0xFFFAC775),
+    ink: Color(0xFF854F0B),
+    cheek: Color(0xFFFAC775),
+  ),
+  FaceMood.agree: _FacePalette(
+    body: Color(0xFFEAF3DE),
+    ring: Color(0xFF97C459),
+    ink: Color(0xFF27500A),
+    cheek: Color(0xFF97C459),
+    sparkle: Color(0xFF97C459),
+  ),
+  FaceMood.stronglyAgree: _FacePalette(
+    body: Color(0xFFE1F5EE),
+    ring: Color(0xFF5DCAA5),
+    ink: Color(0xFF085041),
+    cheek: Color(0xFF5DCAA5),
+    sparkle: Color(0xFF5DCAA5),
+  ),
+};
+
+/// Painter for the 5-face Likert emoji set (per
+/// `emoji_character_animation_spec.html`).
+///
+/// Each mood gets a unique flat-circle body in its palette colors
+/// plus signature features (angry brows + tear for F1, happy-arc
+/// closed eyes + open grin for F5, etc.). All measurements come
+/// from the spec at body-radius 38; the painter scales them by
+/// `radius / 38` so the same drawing code works for any marble
+/// size (the world marbles use 28).
+///
+/// Animation is driven entirely by `t` (continuous time). Each
+/// face paints its idle loop directly from t — no random pool, no
+/// state machine. Tap reactions and other one-shots are applied
+/// at the marble level (transform + scale), not inside the
+/// painter.
 class _FacePainter {
   const _FacePainter({
     required this.mood,
-    this.blinkPhase = 0,
-    this.lidLeft,
-    this.lidRight,
-    this.pupilLeft = 0,
-    this.pupilRight = 0,
-    this.mouthMod = 0,
-    this.tearDrip = 0,
-    this.browIdx = 0,
-    this.mouthIdx = 0,
+    this.t = 0,
   });
 
   final FaceMood mood;
-
-  /// 0 = eyes fully open, 1 = fully closed. Default rhythm; can be
-  /// overridden per side via `lidLeft` / `lidRight` (used by the
-  /// wink / slow-blink / droop micro-animations).
-  final double blinkPhase;
-  final double? lidLeft;
-  final double? lidRight;
-
-  /// Per-eye horizontal pupil drift in [-1, 1]. v60.14 — both eyes
-  /// now follow the same drift value (synchronized) so they track
-  /// together like real eyes; per-side lids still let the wink
-  /// animation close one eye independently.
-  final double pupilLeft;
-  final double pupilRight;
-
-  /// Mood-specific mouth modifier in roughly [-1, 1].
-  ///   smiley — widens the smile (laugh): 0 = normal, +1 ≈ +15% wide.
-  ///   sad — lateral shake of the frown (quiver / sob).
-  ///   neutral — no effect.
-  final double mouthMod;
-
-  /// Sad-only: extra-tear-drip progress in [0, 1]. Adds a second
-  /// teardrop that starts under the eye and slides down past the
-  /// cheek; fades out as it reaches the chin.
-  final double tearDrip;
-
-  /// Brow + mouth variant indices (per-mood expression library).
-  /// Each marble picks a base pair at construction; micro-anims can
-  /// override mid-emote for variety (e.g. mid-laugh smiley flips
-  /// from open-grin to wide-shout). Indices are clamped to the
-  /// available variants per mood.
-  final int browIdx;
-  final int mouthIdx;
-
-  static final _eyeWhite = Paint()..color = const Color(0xFFFFFFFF);
-  static final _eyeOutline = Paint()
-    ..color = _kInk
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 1.5;
-  static final _pupil = Paint()..color = _kInk;
-  static final _mouthStroke = Paint()
-    ..color = _kInk
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 2.6
-    ..strokeCap = StrokeCap.round
-    ..strokeJoin = StrokeJoin.round;
-  static final _browStroke = Paint()
-    ..color = _kInk
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 2.6
-    ..strokeCap = StrokeCap.round;
-  static final _mouthFillSmiley = Paint()..color = const Color(0xFF7A2C3D);
-  static final _mouthFillSad = Paint()..color = const Color(0xFF6D2C3E);
-  static final _tongue = Paint()..color = const Color(0xFFE57A8D);
-  static final _blush = Paint()..color = const Color(0x66E8758B);
-  static final _stressMark = Paint()
-    ..color = _kInk
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 1.4
-    ..strokeCap = StrokeCap.round;
-  static final _tearFill = Paint()..color = const Color(0xFF6FC4F0);
-  static final _tearOutline = Paint()
-    ..color = _kInk
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 1.0;
-
-  // ——— Variant counts per mood ———
-  // Returned for caller (the marble) so it can pick a random base
-  // index that's actually in range.
-  static int browVariantsFor(FaceMood m) => 2;
-  static int mouthVariantsFor(FaceMood m) {
-    switch (m) {
-      case FaceMood.smiley:
-        return 3;
-      case FaceMood.neutral:
-        return 2;
-      case FaceMood.sad:
-        return 3;
-    }
-  }
+  final double t;
 
   void paintAt(Canvas canvas, Offset center, double radius) {
+    final s = radius / 38;
+    final palette = _kFacePalettes[mood]!;
     canvas
       ..save()
       ..translate(center.dx, center.dy);
 
-    final eyeY = -radius * 0.10;
-    final eyeR = radius * 0.26;
-    final eyeSpacing = radius * 0.36;
-    // Per-eye lid: micro-anim overrides take precedence; otherwise
-    // both eyes share the default `blinkPhase` rhythm.
-    final lidL = lidLeft ?? blinkPhase;
-    final lidR = lidRight ?? blinkPhase;
-    final openL = (1 - lidL).clamp(0.05, 1.0);
-    final openR = (1 - lidR).clamp(0.05, 1.0);
+    // Body: flat fill + paler ring outline.
+    final bodyPaint = Paint()..color = palette.body;
+    final ringPaint = Paint()
+      ..color = palette.ring
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    canvas
+      ..drawCircle(Offset.zero, 38 * s, bodyPaint)
+      ..drawCircle(Offset.zero, 38 * s, ringPaint);
 
-    // ===== Eyebrows =====
-    // Drawn first (above + behind the eyes). We draw a short stroke
-    // and rotate it by `tilt` (CW positive — Flutter's +y is down,
-    // so positive tilt makes the right end of the line go DOWN).
-    //
-    // For a brow, "inner end up" reads as worried. Left brow's
-    // inner end is on its right side, so positive tilt makes inner
-    // go DOWN (= angry/determined) and negative tilt makes inner
-    // go UP (= worried). Right brow is mirrored.
-    final browY = eyeY - eyeR * 0.95;
-    final browLen = eyeR * 1.6;
-    void drawBrow(double x, double tilt) {
+    switch (mood) {
+      case FaceMood.stronglyDisagree:
+        _paintStronglyDisagree(canvas, s, palette);
+      case FaceMood.disagree:
+        _paintDisagree(canvas, s, palette);
+      case FaceMood.notSure:
+        _paintNotSure(canvas, s, palette);
+      case FaceMood.agree:
+        _paintAgree(canvas, s, palette);
+      case FaceMood.stronglyAgree:
+        _paintStronglyAgree(canvas, s, palette);
+    }
+
+    canvas.restore();
+  }
+
+  // ============================================================
+  // F1: Strongly disagree — angry slanted brows, vertical-oval
+  // pupils, U-frown that contracts (3s), tear that drips (2s),
+  // soft pink cheeks.
+  // ============================================================
+  void _paintStronglyDisagree(Canvas canvas, double s, _FacePalette p) {
+    final ink = Paint()
+      ..color = p.ink
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+    final fill = Paint()..color = p.ink;
+    final hi = Paint()..color = p.body;
+
+    // Brows: angry slant.
+    canvas
+      ..drawLine(Offset(-18 * s, -14 * s), Offset(-8 * s, -8 * s), ink)
+      ..drawLine(Offset(18 * s, -14 * s), Offset(8 * s, -8 * s), ink)
+      // Eyes: vertical ovals (rx=4, ry=5 in spec) with white
+      // highlights upper-left.
+      ..drawOval(
+        Rect.fromCenter(center: Offset(-12 * s, 0), width: 8 * s, height: 10 * s),
+        fill,
+      )
+      ..drawOval(
+        Rect.fromCenter(center: Offset(12 * s, 0), width: 8 * s, height: 10 * s),
+        fill,
+      )
+      ..drawCircle(Offset(-10 * s, -2 * s), 1.5 * s, hi)
+      ..drawCircle(Offset(14 * s, -2 * s), 1.5 * s, hi);
+
+    // Mouth — U-frown (corners up, dip in middle is high).
+    // Contracts horizontally (1.0 → 0.85 → 1.0) on a 3s loop.
+    final mouthCycle = ((t / 3) % 1) * math.pi * 2;
+    final mouthScaleX = 1 + math.sin(mouthCycle) * -0.075;
+    final mouthPath = Path()
+      ..moveTo(-14 * s * mouthScaleX, 16 * s)
+      ..quadraticBezierTo(0, 6 * s, 14 * s * mouthScaleX, 16 * s);
+    canvas.drawPath(mouthPath, ink);
+
+    // Tear — keyframed drip on a 2s loop.
+    //   0.00–0.60  fall: y 0→6, opacity 0.7→0.3
+    //   0.60–0.61  cut to: y 0, opacity 0
+    //   0.61–0.80  hold: opacity 0
+    //   0.80–1.00  fade-in: opacity 0→0.7, y 0
+    final tCycle = (t / 2) % 1;
+    double tearDy = 0;
+    double tearOpacity = 0;
+    if (tCycle < 0.60) {
+      final p = tCycle / 0.60;
+      tearDy = p * 6 * s;
+      tearOpacity = 0.7 - p * 0.4;
+    } else if (tCycle < 0.61) {
+      tearOpacity = 0;
+    } else if (tCycle < 0.80) {
+      tearOpacity = 0;
+    } else {
+      tearOpacity = (tCycle - 0.80) / 0.20 * 0.7;
+    }
+    if (tearOpacity > 0.01 && p.tear != null) {
+      final tearPath = Path()
+        ..moveTo(16 * s, 4 * s + tearDy)
+        ..quadraticBezierTo(18 * s, 10 * s + tearDy, 16 * s, 14 * s + tearDy)
+        ..quadraticBezierTo(14 * s, 16 * s + tearDy, 13 * s, 14 * s + tearDy)
+        ..quadraticBezierTo(12 * s, 10 * s + tearDy, 13 * s, 6 * s + tearDy)
+        ..close();
+      canvas.drawPath(
+        tearPath,
+        Paint()..color = p.tear!.withValues(alpha: tearOpacity),
+      );
+    }
+
+    // Cheeks — static soft blush, ring color at 30%.
+    final cheek = Paint()
+      ..color = p.cheek.withValues(alpha: 0.3);
+    canvas
+      ..drawOval(
+        Rect.fromCenter(center: Offset(-22 * s, 8 * s), width: 12 * s, height: 8 * s),
+        cheek,
+      )
+      ..drawOval(
+        Rect.fromCenter(center: Offset(22 * s, 8 * s), width: 12 * s, height: 8 * s),
+        cheek,
+      );
+  }
+
+  // ============================================================
+  // F2: Disagree — drooped slanted brows that bob slightly with
+  // sway, round pupils with highlight, gentle frown, faint cheeks.
+  // ============================================================
+  void _paintDisagree(Canvas canvas, double s, _FacePalette p) {
+    final ink = Paint()
+      ..color = p.ink
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+    final fill = Paint()..color = p.ink;
+    final hi = Paint()..color = p.body;
+
+    // Brows: drooped slant. Each brow drifts in Y with the sway
+    // cycle (3s). Left bobs +1.5px at midcycle, right +1px.
+    final swayCycle = ((t / 3) % 1) * math.pi * 2;
+    final browLY = math.sin(swayCycle) * 1.5;
+    final browRY = math.sin(swayCycle) * 1.0;
+    canvas
+      ..drawLine(
+        Offset(-18 * s, -12 * s + browLY),
+        Offset(-8 * s, -10 * s + browLY),
+        ink,
+      )
+      ..drawLine(
+        Offset(18 * s, -12 * s + browRY),
+        Offset(8 * s, -10 * s + browRY),
+        ink,
+      )
+      // Eyes: round circles + highlights.
+      ..drawCircle(Offset(-12 * s, 0), 4 * s, fill)
+      ..drawCircle(Offset(12 * s, 0), 4 * s, fill)
+      ..drawCircle(Offset(-10.5 * s, -1.5 * s), 1.5 * s, hi)
+      ..drawCircle(Offset(13.5 * s, -1.5 * s), 1.5 * s, hi);
+
+    // Mouth: gentle frown (Q-curve down).
+    final mouthPath = Path()
+      ..moveTo(-10 * s, 14 * s)
+      ..quadraticBezierTo(0, 8 * s, 10 * s, 14 * s);
+    canvas.drawPath(mouthPath, ink);
+
+    // Cheeks: soft pink at 20%.
+    final cheek = Paint()
+      ..color = p.cheek.withValues(alpha: 0.2);
+    canvas
+      ..drawOval(
+        Rect.fromCenter(center: Offset(-22 * s, 8 * s), width: 12 * s, height: 8 * s),
+        cheek,
+      )
+      ..drawOval(
+        Rect.fromCenter(center: Offset(22 * s, 8 * s), width: 12 * s, height: 8 * s),
+        cheek,
+      );
+  }
+
+  // ============================================================
+  // F3: Not sure — flat horizontal brows, eyes look L/R/center on
+  // a 4s loop, blink (lid wipe) at the center reset, flat mouth.
+  // ============================================================
+  void _paintNotSure(Canvas canvas, double s, _FacePalette p) {
+    final ink = Paint()
+      ..color = p.ink
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+    final fill = Paint()..color = p.ink;
+    final hi = Paint()..color = p.body;
+
+    // Flat horizontal brows.
+    canvas
+      ..drawLine(Offset(-18 * s, -12 * s), Offset(-6 * s, -12 * s), ink)
+      ..drawLine(Offset(18 * s, -12 * s), Offset(6 * s, -12 * s), ink);
+
+    // Eyes look-around on a 4s loop. Spec keyframes:
+    //   0–20%   center
+    //   25–40%  left (-3px)
+    //   45–60%  right (+3px)
+    //   65–100% center
+    final lookCycle = (t / 4) % 1;
+    double lookX = 0;
+    if (lookCycle >= 0.25 && lookCycle <= 0.40) {
+      lookX = -3 * s;
+    } else if (lookCycle >= 0.45 && lookCycle <= 0.60) {
+      lookX = 3 * s;
+    } else {
+      lookX = 0;
+    }
+
+    // Blink at the center reset (around 44–46% of the cycle).
+    // Spec uses a rect-lid scaleY wipe; we approximate with a
+    // squashed eye.
+    var blinkOpen = 1.0;
+    if (lookCycle >= 0.42 && lookCycle < 0.48) {
+      // Triangle 0→1→0 over the 0.06 window.
+      final localT = (lookCycle - 0.42) / 0.06;
+      blinkOpen = 1 - (localT < 0.5 ? localT * 2 : (1 - localT) * 2);
+    }
+
+    final eyeR = 4 * s;
+    Rect eyeRect(double cx) => Rect.fromCenter(
+          center: Offset(cx + lookX, 0),
+          width: eyeR * 2,
+          height: eyeR * 2 * blinkOpen,
+        );
+    canvas
+      ..drawOval(eyeRect(-12 * s), fill)
+      ..drawOval(eyeRect(12 * s), fill);
+    if (blinkOpen > 0.4) {
+      canvas
+        ..drawCircle(
+          Offset(-10.5 * s + lookX, -1.5 * s),
+          1.5 * s * blinkOpen,
+          hi,
+        )
+        ..drawCircle(
+          Offset(13.5 * s + lookX, -1.5 * s),
+          1.5 * s * blinkOpen,
+          hi,
+        );
+    }
+
+    // Flat mouth line.
+    canvas.drawLine(Offset(-8 * s, 14 * s), Offset(8 * s, 14 * s), ink);
+  }
+
+  // ============================================================
+  // F4: Agree — outward-up brows, round pupils + highlights,
+  // smile, green cheek glow that pulses, single sparkle cross
+  // top-left that pulses.
+  // ============================================================
+  void _paintAgree(Canvas canvas, double s, _FacePalette p) {
+    final ink = Paint()
+      ..color = p.ink
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+    final fill = Paint()..color = p.ink;
+    final hi = Paint()..color = p.body;
+
+    // Brows + eyes (round + highlights).
+    canvas
+      ..drawLine(Offset(-18 * s, -14 * s), Offset(-8 * s, -16 * s), ink)
+      ..drawLine(Offset(18 * s, -14 * s), Offset(8 * s, -16 * s), ink)
+      ..drawCircle(Offset(-12 * s, 0), 4 * s, fill)
+      ..drawCircle(Offset(12 * s, 0), 4 * s, fill)
+      ..drawCircle(Offset(-10.5 * s, -1.5 * s), 1.5 * s, hi)
+      ..drawCircle(Offset(13.5 * s, -1.5 * s), 1.5 * s, hi);
+
+    // Mouth: smile.
+    final mouthPath = Path()
+      ..moveTo(-10 * s, 12 * s)
+      ..quadraticBezierTo(0, 20 * s, 10 * s, 12 * s);
+    canvas.drawPath(mouthPath, ink);
+
+    // Cheek pulse on 2s loop: opacity 0.25 → 0.40 → 0.25.
+    final cheekT = (t / 2) % 1;
+    final cheekAlpha = 0.25 + math.sin(cheekT * math.pi * 2) * 0.075;
+    final cheek = Paint()
+      ..color = p.cheek.withValues(alpha: cheekAlpha);
+    canvas
+      ..drawOval(
+        Rect.fromCenter(center: Offset(-22 * s, 8 * s), width: 14 * s, height: 8 * s),
+        cheek,
+      )
+      ..drawOval(
+        Rect.fromCenter(center: Offset(22 * s, 8 * s), width: 14 * s, height: 8 * s),
+        cheek,
+      );
+
+    // Sparkle cross — pulses 0→0.6 opacity, 0→1 scale on 1.5s loop.
+    final sparkT = (t / 1.5) % 1;
+    final sparkAlpha = math.sin(sparkT * math.pi);
+    if (sparkAlpha > 0.02 && p.sparkle != null) {
+      final sx = sparkAlpha;
+      final sparkPaint = Paint()
+        ..color = p.sparkle!.withValues(alpha: sparkAlpha * 0.6)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.round;
       canvas
         ..save()
-        ..translate(x, browY)
-        ..rotate(tilt)
-        ..drawLine(
-          Offset(-browLen / 2, 0),
-          Offset(browLen / 2, 0),
-          _browStroke,
-        )
+        ..translate(-30 * s, -20 * s)
+        ..scale(sx, sx)
+        ..drawLine(Offset(0, -4 * s), Offset(0, 4 * s), sparkPaint)
+        ..drawLine(Offset(-4 * s, 0), Offset(4 * s, 0), sparkPaint)
         ..restore();
     }
+  }
 
-    // Per-mood brow variant library. Each mood has 2 brow shapes
-    // (see `browVariantsFor`); micro-anim overrides can flip mid-
-    // emote for variety.
-    final brow = browIdx %
-        _FacePainter.browVariantsFor(mood); // safety wrap
-    switch (mood) {
-      case FaceMood.smiley:
-        if (brow == 0) {
-          // 0: arch-relaxed — outer-down, inner-up gentle
-          drawBrow(-eyeSpacing, -0.20);
-          drawBrow(eyeSpacing, 0.20);
-        } else {
-          // 1: arch-high — both inner ends lifted high (excited)
-          drawBrow(-eyeSpacing, -0.42);
-          drawBrow(eyeSpacing, 0.42);
-        }
-      case FaceMood.neutral:
-        if (brow == 0) {
-          // 0: flat — barely tilted (default deadpan)
-          drawBrow(-eyeSpacing, 0.04);
-          drawBrow(eyeSpacing, -0.04);
-        } else {
-          // 1: knit — inner ends slightly down (mild concern)
-          drawBrow(-eyeSpacing, 0.18);
-          drawBrow(eyeSpacing, -0.18);
-        }
-      case FaceMood.sad:
-        if (brow == 0) {
-          // 0: worried — steep inner-up
-          drawBrow(-eyeSpacing, -0.42);
-          drawBrow(eyeSpacing, 0.42);
-        } else {
-          // 1: drooped — both ends sloped inward-down (defeated)
-          drawBrow(-eyeSpacing, 0.32);
-          drawBrow(eyeSpacing, -0.32);
-        }
-    }
+  // ============================================================
+  // F5: Strongly agree — happy-arched brows, ^_^ closed-curve
+  // eyes, open grin with teeth + tongue + chomp, big cheeks, 3
+  // staggered sparkles orbiting.
+  // ============================================================
+  void _paintStronglyAgree(Canvas canvas, double s, _FacePalette p) {
+    final ink = Paint()
+      ..color = p.ink
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+    final fill = Paint()..color = p.ink;
 
-    // ===== Eyes =====
-    void drawEye(double x, double drift, double open) {
-      // Round body — slightly taller than wide for a chibi feel,
-      // squashed by the blink curve.
-      final rect = Rect.fromCenter(
-        center: Offset(x, eyeY),
-        width: eyeR * 1.6,
-        height: eyeR * 2.1 * open,
+    // Arched brows.
+    final browL = Path()
+      ..moveTo(-18 * s, -16 * s)
+      ..quadraticBezierTo(-12 * s, -22 * s, -6 * s, -16 * s);
+    final browR = Path()
+      ..moveTo(6 * s, -16 * s)
+      ..quadraticBezierTo(12 * s, -22 * s, 18 * s, -16 * s);
+    canvas
+      ..drawPath(browL, ink)
+      ..drawPath(browR, ink);
+
+    // ^_^ closed-curve eyes.
+    final eyeL = Path()
+      ..moveTo(-16 * s, -4 * s)
+      ..quadraticBezierTo(-12 * s, -8 * s, -8 * s, -4 * s);
+    final eyeR = Path()
+      ..moveTo(8 * s, -4 * s)
+      ..quadraticBezierTo(12 * s, -8 * s, 16 * s, -4 * s);
+    canvas
+      ..drawPath(eyeL, ink)
+      ..drawPath(eyeR, ink);
+
+    // Mouth chomp on 0.8s loop: scaleY 1 → 0.8 → 1.
+    final chompT = (t / 0.8) % 1;
+    final mouthScaleY = 1 - math.sin(chompT * math.pi * 2).abs() * 0.1;
+
+    // Open grin with teeth + tongue.
+    canvas
+      ..save()
+      ..scale(1, mouthScaleY);
+    final grin = Path()
+      ..moveTo(-14 * s, 8 * s)
+      ..quadraticBezierTo(0, 22 * s, 14 * s, 8 * s)
+      ..close();
+    canvas.drawPath(grin, fill);
+    // Teeth strip.
+    final teethRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(-9 * s, 8 * s, 18 * s, 5 * s),
+      Radius.circular(2 * s),
+    );
+    canvas
+      ..drawRRect(
+        teethRect,
+        Paint()..color = p.body.withValues(alpha: 0.7),
+      )
+      // Tongue blob.
+      ..drawOval(
+        Rect.fromCenter(
+          center: Offset(0, 18 * s),
+          width: 12 * s,
+          height: 7 * s,
+        ),
+        Paint()..color = p.ring,
+      )
+      // Grin outline last so it sits above the teeth + tongue.
+      ..drawPath(grin, ink)
+      ..restore();
+
+    // Big cheeks at 35%.
+    final cheek = Paint()
+      ..color = p.cheek.withValues(alpha: 0.35);
+    canvas
+      ..drawOval(
+        Rect.fromCenter(center: Offset(-24 * s, 4 * s), width: 14 * s, height: 10 * s),
+        cheek,
+      )
+      ..drawOval(
+        Rect.fromCenter(center: Offset(24 * s, 4 * s), width: 14 * s, height: 10 * s),
+        cheek,
       );
-      canvas
-        ..drawOval(rect, _eyeWhite)
-        ..drawOval(rect, _eyeOutline);
-      if (open > 0.25) {
-        // Fat pupil — fills most of the eye, leaves room for the
-        // glossy highlight on the upper-left.
-        final pupilCenter = Offset(
-          x + drift * eyeR * 0.45,
-          eyeY + eyeR * 0.10,
-        );
-        // Highlight dot — gives the marble that "shiny watercolor"
-        // read from the reference. Positioned upper-left of the
-        // pupil, regardless of drift direction (a fixed light
-        // source rather than a tracked-eye highlight).
-        canvas
-          ..drawCircle(pupilCenter, eyeR * 0.62 * open, _pupil)
-          ..drawCircle(
-            Offset(x - eyeR * 0.18, eyeY - eyeR * 0.20),
-            eyeR * 0.22 * open,
-            _eyeWhite,
-          );
-        // Sad mood gets a second smaller "wet" highlight bottom-
-        // right of the pupil — sells the "watery eyes" read.
-        if (mood == FaceMood.sad) {
-          canvas.drawCircle(
-            Offset(x + eyeR * 0.30, eyeY + eyeR * 0.32),
-            eyeR * 0.12 * open,
-            _eyeWhite,
-          );
-        }
-      }
-    }
 
-    drawEye(-eyeSpacing, pupilLeft, openL);
-    drawEye(eyeSpacing, pupilRight, openR);
-
-    // ===== Mouth =====
-    final mouthY = radius * 0.40;
-    final mouthW = radius * 0.45;
-    // mouthMod: smiley widens (laugh), sad shakes laterally,
-    // neutral ignores. Computed up front so each branch picks the
-    // pieces it needs.
-    final smileyWiden = (mood == FaceMood.smiley) ? 1 + mouthMod * 0.18 : 1.0;
-    final sadShakeX = (mood == FaceMood.sad) ? mouthMod * 1.6 : 0.0;
-    final mIdx = mouthIdx % _FacePainter.mouthVariantsFor(mood);
-    switch (mood) {
-      case FaceMood.smiley:
-        // Smiley mouth library:
-        //   0: open grin with tongue (the default)
-        //   1: closed half-smile (a gentler, calmer smile)
-        //   2: wide-open shout (laughing/yelling, no tongue)
-        if (mIdx == 1) {
-          // closed half-smile — single curved arc, smaller
-          final p = Path()
-            ..moveTo(-mouthW * 0.7, mouthY - 1)
-            ..quadraticBezierTo(
-              0,
-              mouthY + mouthW * 0.35 * smileyWiden,
-              mouthW * 0.7,
-              mouthY - 1,
-            );
-          canvas.drawPath(p, _mouthStroke);
-        } else if (mIdx == 2) {
-          // wide-open shout — big rounded rect mouth, no tongue
-          final shoutRect = Rect.fromCenter(
-            center: Offset(0, mouthY + radius * 0.04),
-            width: mouthW * 1.5 * smileyWiden,
-            height: mouthW * 1.1 * (1 + mouthMod * 0.10),
-          );
-          canvas
-            ..drawOval(shoutRect, _mouthFillSmiley)
-            ..drawOval(shoutRect, _mouthStroke);
-        } else {
-          // open grin with tongue (default)
-          final mouthRect = Rect.fromCenter(
-            center: Offset(0, mouthY),
-            width: mouthW * 1.7 * smileyWiden,
-            height: mouthW * 1.0 * (1 + mouthMod * 0.10),
-          );
-          canvas
-            ..save()
-            ..clipRect(Rect.fromLTRB(
-              -mouthW, mouthY - 1, mouthW * 1.2, mouthY + mouthW,
-            ))
-            ..drawOval(mouthRect, _mouthFillSmiley)
-            ..drawCircle(
-              Offset(mouthW * 0.05, mouthY + mouthW * 0.30),
-              mouthW * 0.32,
-              _tongue,
-            )
-            ..restore()
-            ..drawArc(mouthRect, 0, math.pi, false, _mouthStroke)
-            ..drawLine(
-              Offset(-mouthW * 0.85, mouthY),
-              Offset(mouthW * 0.85, mouthY),
-              _mouthStroke,
-            );
-        }
-        // Blush dots, tucked under each eye on the cheek (every
-        // smiley variant gets these — they're the "happy cheeks"
-        // signature).
-        canvas
-          ..drawOval(
-            Rect.fromCenter(
-              center: Offset(-radius * 0.55, radius * 0.18),
-              width: radius * 0.34,
-              height: radius * 0.22,
-            ),
-            _blush,
-          )
-          ..drawOval(
-            Rect.fromCenter(
-              center: Offset(radius * 0.55, radius * 0.18),
-              width: radius * 0.34,
-              height: radius * 0.22,
-            ),
-            _blush,
-          );
-      case FaceMood.neutral:
-        // Neutral mouth library:
-        //   0: tiny wavy line (default deadpan)
-        //   1: small "o" pout
-        if (mIdx == 1) {
-          final pout = Rect.fromCenter(
-            center: Offset(0, mouthY),
-            width: mouthW * 0.4,
-            height: mouthW * 0.32,
-          );
-          canvas.drawOval(pout, _mouthStroke);
-        } else {
-          final p = Path()
-            ..moveTo(-mouthW * 0.7, mouthY)
-            ..quadraticBezierTo(
-              -mouthW * 0.35,
-              mouthY - 2,
-              0,
-              mouthY,
-            )
-            ..quadraticBezierTo(
-              mouthW * 0.35,
-              mouthY + 2,
-              mouthW * 0.7,
-              mouthY,
-            );
-          canvas.drawPath(p, _mouthStroke);
-        }
-      case FaceMood.sad:
-        // Sad mouth library:
-        //   0: open downturned filled oval (default)
-        //   1: clenched grimace (line with downturn, no fill)
-        //   2: agape shout (round open with corners drooping)
-        if (mIdx == 1) {
-          // clenched grimace — flat line bowed down with little
-          // hash marks at the corners (tension)
-          final p = Path()
-            ..moveTo(-mouthW * 0.85 + sadShakeX, mouthY)
-            ..quadraticBezierTo(
-              sadShakeX,
-              mouthY + mouthW * 0.5,
-              mouthW * 0.85 + sadShakeX,
-              mouthY,
-            );
-          canvas.drawPath(p, _mouthStroke);
-        } else if (mIdx == 2) {
-          // agape shout — circular open with drooped outer corners
-          final shoutRect = Rect.fromCenter(
-            center: Offset(sadShakeX, mouthY + radius * 0.06),
-            width: mouthW * 0.95,
-            height: mouthW * 0.85,
-          );
-          canvas
-            ..drawOval(shoutRect, _mouthFillSad)
-            ..drawOval(shoutRect, _mouthStroke);
-        } else {
-          // default: open downturned filled oval
-          final mouthRect = Rect.fromCenter(
-            center: Offset(sadShakeX, mouthY + radius * 0.05),
-            width: mouthW * 1.05,
-            height: mouthW * 0.7,
-          );
-          canvas
-            ..drawOval(mouthRect, _mouthFillSad)
-            ..drawOval(mouthRect, _mouthStroke);
-        }
-        // Stress-wave marks under each eye (the "stressed cheeks"
-        // signature). Two short bowed strokes per side.
-        for (final side in const <double>[-1, 1]) {
-          final cx = side * (radius * 0.55);
-          final cy = radius * 0.16;
-          final p = Path()
-            ..moveTo(cx - radius * 0.12, cy)
-            ..quadraticBezierTo(
-              cx - radius * 0.04,
-              cy - radius * 0.06,
-              cx + radius * 0.04,
-              cy,
-            )
-            ..quadraticBezierTo(
-              cx + radius * 0.12,
-              cy + radius * 0.06,
-              cx + radius * 0.20,
-              cy,
-            );
-          canvas.drawPath(p, _stressMark);
-        }
-        // Tear — sits just below the right eye.
-        final tearTop = Offset(eyeSpacing + eyeR * 0.6, eyeY + eyeR * 0.95);
-        final tearBottom = Offset(
-          eyeSpacing + eyeR * 0.6,
-          eyeY + eyeR * 1.95,
-        );
-        final tearPath = Path()
-          ..moveTo(tearTop.dx, tearTop.dy)
-          ..quadraticBezierTo(
-            tearTop.dx + eyeR * 0.45,
-            (tearTop.dy + tearBottom.dy) / 2,
-            tearBottom.dx,
-            tearBottom.dy,
-          )
-          ..quadraticBezierTo(
-            tearTop.dx - eyeR * 0.45,
-            (tearTop.dy + tearBottom.dy) / 2,
-            tearTop.dx,
-            tearTop.dy,
-          )
-          ..close();
-        canvas
-          ..drawPath(tearPath, _tearFill)
-          ..drawPath(tearPath, _tearOutline)
-          // Highlight on the tear so it reads as wet, not just a
-          // blue blob.
-          ..drawCircle(
-            Offset(tearTop.dx - eyeR * 0.10, tearTop.dy + eyeR * 0.4),
-            eyeR * 0.10,
-            _eyeWhite,
-          );
-        // Extra drip — a second teardrop that slides from under
-        // the eye down past the cheek, fading near the chin. Driven
-        // by the `tear_drip` micro-animation.
-        if (tearDrip > 0) {
-          final dripT = tearDrip.clamp(0.0, 1.0);
-          // Ride from under the LEFT eye (asymmetric with the
-          // baseline tear under the right eye) so both cheeks get
-          // a tear when this animation plays.
-          final cx = -eyeSpacing - eyeR * 0.55;
-          final cy = eyeY + eyeR * 1.0 + dripT * radius * 0.55;
-          // Fade out as it nears the chin.
-          final dripAlpha =
-              (1 - ((dripT - 0.7) / 0.3).clamp(0.0, 1.0)).clamp(0.0, 1.0);
-          final dripFill = Paint()
-            ..color = _tearFill.color.withValues(alpha: dripAlpha);
-          final dripOutline = Paint()
-            ..color = _tearOutline.color.withValues(alpha: dripAlpha)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.0;
-          final dripTop = Offset(cx, cy - eyeR * 0.55);
-          final dripBottom = Offset(cx, cy + eyeR * 0.55);
-          final dripPath = Path()
-            ..moveTo(dripTop.dx, dripTop.dy)
-            ..quadraticBezierTo(
-              dripTop.dx + eyeR * 0.40,
-              (dripTop.dy + dripBottom.dy) / 2,
-              dripBottom.dx,
-              dripBottom.dy,
-            )
-            ..quadraticBezierTo(
-              dripTop.dx - eyeR * 0.40,
-              (dripTop.dy + dripBottom.dy) / 2,
-              dripTop.dx,
-              dripTop.dy,
-            )
-            ..close();
-          canvas
-            ..drawPath(dripPath, dripFill)
-            ..drawPath(dripPath, dripOutline);
-        }
+    // 3 sparkles on staggered 1s loops at offsets 0, 0.3, 0.6.
+    if (p.sparkle != null) {
+      _drawSparkleCross(
+        canvas,
+        Offset(-32 * s, -26 * s),
+        s,
+        p.sparkle!,
+        t % 1,
+        2,
+        0.8,
+      );
+      _drawSparkleCross(
+        canvas,
+        Offset(34 * s, -28 * s),
+        s,
+        p.sparkle!,
+        ((t + 0.3) / 1.0) % 1,
+        1.5,
+        0.7,
+      );
+      _drawSparkleDot(
+        canvas,
+        Offset(28 * s, 20 * s),
+        s,
+        p.sparkle!,
+        ((t + 0.6) / 1.0) % 1,
+        0.6,
+      );
     }
-    canvas.restore();
+  }
+
+  void _drawSparkleCross(
+    Canvas canvas,
+    Offset center,
+    double s,
+    Color color,
+    double cycle,
+    double strokeWidth,
+    double maxOpacity,
+  ) {
+    final alpha = math.sin(cycle * math.pi);
+    if (alpha < 0.02) return;
+    final paint = Paint()
+      ..color = color.withValues(alpha: alpha * maxOpacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    canvas
+      ..save()
+      ..translate(center.dx, center.dy)
+      ..scale(alpha, alpha)
+      ..drawLine(Offset(0, -4 * s), Offset(0, 4 * s), paint)
+      ..drawLine(Offset(-4 * s, 0), Offset(4 * s, 0), paint)
+      ..restore();
+  }
+
+  void _drawSparkleDot(
+    Canvas canvas,
+    Offset center,
+    double s,
+    Color color,
+    double cycle,
+    double maxOpacity,
+  ) {
+    final alpha = math.sin(cycle * math.pi);
+    if (alpha < 0.02) return;
+    final paint = Paint()..color = color.withValues(alpha: alpha * maxOpacity);
+    canvas.drawCircle(center, 2 * s * alpha, paint);
   }
 }
 
@@ -1652,285 +1725,97 @@ class _MicroAnimMods {
   double sx = 1;
   double sy = 1;
 
-  /// Per-eye lid override in [0..1] (null = use baseline blink).
-  double? lidL;
-  double? lidR;
-
-  /// Pupil drift override — set when an animation wants to lock
-  /// the pupils (e.g. `stoic`, `side_eye`). null = use _EyeDrift.
-  double? pupilL;
-  double? pupilR;
-
-  /// Mood-specific mouth modifier (see `_FacePainter.mouthMod`).
-  double mouthMod = 0;
-
-  /// Sad-only: extra-tear drip progress in [0..1].
-  double tearDrip = 0;
-
-  /// Smiley-only: warm halo glow alpha multiplier.
-  double glow = 0;
-
-  /// Mid-emote brow / mouth swap. The marble has a stable base
-  /// (chosen at construction); when an animation wants a different
-  /// expression for its duration it sets these. null = use base.
-  int? browOverride;
-  int? mouthOverride;
 }
 
-/// Stochastic per-marble emote driver. Picks a mood-appropriate
-/// micro-animation every few seconds, runs it for its scripted
-/// duration, then idles before the next pick. Each animation just
-/// fills out a `_MicroAnimMods` for the current frame; the marble
-/// applies the mods at render time on top of blink + pupil drift.
+/// Per-face continuous body-idle animator. Reads `_t` from the
+/// marble each frame and emits a `_MicroAnimMods` describing the
+/// body-level offsets (tx, ty, rot, sx, sy). Face-feature anims
+/// (eye drift, blink, tear drip, sparkle, mouth contract / chomp)
+/// live inside `_FacePainter` and read `t` directly.
+///
+/// Each face has a stable signature loop straight from the spec:
+///   F1 stronglyDisagree — slow shiver (2.5s loop, ±2px, ±1°)
+///   F2 disagree         — slow tilt sway (3s loop, ±3°)
+///   F3 notSure          — body is still; only eyes move
+///   F4 agree            — gentle vertical bob (2s loop, -3px)
+///   F5 stronglyAgree    — bouncy wiggle (1.2s loop, -5px + ±4°)
 class _MicroAnimController {
-  _MicroAnimController({required this.mood, required int seed})
-      : _rng = math.Random(seed),
-        _untilNext = 1.5 + math.Random(seed).nextDouble() * 2.5;
+  _MicroAnimController({required this.mood});
 
   final FaceMood mood;
-  final math.Random _rng;
-
-  /// Active animation type; empty string = idle.
-  String _type = '';
-  double _elapsed = 0;
-  double _duration = 0;
-  double _untilNext;
-
-  /// One-time per-anim parameters chosen at start (e.g. wink eye
-  /// side, side-eye direction, tilt direction). Stable across the
-  /// animation's lifetime so it doesn't flip mid-play.
-  double _param1 = 0;
-
-  static const _smileyPool = <String>[
-    'laugh',
-    'wink',
-    'wiggle',
-    'puff',
-    'beam',
-  ];
-  static const _neutralPool = <String>[
-    'slow_blink',
-    'side_eye',
-    'sigh',
-    'tilt',
-    'stoic',
-  ];
-  static const _sadPool = <String>[
-    'shudder',
-    'tear_drip',
-    'quiver',
-    'slump',
-    'droop',
-  ];
 
   void update(double dt) {
-    if (_type.isEmpty) {
-      _untilNext -= dt;
-      if (_untilNext <= 0) {
-        _start();
-      }
-    } else {
-      _elapsed += dt;
-      if (_elapsed >= _duration) {
-        _type = '';
-        _elapsed = 0;
-        // Re-arm with a randomized rest so the three marbles never
-        // all fire at the same time.
-        _untilNext = 1.5 + _rng.nextDouble() * 2.8;
-      }
-    }
+    // No state — output is a pure function of the marble's `_t`.
   }
 
-  void _start() {
-    final pool = switch (mood) {
-      FaceMood.smiley => _smileyPool,
-      FaceMood.neutral => _neutralPool,
-      FaceMood.sad => _sadPool,
-    };
-    _type = pool[_rng.nextInt(pool.length)];
-    _elapsed = 0;
-    _duration = _durationFor(_type);
-    _param1 = _rng.nextDouble() < 0.5 ? -1.0 : 1.0;
-  }
-
-  double _durationFor(String type) {
-    switch (type) {
-      case 'laugh':
-        return 1.1;
-      case 'wink':
-        return 0.6;
-      case 'wiggle':
-        return 1.2;
-      case 'puff':
-        return 0.8;
-      case 'beam':
-        return 1;
-      case 'slow_blink':
-        return 0.75;
-      case 'side_eye':
-        return 1.5;
-      case 'sigh':
-        return 1.2;
-      case 'tilt':
-        return 1.1;
-      case 'stoic':
-        return 1;
-      case 'shudder':
-        return 0.7;
-      case 'tear_drip':
-        return 1.4;
-      case 'quiver':
-        return 0.9;
-      case 'slump':
-        return 1.2;
-      case 'droop':
-        return 1.3;
-    }
-    return 0.5;
-  }
-
-  _MicroAnimMods compute() {
+  _MicroAnimMods compute(double t) {
     final m = _MicroAnimMods();
-    if (_type.isEmpty) return m;
-    final t = (_elapsed / _duration).clamp(0.0, 1.0);
-    // Bell-curve envelope so emotes ease in and out.
-    final env = math.sin(t * math.pi);
-
-    switch (_type) {
-      case 'laugh':
-        // Rapid up-bounces while body squashes wider on each ha.
-        // Flips smiley expression to wide-shout (mouth idx 2) +
-        // arch-high brows (idx 1) for the duration so a laughing
-        // marble visibly throws its head back.
-        final beat = math.sin(_elapsed * 14);
-        m
-          ..ty = -beat.abs() * 4 * env
-          ..sx = 1 + beat * 0.06 * env
-          ..sy = 1 - beat * 0.06 * env
-          ..mouthMod = beat * 0.7 * env
-          ..glow = env * 0.3
-          ..mouthOverride = 2
-          ..browOverride = 1;
-      case 'wink':
-        // Left vs right chosen by _param1. Lid closes for the
-        // middle 0.3s of the 0.6s anim, then reopens.
-        if (_elapsed >= 0.15 && _elapsed <= 0.45) {
-          if (_param1 < 0) {
-            m.lidL = 1.0;
-          } else {
-            m.lidR = 1.0;
-          }
+    switch (mood) {
+      case FaceMood.stronglyDisagree:
+        // Spec keyframes (2.5s):
+        //   0%   tx=0,  rot=0
+        //  15%   tx=-2, rot=-1°
+        //  30%   tx=+2, rot=+1°
+        //  45%   tx=-1, rot=0
+        //  60%   tx=0,  rot=0
+        // ...holds 0 until 100%.
+        final c = (t / 2.5) % 1;
+        const deg = math.pi / 180;
+        if (c < 0.15) {
+          final p = c / 0.15;
+          m
+            ..tx = -2 * p
+            ..rot = -1 * deg * p;
+        } else if (c < 0.30) {
+          final p = (c - 0.15) / 0.15;
+          m
+            ..tx = -2 + 4 * p
+            ..rot = -1 * deg + 2 * deg * p;
+        } else if (c < 0.45) {
+          final p = (c - 0.30) / 0.15;
+          m
+            ..tx = 2 - 3 * p
+            ..rot = 1 * deg * (1 - p);
+        } else if (c < 0.60) {
+          final p = (c - 0.45) / 0.15;
+          m
+            ..tx = -1 + p
+            ..rot = 0;
         }
-        m
-          ..rot = math.sin(_elapsed * 6) * 0.04
-          ..mouthMod = env * 0.3;
-      case 'wiggle':
-        m
-          ..rot = math.sin(_elapsed * 9) * 0.10 * env
-          ..ty = -math.sin(_elapsed * 5).abs() * 2 * env;
-      case 'puff':
-        // Inflate wide then deflate.
-        m
-          ..sx = 1 + env * 0.18
-          ..sy = 1 - env * 0.05
-          ..mouthMod = env * 0.4;
-      case 'beam':
-        m
-          ..glow = env
-          ..sx = 1 + env * 0.05
-          ..sy = 1 + env * 0.05
-          ..mouthMod = env * 0.5;
-      case 'slow_blink':
-        // Long blink: 0.2s closing, 0.35s held closed, 0.2s opening.
-        if (_elapsed < 0.2) {
-          final p = _elapsed / 0.2;
+      case FaceMood.disagree:
+        // Sine sway: rot oscillates -3°..0..-3° over 3s.
+        final c = (t / 3) % 1;
+        m.rot = -math.sin(c * math.pi * 2).abs() * 3 * (math.pi / 180);
+      case FaceMood.notSure:
+        break; // head stays still
+      case FaceMood.agree:
+        // Vertical bob: ty -3px at midcycle on 2s loop.
+        final c = (t / 2) % 1;
+        m.ty = -math.sin(c * math.pi * 2).abs() * 3;
+      case FaceMood.stronglyAgree:
+        // Bouncy wiggle on 1.2s loop:
+        //   0–25%  rise to (-5px, -4°)
+        //  25–75%  hold up while rotation swings -4° → +4°
+        //  75–100% fall back to (0, 0)
+        final c = (t / 1.2) % 1;
+        const deg = math.pi / 180;
+        if (c < 0.25) {
+          final p = c / 0.25;
           m
-            ..lidL = p
-            ..lidR = p;
-        } else if (_elapsed < 0.55) {
+            ..ty = -5 * p
+            ..rot = -4 * deg * p;
+        } else if (c < 0.75) {
+          final p = (c - 0.25) / 0.5;
           m
-            ..lidL = 1.0
-            ..lidR = 1.0;
+            ..ty = -5
+            ..rot = (-4 + 8 * p) * deg;
         } else {
-          final p = ((_elapsed - 0.55) / 0.2).clamp(0.0, 1.0);
+          final p = (c - 0.75) / 0.25;
           m
-            ..lidL = 1.0 - p
-            ..lidR = 1.0 - p;
+            ..ty = -5 * (1 - p)
+            ..rot = 4 * deg * (1 - p);
         }
-      case 'side_eye':
-        // Snap pupils to one side, hold, return to center.
-        final dir = _param1;
-        if (_elapsed < 0.35) {
-          final p = _elapsed / 0.35;
-          m
-            ..pupilL = dir * p
-            ..pupilR = dir * p;
-        } else if (_elapsed < 1.05) {
-          m
-            ..pupilL = dir
-            ..pupilR = dir;
-        } else {
-          final p = ((_elapsed - 1.05) / 0.45).clamp(0.0, 1.0);
-          m
-            ..pupilL = dir * (1 - p)
-            ..pupilR = dir * (1 - p);
-        }
-      case 'sigh':
-        // Stretch up then sag back down past resting.
-        if (t < 0.4) {
-          final p = t / 0.4;
-          m
-            ..sy = 1 + p * 0.10
-            ..ty = -p * 4;
-        } else {
-          final p = (t - 0.4) / 0.6;
-          m
-            ..sy = 1.10 - p * 0.16
-            ..ty = -4 + p * 6;
-        }
-      case 'tilt':
-        // Tip to one side and hold for ~half the anim, then return.
-        m.rot = _param1 * env * 0.10;
-      case 'stoic':
-        // Lock pupils dead-center, freeze the natural drift.
-        m
-          ..pupilL = 0
-          ..pupilR = 0;
-      case 'shudder':
-        // High-frequency horizontal jitter (sob).
-        m
-          ..tx = math.sin(_elapsed * 35) * 2.5 * env
-          ..mouthMod = math.sin(_elapsed * 35) * env;
-      case 'tear_drip':
-        m.tearDrip = t;
-      case 'quiver':
-        m
-          ..mouthMod = math.sin(_elapsed * 18) * env
-          ..tx = math.sin(_elapsed * 18) * 0.6 * env;
-      case 'slump':
-        // Squash down → slow rebound to mid-height.
-        if (t < 0.4) {
-          final p = t / 0.4;
-          m
-            ..sy = 1 - p * 0.18
-            ..sx = 1 + p * 0.10
-            ..ty = p * 4;
-        } else {
-          final p = (t - 0.4) / 0.6;
-          m
-            ..sy = 0.82 + p * 0.10
-            ..sx = 1.10 - p * 0.05
-            ..ty = 4 - p * 2;
-        }
-      case 'droop':
-        // Half-close lids and hold; relax during the tail.
-        final hold = (env * 0.55).clamp(0.0, 0.55);
-        m
-          ..lidL = hold
-          ..lidR = hold
-          ..ty = hold * 2;
     }
-
     return m;
   }
 }
@@ -2324,31 +2209,6 @@ class _JarFront extends PositionComponent {
 // World marble nodes — pickable face emojis the chibi interacts with
 // =====================================================================
 
-/// Number of body-texture variants in the marble pool. Decoupled
-/// from mood — any marble can roll any texture. Variants:
-///   0  smooth   — clean gradient sphere (no overlay)
-///   1  crackled — short dark hairline cracks across the body
-///   2  speckled — scattered tiny dark dots (granite-ish)
-///   3  blotchy  — 2-3 darker translucent patches
-///   4  glossy   — extra bright sheen blob (very polished)
-const int _kBodyTextureCount = 5;
-
-/// Cached parameters for one element of a body texture (a crack, a
-/// dot, a blotch). Stored in unit-radius space (0.0..1.0 from
-/// center); each render scales by the marble's actual radius.
-class _TextureMark {
-  const _TextureMark({
-    required this.x,
-    required this.y,
-    required this.size,
-    required this.angle,
-  });
-  final double x;
-  final double y;
-  final double size;
-  final double angle;
-}
-
 /// Lifecycle of a face marble.
 ///
 /// idle     → in the world, springs around its rest slot, dodges
@@ -2420,103 +2280,8 @@ class _MarbleNode extends PositionComponent {
   /// "wonky / scary" when one eye drifted while the other stayed.
   /// Real eyes track together; both pupils now read the same value.
   late final _EyeDrift _eyeDrift = _EyeDrift(seed: seed * 31 + 1);
-  late final _MicroAnimController _microAnim = _MicroAnimController(
-    mood: mood,
-    seed: seed * 911 + 7,
-  );
-
-  /// Per-marble base brow + mouth indices. Initialized to a random
-  /// pick at construction, then cycled every 4–8 seconds when no
-  /// micro-anim is running so the rest face drifts through the
-  /// library. Micro-anim mods still override mid-emote (e.g. mid-
-  /// laugh smiley flips to wide-shout for the duration).
-  late int _baseBrowIdx =
-      math.Random(seed * 17 + 3).nextInt(_FacePainter.browVariantsFor(mood));
-  late int _baseMouthIdx = math.Random(seed * 17 + 5)
-      .nextInt(_FacePainter.mouthVariantsFor(mood));
-
-  /// RNG seeded once for cycling expression picks across this
-  /// marble's lifetime so each marble's drift sequence is unique
-  /// but reproducible.
-  late final math.Random _expressionRng = math.Random(seed * 67 + 13);
-
-  /// Seconds until the next base-expression shift. Starts staggered
-  /// so the three marbles don't shift in lockstep.
-  late double _untilExpressionShift =
-      2 + _expressionRng.nextDouble() * 6;
-
-  /// Stable per-marble body-texture pick. Decoupled from mood:
-  /// any color marble can have any texture (smooth / crackled /
-  /// speckled / blotchy / glossy). Selected from a global pool so
-  /// the world's marbles look varied even when they share a mood.
-  late final int _bodyTexIdx =
-      math.Random(seed * 23 + 11).nextInt(_kBodyTextureCount);
-
-  /// Precomputed per-vertex silhouette radii for the bumpy outline.
-  /// 14 vertices, each at 0.93..1.07 × the nominal radius — gives
-  /// the body an irregular hand-painted edge instead of a perfect
-  /// circle. Generated once at construction, reused every frame.
-  late final List<double> _silhouetteRadii = _buildSilhouetteRadii();
-
-  /// Precomputed body-texture decorations (positions + sizes for
-  /// dots / blotches / cracks). Variant 0 (smooth) leaves this
-  /// empty; the rest fill it with a stable random pattern.
-  late final List<_TextureMark> _textureMarks = _buildTextureMarks();
-
-  List<double> _buildSilhouetteRadii() {
-    final rng = math.Random(seed * 41 + 19);
-    return List<double>.generate(
-      14,
-      (_) => 1 + (rng.nextDouble() - 0.5) * 0.14,
-    );
-  }
-
-  List<_TextureMark> _buildTextureMarks() {
-    final rng = math.Random(seed * 53 + 31);
-    final marks = <_TextureMark>[];
-    switch (_bodyTexIdx) {
-      case 1: // crackled — 3-5 short dark line segments
-        final n = 3 + rng.nextInt(3);
-        for (var i = 0; i < n; i++) {
-          marks.add(_TextureMark(
-            x: (rng.nextDouble() - 0.5) * 1.2,
-            y: (rng.nextDouble() - 0.5) * 1.2,
-            size: 0.4 + rng.nextDouble() * 0.5,
-            angle: rng.nextDouble() * math.pi,
-          ));
-        }
-      case 2: // speckled — small dots scattered
-        final n = 7 + rng.nextInt(5);
-        for (var i = 0; i < n; i++) {
-          final angle = rng.nextDouble() * math.pi * 2;
-          final dist = rng.nextDouble() * 0.7;
-          marks.add(_TextureMark(
-            x: math.cos(angle) * dist,
-            y: math.sin(angle) * dist,
-            size: 0.04 + rng.nextDouble() * 0.05,
-            angle: 0,
-          ));
-        }
-      case 3: // blotchy — 2-3 translucent patches
-        final n = 2 + rng.nextInt(2);
-        for (var i = 0; i < n; i++) {
-          final angle = rng.nextDouble() * math.pi * 2;
-          final dist = rng.nextDouble() * 0.4;
-          marks.add(_TextureMark(
-            x: math.cos(angle) * dist,
-            y: math.sin(angle) * dist,
-            size: 0.30 + rng.nextDouble() * 0.18,
-            angle: 0,
-          ));
-        }
-      case 4: // glossy — extra-bright sheen blob (no marks needed,
-        // handled inline as a single overlay in render)
-        break;
-      default:
-        break; // 0 = smooth, no marks
-    }
-    return marks;
-  }
+  late final _MicroAnimController _microAnim =
+      _MicroAnimController(mood: mood);
 
   _MarbleState state = _MarbleState.idle;
 
@@ -2670,26 +2435,11 @@ class _MarbleNode extends PositionComponent {
     super.update(dt);
     _t += dt;
     _eyeDrift.update(dt);
-    // Micro-animations only run while the marble is out in the
-    // world — playing emotes mid-throw or mid-bounce in the jar
-    // would fight the physics. Idle + held are the "alive" states.
+    // Body-level idle anims run continuously based on `_t`. The
+    // controller is stateless now (per-face spec); call update for
+    // API symmetry but it's effectively a no-op.
     if (state == _MarbleState.idle || state == _MarbleState.held) {
       _microAnim.update(dt);
-      // Cycle the base expression every 4–8s when nothing's
-      // happening, so the rest face drifts through the library
-      // instead of feeling locked. Pause the timer while a micro-
-      // anim is active (the override does the talking) — we don't
-      // want the base to swap mid-laugh and undo the override.
-      if (_microAnim._type.isEmpty) {
-        _untilExpressionShift -= dt;
-        if (_untilExpressionShift <= 0) {
-          _baseBrowIdx = _expressionRng
-              .nextInt(_FacePainter.browVariantsFor(mood));
-          _baseMouthIdx = _expressionRng
-              .nextInt(_FacePainter.mouthVariantsFor(mood));
-          _untilExpressionShift = 4 + _expressionRng.nextDouble() * 4;
-        }
-      }
     }
     if (squash > 0) {
       squash = math.max(0, squash - dt * 3.0);
@@ -2930,98 +2680,10 @@ class _MarbleNode extends PositionComponent {
     }
   }
 
-  /// Build the bumpy silhouette path at a given radius. Smooth
-  /// closed curve through midpoints of the precomputed vertices;
-  /// each vertex acts as a quadratic-bezier control, pulling the
-  /// curve outward by its (slightly randomized) radius. The result
-  /// is an organic, hand-painted edge instead of a perfect circle.
-  Path _silhouettePath(double r) {
-    final n = _silhouetteRadii.length;
-    final pts = List<Offset>.generate(n, (i) {
-      final angle = i * math.pi * 2 / n - math.pi / 2;
-      final radius = _silhouetteRadii[i] * r;
-      return Offset(math.cos(angle) * radius, math.sin(angle) * radius);
-    });
-    Offset mid(Offset a, Offset b) =>
-        Offset((a.dx + b.dx) / 2, (a.dy + b.dy) / 2);
-    final p = Path();
-    final start = mid(pts[n - 1], pts[0]);
-    p.moveTo(start.dx, start.dy);
-    for (var i = 0; i < n; i++) {
-      final next = pts[(i + 1) % n];
-      final m = mid(pts[i], next);
-      p.quadraticBezierTo(pts[i].dx, pts[i].dy, m.dx, m.dy);
-    }
-    p.close();
-    return p;
-  }
-
-  /// Paint the body-texture overlay for this marble's variant.
-  /// All marks live inside the silhouette (the caller clips to it
-  /// before invoking) and are drawn in unit-radius space scaled by
-  /// `r`.
-  void _paintBodyTexture(Canvas canvas, double r) {
-    switch (_bodyTexIdx) {
-      case 0:
-        // smooth — nothing to paint
-        return;
-      case 1: // crackled
-        final paint = Paint()
-          ..color = const Color(0x33000000)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.9
-          ..strokeCap = StrokeCap.round;
-        for (final m in _textureMarks) {
-          final cx = m.x * r * 0.6;
-          final cy = m.y * r * 0.6;
-          final len = m.size * r * 0.5;
-          final dx = math.cos(m.angle) * len / 2;
-          final dy = math.sin(m.angle) * len / 2;
-          canvas.drawLine(
-            Offset(cx - dx, cy - dy),
-            Offset(cx + dx, cy + dy),
-            paint,
-          );
-        }
-      case 2: // speckled
-        final paint = Paint()..color = const Color(0x44000000);
-        for (final m in _textureMarks) {
-          canvas.drawCircle(
-            Offset(m.x * r, m.y * r),
-            m.size * r,
-            paint,
-          );
-        }
-      case 3: // blotchy
-        final paint = Paint()
-          ..color = const Color(0x33000000)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
-        for (final m in _textureMarks) {
-          canvas.drawCircle(
-            Offset(m.x * r, m.y * r),
-            m.size * r,
-            paint,
-          );
-        }
-      case 4: // glossy — extra-bright sheen blob over the body
-        final paint = Paint()
-          ..color = const Color(0x66FFFFFF)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
-        canvas.drawOval(
-          Rect.fromCenter(
-            center: Offset(-r * 0.18, -r * 0.10),
-            width: r * 1.20,
-            height: r * 0.55,
-          ),
-          paint,
-        );
-    }
-  }
-
   @override
   void render(Canvas canvas) {
     super.render(canvas);
-    final mods = _microAnim.compute();
+    final mods = _microAnim.compute(_t);
     final pulse = (highlighted && state == _MarbleState.idle)
         ? 1 + math.sin(_t * 6) * 0.07
         : 1.0;
@@ -3045,8 +2707,7 @@ class _MarbleNode extends PositionComponent {
 
     // Combine impact-squash with micro-anim scale. The micro-anim
     // mods are layered on top of (not in place of) the squash so a
-    // marble laughing while bouncing in the jar looks like both
-    // animations happening at once, not whichever-won.
+    // marble bouncing in the jar still squashes correctly.
     final wobble = math.sin(squash * math.pi * 2.5) * squash * 0.22;
     final sx = baseScale * (1 + wobble) * mods.sx;
     final sy = baseScale * (1 - wobble) * mods.sy;
@@ -3054,120 +2715,21 @@ class _MarbleNode extends PositionComponent {
     final shadow = Paint()
       ..color = const Color(0x33000000)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
-    // 3D sphere shading: radial gradient from a bright top-left
-    // highlight to a darker bottom-right. Driven entirely by the
-    // marble's `tint` so each color shades naturally without us
-    // having to hand-pick light/dark stops per palette entry.
-    final lightTint = Color.lerp(tint, Colors.white, 0.45) ?? tint;
-    final darkTint = Color.lerp(tint, Colors.black, 0.30) ?? tint;
-    final shadeRect = Rect.fromCircle(
-      center: Offset.zero,
-      radius: _radius,
-    );
-    final fill = Paint()
-      ..shader = RadialGradient(
-        center: const Alignment(-0.45, -0.55),
-        radius: 1.05,
-        colors: <Color>[lightTint, tint, darkTint],
-        stops: const <double>[0, 0.55, 1],
-      ).createShader(shadeRect);
-    // Inner shadow ring at the bottom edge — sells the "this is a
-    // sphere not a flat disc" read.
-    final rimShade = Paint()
-      ..color = const Color(0x33000000)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
-    // Sharp pinpoint glint — small, bright, no blur — sells the
-    // glass-marble look. A larger soft halo behind it adds depth.
-    final glintHalo = Paint()
-      ..color = const Color(0x99FFFFFF)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
-    final glintPin = Paint()..color = const Color(0xFFFFFFFF);
-    // Imperfect-ink outline: warm dark + slightly thicker than the
-    // hard black version so each marble reads as hand-drawn.
-    final inkOutline = Paint()
-      ..color = _kInk
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
-      ..strokeJoin = StrokeJoin.round;
-
-    // Optional smiley-beam halo, drawn first so it sits behind the
-    // body. Translates with the body but doesn't rotate or scale.
-    if (mods.glow > 0) {
-      final glowAlpha = (mods.glow * 90).round().clamp(0, 255);
-      final glow = Paint()
-        ..color = Color.fromARGB(glowAlpha, 255, 244, 180)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
-      canvas.drawCircle(
-        Offset(mods.tx, mods.ty),
-        r * 1.55,
-        glow,
-      );
-    }
 
     // Shadow at full radius (no squash) — keeps contact grounded.
-    // Follows the body's translate but ignores rotation + squash so
-    // it doesn't slide or stretch when the body bounces.
-    canvas.drawCircle(
-      Offset(mods.tx, mods.ty + r * 0.4),
-      r * 0.85,
-      shadow,
-    );
-
-    // Body + face — translated, rotated, scaled per mods + squash.
-    // The body silhouette is a slightly-bumpy closed curve through
-    // the precomputed vertex radii (instead of a perfect circle),
-    // so each marble reads as hand-painted, not vector-perfect.
-    final blink = blinkPhaseAt(_t, seed: seed);
-    final silhouette = _silhouettePath(_radius);
+    // Then save/translate/rotate/scale for the body+face, paint
+    // via `_FacePainter`, and restore.
     canvas
+      ..drawCircle(
+        Offset(mods.tx, mods.ty + r * 0.4),
+        r * 0.85,
+        shadow,
+      )
       ..save()
       ..translate(mods.tx, mods.ty)
       ..rotate(mods.rot)
-      ..scale(sx, sy)
-      ..drawPath(silhouette, fill)
-      ..save()
-      ..clipPath(silhouette)
-      // Inner-bottom rim shade for sphere read.
-      ..drawCircle(const Offset(_radius * 0.20, _radius * 0.30),
-          _radius * 0.96, rimShade);
-    // Per-marble body texture overlay (crackles / speckles /
-    // blotches / glossy sheen). Smooth marbles get nothing here.
-    _paintBodyTexture(canvas, _radius);
-    // Sharp upper-left glint: a soft halo behind a tiny pinpoint
-    // to read as glossy glass instead of matte.
-    canvas
-      ..drawCircle(
-        const Offset(-_radius * 0.34, -_radius * 0.42),
-        _radius * 0.22,
-        glintHalo,
-      )
-      ..drawCircle(
-        const Offset(-_radius * 0.40, -_radius * 0.48),
-        _radius * 0.08,
-        glintPin,
-      )
-      ..restore()
-      ..drawPath(silhouette, inkOutline);
-    _FacePainter(
-      mood: mood,
-      blinkPhase: blink,
-      lidLeft: mods.lidL,
-      lidRight: mods.lidR,
-      // Both pupils share the same drift value so eyes track
-      // together (real eye behavior). Per-eye micro-anim overrides
-      // (e.g. side_eye sets both to a forced direction) still win.
-      pupilLeft: mods.pupilL ?? _eyeDrift.value,
-      pupilRight: mods.pupilR ?? _eyeDrift.value,
-      mouthMod: mods.mouthMod,
-      tearDrip: mods.tearDrip,
-      // Base brow + mouth come from this marble's stable identity;
-      // micro-anim mods can override mid-emote (e.g. mid-laugh
-      // smiley flips to wide-shout for a beat).
-      browIdx: mods.browOverride ?? _baseBrowIdx,
-      mouthIdx: mods.mouthOverride ?? _baseMouthIdx,
-    ).paintAt(canvas, Offset.zero, _radius);
+      ..scale(sx, sy);
+    _FacePainter(mood: mood, t: _t).paintAt(canvas, Offset.zero, _radius);
     canvas.restore();
 
     // Soft halo when pickable + highlighted — drawn outside all
@@ -3309,31 +2871,11 @@ class _SurveyGame extends FlameGame
   // ignore: use_setters_to_change_properties
   void setPlateBounds(Rect r) => plateBounds = r;
 
-  /// Cycle of pastel marble fills the world marbles rotate through.
-  /// Six entries so consecutive shuffles always pick a fresh-looking
-  /// triple (we step by two from a moving anchor, so the three
-  /// visible colors all change every shuffle).
-  static const List<Color> _palette = <Color>[
-    Color(0xFFB8D7F1), // soft blue
-    Color(0xFFE6E6E6), // neutral gray
-    Color(0xFFFFE89B), // warm yellow
-    Color(0xFFEFB7C2), // pink
-    Color(0xFFC8E6B7), // mint
-    Color(0xFFD4B7E6), // lavender
-  ];
+  // v60.17 — palette shuffling on jar landing was removed when the
+  // 5-face Likert spec made colors part of each face's identity.
+  // Each marble's tint comes from `_kFacePalettes[mood].body` and
+  // never changes; replacement marbles spawn with the same palette.
 
-  /// Returns the three colors currently shown by the world marbles,
-  /// indexed by slot. Rotates through the palette on every settle.
-  List<Color> _tintsForShuffle(int idx) {
-    final base = idx % _palette.length;
-    return <Color>[
-      _palette[base],
-      _palette[(base + 2) % _palette.length],
-      _palette[(base + 4) % _palette.length],
-    ];
-  }
-
-  int _shuffleIdx = 0;
   int _spawnCounter = 0;
 
   /// Recompute proximity state — what's the chibi nearest to, and
@@ -3443,19 +2985,13 @@ class _SurveyGame extends FlameGame
   /// The newly-arrived marble (`m`) keeps living — it's now in
   /// `inJar` state and bouncing among siblings via `_resolveCollisions`.
   void onMarbleEnteredJar(_MarbleNode m) {
-    _shuffleIdx += 1;
-    final newTints = _tintsForShuffle(_shuffleIdx);
-    for (final other in _marbles) {
-      if (other.state == _MarbleState.idle ||
-          other.state == _MarbleState.held) {
-        other.tint = newTints[other.slotIdx];
-      }
-    }
-    // Spawn the replacement for this slot.
+    // Spawn a replacement marble for this slot with the SAME mood
+    // (colors are now identity, not random). The new marble takes
+    // its tint straight from the mood's palette.
     final replacement = _MarbleNode(
       slotIdx: m.slotIdx,
       mood: m.mood,
-      tint: newTints[m.slotIdx],
+      tint: _kFacePalettes[m.mood]!.body,
       seed: ++_spawnCounter * 7 + m.slotIdx,
       spawnPos: _marbleRestPositions[m.slotIdx],
       restPos: _marbleRestPositions[m.slotIdx],
@@ -3914,22 +3450,29 @@ class _SurveyGame extends FlameGame
     // its rim keeps the rest slots in roughly the same spot
     // regardless of screen size. Lateral spread tied to the screen
     // width so the slots breathe across wide windows.
+    // 5 marbles spread across the upper play area — Likert reading
+    // order from most negative (left) to most positive (right). All
+    // sit at the same Y just above the jar's rim so they feel like a
+    // single row of pickable answers.
     final centerX = size.x / 2;
-    final lateralOffset = math.min<double>(size.x * 0.30, 220);
-    final lowY = jar.position.y - 70;
-    final highY = jar.position.y - 110;
+    final spread = math.min<double>(size.x * 0.40, 320);
+    final restY = jar.position.y - 70;
     _marbleRestPositions = <Vector2>[
-      Vector2(centerX - lateralOffset, lowY), // sad
-      Vector2(centerX, highY), // neutral (farther = higher Y)
-      Vector2(centerX + lateralOffset, lowY), // smiley
+      for (var i = 0; i < _kFaceMoods.length; i++)
+        Vector2(
+          // Distribute evenly across [centerX - spread, centerX + spread].
+          centerX - spread + (i / (_kFaceMoods.length - 1)) * spread * 2,
+          restY,
+        ),
     ];
-    final initialTints = _tintsForShuffle(0);
     _marbles = <_MarbleNode>[
       for (var i = 0; i < _kFaceMoods.length; i++)
         _MarbleNode(
           slotIdx: i,
           mood: _kFaceMoods[i],
-          tint: initialTints[i],
+          // Tint comes from the mood's spec palette (not a shared
+          // shuffle pool any more).
+          tint: _kFacePalettes[_kFaceMoods[i]]!.body,
           seed: 100 + i * 17,
           spawnPos: _marbleRestPositions[i],
           restPos: _marbleRestPositions[i],
@@ -3960,13 +3503,15 @@ const _kSurveyQuestions = <_SurveyQuestion>[
   _SurveyQuestion('How was your last activity?'),
 ];
 
-/// Fixed answer set — always sad / neutral / smiley, in that
-/// reading order. The marble button row + the falling-marble
-/// drop flow both consume this list directly.
+/// 5-point Likert answer set in reading order — most negative
+/// to most positive. Each marble in the world picks the next
+/// mood from this list, one slot per face.
 const _kFaceMoods = <FaceMood>[
-  FaceMood.sad,
-  FaceMood.neutral,
-  FaceMood.smiley,
+  FaceMood.stronglyDisagree,
+  FaceMood.disagree,
+  FaceMood.notSure,
+  FaceMood.agree,
+  FaceMood.stronglyAgree,
 ];
 
 // =====================================================================
@@ -4356,15 +3901,9 @@ class _CelebrationPainter extends CustomPainter {
           paint,
         );
       }
-      _FacePainter(
-        mood: p.mood,
-        blinkPhase: blinkPhaseAt(t * 1.5, seed: p.phaseSeed),
-        // Synced pupils — same drift on both eyes so the
-        // celebration emojis don't have the "wonky one-eye-tracks"
-        // look the marble nodes used to.
-        pupilLeft: math.sin(t * 3 + p.phaseSeed) * 0.6,
-        pupilRight: math.sin(t * 3 + p.phaseSeed) * 0.6,
-      ).paintAt(canvas, Offset.zero, p.radius);
+      // Each particle reuses the per-face painter — its own t means
+      // the burst face animates independently of the world marble.
+      _FacePainter(mood: p.mood, t: t).paintAt(canvas, Offset.zero, p.radius);
       if (alpha < 0.99) canvas.restore();
 
       canvas.restore();
