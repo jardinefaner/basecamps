@@ -12,13 +12,13 @@
 import 'dart:async';
 
 import 'package:basecamp/features/experiment/survey/survey_screen.dart'
-    show FaceMood, FacePainter, MarbleVariant;
+    show FaceMood, FacePainter, FacePalette, MarbleVariant;
 import 'package:flutter/material.dart';
 
 // Re-export the public face types so callers in this folder don't
 // have to import the marble-jar screen directly.
 export 'package:basecamp/features/experiment/survey/survey_screen.dart'
-    show FaceMood, MarbleVariant;
+    show FaceMood, FacePalette, MarbleVariant, kFacePalettes;
 
 /// 3-mode subset for BASECamp's default 3-point survey.
 const List<FaceMood> kBasket3Choices = <FaceMood>[
@@ -104,6 +104,7 @@ class PaintedFace extends StatefulWidget {
     super.key,
     this.state = BasketFaceState.idle,
     this.seed = 0,
+    this.palette,
   });
 
   final FaceMood mood;
@@ -113,6 +114,12 @@ class PaintedFace extends StatefulWidget {
   /// Per-instance phase offset so adjacent faces don't lock-step.
   /// Pass the index in the row (or any small int).
   final int seed;
+
+  /// Optional override for body / ring / cheek colors. The face's
+  /// expression (eyes / mouth / brows / tears / sparkles) stays
+  /// faithful to its mood — only the body fill rotates. Used by
+  /// the basket-survey experiment to cycle colors per question.
+  final FacePalette? palette;
 
   @override
   State<PaintedFace> createState() => _PaintedFaceState();
@@ -158,6 +165,7 @@ class _PaintedFaceState extends State<PaintedFace>
             mood: widget.mood,
             variant: _variantFor(widget.state, widget.seed),
             t: _t,
+            palette: widget.palette,
           ),
         );
       },
@@ -173,16 +181,23 @@ class _FaceCustomPainter extends CustomPainter {
     required this.mood,
     required this.variant,
     required this.t,
+    this.palette,
   });
 
   final FaceMood mood;
   final MarbleVariant variant;
   final double t;
+  final FacePalette? palette;
 
   @override
   void paint(Canvas canvas, Size size) {
     final radius = size.shortestSide / 2;
-    FacePainter(mood: mood, variant: variant, t: t).paintAt(
+    FacePainter(
+      mood: mood,
+      variant: variant,
+      t: t,
+      palette: palette,
+    ).paintAt(
       canvas,
       Offset(size.width / 2, size.height / 2),
       radius,
@@ -191,5 +206,8 @@ class _FaceCustomPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _FaceCustomPainter old) =>
-      old.t != t || old.mood != mood || old.variant != variant;
+      old.t != t ||
+      old.mood != mood ||
+      old.variant != variant ||
+      old.palette != palette;
 }

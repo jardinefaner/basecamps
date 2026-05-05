@@ -1232,15 +1232,44 @@ class FacePainter {
     required this.mood,
     this.variant = MarbleVariant.idle,
     this.t = 0,
+    this.palette,
   });
 
   final FaceMood mood;
   final MarbleVariant variant;
   final double t;
 
+  /// Optional palette override. When non-null, this palette is
+  /// used for body / ring / cheek while ink / tear / sparkle
+  /// still come from the mood's default palette (so a smile
+  /// stays its smile, a tear stays blue, sparkles stay gold —
+  /// only the body fill rotates between questions). The kiosk
+  /// passes nothing and gets the default per-mood look; the
+  /// basket-survey experiment passes a per-question colour to
+  /// rotate through the 5 face shades while keeping each mood's
+  /// expression intact.
+  final FacePalette? palette;
+
   void paintAt(Canvas canvas, Offset center, double radius) {
     final s = radius / 38;
-    final palette = kFacePalettes[mood]!;
+    final base = kFacePalettes[mood]!;
+    // Mix the override (body/ring/cheek) with the mood's accents
+    // (ink/tear/sparkle) so expressions read correctly even when
+    // the body fill is rotated.
+    final FacePalette palette;
+    final override = this.palette;
+    if (override == null) {
+      palette = base;
+    } else {
+      palette = FacePalette(
+        body: override.body,
+        ring: override.ring,
+        ink: base.ink,
+        cheek: override.cheek,
+        tear: base.tear,
+        sparkle: base.sparkle,
+      );
+    }
     canvas
       ..save()
       ..translate(center.dx, center.dy);

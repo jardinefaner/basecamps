@@ -226,7 +226,16 @@ class _QuestionAndChoices extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final moods = _shuffledMoodsForQuestion(question);
+    final moods = question.choiceCount == 5
+        ? kBasket5Choices
+        : kBasket3Choices;
+    // Per-question color rotation. Mood positions are unchanged
+    // (sad on the left, happy on the right always); only the body
+    // / ring / cheek colors rotate, so the smiling face might be
+    // green on q1, yellow on q2, pink on q3. Expressions (smile
+    // shape, sparkles, tears) stay tied to the mood — kids can't
+    // memorise "tap the green one".
+    final colors = _colorRotationForQuestion(question, moods.length);
     return Column(
       children: [
         // Top row — replay icon (fixed) + animated question text.
@@ -305,6 +314,7 @@ class _QuestionAndChoices extends StatelessWidget {
                         mood: moods[i],
                         seed: i + question.id.hashCode,
                         size: _faceSize(context, moods.length),
+                        palette: colors[i],
                       ),
                   ],
                 ),
@@ -320,17 +330,22 @@ class _QuestionAndChoices extends StatelessWidget {
     return per.clamp(72, 120).toDouble();
   }
 
-  /// Per-question deterministic shuffle of the choice moods. The
-  /// kid sees the choices in DIFFERENT positions every question
-  /// — so a "tap right for yes" memorisation strategy doesn't
-  /// work; they have to read the face. The shuffle is keyed on
-  /// the question id so the same question always shows the same
-  /// arrangement (predictable for revisits, but varied between
-  /// questions).
-  List<FaceMood> _shuffledMoodsForQuestion(SurveyQuestion q) {
-    final base = q.choiceCount == 5 ? kBasket5Choices : kBasket3Choices;
-    final shuffled = [...base]..shuffle(math.Random(q.id.hashCode));
-    return shuffled;
+  /// Per-question color rotation. Mood positions stay put (sad
+  /// on the left, happy on the right); only the body / ring /
+  /// cheek colors rotate, so each question dresses the faces in
+  /// a different hue. The five color palettes the kiosk ships
+  /// (pink / coral / amber / green / teal) get shuffled and
+  /// dealt out across the choice slots. Keyed on question id so
+  /// the same question always shows the same colors.
+  List<FacePalette> _colorRotationForQuestion(
+    SurveyQuestion q,
+    int count,
+  ) {
+    final palettes = FaceMood.values
+        .map((m) => kFacePalettes[m]!)
+        .toList()
+      ..shuffle(math.Random(q.id.hashCode));
+    return palettes.take(count).toList();
   }
 }
 
@@ -339,11 +354,13 @@ class _DraggableFace extends StatefulWidget {
     required this.mood,
     required this.seed,
     required this.size,
+    this.palette,
   });
 
   final FaceMood mood;
   final int seed;
   final double size;
+  final FacePalette? palette;
 
   @override
   State<_DraggableFace> createState() => _DraggableFaceState();
@@ -367,6 +384,7 @@ class _DraggableFaceState extends State<_DraggableFace> {
             mood: widget.mood,
             size: widget.size,
             seed: widget.seed,
+            palette: widget.palette,
           ),
         ),
       ),
@@ -385,6 +403,7 @@ class _DraggableFaceState extends State<_DraggableFace> {
               size: widget.size * 1.05,
               seed: widget.seed,
               state: BasketFaceState.held,
+              palette: widget.palette,
             ),
           ),
         ),
