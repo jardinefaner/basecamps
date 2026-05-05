@@ -115,6 +115,20 @@ class _ExperimentScreenState extends State<ExperimentScreen> {
                 unawaited(context.push('/experiment/survey'));
               },
             ),
+            // 2026-05 — drag-and-drop survey alternative. Single
+            // column, big question, painted faces dragged into a
+            // woven basket. CSV-only persistence; no Flame.
+            ListTile(
+              leading: const Icon(Icons.shopping_basket_outlined),
+              title: const Text('Basket Survey'),
+              subtitle: const Text(
+                'Drag-and-drop · same questions, cleaner UX',
+              ),
+              onTap: () {
+                Navigator.of(sheetCtx).pop();
+                unawaited(context.push('/experiment/basket-survey'));
+              },
+            ),
             const SizedBox(height: AppSpacing.md),
           ],
         ),

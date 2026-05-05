@@ -9,6 +9,7 @@ import 'package:basecamp/features/children/child_detail_screen.dart';
 import 'package:basecamp/features/children/children_screen.dart';
 import 'package:basecamp/features/curriculum/curriculum_hub_screen.dart';
 import 'package:basecamp/features/curriculum/curriculum_screen.dart';
+import 'package:basecamp/features/experiment/basket_survey/basket_survey_screen.dart';
 import 'package:basecamp/features/experiment/experiment_screen.dart';
 import 'package:basecamp/features/experiment/monthly_plan_screen.dart';
 import 'package:basecamp/features/experiment/survey/survey_screen.dart';
@@ -438,6 +439,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'survey',
             builder: (_, _) => const SurveyScreen(),
+          ),
+          // 2026-05 — Drag-and-drop survey alternative. Cleaner
+          // UX (no Flame, no chibi); kid drags a painted face
+          // into a woven basket. CSV-only persistence so the
+          // experiment can stay sandboxed.
+          GoRoute(
+            path: 'basket-survey',
+            builder: (_, _) => const BasketSurveyScreen(),
           ),
         ],
       ),

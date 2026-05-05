@@ -130,6 +130,7 @@ class SurveyQuestion {
     required this.prompt,
     this.options = const <SurveyActivityOption>[],
     this.isPractice = false,
+    this.choiceCount = 3,
   });
 
   final String id;
@@ -143,6 +144,14 @@ class SurveyQuestion {
   /// the response so the CSV export can hide them by default.
   final bool isPractice;
 
+  /// For mood questions only — how many face options the kid sees.
+  /// **3** = `{stronglyDisagree, notSure, stronglyAgree}` (the
+  /// BASECamp 3-point default). **5** = the full Likert palette
+  /// `{stronglyDisagree, disagree, notSure, agree, stronglyAgree}`.
+  /// The basket-survey experiment respects this; the marble kiosk
+  /// uses a fixed 3.
+  final int choiceCount;
+
   Map<String, dynamic> toJson() => <String, dynamic>{
         'id': id,
         'type': type.code,
@@ -150,6 +159,7 @@ class SurveyQuestion {
         if (options.isNotEmpty)
           'options': options.map((o) => o.toJson()).toList(),
         if (isPractice) 'isPractice': true,
+        if (choiceCount != 3) 'choiceCount': choiceCount,
       };
 
   // We keep `fromJson` as a static helper instead of a named ctor
@@ -167,6 +177,7 @@ class SurveyQuestion {
           )
           .toList(),
       isPractice: (json['isPractice'] as bool?) ?? false,
+      choiceCount: (json['choiceCount'] as int?) ?? 3,
     );
   }
 }
