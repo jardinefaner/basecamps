@@ -1327,6 +1327,17 @@ class FacePainter {
         _paintStronglyAgree(canvas, s, palette);
     }
 
+    // Per-variant expressive overlay — draws AFTER the per-mood
+    // features so it sits ON TOP. Each non-idle variant changes
+    // either the eyes or adds an accent particle so a pile of
+    // marbles cycling through variants reads at a glance:
+    //   * idle      — base mood (no overlay)
+    //   * breathing — closed-crescent eyes (sleeping/calm)
+    //   * fidget    — wide darting eyes + bouncing sweat drop
+    //   * emote     — pinched-shut eyes + per-mood emote particle
+    //                 (tears, cloud, ?, heart, sparkles)
+    _paintVariantOverlay(canvas, s, palette);
+
     canvas.restore();
   }
 
@@ -2173,6 +2184,284 @@ class FacePainter {
     if (alpha < 0.02) return;
     final paint = Paint()..color = color.withValues(alpha: alpha * maxOpacity);
     canvas.drawCircle(center, 2 * s * alpha, paint);
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // Per-variant expressive overlay
+  //
+  // The cycling between idle / breathing / fidget / emote was
+  // too subtle — a basket of marbles all looked alike. This
+  // overlay layer draws ON TOP of each mood's base features and
+  // makes the variant unmistakable:
+  //   * idle       no overlay (mood's own design carries it)
+  //   * breathing  override eyes with closed crescents
+  //   * fidget     override eyes with wide-darting + sweat drop
+  //   * emote      override eyes with pinched-shut Xs + per-
+  //                mood emote particle floating above the head
+  //                (tears / cloud / ? / heart / sparkles)
+  // ════════════════════════════════════════════════════════════
+
+  void _paintVariantOverlay(Canvas canvas, double s, FacePalette p) {
+    switch (variant) {
+      case MarbleVariant.idle:
+        return;
+      case MarbleVariant.breathing:
+        _drawEyesClosedCrescents(canvas, s, p);
+      case MarbleVariant.fidget:
+        _drawEyesWideDartingOverlay(canvas, s, p);
+        _drawSweatDrop(canvas, s, p);
+      case MarbleVariant.emote:
+        _drawEyesPinchedShut(canvas, s, p);
+        _drawMoodEmoteParticle(canvas, s, p);
+    }
+  }
+
+  void _drawEyesClosedCrescents(Canvas canvas, double s, FacePalette p) {
+    // Mask the existing eyes with body-color circles, then draw
+    // closed-crescent arcs (eyes shut, peaceful).
+    final mask = Paint()..color = p.body;
+    canvas
+      ..drawCircle(Offset(-12 * s, 0), 8 * s, mask)
+      ..drawCircle(Offset(12 * s, 0), 8 * s, mask);
+    final ink = Paint()
+      ..color = p.ink
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+    final left = Path()
+      ..moveTo(-17 * s, 0)
+      ..quadraticBezierTo(-12 * s, -5 * s, -7 * s, 0);
+    final right = Path()
+      ..moveTo(7 * s, 0)
+      ..quadraticBezierTo(12 * s, -5 * s, 17 * s, 0);
+    canvas
+      ..drawPath(left, ink)
+      ..drawPath(right, ink);
+  }
+
+  void _drawEyesWideDartingOverlay(
+    Canvas canvas,
+    double s,
+    FacePalette p,
+  ) {
+    // Mask existing eyes, draw wide white sclera + animated
+    // black pupil that darts left-right with a fast cycle.
+    final mask = Paint()..color = p.body;
+    canvas
+      ..drawCircle(Offset(-12 * s, 0), 8 * s, mask)
+      ..drawCircle(Offset(12 * s, 0), 8 * s, mask);
+    final dartX = math.sin((t / 0.4) * math.pi * 2) * 2.2 * s;
+    final sclera = Paint()..color = const Color(0xFFF8F8F8);
+    final scleraStroke = Paint()
+      ..color = p.ink
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    canvas
+      ..drawCircle(Offset(-12 * s, -1 * s), 6 * s, sclera)
+      ..drawCircle(Offset(-12 * s, -1 * s), 6 * s, scleraStroke)
+      ..drawCircle(Offset(12 * s, -1 * s), 6 * s, sclera)
+      ..drawCircle(Offset(12 * s, -1 * s), 6 * s, scleraStroke);
+    final pupil = Paint()..color = p.ink;
+    canvas
+      ..drawCircle(Offset(-12 * s + dartX, -1 * s), 2.6 * s, pupil)
+      ..drawCircle(Offset(12 * s + dartX, -1 * s), 2.6 * s, pupil);
+  }
+
+  void _drawSweatDrop(Canvas canvas, double s, FacePalette p) {
+    // Single tear-shaped sweat drop bouncing on the right temple.
+    // Bobs up + down with a fast cycle so it reads "anxious".
+    final phase = (t / 0.55) % 1.0;
+    final bobY = math.sin(phase * math.pi) * -3.5;
+    final cx = 22 * s;
+    final cy = -10 * s + bobY * s;
+    final fill = Paint()..color = const Color(0xFF85B7EB);
+    final stroke = Paint()
+      ..color = const Color(0xFF4A86C2)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    final path = Path()
+      ..moveTo(cx, cy - 4 * s)
+      ..quadraticBezierTo(cx - 3 * s, cy + 1 * s, cx, cy + 4 * s)
+      ..quadraticBezierTo(cx + 3 * s, cy + 1 * s, cx, cy - 4 * s)
+      ..close();
+    canvas
+      ..drawPath(path, fill)
+      ..drawPath(path, stroke);
+  }
+
+  void _drawEyesPinchedShut(Canvas canvas, double s, FacePalette p) {
+    // Mask existing eyes, draw pinched-shut "X" shapes — eyes
+    // squeezed tight from peak emotional intensity.
+    final mask = Paint()..color = p.body;
+    canvas
+      ..drawCircle(Offset(-12 * s, 0), 8 * s, mask)
+      ..drawCircle(Offset(12 * s, 0), 8 * s, mask);
+    final ink = Paint()
+      ..color = p.ink
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.8
+      ..strokeCap = StrokeCap.round;
+    canvas
+      ..drawLine(Offset(-17 * s, -3 * s), Offset(-7 * s, 3 * s), ink)
+      ..drawLine(Offset(-17 * s, 3 * s), Offset(-7 * s, -3 * s), ink)
+      ..drawLine(Offset(7 * s, -3 * s), Offset(17 * s, 3 * s), ink)
+      ..drawLine(Offset(7 * s, 3 * s), Offset(17 * s, -3 * s), ink);
+  }
+
+  /// Per-mood "I really feel this!" particle. The big visual
+  /// hammer for the emote variant — readable from any distance.
+  void _drawMoodEmoteParticle(Canvas canvas, double s, FacePalette p) {
+    switch (mood) {
+      case FaceMood.stronglyDisagree:
+        _drawStreamingTears(canvas, s, p);
+      case FaceMood.disagree:
+        _drawExhaleCloud(canvas, s, p);
+      case FaceMood.notSure:
+        _drawQuestionMark(canvas, s, p);
+      case FaceMood.agree:
+        _drawFloatingHeart(canvas, s, p);
+      case FaceMood.stronglyAgree:
+        _drawTwinkleSparkles(canvas, s, p);
+    }
+  }
+
+  void _drawStreamingTears(Canvas canvas, double s, FacePalette p) {
+    // Two big tears streaming down both cheeks. The fall
+    // position is a looping `t` so the tears slide down then
+    // restart — sob loop.
+    final tearColor = p.tear ?? const Color(0xFF85B7EB);
+    final paint = Paint()..color = tearColor;
+    final stroke = Paint()
+      ..color = const Color(0xFF4A86C2)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    final fall = (t / 1.0) % 1.0;
+    final yShift = fall * 16 * s;
+    for (final side in <int>[-1, 1]) {
+      final cx = side * 13 * s;
+      final cy = 4 * s + yShift;
+      final path = Path()
+        ..moveTo(cx, cy - 5 * s)
+        ..quadraticBezierTo(cx - 3.5 * s, cy + 1 * s, cx, cy + 5 * s)
+        ..quadraticBezierTo(cx + 3.5 * s, cy + 1 * s, cx, cy - 5 * s)
+        ..close();
+      canvas
+        ..drawPath(path, paint)
+        ..drawPath(path, stroke);
+    }
+  }
+
+  void _drawExhaleCloud(Canvas canvas, double s, FacePalette p) {
+    // Three overlapping circles above the head — heavy exhale.
+    // Pulses size with a slow cycle so it reads as "huffing".
+    final pulse = 0.92 + math.sin((t / 0.85) * math.pi * 2) * 0.10;
+    final r = 5.5 * s * pulse;
+    final cy = -32 * s;
+    final fill = Paint()..color = const Color(0xFFE8F2F8);
+    final stroke = Paint()
+      ..color = const Color(0xFF8FB4D6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    final positions = <Offset>[
+      Offset(-7 * s, cy + 1 * s),
+      Offset(0, cy - 3 * s),
+      Offset(7 * s, cy + 1 * s),
+    ];
+    for (final pos in positions) {
+      canvas
+        ..drawCircle(pos, r, fill)
+        ..drawCircle(pos, r, stroke);
+    }
+  }
+
+  void _drawQuestionMark(Canvas canvas, double s, FacePalette p) {
+    // Bobbing question mark above the head.
+    final bob = math.sin((t / 1.1) * math.pi * 2) * 2.0 * s;
+    final cy = -28 * s + bob;
+    final ink = Paint()
+      ..color = p.ink
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.6
+      ..strokeCap = StrokeCap.round;
+    final fill = Paint()..color = p.ink;
+    final hook = Path()
+      ..moveTo(-3.5 * s, cy - 6 * s)
+      ..quadraticBezierTo(0, cy - 9.5 * s, 3.5 * s, cy - 6 * s)
+      ..quadraticBezierTo(5.5 * s, cy - 2 * s, 0, cy + 1.5 * s);
+    canvas
+      ..drawPath(hook, ink)
+      ..drawCircle(Offset(0, cy + 5.5 * s), 1.6 * s, fill);
+  }
+
+  void _drawFloatingHeart(Canvas canvas, double s, FacePalette p) {
+    // Single heart floating + pulsing above the head.
+    final pulse = 1.0 + math.sin((t / 0.55) * math.pi * 2) * 0.18;
+    final r = 6 * s * pulse;
+    final cy = -28 * s;
+    final fill = Paint()..color = const Color(0xFFE96D87);
+    final stroke = Paint()
+      ..color = const Color(0xFFC04559)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    final path = Path()
+      ..moveTo(0, cy + r * 0.55)
+      ..cubicTo(
+        -r * 1.1, cy - r * 0.4,
+        -r * 1.1, cy - r * 1.2,
+        0, cy - r * 0.35,
+      )
+      ..cubicTo(
+        r * 1.1, cy - r * 1.2,
+        r * 1.1, cy - r * 0.4,
+        0, cy + r * 0.55,
+      )
+      ..close();
+    canvas
+      ..drawPath(path, fill)
+      ..drawPath(path, stroke);
+  }
+
+  void _drawTwinkleSparkles(Canvas canvas, double s, FacePalette p) {
+    // Three sparkles orbiting the head — twinkle in/out as they
+    // rotate. Each sparkle is offset in time so they twinkle
+    // out of phase.
+    final color = p.sparkle ?? const Color(0xFFFFD66B);
+    for (var i = 0; i < 3; i++) {
+      final orbit = (t / 1.6) * math.pi * 2 + i * (math.pi * 2 / 3);
+      final orbitR = 24 * s;
+      final cx = math.cos(orbit) * orbitR;
+      final cy = math.sin(orbit) * orbitR - 6 * s;
+      final twinkle =
+          0.5 + math.sin((t / 0.45) * math.pi * 2 + i * 1.5) * 0.5;
+      _drawFourPointSparkle(
+        canvas,
+        Offset(cx, cy),
+        4.5 * s * twinkle,
+        color,
+      );
+    }
+  }
+
+  void _drawFourPointSparkle(
+    Canvas canvas,
+    Offset c,
+    double r,
+    Color color,
+  ) {
+    if (r < 0.5) return;
+    final paint = Paint()..color = color;
+    final p = Path()
+      ..moveTo(c.dx, c.dy - r)
+      ..lineTo(c.dx + r * 0.32, c.dy)
+      ..lineTo(c.dx, c.dy + r)
+      ..lineTo(c.dx - r * 0.32, c.dy)
+      ..close()
+      ..moveTo(c.dx - r, c.dy)
+      ..lineTo(c.dx, c.dy + r * 0.32)
+      ..lineTo(c.dx + r, c.dy)
+      ..lineTo(c.dx, c.dy - r * 0.32)
+      ..close();
+    canvas.drawPath(p, paint);
   }
 }
 
