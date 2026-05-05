@@ -491,68 +491,150 @@ class StampPanel extends StatelessWidget {
 // Basket ribbon
 // ═════════════════════════════════════════════════════════════════
 
-/// Gift-ribbon overlay drawn on top of the basket snapshot in
-/// the thank-you card. A horizontal teal band wraps across the
-/// upper portion of the basket; a tied bow sits on the left side.
-/// Soft gradient + a faint stitch line so it reads painterly
-/// rather than vector-perfect.
+/// Gift ribbon **wrapped around the basket** in the thank-you
+/// card. Visually composed of three pieces:
 ///
-/// The painter doesn't know anything about the basket below it —
-/// it just paints a ribbon at a fixed proportional position. The
-/// caller stacks this above the snapshot so the underlying
-/// basket + marbles stay visible.
+///   1. **Back tails** — short triangular ribbon ends that taper
+///      into the basket's left and right edges. They're painted
+///      slightly darker than the front band so they read as
+///      "going behind" the basket.
+///   2. **Front band** — the main horizontal band crossing the
+///      basket's body. Drawn AFTER the back tails so it visually
+///      sits in front of them at the seams.
+///   3. **Tied bow** — two loops + knot + trailing tails sitting
+///      on top of the front band, slightly off-centre.
+///
+/// The 3D illusion: a 2D image can't actually render the back of
+/// the basket, but the tapered + darkened ends imply continuity
+/// behind the silhouette. The eye fills in the rest.
+///
+/// The painter takes a [basketRect] (in local snapshot space)
+/// describing where the basket actually sits inside the snapshot
+/// — the ribbon is positioned and sized relative to that, not
+/// the whole frame. Defaults to a sensible placement assuming the
+/// basket fills the lower 75% of the snapshot.
 class BasketRibbonPainter extends CustomPainter {
   const BasketRibbonPainter({
+    this.basketRect,
     this.ribbonColor1 = const Color(0xFF5DCAA5),
     this.ribbonColor2 = const Color(0xFF3A9C7B),
   });
 
-  /// Top + bottom of the ribbon's gradient. Defaults to a teal
-  /// pair that pairs well with the parchment surface; can be
-  /// retuned per-card if needed.
+  /// Rectangle (in local snapshot coords) where the basket sits.
+  /// Null = use a default heuristic (lower 75% of the frame,
+  /// centred horizontally) which works for the standard
+  /// `BasketWorldWidget` snapshot composition.
+  final Rect? basketRect;
+
+  /// Top + bottom of the ribbon's gradient.
   final Color ribbonColor1;
   final Color ribbonColor2;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
+    final basket = basketRect ??
+        Rect.fromLTWH(
+          size.width * 0.18,
+          size.height * 0.20,
+          size.width * 0.64,
+          size.height * 0.70,
+        );
 
-    // Ribbon band — sits across the top quarter of the snapshot
-    // so it reads as wrapped around the basket's upper edge.
-    final bandHeight = h * 0.13;
-    final bandTop = h * 0.18;
-    final bandRect = Rect.fromLTWH(0, bandTop, w, bandHeight);
+    // Band sits across the upper third of the basket so it wraps
+    // the body, not the rim. The basket's woven "shoulder" is
+    // approximately at basketRect.top + basketRect.height * 0.25.
+    final bandHeight = (basket.height * 0.16).clamp(14.0, 36.0);
+    final bandTop =
+        basket.top + basket.height * 0.28 - bandHeight / 2;
+    final bandRect = Rect.fromLTWH(
+      basket.left,
+      bandTop,
+      basket.width,
+      bandHeight,
+    );
 
-    final bandPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [ribbonColor1, ribbonColor2],
-      ).createShader(bandRect);
-    canvas.drawRect(bandRect, bandPaint);
+    final bandShader = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [ribbonColor1, ribbonColor2],
+    ).createShader(bandRect);
 
-    // Faint stitching across the middle of the band.
+    // ── 1) Back tails ─────────────────────────────────────────
+    // Short triangular wedges that taper INTO the basket's outer
+    // edges, suggesting the ribbon continues around the back.
+    // Drawn FIRST so the front band visually overlaps them at
+    // the basket's silhouette line. Darker (lerped 30% toward
+    // black) so they read as "in shadow" / behind.
+    final dimmedShader = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [
+        Color.lerp(ribbonColor1, Colors.black, 0.30)!,
+        Color.lerp(ribbonColor2, Colors.black, 0.30)!,
+      ],
+    ).createShader(bandRect);
+    final tailPaint = Paint()..shader = dimmedShader;
+
+    // Left back tail — emerges from JUST inside the band's left
+    // edge, tucks rightward into the basket's silhouette. Width
+    // ≈ 12% of the band width so it's a believable "wraparound"
+    // visible-through-the-paint cue.
+    final leftTailWidth = bandRect.width * 0.12;
+    final leftTail = Path()
+      ..moveTo(bandRect.left, bandRect.top)
+      ..lineTo(bandRect.left - leftTailWidth, bandRect.top - 2)
+      ..lineTo(
+        bandRect.left - leftTailWidth * 0.85,
+        bandRect.bottom + 2,
+      )
+      ..lineTo(bandRect.left, bandRect.bottom)
+      ..close();
+    canvas.drawPath(leftTail, tailPaint);
+
+    // Right back tail (mirror).
+    final rightTailWidth = bandRect.width * 0.12;
+    final rightTail = Path()
+      ..moveTo(bandRect.right, bandRect.top)
+      ..lineTo(bandRect.right + rightTailWidth, bandRect.top - 2)
+      ..lineTo(
+        bandRect.right + rightTailWidth * 0.85,
+        bandRect.bottom + 2,
+      )
+      ..lineTo(bandRect.right, bandRect.bottom)
+      ..close();
+    canvas.drawPath(rightTail, tailPaint);
+
+    // ── 2) Front band ─────────────────────────────────────────
+    // Drawn ON TOP of the back tails so the seam reads as the
+    // ribbon coming from behind, around the front, going behind
+    // again on the other side.
+    canvas.drawRect(bandRect, Paint()..shader = bandShader);
+
+    // Faint stitch line along the centre — paint-stroke detail.
     canvas.drawLine(
-      Offset(0, bandRect.center.dy),
-      Offset(w, bandRect.center.dy),
+      Offset(bandRect.left, bandRect.center.dy),
+      Offset(bandRect.right, bandRect.center.dy),
       Paint()
         ..color = Colors.white.withValues(alpha: 0.35)
         ..strokeWidth = 1
         ..style = PaintingStyle.stroke,
     );
 
-    // Bow on the left side of the band — two loops + a knot +
-    // a pair of trailing tails.
+    // ── 3) Bow on the front band ──────────────────────────────
+    // Slightly off-centre (35% from the left) so it doesn't
+    // perfectly bisect the basket — feels more hand-tied.
     _paintBow(
       canvas,
-      Offset(w * 0.30, bandRect.center.dy),
+      Offset(
+        bandRect.left + bandRect.width * 0.35,
+        bandRect.center.dy,
+      ),
       bandHeight,
     );
   }
 
   void _paintBow(Canvas canvas, Offset c, double bandH) {
-    final loopR = bandH * 0.85;
+    final loopR = bandH * 0.95;
     final paint = Paint()
       ..shader = LinearGradient(
         colors: [ribbonColor1, ribbonColor2],
@@ -585,10 +667,9 @@ class BasketRibbonPainter extends CustomPainter {
     canvas
       ..drawPath(left, paint)
       ..drawPath(right, paint)
-      // Centre knot.
-      ..drawCircle(c, loopR * 0.42, paint);
+      ..drawCircle(c, loopR * 0.42, paint); // centre knot
 
-    // Two trailing tails dangling below.
+    // Two trailing tails dangling below the knot.
     final tail1 = Path()
       ..moveTo(c.dx - loopR * 0.32, c.dy + loopR * 0.18)
       ..lineTo(c.dx - loopR * 0.55, c.dy + loopR * 1.6)
@@ -606,6 +687,7 @@ class BasketRibbonPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant BasketRibbonPainter old) =>
+      old.basketRect != basketRect ||
       old.ribbonColor1 != ribbonColor1 ||
       old.ribbonColor2 != ribbonColor2;
 }

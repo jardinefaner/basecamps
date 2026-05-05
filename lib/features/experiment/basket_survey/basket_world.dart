@@ -36,7 +36,7 @@ class BasketGeometry {
   static const double worldW = 320;
   static const double worldH = 240;
 
-  /// Top opening (rim).
+  /// Top opening (rim) — the visual edge of the woven body.
   static const double rimY = 50;
   static const double leftRimX = 54;
   static const double rightRimX = 266;
@@ -59,15 +59,40 @@ class BasketGeometry {
   /// Marble radius (must match the painter's r).
   static const double marbleR = 33;
 
-  /// How many marbles fit comfortably inside before overspill.
-  static const int basketCapacity = 6;
+  /// How many marbles can pile up inside the basket before the
+  /// next spawn redirects to overspill. The capacity is larger
+  /// than what the visible body holds (~6) on purpose — marbles
+  /// 7–10 pile ABOVE the rim, "spilling over the edge" of the
+  /// basket. The [physicsWallTopY] extension (below) gives them
+  /// lateral support so they don't just roll off. Marble #11
+  /// onward goes to the overspill (ground) zone.
+  static const int basketCapacity = 10;
 
-  /// Left wall of the basket as a line segment (rim → base).
-  static const Offset leftWallTop = Offset(leftRimX, rimY);
+  /// Y-coordinate of the **physics-only** wall top. The visible
+  /// woven body still ends at [rimY]; we extend the collision
+  /// walls up to here so marbles piling above the rim have
+  /// something to lean against. Kids see marbles peeking over
+  /// the basket edge naturally without rolling off the sides.
+  static const double physicsWallTopY = 10;
+
+  /// Left wall of the basket as a line segment. The visible
+  /// woven body ends at [rimY] but the collision wall reaches
+  /// up to [physicsWallTopY]. We linearly extrapolate the wall
+  /// slope so the over-rim section keeps the same outward taper
+  /// as the body — a marble piling above is leaning against the
+  /// same imaginary line, just higher.
+  ///
+  ///   slope = (leftRimX - leftBaseX) / (basketFloorY - rimY)
+  ///         = (54 - 76) / (218 - 50) = -0.131
+  ///   x at physicsWallTopY = leftRimX - slope * (rimY - physicsWallTopY)
+  ///                         = 54 - (-0.131) * 40
+  ///                         ≈ 48.76
+  static const Offset leftWallTop = Offset(48.76, physicsWallTopY);
   static const Offset leftWallBottom = Offset(leftBaseX, basketFloorY);
 
-  /// Right wall of the basket as a line segment (rim → base).
-  static const Offset rightWallTop = Offset(rightRimX, rimY);
+  /// Right wall (mirror).
+  ///   x at physicsWallTopY = 266 + 0.131 * 40 ≈ 271.24
+  static const Offset rightWallTop = Offset(271.24, physicsWallTopY);
   static const Offset rightWallBottom = Offset(rightBaseX, basketFloorY);
 }
 
@@ -289,23 +314,44 @@ class BasketWorld {
   }
 
   MarbleBody _spawnOverspill(FaceMood mood, {FacePalette? palette}) {
-    // Cycle through 4 spawn slots (front, right, left, front-far)
-    // so the floor pile fans out instead of stacking on one spot.
-    final overspillIndex = marbles
-        .where((m) => m.zone == MarbleZone.ground)
-        .length;
-    final slot = overspillIndex % 4;
-    final vx = switch (slot) {
-      0 => (_rng.nextDouble() - 0.5) * 40,
-      1 => 80 + _rng.nextDouble() * 40,
-      2 => -(80 + _rng.nextDouble() * 40),
-      _ => 60 + _rng.nextDouble() * 40,
-    };
+    // True random placement around the basket — no fixed cycling.
+    // Pick one of three zones (left of basket, right of basket,
+    // or front-center on the floor), then a random x within that
+    // zone. Front-center is weighted slightly higher because the
+    // camera is there and that's where the eye reads "around the
+    // basket" most naturally. Marble-marble collision (already in
+    // place) handles overlap, so even if two random spawns land
+    // at the same x they get shoved apart on the way down — no
+    // pyramid stacking on the same column.
+    const r = BasketGeometry.marbleR;
+    final zoneRoll = _rng.nextDouble();
+    final double spawnX;
+    final double vx;
+    if (zoneRoll < 0.30) {
+      // Left of basket: x ∈ [r, leftRimX - r * 0.5]. Lateral
+      // velocity outward (negative) so the marble arcs away from
+      // the rim before falling.
+      spawnX = r + _rng.nextDouble() *
+          (BasketGeometry.leftRimX - r * 1.5);
+      vx = -40 - _rng.nextDouble() * 60;
+    } else if (zoneRoll < 0.60) {
+      // Right of basket: x ∈ [rightRimX + r * 0.5, worldW - r].
+      spawnX = BasketGeometry.rightRimX + r * 0.5 +
+          _rng.nextDouble() *
+              (BasketGeometry.worldW - BasketGeometry.rightRimX - r * 1.5);
+      vx = 40 + _rng.nextDouble() * 60;
+    } else {
+      // Front-center floor: x ∈ [60, 260]. Small lateral velocity
+      // (±25 px/s) so consecutive front-zone spawns don't trace
+      // identical paths.
+      spawnX = 60.0 + _rng.nextDouble() * 200;
+      vx = (_rng.nextDouble() - 0.5) * 50;
+    }
     return MarbleBody(
       mood: mood,
       palette: palette,
-      position: Offset(BasketGeometry.worldW / 2, BasketGeometry.rimY - 6),
-      velocity: Offset(vx, 120 + _rng.nextDouble() * 40),
+      position: Offset(spawnX, BasketGeometry.rimY - 8),
+      velocity: Offset(vx, 100 + _rng.nextDouble() * 60),
       seed: marbles.length,
       variant: MarbleVariant.values[_rng.nextInt(4)],
       tOffset: _rng.nextDouble() * 6.28,
