@@ -2216,7 +2216,7 @@ class FacePainter {
       case MarbleVariant.breathing:
         _drawEyesClosedCrescents(canvas, s, p);
       case MarbleVariant.fidget:
-        _drawEyesWideDartingOverlay(canvas, s, p);
+        _drawEyesGentleGaze(canvas, s, p);
         _drawSweatDrop(canvas, s, p);
       case MarbleVariant.emote:
         _drawEyesPinchedShut(canvas, s, p);
@@ -2247,34 +2247,22 @@ class FacePainter {
       ..drawPath(right, ink);
   }
 
-  void _drawEyesWideDartingOverlay(
-    Canvas canvas,
-    double s,
-    FacePalette p,
-  ) {
-    // Slow curious glance left-right. Earlier version darted at
-    // 2.5Hz which read as "terrified / paranoid" — bad for kids.
-    // Now 0.67Hz (1.5s period) with smaller amplitude — the
-    // marble looks like it's slowly looking around the room.
+  void _drawEyesGentleGaze(Canvas canvas, double s, FacePalette p) {
+    // Simple emoji-style filled dots — matches the look of 🙂
+    // and 😐. NO white sclera + small pupil (that paired
+    // sclera+pupil-dart combination read as scary/uncanny to
+    // kids — like a hyper-attentive doll). Two flat ink dots
+    // that drift slowly left-right so the marble appears to be
+    // gently looking around the room.
     final mask = Paint()..color = p.body;
     canvas
       ..drawCircle(Offset(-12 * s, 0), 8 * s, mask)
       ..drawCircle(Offset(12 * s, 0), 8 * s, mask);
-    final dartX = math.sin((t / 1.5) * math.pi * 2) * 1.2 * s;
-    final sclera = Paint()..color = const Color(0xFFF8F8F8);
-    final scleraStroke = Paint()
-      ..color = p.ink
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4;
+    final dx = math.sin((t / 1.8) * math.pi * 2) * 1.0 * s;
+    final fill = Paint()..color = p.ink;
     canvas
-      ..drawCircle(Offset(-12 * s, -1 * s), 6 * s, sclera)
-      ..drawCircle(Offset(-12 * s, -1 * s), 6 * s, scleraStroke)
-      ..drawCircle(Offset(12 * s, -1 * s), 6 * s, sclera)
-      ..drawCircle(Offset(12 * s, -1 * s), 6 * s, scleraStroke);
-    final pupil = Paint()..color = p.ink;
-    canvas
-      ..drawCircle(Offset(-12 * s + dartX, -1 * s), 2.6 * s, pupil)
-      ..drawCircle(Offset(12 * s + dartX, -1 * s), 2.6 * s, pupil);
+      ..drawCircle(Offset(-12 * s + dx, 0), 2.6 * s, fill)
+      ..drawCircle(Offset(12 * s + dx, 0), 2.6 * s, fill);
   }
 
   void _drawSweatDrop(Canvas canvas, double s, FacePalette p) {
