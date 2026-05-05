@@ -9,6 +9,7 @@
 
 import 'dart:async';
 
+import 'package:basecamp/features/surveys/canonical_questions.dart';
 import 'package:basecamp/features/surveys/survey_audio_service.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
 import 'package:basecamp/features/surveys/survey_repository.dart';
@@ -61,6 +62,12 @@ class _SurveySetupScreenState extends ConsumerState<SurveySetupScreen> {
         audioMode: _audioMode,
         voice: _voice,
         style: _style,
+        // Pick the right canonical question list for the cohort.
+        // TK-G3 → 3-point; G4-G6 → 5-point + the SEL section.
+        // Frozen onto the survey row's questionsJson at create
+        // time, so any later edit to the canonical lists doesn't
+        // disturb in-flight surveys.
+        questions: canonicalQuestionsForBand(_ageBand),
       );
       // Pre-warm the audio cache so the kiosk doesn't pause on the
       // first question while it fetches an MP3. Best-effort —

@@ -9,18 +9,39 @@
 
 import 'dart:convert';
 
-/// 5-band age tag — TK through 3rd grade. Drives default question
-/// wording + UI sizing. Stored as a short code in the DB.
+/// Age tag — TK through 6th grade. Drives WHICH canonical
+/// question list the survey uses (TK-3 vs 4-6) and the default
+/// scale of each Likert question. Stored as a short code in the
+/// DB.
 enum SurveyAgeBand {
   tk('tk', 'TK'),
   k('k', 'Kindergarten'),
   g1('g1', '1st grade'),
   g2('g2', '2nd grade'),
-  g3('g3', '3rd grade');
+  g3('g3', '3rd grade'),
+  g4('g4', '4th grade'),
+  g5('g5', '5th grade'),
+  g6('g6', '6th grade');
 
   const SurveyAgeBand(this.code, this.label);
   final String code;
   final String label;
+
+  /// `true` for the TK→G3 cohort which uses the 3-point scale
+  /// canonical question set.
+  bool get isYoungerCohort => switch (this) {
+        SurveyAgeBand.tk ||
+        SurveyAgeBand.k ||
+        SurveyAgeBand.g1 ||
+        SurveyAgeBand.g2 ||
+        SurveyAgeBand.g3 =>
+          true,
+        _ => false,
+      };
+
+  /// `true` for the G4→G6 cohort which uses the 5-point scale
+  /// canonical question set + the SEL "describes me" section.
+  bool get isOlderCohort => !isYoungerCohort;
 
   static SurveyAgeBand fromCode(String code) {
     return SurveyAgeBand.values.firstWhere(
@@ -94,6 +115,80 @@ enum SurveyVoice {
 
 enum VoiceGender { female, male }
 
+/// Likert scale variant for a single mood question. Bundles the
+/// choice count + the captions printed under each thumb on the
+/// kid-facing kiosk. Kept on the question (not the survey) so a
+/// single survey can mix scales — e.g. the 4-6 paper uses
+/// `fivePtNotGood` for practice 1 ("How are you feeling"),
+/// `fivePtAgree` for the main Likert, and `fivePtLikeMe` for
+/// the SEL "describes me" section.
+///
+/// The `count` is what the kiosk uses to decide how many faces
+/// to spawn. The `labels` are reference strings — the kiosk's
+/// painted faces don't render them today, but they're saved on
+/// the question for later display + for the print card / CSV
+/// export to use as column headers.
+enum SurveyScale {
+  /// 3-point "How are you feeling" — TK-3 practice 1.
+  threePtNotGreat(
+    3,
+    <String>['Not great', 'Okay', 'Great!'],
+  ),
+
+  /// 3-point agreement — TK-3 default for every other Likert.
+  threePtAgree(
+    3,
+    <String>['Disagree', 'Kind of agree', 'Agree!'],
+  ),
+
+  /// 5-point "How are you feeling" — 4-6 practice 1.
+  fivePtNotGood(
+    5,
+    <String>['Really not good', 'Not good', 'OK', 'Good', 'Great!'],
+  ),
+
+  /// 5-point agreement — 4-6 default for the main Likert questions.
+  fivePtAgree(
+    5,
+    <String>[
+      'Strongly disagree',
+      'Disagree',
+      'Kind of agree',
+      'Agree',
+      'Strongly agree',
+    ],
+  ),
+
+  /// 5-point "describes me" — 4-6 practice 3 + the SEL section.
+  fivePtLikeMe(
+    5,
+    <String>[
+      'Not like me',
+      'A little like me',
+      'Somewhat like me',
+      'Mostly like me',
+      'Exactly like me',
+    ],
+  );
+
+  const SurveyScale(this.count, this.labels);
+
+  /// 3 or 5 — number of options on the scale.
+  final int count;
+
+  /// Captions, one per option, in negative → positive order.
+  final List<String> labels;
+
+  String get code => name;
+
+  static SurveyScale fromCode(String code) {
+    return SurveyScale.values.firstWhere(
+      (s) => s.code == code,
+      orElse: () => SurveyScale.threePtAgree,
+    );
+  }
+}
+
 /// Which kiosk UI the children see when running the survey. Both
 /// styles share canonical questions + the same `survey_responses`
 /// write path; only the kid-facing surface differs.
@@ -149,7 +244,7 @@ enum SurveyQuestionType {
   }
 }
 
-/// One question in a survey. Mood questions just need a prompt;
+/// One question in a survey. Mood questions carry a `scale`;
 /// multi-select carries `options`; open-ended just shows the
 /// prompt + the mic.
 class SurveyQuestion {
@@ -159,7 +254,7 @@ class SurveyQuestion {
     required this.prompt,
     this.options = const <SurveyActivityOption>[],
     this.isPractice = false,
-    this.choiceCount = 3,
+    this.scale = SurveyScale.threePtAgree,
   });
 
   final String id;
@@ -169,17 +264,21 @@ class SurveyQuestion {
   /// For `multiSelect` only — the activity options shown as cards.
   final List<SurveyActivityOption> options;
 
-  /// `true` for the 2 warm-up questions at the start. Saved with
-  /// the response so the CSV export can hide them by default.
+  /// `true` for the warm-up questions at the start. Saved with the
+  /// response so the CSV export can hide them by default.
   final bool isPractice;
 
-  /// For mood questions only — how many face options the kid sees.
-  /// **3** = `{stronglyDisagree, notSure, stronglyAgree}` (the
-  /// BASECamp 3-point default). **5** = the full Likert palette
-  /// `{stronglyDisagree, disagree, notSure, agree, stronglyAgree}`.
-  /// The basket-survey experiment respects this; the marble kiosk
-  /// uses a fixed 3.
-  final int choiceCount;
+  /// Likert scale variant for mood questions. Drives both the
+  /// number of choices spawned in the kiosk and the printable
+  /// caption labels (Disagree / Strongly Disagree / Not like me /
+  /// etc). 4-6 surveys mix multiple scales within a single run
+  /// (mood + agree + describes-me) so this lives on the
+  /// question, not the survey.
+  final SurveyScale scale;
+
+  /// Backwards-compat shortcut. New code should read [scale.count]
+  /// directly.
+  int get choiceCount => scale.count;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
         'id': id,
@@ -188,7 +287,9 @@ class SurveyQuestion {
         if (options.isNotEmpty)
           'options': options.map((o) => o.toJson()).toList(),
         if (isPractice) 'isPractice': true,
-        if (choiceCount != 3) 'choiceCount': choiceCount,
+        // Only emit when non-default to keep older JSON parsers
+        // (and existing surveys' questionsJson) happy.
+        if (scale != SurveyScale.threePtAgree) 'scale': scale.code,
       };
 
   // We keep `fromJson` as a static helper instead of a named ctor
@@ -196,6 +297,18 @@ class SurveyQuestion {
   // ctor's positional/named-arg shape cleanly here.
   // ignore: prefer_constructors_over_static_methods
   static SurveyQuestion fromJson(Map<String, dynamic> json) {
+    // `scale` is the new field. For older payloads that still
+    // carry the legacy `choiceCount` int, infer the scale: 5
+    // → fivePtAgree, anything else → threePtAgree.
+    SurveyScale scale;
+    if (json.containsKey('scale')) {
+      scale = SurveyScale.fromCode(json['scale'] as String);
+    } else {
+      final legacyCount = json['choiceCount'] as int? ?? 3;
+      scale = legacyCount == 5
+          ? SurveyScale.fivePtAgree
+          : SurveyScale.threePtAgree;
+    }
     return SurveyQuestion(
       id: json['id'] as String,
       type: SurveyQuestionType.fromCode(json['type'] as String),
@@ -206,7 +319,7 @@ class SurveyQuestion {
           )
           .toList(),
       isPractice: (json['isPractice'] as bool?) ?? false,
-      choiceCount: (json['choiceCount'] as int?) ?? 3,
+      scale: scale,
     );
   }
 }
