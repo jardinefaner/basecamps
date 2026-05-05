@@ -35,8 +35,12 @@ import 'package:basecamp/features/roles/roles_screen.dart';
 import 'package:basecamp/features/rooms/rooms_screen.dart';
 import 'package:basecamp/features/schedule/schedule_editor_screen.dart';
 import 'package:basecamp/features/settings/program_settings_screen.dart';
+import 'package:basecamp/features/prints/print_detail_screen.dart';
+import 'package:basecamp/features/prints/prints_screen.dart';
 import 'package:basecamp/features/setup/setup_hub_screen.dart';
 import 'package:basecamp/features/surveys/survey_list_screen.dart';
+import 'package:basecamp/features/surveys/survey_models.dart';
+import 'package:basecamp/features/surveys/survey_repository.dart';
 import 'package:basecamp/features/surveys/survey_results_screen.dart';
 import 'package:basecamp/features/surveys/survey_setup_screen.dart';
 import 'package:basecamp/features/sync/sync_audit_screen.dart';
@@ -473,15 +477,34 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: 'play',
-                builder: (_, state) => SurveyScreen(
-                  surveyId: state.pathParameters['id'],
-                  // Optional ?resume=<sessionId> — when present,
-                  // the kiosk re-opens that session and continues
-                  // from the first unanswered question.
+                // Polymorphic kiosk dispatch — reads
+                // `survey.style` and renders the matching kiosk
+                // screen. Both styles take the same params
+                // (surveyId, resumeSessionId) and write to the
+                // same `survey_responses` table; only the kid-
+                // facing UI differs.
+                builder: (_, state) => _SurveyKioskHost(
+                  surveyId: state.pathParameters['id']!,
                   resumeSessionId: state.uri.queryParameters['resume'],
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+      // Prints — saved keepsake-card prints from any survey
+      // kiosk's thank-you screen. Decouples capture from
+      // printing: kids run surveys all day; an adult sweeps the
+      // /prints tab and prints them in a batch later.
+      GoRoute(
+        path: '/prints',
+        builder: (_, _) => const PrintsScreen(),
+        routes: [
+          GoRoute(
+            path: ':id',
+            builder: (_, state) => PrintDetailScreen(
+              printId: state.pathParameters['id']!,
+            ),
           ),
         ],
       ),
@@ -589,3 +612,55 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+/// Polymorphic survey-kiosk host. Reads the survey's [SurveyStyle]
+/// asynchronously and dispatches to the matching concrete kiosk
+/// screen. Both styles take the same params (surveyId,
+/// resumeSessionId) and produce the same effects (responses to
+/// `survey_responses`, prints to `/prints`); the only difference
+/// is the kid-facing UI.
+class _SurveyKioskHost extends ConsumerWidget {
+  const _SurveyKioskHost({
+    required this.surveyId,
+    this.resumeSessionId,
+  });
+
+  final String surveyId;
+  final String? resumeSessionId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncSurvey = ref.watch(surveyByIdProvider(surveyId));
+    return asyncSurvey.when(
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => Scaffold(
+        appBar: AppBar(title: const Text('Survey')),
+        body: Center(child: Text('Could not load: $e')),
+      ),
+      data: (survey) {
+        if (survey == null) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Survey')),
+            body: const Center(
+              child: Text('This survey has been deleted.'),
+            ),
+          );
+        }
+        switch (survey.style) {
+          case SurveyStyle.marbleJar:
+            return SurveyScreen(
+              surveyId: surveyId,
+              resumeSessionId: resumeSessionId,
+            );
+          case SurveyStyle.basket:
+            return BasketSurveyScreen(
+              surveyId: surveyId,
+              resumeSessionId: resumeSessionId,
+            );
+        }
+      },
+    );
+  }
+}

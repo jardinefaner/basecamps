@@ -71,6 +71,7 @@ QueryExecutor _openConnection() {
     Surveys,
     SurveySessions,
     SurveyResponses,
+    Prints,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -79,7 +80,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 59;
+  int get schemaVersion => 60;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -119,6 +120,7 @@ class AppDatabase extends _$AppDatabase {
           await _healV57MonthlyActivitySpanColumns();
           await _healV58MonthlyActivityAddonsColumn();
           await _healV59SurveyTables();
+          await _healV60SurveyStyleAndPrints();
           await _healDirtyFieldsColumns();
         },
         onCreate: (m) => m.createAll(),
@@ -138,6 +140,24 @@ class AppDatabase extends _$AppDatabase {
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
             );
+          }
+          if (from < 60) {
+            // v60: surveys.style column + new `prints` table.
+            //   * style — kiosk style discriminator
+            //     ('marble_jar' or 'basket'); default 'marble_jar'
+            //     so existing surveys keep rendering the original
+            //     Flame chibi UI.
+            //   * prints — saved keepsake-card prints, queued
+            //     locally for batch printing later from /prints.
+            // Cloud parity: not synced yet (snapshots are
+            // per-device files); when sync lands we'll mirror via
+            // a new migration + lift the snapshotPath into a
+            // Supabase storage URL.
+            await _runSilent(
+              'ALTER TABLE "surveys" ADD COLUMN "style" TEXT NOT NULL '
+              "DEFAULT 'marble_jar'",
+            );
+            await _healV60SurveyStyleAndPrints();
           }
           if (from < 58) {
             // v58: persisted AI add-ons on monthly activities.
@@ -1696,6 +1716,36 @@ class AppDatabase extends _$AppDatabase {
       '"is_practice" INTEGER NOT NULL DEFAULT 0, '
       '"created_at" INTEGER NOT NULL '
       "DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000), "
+      'PRIMARY KEY ("id"))',
+    );
+  }
+
+  /// v60 — surveys.style column + new `prints` table. Same
+  /// CREATE-TABLE-IF-NOT-EXISTS / safe-ALTER pattern as the v59
+  /// heal so a partial upgrade self-heals on next launch.
+  Future<void> _healV60SurveyStyleAndPrints() async {
+    // Add the `style` column to surveys if it's missing. SQLite
+    // doesn't have a built-in IF NOT EXISTS clause for ADD COLUMN,
+    // so we wrap in `_runSilent` which swallows the duplicate-
+    // column error.
+    await _runSilent(
+      'ALTER TABLE "surveys" ADD COLUMN "style" TEXT NOT NULL '
+      "DEFAULT 'marble_jar'",
+    );
+    await _runSilent(
+      'CREATE TABLE IF NOT EXISTS "prints" '
+      '("id" TEXT NOT NULL, '
+      '"survey_id" TEXT NULL, '
+      '"session_id" TEXT NULL, '
+      '"child_name" TEXT NOT NULL DEFAULT \'\', '
+      '"kind" TEXT NOT NULL, '
+      '"snapshot_path" TEXT NOT NULL, '
+      '"metadata_json" TEXT NULL, '
+      '"created_at" INTEGER NOT NULL '
+      "DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000), "
+      '"updated_at" INTEGER NOT NULL '
+      "DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000), "
+      '"deleted_at" INTEGER NULL, '
       'PRIMARY KEY ("id"))',
     );
   }

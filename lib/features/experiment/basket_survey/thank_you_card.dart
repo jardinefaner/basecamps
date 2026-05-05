@@ -1,4 +1,4 @@
-// End-of-survey thank-you card for the basket-survey experiment.
+// End-of-survey thank-you card for the basket-survey kiosk.
 // Editorial paper-craft layout — parchment surface with grain,
 // stamped print card framed by the signature offset-shadow border,
 // italic-serif headline, name input + thank-you copy, and the
@@ -11,22 +11,23 @@
 // looked just before the kid finished. The card freezes that
 // moment.
 //
-// Print My Jar runs the snapshot through the `printing` package,
-// generating a PDF that mirrors the on-screen card. The button
-// + chrome live OUTSIDE the captured RepaintBoundary so the
-// printed output is the card alone — that's the Flutter
-// equivalent of `@media print` rules in a CSS deploy.
+// **Save flow** — the card now SAVES to the Prints tab instead
+// of immediately printing. Tapping "Save to Prints" captures the
+// inner card, writes it to `<docs>/prints/<id>.png`, inserts a
+// `prints` row, and confirms with a toast. Adults batch-print
+// later from the /prints screen. This decouples device-to-paper
+// — kids can run surveys all day; printing happens when an adult
+// is at a printer.
 
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:basecamp/features/experiment/basket_survey/thank_you_card_helpers.dart';
+import 'package:basecamp/features/prints/prints_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 /// Parchment + ink colors mirror the design reference.
 const Color _parchment = Color(0xFFF2EDE4);
@@ -44,13 +45,15 @@ String _academicYear({DateTime? now}) {
 
 /// Full-screen thank-you overlay shown when the basket-survey
 /// completes. The kid sees their basket frozen in time inside an
-/// editorial print card; can type their name, tap Print My Jar,
-/// or pass the device on to the next friend.
-class BasketThankYouCard extends StatefulWidget {
+/// editorial print card; can type their name, tap Save to
+/// Prints, or pass the device on to the next friend.
+class BasketThankYouCard extends ConsumerStatefulWidget {
   const BasketThankYouCard({
     required this.basketSnapshot,
     required this.onPassAlong,
     super.key,
+    this.surveyId,
+    this.sessionId,
   });
 
   /// PNG of the BasketWorldWidget captured at end-of-survey. Null
@@ -58,19 +61,27 @@ class BasketThankYouCard extends StatefulWidget {
   /// kid still sees a card even if the capture failed.
   final Uint8List? basketSnapshot;
 
+  /// FK references for the saved print. Both are optional —
+  /// sandbox runs (no real Survey) save with both null and the
+  /// print still appears in the /prints list.
+  final String? surveyId;
+  final String? sessionId;
+
   /// Called when the kid / teacher dismisses the card. The
   /// basket-survey screen wires this to its
   /// `_resetForNextChild` flow.
   final VoidCallback onPassAlong;
 
   @override
-  State<BasketThankYouCard> createState() => _BasketThankYouCardState();
+  ConsumerState<BasketThankYouCard> createState() =>
+      _BasketThankYouCardState();
 }
 
-class _BasketThankYouCardState extends State<BasketThankYouCard> {
+class _BasketThankYouCardState extends ConsumerState<BasketThankYouCard> {
   final TextEditingController _name = TextEditingController();
   final GlobalKey _printAreaKey = GlobalKey();
-  bool _printing = false;
+  bool _saving = false;
+  bool _saved = false;
 
   @override
   void dispose() {
@@ -78,33 +89,39 @@ class _BasketThankYouCardState extends State<BasketThankYouCard> {
     super.dispose();
   }
 
-  Future<void> _onPrint() async {
-    if (_printing) return;
-    setState(() => _printing = true);
+  Future<void> _onSave() async {
+    if (_saving || _saved) return;
+    setState(() => _saving = true);
     try {
       final png = await _captureCard();
-      final fileName = _printFileName();
-      await Printing.layoutPdf(
-        name: fileName,
-        onLayout: (format) async => _buildPdf(format, png),
+      final repo = ref.read(printsRepositoryProvider);
+      await repo.save(
+        snapshot: png,
+        kind: PrintKind.feelingsBasket,
+        surveyId: widget.surveyId,
+        sessionId: widget.sessionId,
+        childName: _name.text.trim(),
+        metadata: <String, dynamic>{
+          'year': _academicYear(),
+        },
+      );
+      if (!mounted) return;
+      setState(() => _saved = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Saved to Prints. Print it later from the Prints tab.'),
+          duration: Duration(seconds: 4),
+        ),
       );
     } on Object catch (e, st) {
-      debugPrint('[basket-survey-print] failed: $e\n$st');
+      debugPrint('[basket-survey-save] failed: $e\n$st');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not print: $e')),
+        SnackBar(content: Text('Could not save print: $e')),
       );
     } finally {
-      if (mounted) setState(() => _printing = false);
+      if (mounted) setState(() => _saving = false);
     }
-  }
-
-  String _printFileName() {
-    final name = _name.text.trim();
-    final slug = name.isEmpty
-        ? 'jar'
-        : name.replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '-').toLowerCase();
-    return 'BASECamp Feelings Jar — $slug';
   }
 
   /// Capture the print area at 3× pixel ratio so the embedded
@@ -116,19 +133,6 @@ class _BasketThankYouCardState extends State<BasketThankYouCard> {
     final image = await boundary.toImage(pixelRatio: 3);
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     return bytes!.buffer.asUint8List();
-  }
-
-  Future<Uint8List> _buildPdf(PdfPageFormat format, Uint8List png) async {
-    final doc = pw.Document();
-    final image = pw.MemoryImage(png);
-    doc.addPage(
-      pw.Page(
-        pageFormat: format,
-        margin: const pw.EdgeInsets.all(28),
-        build: (ctx) => pw.Center(child: pw.Image(image)),
-      ),
-    );
-    return doc.save();
   }
 
   @override
@@ -247,8 +251,13 @@ class _BasketThankYouCardState extends State<BasketThankYouCard> {
                     const SizedBox(height: 22),
 
                     // ——— Action buttons (outside the print area) —
+                    // "Save to Prints" instead of inline print —
+                    // the saved card lands in /prints for batch
+                    // printing later from a single device. After
+                    // save the button flips to a "Saved" state
+                    // (disabled, check icon).
                     StampPanel(
-                      onTap: _printing ? null : _onPrint,
+                      onTap: _saving || _saved ? null : _onSave,
                       selected: true,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
@@ -258,7 +267,7 @@ class _BasketThankYouCardState extends State<BasketThankYouCard> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (_printing)
+                            if (_saving)
                               const SizedBox(
                                 width: 16,
                                 height: 16,
@@ -270,14 +279,20 @@ class _BasketThankYouCardState extends State<BasketThankYouCard> {
                                 ),
                               )
                             else
-                              const Icon(
-                                Icons.print_outlined,
+                              Icon(
+                                _saved
+                                    ? Icons.check_circle_outline
+                                    : Icons.bookmark_add_outlined,
                                 color: _parchment,
                                 size: 18,
                               ),
                             const SizedBox(width: 10),
                             Text(
-                              _printing ? 'Preparing…' : 'Print My Jar',
+                              _saving
+                                  ? 'Saving…'
+                                  : _saved
+                                      ? 'Saved to Prints'
+                                      : 'Save to Prints',
                               style: serifBody.copyWith(
                                 fontSize: 15,
                                 color: _parchment,

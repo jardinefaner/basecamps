@@ -66,6 +66,7 @@ class SurveyRepository {
     required String pinDigits,
     required SurveyAudioMode audioMode,
     required SurveyVoice voice,
+    SurveyStyle style = SurveyStyle.marbleJar,
     List<SurveyQuestion>? questions,
   }) async {
     final id = newId();
@@ -79,6 +80,7 @@ class SurveyRepository {
       pinHash: _hashPin(pinDigits, id),
       audioMode: audioMode,
       voice: voice,
+      style: style,
       questions: qs,
       createdAt: now,
       updatedAt: now,
@@ -324,6 +326,7 @@ class SurveyRepository {
       pinHash: row.pinHash,
       audioMode: SurveyAudioMode.fromCode(row.audioMode),
       voice: SurveyVoice.fromCode(row.voiceId),
+      style: SurveyStyle.fromCode(row.style),
       questions: SurveyConfig.parseQuestions(row.questionsJson),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
@@ -338,6 +341,7 @@ class SurveyRepository {
         pinHash: Value(config.pinHash),
         audioMode: Value(config.audioMode.code),
         voiceId: Value(config.voice.code),
+        style: Value(config.style.code),
         questionsJson: Value(config.questionsJson()),
         createdAt: Value(config.createdAt),
         updatedAt: Value(config.updatedAt),

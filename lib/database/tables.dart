@@ -1746,6 +1746,17 @@ class Surveys extends Table {
   TextColumn get voiceId =>
       text().withDefault(const Constant('asteria'))();
 
+  /// **Kiosk style** — which UI the children see when running the
+  /// survey. Both styles share canonical questions + the same
+  /// `survey_responses` write path; only the UI differs.
+  ///
+  ///   'marble_jar' — Flame chibi + 5-face marbles + 3D mason jar
+  ///   'basket'     — thumb-up scale + woven basket physics pile
+  ///
+  /// Default 'marble_jar' so existing rows stay compatible.
+  TextColumn get style =>
+      text().withDefault(const Constant('marble_jar'))();
+
   /// Question list as JSON array. Each entry has id / type / prompt
   /// / options / isPractice fields. JSON-blob keeps the migration
   /// simple — we don't need to query individual questions.
@@ -1839,4 +1850,68 @@ class SurveyResponses extends Table {
 
   @override
   String? get tableName => 'survey_responses';
+}
+
+/// v60 — Saved keepsake-card prints from any survey kiosk. The
+/// thank-you card at end-of-session captures itself to a PNG and
+/// drops a row here; the Prints tab lists every saved keepsake
+/// and lets a teacher print them later in a batch from a single
+/// device.
+///
+/// Local-only for now (no `programId`) because the snapshot file
+/// path is per-device. Sync support can be added later by
+/// uploading the PNG to Supabase storage and putting a URL in
+/// `snapshotPath`.
+///
+/// `kind` is the polymorphism dimension — both kiosk styles
+/// (marble jar + basket) write to the SAME table; the kind
+/// distinguishes them. The list / detail screens render the
+/// preview based on this; the print pipeline is the same for
+/// both.
+@DataClassName('PrintRow')
+class Prints extends Table {
+  TextColumn get id => text()();
+
+  /// FK → surveys.id. Null only for sandbox / experiment prints
+  /// that aren't tied to a real Survey config.
+  TextColumn get surveyId => text().nullable()();
+
+  /// FK → survey_sessions.id. Null for the same reason as above.
+  TextColumn get sessionId => text().nullable()();
+
+  /// "this jar belongs to:" — the kid's name they typed on the
+  /// thank-you card. May be empty if they skipped it.
+  TextColumn get childName => text().withDefault(const Constant(''))();
+
+  /// Polymorphic discriminator — which kiosk produced this
+  /// print. Drives preview rendering + which extra metadata is
+  /// expected. Today: `'feelings_basket'` | `'marble_jar'`.
+  TextColumn get kind => text()();
+
+  /// Path of the captured PNG, **relative to** the app docs
+  /// directory (e.g. `prints/abc123.png`). The repository
+  /// resolves to absolute paths on read.
+  TextColumn get snapshotPath => text()();
+
+  /// JSON-encoded extra layout data the print needs at render
+  /// time (academic year, ribbon color, basket rect within
+  /// snapshot, etc.). Optional — null for kinds that don't
+  /// carry extra metadata.
+  TextColumn get metadataJson => text().nullable()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  /// Soft-delete: clearing a print leaves the row + the file in
+  /// place so an "undo" surface stays possible. The list query
+  /// filters these out.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  String? get tableName => 'prints';
 }

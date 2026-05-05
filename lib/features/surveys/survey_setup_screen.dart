@@ -35,6 +35,7 @@ class _SurveySetupScreenState extends ConsumerState<SurveySetupScreen> {
   SurveyAgeBand _ageBand = SurveyAgeBand.tk;
   SurveyAudioMode _audioMode = SurveyAudioMode.full;
   SurveyVoice _voice = SurveyVoice.asteria;
+  SurveyStyle _style = SurveyStyle.marbleJar;
 
   bool _saving = false;
 
@@ -59,6 +60,7 @@ class _SurveySetupScreenState extends ConsumerState<SurveySetupScreen> {
         pinDigits: _pinCtrl.text,
         audioMode: _audioMode,
         voice: _voice,
+        style: _style,
       );
       // Pre-warm the audio cache so the kiosk doesn't pause on the
       // first question while it fetches an MP3. Best-effort —
@@ -200,6 +202,21 @@ class _SurveySetupScreenState extends ConsumerState<SurveySetupScreen> {
             _VoicePicker(
               value: _voice,
               onChanged: (v) => setState(() => _voice = v),
+              theme: theme,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+
+            _SectionLabel(
+              text: 'Style',
+              theme: theme,
+              subtitle:
+                  'How the kid interacts with the survey. The questions + '
+                  'recorded responses are identical between styles.',
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _StylePicker(
+              value: _style,
+              onChanged: (s) => setState(() => _style = s),
               theme: theme,
             ),
             const SizedBox(height: AppSpacing.xxl),
@@ -462,6 +479,110 @@ class _VoiceTile extends ConsumerWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Style picker — Marble Jar vs Basket. Two side-by-side cards
+/// with a one-line description; tapped card gets a thick border
+/// + tinted background. Both styles share the same questions and
+/// answer-recording path; only the kid-facing UI differs.
+class _StylePicker extends StatelessWidget {
+  const _StylePicker({
+    required this.value,
+    required this.onChanged,
+    required this.theme,
+  });
+
+  final SurveyStyle value;
+  final ValueChanged<SurveyStyle> onChanged;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (final s in SurveyStyle.values) ...[
+          Expanded(child: _StyleCard(
+            style: s,
+            selected: value == s,
+            onTap: () => onChanged(s),
+            theme: theme,
+          )),
+          if (s != SurveyStyle.values.last)
+            const SizedBox(width: AppSpacing.sm),
+        ],
+      ],
+    );
+  }
+}
+
+class _StyleCard extends StatelessWidget {
+  const _StyleCard({
+    required this.style,
+    required this.selected,
+    required this.onTap,
+    required this.theme,
+  });
+
+  final SurveyStyle style;
+  final bool selected;
+  final VoidCallback onTap;
+  final ThemeData theme;
+
+  IconData get _icon => switch (style) {
+        SurveyStyle.marbleJar => Icons.sports_esports_outlined,
+        SurveyStyle.basket => Icons.shopping_basket_outlined,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = theme.colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: selected
+              ? cs.primaryContainer.withValues(alpha: 0.4)
+              : cs.surfaceContainer.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? cs.primary : cs.outlineVariant,
+            width: selected ? 2 : 0.5,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  _icon,
+                  color: selected ? cs.primary : cs.onSurfaceVariant,
+                  size: 20,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  style.label,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: selected ? cs.primary : cs.onSurface,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              style.description,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ],
         ),
       ),
     );

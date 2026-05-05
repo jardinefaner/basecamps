@@ -33,8 +33,10 @@ import 'package:basecamp/features/experiment/basket_survey/basket_session_store.
 import 'package:basecamp/features/experiment/basket_survey/basket_world_widget.dart';
 import 'package:basecamp/features/experiment/basket_survey/painted_face.dart';
 import 'package:basecamp/features/experiment/basket_survey/thank_you_card.dart';
-import 'package:flutter/rendering.dart';
 import 'package:basecamp/features/surveys/canonical_questions.dart';
+import 'package:basecamp/features/surveys/kiosk_exit_pin_modal.dart';
+import 'package:basecamp/features/surveys/survey_repository.dart';
+import 'package:flutter/rendering.dart';
 import 'package:basecamp/features/surveys/survey_audio_service.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -44,20 +46,55 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
 class BasketSurveyScreen extends ConsumerStatefulWidget {
-  const BasketSurveyScreen({super.key});
+  const BasketSurveyScreen({
+    super.key,
+    this.surveyId,
+    this.resumeSessionId,
+  });
+
+  /// When non-null, the screen runs in **kiosk mode** — loads
+  /// the survey config from the cloud-synced `surveys` table,
+  /// opens a real `survey_sessions` row, and writes each answer
+  /// to `survey_responses` (same path as the marble kiosk).
+  /// When null, sandbox mode — questions still come from the
+  /// canonical list, but nothing persists.
+  final String? surveyId;
+
+  /// When supplied (kiosk mode only), reopens an existing
+  /// `survey_sessions` row instead of starting a new one. The
+  /// kiosk re-derives the next question by skipping any already-
+  /// answered question ids. Used by the results-screen tap-to-
+  /// resume flow.
+  final String? resumeSessionId;
 
   @override
   ConsumerState<BasketSurveyScreen> createState() => _BasketSurveyScreenState();
 }
 
 class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
-  /// Voice — hardcoded for the sandbox.
-  static const SurveyVoice _voice = SurveyVoice.asteria;
+  /// Survey config for kiosk mode — null in sandbox.
+  SurveyConfig? _survey;
 
-  /// Mood-only subset of the canonical questions.
-  late final List<SurveyQuestion> _questions = kBasecampCanonicalQuestions
-      .where((q) => q.type == SurveyQuestionType.mood)
-      .toList();
+  /// Active `survey_sessions.id` for kiosk mode — null in sandbox.
+  String? _sessionId;
+
+  /// Triple-tap-on-title timestamps for the kiosk-exit gesture
+  /// (3 taps within 800ms → PIN modal, same as marble kiosk).
+  final List<DateTime> _titleTapTimes = <DateTime>[];
+
+  bool get _isKiosk => widget.surveyId != null;
+
+  /// Voice pulled from the survey when in kiosk mode; sandbox
+  /// falls back to a sane default. The survey's `audioMode` is
+  /// honoured implicitly through the audio service's gating.
+  SurveyVoice get _voice => _survey?.voice ?? SurveyVoice.asteria;
+
+  /// Mood-only questions. In kiosk mode pulls from the saved
+  /// survey config; sandbox uses the canonical list.
+  List<SurveyQuestion> get _questions {
+    final source = _survey?.questions ?? kBasecampCanonicalQuestions;
+    return source.where((q) => q.type == SurveyQuestionType.mood).toList();
+  }
 
   int _index = 0;
   final Map<String, FaceMood> _answers = <String, FaceMood>{};
@@ -89,9 +126,61 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _playCurrentQuestionAudio();
+    if (_isKiosk) {
+      unawaited(_initializeKiosk());
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _playCurrentQuestionAudio();
+      });
+    }
+  }
+
+  /// Kiosk mode init: load the SurveyConfig, create or resume a
+  /// session, derive the starting question index. Mirrors the
+  /// marble kiosk's `_initializeKiosk` so both styles share the
+  /// same lifecycle shape.
+  Future<void> _initializeKiosk() async {
+    final repo = ref.read(surveyRepositoryProvider);
+    final survey = await repo.getById(widget.surveyId!);
+    if (!mounted || survey == null) return;
+
+    final resumeId = widget.resumeSessionId;
+    String sessionId;
+    var startIndex = 0;
+    if (resumeId != null) {
+      final existing = await repo.getSession(resumeId);
+      if (existing != null && existing.surveyId == survey.id) {
+        await repo.reopenSession(resumeId);
+        final answered = await repo.getResponsesForSession(resumeId);
+        final answeredIds = answered.map((r) => r.questionId).toSet();
+        // First mood question without a recorded response — that's
+        // where the child left off.
+        final moodOnly = survey.questions
+            .where((q) => q.type == SurveyQuestionType.mood)
+            .toList();
+        for (var i = 0; i < moodOnly.length; i++) {
+          if (!answeredIds.contains(moodOnly[i].id)) {
+            startIndex = i;
+            break;
+          }
+          if (i == moodOnly.length - 1) startIndex = i;
+        }
+        sessionId = resumeId;
+      } else {
+        sessionId = await repo.startSession(survey.id);
+      }
+    } else {
+      sessionId = await repo.startSession(survey.id);
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _survey = survey;
+      _sessionId = sessionId;
+      _index = startIndex;
+      _sessionStartedAt = DateTime.now();
     });
+    _playCurrentQuestionAudio();
   }
 
   void _playCurrentQuestionAudio() {
@@ -107,6 +196,32 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
     final q = _questions[_index];
     _answers[q.id] = mood;
     unawaited(HapticFeedback.lightImpact());
+
+    // Kiosk-mode persistence: write the response to the same
+    // cloud-synced `survey_responses` table the marble kiosk
+    // writes to. Sandbox mode keeps everything in-memory.
+    if (_isKiosk) {
+      final survey = _survey;
+      final sessionId = _sessionId;
+      if (survey != null && sessionId != null) {
+        final moodValue = _faceMoodToLikert3(mood);
+        if (moodValue != null) {
+          final reactionMs =
+              DateTime.now().difference(_sessionStartedAt).inMilliseconds;
+          unawaited(
+            ref.read(surveyRepositoryProvider).recordMoodAnswer(
+                  surveyId: survey.id,
+                  sessionId: sessionId,
+                  questionId: q.id,
+                  moodValue: moodValue,
+                  reactionTimeMs: reactionMs,
+                  isPractice: q.isPractice,
+                ),
+          );
+        }
+      }
+    }
+
     setState(() {
       _basketGlow = false;
       _transitioning = true;
@@ -124,16 +239,49 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
     _playCurrentQuestionAudio();
   }
 
+  /// Map a painted FaceMood to the BASECamp 3-point Likert
+  /// stored in `survey_responses.mood_value`. Mirrors the marble
+  /// kiosk's mapping so the two styles produce comparable rows.
+  /// F2 (disagree) and F4 (agree) aren't part of the 3-point
+  /// scale; they return null and the kiosk simply records nothing
+  /// (shouldn't happen — basket only spawns the 3 mapped moods
+  /// for now).
+  int? _faceMoodToLikert3(FaceMood mood) {
+    return switch (mood) {
+      FaceMood.stronglyDisagree => 0,
+      FaceMood.notSure => 1,
+      FaceMood.stronglyAgree => 2,
+      _ => null,
+    };
+  }
+
   Future<void> _onSurveyComplete() async {
     setState(() {
       _transitioning = false;
     });
-    final notifier = ref.read(basketSurveySessionsProvider.notifier);
-    final saveFuture = notifier.add(
-      answers: _answers,
-      startedAt: _sessionStartedAt,
-      endedAt: DateTime.now(),
-    );
+
+    // Kiosk-mode: end the session in the cloud-synced table.
+    // Sandbox mode: append to the local JSON file the same way
+    // it always has, for the in-app CSV viewer.
+    if (_isKiosk) {
+      final sessionId = _sessionId;
+      if (sessionId != null) {
+        unawaited(
+          ref.read(surveyRepositoryProvider).endSession(
+                sessionId,
+                completed: true,
+              ),
+        );
+      }
+    } else {
+      final notifier = ref.read(basketSurveySessionsProvider.notifier);
+      unawaited(notifier.add(
+        answers: _answers,
+        startedAt: _sessionStartedAt,
+        endedAt: DateTime.now(),
+      ));
+    }
+
     // Hold a beat so the last marble can settle in the basket
     // before we freeze the snapshot — otherwise the card shows a
     // marble in mid-air.
@@ -145,7 +293,6 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
       _basketSnapshot = snap;
       _showingDone = true;
     });
-    await saveFuture;
     // No auto-reset — the kid stays on the thank-you card until
     // they tap "Pass to next friend" (or a teacher does).
   }
@@ -167,8 +314,17 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
     }
   }
 
-  void _resetForNextChild() {
+  Future<void> _resetForNextChild() async {
     _worldKey.currentState?.reset();
+    String? newSessionId;
+    if (_isKiosk) {
+      final survey = _survey;
+      if (survey != null) {
+        newSessionId =
+            await ref.read(surveyRepositoryProvider).startSession(survey.id);
+      }
+    }
+    if (!mounted) return;
     setState(() {
       _index = 0;
       _answers.clear();
@@ -176,6 +332,7 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
       _transitioning = false;
       _basketSnapshot = null;
       _sessionStartedAt = DateTime.now();
+      if (newSessionId != null) _sessionId = newSessionId;
     });
     _playCurrentQuestionAudio();
   }
@@ -183,16 +340,30 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: const Text('Basket Survey'),
+        // Kiosk mode: hide the back button (PopScope blocks it
+        // anyway), and the title is tappable for the triple-
+        // tap PIN exit gesture.
+        automaticallyImplyLeading: !_isKiosk,
+        title: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _onTitleTap,
+          child: _isKiosk
+              ? _kioskTitle(theme)
+              : const Text('Basket Survey'),
+        ),
         actions: [
-          IconButton(
-            tooltip: 'Sessions CSV',
-            icon: const Icon(Icons.table_view_outlined),
-            onPressed: () => _openCsvSheet(context),
-          ),
+          // CSV button only makes sense in sandbox mode (where
+          // sessions live in a local JSON file). In kiosk mode the
+          // results sheet at /surveys/:id handles export.
+          if (!_isKiosk)
+            IconButton(
+              tooltip: 'Sessions CSV',
+              icon: const Icon(Icons.table_view_outlined),
+              onPressed: () => _openCsvSheet(context),
+            ),
         ],
       ),
       body: SafeArea(
@@ -200,6 +371,8 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
             ? BasketThankYouCard(
                 basketSnapshot: _basketSnapshot,
                 onPassAlong: _resetForNextChild,
+                surveyId: widget.surveyId,
+                sessionId: _sessionId,
               )
             : Column(
                 children: [
@@ -255,6 +428,97 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
               ),
       ),
     );
+    // Kiosk mode wraps in PopScope so the system back gesture
+    // can't accidentally exit the survey — the only way out is
+    // the teacher's PIN-gated triple-tap on the title.
+    if (!_isKiosk) return scaffold;
+    return PopScope(canPop: false, child: scaffold);
+  }
+
+  /// Kiosk title: site name on top, classroom subtitle below —
+  /// matches the marble kiosk's title layout. Tap-target stays
+  /// full-width so a teacher can land taps confidently.
+  Widget _kioskTitle(ThemeData theme) {
+    final survey = _survey;
+    if (survey == null) return const Text('Loading…');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          survey.siteName,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Text(
+          survey.classroom,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Triple-tap on the appbar title — same PIN-exit gesture the
+  /// marble kiosk uses. Three taps within 800ms → PIN modal; on
+  /// success the kiosk pops.
+  void _onTitleTap() {
+    if (!_isKiosk) return;
+    final now = DateTime.now();
+    _titleTapTimes.add(now);
+    while (_titleTapTimes.length > 3) {
+      _titleTapTimes.removeAt(0);
+    }
+    if (_titleTapTimes.length < 3) return;
+    final span =
+        _titleTapTimes.last.difference(_titleTapTimes.first).inMilliseconds;
+    if (span > 800) return;
+    _titleTapTimes.clear();
+    unawaited(_handleExitTap());
+  }
+
+  Future<void> _handleExitTap() async {
+    final survey = _survey;
+    if (survey == null) return;
+    // Pause any audio so the modal isn't fighting a question read.
+    await ref.read(surveyAudioServiceProvider).stop();
+    if (!mounted) return;
+    final ok = await KioskExitPinModal.show(context, survey);
+    if (!mounted) return;
+    if (ok) {
+      // Mark this child's session as not-completed so the results
+      // screen can flag it. Best-effort; if the write doesn't
+      // flush before pop, the dispose hook below catches it.
+      final sessionId = _sessionId;
+      if (sessionId != null) {
+        unawaited(
+          ref.read(surveyRepositoryProvider).endSession(
+                sessionId,
+                completed: false,
+              ),
+        );
+      }
+      Navigator.of(context).pop();
+    }
+  }
+
+  @override
+  void dispose() {
+    // If the teacher exits mid-flow without going through the PIN
+    // (impossible via UI in kiosk mode, but possible via a
+    // language-switch / system-kill), mark the session abandoned.
+    final sessionId = _sessionId;
+    if (sessionId != null && _isKiosk && !_showingDone) {
+      unawaited(
+        ref.read(surveyRepositoryProvider).endSession(
+              sessionId,
+              completed: false,
+            ),
+      );
+    }
+    super.dispose();
   }
 
   Future<void> _openCsvSheet(BuildContext context) async {

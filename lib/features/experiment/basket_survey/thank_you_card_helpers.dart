@@ -491,28 +491,12 @@ class StampPanel extends StatelessWidget {
 // Basket ribbon
 // ═════════════════════════════════════════════════════════════════
 
-/// Gift ribbon **wrapped around the basket** in the thank-you
-/// card. Visually composed of three pieces:
-///
-///   1. **Back tails** — short triangular ribbon ends that taper
-///      into the basket's left and right edges. They're painted
-///      slightly darker than the front band so they read as
-///      "going behind" the basket.
-///   2. **Front band** — the main horizontal band crossing the
-///      basket's body. Drawn AFTER the back tails so it visually
-///      sits in front of them at the seams.
-///   3. **Tied bow** — two loops + knot + trailing tails sitting
-///      on top of the front band, slightly off-centre.
-///
-/// The 3D illusion: a 2D image can't actually render the back of
-/// the basket, but the tapered + darkened ends imply continuity
-/// behind the silhouette. The eye fills in the rest.
-///
-/// The painter takes a [basketRect] (in local snapshot space)
-/// describing where the basket actually sits inside the snapshot
-/// — the ribbon is positioned and sized relative to that, not
-/// the whole frame. Defaults to a sensible placement assuming the
-/// basket fills the lower 75% of the snapshot.
+/// Tied gift bow — drawn ON TOP of the basket snapshot in the
+/// thank-you card. Just the bow, no surrounding band; sits at
+/// the rim of the basket like a single decorative knot. Cleaner
+/// than a full wrap-around ribbon (the 2D snapshot can't
+/// realistically support faking 3D wrap). Two loops + a knot +
+/// two trailing tails dangling below.
 class BasketRibbonPainter extends CustomPainter {
   const BasketRibbonPainter({
     this.basketRect,
@@ -526,7 +510,7 @@ class BasketRibbonPainter extends CustomPainter {
   /// `BasketWorldWidget` snapshot composition.
   final Rect? basketRect;
 
-  /// Top + bottom of the ribbon's gradient.
+  /// Top + bottom of the bow's gradient.
   final Color ribbonColor1;
   final Color ribbonColor2;
 
@@ -540,97 +524,19 @@ class BasketRibbonPainter extends CustomPainter {
           size.height * 0.70,
         );
 
-    // Band sits across the upper third of the basket so it wraps
-    // the body, not the rim. The basket's woven "shoulder" is
-    // approximately at basketRect.top + basketRect.height * 0.25.
-    final bandHeight = (basket.height * 0.16).clamp(14.0, 36.0);
-    final bandTop =
-        basket.top + basket.height * 0.28 - bandHeight / 2;
-    final bandRect = Rect.fromLTWH(
-      basket.left,
-      bandTop,
-      basket.width,
-      bandHeight,
+    // Place the bow at the basket's rim. The basket's rim is
+    // approximately at basketRect.top + basketRect.height * 0.18
+    // (just above the woven body's shoulder line). Centre
+    // horizontally over the basket.
+    final bowCenter = Offset(
+      basket.center.dx,
+      basket.top + basket.height * 0.18,
     );
-
-    final bandShader = LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [ribbonColor1, ribbonColor2],
-    ).createShader(bandRect);
-
-    // ── 1) Back tails ─────────────────────────────────────────
-    // Short triangular wedges that taper INTO the basket's outer
-    // edges, suggesting the ribbon continues around the back.
-    // Drawn FIRST so the front band visually overlaps them at
-    // the basket's silhouette line. Darker (lerped 30% toward
-    // black) so they read as "in shadow" / behind.
-    final dimmedShader = LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [
-        Color.lerp(ribbonColor1, Colors.black, 0.30)!,
-        Color.lerp(ribbonColor2, Colors.black, 0.30)!,
-      ],
-    ).createShader(bandRect);
-    final tailPaint = Paint()..shader = dimmedShader;
-
-    // Left back tail — emerges from JUST inside the band's left
-    // edge, tucks rightward into the basket's silhouette. Width
-    // ≈ 12% of the band width so it's a believable "wraparound"
-    // visible-through-the-paint cue.
-    final leftTailWidth = bandRect.width * 0.12;
-    final leftTail = Path()
-      ..moveTo(bandRect.left, bandRect.top)
-      ..lineTo(bandRect.left - leftTailWidth, bandRect.top - 2)
-      ..lineTo(
-        bandRect.left - leftTailWidth * 0.85,
-        bandRect.bottom + 2,
-      )
-      ..lineTo(bandRect.left, bandRect.bottom)
-      ..close();
-    canvas.drawPath(leftTail, tailPaint);
-
-    // Right back tail (mirror).
-    final rightTailWidth = bandRect.width * 0.12;
-    final rightTail = Path()
-      ..moveTo(bandRect.right, bandRect.top)
-      ..lineTo(bandRect.right + rightTailWidth, bandRect.top - 2)
-      ..lineTo(
-        bandRect.right + rightTailWidth * 0.85,
-        bandRect.bottom + 2,
-      )
-      ..lineTo(bandRect.right, bandRect.bottom)
-      ..close();
-    canvas.drawPath(rightTail, tailPaint);
-
-    // ── 2) Front band ─────────────────────────────────────────
-    // Drawn ON TOP of the back tails so the seam reads as the
-    // ribbon coming from behind, around the front, going behind
-    // again on the other side.
-    canvas.drawRect(bandRect, Paint()..shader = bandShader);
-
-    // Faint stitch line along the centre — paint-stroke detail.
-    canvas.drawLine(
-      Offset(bandRect.left, bandRect.center.dy),
-      Offset(bandRect.right, bandRect.center.dy),
-      Paint()
-        ..color = Colors.white.withValues(alpha: 0.35)
-        ..strokeWidth = 1
-        ..style = PaintingStyle.stroke,
-    );
-
-    // ── 3) Bow on the front band ──────────────────────────────
-    // Slightly off-centre (35% from the left) so it doesn't
-    // perfectly bisect the basket — feels more hand-tied.
-    _paintBow(
-      canvas,
-      Offset(
-        bandRect.left + bandRect.width * 0.35,
-        bandRect.center.dy,
-      ),
-      bandHeight,
-    );
+    // Bow size scales with the basket — a third of the basket
+    // height makes a comfortably-readable knot without looking
+    // either dainty or cartoonish.
+    final bowHeight = basket.height * 0.18;
+    _paintBow(canvas, bowCenter, bowHeight);
   }
 
   void _paintBow(Canvas canvas, Offset c, double bandH) {

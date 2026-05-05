@@ -1192,6 +1192,15 @@ class _DestinationData {
       path: '/surveys',
       category: _DestCategory.people,
     ),
+    // Prints — saved keepsake-card prints from any survey kiosk.
+    // Decoupled-print queue: kids run surveys all day, an adult
+    // sweeps this tab and prints them in a batch later.
+    _DestinationData(
+      label: 'Prints',
+      icon: Icons.print_outlined,
+      path: '/prints',
+      category: _DestCategory.people,
+    ),
     // Curriculum — the multi-week authoring stack lives behind one
     // hub now (themes, lesson sequences, templates collapsed). The
     // activity library remains separate because it's used outside

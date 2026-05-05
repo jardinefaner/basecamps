@@ -94,6 +94,35 @@ enum SurveyVoice {
 
 enum VoiceGender { female, male }
 
+/// Which kiosk UI the children see when running the survey. Both
+/// styles share canonical questions + the same `survey_responses`
+/// write path; only the kid-facing surface differs.
+///
+/// Stored on the `surveys.style` column; default is `marbleJar`
+/// for backward compatibility with surveys created before v60.
+enum SurveyStyle {
+  /// Flame chibi character + 5-face painted marbles + 3D mason
+  /// jar with overflow physics. The original kiosk experience.
+  marbleJar('marble_jar', 'Marble Jar', 'Chibi character drops painted marbles into a mason jar'),
+
+  /// Tap-thumb scale + woven basket with marble-physics pile +
+  /// over-rim overflow + random overspill around the basket.
+  /// The graduated basket-survey experiment.
+  basket('basket', 'Basket', 'Drag painted marbles into a woven basket');
+
+  const SurveyStyle(this.code, this.label, this.description);
+  final String code;
+  final String label;
+  final String description;
+
+  static SurveyStyle fromCode(String code) {
+    return SurveyStyle.values.firstWhere(
+      (s) => s.code == code,
+      orElse: () => SurveyStyle.marbleJar,
+    );
+  }
+}
+
 /// What kind of question this is. Drives both the kiosk UI and the
 /// shape of the response stored in `survey_responses`.
 enum SurveyQuestionType {
@@ -218,6 +247,7 @@ class SurveyConfig {
     required this.pinHash,
     required this.audioMode,
     required this.voice,
+    required this.style,
     required this.questions,
     required this.createdAt,
     required this.updatedAt,
@@ -230,6 +260,10 @@ class SurveyConfig {
   final String pinHash; // hex sha256
   final SurveyAudioMode audioMode;
   final SurveyVoice voice;
+
+  /// Which kiosk UI to render. Read from the `surveys.style`
+  /// column; controls how `/surveys/:id/play` dispatches.
+  final SurveyStyle style;
   final List<SurveyQuestion> questions;
   final DateTime createdAt;
   final DateTime updatedAt;

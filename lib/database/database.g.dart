@@ -24047,6 +24047,16 @@ class $SurveysTable extends Surveys with TableInfo<$SurveysTable, Survey> {
     requiredDuringInsert: false,
     defaultValue: const Constant('asteria'),
   );
+  static const VerificationMeta _styleMeta = const VerificationMeta('style');
+  @override
+  late final GeneratedColumn<String> style = GeneratedColumn<String>(
+    'style',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('marble_jar'),
+  );
   static const VerificationMeta _questionsJsonMeta = const VerificationMeta(
     'questionsJson',
   );
@@ -24103,6 +24113,7 @@ class $SurveysTable extends Surveys with TableInfo<$SurveysTable, Survey> {
     pinHash,
     audioMode,
     voiceId,
+    style,
     questionsJson,
     createdAt,
     updatedAt,
@@ -24175,6 +24186,12 @@ class $SurveysTable extends Surveys with TableInfo<$SurveysTable, Survey> {
         voiceId.isAcceptableOrUnknown(data['voice_id']!, _voiceIdMeta),
       );
     }
+    if (data.containsKey('style')) {
+      context.handle(
+        _styleMeta,
+        style.isAcceptableOrUnknown(data['style']!, _styleMeta),
+      );
+    }
     if (data.containsKey('questions_json')) {
       context.handle(
         _questionsJsonMeta,
@@ -24245,6 +24262,10 @@ class $SurveysTable extends Surveys with TableInfo<$SurveysTable, Survey> {
         DriftSqlType.string,
         data['${effectivePrefix}voice_id'],
       )!,
+      style: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}style'],
+      )!,
       questionsJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}questions_json'],
@@ -24291,6 +24312,16 @@ class Survey extends DataClass implements Insertable<Survey> {
   /// Deepgram Aura voice id ('asteria', 'luna', 'orion', etc.).
   final String voiceId;
 
+  /// **Kiosk style** — which UI the children see when running the
+  /// survey. Both styles share canonical questions + the same
+  /// `survey_responses` write path; only the UI differs.
+  ///
+  ///   'marble_jar' — Flame chibi + 5-face marbles + 3D mason jar
+  ///   'basket'     — thumb-up scale + woven basket physics pile
+  ///
+  /// Default 'marble_jar' so existing rows stay compatible.
+  final String style;
+
   /// Question list as JSON array. Each entry has id / type / prompt
   /// / options / isPractice fields. JSON-blob keeps the migration
   /// simple — we don't need to query individual questions.
@@ -24307,6 +24338,7 @@ class Survey extends DataClass implements Insertable<Survey> {
     required this.pinHash,
     required this.audioMode,
     required this.voiceId,
+    required this.style,
     required this.questionsJson,
     required this.createdAt,
     required this.updatedAt,
@@ -24325,6 +24357,7 @@ class Survey extends DataClass implements Insertable<Survey> {
     map['pin_hash'] = Variable<String>(pinHash);
     map['audio_mode'] = Variable<String>(audioMode);
     map['voice_id'] = Variable<String>(voiceId);
+    map['style'] = Variable<String>(style);
     map['questions_json'] = Variable<String>(questionsJson);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -24346,6 +24379,7 @@ class Survey extends DataClass implements Insertable<Survey> {
       pinHash: Value(pinHash),
       audioMode: Value(audioMode),
       voiceId: Value(voiceId),
+      style: Value(style),
       questionsJson: Value(questionsJson),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
@@ -24369,6 +24403,7 @@ class Survey extends DataClass implements Insertable<Survey> {
       pinHash: serializer.fromJson<String>(json['pinHash']),
       audioMode: serializer.fromJson<String>(json['audioMode']),
       voiceId: serializer.fromJson<String>(json['voiceId']),
+      style: serializer.fromJson<String>(json['style']),
       questionsJson: serializer.fromJson<String>(json['questionsJson']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -24387,6 +24422,7 @@ class Survey extends DataClass implements Insertable<Survey> {
       'pinHash': serializer.toJson<String>(pinHash),
       'audioMode': serializer.toJson<String>(audioMode),
       'voiceId': serializer.toJson<String>(voiceId),
+      'style': serializer.toJson<String>(style),
       'questionsJson': serializer.toJson<String>(questionsJson),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -24403,6 +24439,7 @@ class Survey extends DataClass implements Insertable<Survey> {
     String? pinHash,
     String? audioMode,
     String? voiceId,
+    String? style,
     String? questionsJson,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -24416,6 +24453,7 @@ class Survey extends DataClass implements Insertable<Survey> {
     pinHash: pinHash ?? this.pinHash,
     audioMode: audioMode ?? this.audioMode,
     voiceId: voiceId ?? this.voiceId,
+    style: style ?? this.style,
     questionsJson: questionsJson ?? this.questionsJson,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -24431,6 +24469,7 @@ class Survey extends DataClass implements Insertable<Survey> {
       pinHash: data.pinHash.present ? data.pinHash.value : this.pinHash,
       audioMode: data.audioMode.present ? data.audioMode.value : this.audioMode,
       voiceId: data.voiceId.present ? data.voiceId.value : this.voiceId,
+      style: data.style.present ? data.style.value : this.style,
       questionsJson: data.questionsJson.present
           ? data.questionsJson.value
           : this.questionsJson,
@@ -24451,6 +24490,7 @@ class Survey extends DataClass implements Insertable<Survey> {
           ..write('pinHash: $pinHash, ')
           ..write('audioMode: $audioMode, ')
           ..write('voiceId: $voiceId, ')
+          ..write('style: $style, ')
           ..write('questionsJson: $questionsJson, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -24469,6 +24509,7 @@ class Survey extends DataClass implements Insertable<Survey> {
     pinHash,
     audioMode,
     voiceId,
+    style,
     questionsJson,
     createdAt,
     updatedAt,
@@ -24486,6 +24527,7 @@ class Survey extends DataClass implements Insertable<Survey> {
           other.pinHash == this.pinHash &&
           other.audioMode == this.audioMode &&
           other.voiceId == this.voiceId &&
+          other.style == this.style &&
           other.questionsJson == this.questionsJson &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
@@ -24501,6 +24543,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
   final Value<String> pinHash;
   final Value<String> audioMode;
   final Value<String> voiceId;
+  final Value<String> style;
   final Value<String> questionsJson;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -24515,6 +24558,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
     this.pinHash = const Value.absent(),
     this.audioMode = const Value.absent(),
     this.voiceId = const Value.absent(),
+    this.style = const Value.absent(),
     this.questionsJson = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -24530,6 +24574,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
     required String pinHash,
     this.audioMode = const Value.absent(),
     this.voiceId = const Value.absent(),
+    this.style = const Value.absent(),
     required String questionsJson,
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -24550,6 +24595,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
     Expression<String>? pinHash,
     Expression<String>? audioMode,
     Expression<String>? voiceId,
+    Expression<String>? style,
     Expression<String>? questionsJson,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -24565,6 +24611,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
       if (pinHash != null) 'pin_hash': pinHash,
       if (audioMode != null) 'audio_mode': audioMode,
       if (voiceId != null) 'voice_id': voiceId,
+      if (style != null) 'style': style,
       if (questionsJson != null) 'questions_json': questionsJson,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -24582,6 +24629,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
     Value<String>? pinHash,
     Value<String>? audioMode,
     Value<String>? voiceId,
+    Value<String>? style,
     Value<String>? questionsJson,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -24597,6 +24645,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
       pinHash: pinHash ?? this.pinHash,
       audioMode: audioMode ?? this.audioMode,
       voiceId: voiceId ?? this.voiceId,
+      style: style ?? this.style,
       questionsJson: questionsJson ?? this.questionsJson,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -24632,6 +24681,9 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
     if (voiceId.present) {
       map['voice_id'] = Variable<String>(voiceId.value);
     }
+    if (style.present) {
+      map['style'] = Variable<String>(style.value);
+    }
     if (questionsJson.present) {
       map['questions_json'] = Variable<String>(questionsJson.value);
     }
@@ -24661,6 +24713,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
           ..write('pinHash: $pinHash, ')
           ..write('audioMode: $audioMode, ')
           ..write('voiceId: $voiceId, ')
+          ..write('style: $style, ')
           ..write('questionsJson: $questionsJson, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -25853,6 +25906,644 @@ class SurveyResponsesCompanion extends UpdateCompanion<SurveyResponse> {
   }
 }
 
+class $PrintsTable extends Prints with TableInfo<$PrintsTable, PrintRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PrintsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _surveyIdMeta = const VerificationMeta(
+    'surveyId',
+  );
+  @override
+  late final GeneratedColumn<String> surveyId = GeneratedColumn<String>(
+    'survey_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
+    'sessionId',
+  );
+  @override
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+    'session_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _childNameMeta = const VerificationMeta(
+    'childName',
+  );
+  @override
+  late final GeneratedColumn<String> childName = GeneratedColumn<String>(
+    'child_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _snapshotPathMeta = const VerificationMeta(
+    'snapshotPath',
+  );
+  @override
+  late final GeneratedColumn<String> snapshotPath = GeneratedColumn<String>(
+    'snapshot_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _metadataJsonMeta = const VerificationMeta(
+    'metadataJson',
+  );
+  @override
+  late final GeneratedColumn<String> metadataJson = GeneratedColumn<String>(
+    'metadata_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    surveyId,
+    sessionId,
+    childName,
+    kind,
+    snapshotPath,
+    metadataJson,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'prints';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PrintRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('survey_id')) {
+      context.handle(
+        _surveyIdMeta,
+        surveyId.isAcceptableOrUnknown(data['survey_id']!, _surveyIdMeta),
+      );
+    }
+    if (data.containsKey('session_id')) {
+      context.handle(
+        _sessionIdMeta,
+        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
+      );
+    }
+    if (data.containsKey('child_name')) {
+      context.handle(
+        _childNameMeta,
+        childName.isAcceptableOrUnknown(data['child_name']!, _childNameMeta),
+      );
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('snapshot_path')) {
+      context.handle(
+        _snapshotPathMeta,
+        snapshotPath.isAcceptableOrUnknown(
+          data['snapshot_path']!,
+          _snapshotPathMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_snapshotPathMeta);
+    }
+    if (data.containsKey('metadata_json')) {
+      context.handle(
+        _metadataJsonMeta,
+        metadataJson.isAcceptableOrUnknown(
+          data['metadata_json']!,
+          _metadataJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PrintRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PrintRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      surveyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}survey_id'],
+      ),
+      sessionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}session_id'],
+      ),
+      childName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}child_name'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      snapshotPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}snapshot_path'],
+      )!,
+      metadataJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}metadata_json'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $PrintsTable createAlias(String alias) {
+    return $PrintsTable(attachedDatabase, alias);
+  }
+}
+
+class PrintRow extends DataClass implements Insertable<PrintRow> {
+  final String id;
+
+  /// FK → surveys.id. Null only for sandbox / experiment prints
+  /// that aren't tied to a real Survey config.
+  final String? surveyId;
+
+  /// FK → survey_sessions.id. Null for the same reason as above.
+  final String? sessionId;
+
+  /// "this jar belongs to:" — the kid's name they typed on the
+  /// thank-you card. May be empty if they skipped it.
+  final String childName;
+
+  /// Polymorphic discriminator — which kiosk produced this
+  /// print. Drives preview rendering + which extra metadata is
+  /// expected. Today: `'feelings_basket'` | `'marble_jar'`.
+  final String kind;
+
+  /// Path of the captured PNG, **relative to** the app docs
+  /// directory (e.g. `prints/abc123.png`). The repository
+  /// resolves to absolute paths on read.
+  final String snapshotPath;
+
+  /// JSON-encoded extra layout data the print needs at render
+  /// time (academic year, ribbon color, basket rect within
+  /// snapshot, etc.). Optional — null for kinds that don't
+  /// carry extra metadata.
+  final String? metadataJson;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  /// Soft-delete: clearing a print leaves the row + the file in
+  /// place so an "undo" surface stays possible. The list query
+  /// filters these out.
+  final DateTime? deletedAt;
+  const PrintRow({
+    required this.id,
+    this.surveyId,
+    this.sessionId,
+    required this.childName,
+    required this.kind,
+    required this.snapshotPath,
+    this.metadataJson,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || surveyId != null) {
+      map['survey_id'] = Variable<String>(surveyId);
+    }
+    if (!nullToAbsent || sessionId != null) {
+      map['session_id'] = Variable<String>(sessionId);
+    }
+    map['child_name'] = Variable<String>(childName);
+    map['kind'] = Variable<String>(kind);
+    map['snapshot_path'] = Variable<String>(snapshotPath);
+    if (!nullToAbsent || metadataJson != null) {
+      map['metadata_json'] = Variable<String>(metadataJson);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  PrintsCompanion toCompanion(bool nullToAbsent) {
+    return PrintsCompanion(
+      id: Value(id),
+      surveyId: surveyId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(surveyId),
+      sessionId: sessionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sessionId),
+      childName: Value(childName),
+      kind: Value(kind),
+      snapshotPath: Value(snapshotPath),
+      metadataJson: metadataJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(metadataJson),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory PrintRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PrintRow(
+      id: serializer.fromJson<String>(json['id']),
+      surveyId: serializer.fromJson<String?>(json['surveyId']),
+      sessionId: serializer.fromJson<String?>(json['sessionId']),
+      childName: serializer.fromJson<String>(json['childName']),
+      kind: serializer.fromJson<String>(json['kind']),
+      snapshotPath: serializer.fromJson<String>(json['snapshotPath']),
+      metadataJson: serializer.fromJson<String?>(json['metadataJson']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'surveyId': serializer.toJson<String?>(surveyId),
+      'sessionId': serializer.toJson<String?>(sessionId),
+      'childName': serializer.toJson<String>(childName),
+      'kind': serializer.toJson<String>(kind),
+      'snapshotPath': serializer.toJson<String>(snapshotPath),
+      'metadataJson': serializer.toJson<String?>(metadataJson),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  PrintRow copyWith({
+    String? id,
+    Value<String?> surveyId = const Value.absent(),
+    Value<String?> sessionId = const Value.absent(),
+    String? childName,
+    String? kind,
+    String? snapshotPath,
+    Value<String?> metadataJson = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => PrintRow(
+    id: id ?? this.id,
+    surveyId: surveyId.present ? surveyId.value : this.surveyId,
+    sessionId: sessionId.present ? sessionId.value : this.sessionId,
+    childName: childName ?? this.childName,
+    kind: kind ?? this.kind,
+    snapshotPath: snapshotPath ?? this.snapshotPath,
+    metadataJson: metadataJson.present ? metadataJson.value : this.metadataJson,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  PrintRow copyWithCompanion(PrintsCompanion data) {
+    return PrintRow(
+      id: data.id.present ? data.id.value : this.id,
+      surveyId: data.surveyId.present ? data.surveyId.value : this.surveyId,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      childName: data.childName.present ? data.childName.value : this.childName,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      snapshotPath: data.snapshotPath.present
+          ? data.snapshotPath.value
+          : this.snapshotPath,
+      metadataJson: data.metadataJson.present
+          ? data.metadataJson.value
+          : this.metadataJson,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PrintRow(')
+          ..write('id: $id, ')
+          ..write('surveyId: $surveyId, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('childName: $childName, ')
+          ..write('kind: $kind, ')
+          ..write('snapshotPath: $snapshotPath, ')
+          ..write('metadataJson: $metadataJson, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    surveyId,
+    sessionId,
+    childName,
+    kind,
+    snapshotPath,
+    metadataJson,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PrintRow &&
+          other.id == this.id &&
+          other.surveyId == this.surveyId &&
+          other.sessionId == this.sessionId &&
+          other.childName == this.childName &&
+          other.kind == this.kind &&
+          other.snapshotPath == this.snapshotPath &&
+          other.metadataJson == this.metadataJson &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class PrintsCompanion extends UpdateCompanion<PrintRow> {
+  final Value<String> id;
+  final Value<String?> surveyId;
+  final Value<String?> sessionId;
+  final Value<String> childName;
+  final Value<String> kind;
+  final Value<String> snapshotPath;
+  final Value<String?> metadataJson;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const PrintsCompanion({
+    this.id = const Value.absent(),
+    this.surveyId = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.childName = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.snapshotPath = const Value.absent(),
+    this.metadataJson = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PrintsCompanion.insert({
+    required String id,
+    this.surveyId = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.childName = const Value.absent(),
+    required String kind,
+    required String snapshotPath,
+    this.metadataJson = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       kind = Value(kind),
+       snapshotPath = Value(snapshotPath);
+  static Insertable<PrintRow> custom({
+    Expression<String>? id,
+    Expression<String>? surveyId,
+    Expression<String>? sessionId,
+    Expression<String>? childName,
+    Expression<String>? kind,
+    Expression<String>? snapshotPath,
+    Expression<String>? metadataJson,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (surveyId != null) 'survey_id': surveyId,
+      if (sessionId != null) 'session_id': sessionId,
+      if (childName != null) 'child_name': childName,
+      if (kind != null) 'kind': kind,
+      if (snapshotPath != null) 'snapshot_path': snapshotPath,
+      if (metadataJson != null) 'metadata_json': metadataJson,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PrintsCompanion copyWith({
+    Value<String>? id,
+    Value<String?>? surveyId,
+    Value<String?>? sessionId,
+    Value<String>? childName,
+    Value<String>? kind,
+    Value<String>? snapshotPath,
+    Value<String?>? metadataJson,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return PrintsCompanion(
+      id: id ?? this.id,
+      surveyId: surveyId ?? this.surveyId,
+      sessionId: sessionId ?? this.sessionId,
+      childName: childName ?? this.childName,
+      kind: kind ?? this.kind,
+      snapshotPath: snapshotPath ?? this.snapshotPath,
+      metadataJson: metadataJson ?? this.metadataJson,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (surveyId.present) {
+      map['survey_id'] = Variable<String>(surveyId.value);
+    }
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
+    }
+    if (childName.present) {
+      map['child_name'] = Variable<String>(childName.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (snapshotPath.present) {
+      map['snapshot_path'] = Variable<String>(snapshotPath.value);
+    }
+    if (metadataJson.present) {
+      map['metadata_json'] = Variable<String>(metadataJson.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PrintsCompanion(')
+          ..write('id: $id, ')
+          ..write('surveyId: $surveyId, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('childName: $childName, ')
+          ..write('kind: $kind, ')
+          ..write('snapshotPath: $snapshotPath, ')
+          ..write('metadataJson: $metadataJson, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -25926,6 +26617,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SurveyResponsesTable surveyResponses = $SurveyResponsesTable(
     this,
   );
+  late final $PrintsTable prints = $PrintsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -25974,6 +26666,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     surveys,
     surveySessions,
     surveyResponses,
+    prints,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -49465,6 +50158,7 @@ typedef $$SurveysTableCreateCompanionBuilder =
       required String pinHash,
       Value<String> audioMode,
       Value<String> voiceId,
+      Value<String> style,
       required String questionsJson,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -49481,6 +50175,7 @@ typedef $$SurveysTableUpdateCompanionBuilder =
       Value<String> pinHash,
       Value<String> audioMode,
       Value<String> voiceId,
+      Value<String> style,
       Value<String> questionsJson,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -49534,6 +50229,11 @@ class $$SurveysTableFilterComposer
 
   ColumnFilters<String> get voiceId => $composableBuilder(
     column: $table.voiceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get style => $composableBuilder(
+    column: $table.style,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -49607,6 +50307,11 @@ class $$SurveysTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get style => $composableBuilder(
+    column: $table.style,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get questionsJson => $composableBuilder(
     column: $table.questionsJson,
     builder: (column) => ColumnOrderings(column),
@@ -49661,6 +50366,9 @@ class $$SurveysTableAnnotationComposer
   GeneratedColumn<String> get voiceId =>
       $composableBuilder(column: $table.voiceId, builder: (column) => column);
 
+  GeneratedColumn<String> get style =>
+      $composableBuilder(column: $table.style, builder: (column) => column);
+
   GeneratedColumn<String> get questionsJson => $composableBuilder(
     column: $table.questionsJson,
     builder: (column) => column,
@@ -49712,6 +50420,7 @@ class $$SurveysTableTableManager
                 Value<String> pinHash = const Value.absent(),
                 Value<String> audioMode = const Value.absent(),
                 Value<String> voiceId = const Value.absent(),
+                Value<String> style = const Value.absent(),
                 Value<String> questionsJson = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -49726,6 +50435,7 @@ class $$SurveysTableTableManager
                 pinHash: pinHash,
                 audioMode: audioMode,
                 voiceId: voiceId,
+                style: style,
                 questionsJson: questionsJson,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -49742,6 +50452,7 @@ class $$SurveysTableTableManager
                 required String pinHash,
                 Value<String> audioMode = const Value.absent(),
                 Value<String> voiceId = const Value.absent(),
+                Value<String> style = const Value.absent(),
                 required String questionsJson,
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -49756,6 +50467,7 @@ class $$SurveysTableTableManager
                 pinHash: pinHash,
                 audioMode: audioMode,
                 voiceId: voiceId,
+                style: style,
                 questionsJson: questionsJson,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -50362,6 +51074,299 @@ typedef $$SurveyResponsesTableProcessedTableManager =
       SurveyResponse,
       PrefetchHooks Function()
     >;
+typedef $$PrintsTableCreateCompanionBuilder =
+    PrintsCompanion Function({
+      required String id,
+      Value<String?> surveyId,
+      Value<String?> sessionId,
+      Value<String> childName,
+      required String kind,
+      required String snapshotPath,
+      Value<String?> metadataJson,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$PrintsTableUpdateCompanionBuilder =
+    PrintsCompanion Function({
+      Value<String> id,
+      Value<String?> surveyId,
+      Value<String?> sessionId,
+      Value<String> childName,
+      Value<String> kind,
+      Value<String> snapshotPath,
+      Value<String?> metadataJson,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$PrintsTableFilterComposer
+    extends Composer<_$AppDatabase, $PrintsTable> {
+  $$PrintsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get surveyId => $composableBuilder(
+    column: $table.surveyId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get childName => $composableBuilder(
+    column: $table.childName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get snapshotPath => $composableBuilder(
+    column: $table.snapshotPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get metadataJson => $composableBuilder(
+    column: $table.metadataJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PrintsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PrintsTable> {
+  $$PrintsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get surveyId => $composableBuilder(
+    column: $table.surveyId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get childName => $composableBuilder(
+    column: $table.childName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get snapshotPath => $composableBuilder(
+    column: $table.snapshotPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get metadataJson => $composableBuilder(
+    column: $table.metadataJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PrintsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PrintsTable> {
+  $$PrintsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get surveyId =>
+      $composableBuilder(column: $table.surveyId, builder: (column) => column);
+
+  GeneratedColumn<String> get sessionId =>
+      $composableBuilder(column: $table.sessionId, builder: (column) => column);
+
+  GeneratedColumn<String> get childName =>
+      $composableBuilder(column: $table.childName, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get snapshotPath => $composableBuilder(
+    column: $table.snapshotPath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get metadataJson => $composableBuilder(
+    column: $table.metadataJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$PrintsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PrintsTable,
+          PrintRow,
+          $$PrintsTableFilterComposer,
+          $$PrintsTableOrderingComposer,
+          $$PrintsTableAnnotationComposer,
+          $$PrintsTableCreateCompanionBuilder,
+          $$PrintsTableUpdateCompanionBuilder,
+          (PrintRow, BaseReferences<_$AppDatabase, $PrintsTable, PrintRow>),
+          PrintRow,
+          PrefetchHooks Function()
+        > {
+  $$PrintsTableTableManager(_$AppDatabase db, $PrintsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PrintsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PrintsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PrintsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String?> surveyId = const Value.absent(),
+                Value<String?> sessionId = const Value.absent(),
+                Value<String> childName = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> snapshotPath = const Value.absent(),
+                Value<String?> metadataJson = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PrintsCompanion(
+                id: id,
+                surveyId: surveyId,
+                sessionId: sessionId,
+                childName: childName,
+                kind: kind,
+                snapshotPath: snapshotPath,
+                metadataJson: metadataJson,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String?> surveyId = const Value.absent(),
+                Value<String?> sessionId = const Value.absent(),
+                Value<String> childName = const Value.absent(),
+                required String kind,
+                required String snapshotPath,
+                Value<String?> metadataJson = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PrintsCompanion.insert(
+                id: id,
+                surveyId: surveyId,
+                sessionId: sessionId,
+                childName: childName,
+                kind: kind,
+                snapshotPath: snapshotPath,
+                metadataJson: metadataJson,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PrintsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PrintsTable,
+      PrintRow,
+      $$PrintsTableFilterComposer,
+      $$PrintsTableOrderingComposer,
+      $$PrintsTableAnnotationComposer,
+      $$PrintsTableCreateCompanionBuilder,
+      $$PrintsTableUpdateCompanionBuilder,
+      (PrintRow, BaseReferences<_$AppDatabase, $PrintsTable, PrintRow>),
+      PrintRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -50464,4 +51469,6 @@ class $AppDatabaseManager {
       $$SurveySessionsTableTableManager(_db, _db.surveySessions);
   $$SurveyResponsesTableTableManager get surveyResponses =>
       $$SurveyResponsesTableTableManager(_db, _db.surveyResponses);
+  $$PrintsTableTableManager get prints =>
+      $$PrintsTableTableManager(_db, _db.prints);
 }
