@@ -1720,18 +1720,30 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  /// v60 — surveys.style column + new `prints` table. Same
-  /// CREATE-TABLE-IF-NOT-EXISTS / safe-ALTER pattern as the v59
-  /// heal so a partial upgrade self-heals on next launch.
+  /// v60 — surveys.style column + new `prints` table. Probes
+  /// for the `style` column with a no-op SELECT and runs the
+  /// ALTER only when missing — more robust than relying on
+  /// `_runSilent` to swallow the right error string (different
+  /// SQLite drivers / platforms phrase "duplicate column" /
+  /// "already exists" differently).
   Future<void> _healV60SurveyStyleAndPrints() async {
-    // Add the `style` column to surveys if it's missing. SQLite
-    // doesn't have a built-in IF NOT EXISTS clause for ADD COLUMN,
-    // so we wrap in `_runSilent` which swallows the duplicate-
-    // column error.
-    await _runSilent(
-      'ALTER TABLE "surveys" ADD COLUMN "style" TEXT NOT NULL '
-      "DEFAULT 'marble_jar'",
-    );
+    var hasStyle = true;
+    try {
+      // Cheapest way to check column existence: a 0-row SELECT.
+      // If the column doesn't exist, this throws.
+      await customStatement('SELECT "style" FROM "surveys" LIMIT 0');
+    } on Object {
+      hasStyle = false;
+    }
+    if (!hasStyle) {
+      // Column is missing — add it. This time we DON'T silence
+      // errors; if the ALTER fails we want to know about it
+      // instead of silently re-throwing on the next INSERT.
+      await customStatement(
+        'ALTER TABLE "surveys" ADD COLUMN "style" TEXT NOT NULL '
+        "DEFAULT 'marble_jar'",
+      );
+    }
     await _runSilent(
       'CREATE TABLE IF NOT EXISTS "prints" '
       '("id" TEXT NOT NULL, '
