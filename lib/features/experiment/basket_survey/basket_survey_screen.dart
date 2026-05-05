@@ -226,9 +226,7 @@ class _QuestionAndChoices extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final moods = question.choiceCount == 5
-        ? kBasket5Choices
-        : kBasket3Choices;
+    final moods = _shuffledMoodsForQuestion(question);
     return Column(
       children: [
         // Top row — replay icon (fixed) + animated question text.
@@ -320,6 +318,19 @@ class _QuestionAndChoices extends StatelessWidget {
     final w = MediaQuery.of(context).size.width;
     final per = (w - AppSpacing.xl * 2 - AppSpacing.lg * (count - 1)) / count;
     return per.clamp(72, 120).toDouble();
+  }
+
+  /// Per-question deterministic shuffle of the choice moods. The
+  /// kid sees the choices in DIFFERENT positions every question
+  /// — so a "tap right for yes" memorisation strategy doesn't
+  /// work; they have to read the face. The shuffle is keyed on
+  /// the question id so the same question always shows the same
+  /// arrangement (predictable for revisits, but varied between
+  /// questions).
+  List<FaceMood> _shuffledMoodsForQuestion(SurveyQuestion q) {
+    final base = q.choiceCount == 5 ? kBasket5Choices : kBasket3Choices;
+    final shuffled = [...base]..shuffle(math.Random(q.id.hashCode));
+    return shuffled;
   }
 }
 
@@ -491,11 +502,14 @@ class _BasketStack extends StatelessWidget {
   final List<FaceMood> dropped;
 
   /// How many marbles fit visibly inside the basket before any
-  /// new ones overspill. Tuned for the 320-wide footprint.
-  static const int _capacity = 8;
+  /// new ones overspill. Tuned for the 320-wide footprint at the
+  /// current marble radius (3 per row × 2 rows ≈ 6).
+  static const int _capacity = 6;
 
-  /// Marble radius (relative to the 320×240 layout).
-  static const double _r = 22;
+  /// Marble radius (relative to the 320×240 layout). Bumped 1.5×
+  /// from the original 22 so the marbles inside read at the same
+  /// visual weight as the choice-row faces above the basket.
+  static const double _r = 33;
 
   @override
   Widget build(BuildContext context) {
@@ -553,16 +567,18 @@ class _BasketStack extends StatelessWidget {
 
   /// Stable target position inside the basket for the i-th
   /// dropped marble. Packs them in horizontal rows, alternating
-  /// offset like a hex grid so the pile reads as marble-y.
+  /// offset like a hex grid so the pile reads as marble-y. With
+  /// the larger 1.5× radius, 3-per-row fills the trapezoid
+  /// interior cleanly.
   Offset _insidePosition(int i) {
     // Basket interior bounds in local 320×240 space.
-    const left = 50.0;
-    const right = 270.0;
-    const bottom = 215.0;
+    const left = 56.0;
+    const right = 264.0;
+    const bottom = 218.0;
     // Row pitch — slightly less than a marble diameter so they
     // nestle.
-    const rowH = _r * 1.6;
-    const perRow = 4;
+    const rowH = _r * 1.55;
+    const perRow = 3;
     final row = i ~/ perRow;
     final col = i % perRow;
     const rowSpan = right - left - _r * 2;
