@@ -36,7 +36,7 @@ class BasketSurveySession {
   /// `questionId → mood` for every question the kid answered.
   /// Mood is stored by enum index (0..4) so we don't mix up
   /// 3-point and 5-point columns when the schema evolves.
-  final Map<String, BasketFaceMood> answers;
+  final Map<String, FaceMood> answers;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
         'id': id,
@@ -56,9 +56,9 @@ class BasketSurveySession {
       id: json['id'] as String,
       startedAt: DateTime.parse(json['startedAt'] as String),
       endedAt: DateTime.parse(json['endedAt'] as String),
-      answers: <String, BasketFaceMood>{
+      answers: <String, FaceMood>{
         for (final entry in raw.entries)
-          entry.key: BasketFaceMood.values[entry.value as int],
+          entry.key: FaceMood.values[entry.value as int],
       },
     );
   }
@@ -114,7 +114,7 @@ class BasketSurveySessionsNotifier
 
   /// Append a new completed session.
   Future<BasketSurveySession> add({
-    required Map<String, BasketFaceMood> answers,
+    required Map<String, FaceMood> answers,
     required DateTime startedAt,
     required DateTime endedAt,
   }) async {
@@ -122,7 +122,7 @@ class BasketSurveySessionsNotifier
       id: newId(),
       startedAt: startedAt,
       endedAt: endedAt,
-      answers: Map<String, BasketFaceMood>.unmodifiable(answers),
+      answers: Map<String, FaceMood>.unmodifiable(answers),
     );
     final current = await future;
     final next = <BasketSurveySession>[...current, session];
@@ -173,7 +173,10 @@ String buildBasketSurveyCsv({
       s.startedAt.toUtc().toIso8601String(),
       s.endedAt.toUtc().toIso8601String(),
       for (final q in moodQuestions)
-        s.answers[q.id]?.likert5.toString() ?? '',
+        if (s.answers[q.id] case final FaceMood m)
+          basketLikert5(m).toString()
+        else
+          '',
     ];
     buf.writeln(_csvRow(cells));
   }

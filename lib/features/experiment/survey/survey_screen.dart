@@ -1157,8 +1157,8 @@ enum MarbleVariant { idle, breathing, fidget, emote }
 /// Per-face color triple. Body = the flat circle fill; ring = a
 /// slightly-darker shade of the body for the outline; ink = the
 /// dark accent used for brows, eyes, mouth.
-class _FacePalette {
-  const _FacePalette({
+class FacePalette {
+  const FacePalette({
     required this.body,
     required this.ring,
     required this.ink,
@@ -1176,34 +1176,34 @@ class _FacePalette {
 
 /// Per-face palette table. Numbers come straight from the
 /// emoji-character-animation spec (`emoji_character_animation_spec.html`).
-const Map<FaceMood, _FacePalette> _kFacePalettes = <FaceMood, _FacePalette>{
-  FaceMood.stronglyDisagree: _FacePalette(
+const Map<FaceMood, FacePalette> kFacePalettes = <FaceMood, FacePalette>{
+  FaceMood.stronglyDisagree: FacePalette(
     body: Color(0xFFFCEBEB),
     ring: Color(0xFFF09595),
     ink: Color(0xFFA32D2D),
     cheek: Color(0xFFF09595),
     tear: Color(0xFF85B7EB),
   ),
-  FaceMood.disagree: _FacePalette(
+  FaceMood.disagree: FacePalette(
     body: Color(0xFFFAECE7),
     ring: Color(0xFFF0997B),
     ink: Color(0xFF712B13),
     cheek: Color(0xFFF09595),
   ),
-  FaceMood.notSure: _FacePalette(
+  FaceMood.notSure: FacePalette(
     body: Color(0xFFFAEEDA),
     ring: Color(0xFFFAC775),
     ink: Color(0xFF854F0B),
     cheek: Color(0xFFFAC775),
   ),
-  FaceMood.agree: _FacePalette(
+  FaceMood.agree: FacePalette(
     body: Color(0xFFEAF3DE),
     ring: Color(0xFF97C459),
     ink: Color(0xFF27500A),
     cheek: Color(0xFF97C459),
     sparkle: Color(0xFF97C459),
   ),
-  FaceMood.stronglyAgree: _FacePalette(
+  FaceMood.stronglyAgree: FacePalette(
     body: Color(0xFFE1F5EE),
     ring: Color(0xFF5DCAA5),
     ink: Color(0xFF085041),
@@ -1227,8 +1227,8 @@ const Map<FaceMood, _FacePalette> _kFacePalettes = <FaceMood, _FacePalette>{
 /// state machine. Tap reactions and other one-shots are applied
 /// at the marble level (transform + scale), not inside the
 /// painter.
-class _FacePainter {
-  const _FacePainter({
+class FacePainter {
+  const FacePainter({
     required this.mood,
     this.variant = MarbleVariant.idle,
     this.t = 0,
@@ -1240,7 +1240,7 @@ class _FacePainter {
 
   void paintAt(Canvas canvas, Offset center, double radius) {
     final s = radius / 38;
-    final palette = _kFacePalettes[mood]!;
+    final palette = kFacePalettes[mood]!;
     canvas
       ..save()
       ..translate(center.dx, center.dy);
@@ -1277,7 +1277,7 @@ class _FacePainter {
   // contract + 1 tear drip; breathing pulses tear opacity + brow
   // bobs; fidget squashes eyes rapidly; emote sobs with 2 tears.
   // ============================================================
-  void _paintStronglyDisagree(Canvas canvas, double s, _FacePalette p) {
+  void _paintStronglyDisagree(Canvas canvas, double s, FacePalette p) {
     final ink = Paint()
       ..color = p.ink
       ..style = PaintingStyle.stroke
@@ -1480,7 +1480,7 @@ class _FacePainter {
   // sneaks a midcycle blink; fidget wanders eyes Y + tiny lip
   // morph; emote sheds a sweat drop.
   // ============================================================
-  void _paintDisagree(Canvas canvas, double s, _FacePalette p) {
+  void _paintDisagree(Canvas canvas, double s, FacePalette p) {
     final ink = Paint()
       ..color = p.ink
       ..style = PaintingStyle.stroke
@@ -1641,7 +1641,7 @@ class _FacePainter {
   // breathing = mouth purse (lip scaleX shrinks at 35% of 6s);
   // fidget = rapid eye dart; emote = brow lift + puff cloud.
   // ============================================================
-  void _paintNotSure(Canvas canvas, double s, _FacePalette p) {
+  void _paintNotSure(Canvas canvas, double s, FacePalette p) {
     final ink = Paint()
       ..color = p.ink
       ..style = PaintingStyle.stroke
@@ -1754,7 +1754,7 @@ class _FacePainter {
   // breathing = bigger cheek pulse synced to body; fidget =
   // sparkle spinning; emote = floating heart.
   // ============================================================
-  void _paintAgree(Canvas canvas, double s, _FacePalette p) {
+  void _paintAgree(Canvas canvas, double s, FacePalette p) {
     final ink = Paint()
       ..color = p.ink
       ..style = PaintingStyle.stroke
@@ -1921,7 +1921,7 @@ class _FacePainter {
   // eyes, open grin with teeth + tongue + chomp, big cheeks, 3
   // staggered sparkles orbiting.
   // ============================================================
-  void _paintStronglyAgree(Canvas canvas, double s, _FacePalette p) {
+  void _paintStronglyAgree(Canvas canvas, double s, FacePalette p) {
     final ink = Paint()
       ..color = p.ink
       ..style = PaintingStyle.stroke
@@ -2171,7 +2171,7 @@ class _MicroAnimMods {
 /// marble each frame and emits a `_MicroAnimMods` describing the
 /// body-level offsets (tx, ty, rot, sx, sy). Face-feature anims
 /// (eye drift, blink, tear drip, sparkle, mouth contract / chomp)
-/// live inside `_FacePainter` and read `t` directly.
+/// live inside `FacePainter` and read `t` directly.
 ///
 /// Each face has a stable signature loop straight from the spec:
 ///   F1 stronglyDisagree — slow shiver (2.5s loop, ±2px, ±1°)
@@ -3231,7 +3231,7 @@ class _MarbleNode extends PositionComponent {
 
     // Shadow at full radius (no squash) — keeps contact grounded.
     // Then save/translate/rotate/scale for the body+face, paint
-    // via `_FacePainter`, and restore.
+    // via `FacePainter`, and restore.
     canvas
       ..drawCircle(
         Offset(mods.tx, mods.ty + r * 0.4),
@@ -3242,7 +3242,7 @@ class _MarbleNode extends PositionComponent {
       ..translate(mods.tx, mods.ty)
       ..rotate(mods.rot)
       ..scale(sx, sy);
-    _FacePainter(mood: mood, variant: variant, t: _t)
+    FacePainter(mood: mood, variant: variant, t: _t)
         .paintAt(canvas, Offset.zero, _radius);
     canvas.restore();
 
@@ -3400,7 +3400,7 @@ class _SurveyGame extends FlameGame
 
   // v60.17 — palette shuffling on jar landing was removed when the
   // 5-face Likert spec made colors part of each face's identity.
-  // Each marble's tint comes from `_kFacePalettes[mood].body` and
+  // Each marble's tint comes from `kFacePalettes[mood].body` and
   // never changes; replacement marbles spawn with the same palette.
 
   int _spawnCounter = 0;
@@ -3518,7 +3518,7 @@ class _SurveyGame extends FlameGame
     final replacement = _MarbleNode(
       slotIdx: m.slotIdx,
       mood: m.mood,
-      tint: _kFacePalettes[m.mood]!.body,
+      tint: kFacePalettes[m.mood]!.body,
       seed: ++_spawnCounter * 7 + m.slotIdx,
       spawnPos: _marbleRestPositions[m.slotIdx],
       restPos: _marbleRestPositions[m.slotIdx],
@@ -3973,7 +3973,7 @@ class _SurveyGame extends FlameGame
           mood: activeMoods[i],
           // Tint comes from the mood's spec palette (not a shared
           // shuffle pool any more).
-          tint: _kFacePalettes[activeMoods[i]]!.body,
+          tint: kFacePalettes[activeMoods[i]]!.body,
           seed: 100 + i * 17,
           spawnPos: _marbleRestPositions[i],
           restPos: _marbleRestPositions[i],
@@ -4896,7 +4896,7 @@ class _CelebrationPainter extends CustomPainter {
       }
       // Each particle reuses the per-face painter — its own t means
       // the burst face animates independently of the world marble.
-      _FacePainter(mood: p.mood, t: t).paintAt(canvas, Offset.zero, p.radius);
+      FacePainter(mood: p.mood, t: t).paintAt(canvas, Offset.zero, p.radius);
       if (alpha < 0.99) canvas.restore();
 
       canvas.restore();

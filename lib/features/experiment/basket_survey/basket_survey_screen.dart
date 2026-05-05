@@ -1,19 +1,31 @@
 // Basket-survey experiment — a cleaner, simpler take on the
-// BASECamp student survey. Single column: question on top, replay
-// icon to its left, 3 or 5 painted-face cards in a row, woven
-// painterly basket at the bottom as the drop target.
+// BASECamp student survey. Single column: question on top with a
+// replay icon to its left (vertically centred together), 3 or 5
+// painted-face cards in a row, woven painterly basket at the
+// bottom as the drop target.
 //
-// Compared to the marble-jar kiosk
-// (`lib/features/experiment/survey/survey_screen.dart`):
+// **What stays put across questions:**
+//   * Replay icon (always in the same slot on the left).
+//   * Basket + every face that's already been dropped into it.
+//
+// **What animates between questions:**
+//   * Question text — fades / slides in with a small ease.
+//   * Choice row — same fade/slide.
+//
+// **Dropped marbles:**
+//   * Each accepted drop accumulates inside the basket. Marbles
+//     pile up, slightly visible through the translucent weave,
+//     and once the basket is "full" they overspill onto the
+//     surrounding floor (left side, right side, in front).
+//
+// Compared to the marble-jar kiosk:
 //   * No Flame engine — pure Flutter widgets + CustomPainters.
-//   * No chibi character / physics / overflow / 3D jar.
-//   * No persistence wired to the cloud — sessions land in a
-//     local JSON file, surfaced as a CSV for export.
-//   * Same canonical questions and same Deepgram TTS service so
-//     swapping the kid-facing UX is a clean A/B against the
-//     marble version.
+//   * No chibi character / 3D physics / overflow rim collision.
+//   * Same canonical questions + same Deepgram TTS, so the basket
+//     is a clean A/B against the marble version.
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:basecamp/features/experiment/basket_survey/basket_painter.dart';
 import 'package:basecamp/features/experiment/basket_survey/basket_session_store.dart';
@@ -35,44 +47,30 @@ class BasketSurveyScreen extends ConsumerStatefulWidget {
 }
 
 class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
-  /// Voice picked at the top of the screen. Defaults to Asteria.
-  /// Hardcoded for the sandbox — not configurable yet.
+  /// Voice — hardcoded for the sandbox.
   static const SurveyVoice _voice = SurveyVoice.asteria;
 
-  /// Mood-only subset of the canonical questions. The basket
-  /// experiment doesn't render multi-select / open-ended yet; it
-  /// just skips them. The kiosk handles those via overlays.
+  /// Mood-only subset of the canonical questions.
   late final List<SurveyQuestion> _questions = kBasecampCanonicalQuestions
       .where((q) => q.type == SurveyQuestionType.mood)
       .toList();
 
-  /// Index into [_questions] that we're currently asking.
   int _index = 0;
+  final Map<String, FaceMood> _answers = <String, FaceMood>{};
 
-  /// Question-id → chosen mood. Saved at end-of-survey.
-  final Map<String, BasketFaceMood> _answers = <String, BasketFaceMood>{};
+  /// Faces that have been dropped this session — order is the
+  /// drop order. Used by the basket painter to accumulate visible
+  /// marbles and decide where overspill lands.
+  final List<FaceMood> _dropped = <FaceMood>[];
 
-  /// `true` while the basket is glowing (a drag is hovering over
-  /// the drop target). Drives basket scale + glow halo.
   bool _basketGlow = false;
-
-  /// `true` for the brief transition between questions — fades
-  /// the question + faces out, then in. Locks input during the
-  /// fade so a quick double-drop can't double-record.
   bool _transitioning = false;
-
-  /// `true` for the final "thank you" beat after the last question.
   bool _showingDone = false;
-
-  /// Wall-clock start of the current session. Recorded at first
-  /// build; reset on `_resetForNextChild`.
   late DateTime _sessionStartedAt = DateTime.now();
 
   @override
   void initState() {
     super.initState();
-    // Read the first question aloud after layout settles. Same
-    // best-effort no-op semantics as the kiosk.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _playCurrentQuestionAudio();
     });
@@ -86,18 +84,17 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
     unawaited(audio.playQuestion(_voice, q.prompt));
   }
 
-  Future<void> _onDropped(BasketFaceMood mood) async {
+  Future<void> _onDropped(FaceMood mood) async {
     if (_transitioning || _showingDone) return;
     final q = _questions[_index];
     _answers[q.id] = mood;
+    _dropped.add(mood);
     unawaited(HapticFeedback.lightImpact());
     setState(() {
       _basketGlow = false;
       _transitioning = true;
     });
-    // Hold on the basket bounce before advancing — the kid sees
-    // the face land before the next question fades in.
-    await Future<void>.delayed(const Duration(milliseconds: 320));
+    await Future<void>.delayed(const Duration(milliseconds: 360));
     if (!mounted) return;
     if (_index + 1 >= _questions.length) {
       await _onSurveyComplete();
@@ -115,8 +112,6 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
       _showingDone = true;
       _transitioning = false;
     });
-    // Persist the session before the celebration beat ends — the
-    // CSV button on the appbar reads from the same provider.
     final notifier = ref.read(basketSurveySessionsProvider.notifier);
     await notifier.add(
       answers: _answers,
@@ -133,6 +128,7 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
     setState(() {
       _index = 0;
       _answers.clear();
+      _dropped.clear();
       _showingDone = false;
       _transitioning = false;
       _sessionStartedAt = DateTime.now();
@@ -158,67 +154,45 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
       body: SafeArea(
         child: _showingDone
             ? const _DoneOverlay()
-            : LayoutBuilder(
-                builder: (context, constraints) {
-                  return Column(
-                    children: [
-                      Expanded(
-                        flex: 5,
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(
-                            AppSpacing.lg,
-                            AppSpacing.xl,
-                            AppSpacing.lg,
-                            AppSpacing.md,
-                          ),
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 280),
-                            switchInCurve: Curves.easeOutCubic,
-                            switchOutCurve: Curves.easeInCubic,
-                            transitionBuilder: (child, anim) {
-                              final slide = Tween<Offset>(
-                                begin: const Offset(0, 0.06),
-                                end: Offset.zero,
-                              ).animate(anim);
-                              return FadeTransition(
-                                opacity: anim,
-                                child: SlideTransition(
-                                  position: slide,
-                                  child: child,
-                                ),
-                              );
-                            },
-                            child: _transitioning
-                                ? const SizedBox.shrink(
-                                    key: ValueKey('transition'),
-                                  )
-                                : _QuestionAndChoices(
-                                    key: ValueKey('q$_index'),
-                                    question: _questions[_index],
-                                    onReplay: _playCurrentQuestionAudio,
-                                  ),
-                          ),
-                        ),
+            : Column(
+                children: [
+                  // ——— Question + choices (this part swaps) ———————
+                  // Wrapped in an AnimatedSwitcher so ONLY the
+                  // prompt + choices change between questions; the
+                  // replay icon and the basket below stay put.
+                  Expanded(
+                    flex: 5,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        AppSpacing.xl,
+                        AppSpacing.lg,
+                        AppSpacing.md,
                       ),
-                      Expanded(
-                        flex: 3,
-                        child: Center(
-                          child: _BasketDropTarget(
-                            glow: _basketGlow,
-                            onWillAccept: () {
-                              if (_transitioning) return false;
-                              setState(() => _basketGlow = true);
-                              return true;
-                            },
-                            onLeave: () =>
-                                setState(() => _basketGlow = false),
-                            onAccept: _onDropped,
-                          ),
-                        ),
+                      child: _QuestionAndChoices(
+                        question: _questions[_index],
+                        onReplay: _playCurrentQuestionAudio,
+                        transitioning: _transitioning,
                       ),
-                    ],
-                  );
-                },
+                    ),
+                  ),
+                  // ——— Basket (sticks across questions) ————————
+                  Expanded(
+                    flex: 4,
+                    child: _BasketWithMarbles(
+                      glow: _basketGlow,
+                      dropped: _dropped,
+                      onWillAccept: () {
+                        if (_transitioning) return false;
+                        setState(() => _basketGlow = true);
+                        return true;
+                      },
+                      onLeave: () =>
+                          setState(() => _basketGlow = false),
+                      onAccept: _onDropped,
+                    ),
+                  ),
+                ],
               ),
       ),
     );
@@ -235,17 +209,19 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
 }
 
 /// Question text + replay icon + the row of draggable face cards.
-/// Lifted out of the screen so AnimatedSwitcher can fade it as a
-/// single unit between questions.
+/// Built so the **replay icon stays put** across question changes
+/// — only the question text + choice row are wrapped in the
+/// AnimatedSwitcher.
 class _QuestionAndChoices extends StatelessWidget {
   const _QuestionAndChoices({
     required this.question,
     required this.onReplay,
-    super.key,
+    required this.transitioning,
   });
 
   final SurveyQuestion question;
   final VoidCallback onReplay;
+  final bool transitioning;
 
   @override
   Widget build(BuildContext context) {
@@ -254,49 +230,86 @@ class _QuestionAndChoices extends StatelessWidget {
         ? kBasket5Choices
         : kBasket3Choices;
     return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        // Top row — replay icon (fixed) + animated question text.
+        // The replay icon and the question text are vertically
+        // centred relative to each other (CrossAxisAlignment.center).
         Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Replay icon — sits to the LEFT of the question per
-            // the user's spec. Compact size; tap → replay TTS.
             IconButton(
               tooltip: 'Replay question',
               onPressed: onReplay,
               icon: Icon(
                 Icons.volume_up_outlined,
+                size: 26,
                 color: theme.colorScheme.primary,
               ),
             ),
             const SizedBox(width: AppSpacing.xs),
             Expanded(
-              child: Text(
-                question.prompt,
-                textAlign: TextAlign.left,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  height: 1.30,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 280),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, anim) => FadeTransition(
+                  opacity: anim,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 0.08),
+                      end: Offset.zero,
+                    ).animate(anim),
+                    child: child,
+                  ),
+                ),
+                child: Text(
+                  question.prompt,
+                  key: ValueKey('prompt_${question.id}'),
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    height: 1.30,
+                  ),
                 ),
               ),
             ),
           ],
         ),
         const Spacer(),
-        // Face row — wraps to multi-line on narrow screens (5 faces
-        // on a small phone wouldn't fit on one row).
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: AppSpacing.lg,
-          runSpacing: AppSpacing.md,
-          children: [
-            for (var i = 0; i < moods.length; i++)
-              _DraggableFace(
-                mood: moods[i],
-                seed: i,
-                size: _faceSize(context, moods.length),
-              ),
-          ],
+        // Choice row — animates separately (its own switcher) so a
+        // 3-choice question can swap to a 5-choice question without
+        // dragging the question text along for the ride.
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 280),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, anim) => FadeTransition(
+            opacity: anim,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.06),
+                end: Offset.zero,
+              ).animate(anim),
+              child: child,
+            ),
+          ),
+          child: transitioning
+              ? const SizedBox(
+                  key: ValueKey('choices_transition'),
+                  height: 1,
+                )
+              : Wrap(
+                  key: ValueKey('choices_${question.id}'),
+                  alignment: WrapAlignment.center,
+                  spacing: AppSpacing.lg,
+                  runSpacing: AppSpacing.md,
+                  children: [
+                    for (var i = 0; i < moods.length; i++)
+                      _DraggableFace(
+                        mood: moods[i],
+                        seed: i + question.id.hashCode,
+                        size: _faceSize(context, moods.length),
+                      ),
+                  ],
+                ),
         ),
         const Spacer(),
       ],
@@ -310,9 +323,6 @@ class _QuestionAndChoices extends StatelessWidget {
   }
 }
 
-/// Face card you can drag onto the basket. The face widget
-/// continues to animate during the drag thanks to its own ticker;
-/// we just wrap it in `Draggable<BasketFaceMood>`.
 class _DraggableFace extends StatefulWidget {
   const _DraggableFace({
     required this.mood,
@@ -320,7 +330,7 @@ class _DraggableFace extends StatefulWidget {
     required this.size,
   });
 
-  final BasketFaceMood mood;
+  final FaceMood mood;
   final int seed;
   final double size;
 
@@ -350,62 +360,76 @@ class _DraggableFaceState extends State<_DraggableFace> {
         ),
       ),
     );
-    return Draggable<BasketFaceMood>(
-      data: widget.mood,
-      feedback: Material(
-        type: MaterialType.transparency,
-        child: SizedBox(
-          width: widget.size,
-          height: widget.size,
-          child: PaintedFace(
-            mood: widget.mood,
-            size: widget.size,
-            seed: widget.seed,
-            state: BasketFaceState.held,
+    return Tooltip(
+      message: basketFaceLabel(widget.mood),
+      child: Draggable<FaceMood>(
+        data: widget.mood,
+        feedback: Material(
+          type: MaterialType.transparency,
+          child: SizedBox(
+            width: widget.size * 1.05,
+            height: widget.size * 1.05,
+            child: PaintedFace(
+              mood: widget.mood,
+              size: widget.size * 1.05,
+              seed: widget.seed,
+              state: BasketFaceState.held,
+            ),
           ),
         ),
+        childWhenDragging: SizedBox(
+          width: widget.size,
+          height: widget.size,
+        ),
+        onDragStarted: () {
+          unawaited(HapticFeedback.selectionClick());
+          setState(() => _dragging = true);
+        },
+        onDraggableCanceled: (_, _) =>
+            setState(() => _dragging = false),
+        onDragCompleted: () => setState(() => _dragging = false),
+        child: body,
       ),
-      childWhenDragging: SizedBox(
-        width: widget.size,
-        height: widget.size,
-      ),
-      onDragStarted: () {
-        unawaited(HapticFeedback.selectionClick());
-        setState(() => _dragging = true);
-      },
-      onDraggableCanceled: (_, _) =>
-          setState(() => _dragging = false),
-      onDragCompleted: () => setState(() => _dragging = false),
-      child: body,
     );
   }
 }
 
-/// The basket drop target. Wraps `BasketPainter` in a `DragTarget`
-/// + an `AnimatedScale` so it pops up a tick when a face hovers
-/// over it. The painter handles the visual glow / drop-in shadow.
-class _BasketDropTarget extends StatefulWidget {
-  const _BasketDropTarget({
+/// Basket + accumulated dropped marbles. Renders in three
+/// stacked layers so marbles read as being **inside** the basket
+/// (visible through the translucent weave) and as **overspill**
+/// when the basket is full:
+///
+///   * Layer 1 (back) — marbles inside the basket, settled along
+///                      the bottom.
+///   * Layer 2 (mid)  — the woven basket painter, drawn at ~78%
+///                      opacity so back-layer marbles bleed
+///                      through.
+///   * Layer 3 (front)— overspilled marbles around / in front of
+///                      the basket once it's "full".
+class _BasketWithMarbles extends StatefulWidget {
+  const _BasketWithMarbles({
     required this.glow,
+    required this.dropped,
     required this.onWillAccept,
     required this.onLeave,
     required this.onAccept,
   });
 
   final bool glow;
+  final List<FaceMood> dropped;
   final bool Function() onWillAccept;
   final VoidCallback onLeave;
-  final ValueChanged<BasketFaceMood> onAccept;
+  final ValueChanged<FaceMood> onAccept;
 
   @override
-  State<_BasketDropTarget> createState() => _BasketDropTargetState();
+  State<_BasketWithMarbles> createState() => _BasketWithMarblesState();
 }
 
-class _BasketDropTargetState extends State<_BasketDropTarget>
+class _BasketWithMarblesState extends State<_BasketWithMarbles>
     with SingleTickerProviderStateMixin {
   late final AnimationController _bounce = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 320),
+    duration: const Duration(milliseconds: 360),
   );
 
   @override
@@ -416,44 +440,181 @@ class _BasketDropTargetState extends State<_BasketDropTarget>
 
   @override
   Widget build(BuildContext context) {
-    return DragTarget<BasketFaceMood>(
+    return DragTarget<FaceMood>(
       onWillAcceptWithDetails: (_) => widget.onWillAccept(),
       onLeave: (_) => widget.onLeave(),
       onAcceptWithDetails: (details) {
-        // Trigger the bounce animation and forward to parent.
         _bounce.reset();
         unawaited(_bounce.forward());
         widget.onAccept(details.data);
       },
-      builder: (context, candidates, _) {
-        return AnimatedScale(
-          scale: widget.glow ? 1.05 : 1.0,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          child: AnimatedBuilder(
-            animation: _bounce,
-            builder: (context, _) {
-              // Elastic bounce pulse: 1.0 → 1.08 → 1.0
-              final v = _bounce.value == 0
-                  ? 0.0
-                  : Curves.elasticOut.transform(_bounce.value);
-              final pulse = 1.0 + v * 0.04 * (1 - _bounce.value);
-              return Transform.scale(
-                scale: pulse,
-                child: SizedBox(
-                  width: 220,
-                  height: 200,
-                  child: CustomPaint(
-                    painter: BasketPainter(glow: widget.glow),
+      builder: (context, _, _) {
+        return Center(
+          child: AnimatedScale(
+            scale: widget.glow ? 1.04 : 1.0,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            child: AnimatedBuilder(
+              animation: _bounce,
+              builder: (context, _) {
+                final v = _bounce.value == 0
+                    ? 0.0
+                    : Curves.elasticOut.transform(_bounce.value);
+                final pulse = 1.0 + v * 0.045 * (1 - _bounce.value);
+                return Transform.scale(
+                  scale: pulse,
+                  child: SizedBox(
+                    width: 320,
+                    height: 240,
+                    child: _BasketStack(
+                      glow: widget.glow,
+                      dropped: widget.dropped,
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         );
       },
     );
   }
+}
+
+/// Lays out the three render layers of the basket (back marbles,
+/// woven weave, front / spillover marbles). Geometry constants
+/// here are in the local 320×240 space the parent passes.
+class _BasketStack extends StatelessWidget {
+  const _BasketStack({required this.glow, required this.dropped});
+
+  final bool glow;
+  final List<FaceMood> dropped;
+
+  /// How many marbles fit visibly inside the basket before any
+  /// new ones overspill. Tuned for the 320-wide footprint.
+  static const int _capacity = 8;
+
+  /// Marble radius (relative to the 320×240 layout).
+  static const double _r = 22;
+
+  @override
+  Widget build(BuildContext context) {
+    // Decide which layer each marble belongs to.
+    final inside = <_PlacedMarble>[];
+    final overspill = <_PlacedMarble>[];
+    for (var i = 0; i < dropped.length; i++) {
+      final pos = i < _capacity
+          ? _insidePosition(i)
+          : _overspillPosition(i - _capacity);
+      final placed = _PlacedMarble(
+        mood: dropped[i],
+        offset: pos,
+        seed: i,
+        front: i >= _capacity,
+      );
+      (placed.front ? overspill : inside).add(placed);
+    }
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // Layer 1 — marbles inside the basket. Drawn before the
+        // weave so the weave overlays them.
+        for (final m in inside) _marble(m),
+
+        // Layer 2 — the woven basket itself. 78% opacity so
+        // the back marbles bleed through. Glow halo + floor
+        // shadow are baked into BasketPainter.
+        Positioned.fill(
+          child: Opacity(
+            opacity: 0.78,
+            child: CustomPaint(painter: BasketPainter(glow: glow)),
+          ),
+        ),
+
+        // Layer 3 — overspill marbles, drawn ON TOP of the
+        // weave so they read as being in front of / beside the
+        // basket on the floor.
+        for (final m in overspill) _marble(m),
+      ],
+    );
+  }
+
+  Widget _marble(_PlacedMarble m) {
+    return Positioned(
+      left: m.offset.dx - _r,
+      top: m.offset.dy - _r,
+      child: PaintedFace(
+        mood: m.mood,
+        size: _r * 2,
+        seed: m.seed,
+      ),
+    );
+  }
+
+  /// Stable target position inside the basket for the i-th
+  /// dropped marble. Packs them in horizontal rows, alternating
+  /// offset like a hex grid so the pile reads as marble-y.
+  Offset _insidePosition(int i) {
+    // Basket interior bounds in local 320×240 space.
+    const left = 50.0;
+    const right = 270.0;
+    const bottom = 215.0;
+    // Row pitch — slightly less than a marble diameter so they
+    // nestle.
+    const rowH = _r * 1.6;
+    const perRow = 4;
+    final row = i ~/ perRow;
+    final col = i % perRow;
+    const rowSpan = right - left - _r * 2;
+    const denom = perRow - 1;
+    final base = left + _r + (rowSpan / denom) * col;
+    final offsetX = row.isOdd ? _r * 0.5 : 0.0;
+    return Offset(base + offsetX, bottom - row * rowH);
+  }
+
+  /// Where the (i)-th overspill marble lands. Cycles through
+  /// front-bottom, left-side, right-side so the basket gets
+  /// "surrounded" rather than piled in just one place.
+  Offset _overspillPosition(int i) {
+    const slots = <Offset>[
+      // Front of the basket (kid side).
+      Offset(120, 232),
+      Offset(170, 232),
+      Offset(85, 232),
+      Offset(205, 232),
+      // Right of the basket.
+      Offset(296, 220),
+      Offset(304, 192),
+      // Left of the basket.
+      Offset(24, 220),
+      Offset(16, 192),
+      // Front, second row.
+      Offset(140, 210),
+      Offset(190, 210),
+    ];
+    // Wrap with deterministic jitter so beyond `slots.length`
+    // we still get differentiated positions.
+    final base = slots[i % slots.length];
+    final wrap = i ~/ slots.length;
+    final rng = math.Random(i + 17);
+    return base.translate(
+      (rng.nextDouble() - 0.5) * 18 + wrap * 6,
+      (rng.nextDouble() - 0.5) * 8,
+    );
+  }
+}
+
+class _PlacedMarble {
+  const _PlacedMarble({
+    required this.mood,
+    required this.offset,
+    required this.seed,
+    required this.front,
+  });
+  final FaceMood mood;
+  final Offset offset;
+  final int seed;
+  final bool front;
 }
 
 class _DoneOverlay extends StatelessWidget {
@@ -489,9 +650,6 @@ class _DoneOverlay extends StatelessWidget {
   }
 }
 
-/// Sessions-CSV bottom sheet. Renders the current CSV as
-/// SelectableText so a teacher can preview, plus Copy / Share /
-/// Clear-all buttons.
 class _CsvSheet extends ConsumerWidget {
   const _CsvSheet();
 
