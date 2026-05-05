@@ -27,8 +27,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:basecamp/features/experiment/basket_survey/basket_painter.dart';
 import 'package:basecamp/features/experiment/basket_survey/basket_session_store.dart';
+import 'package:basecamp/features/experiment/basket_survey/basket_world_widget.dart';
 import 'package:basecamp/features/experiment/basket_survey/painted_face.dart';
 import 'package:basecamp/features/surveys/canonical_questions.dart';
 import 'package:basecamp/features/surveys/survey_audio_service.dart';
@@ -58,10 +58,12 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
   int _index = 0;
   final Map<String, FaceMood> _answers = <String, FaceMood>{};
 
-  /// Faces that have been dropped this session — order is the
-  /// drop order. Used by the basket painter to accumulate visible
-  /// marbles and decide where overspill lands.
-  final List<FaceMood> _dropped = <FaceMood>[];
+  /// Key on the BasketWorldWidget so we can call its `reset()` on
+  /// session reset. The world owns the marble bodies (positions,
+  /// velocities, settled state); the screen no longer keeps a
+  /// parallel list.
+  final GlobalKey<BasketWorldWidgetState> _worldKey =
+      GlobalKey<BasketWorldWidgetState>();
 
   bool _basketGlow = false;
   bool _transitioning = false;
@@ -88,7 +90,6 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
     if (_transitioning || _showingDone) return;
     final q = _questions[_index];
     _answers[q.id] = mood;
-    _dropped.add(mood);
     unawaited(HapticFeedback.lightImpact());
     setState(() {
       _basketGlow = false;
@@ -125,10 +126,10 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
   }
 
   void _resetForNextChild() {
+    _worldKey.currentState?.reset();
     setState(() {
       _index = 0;
       _answers.clear();
-      _dropped.clear();
       _showingDone = false;
       _transitioning = false;
       _sessionStartedAt = DateTime.now();
@@ -177,11 +178,16 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
                     ),
                   ),
                   // ——— Basket (sticks across questions) ————————
+                  // Now driven by `BasketWorldWidget`, which owns
+                  // the physics simulation and renders every
+                  // marble (back / front / overspill) directly via
+                  // a CustomPainter. The screen only feeds it
+                  // glow + drop events.
                   Expanded(
                     flex: 4,
-                    child: _BasketWithMarbles(
+                    child: BasketWorldWidget(
+                      key: _worldKey,
                       glow: _basketGlow,
-                      dropped: _dropped,
                       onWillAccept: () {
                         if (_transitioning) return false;
                         setState(() => _basketGlow = true);
@@ -422,234 +428,6 @@ class _DraggableFaceState extends State<_DraggableFace> {
       ),
     );
   }
-}
-
-/// Basket + accumulated dropped marbles. Renders in three
-/// stacked layers so marbles read as being **inside** the basket
-/// (visible through the translucent weave) and as **overspill**
-/// when the basket is full:
-///
-///   * Layer 1 (back) — marbles inside the basket, settled along
-///                      the bottom.
-///   * Layer 2 (mid)  — the woven basket painter, drawn at ~78%
-///                      opacity so back-layer marbles bleed
-///                      through.
-///   * Layer 3 (front)— overspilled marbles around / in front of
-///                      the basket once it's "full".
-class _BasketWithMarbles extends StatefulWidget {
-  const _BasketWithMarbles({
-    required this.glow,
-    required this.dropped,
-    required this.onWillAccept,
-    required this.onLeave,
-    required this.onAccept,
-  });
-
-  final bool glow;
-  final List<FaceMood> dropped;
-  final bool Function() onWillAccept;
-  final VoidCallback onLeave;
-  final ValueChanged<FaceMood> onAccept;
-
-  @override
-  State<_BasketWithMarbles> createState() => _BasketWithMarblesState();
-}
-
-class _BasketWithMarblesState extends State<_BasketWithMarbles>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _bounce = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 360),
-  );
-
-  @override
-  void dispose() {
-    _bounce.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return DragTarget<FaceMood>(
-      onWillAcceptWithDetails: (_) => widget.onWillAccept(),
-      onLeave: (_) => widget.onLeave(),
-      onAcceptWithDetails: (details) {
-        _bounce.reset();
-        unawaited(_bounce.forward());
-        widget.onAccept(details.data);
-      },
-      builder: (context, _, _) {
-        return Center(
-          child: AnimatedScale(
-            scale: widget.glow ? 1.04 : 1.0,
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            child: AnimatedBuilder(
-              animation: _bounce,
-              builder: (context, _) {
-                final v = _bounce.value == 0
-                    ? 0.0
-                    : Curves.elasticOut.transform(_bounce.value);
-                final pulse = 1.0 + v * 0.045 * (1 - _bounce.value);
-                return Transform.scale(
-                  scale: pulse,
-                  child: SizedBox(
-                    width: 320,
-                    height: 240,
-                    child: _BasketStack(
-                      glow: widget.glow,
-                      dropped: widget.dropped,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Lays out the three render layers of the basket (back marbles,
-/// woven weave, front / spillover marbles). Geometry constants
-/// here are in the local 320×240 space the parent passes.
-class _BasketStack extends StatelessWidget {
-  const _BasketStack({required this.glow, required this.dropped});
-
-  final bool glow;
-  final List<FaceMood> dropped;
-
-  /// How many marbles fit visibly inside the basket before any
-  /// new ones overspill. Tuned for the 320-wide footprint at the
-  /// current marble radius (3 per row × 2 rows ≈ 6).
-  static const int _capacity = 6;
-
-  /// Marble radius (relative to the 320×240 layout). Bumped 1.5×
-  /// from the original 22 so the marbles inside read at the same
-  /// visual weight as the choice-row faces above the basket.
-  static const double _r = 33;
-
-  @override
-  Widget build(BuildContext context) {
-    // Decide which layer each marble belongs to.
-    final inside = <_PlacedMarble>[];
-    final overspill = <_PlacedMarble>[];
-    for (var i = 0; i < dropped.length; i++) {
-      final pos = i < _capacity
-          ? _insidePosition(i)
-          : _overspillPosition(i - _capacity);
-      final placed = _PlacedMarble(
-        mood: dropped[i],
-        offset: pos,
-        seed: i,
-        front: i >= _capacity,
-      );
-      (placed.front ? overspill : inside).add(placed);
-    }
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        // Layer 1 — marbles inside the basket. Drawn before the
-        // weave so the weave overlays them.
-        for (final m in inside) _marble(m),
-
-        // Layer 2 — the woven basket itself. 78% opacity so
-        // the back marbles bleed through. Glow halo + floor
-        // shadow are baked into BasketPainter.
-        Positioned.fill(
-          child: Opacity(
-            opacity: 0.78,
-            child: CustomPaint(painter: BasketPainter(glow: glow)),
-          ),
-        ),
-
-        // Layer 3 — overspill marbles, drawn ON TOP of the
-        // weave so they read as being in front of / beside the
-        // basket on the floor.
-        for (final m in overspill) _marble(m),
-      ],
-    );
-  }
-
-  Widget _marble(_PlacedMarble m) {
-    return Positioned(
-      left: m.offset.dx - _r,
-      top: m.offset.dy - _r,
-      child: PaintedFace(
-        mood: m.mood,
-        size: _r * 2,
-        seed: m.seed,
-      ),
-    );
-  }
-
-  /// Stable target position inside the basket for the i-th
-  /// dropped marble. Packs them in horizontal rows, alternating
-  /// offset like a hex grid so the pile reads as marble-y. With
-  /// the larger 1.5× radius, 3-per-row fills the trapezoid
-  /// interior cleanly.
-  Offset _insidePosition(int i) {
-    // Basket interior bounds in local 320×240 space.
-    const left = 56.0;
-    const right = 264.0;
-    const bottom = 218.0;
-    // Row pitch — slightly less than a marble diameter so they
-    // nestle.
-    const rowH = _r * 1.55;
-    const perRow = 3;
-    final row = i ~/ perRow;
-    final col = i % perRow;
-    const rowSpan = right - left - _r * 2;
-    const denom = perRow - 1;
-    final base = left + _r + (rowSpan / denom) * col;
-    final offsetX = row.isOdd ? _r * 0.5 : 0.0;
-    return Offset(base + offsetX, bottom - row * rowH);
-  }
-
-  /// Where the (i)-th overspill marble lands. Cycles through
-  /// front-bottom, left-side, right-side so the basket gets
-  /// "surrounded" rather than piled in just one place.
-  Offset _overspillPosition(int i) {
-    const slots = <Offset>[
-      // Front of the basket (kid side).
-      Offset(120, 232),
-      Offset(170, 232),
-      Offset(85, 232),
-      Offset(205, 232),
-      // Right of the basket.
-      Offset(296, 220),
-      Offset(304, 192),
-      // Left of the basket.
-      Offset(24, 220),
-      Offset(16, 192),
-      // Front, second row.
-      Offset(140, 210),
-      Offset(190, 210),
-    ];
-    // Wrap with deterministic jitter so beyond `slots.length`
-    // we still get differentiated positions.
-    final base = slots[i % slots.length];
-    final wrap = i ~/ slots.length;
-    final rng = math.Random(i + 17);
-    return base.translate(
-      (rng.nextDouble() - 0.5) * 18 + wrap * 6,
-      (rng.nextDouble() - 0.5) * 8,
-    );
-  }
-}
-
-class _PlacedMarble {
-  const _PlacedMarble({
-    required this.mood,
-    required this.offset,
-    required this.seed,
-    required this.front,
-  });
-  final FaceMood mood;
-  final Offset offset;
-  final int seed;
-  final bool front;
 }
 
 class _DoneOverlay extends StatelessWidget {
