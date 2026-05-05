@@ -282,10 +282,14 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
       ));
     }
 
-    // Hold a beat so the last marble can settle in the basket
-    // before we freeze the snapshot — otherwise the card shows a
-    // marble in mid-air.
-    await Future<void>.delayed(const Duration(milliseconds: 500));
+    // Wait for the basket world to fully settle before we freeze
+    // the snapshot. The original 500ms wait was too short — a
+    // marble dropped from mid-rim with the highest spawn velocity
+    // bounces for ~1.2-1.8s; the card frequently caught marbles
+    // mid-bounce. Now we poll every 80ms for up to 2s, taking
+    // the snapshot the moment everything has settled (or hitting
+    // the 2s cap as a safety net so the card never hangs).
+    await _waitForBasketToSettle();
     if (!mounted) return;
     final snap = await _captureBasketSnapshot();
     if (!mounted) return;
@@ -295,6 +299,23 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
     });
     // No auto-reset — the kid stays on the thank-you card until
     // they tap "Pass to next friend" (or a teacher does).
+  }
+
+  /// Poll the basket world until every marble has settled, capped
+  /// at 2 seconds so the thank-you card never hangs if a marble
+  /// gets wedged. Returns immediately if the world is already
+  /// fully settled.
+  Future<void> _waitForBasketToSettle() async {
+    const maxWait = Duration(seconds: 2);
+    const pollInterval = Duration(milliseconds: 80);
+    final deadline = DateTime.now().add(maxWait);
+    while (DateTime.now().isBefore(deadline)) {
+      final state = _worldKey.currentState;
+      if (state == null) break;
+      if (state.isFullySettled) return;
+      await Future<void>.delayed(pollInterval);
+      if (!mounted) return;
+    }
   }
 
   /// Snapshot the BasketWorldWidget via its RepaintBoundary.

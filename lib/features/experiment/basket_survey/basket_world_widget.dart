@@ -96,6 +96,12 @@ class BasketWorldWidgetState extends State<BasketWorldWidget>
     if (mounted) setState(() {});
   }
 
+  /// `true` when every marble in the world has settled — used by
+  /// the survey screen's snapshot poll so we don't freeze a frame
+  /// with marbles mid-bounce.
+  bool get isFullySettled =>
+      _world.marbles.every((m) => m.settled);
+
   /// Key on the inner SizedBox so we can convert the drag-end
   /// global offset to the world's local coordinate space. (The
   /// AnimatedScale wrapping it also affects the transformation,

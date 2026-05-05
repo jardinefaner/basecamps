@@ -49,8 +49,12 @@ class BasketGeometry {
   /// Rounded base radius — corners curve up here.
   static const double baseCornerR = 14;
 
-  /// World ground (where overspill marbles settle).
-  static const double groundY = 232;
+  /// World ground (where overspill marbles settle). Aligned with
+  /// `basketFloorY` so a marble overflowing the basket lands on
+  /// the same visual floor level as the marbles inside it — the
+  /// audit caught a 14px mismatch where overspill marbles
+  /// floated above the basket's painted base.
+  static const double groundY = basketFloorY;
 
   /// Rim threshold — once a settled marble inside has its centre
   /// below this y, it's considered "in the pile" for capacity.
@@ -79,19 +83,25 @@ class BasketGeometry {
   /// woven body ends at [rimY] but the collision wall reaches
   /// up to [physicsWallTopY]. We linearly extrapolate the wall
   /// slope so the over-rim section keeps the same outward taper
-  /// as the body — a marble piling above is leaning against the
-  /// same imaginary line, just higher.
+  /// — a marble piling above is leaning against the same
+  /// imaginary line, just higher.
   ///
-  ///   slope = (leftRimX - leftBaseX) / (basketFloorY - rimY)
-  ///         = (54 - 76) / (218 - 50) = -0.131
-  ///   x at physicsWallTopY = leftRimX - slope * (rimY - physicsWallTopY)
-  ///                         = 54 - (-0.131) * 40
-  ///                         ≈ 48.76
+  /// The wall opens outward going DOWN (from rim x=54 to base
+  /// x=76, so the basket gets narrower toward the bottom):
+  ///   |slope| = (leftBaseX - leftRimX) / (basketFloorY - rimY)
+  ///           = (76 - 54) / (218 - 50) = 0.131
+  ///   Going UP from the rim, the wall opens outward (smaller
+  ///   x on the left). At physicsWallTopY = 10 (40px above rim):
+  ///     x = leftRimX - |slope| * (rimY - physicsWallTopY)
+  ///       = 54 - 0.131 * 40
+  ///       ≈ 48.76
   static const Offset leftWallTop = Offset(48.76, physicsWallTopY);
   static const Offset leftWallBottom = Offset(leftBaseX, basketFloorY);
 
   /// Right wall (mirror).
-  ///   x at physicsWallTopY = 266 + 0.131 * 40 ≈ 271.24
+  ///   x = rightRimX + |slope| * (rimY - physicsWallTopY)
+  ///     = 266 + 0.131 * 40
+  ///     ≈ 271.24
   static const Offset rightWallTop = Offset(271.24, physicsWallTopY);
   static const Offset rightWallBottom = Offset(rightBaseX, basketFloorY);
 }
@@ -202,8 +212,9 @@ class MarbleBody {
   double lookAtAngle = 0;
 
   MarbleBody copyWith({MarbleVariant? variant}) {
-    final out = MarbleBody(
+    return MarbleBody(
       mood: mood,
+      palette: palette, // preserve question-locked color override
       position: position,
       velocity: velocity,
       seed: seed,
@@ -211,7 +222,6 @@ class MarbleBody {
       tOffset: tOffset,
       zone: zone,
     );
-    return out;
   }
 
   /// Default-construct a `variantTtl` so freshly-spawned marbles
@@ -280,10 +290,14 @@ class BasketWorld {
     Offset? spawnAt,
     FacePalette? palette,
   }) {
-    // Default to the rim center if the caller didn't pass a
-    // drag-end position. Otherwise clamp the requested spawn
-    // into the basket's open mouth so we never spawn outside
-    // the trapezoid.
+    // Spawn position is the drag-end x clamped into the rim, with
+    // y always pinned just above the rim line so the marble FALLS
+    // into the basket via gravity. The audit caught the bug where
+    // a drop in the bottom corner clamped to the rim and looked
+    // like the marble teleported across the screen — fix is to
+    // ALWAYS spawn just above the rim regardless of where the
+    // drag ended on the y axis. The drag's x is preserved so the
+    // kid still sees "the marble drops where I let go" laterally.
     final spawn = spawnAt == null
         ? Offset(BasketGeometry.worldW / 2, BasketGeometry.rimY - 10)
         : Offset(
@@ -291,9 +305,9 @@ class BasketWorld {
               BasketGeometry.leftRimX + BasketGeometry.marbleR,
               BasketGeometry.rightRimX - BasketGeometry.marbleR,
             ),
-            // Keep the spawn above the rim line so gravity does
-            // the work of falling in.
-            spawnAt.dy.clamp(-30.0, BasketGeometry.rimY - 6),
+            // y is always at the rim — no teleporting from the
+            // bottom of the canvas up to the top.
+            BasketGeometry.rimY - 10,
           );
     return MarbleBody(
       mood: mood,
@@ -347,10 +361,15 @@ class BasketWorld {
       spawnX = 60.0 + _rng.nextDouble() * 200;
       vx = (_rng.nextDouble() - 0.5) * 50;
     }
+    // Clamp the spawn x to inside the world's left/right walls so
+    // we don't start an overspill marble already overlapping a
+    // wall (caught by the audit — left-zone spawn at x=30 with
+    // r=33 had spawnX-r=-3, briefly past the left wall).
+    final clampedX = spawnX.clamp(r + 1, BasketGeometry.worldW - r - 1);
     return MarbleBody(
       mood: mood,
       palette: palette,
-      position: Offset(spawnX, BasketGeometry.rimY - 8),
+      position: Offset(clampedX, BasketGeometry.rimY - 8),
       velocity: Offset(vx, 100 + _rng.nextDouble() * 60),
       seed: marbles.length,
       variant: MarbleVariant.values[_rng.nextInt(4)],
@@ -449,17 +468,26 @@ class BasketWorld {
       }
     }
 
-    // 4) Sleep + hard cap. Considers BOTH linear AND angular
-    //    velocity — a spinning marble shouldn't sleep.
+    // 4) Sleep + hard cap. Three guards together:
+    //    a) BOTH linear AND angular velocity below threshold —
+    //       a spinning marble can't sleep.
+    //    b) Marble is RESTING — touching a wall/floor/another
+    //       settled marble. Without this check a marble at the
+    //       apex of a small bounce (where vy crosses zero
+    //       briefly) could sleep mid-air. Audit caught this.
+    //    c) Hard cap on bounces: > _maxBounces in 1s → force-
+    //       settle, but push out of any wall overlap first so
+    //       we don't pin a marble through the basket wall.
     for (final m in marbles) {
       if (m.settled) continue;
       if (m.bounceCount >= _maxBounces) {
-        _settle(m);
+        _forceSettleSafely(m);
         continue;
       }
       final restingLinear = m.velocity.distance < _sleepThreshold;
       final restingAngular = m.angularVelocity.abs() < _angSleepThreshold;
-      if (restingLinear && restingAngular) {
+      final hasContact = _isMarbleResting(m);
+      if (restingLinear && restingAngular && hasContact) {
         m.settleFrames += 1;
         if (m.settleFrames >= _sleepFrames) {
           _settle(m);
@@ -470,6 +498,16 @@ class BasketWorld {
     }
   }
 
+  /// Hard-cap force-settle. Pushes the marble out of any wall
+  /// overlap before settling so we don't pin a marble through
+  /// the basket wall on its 13th bounce.
+  void _forceSettleSafely(MarbleBody m) {
+    // Run wall collision once more so any current overlap gets
+    // resolved (position pushed out along the inward normal).
+    _collideWalls(m);
+    _settle(m);
+  }
+
   void _settle(MarbleBody m) {
     m.settled = true;
     m.velocity = Offset.zero;
@@ -477,6 +515,61 @@ class BasketWorld {
     // One-shot squash on settle along the gravity normal.
     m.impactSquash = 0.55;
     m.impactNormal = const Offset(0, -1);
+  }
+
+  /// `true` when [m] is touching a wall, floor, or another
+  /// settled marble within radius distance. Used as a guard so
+  /// the sleep check doesn't fire mid-air when velocity briefly
+  /// crosses zero at the apex of a bounce.
+  bool _isMarbleResting(MarbleBody m) {
+    const r = BasketGeometry.marbleR;
+    const epsilon = 2.0; // a couple px of slack
+    if (m.zone == MarbleZone.basket) {
+      // Touching basket floor?
+      if (m.position.dy + r >= BasketGeometry.basketFloorY - epsilon) {
+        return true;
+      }
+      // Touching either sloped wall?
+      if (_distanceFromSegment(
+            m.position,
+            BasketGeometry.leftWallTop,
+            BasketGeometry.leftWallBottom,
+          ) <=
+          r + epsilon) {
+        return true;
+      }
+      if (_distanceFromSegment(
+            m.position,
+            BasketGeometry.rightWallTop,
+            BasketGeometry.rightWallBottom,
+          ) <=
+          r + epsilon) {
+        return true;
+      }
+    } else {
+      // Ground zone — touching ground floor?
+      if (m.position.dy + r >= BasketGeometry.groundY - epsilon) return true;
+    }
+    // Touching another settled marble in the same zone?
+    for (final other in marbles) {
+      if (identical(other, m) || !other.settled) continue;
+      if (other.zone != m.zone) continue;
+      final dx = other.position.dx - m.position.dx;
+      final dy = other.position.dy - m.position.dy;
+      final distSq = dx * dx + dy * dy;
+      final r2 = (2 * r + epsilon) * (2 * r + epsilon);
+      if (distSq <= r2) return true;
+    }
+    return false;
+  }
+
+  double _distanceFromSegment(Offset p, Offset a, Offset b) {
+    final ab = b - a;
+    final ap = p - a;
+    final ab2 = ab.dx * ab.dx + ab.dy * ab.dy;
+    final tt = ((ap.dx * ab.dx + ap.dy * ab.dy) / ab2).clamp(0.0, 1.0);
+    final closest = a + ab * tt;
+    return (p - closest).distance;
   }
 
   /// Collide one marble against the world boundaries (basket
@@ -656,6 +749,9 @@ class BasketWorld {
 
     // Squash both marbles along the contact normal (proportional
     // to impact strength). Looks like a "kiss" between the two.
+    // Audit fix: pairwise impacts now also feed `bounceCount` and
+    // decay restitution — without this, two marbles can pair-
+    // jitter forever without either tripping the hard cap.
     if (vRelN < -50) {
       final s = math.min(0.45, -vRelN / 350);
       if (s > a.impactSquash) {
@@ -665,6 +761,18 @@ class BasketWorld {
       if (s > b.impactSquash) {
         b.impactSquash = s;
         b.impactNormal = n;
+      }
+      // Count this as a bounce on both marbles so the hard cap
+      // can eventually trip if they keep ringing each other.
+      if (!a.settled) {
+        a.bounceCount += 1;
+        a.bounceClock = 0;
+        a.restitution *= _bounceDecay;
+      }
+      if (!b.settled) {
+        b.bounceCount += 1;
+        b.bounceClock = 0;
+        b.restitution *= _bounceDecay;
       }
       // Friction at the contact point converts tangential motion
       // into spin — both marbles get a kick in opposite
