@@ -397,8 +397,11 @@ class _DraggableFaceState extends State<_DraggableFace> {
     );
     return Tooltip(
       message: basketFaceLabel(widget.mood),
-      child: Draggable<FaceMood>(
-        data: widget.mood,
+      child: Draggable<BasketDropPayload>(
+        data: BasketDropPayload(
+          mood: widget.mood,
+          palette: widget.palette,
+        ),
         feedback: Material(
           type: MaterialType.transparency,
           child: SizedBox(

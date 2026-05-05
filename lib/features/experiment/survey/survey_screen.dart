@@ -1270,9 +1270,39 @@ class FacePainter {
         sparkle: base.sparkle,
       );
     }
+
     canvas
       ..save()
       ..translate(center.dx, center.dy);
+
+    // ——— Per-variant body-level signature ————————————————————
+    // Each variant gets a distinct, immediately-readable
+    // whole-body motion so a pile of marbles cycling through
+    // idle → breathing → fidget → emote always has visible
+    // variety. The per-mood expression animations (mouth /
+    // eyes / brows / accents below) ride on top of this body
+    // transform.
+    switch (variant) {
+      case MarbleVariant.idle:
+        // Gentle vertical bob.
+        final phase = (t / 3.0) * math.pi * 2;
+        canvas.translate(0, math.sin(phase) * 1.5);
+      case MarbleVariant.breathing:
+        // Soft uniform breathe — scale pulse.
+        final phase = (t / 3.6) * math.pi * 2;
+        final scale = 1 + math.sin(phase) * 0.045;
+        canvas.scale(scale, scale);
+      case MarbleVariant.fidget:
+        // Quick rotation jitter (~2.9°).
+        final phase = (t / 0.7) * math.pi * 2;
+        canvas.rotate(math.sin(phase) * 0.05);
+      case MarbleVariant.emote:
+        // Anti-correlated x/y scale — squash + stretch.
+        final phase = (t / 1.4) * math.pi * 2;
+        final sx = 1 + math.sin(phase) * 0.06;
+        final sy = 1 - math.sin(phase) * 0.06;
+        canvas.scale(sx, sy);
+    }
 
     // Body: flat fill + paler ring outline.
     final bodyPaint = Paint()..color = palette.body;

@@ -82,14 +82,30 @@ class MarbleBody {
     required this.variant,
     required this.tOffset,
     required this.zone,
+    this.palette,
   });
 
   final FaceMood mood;
   final int seed;
   final double tOffset;
 
+  /// Color override the marble was dropped with. Persists for
+  /// the marble's lifetime so a face dropped wearing the green
+  /// palette stays green — the per-question color rotation
+  /// rotates the CHOICE row, not the marbles already in the
+  /// basket.
+  final FacePalette? palette;
+
   Offset position;
   Offset velocity;
+
+  /// Rotation in radians. Marbles in flight spin freely; on a
+  /// floor / wall contact, the tangent component of velocity
+  /// converts to spin (real-ball physics — fast horizontal hit
+  /// on a floor = backspin), and on a flat surface, rolling
+  /// friction couples linear + angular velocity.
+  double angle = 0;
+  double angularVelocity = 0;
 
   /// Which physics zone this marble lives in. Determines which
   /// walls it collides with.
@@ -97,18 +113,29 @@ class MarbleBody {
 
   MarbleVariant variant;
 
-  /// 0 → no squash. Set to 1 the moment the marble settles; the
-  /// painter scales y by `(1 - squash * 0.18)` so it briefly
-  /// pancakes then springs back. Decays to 0 over ~200ms.
-  double settleSquash = 0;
+  /// One-shot direction-aware squash from each collision. Set to
+  /// `velocity along normal / 200` (capped at 0.6) on impact;
+  /// decays to 0 over ~200ms. The painter pancakes the marble
+  /// along [impactNormal]: floor hit = vertical squish, wall hit
+  /// = horizontal squish, marble-on-marble = squish along the
+  /// contact line.
+  double impactSquash = 0;
+  Offset impactNormal = const Offset(0, -1);
+
+  /// Cartoon-physics flight stretch: when |v| > 200 px/s, the
+  /// marble visually elongates along the velocity vector by up
+  /// to 10%. Computed each frame from velocity; not stored —
+  /// kept as a getter on the painter side.
 
   /// True once the marble has stopped moving. Settled marbles
   /// skip the integrate / collide pipeline; they still draw +
   /// animate variants.
   bool settled = false;
 
-  /// Frames in a row with |v| below the sleep threshold. Once
-  /// this exceeds [BasketWorld._sleepFrames], the marble sleeps.
+  /// Frames in a row with |v| AND |angularV| below threshold.
+  /// Once this exceeds [BasketWorld._sleepFrames], the marble
+  /// sleeps. Spinning marbles don't sleep — even if they're not
+  /// translating, they're still alive on screen.
   int settleFrames = 0;
 
   /// Bounce counter for the hard-cap. Resets if the marble has
@@ -116,10 +143,38 @@ class MarbleBody {
   int bounceCount = 0;
   double bounceClock = 0;
 
+  /// Per-instance restitution. Drops slightly each bounce (×0.9)
+  /// to model energy loss in the deformation, so the 4th bounce
+  /// is much weaker than the 1st. Resets to default if the
+  /// marble has gone a full second without bouncing (edge case
+  /// where a wake-on-impact restarts physics).
+  double restitution = 0.42;
+
+  /// Per-marble time-scale (0.85..1.15). Multiplies the
+  /// animation `t` so two marbles with the same variant + phase
+  /// drift apart over time — kills "the whole pile is breathing
+  /// in lockstep" creepiness.
+  double timeScale = 1.0;
+
   /// Wall-clock seconds remaining until the next variant swap.
-  /// Initialised to a random value in [8, 12]; counts down each
-  /// frame; on hit, picks the next variant + resets.
-  double variantTtl = 10;
+  /// Initialised to a random value in [4, 7]; counts down each
+  /// frame; on hit, picks the next variant + fires a transition
+  /// pulse.
+  double variantTtl = 5;
+
+  /// 0..1 — short transition pulse fired the moment a variant
+  /// swap lands. The painter reads this and overlays a brief
+  /// scale + halo brightness bump (~220ms) so the eye catches
+  /// the moment a marble's animation flavour changes. Decays at
+  /// ~4.5/sec.
+  double variantTransitionT = 0;
+
+  /// Look-at offset, in radians. When a settled neighbour is
+  /// bumped by a hard arrival, we set this to a small angle (8–
+  /// 12°) toward the arrival so the face turns to look. Decays
+  /// to 0 over ~600ms (smooth easeOutCubic on the painter side).
+  double lookAtT = 0;
+  double lookAtAngle = 0;
 
   MarbleBody copyWith({MarbleVariant? variant}) {
     final out = MarbleBody(
@@ -138,7 +193,14 @@ class MarbleBody {
   /// don't all swap at the same moment. Internally inserted by
   /// [BasketWorld.addMarble].
   static double initialVariantTtl(math.Random rng) =>
-      8.0 + rng.nextDouble() * 4.0;
+      4.0 + rng.nextDouble() * 3.0;
+
+  /// 0.85..1.15 random scale so two marbles with the same
+  /// variant phase drift apart over time. Combined with the
+  /// random tOffset, marbles with identical variants and seeds
+  /// still feel distinct.
+  static double initialTimeScale(math.Random rng) =>
+      0.85 + rng.nextDouble() * 0.30;
 }
 
 /// Which physics zone a marble lives in. The basket interior and
@@ -162,57 +224,86 @@ class BasketWorld {
   /// painter's `t` arg.
   double t = 0;
 
-  /// Drop a fresh marble in. Spawn position depends on the
-  /// current pile: while the basket has room, marbles enter
-  /// through the rim; once full, they get lobbed to a slot
-  /// outside the basket so the pile spreads around the floor.
-  /// Returns the new body (caller can do something with it,
-  /// e.g. play a sound).
-  MarbleBody addMarble(FaceMood mood) {
+  /// Drop a fresh marble in.
+  ///
+  /// [spawnAt] is the local 320×240 position the kid released
+  /// the drag at — the marble starts there with a small downward
+  /// velocity, so the drop reads as "the face fell from where I
+  /// let go" rather than teleporting to the rim.
+  ///
+  /// [palette] is the body / ring / cheek override the choice
+  /// was wearing this question. Persists for the marble's whole
+  /// lifetime so the colors don't shift when the next question
+  /// rotates the choice row.
+  MarbleBody addMarble(
+    FaceMood mood, {
+    Offset? spawnAt,
+    FacePalette? palette,
+  }) {
     final basketHowFull =
         marbles.where((m) => m.zone == MarbleZone.basket).length;
     final overspill = basketHowFull >= BasketGeometry.basketCapacity;
     final body = overspill
-        ? _spawnOverspill(mood)
-        : _spawnInBasket(mood);
+        ? _spawnOverspill(mood, palette: palette)
+        : _spawnInBasket(mood, spawnAt: spawnAt, palette: palette);
     marbles.add(body);
     return body;
   }
 
-  MarbleBody _spawnInBasket(FaceMood mood) {
-    // Spawn at the rim center with a downward velocity. Falls
-    // under gravity, bounces, settles into the pile.
+  MarbleBody _spawnInBasket(
+    FaceMood mood, {
+    Offset? spawnAt,
+    FacePalette? palette,
+  }) {
+    // Default to the rim center if the caller didn't pass a
+    // drag-end position. Otherwise clamp the requested spawn
+    // into the basket's open mouth so we never spawn outside
+    // the trapezoid.
+    final spawn = spawnAt == null
+        ? Offset(BasketGeometry.worldW / 2, BasketGeometry.rimY - 10)
+        : Offset(
+            spawnAt.dx.clamp(
+              BasketGeometry.leftRimX + BasketGeometry.marbleR,
+              BasketGeometry.rightRimX - BasketGeometry.marbleR,
+            ),
+            // Keep the spawn above the rim line so gravity does
+            // the work of falling in.
+            spawnAt.dy.clamp(-30.0, BasketGeometry.rimY - 6),
+          );
     return MarbleBody(
       mood: mood,
-      position: Offset(BasketGeometry.worldW / 2, BasketGeometry.rimY - 6),
+      palette: palette,
+      position: spawn,
       velocity: Offset(
         (_rng.nextDouble() - 0.5) * 30, // small lateral jitter
-        180 + _rng.nextDouble() * 80,
+        140 + _rng.nextDouble() * 80,
       ),
       seed: marbles.length,
       variant: MarbleVariant.values[_rng.nextInt(4)],
       tOffset: _rng.nextDouble() * 6.28,
       zone: MarbleZone.basket,
-    )..variantTtl = MarbleBody.initialVariantTtl(_rng);
+    )
+      ..variantTtl = MarbleBody.initialVariantTtl(_rng)
+      ..timeScale = MarbleBody.initialTimeScale(_rng)
+      ..angularVelocity = (_rng.nextDouble() - 0.5) * 4.0;
   }
 
-  MarbleBody _spawnOverspill(FaceMood mood) {
+  MarbleBody _spawnOverspill(FaceMood mood, {FacePalette? palette}) {
     // Cycle through 4 spawn slots (front, right, left, front-far)
     // so the floor pile fans out instead of stacking on one spot.
     final overspillIndex = marbles
         .where((m) => m.zone == MarbleZone.ground)
         .length;
     final slot = overspillIndex % 4;
-    // Lateral velocity so the marble arcs out from the basket
-    // mouth — kid sees it leap out.
     final vx = switch (slot) {
       0 => (_rng.nextDouble() - 0.5) * 40,
-      1 => 80 + _rng.nextDouble() * 40, // outward right
-      2 => -(80 + _rng.nextDouble() * 40), // outward left
+      1 => 80 + _rng.nextDouble() * 40,
+      2 => -(80 + _rng.nextDouble() * 40),
       _ => 60 + _rng.nextDouble() * 40,
     };
     return MarbleBody(
       mood: mood,
+      palette: palette,
       position: Offset(BasketGeometry.worldW / 2, BasketGeometry.rimY - 6),
       velocity: Offset(vx, 120 + _rng.nextDouble() * 40),
       seed: marbles.length,
@@ -221,10 +312,8 @@ class BasketWorld {
       zone: MarbleZone.ground,
     )
       ..variantTtl = MarbleBody.initialVariantTtl(_rng)
-      // Mark "needs to leave the basket" so on the way out we
-      // don't collide with rim walls. Solved by: ground-zone
-      // marbles never collide with basket walls in `_collideWalls`.
-      ;
+      ..timeScale = MarbleBody.initialTimeScale(_rng)
+      ..angularVelocity = (_rng.nextDouble() - 0.5) * 6.0;
   }
 
   /// Wipe the world. Called by the parent on session reset.
@@ -236,14 +325,21 @@ class BasketWorld {
   // ——— Tunables ————————————————————————————————————————————————
 
   static const double _gravity = 1200; // px/s²
-  static const double _restitution = 0.42;
-  // Per-frame damping at 60fps. We adjust by `dt*60` so framerate
-  // changes don't change settle speed (e.g. 30fps still settles).
+  // Per-frame damping at 60fps. Adjusted by `dt*60` so framerate
+  // changes don't change settle speed (30fps still settles).
   static const double _damping60 = 0.93;
+  // Angular damping is more aggressive — spinning eats energy
+  // quickly so we don't get a marble that translates fine but
+  // spins forever.
+  static const double _angDamping60 = 0.88;
   static const double _sleepThreshold = 8; // px/s
+  static const double _angSleepThreshold = 0.6; // rad/s
   static const int _sleepFrames = 6;
   static const int _maxBounces = 12;
   static const double _bounceWindow = 1.0; // seconds
+  // Energy stays in the marble after each bounce by this factor —
+  // 4th bounce is much weaker than the 1st.
+  static const double _bounceDecay = 0.85;
 
   // ——— Step ————————————————————————————————————————————————————
 
@@ -252,26 +348,40 @@ class BasketWorld {
     t += dt;
     // Frame-rate-independent damping multiplier.
     final damp = math.pow(_damping60, dt * 60).toDouble();
+    final angularDamp = math.pow(_angDamping60, dt * 60).toDouble();
 
-    // 1) Variant cycling — for every marble, settled or not.
+    // 1) Per-marble bookkeeping — variant TTL, decays, clocks.
     for (final m in marbles) {
+      // Variant cycling.
       m.variantTtl -= dt;
       if (m.variantTtl <= 0) {
         m.variant = MarbleVariant
             .values[(m.variant.index + 1) % MarbleVariant.values.length];
         m.variantTtl = MarbleBody.initialVariantTtl(_rng);
+        // Fire a transition pulse so the eye catches the swap.
+        m.variantTransitionT = 1.0;
       }
-      if (m.settleSquash > 0) {
-        m.settleSquash = math.max(0, m.settleSquash - dt * 5.5);
+      // Decays.
+      if (m.impactSquash > 0) {
+        m.impactSquash = math.max(0, m.impactSquash - dt * 5.0);
       }
+      if (m.variantTransitionT > 0) {
+        m.variantTransitionT =
+            math.max(0, m.variantTransitionT - dt * 4.5);
+      }
+      if (m.lookAtT > 0) {
+        m.lookAtT = math.max(0, m.lookAtT - dt * 1.7); // ~600ms decay
+      }
+      // Bounce-window reset.
       m.bounceClock += dt;
       if (m.bounceClock > _bounceWindow) {
         m.bounceCount = 0;
         m.bounceClock = 0;
+        m.restitution = 0.42; // restore default after quiet period
       }
     }
 
-    // 2) Integrate gravity + velocity for unsettled marbles.
+    // 2) Integrate gravity + velocity + spin for unsettled marbles.
     for (final m in marbles) {
       if (m.settled) continue;
       m.velocity = Offset(
@@ -279,11 +389,13 @@ class BasketWorld {
         (m.velocity.dy + _gravity * dt) * damp,
       );
       m.position = m.position + m.velocity * dt;
+      m.angularVelocity *= angularDamp;
+      m.angle += m.angularVelocity * dt;
       _collideWalls(m);
     }
 
-    // 3) Pairwise collisions. Only collide marbles in the same
-    //    zone — basket marbles don't push ground marbles.
+    // 3) Pairwise collisions — same-zone only (basket marbles
+    //    don't push ground marbles).
     for (var i = 0; i < marbles.length; i++) {
       for (var j = i + 1; j < marbles.length; j++) {
         if (marbles[i].zone != marbles[j].zone) continue;
@@ -291,15 +403,17 @@ class BasketWorld {
       }
     }
 
-    // 4) Sleep + hard cap. Settled marbles drop out of the
-    //    integration pipeline.
+    // 4) Sleep + hard cap. Considers BOTH linear AND angular
+    //    velocity — a spinning marble shouldn't sleep.
     for (final m in marbles) {
       if (m.settled) continue;
       if (m.bounceCount >= _maxBounces) {
         _settle(m);
         continue;
       }
-      if (m.velocity.distance < _sleepThreshold) {
+      final restingLinear = m.velocity.distance < _sleepThreshold;
+      final restingAngular = m.angularVelocity.abs() < _angSleepThreshold;
+      if (restingLinear && restingAngular) {
         m.settleFrames += 1;
         if (m.settleFrames >= _sleepFrames) {
           _settle(m);
@@ -313,36 +427,43 @@ class BasketWorld {
   void _settle(MarbleBody m) {
     m.settled = true;
     m.velocity = Offset.zero;
-    // One-shot squash on settle: like a soft "thud" landing.
-    m.settleSquash = 1.0;
+    m.angularVelocity = 0;
+    // One-shot squash on settle along the gravity normal.
+    m.impactSquash = 0.55;
+    m.impactNormal = const Offset(0, -1);
   }
 
   /// Collide one marble against the world boundaries (basket
   /// walls + floor for basket-zone, ground for ground-zone).
+  /// On every contact:
+  ///   * Position is pushed out along the inward normal so the
+  ///     marble can't tunnel.
+  ///   * Velocity reflects along the normal with the marble's
+  ///     current `restitution` (which decays each bounce).
+  ///   * Tangent component of velocity drives spin — fast
+  ///     horizontal hit on a floor = backspin etc.
+  ///   * `impactSquash` is set proportional to impact strength
+  ///     so the painter pancakes the marble along the normal.
   void _collideWalls(MarbleBody m) {
     const r = BasketGeometry.marbleR;
     if (m.zone == MarbleZone.basket) {
-      // Basket interior: floor + 2 sloped walls. The rim is
-      // open; marbles can still escape upward but gravity will
-      // pull them back.
       // ——— Floor ———
       if (m.position.dy + r > BasketGeometry.basketFloorY) {
         m.position = Offset(m.position.dx, BasketGeometry.basketFloorY - r);
         if (m.velocity.dy > 0) {
+          _registerImpact(m, const Offset(0, -1));
+          // Tangent (horizontal) velocity → spin.
+          m.angularVelocity += m.velocity.dx * 0.04;
           m.velocity = Offset(
             m.velocity.dx * 0.85,
-            -m.velocity.dy * _restitution,
+            -m.velocity.dy * m.restitution,
           );
-          m.bounceCount += 1;
-          m.bounceClock = 0;
         }
       }
-      // ——— Walls (sloped lines, rim → base) ———
       _collideAgainstSegment(
         m,
         BasketGeometry.leftWallTop,
         BasketGeometry.leftWallBottom,
-        // Inward normal points right + slightly up.
         normalAwayFromInteriorTowardLeft: true,
       );
       _collideAgainstSegment(
@@ -352,30 +473,53 @@ class BasketWorld {
         normalAwayFromInteriorTowardLeft: false,
       );
     } else {
-      // Ground zone: marbles roll on the world floor; can leave
-      // the screen sides (the world is wider than the basket
-      // visually so a few pixels off doesn't matter).
+      // ——— Ground floor ———
       if (m.position.dy + r > BasketGeometry.groundY) {
         m.position = Offset(m.position.dx, BasketGeometry.groundY - r);
         if (m.velocity.dy > 0) {
+          _registerImpact(m, const Offset(0, -1));
+          m.angularVelocity += m.velocity.dx * 0.05;
           m.velocity = Offset(
-            m.velocity.dx * 0.85,
-            -m.velocity.dy * _restitution,
+            m.velocity.dx * 0.82,
+            -m.velocity.dy * m.restitution,
           );
-          m.bounceCount += 1;
-          m.bounceClock = 0;
         }
       }
-      // Soft side walls so ground marbles don't roll forever
-      // off the canvas.
+      // ——— Soft side walls so overspill doesn't roll off ———
       if (m.position.dx - r < 0) {
         m.position = Offset(r, m.position.dy);
-        m.velocity = Offset(-m.velocity.dx * _restitution, m.velocity.dy);
+        if (m.velocity.dx < 0) {
+          _registerImpact(m, const Offset(1, 0));
+          m.velocity = Offset(-m.velocity.dx * m.restitution, m.velocity.dy);
+          m.angularVelocity -= m.velocity.dy * 0.04;
+        }
       } else if (m.position.dx + r > BasketGeometry.worldW) {
         m.position = Offset(BasketGeometry.worldW - r, m.position.dy);
-        m.velocity = Offset(-m.velocity.dx * _restitution, m.velocity.dy);
+        if (m.velocity.dx > 0) {
+          _registerImpact(m, const Offset(-1, 0));
+          m.velocity = Offset(-m.velocity.dx * m.restitution, m.velocity.dy);
+          m.angularVelocity += m.velocity.dy * 0.04;
+        }
       }
     }
+  }
+
+  /// Centralised on-impact bookkeeping. Sets `impactSquash`
+  /// proportional to the impact velocity along the inward normal
+  /// (capped 0.6 so we don't pancake a marble flat), records the
+  /// normal so the painter knows which axis to squash along, and
+  /// decays the marble's restitution by [_bounceDecay] so each
+  /// successive bounce is weaker.
+  void _registerImpact(MarbleBody m, Offset inwardNormal) {
+    final vAlong =
+        -(m.velocity.dx * inwardNormal.dx + m.velocity.dy * inwardNormal.dy);
+    if (vAlong < 30) return; // too soft to register
+    final s = math.min(0.6, vAlong / 350);
+    if (s > m.impactSquash) m.impactSquash = s;
+    m.impactNormal = inwardNormal;
+    m.bounceCount += 1;
+    m.bounceClock = 0;
+    m.restitution *= _bounceDecay;
   }
 
   /// Collide a circle (marble) against a line segment. Pushes
@@ -415,11 +559,16 @@ class BasketWorld {
     final vAlongN =
         m.velocity.dx * inward.dx + m.velocity.dy * inward.dy;
     if (vAlongN < 0) {
-      m.velocity = m.velocity - inward * (vAlongN * (1 + _restitution));
+      _registerImpact(m, inward);
+      m.velocity = m.velocity - inward * (vAlongN * (1 + m.restitution));
       // Friction-ish damp on tangent.
       m.velocity = Offset(m.velocity.dx * 0.92, m.velocity.dy * 0.92);
-      m.bounceCount += 1;
-      m.bounceClock = 0;
+      // Tangent velocity → spin. The tangent direction is
+      // perpendicular to the inward normal.
+      final tangent = Offset(-inward.dy, inward.dx);
+      final vAlongT =
+          m.velocity.dx * tangent.dx + m.velocity.dy * tangent.dy;
+      m.angularVelocity += vAlongT * 0.05;
     }
   }
 
@@ -450,22 +599,52 @@ class BasketWorld {
     }
 
     // Velocity: project onto contact normal, swap that
-    // component (equal-mass elastic), apply restitution.
-    final vRel = (b.velocity - a.velocity);
+    // component (equal-mass elastic), apply averaged restitution.
+    final vRel = b.velocity - a.velocity;
     final vRelN = vRel.dx * n.dx + vRel.dy * n.dy;
     if (vRelN > 0) return; // already separating
-    final impulse = n * (vRelN * (1 + _restitution));
+    final restitution = (a.restitution + b.restitution) / 2;
+    final impulse = n * (vRelN * (1 + restitution));
     if (!a.settled) a.velocity = a.velocity + impulse;
     if (!b.settled) b.velocity = b.velocity - impulse;
-    // Re-wake on hard impact: a settled neighbour gets a tiny
-    // upward nudge so the pile registers the new arrival.
-    if (a.settled && vRelN < -120) _wake(a, n * -1);
-    if (b.settled && vRelN < -120) _wake(b, n);
+
+    // Squash both marbles along the contact normal (proportional
+    // to impact strength). Looks like a "kiss" between the two.
+    if (vRelN < -50) {
+      final s = math.min(0.45, -vRelN / 350);
+      if (s > a.impactSquash) {
+        a.impactSquash = s;
+        a.impactNormal = -n;
+      }
+      if (s > b.impactSquash) {
+        b.impactSquash = s;
+        b.impactNormal = n;
+      }
+      // Friction at the contact point converts tangential motion
+      // into spin — both marbles get a kick in opposite
+      // directions.
+      final tangent = Offset(-n.dy, n.dx);
+      final vRelT = vRel.dx * tangent.dx + vRel.dy * tangent.dy;
+      a.angularVelocity -= vRelT * 0.03;
+      b.angularVelocity += vRelT * 0.03;
+    }
+
+    // Wake-on-arrival: a settled neighbour gets a tiny twist
+    // toward the arriving marble (look-at) instead of a hard
+    // physics bump. Reads as "oh, hi" rather than an earthquake.
+    if (a.settled && vRelN < -100) _lookAtNudge(a, b);
+    if (b.settled && vRelN < -100) _lookAtNudge(b, a);
   }
 
-  void _wake(MarbleBody m, Offset bumpDir) {
-    m.settled = false;
-    m.settleFrames = 0;
-    m.velocity = bumpDir * 30 + const Offset(0, -30);
+  /// A settled marble registers a hard arrival: turn its painted
+  /// face slightly toward the arrival, decay back over ~600ms.
+  /// Doesn't wake the marble — it stays settled, just tilts.
+  void _lookAtNudge(MarbleBody settled, MarbleBody arrival) {
+    final dx = arrival.position.dx - settled.position.dx;
+    // Small angle (8–12°) toward the new arrival, sign-driven by
+    // whether the arrival is to the left or right.
+    final magnitude = 0.14 + _rng.nextDouble() * 0.07;
+    settled.lookAtAngle = dx >= 0 ? magnitude : -magnitude;
+    settled.lookAtT = 1.0;
   }
 }

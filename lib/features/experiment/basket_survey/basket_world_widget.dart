@@ -11,6 +11,7 @@
 // risk a frame-skipped animation start when a new marble drops).
 
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:basecamp/features/experiment/basket_survey/basket_painter.dart';
@@ -20,6 +21,16 @@ import 'package:basecamp/features/experiment/survey/survey_screen.dart'
     show FacePainter;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+
+/// Payload dragged from a face card to the basket. The basket
+/// needs both the mood (for answer recording) and the palette
+/// (so the marble inside the basket keeps the per-question color
+/// it was wearing in the choice row).
+class BasketDropPayload {
+  const BasketDropPayload({required this.mood, this.palette});
+  final FaceMood mood;
+  final FacePalette? palette;
+}
 
 class BasketWorldWidget extends StatefulWidget {
   const BasketWorldWidget({
@@ -35,7 +46,8 @@ class BasketWorldWidget extends StatefulWidget {
   final VoidCallback onLeave;
 
   /// Fires when the kid drops a face onto the basket. The widget
-  /// has already added the marble to the world; the parent only
+  /// has already added the marble to the world (with the local
+  /// drag-end position + the chosen palette); the parent only
   /// needs to record the answer + advance to the next question.
   final ValueChanged<FaceMood> onAccept;
 
@@ -84,14 +96,35 @@ class BasketWorldWidgetState extends State<BasketWorldWidget>
     if (mounted) setState(() {});
   }
 
+  /// Key on the inner SizedBox so we can convert the drag-end
+  /// global offset to the world's local coordinate space. (The
+  /// AnimatedScale wrapping it also affects the transformation,
+  /// but we read the SizedBox's render box BEFORE the scale so
+  /// we get untransformed local coords — same coordinate space
+  /// the painter uses.)
+  final GlobalKey _worldBoxKey = GlobalKey();
+
+  Offset _toLocal(Offset globalOffset) {
+    final ctx = _worldBoxKey.currentContext;
+    if (ctx == null) return Offset.zero;
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box == null) return Offset.zero;
+    return box.globalToLocal(globalOffset);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return DragTarget<FaceMood>(
+    return DragTarget<BasketDropPayload>(
       onWillAcceptWithDetails: (_) => widget.onWillAccept(),
       onLeave: (_) => widget.onLeave(),
       onAcceptWithDetails: (details) {
-        _world.addMarble(details.data);
-        widget.onAccept(details.data);
+        final local = _toLocal(details.offset);
+        _world.addMarble(
+          details.data.mood,
+          spawnAt: local,
+          palette: details.data.palette,
+        );
+        widget.onAccept(details.data.mood);
       },
       builder: (context, _, _) {
         return Center(
@@ -100,6 +133,7 @@ class BasketWorldWidgetState extends State<BasketWorldWidget>
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOutCubic,
             child: SizedBox(
+              key: _worldBoxKey,
               width: BasketGeometry.worldW,
               height: BasketGeometry.worldH,
               child: CustomPaint(
@@ -179,14 +213,10 @@ class _BasketWorldPainter extends CustomPainter {
     canvas
       ..save()
       ..translate(m.position.dx, m.position.dy);
-    // Settle squash: vertical compress 0.85x → 1.0x as squash
-    // decays from 1 to 0. easeOutBack feel via a spring-ish curve.
-    if (m.settleSquash > 0) {
-      final s = 1 - m.settleSquash * 0.18;
-      canvas.scale(1 + (1 - s) * 0.5, s);
-    }
-    // Soft shadow under each marble — gives it weight + grounds
-    // it visually. Lower marbles cast a slightly larger shadow.
+
+    // ——— Soft shadow ground anchor ——————————————————————————
+    // Drawn before the marble's own transforms so it sits on
+    // the floor regardless of squash/rotation.
     final shadow = Paint()
       ..color = const Color(0x22000000)
       ..maskFilter = const ui.MaskFilter.blur(BlurStyle.normal, 4);
@@ -195,11 +225,81 @@ class _BasketWorldPainter extends CustomPainter {
       BasketGeometry.marbleR * 0.78,
       shadow,
     );
+
+    // ——— Body rotation (spin) ———
+    // For settled marbles, fold in the look-at tilt so the face
+    // points slightly toward a recently-arrived neighbour.
+    final lookAtEase = m.lookAtT == 0
+        ? 0.0
+        : Curves.easeOutCubic.transform(m.lookAtT);
+    canvas.rotate(m.angle + m.lookAtAngle * lookAtEase);
+
+    // ——— Direction-aware impact squash ———
+    // The marble compresses along the inward-normal of whatever
+    // surface it just hit; decays to neutral over ~200ms. We
+    // apply it via an axis-aligned scale rotated to match the
+    // normal so floor hits squash vertically and wall hits
+    // squash horizontally.
+    if (m.impactSquash > 0) {
+      // Rotate into the impact-normal frame, scale x = swell,
+      // y = compress so the marble pancakes against the surface,
+      // then rotate back. Floor hits squash vertically, wall
+      // hits squash horizontally, marble-marble hits squash
+      // along the contact line.
+      final normalAngle =
+          math.atan2(m.impactNormal.dy, m.impactNormal.dx);
+      final compress = 1 - m.impactSquash * 0.30;
+      final swell = 1 + m.impactSquash * 0.18;
+      canvas
+        ..rotate(normalAngle)
+        ..scale(swell, compress)
+        ..rotate(-normalAngle);
+    }
+
+    // ——— Cartoon flight stretch ———
+    // High velocity → marble visibly elongates along the
+    // velocity vector by up to ~12%. Gives a sense of speed.
+    if (!m.settled) {
+      final speed = m.velocity.distance;
+      if (speed > 200) {
+        final stretch = math.min(0.12, (speed - 200) / 1600);
+        final velAngle = math.atan2(m.velocity.dy, m.velocity.dx);
+        canvas.rotate(velAngle);
+        canvas.scale(1 + stretch, 1 - stretch * 0.5);
+        canvas.rotate(-velAngle);
+      }
+    }
+
+    // ——— Variant transition "pop" ———
+    // Short scale pulse the moment the marble's variant cycles.
+    // Eye-catches the swap. Decays to 0 over ~220ms.
+    if (m.variantTransitionT > 0) {
+      final pop = 1 + Curves.easeOut.transform(m.variantTransitionT) * 0.08;
+      canvas.scale(pop, pop);
+    }
+
     FacePainter(
       mood: m.mood,
       variant: m.variant,
-      t: world.t + m.tOffset,
+      // Per-marble time-scale + phase offset so two marbles with
+      // the same variant don't drift back into sync.
+      t: world.t * m.timeScale + m.tOffset,
+      palette: m.palette,
     ).paintAt(canvas, Offset.zero, BasketGeometry.marbleR);
+
+    // ——— Variant transition halo ———
+    // Faint white ring drawn outside the body to pulse on swap.
+    if (m.variantTransitionT > 0) {
+      final alpha =
+          (Curves.easeOut.transform(m.variantTransitionT) * 0.55)
+              .clamp(0.0, 1.0);
+      final ring = Paint()
+        ..color = Colors.white.withValues(alpha: alpha)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2;
+      canvas.drawCircle(Offset.zero, BasketGeometry.marbleR + 4, ring);
+    }
+
     canvas.restore();
   }
 
