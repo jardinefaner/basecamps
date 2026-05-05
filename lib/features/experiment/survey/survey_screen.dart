@@ -1293,14 +1293,22 @@ class FacePainter {
         final scale = 1 + math.sin(phase) * 0.045;
         canvas.scale(scale, scale);
       case MarbleVariant.fidget:
-        // Quick rotation jitter (~2.9°).
-        final phase = (t / 0.7) * math.pi * 2;
-        canvas.rotate(math.sin(phase) * 0.05);
+        // Slow gentle sway (~1.4°). Earlier version was too
+        // fast (0.7s, 2.9°) and read as "panicking" — paired
+        // with the variant overlay's sweat drop + darting eyes
+        // it looked like a panic attack to a 5-year-old. Now
+        // it's a slow side-to-side that reads as "looking
+        // around / curious".
+        final phase = (t / 1.8) * math.pi * 2;
+        canvas.rotate(math.sin(phase) * 0.025);
       case MarbleVariant.emote:
-        // Anti-correlated x/y scale — squash + stretch.
-        final phase = (t / 1.4) * math.pi * 2;
-        final sx = 1 + math.sin(phase) * 0.06;
-        final sy = 1 - math.sin(phase) * 0.06;
+        // Soft squash + stretch — slowed slightly from 1.4s →
+        // 1.6s and dialled the amplitude back so it doesn't
+        // compete with the per-mood emote particle (the big
+        // visual hammer for this variant).
+        final phase = (t / 1.6) * math.pi * 2;
+        final sx = 1 + math.sin(phase) * 0.045;
+        final sy = 1 - math.sin(phase) * 0.045;
         canvas.scale(sx, sy);
     }
 
@@ -2244,13 +2252,15 @@ class FacePainter {
     double s,
     FacePalette p,
   ) {
-    // Mask existing eyes, draw wide white sclera + animated
-    // black pupil that darts left-right with a fast cycle.
+    // Slow curious glance left-right. Earlier version darted at
+    // 2.5Hz which read as "terrified / paranoid" — bad for kids.
+    // Now 0.67Hz (1.5s period) with smaller amplitude — the
+    // marble looks like it's slowly looking around the room.
     final mask = Paint()..color = p.body;
     canvas
       ..drawCircle(Offset(-12 * s, 0), 8 * s, mask)
       ..drawCircle(Offset(12 * s, 0), 8 * s, mask);
-    final dartX = math.sin((t / 0.4) * math.pi * 2) * 2.2 * s;
+    final dartX = math.sin((t / 1.5) * math.pi * 2) * 1.2 * s;
     final sclera = Paint()..color = const Color(0xFFF8F8F8);
     final scleraStroke = Paint()
       ..color = p.ink
@@ -2268,10 +2278,10 @@ class FacePainter {
   }
 
   void _drawSweatDrop(Canvas canvas, double s, FacePalette p) {
-    // Single tear-shaped sweat drop bouncing on the right temple.
-    // Bobs up + down with a fast cycle so it reads "anxious".
-    final phase = (t / 0.55) % 1.0;
-    final bobY = math.sin(phase * math.pi) * -3.5;
+    // Gentle sweat drop — 1.4s bob period (was 0.55s, looked
+    // frantic alongside the rotating body + darting eyes).
+    final phase = (t / 1.4) % 1.0;
+    final bobY = math.sin(phase * math.pi) * -2.5;
     final cx = 22 * s;
     final cy = -10 * s + bobY * s;
     final fill = Paint()..color = const Color(0xFF85B7EB);
@@ -2290,8 +2300,14 @@ class FacePainter {
   }
 
   void _drawEyesPinchedShut(Canvas canvas, double s, FacePalette p) {
-    // Mask existing eyes, draw pinched-shut "X" shapes — eyes
-    // squeezed tight from peak emotional intensity.
+    // **Happy closed eyes** (concave-up arches, like ^ ^), NOT
+    // the universal "dead/KO'd" X-eye trope. The X-eyes paired
+    // with a smiling mouth read as "dead but smiling" to a kid
+    // — uncanny and unsettling. These are the same arch shape
+    // as the breathing variant's closed crescents but mirrored
+    // (concave up, like a smile shape) so an emote-variant
+    // marble at peak feeling looks like it's eyes-shut-grinning,
+    // not unconscious.
     final mask = Paint()..color = p.body;
     canvas
       ..drawCircle(Offset(-12 * s, 0), 8 * s, mask)
@@ -2301,11 +2317,15 @@ class FacePainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.8
       ..strokeCap = StrokeCap.round;
+    final left = Path()
+      ..moveTo(-17 * s, 1 * s)
+      ..quadraticBezierTo(-12 * s, -4 * s, -7 * s, 1 * s);
+    final right = Path()
+      ..moveTo(7 * s, 1 * s)
+      ..quadraticBezierTo(12 * s, -4 * s, 17 * s, 1 * s);
     canvas
-      ..drawLine(Offset(-17 * s, -3 * s), Offset(-7 * s, 3 * s), ink)
-      ..drawLine(Offset(-17 * s, 3 * s), Offset(-7 * s, -3 * s), ink)
-      ..drawLine(Offset(7 * s, -3 * s), Offset(17 * s, 3 * s), ink)
-      ..drawLine(Offset(7 * s, 3 * s), Offset(17 * s, -3 * s), ink);
+      ..drawPath(left, ink)
+      ..drawPath(right, ink);
   }
 
   /// Per-mood "I really feel this!" particle. The big visual
@@ -2326,20 +2346,33 @@ class FacePainter {
   }
 
   void _drawStreamingTears(Canvas canvas, double s, FacePalette p) {
-    // Two big tears streaming down both cheeks. The fall
-    // position is a looping `t` so the tears slide down then
-    // restart — sob loop.
+    // Two tears that form, fall, and **fade out** at the end of
+    // the loop — no hard restart. Earlier version restarted at
+    // 1Hz which looked glitchy (tear vanishes, instantly
+    // reappears at the eye). 3.5s period now, opacity ramps up
+    // 0→1 in the first 20% of the cycle and ramps down 1→0 in
+    // the last 30% so the loop is invisible.
     final tearColor = p.tear ?? const Color(0xFF85B7EB);
-    final paint = Paint()..color = tearColor;
+    final fall = (t / 3.5) % 1.0;
+    // Smooth opacity ramp: 0..0.2 fades in, 0.7..1.0 fades out.
+    double tearAlpha;
+    if (fall < 0.2) {
+      tearAlpha = fall / 0.2;
+    } else if (fall > 0.7) {
+      tearAlpha = (1.0 - fall) / 0.3;
+    } else {
+      tearAlpha = 1.0;
+    }
+    tearAlpha = tearAlpha.clamp(0.0, 1.0);
+    final yShift = fall * 18 * s;
+    final paint = Paint()..color = tearColor.withValues(alpha: tearAlpha);
     final stroke = Paint()
-      ..color = const Color(0xFF4A86C2)
+      ..color = const Color(0xFF4A86C2).withValues(alpha: tearAlpha)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
-    final fall = (t / 1.0) % 1.0;
-    final yShift = fall * 16 * s;
     for (final side in <int>[-1, 1]) {
       final cx = side * 13 * s;
-      final cy = 4 * s + yShift;
+      final cy = 2 * s + yShift;
       final path = Path()
         ..moveTo(cx, cy - 5 * s)
         ..quadraticBezierTo(cx - 3.5 * s, cy + 1 * s, cx, cy + 5 * s)
@@ -2394,8 +2427,10 @@ class FacePainter {
   }
 
   void _drawFloatingHeart(Canvas canvas, double s, FacePalette p) {
-    // Single heart floating + pulsing above the head.
-    final pulse = 1.0 + math.sin((t / 0.55) * math.pi * 2) * 0.18;
+    // Single heart floating + pulsing above the head. Slowed
+    // from 0.55s → 1.0s so it reads as "warm affection" rather
+    // than "alarm-clock heartbeat".
+    final pulse = 1.0 + math.sin((t / 1.0) * math.pi * 2) * 0.14;
     final r = 6 * s * pulse;
     final cy = -28 * s;
     final fill = Paint()..color = const Color(0xFFE96D87);
@@ -2422,17 +2457,20 @@ class FacePainter {
   }
 
   void _drawTwinkleSparkles(Canvas canvas, double s, FacePalette p) {
-    // Three sparkles orbiting the head — twinkle in/out as they
-    // rotate. Each sparkle is offset in time so they twinkle
-    // out of phase.
+    // Three sparkles orbiting + twinkling. Earlier version was
+    // strobe-y (orbit 1.6s, twinkle 0.45s = 2.2Hz) which could
+    // bother light-sensitive kids. Now orbit 3.0s and twinkle
+    // 1.2s for a calm sparkly halo.
     final color = p.sparkle ?? const Color(0xFFFFD66B);
     for (var i = 0; i < 3; i++) {
-      final orbit = (t / 1.6) * math.pi * 2 + i * (math.pi * 2 / 3);
+      final orbit = (t / 3.0) * math.pi * 2 + i * (math.pi * 2 / 3);
       final orbitR = 24 * s;
       final cx = math.cos(orbit) * orbitR;
       final cy = math.sin(orbit) * orbitR - 6 * s;
+      // Twinkle ranges 0.4..1.0 (never fully zero so the
+      // sparkle doesn't pop out of existence; it just dims).
       final twinkle =
-          0.5 + math.sin((t / 0.45) * math.pi * 2 + i * 1.5) * 0.5;
+          0.7 + math.sin((t / 1.2) * math.pi * 2 + i * 1.5) * 0.3;
       _drawFourPointSparkle(
         canvas,
         Offset(cx, cy),

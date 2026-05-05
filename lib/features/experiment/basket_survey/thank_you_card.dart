@@ -164,20 +164,17 @@ class _BasketThankYouCardState extends ConsumerState<BasketThankYouCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // ——— Header outside the print card —————————
+                    // ——— Tiny celebration line above the card ——
+                    // No more redundant outer title (the card
+                    // carries the title cleanly on its own).
                     Text(
-                      '"Your Feelings Jar"',
+                      'All done!',
                       style: serifTitle.copyWith(
-                        fontSize: 26,
+                        fontSize: 28,
                         height: 1.0,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'BASECAMP $year',
-                      style: sansLabel.copyWith(fontSize: 11),
-                    ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
 
                     // ——— The print card itself ——————————————————
                     // Wrapped in RepaintBoundary so we can capture
@@ -188,58 +185,60 @@ class _BasketThankYouCardState extends ConsumerState<BasketThankYouCard> {
                       child: StampPanel(
                         child: Container(
                           padding: const EdgeInsets.fromLTRB(
-                            20,
-                            24,
-                            20,
-                            18,
+                            22,
+                            26,
+                            22,
+                            22,
                           ),
                           color: Colors.white,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               Text(
-                                'BASECamp Feelings Jar',
+                                'My Feelings Jar',
                                 textAlign: TextAlign.center,
-                                style: serifBody.copyWith(fontSize: 16),
+                                style: serifBody.copyWith(
+                                  fontSize: 22,
+                                  color: _ink,
+                                ),
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '$year STUDENT SURVEY',
+                                'BASECAMP · $year',
                                 style: sansLabel.copyWith(
                                   fontSize: 9,
-                                  letterSpacing: 2,
+                                  letterSpacing: 2.4,
                                 ),
                               ),
-                              const SizedBox(height: 16),
-                              // The basket snapshot — drawn from
-                              // the live world capture.
+                              const SizedBox(height: 18),
+                              // Live basket snapshot — transparent
+                              // background, ribbon bow drawn on top.
                               _BasketSnapshotFrame(
                                 snapshot: widget.basketSnapshot,
                               ),
-                              const SizedBox(height: 16),
+                              const SizedBox(height: 14),
                               _NameField(
                                 controller: _name,
                                 serif: serifBody,
                               ),
-                              const SizedBox(height: 14),
-                              Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: _ink.withValues(alpha: 0.12),
-                                  ),
+                              const SizedBox(height: 18),
+                              Text(
+                                'Thanks for sharing how you feel.',
+                                textAlign: TextAlign.center,
+                                style: serifBody.copyWith(
+                                  fontSize: 15,
+                                  color: _inkSoft,
+                                  height: 1.4,
                                 ),
-                                child: Text(
-                                  'Thank you for sharing your feelings '
-                                  'with us. Every answer helps make '
-                                  'BASECamp even better. You are '
-                                  'awesome!',
-                                  textAlign: TextAlign.center,
-                                  style: serifBody.copyWith(
-                                    fontSize: 14,
-                                    color: _inkSoft,
-                                    height: 1.5,
-                                  ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'You helped make BASECamp better.',
+                                textAlign: TextAlign.center,
+                                style: serifBody.copyWith(
+                                  fontSize: 15,
+                                  color: _inkSoft,
+                                  height: 1.4,
                                 ),
                               ),
                             ],
@@ -330,11 +329,11 @@ class _BasketThankYouCardState extends ConsumerState<BasketThankYouCard> {
   }
 }
 
-/// Frames the captured basket snapshot inside a neutral box and
-/// lays a gift ribbon + tied bow on top of it — the basket-with-
-/// emojis stays exactly as it was the moment the survey ended;
-/// the ribbon "wraps" it for the keepsake. Falls back to a soft
-/// placeholder if no snapshot was captured.
+/// Hosts the captured basket snapshot inside the print card with
+/// a tied gift bow drawn on top. **Transparent background** so
+/// the card's white surface shows through behind the snapshot —
+/// no cream-colored frame around the basket. Falls back to a
+/// soft placeholder if no snapshot was captured.
 class _BasketSnapshotFrame extends StatelessWidget {
   const _BasketSnapshotFrame({required this.snapshot});
 
@@ -347,31 +346,27 @@ class _BasketSnapshotFrame extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          ColoredBox(
-            color: const Color(0xFFFAF6EE),
-            child: snapshot == null
-                ? Center(
-                    child: Text(
-                      '(your jar)',
-                      style: GoogleFonts.dmSerifDisplay(
-                        fontStyle: FontStyle.italic,
-                        color: _inkLight,
-                        fontSize: 14,
-                      ),
-                    ),
-                  )
-                : Image.memory(
-                    snapshot!,
-                    fit: BoxFit.contain,
-                    filterQuality: FilterQuality.high,
-                  ),
-          ),
-          // Ribbon overlay — drawn AFTER the snapshot so the bow
-          // sits on top of the basket. The painter doesn't know
-          // anything about the basket below it; the ribbon's
-          // band lands across the upper third by default, which
-          // ends up wrapping the basket's neck for our standard
-          // snapshot composition.
+          if (snapshot == null)
+            Center(
+              child: Text(
+                '(your jar)',
+                style: GoogleFonts.dmSerifDisplay(
+                  fontStyle: FontStyle.italic,
+                  color: _inkLight,
+                  fontSize: 14,
+                ),
+              ),
+            )
+          else
+            Image.memory(
+              snapshot!,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+            ),
+          // Ribbon bow drawn ON TOP of the snapshot so the knot
+          // sits at the basket's rim. The painter is positioned
+          // relative to the ribbon's default basket-rect heuristic
+          // (lower 75% of the snapshot frame).
           const Positioned.fill(
             child: IgnorePointer(
               child: CustomPaint(painter: BasketRibbonPainter()),
@@ -393,36 +388,63 @@ class _NameField extends StatelessWidget {
     return Column(
       children: [
         Text(
-          'this jar belongs to:',
-          style: serif.copyWith(fontSize: 12),
+          'this jar belongs to',
+          style: serif.copyWith(fontSize: 13, color: _inkSoft),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 240),
-          child: TextField(
-            controller: controller,
-            textAlign: TextAlign.center,
-            textCapitalization: TextCapitalization.words,
-            maxLength: 24,
-            decoration: InputDecoration(
-              isDense: true,
-              counterText: '',
-              hintText: 'write your name',
-              hintStyle: serif.copyWith(
-                fontSize: 17,
-                color: const Color(0xFFCCCCCC),
-              ),
-              border: const UnderlineInputBorder(
-                borderSide: BorderSide(color: _ink, width: 2),
-              ),
-              focusedBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: _ink, width: 2),
-              ),
-              enabledBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: _ink, width: 2),
+          constraints: const BoxConstraints(maxWidth: 260),
+          // Wrap in a Theme override so the cursor + selection
+          // colors are explicit (parent themes can paint the
+          // cursor invisible if they don't set selectionTheme).
+          child: Theme(
+            data: Theme.of(context).copyWith(
+              textSelectionTheme: const TextSelectionThemeData(
+                cursorColor: _ink,
+                selectionColor: Color(0x331A1A1A),
+                selectionHandleColor: _ink,
               ),
             ),
-            style: serif.copyWith(fontSize: 22),
+            child: TextField(
+              controller: controller,
+              textAlign: TextAlign.center,
+              textCapitalization: TextCapitalization.words,
+              maxLength: 24,
+              cursorColor: _ink,
+              // Explicit ink-on-transparent so the typed name is
+              // readable on the card's white surface. Earlier
+              // versions inherited the parent text style which
+              // landed black on dark in some themes.
+              style: serif.copyWith(
+                fontSize: 22,
+                color: _ink,
+              ),
+              decoration: InputDecoration(
+                isDense: true,
+                counterText: '',
+                hintText: 'write your name',
+                hintStyle: serif.copyWith(
+                  fontSize: 18,
+                  color: const Color(0xFFBBBBBB),
+                ),
+                // Transparent fill — the card's white surface
+                // shows through cleanly under the typed name.
+                filled: true,
+                fillColor: Colors.transparent,
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 8,
+                ),
+                border: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: _ink, width: 1.5),
+                ),
+                focusedBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: _ink, width: 2),
+                ),
+                enabledBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: _ink, width: 1.5),
+                ),
+              ),
+            ),
           ),
         ),
       ],
