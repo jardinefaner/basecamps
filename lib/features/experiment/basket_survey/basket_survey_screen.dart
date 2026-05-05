@@ -26,10 +26,14 @@
 
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:basecamp/features/experiment/basket_survey/basket_session_store.dart';
 import 'package:basecamp/features/experiment/basket_survey/basket_world_widget.dart';
 import 'package:basecamp/features/experiment/basket_survey/painted_face.dart';
+import 'package:basecamp/features/experiment/basket_survey/thank_you_card.dart';
+import 'package:flutter/rendering.dart';
 import 'package:basecamp/features/surveys/canonical_questions.dart';
 import 'package:basecamp/features/surveys/survey_audio_service.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
@@ -64,6 +68,18 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
   /// parallel list.
   final GlobalKey<BasketWorldWidgetState> _worldKey =
       GlobalKey<BasketWorldWidgetState>();
+
+  /// Wraps the `BasketWorldWidget` so we can rasterise it (and
+  /// only it) into a PNG for the thank-you card. Captured the
+  /// moment the survey completes — every marble in its settled
+  /// position, every overspill in place — so the card freezes
+  /// the kid's actual final state.
+  final GlobalKey _worldSnapshotKey = GlobalKey();
+
+  /// PNG of the basket world captured at survey-complete. Null
+  /// while the survey is in progress; the thank-you card hides
+  /// behind null while the capture is in flight.
+  Uint8List? _basketSnapshot;
 
   bool _basketGlow = false;
   bool _transitioning = false;
@@ -110,19 +126,45 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
 
   Future<void> _onSurveyComplete() async {
     setState(() {
-      _showingDone = true;
       _transitioning = false;
     });
     final notifier = ref.read(basketSurveySessionsProvider.notifier);
-    await notifier.add(
+    final saveFuture = notifier.add(
       answers: _answers,
       startedAt: _sessionStartedAt,
       endedAt: DateTime.now(),
     );
+    // Hold a beat so the last marble can settle in the basket
+    // before we freeze the snapshot — otherwise the card shows a
+    // marble in mid-air.
+    await Future<void>.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
-    await Future<void>.delayed(const Duration(milliseconds: 1800));
+    final snap = await _captureBasketSnapshot();
     if (!mounted) return;
-    _resetForNextChild();
+    setState(() {
+      _basketSnapshot = snap;
+      _showingDone = true;
+    });
+    await saveFuture;
+    // No auto-reset — the kid stays on the thank-you card until
+    // they tap "Pass to next friend" (or a teacher does).
+  }
+
+  /// Snapshot the BasketWorldWidget via its RepaintBoundary.
+  /// Returns null on any failure; the card has a fallback.
+  Future<Uint8List?> _captureBasketSnapshot() async {
+    try {
+      final ctx = _worldSnapshotKey.currentContext;
+      if (ctx == null) return null;
+      final boundary = ctx.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return null;
+      final image = await boundary.toImage(pixelRatio: 2.5);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      return bytes?.buffer.asUint8List();
+    } on Object catch (e, st) {
+      debugPrint('[basket-survey] snapshot failed: $e\n$st');
+      return null;
+    }
   }
 
   void _resetForNextChild() {
@@ -132,6 +174,7 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
       _answers.clear();
       _showingDone = false;
       _transitioning = false;
+      _basketSnapshot = null;
       _sessionStartedAt = DateTime.now();
     });
     _playCurrentQuestionAudio();
@@ -154,7 +197,10 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
       ),
       body: SafeArea(
         child: _showingDone
-            ? const _DoneOverlay()
+            ? BasketThankYouCard(
+                basketSnapshot: _basketSnapshot,
+                onPassAlong: _resetForNextChild,
+              )
             : Column(
                 children: [
                   // ——— Question + choices (this part swaps) ———————
@@ -185,17 +231,24 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
                   // glow + drop events.
                   Expanded(
                     flex: 4,
-                    child: BasketWorldWidget(
-                      key: _worldKey,
-                      glow: _basketGlow,
-                      onWillAccept: () {
-                        if (_transitioning) return false;
-                        setState(() => _basketGlow = true);
-                        return true;
-                      },
-                      onLeave: () =>
-                          setState(() => _basketGlow = false),
-                      onAccept: _onDropped,
+                    // RepaintBoundary so we can `toImage()` the
+                    // basket world (and ONLY it — none of the
+                    // surrounding scaffold) for the thank-you
+                    // card snapshot at end-of-survey.
+                    child: RepaintBoundary(
+                      key: _worldSnapshotKey,
+                      child: BasketWorldWidget(
+                        key: _worldKey,
+                        glow: _basketGlow,
+                        onWillAccept: () {
+                          if (_transitioning) return false;
+                          setState(() => _basketGlow = true);
+                          return true;
+                        },
+                        onLeave: () =>
+                            setState(() => _basketGlow = false),
+                        onAccept: _onDropped,
+                      ),
                     ),
                   ),
                 ],
@@ -428,39 +481,6 @@ class _DraggableFaceState extends State<_DraggableFace> {
             setState(() => _dragging = false),
         onDragCompleted: () => setState(() => _dragging = false),
         child: body,
-      ),
-    );
-  }
-}
-
-class _DoneOverlay extends StatelessWidget {
-  const _DoneOverlay();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xxxl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'All done!',
-              style: theme.textTheme.displaySmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              'Thank you. Pass the basket to the next friend.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
