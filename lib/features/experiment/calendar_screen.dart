@@ -262,7 +262,6 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 }),
               ),
               const Divider(height: 1),
-              const _DayHeaderRow(),
               Expanded(
                 child: _MonthGrid(
                   anchorMonth: _anchorMonth,
@@ -457,19 +456,28 @@ class _TypeChip extends StatelessWidget {
 // ═════════════════════════════════════════════════════════════════
 
 class _DayHeaderRow extends StatelessWidget {
-  const _DayHeaderRow();
+  const _DayHeaderRow({required this.cellWidth});
+
+  /// Pinned to the same width as the body cells so the labels
+  /// line up under their columns regardless of horizontal scroll
+  /// position.
+  final double cellWidth;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    // School-week calendar — Mon–Fri only. Saturday/Sunday don't
+    // belong here because BASECamp doesn't run on weekends; any
+    // tile parked on Sat/Sun would just be visual noise.
+    const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
     return Container(
       color: theme.colorScheme.surfaceContainerLowest,
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
         children: [
           for (final l in labels)
-            Expanded(
+            SizedBox(
+              width: cellWidth,
               child: Center(
                 child: Text(
                   l,
@@ -513,83 +521,123 @@ class _MonthGrid extends StatelessWidget {
   final VoidCallback onCancelInline;
   final ValueChanged<_CalendarTile> onTapTile;
 
+  // Min cell width — keeps each day readable on a phone. The
+  // grid scrolls horizontally when the viewport is narrower than
+  // the total. Mirrors the monthly-plan rationale: a phone-fit
+  // grid crunches each cell to ~30dp wide, which is unreadable.
+  static const double _minCellWidth = 140;
+
+  // Floor on row height so empty weeks don't collapse into a
+  // line. Cells with content can grow taller via IntrinsicHeight.
+  static const double _minRowHeight = 120;
+
+  static const int _columnsPerWeek = 5;
+
   @override
   Widget build(BuildContext context) {
-    final firstOfMonth = anchorMonth;
-    // Mon=1..Sun=7 → grid leading offset.
-    final leading = (firstOfMonth.weekday - 1) % 7;
-    final daysInMonth =
-        DateTime(anchorMonth.year, anchorMonth.month + 1, 0).day;
-    final totalCells = leading + daysInMonth;
-    final rows = (totalCells / 7).ceil();
+    final weeks = _buildWeeks(anchorMonth);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final cellH = constraints.maxHeight / rows;
-        return Column(
-          children: [
-            for (var r = 0; r < rows; r++)
-              SizedBox(
-                height: cellH,
-                child: Row(
-                  children: [
-                    for (var c = 0; c < 7; c++)
-                      Expanded(
-                        child: _Cell(
-                          day: _dayForCell(r, c, leading),
-                          inMonth: _inMonth(r, c, leading, daysInMonth),
-                          tiles: _tilesForCell(r, c, leading, daysInMonth),
-                          isInlineEditing: _isInlineEditing(
-                            r,
-                            c,
-                            leading,
-                            daysInMonth,
-                          ),
-                          inlineCtrl: inlineCtrl,
-                          inlineFocus: inlineFocus,
-                          activeType: activeType,
-                          hasGroup: hasGroup,
-                          onTapEmpty: onTapEmpty,
-                          onSubmitInline: onSubmitInline,
-                          onCancelInline: onCancelInline,
-                          onTapTile: onTapTile,
+        final cellWidth = constraints.maxWidth >=
+                _minCellWidth * _columnsPerWeek
+            ? constraints.maxWidth / _columnsPerWeek
+            : _minCellWidth;
+        final totalWidth = cellWidth * _columnsPerWeek;
+        return SingleChildScrollView(
+          // Vertical outer scroll for many-week months.
+          child: SingleChildScrollView(
+            // Horizontal inner scroll for narrow viewports.
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: totalWidth,
+              child: Column(
+                children: [
+                  _DayHeaderRow(cellWidth: cellWidth),
+                  const Divider(height: 1),
+                  for (final week in weeks)
+                    IntrinsicHeight(
+                      child: ConstrainedBox(
+                        constraints:
+                            const BoxConstraints(minHeight: _minRowHeight),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (final cell in week)
+                              SizedBox(
+                                width: cellWidth,
+                                child: _Cell(
+                                  day: cell.day,
+                                  inMonth: cell.inMonth,
+                                  tiles:
+                                      tiles[_dayKey(cell.day).toIso8601String()] ??
+                                          const [],
+                                  isInlineEditing: inlineCellKey ==
+                                      _dayKey(cell.day).toIso8601String(),
+                                  inlineCtrl: inlineCtrl,
+                                  inlineFocus: inlineFocus,
+                                  activeType: activeType,
+                                  hasGroup: hasGroup,
+                                  onTapEmpty: onTapEmpty,
+                                  onSubmitInline: onSubmitInline,
+                                  onCancelInline: onCancelInline,
+                                  onTapTile: onTapTile,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
-          ],
+            ),
+          ),
         );
       },
     );
   }
 
-  DateTime _dayForCell(int r, int c, int leading) {
-    final dayNumber = r * 7 + c - leading + 1;
-    return DateTime(anchorMonth.year, anchorMonth.month, dayNumber);
-  }
+  /// Build a list of weeks, each week is a fixed list of 5
+  /// [_GridCell]s (Mon–Fri). Out-of-month days at the start /
+  /// end render dimmed but still occupy a slot so columns stay
+  /// aligned. Sat/Sun are skipped entirely — BASECamp doesn't
+  /// schedule on weekends so they'd just be empty noise.
+  List<List<_GridCell>> _buildWeeks(DateTime anchor) {
+    final firstOfMonth = DateTime(anchor.year, anchor.month);
+    final daysInMonth = DateTime(anchor.year, anchor.month + 1, 0).day;
+    final lastOfMonth = DateTime(anchor.year, anchor.month, daysInMonth);
 
-  bool _inMonth(int r, int c, int leading, int daysInMonth) {
-    final dayNumber = r * 7 + c - leading + 1;
-    return dayNumber >= 1 && dayNumber <= daysInMonth;
-  }
+    // Snap the start back to Monday of the week containing the 1st.
+    final startMonday =
+        firstOfMonth.subtract(Duration(days: firstOfMonth.weekday - 1));
+    // Snap the end to the Friday of the week containing the last
+    // day of the month. If the month ends Mon–Thu we ADD days to
+    // reach Friday; if it ends Sat/Sun we SUBTRACT (the formula
+    // is the same — `Duration(days: 5 - weekday)` works in both
+    // directions).
+    final endFriday = lastOfMonth.add(
+      Duration(days: DateTime.friday - lastOfMonth.weekday),
+    );
 
-  List<_CalendarTile> _tilesForCell(
-    int r,
-    int c,
-    int leading,
-    int daysInMonth,
-  ) {
-    if (!_inMonth(r, c, leading, daysInMonth)) return const [];
-    final day = _dayForCell(r, c, leading);
-    return tiles[_dayKey(day).toIso8601String()] ?? const [];
+    final weeks = <List<_GridCell>>[];
+    var weekStart = startMonday;
+    while (!weekStart.isAfter(endFriday)) {
+      final week = <_GridCell>[];
+      for (var c = 0; c < _columnsPerWeek; c++) {
+        final day = weekStart.add(Duration(days: c));
+        final inMonth = day.month == anchor.month && day.year == anchor.year;
+        week.add(_GridCell(day: day, inMonth: inMonth));
+      }
+      weeks.add(week);
+      weekStart = weekStart.add(const Duration(days: 7));
+    }
+    return weeks;
   }
+}
 
-  bool _isInlineEditing(int r, int c, int leading, int daysInMonth) {
-    if (!_inMonth(r, c, leading, daysInMonth)) return false;
-    if (inlineCellKey == null) return false;
-    final day = _dayForCell(r, c, leading);
-    return inlineCellKey == _dayKey(day).toIso8601String();
-  }
+class _GridCell {
+  const _GridCell({required this.day, required this.inMonth});
+  final DateTime day;
+  final bool inMonth;
 }
 
 class _Cell extends StatelessWidget {
