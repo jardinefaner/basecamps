@@ -31,6 +31,7 @@ class MultiSelectQuestionOverlay extends ConsumerStatefulWidget {
     required this.onCommit,
     required this.onSkip,
     super.key,
+    this.onActivityTapped,
   });
 
   /// The question being answered. Carries the prompt + the 7
@@ -49,6 +50,13 @@ class MultiSelectQuestionOverlay extends ConsumerStatefulWidget {
 
   /// Called when the kid hits Skip (no answer recorded).
   final VoidCallback onSkip;
+
+  /// Optional per-tap hook fired when the kid TOGGLES ON an
+  /// activity (only on add, not on remove). Used by the basket
+  /// survey to drop a happy marble into the basket each time —
+  /// physical feedback that matches the kid's selection. The
+  /// marble kiosk doesn't pass this; the call is then a no-op.
+  final ValueChanged<String>? onActivityTapped;
 
   @override
   ConsumerState<MultiSelectQuestionOverlay> createState() =>
@@ -71,13 +79,19 @@ class _MultiSelectQuestionOverlayState
   }
 
   void _toggle(SurveyActivityOption option) {
+    final wasSelected = _selected.contains(option.id);
     setState(() {
-      if (_selected.contains(option.id)) {
+      if (wasSelected) {
         _selected.remove(option.id);
       } else {
         _selected.add(option.id);
       }
     });
+    // Fire the per-tap hook (basket survey drops a marble) —
+    // only on TURN-ON, not when un-selecting.
+    if (!wasSelected) {
+      widget.onActivityTapped?.call(option.id);
+    }
     // Optionally read the option label on tap for kids who can't
     // read yet — same audio mode gating as the prompt.
     if (widget.audioMode != SurveyAudioMode.silent) {

@@ -102,6 +102,11 @@ class BasketWorldWidgetState extends State<BasketWorldWidget>
   bool get isFullySettled =>
       _world.marbles.every((m) => m.settled);
 
+  /// Direct access to the simulation. Used by the basket survey
+  /// screen to imperatively spawn marbles outside the
+  /// drag-and-drop path (e.g. from a multi-select activity tap).
+  BasketWorld get world => _world;
+
   /// Key on the inner SizedBox so we can convert the drag-end
   /// global offset to the world's local coordinate space. (The
   /// AnimatedScale wrapping it also affects the transformation,

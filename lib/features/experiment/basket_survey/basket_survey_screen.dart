@@ -35,11 +35,13 @@ import 'package:basecamp/features/experiment/basket_survey/painted_face.dart';
 import 'package:basecamp/features/experiment/basket_survey/thank_you_card.dart';
 import 'package:basecamp/features/surveys/canonical_questions.dart';
 import 'package:basecamp/features/surveys/kiosk_exit_pin_modal.dart';
-import 'package:basecamp/features/surveys/survey_repository.dart';
-import 'package:flutter/rendering.dart';
+import 'package:basecamp/features/surveys/multi_select_overlay.dart';
+import 'package:basecamp/features/surveys/open_ended_overlay.dart';
 import 'package:basecamp/features/surveys/survey_audio_service.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
+import 'package:basecamp/features/surveys/survey_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -91,9 +93,14 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
 
   /// Mood-only questions. In kiosk mode pulls from the saved
   /// survey config; sandbox uses the canonical list.
+  /// All questions in the survey, in reading order. The basket
+  /// kiosk now handles every type:
+  ///   * mood       — drag-thumb-into-basket flow
+  ///   * multiSelect — activity grid; each tap drops a happy
+  ///                   marble; commit advances
+  ///   * openEnded  — Deepgram realtime STT overlay
   List<SurveyQuestion> get _questions {
-    final source = _survey?.questions ?? kBasecampCanonicalQuestions;
-    return source.where((q) => q.type == SurveyQuestionType.mood).toList();
+    return _survey?.questions ?? kBasecampCanonicalQuestions;
   }
 
   int _index = 0;
@@ -123,9 +130,20 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
   bool _showingDone = false;
   late DateTime _sessionStartedAt = DateTime.now();
 
+  /// Cached repository reference. Captured in `initState` before
+  /// the widget can be unmounted, so `dispose` can call
+  /// `endSession` without going through `ref.read` (Riverpod
+  /// rejects ref usage during dispose because the BuildContext
+  /// is already gone).
+  late final SurveyRepository _surveyRepoCached =
+      ref.read(surveyRepositoryProvider);
+
   @override
   void initState() {
     super.initState();
+    // Touch the cached repo getter so the late-final initialiser
+    // runs while the element is still mounted.
+    _surveyRepoCached;
     if (_isKiosk) {
       unawaited(_initializeKiosk());
     } else {
@@ -153,17 +171,14 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
         await repo.reopenSession(resumeId);
         final answered = await repo.getResponsesForSession(resumeId);
         final answeredIds = answered.map((r) => r.questionId).toSet();
-        // First mood question without a recorded response — that's
-        // where the child left off.
-        final moodOnly = survey.questions
-            .where((q) => q.type == SurveyQuestionType.mood)
-            .toList();
-        for (var i = 0; i < moodOnly.length; i++) {
-          if (!answeredIds.contains(moodOnly[i].id)) {
+        // First question (any type) without a recorded response —
+        // that's where the child left off.
+        for (var i = 0; i < survey.questions.length; i++) {
+          if (!answeredIds.contains(survey.questions[i].id)) {
             startIndex = i;
             break;
           }
-          if (i == moodOnly.length - 1) startIndex = i;
+          if (i == survey.questions.length - 1) startIndex = i;
         }
         sessionId = resumeId;
       } else {
@@ -187,6 +202,9 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
     if (_showingDone) return;
     if (_index >= _questions.length) return;
     final q = _questions[_index];
+    // Multi-select + open-ended overlays play the prompt
+    // themselves in their own initState — don't double-play here.
+    if (q.type != SurveyQuestionType.mood) return;
     final audio = ref.read(surveyAudioServiceProvider);
     unawaited(audio.playQuestion(_voice, q.prompt));
   }
@@ -335,6 +353,201 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════
+  // Question-type dispatch
+  // ═══════════════════════════════════════════════════════════
+
+  /// Body builder that picks the right UI for the current
+  /// question's type:
+  ///   * `mood`        — drag-thumb-into-basket (existing flow)
+  ///   * `multiSelect` — activity grid; each tap drops a happy
+  ///                     marble; commit advances
+  ///   * `openEnded`   — Deepgram realtime STT overlay
+  Widget _buildQuestionBody() {
+    final q = _questions[_index];
+    switch (q.type) {
+      case SurveyQuestionType.mood:
+        return _buildMoodBody(q);
+      case SurveyQuestionType.multiSelect:
+        return _buildMultiSelectBody(q);
+      case SurveyQuestionType.openEnded:
+        return _buildOpenEndedBody(q);
+    }
+  }
+
+  Widget _buildMoodBody(SurveyQuestion q) {
+    return Column(
+      children: [
+        Expanded(
+          flex: 5,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.xl,
+              AppSpacing.lg,
+              AppSpacing.md,
+            ),
+            child: _QuestionAndChoices(
+              question: q,
+              onReplay: _playCurrentQuestionAudio,
+              transitioning: _transitioning,
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 4,
+          child: RepaintBoundary(
+            key: _worldSnapshotKey,
+            child: BasketWorldWidget(
+              key: _worldKey,
+              glow: _basketGlow,
+              onWillAccept: () {
+                if (_transitioning) return false;
+                setState(() => _basketGlow = true);
+                return true;
+              },
+              onLeave: () => setState(() => _basketGlow = false),
+              onAccept: _onDropped,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMultiSelectBody(SurveyQuestion q) {
+    return Column(
+      children: [
+        Expanded(
+          flex: 5,
+          child: MultiSelectQuestionOverlay(
+            // Re-key on the question id so switching from one
+            // multi-select question to another tears down + rebuilds
+            // the overlay (clears the selection set + re-reads the
+            // new prompt).
+            key: ValueKey('ms_${q.id}'),
+            question: q,
+            voice: _voice,
+            audioMode: _audioMode,
+            onCommit: _onMultiSelectCommit,
+            onSkip: _advance,
+            onActivityTapped: _onActivityTapped,
+          ),
+        ),
+        Expanded(
+          flex: 4,
+          // Basket stays visible during multi-select — each
+          // tapped activity drops a happy marble in.
+          child: RepaintBoundary(
+            key: _worldSnapshotKey,
+            child: BasketWorldWidget(
+              key: _worldKey,
+              glow: false,
+              // No drag-and-drop during multi-select; the
+              // overlay drives marble spawns instead.
+              onWillAccept: () => false,
+              onLeave: () {},
+              onAccept: (_) {},
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOpenEndedBody(SurveyQuestion q) {
+    return OpenEndedQuestionOverlay(
+      key: ValueKey('oe_${q.id}'),
+      question: q,
+      voice: _voice,
+      audioMode: _audioMode,
+      onCommit: _onOpenEndedCommit,
+      onSkip: _advance,
+    );
+  }
+
+  /// Get the audio mode for kiosk; sandbox falls back to full.
+  SurveyAudioMode get _audioMode =>
+      _survey?.audioMode ?? SurveyAudioMode.full;
+
+  /// Called when the kid taps an activity card during a multi-
+  /// select question. Adds a happy (`stronglyAgree`) marble to
+  /// the basket so the kid sees their selection register
+  /// physically. Pure visual feedback — the actual answer is
+  /// recorded on commit.
+  void _onActivityTapped(String activityId) {
+    final state = _worldKey.currentState;
+    if (state == null) return;
+    state.world.addMarble(FaceMood.stronglyAgree);
+  }
+
+  Future<void> _onMultiSelectCommit(List<String> selectedIds) async {
+    if (_transitioning) return;
+    final q = _questions[_index];
+    if (_isKiosk) {
+      final survey = _survey;
+      final sessionId = _sessionId;
+      if (survey != null && sessionId != null) {
+        final durationMs = DateTime.now()
+            .difference(_sessionStartedAt)
+            .inMilliseconds;
+        unawaited(
+          ref.read(surveyRepositoryProvider).recordMultiSelectAnswer(
+                surveyId: survey.id,
+                sessionId: sessionId,
+                questionId: q.id,
+                selectedOptionIds: selectedIds,
+                durationMs: durationMs,
+                isPractice: q.isPractice,
+              ),
+        );
+      }
+    }
+    _advance();
+  }
+
+  Future<void> _onOpenEndedCommit(
+    String transcription,
+    int durationMs,
+  ) async {
+    if (_transitioning) return;
+    final q = _questions[_index];
+    if (_isKiosk) {
+      final survey = _survey;
+      final sessionId = _sessionId;
+      if (survey != null && sessionId != null) {
+        unawaited(
+          ref.read(surveyRepositoryProvider).recordOpenEndedAnswer(
+                surveyId: survey.id,
+                sessionId: sessionId,
+                questionId: q.id,
+                transcription: transcription,
+                durationMs: durationMs,
+                isPractice: q.isPractice,
+              ),
+        );
+      }
+    }
+    _advance();
+  }
+
+  /// Advance to the next question — used by multi-select +
+  /// open-ended commit handlers (they don't go through the
+  /// drag-end physics path).
+  void _advance() {
+    if (_transitioning) return;
+    setState(() => _transitioning = true);
+    if (_index + 1 >= _questions.length) {
+      unawaited(_onSurveyComplete());
+      return;
+    }
+    setState(() {
+      _index += 1;
+      _transitioning = false;
+    });
+    _playCurrentQuestionAudio();
+  }
+
   Future<void> _resetForNextChild() async {
     _worldKey.currentState?.reset();
     String? newSessionId;
@@ -395,58 +608,7 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
                 surveyId: widget.surveyId,
                 sessionId: _sessionId,
               )
-            : Column(
-                children: [
-                  // ——— Question + choices (this part swaps) ———————
-                  // Wrapped in an AnimatedSwitcher so ONLY the
-                  // prompt + choices change between questions; the
-                  // replay icon and the basket below stay put.
-                  Expanded(
-                    flex: 5,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.lg,
-                        AppSpacing.xl,
-                        AppSpacing.lg,
-                        AppSpacing.md,
-                      ),
-                      child: _QuestionAndChoices(
-                        question: _questions[_index],
-                        onReplay: _playCurrentQuestionAudio,
-                        transitioning: _transitioning,
-                      ),
-                    ),
-                  ),
-                  // ——— Basket (sticks across questions) ————————
-                  // Now driven by `BasketWorldWidget`, which owns
-                  // the physics simulation and renders every
-                  // marble (back / front / overspill) directly via
-                  // a CustomPainter. The screen only feeds it
-                  // glow + drop events.
-                  Expanded(
-                    flex: 4,
-                    // RepaintBoundary so we can `toImage()` the
-                    // basket world (and ONLY it — none of the
-                    // surrounding scaffold) for the thank-you
-                    // card snapshot at end-of-survey.
-                    child: RepaintBoundary(
-                      key: _worldSnapshotKey,
-                      child: BasketWorldWidget(
-                        key: _worldKey,
-                        glow: _basketGlow,
-                        onWillAccept: () {
-                          if (_transitioning) return false;
-                          setState(() => _basketGlow = true);
-                          return true;
-                        },
-                        onLeave: () =>
-                            setState(() => _basketGlow = false),
-                        onAccept: _onDropped,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            : _buildQuestionBody(),
       ),
     );
     // Kiosk mode wraps in PopScope so the system back gesture
@@ -528,15 +690,14 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
   @override
   void dispose() {
     // If the teacher exits mid-flow without going through the PIN
-    // (impossible via UI in kiosk mode, but possible via a
-    // language-switch / system-kill), mark the session abandoned.
+    // (e.g. system kill, parent route swap), mark the session
+    // abandoned. Uses the **cached** repo reference because
+    // `ref.read` in dispose throws — the BuildContext is already
+    // gone by the time we get here.
     final sessionId = _sessionId;
     if (sessionId != null && _isKiosk && !_showingDone) {
       unawaited(
-        ref.read(surveyRepositoryProvider).endSession(
-              sessionId,
-              completed: false,
-            ),
+        _surveyRepoCached.endSession(sessionId, completed: false),
       );
     }
     super.dispose();
