@@ -1255,6 +1255,16 @@ class _DestinationData {
       path: '/monthly-plan',
       category: _DestCategory.lab,
     ),
+    // Calendar — unified create surface for trips / events / day
+    // plans. Filter bar at the top decides what a click on an
+    // empty day creates; tap a tile to expand its type-specific
+    // fields inline.
+    _DestinationData(
+      label: 'Calendar',
+      icon: Icons.calendar_today_outlined,
+      path: '/calendar',
+      category: _DestCategory.lab,
+    ),
   ];
 }
 

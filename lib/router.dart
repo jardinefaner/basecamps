@@ -10,6 +10,7 @@ import 'package:basecamp/features/children/children_screen.dart';
 import 'package:basecamp/features/curriculum/curriculum_hub_screen.dart';
 import 'package:basecamp/features/curriculum/curriculum_screen.dart';
 import 'package:basecamp/features/experiment/basket_survey/basket_survey_screen.dart';
+import 'package:basecamp/features/experiment/calendar_screen.dart';
 import 'package:basecamp/features/experiment/experiment_screen.dart';
 import 'package:basecamp/features/experiment/monthly_plan_screen.dart';
 import 'package:basecamp/features/experiment/survey/survey_screen.dart';
@@ -32,11 +33,11 @@ import 'package:basecamp/features/programs/programs_screen.dart';
 import 'package:basecamp/features/programs/sync_diagnostics_screen.dart';
 import 'package:basecamp/features/programs/welcome_screen.dart';
 import 'package:basecamp/features/roles/roles_screen.dart';
+import 'package:basecamp/features/prints/print_detail_screen.dart';
+import 'package:basecamp/features/prints/prints_screen.dart';
 import 'package:basecamp/features/rooms/rooms_screen.dart';
 import 'package:basecamp/features/schedule/schedule_editor_screen.dart';
 import 'package:basecamp/features/settings/program_settings_screen.dart';
-import 'package:basecamp/features/prints/print_detail_screen.dart';
-import 'package:basecamp/features/prints/prints_screen.dart';
 import 'package:basecamp/features/setup/setup_hub_screen.dart';
 import 'package:basecamp/features/surveys/survey_list_screen.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
@@ -514,6 +515,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/monthly-plan',
         builder: (_, _) => const MonthlyPlanScreen(),
+      ),
+      // Calendar experiment — unified surface for the "calendar
+      // tile" model (trips / events / day plans on one grid, the
+      // filter bar discriminates the type at create-time). Lab
+      // proof for the brainstorm; in-memory only for now.
+      GoRoute(
+        path: '/calendar',
+        builder: (_, _) => const CalendarScreen(),
       ),
       GoRoute(
         path: '/more/sequences',
