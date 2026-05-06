@@ -87,6 +87,31 @@ class _CalendarTile {
   TimeOfDay? endTime; // trips, events
   String theme = ''; // day plans
   String notes = ''; // any
+
+  /// AI-scaffolded body: a list of timed blocks. For TRIPS, this is
+  /// the itinerary (8:00 leave, 8:30 arrive, 9–11 jellies + sharks,
+  /// …). For DAY PLANS, this is the day's schedule (8:30 morning
+  /// circle, 9:00 art, …). Empty until the teacher hits "generate";
+  /// editable in place after.
+  List<_ItineraryBlock> itinerary = <_ItineraryBlock>[];
+}
+
+/// One row in [_CalendarTile.itinerary]. Times are local (no
+/// timezone — the parent tile carries the date). All fields except
+/// id are user-editable; id is stable so the regenerate flow can
+/// dedupe rather than wipe.
+class _ItineraryBlock {
+  _ItineraryBlock({
+    required this.id,
+    required this.time,
+    required this.title,
+    this.description = '',
+  });
+
+  final String id;
+  TimeOfDay time;
+  String title;
+  String description;
 }
 
 DateTime _dayKey(DateTime d) => DateTime.utc(d.year, d.month, d.day);
@@ -1111,6 +1136,12 @@ class _TileEditorSheetState extends State<_TileEditorSheet> {
   late final TextEditingController _theme;
   late final TextEditingController _notes;
 
+  /// AI-itinerary state. Spinner + error live here, not on the
+  /// tile, because regenerate is a per-sheet interaction. The
+  /// generated blocks themselves persist on the tile.
+  bool _itineraryLoading = false;
+  String? _itineraryError;
+
   @override
   void initState() {
     super.initState();
@@ -1138,6 +1169,74 @@ class _TileEditorSheetState extends State<_TileEditorSheet> {
       widget.tile.destination = _destination.text.trim();
       widget.tile.theme = _theme.text.trim();
       widget.tile.notes = _notes.text.trim();
+    });
+    widget.onChanged();
+  }
+
+  /// Hit the LLM for a fresh itinerary. Always replaces the
+  /// existing blocks on success — the regenerate flow is "throw
+  /// the old set away, render the new set." Editing individual
+  /// blocks (out of scope for v0) would want a merge instead.
+  Future<void> _generateItinerary() async {
+    final t = widget.tile;
+    if (!OpenAiClient.isAvailable) {
+      setState(() {
+        _itineraryError = 'Sign in to use AI scaffolding.';
+      });
+      return;
+    }
+    setState(() {
+      _itineraryLoading = true;
+      _itineraryError = null;
+    });
+    try {
+      final drafts = await CalendarLlmService.draftItinerary(
+        ItineraryDraftRequest(
+          type: t.type,
+          title: t.title,
+          destination:
+              t.destination.isEmpty ? null : t.destination,
+          theme: t.theme.isEmpty ? null : t.theme,
+          startTime: t.startTime,
+          endTime: t.endTime,
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        t.itinerary
+          ..clear()
+          ..addAll(drafts.map(
+            (d) => _ItineraryBlock(
+              id: _newId(),
+              time: d.time,
+              title: d.title,
+              description: d.description ?? '',
+            ),
+          ));
+        _itineraryLoading = false;
+      });
+      widget.onChanged();
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _itineraryLoading = false;
+        _itineraryError = "Couldn't generate — try again.";
+      });
+      debugPrint('[calendar itinerary] $e');
+    }
+  }
+
+  void _removeBlock(String id) {
+    setState(() {
+      widget.tile.itinerary.removeWhere((b) => b.id == id);
+    });
+    widget.onChanged();
+  }
+
+  void _clearItinerary() {
+    setState(() {
+      widget.tile.itinerary.clear();
+      _itineraryError = null;
     });
     widget.onChanged();
   }
@@ -1229,6 +1328,14 @@ class _TileEditorSheetState extends State<_TileEditorSheet> {
   }
 
   List<Widget> _typeSpecificFields(ThemeData theme, _CalendarTile t) {
+    final itinerarySection = _ItinerarySection(
+      tile: t,
+      loading: _itineraryLoading,
+      error: _itineraryError,
+      onGenerate: _generateItinerary,
+      onClear: _clearItinerary,
+      onRemoveBlock: _removeBlock,
+    );
     switch (t.type) {
       case CalendarTileType.trip:
         return [
@@ -1246,6 +1353,8 @@ class _TileEditorSheetState extends State<_TileEditorSheet> {
             onChanged: _save,
             maxLines: 2,
           ),
+          const SizedBox(height: AppSpacing.md),
+          itinerarySection,
         ];
       case CalendarTileType.event:
         return [
@@ -1272,36 +1381,8 @@ class _TileEditorSheetState extends State<_TileEditorSheet> {
             onChanged: _save,
             maxLines: 3,
           ),
-          const SizedBox(height: AppSpacing.sm),
-          // Forward-look — this is where AI-scaffolded blocks
-          // would live. Keeping the placeholder so the design
-          // intent is visible while the panel is open.
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.auto_awesome_outlined,
-                  size: 18,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Text(
-                    'AI-scaffolded schedule blocks land here once the day '
-                    'plan has a theme.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          const SizedBox(height: AppSpacing.md),
+          itinerarySection,
         ];
     }
   }
@@ -1446,6 +1527,215 @@ class _ChipButton extends StatelessWidget {
             color: theme.colorScheme.onSurface,
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// Itinerary section (AI scaffolding)
+// ═════════════════════════════════════════════════════════════════
+
+/// The AI-scaffolded body of a tile: timed blocks of titles +
+/// short descriptions. Trips get an itinerary arc (leave / arrive
+/// / activities / snack / return); day plans get a classroom day
+/// shape (circle / art / outside / story). Both render the same
+/// way — a sectioned list with a regenerate button at the top.
+///
+/// Visual states stack:
+///   * Empty → single full-width button "✨ Generate itinerary".
+///   * Loading → spinner + label.
+///   * Error → red note + retry button.
+///   * Populated → list of blocks, each tappable to remove.
+///                 Header gains "regenerate" + "clear" actions.
+class _ItinerarySection extends StatelessWidget {
+  const _ItinerarySection({
+    required this.tile,
+    required this.loading,
+    required this.error,
+    required this.onGenerate,
+    required this.onClear,
+    required this.onRemoveBlock,
+  });
+
+  final _CalendarTile tile;
+  final bool loading;
+  final String? error;
+  final Future<void> Function() onGenerate;
+  final VoidCallback onClear;
+  final ValueChanged<String> onRemoveBlock;
+
+  String get _sectionLabel => switch (tile.type) {
+        CalendarTileType.trip => 'Itinerary',
+        CalendarTileType.dayPlan => 'Schedule',
+        CalendarTileType.event => 'Schedule',
+      };
+
+  String get _generateLabel => switch (tile.type) {
+        CalendarTileType.trip => 'Generate itinerary',
+        CalendarTileType.dayPlan => 'Generate schedule',
+        CalendarTileType.event => 'Generate schedule',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final blocks = tile.itinerary;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Header row — section label + (when populated) regen +
+        // clear actions on the right.
+        Row(
+          children: [
+            Text(
+              _sectionLabel,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Spacer(),
+            if (blocks.isNotEmpty && !loading) ...[
+              TextButton.icon(
+                onPressed: onGenerate,
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Regenerate'),
+              ),
+              IconButton(
+                tooltip: 'Clear all blocks',
+                icon: const Icon(Icons.delete_outline, size: 18),
+                onPressed: onClear,
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 4),
+        // Body — depends on state.
+        if (loading)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  'Asking the model…',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else if (blocks.isEmpty)
+          // Empty state — single primary button. Uses the auto-
+          // awesome icon to telegraph "AI" without needing words.
+          OutlinedButton.icon(
+            onPressed: onGenerate,
+            icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+            label: Text(_generateLabel),
+          )
+        else
+          Column(
+            children: [
+              for (final b in blocks)
+                _ItineraryRow(
+                  block: b,
+                  onRemove: () => onRemoveBlock(b.id),
+                ),
+            ],
+          ),
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              error!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ItineraryRow extends StatelessWidget {
+  const _ItineraryRow({
+    required this.block,
+    required this.onRemove,
+  });
+
+  final _ItineraryBlock block;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Time column — fixed-width so titles align even when
+          // the times vary in length (8:00 vs 11:30).
+          SizedBox(
+            width: 56,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                block.time.format(context),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+          ),
+          // Title + description column.
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  block.title,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    height: 1.25,
+                  ),
+                ),
+                if (block.description.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      block.description,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          // Remove — small, low contrast.
+          IconButton(
+            tooltip: 'Remove block',
+            icon: Icon(
+              Icons.close,
+              size: 16,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            visualDensity: VisualDensity.compact,
+            onPressed: onRemove,
+          ),
+        ],
       ),
     );
   }

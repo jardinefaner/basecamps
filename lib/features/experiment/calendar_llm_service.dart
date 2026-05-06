@@ -102,6 +102,47 @@ class CalendarLlmException implements Exception {
   String toString() => 'CalendarLlmException: $message';
 }
 
+/// One row produced by [CalendarLlmService.draftItinerary]. Pure
+/// data — the screen converts these into its private
+/// `_ItineraryBlock` objects (with stable ids) so regenerate
+/// flows can dedupe rather than wipe.
+class ItineraryBlockDraft {
+  const ItineraryBlockDraft({
+    required this.time,
+    required this.title,
+    this.description,
+  });
+
+  final TimeOfDay time;
+  final String title;
+  final String? description;
+}
+
+/// Inputs the screen passes to [CalendarLlmService.draftItinerary].
+/// Bundled into a record so the call site doesn't grow a 7-arg
+/// signature as we add fields (audience age, language, etc.).
+class ItineraryDraftRequest {
+  const ItineraryDraftRequest({
+    required this.type,
+    required this.title,
+    this.destination,
+    this.theme,
+    this.startTime,
+    this.endTime,
+    this.audienceAgeLabel,
+  });
+
+  final CalendarTileType type;
+  final String title;
+  final String? destination;
+  final String? theme;
+  final TimeOfDay? startTime;
+  final TimeOfDay? endTime;
+
+  /// e.g. "3-5 yrs" — used to bias age-appropriate blocks.
+  final String? audienceAgeLabel;
+}
+
 /// The drop-bar service. One static method; pure conversion.
 class CalendarLlmService {
   CalendarLlmService._();
@@ -163,6 +204,68 @@ class CalendarLlmService {
 
     final parsed = jsonDecode(content) as Map<String, dynamic>;
     return _parseDraft(parsed, today: today, fallbackType: activeType);
+  }
+
+  /// Generate the body of a tile — itinerary blocks for trips,
+  /// schedule blocks for day plans. Both flavors return the same
+  /// shape (timed list of titled blocks); the prompt branches on
+  /// [ItineraryDraftRequest.type] so a trip gets a "leave / arrive
+  /// / activity / snack / return" arc and a day plan gets a
+  /// classroom day shape ("morning circle / art / outside / story").
+  static Future<List<ItineraryBlockDraft>> draftItinerary(
+    ItineraryDraftRequest req,
+  ) async {
+    final body = await OpenAiClient.chat({
+      'model': 'gpt-4o-mini',
+      'temperature': 0.4,
+      'response_format': {'type': 'json_object'},
+      'messages': [
+        {'role': 'system', 'content': _itinerarySystemPrompt(req)},
+        {'role': 'user', 'content': _itineraryUserPrompt(req)},
+      ],
+    });
+
+    final choices = body['choices'] as List<dynamic>?;
+    if (choices == null || choices.isEmpty) {
+      throw const CalendarLlmException('Model returned no choices');
+    }
+    final message = (choices.first as Map<String, dynamic>)['message']
+        as Map<String, dynamic>?;
+    final content = message?['content'] as String?;
+    if (content == null || content.trim().isEmpty) {
+      throw const CalendarLlmException('Model returned empty content');
+    }
+    final parsed = jsonDecode(content) as Map<String, dynamic>;
+    final raw = parsed['blocks'];
+    if (raw is! List || raw.isEmpty) {
+      throw const CalendarLlmException('No blocks in response');
+    }
+    final out = <ItineraryBlockDraft>[];
+    for (final entry in raw) {
+      if (entry is! Map) continue;
+      final time = _parseTime(
+        (entry['time'] as String?)?.trim(),
+      );
+      final title = (entry['title'] as String?)?.trim();
+      if (time == null || title == null || title.isEmpty) continue;
+      final desc = (entry['description'] as String?)?.trim();
+      out.add(ItineraryBlockDraft(
+        time: time,
+        title: title,
+        description: (desc == null || desc.isEmpty) ? null : desc,
+      ));
+    }
+    if (out.isEmpty) {
+      throw const CalendarLlmException('All blocks failed to parse');
+    }
+    // Sort by time so the rendered list reads top-to-bottom in
+    // wall-clock order, regardless of model output order.
+    out.sort((a, b) {
+      final am = a.time.hour * 60 + a.time.minute;
+      final bm = b.time.hour * 60 + b.time.minute;
+      return am.compareTo(bm);
+    });
+    return out;
   }
 
   // ——— Prompt + parser ————————————————————————————————————————
@@ -380,6 +483,94 @@ Return ONLY the JSON. No markdown, no commentary.
     if (h < 0 || h > 23 || min < 0 || min > 59) return null;
     return TimeOfDay(hour: h, minute: min);
   }
+
+  // ——— Itinerary prompts —————————————————————————————————————
+
+  static String _itinerarySystemPrompt(ItineraryDraftRequest req) {
+    final isTrip = req.type == CalendarTileType.trip;
+    final shape = isTrip
+        ? '''
+A FIELD-TRIP ITINERARY for an early-childhood group. The day arcs:
+  1. leave school (vehicle / walk / bus)
+  2. arrive at destination
+  3. main activities (1-3 blocks; whatever fits the destination)
+  4. snack or lunch break (always include one if the trip is over 2 hours)
+  5. return to school
+Cap at 7 blocks. Times follow the start/end window the user provided
+(or sensible defaults if absent). Each block is age-appropriate for
+small children — no late lunches, no marathon attention spans.
+'''
+        : '''
+A DAY-PLAN SCHEDULE for an early-childhood program. The day arcs:
+  1. arrival / drop-off
+  2. morning circle or greeting
+  3. focused activities tied to the theme (art, sensory, books, music)
+  4. snack
+  5. outside time
+  6. lunch
+  7. rest / quiet
+  8. afternoon free play / theme follow-up
+  9. pickup / closing
+Cap at 9 blocks. Tie titles + descriptions back to the THEME so a
+"ocean day" has goldfish-shaped crackers at snack, water-table outside,
+ocean books at story time — not a generic schedule.
+''';
+
+    return '''
+You are designing $shape
+
+Return a single JSON object with exactly one key:
+  "blocks": an array of objects, each with:
+    "time":        "HH:MM" 24-hour, e.g. "08:30"
+    "title":       short label, max 5 words, no time prefix
+    "description": one short sentence — concrete, classroom-friendly
+
+Rules for titles (same as for the tile itself):
+  * No time / date / type prefixes. The block ALREADY shows its
+    time as a separate field. "Morning circle" not "8:30 morning
+    circle"; "Touch tank" not "Touch tank from 11:30".
+  * Title-case, max 5 words.
+
+Rules for descriptions:
+  * One sentence. Action-first ("Read 'Big Blue' on the carpet").
+  * Tie back to the trip / theme. No filler like "Children will
+    have fun and learn."
+  * Omit the description if you can't say something specific.
+
+Times are in chronological order. No two blocks at the same time.
+Return ONLY the JSON. No markdown, no commentary.
+''';
+  }
+
+  static String _itineraryUserPrompt(ItineraryDraftRequest req) {
+    final lines = <String>['Title: ${req.title}'];
+    if (req.destination != null && req.destination!.isNotEmpty) {
+      lines.add('Destination: ${req.destination!}');
+    }
+    if (req.theme != null && req.theme!.isNotEmpty) {
+      lines.add('Theme: ${req.theme!}');
+    }
+    final start = req.startTime;
+    final end = req.endTime;
+    String fmt(TimeOfDay t) =>
+        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+    if (start != null && end != null) {
+      lines.add('Window: ${fmt(start)} – ${fmt(end)}');
+    } else if (start != null) {
+      lines.add('Starts: ${fmt(start)}');
+    } else {
+      // Sensible default: a 7:30–17:30 program day. For trips
+      // without explicit times the model picks within this; for
+      // day plans this matches the typical BASECamp day length.
+      lines.add('Window: 07:30 – 17:30 (typical program day)');
+    }
+    if (req.audienceAgeLabel != null && req.audienceAgeLabel!.isNotEmpty) {
+      lines.add('Audience age: ${req.audienceAgeLabel!}');
+    }
+    return lines.join('\n');
+  }
+
+  // ——— Title cleanup ——————————————————————————————————————————
 
   /// Trim the prefixes and suffixes the prompt already tells the
   /// model to omit, but that gpt-4o-mini sometimes still emits.
