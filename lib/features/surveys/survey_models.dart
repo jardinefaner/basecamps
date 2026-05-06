@@ -129,6 +129,17 @@ enum VoiceGender { female, male }
 /// the question for later display + for the print card / CSV
 /// export to use as column headers.
 enum SurveyScale {
+  /// 2-point yes/no — used by the activity-recall block, where
+  /// each activity ("I helped hand out supplies.") is its own
+  /// individual mood question with two faces: head-shake (No) and
+  /// nod (Yes). Replaces the old single multi-select activities
+  /// question, so each item gets a clean read-aloud + tap pass
+  /// instead of a long crowded grid.
+  twoPtYesNo(
+    2,
+    <String>['No', 'Yes'],
+  ),
+
   /// 3-point "How are you feeling" — TK-3 practice 1.
   threePtNotGreat(
     3,

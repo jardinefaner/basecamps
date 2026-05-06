@@ -20,6 +20,15 @@ import 'package:flutter/material.dart';
 export 'package:basecamp/features/experiment/survey/survey_screen.dart'
     show FaceMood, FacePalette, MarbleVariant, kFacePalettes;
 
+/// 2-mode subset for the activity-recall yes/no questions.
+/// Order: No (head-shake) → Yes (nod). Reuses the same painted
+/// faces as the 3-point set, just without the middle "Not sure"
+/// face — the kid taps clearly one way or the other.
+const List<FaceMood> kBasket2Choices = <FaceMood>[
+  FaceMood.stronglyDisagree,
+  FaceMood.stronglyAgree,
+];
+
 /// 3-mode subset for BASECamp's default 3-point survey.
 const List<FaceMood> kBasket3Choices = <FaceMood>[
   FaceMood.stronglyDisagree,

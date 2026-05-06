@@ -18,11 +18,67 @@
 import 'package:basecamp/features/surveys/survey_models.dart';
 
 // ═════════════════════════════════════════════════════════════════
-// Activity options (multi-select)
+// Activity recall (per-activity yes/no questions)
 // ═════════════════════════════════════════════════════════════════
 
-/// 7 activity options for the multi-select question. Same list
-/// used by both age cohorts.
+/// 7 activity prompts. Each runs as its OWN yes/no mood question
+/// (`SurveyScale.twoPtYesNo`) instead of one giant multi-select
+/// grid — that way Deepgram reads each one aloud, the kid sees
+/// only ONE prompt at a time, and the BASECamp print/CSV gets
+/// per-activity Yes/No columns directly.
+///
+/// The `id` values carry the original `act_*` slug as a stable
+/// reference for analysis (they used to be the option ids on the
+/// old multi-select question). The `prompt` is the read-aloud
+/// version — first person past tense, kid-friendly cadence.
+const List<SurveyQuestion> kBasecampActivityQuestions = <SurveyQuestion>[
+  SurveyQuestion(
+    id: 'q_act_supplies',
+    type: SurveyQuestionType.mood,
+    prompt: 'I helped hand out supplies.',
+    scale: SurveyScale.twoPtYesNo,
+  ),
+  SurveyQuestion(
+    id: 'q_act_invited_friends',
+    type: SurveyQuestionType.mood,
+    prompt: 'I asked a friend to do an activity with me.',
+    scale: SurveyScale.twoPtYesNo,
+  ),
+  SurveyQuestion(
+    id: 'q_act_line_leader',
+    type: SurveyQuestionType.mood,
+    prompt: 'I volunteered to be a line leader.',
+    scale: SurveyScale.twoPtYesNo,
+  ),
+  SurveyQuestion(
+    id: 'q_act_chose_group',
+    type: SurveyQuestionType.mood,
+    prompt: 'I chose a group activity for everyone to do.',
+    scale: SurveyScale.twoPtYesNo,
+  ),
+  SurveyQuestion(
+    id: 'q_act_helped_friend',
+    type: SurveyQuestionType.mood,
+    prompt: 'I helped a friend when they were having a bad day.',
+    scale: SurveyScale.twoPtYesNo,
+  ),
+  SurveyQuestion(
+    id: 'q_act_shared',
+    type: SurveyQuestionType.mood,
+    prompt: 'I shared my things with others.',
+    scale: SurveyScale.twoPtYesNo,
+  ),
+  SurveyQuestion(
+    id: 'q_act_reminded_rules',
+    type: SurveyQuestionType.mood,
+    prompt: 'I reminded others of the rules.',
+    scale: SurveyScale.twoPtYesNo,
+  ),
+];
+
+/// Backwards-compat: the old multi-select activity options list.
+/// Kept so the CSV exporter's canonical-id ordering hook still
+/// resolves. Prefer [kBasecampActivityQuestions] for new code.
 const List<SurveyActivityOption> kBasecampActivityOptions =
     <SurveyActivityOption>[
   SurveyActivityOption(
@@ -115,13 +171,9 @@ const List<SurveyQuestion> kBasecampQuestionsTK3 = <SurveyQuestion>[
     prompt: 'I feel safe here.',
   ),
 
-  // ——— Activities multi-select (1)
-  SurveyQuestion(
-    id: 'q_activities',
-    type: SurveyQuestionType.multiSelect,
-    prompt: 'Check any of the activities you did this year in BASECamp:',
-    options: kBasecampActivityOptions,
-  ),
+  // ——— Activity recall (7) — per-activity yes/no questions in
+  //                            place of the old multi-select grid.
+  ...kBasecampActivityQuestions,
 
   // ——— Learning + health (4)
   SurveyQuestion(
@@ -251,13 +303,9 @@ const List<SurveyQuestion> kBasecampQuestionsG46 = <SurveyQuestion>[
     scale: SurveyScale.fivePtAgree,
   ),
 
-  // ——— Activities multi-select (1) — same options as TK-3
-  SurveyQuestion(
-    id: 'q_activities',
-    type: SurveyQuestionType.multiSelect,
-    prompt: 'Check any of the activities you did this year in BASECamp:',
-    options: kBasecampActivityOptions,
-  ),
+  // ——— Activity recall (7) — per-activity yes/no questions
+  //                            (same set TK-3 uses).
+  ...kBasecampActivityQuestions,
 
   // ——— Learning + health (4)
   SurveyQuestion(

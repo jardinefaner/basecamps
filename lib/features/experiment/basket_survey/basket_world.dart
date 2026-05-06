@@ -392,7 +392,28 @@ class BasketWorld {
   /// question — the screen kept a reference to the marble it
   /// dropped on tap and removes that exact one on untap.
   /// Returns `true` if the marble was in the list.
-  bool removeMarble(MarbleBody m) => marbles.remove(m);
+  bool removeMarble(MarbleBody m) {
+    final removed = marbles.remove(m);
+    if (!removed) return false;
+    // Wake any settled marble that was resting on top of (or
+    // beside) [m]. If the support vanishes underneath them, they
+    // need to fall — leaving them frozen mid-air looks broken.
+    // Heuristic: anything in the same zone whose center is within
+    // a 1.6r horizontal window of [m]'s center AND above [m]'s
+    // center by 0.2r..2.5r — the column of marbles [m] was holding
+    // up.
+    const r = BasketGeometry.marbleR;
+    for (final other in marbles) {
+      if (!other.settled || other.zone != m.zone) continue;
+      final dx = (other.position.dx - m.position.dx).abs();
+      final dy = m.position.dy - other.position.dy;
+      if (dy > r * 0.2 && dy < r * 2.5 && dx < r * 1.6) {
+        other.settled = false;
+        other.settleFrames = 0;
+      }
+    }
+    return true;
+  }
 
   // ——— Tunables ————————————————————————————————————————————————
 
@@ -557,7 +578,13 @@ class BasketWorld {
       // Ground zone — touching ground floor?
       if (m.position.dy + r >= BasketGeometry.groundY - epsilon) return true;
     }
-    // Touching another settled marble in the same zone?
+    // Touching another settled marble in the same zone? Marble-
+    // on-marble support only counts when the supporting marble is
+    // meaningfully BELOW [m] AND offset enough laterally that
+    // [m] is sitting in a saddle (between supporters / against a
+    // wall) rather than balanced on the apex of a single marble.
+    // Apex-perch is mathematically a fixed point but physically
+    // unstable — letting it sleep there is the bug the user saw.
     for (final other in marbles) {
       if (identical(other, m) || !other.settled) continue;
       if (other.zone != m.zone) continue;
@@ -565,7 +592,17 @@ class BasketWorld {
       final dy = other.position.dy - m.position.dy;
       final distSq = dx * dx + dy * dy;
       final r2 = (2 * r + epsilon) * (2 * r + epsilon);
-      if (distSq <= r2) return true;
+      if (distSq > r2) continue;
+      // Side-by-side neighbour at the same level — doesn't add
+      // support but doesn't disqualify; keep looking.
+      if (dy.abs() < r * 0.4) continue;
+      // [other] is below [m] (positive dy) — supporting candidate.
+      if (dy >= r * 0.4 && dx.abs() >= r * 0.4) {
+        // Eccentric enough to be a stable saddle support.
+        return true;
+      }
+      // [other] is above [m] — [m] would be supporting [other],
+      // not the other way around. Skip.
     }
     return false;
   }
@@ -795,6 +832,45 @@ class BasketWorld {
     // physics bump. Reads as "oh, hi" rather than an earthquake.
     if (a.settled && vRelN < -100) _lookAtNudge(a, b);
     if (b.settled && vRelN < -100) _lookAtNudge(b, a);
+
+    // Anti-perch: if the contact normal is nearly vertical (one
+    // marble landed dead-center on top of the other) the upper
+    // marble can balance on the apex and never roll off.
+    // Mathematically a stable equilibrium; physically silly.
+    // Inject a small lateral nudge so it slides off into a gap.
+    // Active whenever the upper marble isn't settled — with a
+    // generous threshold (n.dx < 0.32 ≈ 19° from vertical) since
+    // small offsets are also unstable in practice.
+    if (n.dx.abs() < 0.32) {
+      final upper = a.position.dy < b.position.dy ? a : b;
+      final lower = identical(upper, a) ? b : a;
+      if (!upper.settled) {
+        // Side preference: pick whichever side already has a tiny
+        // bias from velocity; otherwise random — avoids picking
+        // the same side every drop.
+        final bias = upper.velocity.dx;
+        final side = bias.abs() > 4
+            ? bias.sign
+            : (_rng.nextBool() ? 1.0 : -1.0);
+        // Position offset: push 1.2 px sideways out of the apex.
+        upper.position =
+            upper.position + Offset(side * 1.2, 0);
+        // Lateral velocity kick: enough to roll off the apex over
+        // a few frames but not enough to launch it across the
+        // basket.
+        upper.velocity = Offset(
+          upper.velocity.dx + side * 28,
+          upper.velocity.dy,
+        );
+        // Wake the lower marble too if it's settled — once the
+        // top one starts rolling, the lower one might need to
+        // shift to fill the saddle.
+        if (lower.settled && vRelN < -40) {
+          lower.settled = false;
+          lower.settleFrames = 0;
+        }
+      }
+    }
   }
 
   /// A settled marble registers a hard arrival: turn its painted

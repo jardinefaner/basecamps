@@ -138,19 +138,30 @@ class BasketWorldWidgetState extends State<BasketWorldWidget>
         widget.onAccept(details.data.mood);
       },
       builder: (context, _, _) {
+        // FittedBox(BoxFit.contain) shrinks the 320×240 world to
+        // fit whatever room the parent gives us — without it,
+        // tall-but-narrow allocations (e.g. the bottom 200px slot
+        // during open-ended) clip the basket floor + the overflow
+        // marbles piling above the rim. globalToLocal in [_toLocal]
+        // walks the transform stack, so drag mapping still lands
+        // on the right physics coordinates after the scale.
         return Center(
-          child: AnimatedScale(
-            scale: widget.glow ? 1.04 : 1.0,
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            child: SizedBox(
-              key: _worldBoxKey,
-              width: BasketGeometry.worldW,
-              height: BasketGeometry.worldH,
-              child: CustomPaint(
-                painter: _BasketWorldPainter(
-                  world: _world,
-                  glow: widget.glow,
+          child: FittedBox(
+            fit: BoxFit.contain,
+            alignment: Alignment.center,
+            child: AnimatedScale(
+              scale: widget.glow ? 1.04 : 1.0,
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              child: SizedBox(
+                key: _worldBoxKey,
+                width: BasketGeometry.worldW,
+                height: BasketGeometry.worldH,
+                child: CustomPaint(
+                  painter: _BasketWorldPainter(
+                    world: _world,
+                    glow: widget.glow,
+                  ),
                 ),
               ),
             ),

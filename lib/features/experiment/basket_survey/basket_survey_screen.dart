@@ -223,7 +223,7 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
       final survey = _survey;
       final sessionId = _sessionId;
       if (survey != null && sessionId != null) {
-        final moodValue = _faceMoodToLikert3(mood);
+        final moodValue = _faceMoodToLikert(mood, q.scale);
         if (moodValue != null) {
           final reactionMs =
               DateTime.now().difference(_sessionStartedAt).inMilliseconds;
@@ -258,20 +258,39 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
     _playCurrentQuestionAudio();
   }
 
-  /// Map a painted FaceMood to the BASECamp 3-point Likert
-  /// stored in `survey_responses.mood_value`. Mirrors the marble
-  /// kiosk's mapping so the two styles produce comparable rows.
-  /// F2 (disagree) and F4 (agree) aren't part of the 3-point
-  /// scale; they return null and the kiosk simply records nothing
-  /// (shouldn't happen — basket only spawns the 3 mapped moods
-  /// for now).
-  int? _faceMoodToLikert3(FaceMood mood) {
-    return switch (mood) {
-      FaceMood.stronglyDisagree => 0,
-      FaceMood.notSure => 1,
-      FaceMood.stronglyAgree => 2,
-      _ => null,
-    };
+  /// Map a painted FaceMood to the Likert index stored in
+  /// `survey_responses.mood_value`. Index meanings depend on the
+  /// scale on the question:
+  ///   * `twoPtYesNo` — 0 = No (head-shake), 1 = Yes (nod)
+  ///   * `threePt*`    — 0/1/2 across the 3-face row
+  ///   * `fivePt*`     — 0..4 across the 5-face row
+  /// Returns null if the mood doesn't belong to the scale's spawn
+  /// set (shouldn't happen — `_QuestionAndChoices` only spawns
+  /// the moods that map cleanly).
+  int? _faceMoodToLikert(FaceMood mood, SurveyScale scale) {
+    switch (scale.count) {
+      case 2:
+        return switch (mood) {
+          FaceMood.stronglyDisagree => 0,
+          FaceMood.stronglyAgree => 1,
+          _ => null,
+        };
+      case 5:
+        return switch (mood) {
+          FaceMood.stronglyDisagree => 0,
+          FaceMood.disagree => 1,
+          FaceMood.notSure => 2,
+          FaceMood.agree => 3,
+          FaceMood.stronglyAgree => 4,
+        };
+      default:
+        return switch (mood) {
+          FaceMood.stronglyDisagree => 0,
+          FaceMood.notSure => 1,
+          FaceMood.stronglyAgree => 2,
+          _ => null,
+        };
+    }
   }
 
   Future<void> _onSurveyComplete() async {
@@ -812,9 +831,11 @@ class _QuestionAndChoices extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final moods = question.choiceCount == 5
-        ? kBasket5Choices
-        : kBasket3Choices;
+    final moods = switch (question.choiceCount) {
+      2 => kBasket2Choices,
+      5 => kBasket5Choices,
+      _ => kBasket3Choices,
+    };
     // Per-question color rotation. Mood positions are unchanged
     // (sad on the left, happy on the right always); only the body
     // / ring / cheek colors rotate, so the smiling face might be
