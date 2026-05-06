@@ -355,16 +355,6 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           }
           return Column(
             children: [
-              _DropBar(
-                enabled: OpenAiClient.isAvailable && _activeGroupId != null,
-                loading: _dropLoading,
-                draft: _dropDraft,
-                error: _dropError,
-                onSubmit: _onDropSubmitted,
-                onConfirm: _onDropConfirm,
-                onTweak: _onDropTweak,
-                onDismiss: _onDropDismiss,
-              ),
               _FilterBar(
                 groups: groups,
                 activeGroupId: _activeGroupId,
@@ -390,6 +380,22 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                   onCancelInline: () => setState(_exitInlineEdit),
                   onTapTile: _openTile,
                 ),
+              ),
+              // Drop bar lives at the bottom — chat-style. Thumb-
+              // reach on a phone, and the preview chip floats just
+              // above the input as the natural "draft just appeared"
+              // affordance. Wrapped in a SafeArea so the system gesture
+              // bar doesn't overlap, plus viewInsets padding so the
+              // bar lifts above the keyboard when focused.
+              _DropBar(
+                enabled: OpenAiClient.isAvailable && _activeGroupId != null,
+                loading: _dropLoading,
+                draft: _dropDraft,
+                error: _dropError,
+                onSubmit: _onDropSubmitted,
+                onConfirm: _onDropConfirm,
+                onTweak: _onDropTweak,
+                onDismiss: _onDropDismiss,
               ),
             ],
           );
@@ -1442,83 +1448,104 @@ class _DropBarState extends State<_DropBar> {
     final theme = Theme.of(context);
     final draft = widget.draft;
     return Container(
-      color: theme.colorScheme.surfaceContainerHighest,
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        AppSpacing.sm,
-        AppSpacing.md,
-        AppSpacing.sm,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        border: Border(
+          top: BorderSide(
+            color: theme.colorScheme.outlineVariant,
+            width: 0.5,
+          ),
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Input row.
-          Row(
+      // Bottom-anchored chat-style bar — preview chip + error
+      // stack ABOVE the input so a draft floats in just above
+      // the field where the teacher's eye already is. SafeArea
+      // protects the bottom system gesture, and the surrounding
+      // body's `resizeToAvoidBottomInset` (Scaffold default) lifts
+      // the whole bar above the keyboard when it opens.
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.sm,
+            AppSpacing.md,
+            AppSpacing.sm,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Icon(
-                Icons.auto_awesome_outlined,
-                size: 18,
-                color: widget.enabled
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: TextField(
-                  controller: _ctrl,
-                  focusNode: _focus,
-                  enabled: widget.enabled && !widget.loading,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => _submit(),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    border: InputBorder.none,
-                    hintText: widget.enabled
-                        ? '"field trip aquarium next tues 8 to 3"'
-                        : 'Sign in + pick a group to use AI create',
-                    hintStyle: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+              // Preview row — visible when the model returned a
+              // draft. Floats above the input.
+              if (draft != null) ...[
+                _DraftPreview(
+                  draft: draft,
+                  onConfirm: widget.onConfirm,
+                  onTweak: widget.onTweak,
+                  onDismiss: widget.onDismiss,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+              // Error row — short red note when the LLM call failed.
+              if (widget.error != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    widget.error!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
                     ),
                   ),
-                  style: theme.textTheme.bodyMedium,
                 ),
+              // Input row — at the bottom, thumb-reach.
+              Row(
+                children: [
+                  Icon(
+                    Icons.auto_awesome_outlined,
+                    size: 18,
+                    color: widget.enabled
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: TextField(
+                      controller: _ctrl,
+                      focusNode: _focus,
+                      enabled: widget.enabled && !widget.loading,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _submit(),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        border: InputBorder.none,
+                        hintText: widget.enabled
+                            ? '"field trip aquarium next tues 8 to 3"'
+                            : 'Sign in + pick a group to use AI create',
+                        hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                  if (widget.loading)
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    IconButton(
+                      tooltip: 'Send',
+                      icon: const Icon(Icons.arrow_upward),
+                      onPressed: widget.enabled ? _submit : null,
+                    ),
+                ],
               ),
-              if (widget.loading)
-                const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else
-                IconButton(
-                  tooltip: 'Send',
-                  icon: const Icon(Icons.arrow_forward),
-                  onPressed: widget.enabled ? _submit : null,
-                ),
             ],
           ),
-          // Error row — short red note when the LLM call failed.
-          if (widget.error != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                widget.error!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.error,
-                ),
-              ),
-            ),
-          // Preview row — visible when the model returned a draft.
-          if (draft != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            _DraftPreview(
-              draft: draft,
-              onConfirm: widget.onConfirm,
-              onTweak: widget.onTweak,
-              onDismiss: widget.onDismiss,
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
