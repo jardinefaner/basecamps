@@ -195,7 +195,7 @@ class _BasketThankYouCardState extends ConsumerState<BasketThankYouCard> {
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               Text(
-                                'My Feelings Jar',
+                                'My Feelings Basket',
                                 textAlign: TextAlign.center,
                                 style: serifBody.copyWith(
                                   fontSize: 22,
@@ -349,7 +349,7 @@ class _BasketSnapshotFrame extends StatelessWidget {
           if (snapshot == null)
             Center(
               child: Text(
-                '(your jar)',
+                '(your basket)',
                 style: GoogleFonts.dmSerifDisplay(
                   fontStyle: FontStyle.italic,
                   color: _inkLight,
@@ -388,7 +388,7 @@ class _NameField extends StatelessWidget {
     return Column(
       children: [
         Text(
-          'this jar belongs to',
+          'this basket belongs to',
           style: serif.copyWith(fontSize: 13, color: _inkSoft),
         ),
         const SizedBox(height: 4),

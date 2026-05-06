@@ -387,6 +387,13 @@ class BasketWorld {
     t = 0;
   }
 
+  /// Remove a specific marble body. Used by the basket survey
+  /// when a kid un-checks an activity in the multi-select
+  /// question — the screen kept a reference to the marble it
+  /// dropped on tap and removes that exact one on untap.
+  /// Returns `true` if the marble was in the list.
+  bool removeMarble(MarbleBody m) => marbles.remove(m);
+
   // ——— Tunables ————————————————————————————————————————————————
 
   static const double _gravity = 1200; // px/s²

@@ -43,16 +43,28 @@ class SurveyCsvExporter {
 
   /// Build the CSV body. The caller writes the bytes; this
   /// function is pure.
+  ///
+  /// **Human-readable headers + values**:
+  ///   * Mood column header is the QUESTION TEXT (e.g.
+  ///     `"I made new friends in program this year."`), not the
+  ///     opaque `q_made_friends` id.
+  ///   * Mood values are CHOICE LABELS from the question's scale
+  ///     (`"Disagree"`, `"Kind of agree"`, `"Agree!"`), not 0/1/2.
+  ///   * Multi-select gets ONE COLUMN PER OPTION with `"Yes"` /
+  ///     `"No"` values — easier to filter / pivot than the old
+  ///     `q_activities__act_supplies = 1` shape.
+  ///   * Open-ended is the transcription text directly, headed by
+  ///     the question prompt.
   String exportToCsv(
     SurveyConfig survey,
     List<SurveyResultRow> rows, {
     SurveyCsvExportOptions options = const SurveyCsvExportOptions(),
   }) {
     final headers = <String>[
-      'child_index',
-      'started_at',
-      'ended_at',
-      'status',
+      'Child #',
+      'Started',
+      'Ended',
+      'Status',
     ];
 
     // Decide which questions go in the export based on practice
@@ -62,21 +74,20 @@ class SurveyCsvExporter {
         .where((q) => options.includePractice || !q.isPractice)
         .toList();
 
-    // Build column list per question type.
+    // Build column list — question text (or per-option label for
+    // multi-select).
     for (final q in questions) {
-      final base = _slug(q.id);
       switch (q.type) {
         case SurveyQuestionType.mood:
-          headers.add(base);
+          headers.add(q.prompt);
         case SurveyQuestionType.multiSelect:
           for (final option in q.options) {
-            headers.add('${base}__${_slug(option.id)}');
+            headers.add(option.label);
           }
-          headers.add('${base}__count');
         case SurveyQuestionType.openEnded:
-          headers.add('${base}_transcription');
+          headers.add(q.prompt);
           if (options.includeAudioPath) {
-            headers.add('${base}_audio_path');
+            headers.add('${q.prompt} (audio file)');
           }
       }
     }
@@ -92,11 +103,11 @@ class SurveyCsvExporter {
       final session = row.session;
       final String status;
       if (session.endedAt == null) {
-        status = 'in_progress';
+        status = 'In progress';
       } else if (session.childCount >= 1) {
-        status = 'completed';
+        status = 'Completed';
       } else {
-        status = 'incomplete';
+        status = 'Incomplete';
       }
       final cells = <String>[
         '${i + 1}',
@@ -108,9 +119,9 @@ class SurveyCsvExporter {
         final response = row.responsesByQuestionId[q.id];
         switch (q.type) {
           case SurveyQuestionType.mood:
-            cells.add(_moodCell(response));
+            cells.add(_moodLabel(q, response));
           case SurveyQuestionType.multiSelect:
-            cells.addAll(_multiSelectCells(q, response));
+            cells.addAll(_multiSelectYesNoCells(q, response));
           case SurveyQuestionType.openEnded:
             cells.add(_csvText(response?.transcription ?? ''));
             if (options.includeAudioPath) {
@@ -135,27 +146,38 @@ class SurveyCsvExporter {
 
   // ——— Cell shapers ————————————————————————————————————————
 
-  String _moodCell(SurveyResponse? r) {
+  /// Maps a recorded mood value (0/1/2 for the 3-point scale,
+  /// 0..4 for the 5-point scale) to the question's scale label
+  /// (`"Disagree"`, `"Agree!"`, `"Strongly disagree"`, etc.).
+  /// Empty string if there's no response or the stored value is
+  /// out of range for this scale (e.g. a stale 3-point response
+  /// against a regenerated 5-point question).
+  String _moodLabel(SurveyQuestion q, SurveyResponse? r) {
     if (r == null) return '';
     final v = r.moodValue;
     if (v == null) return '';
-    return v.toString();
+    final labels = q.scale.labels;
+    if (v < 0 || v >= labels.length) return '';
+    return _csvText(labels[v]);
   }
 
-  List<String> _multiSelectCells(SurveyQuestion q, SurveyResponse? r) {
-    final selected = _decodeSelections(r?.selectionsJson);
-    final cells = <String>[];
-    for (final option in q.options) {
-      if (r == null) {
-        cells.add('');
-      } else if (selected.contains(option.id)) {
-        cells.add('1');
-      } else {
-        cells.add('0');
-      }
+  /// Per-option `Yes`/`No` cells for a multi-select question.
+  /// One cell per option in declaration order — the same order
+  /// the headers were emitted in. An empty cell (not `"No"`) for
+  /// a missing response, so the teacher can tell `"never asked"`
+  /// apart from `"asked, didn't pick"`.
+  List<String> _multiSelectYesNoCells(
+    SurveyQuestion q,
+    SurveyResponse? r,
+  ) {
+    if (r == null) {
+      return List<String>.filled(q.options.length, '');
     }
-    cells.add(r == null ? '' : selected.length.toString());
-    return cells;
+    final selected = _decodeSelections(r.selectionsJson);
+    return <String>[
+      for (final option in q.options)
+        selected.contains(option.id) ? 'Yes' : 'No',
+    ];
   }
 
   Set<String> _decodeSelections(String? raw) {

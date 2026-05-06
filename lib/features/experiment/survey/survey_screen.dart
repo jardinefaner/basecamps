@@ -2230,7 +2230,19 @@ class FacePainter {
       case MarbleVariant.breathing:
         return;
       case MarbleVariant.fidget:
-        _drawSweatDrop(canvas, s, p);
+        // Per-mood fidget accent. Negative / unsure moods get a
+        // sweat drop (anxious twitchy energy). Positive moods get
+        // a small spark (excited / can't-sit-still energy) — a
+        // sweat drop on a happy face read wrong.
+        switch (mood) {
+          case FaceMood.stronglyDisagree:
+          case FaceMood.disagree:
+          case FaceMood.notSure:
+            _drawSweatDrop(canvas, s, p);
+          case FaceMood.agree:
+          case FaceMood.stronglyAgree:
+            _drawHappyFidgetSpark(canvas, s, p);
+        }
       case MarbleVariant.emote:
         _drawMoodEmoteParticle(canvas, s, p);
     }
@@ -2238,7 +2250,9 @@ class FacePainter {
 
   void _drawSweatDrop(Canvas canvas, double s, FacePalette p) {
     // Gentle sweat drop — 1.4s bob period (was 0.55s, looked
-    // frantic alongside the rotating body + darting eyes).
+    // frantic alongside the rotating body + darting eyes). Used
+    // for the negative / unsure moods on the fidget variant —
+    // happy moods get a sparkle instead (see _drawHappyFidgetSpark).
     final phase = (t / 1.4) % 1.0;
     final bobY = math.sin(phase * math.pi) * -2.5;
     final cx = 22 * s;
@@ -2256,6 +2270,34 @@ class FacePainter {
     canvas
       ..drawPath(path, fill)
       ..drawPath(path, stroke);
+  }
+
+  /// Happy-mood fidget accent: a small sparkle near the temple
+  /// that twinkles in/out. Used instead of the sweat drop for
+  /// F4 (agree) and F5 (strongly agree) — a sweat drop on a
+  /// smiling face read as "this happy kid is anxious", which
+  /// was confusing.
+  void _drawHappyFidgetSpark(Canvas canvas, double s, FacePalette p) {
+    final color = p.sparkle ?? const Color(0xFFFFD66B);
+    final phase = (t / 0.9) % 1.0;
+    // Twinkle in/out via opacity ramp (0..0.5 → up, 0.5..1 → down).
+    final twinkle = 1 - (phase - 0.5).abs() * 2;
+    final alpha = (twinkle * 0.95).clamp(0.0, 1.0);
+    final r = 4.5 * s * (0.6 + twinkle * 0.4);
+    final c = Offset(22 * s, -8 * s);
+    final paint = Paint()..color = color.withValues(alpha: alpha);
+    final path = Path()
+      ..moveTo(c.dx, c.dy - r)
+      ..lineTo(c.dx + r * 0.32, c.dy)
+      ..lineTo(c.dx, c.dy + r)
+      ..lineTo(c.dx - r * 0.32, c.dy)
+      ..close()
+      ..moveTo(c.dx - r, c.dy)
+      ..lineTo(c.dx, c.dy + r * 0.32)
+      ..lineTo(c.dx + r, c.dy)
+      ..lineTo(c.dx, c.dy - r * 0.32)
+      ..close();
+    canvas.drawPath(path, paint);
   }
 
 

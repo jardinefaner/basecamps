@@ -32,6 +32,7 @@ class MultiSelectQuestionOverlay extends ConsumerStatefulWidget {
     required this.onSkip,
     super.key,
     this.onActivityTapped,
+    this.onActivityUntapped,
   });
 
   /// The question being answered. Carries the prompt + the 7
@@ -53,10 +54,16 @@ class MultiSelectQuestionOverlay extends ConsumerStatefulWidget {
 
   /// Optional per-tap hook fired when the kid TOGGLES ON an
   /// activity (only on add, not on remove). Used by the basket
-  /// survey to drop a happy marble into the basket each time —
+  /// survey to drop a marble into the basket each time —
   /// physical feedback that matches the kid's selection. The
   /// marble kiosk doesn't pass this; the call is then a no-op.
   final ValueChanged<String>? onActivityTapped;
+
+  /// Optional un-tap hook fired when the kid TOGGLES OFF an
+  /// activity. Mirror of [onActivityTapped] — basket survey uses
+  /// this to remove a marble from the basket so the
+  /// add/remove parity feels right.
+  final ValueChanged<String>? onActivityUntapped;
 
   @override
   ConsumerState<MultiSelectQuestionOverlay> createState() =>
@@ -87,9 +94,12 @@ class _MultiSelectQuestionOverlayState
         _selected.add(option.id);
       }
     });
-    // Fire the per-tap hook (basket survey drops a marble) —
-    // only on TURN-ON, not when un-selecting.
-    if (!wasSelected) {
+    // Fire the right per-tap hook so callers (the basket survey)
+    // can keep their marble pile in sync with the kid's
+    // selection.
+    if (wasSelected) {
+      widget.onActivityUntapped?.call(option.id);
+    } else {
       widget.onActivityTapped?.call(option.id);
     }
     // Optionally read the option label on tap for kids who can't
@@ -130,9 +140,14 @@ class _MultiSelectQuestionOverlayState
               const SizedBox(height: AppSpacing.lg),
               Expanded(
                 child: GridView.builder(
+                  // Wider cards (320px) at a shorter aspect ratio
+                  // (3:1) so long activity labels like "Asked my
+                  // friends to participate in an activity with me"
+                  // wrap onto a second/third line instead of being
+                  // ellipsised.
                   gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 280,
-                    childAspectRatio: 1.6,
+                    maxCrossAxisExtent: 320,
+                    childAspectRatio: 3.0,
                     crossAxisSpacing: AppSpacing.md,
                     mainAxisSpacing: AppSpacing.md,
                   ),
@@ -275,6 +290,9 @@ class _ActivityCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     option.label,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: true,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: selected
                           ? FontWeight.w600
@@ -282,6 +300,7 @@ class _ActivityCard extends StatelessWidget {
                       color: selected
                           ? theme.colorScheme.onPrimaryContainer
                           : theme.colorScheme.onSurface,
+                      height: 1.25,
                     ),
                   ),
                 ),

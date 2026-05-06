@@ -30,6 +30,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:basecamp/features/experiment/basket_survey/basket_session_store.dart';
+import 'package:basecamp/features/experiment/basket_survey/basket_world.dart';
 import 'package:basecamp/features/experiment/basket_survey/basket_world_widget.dart';
 import 'package:basecamp/features/experiment/basket_survey/painted_face.dart';
 import 'package:basecamp/features/experiment/basket_survey/thank_you_card.dart';
@@ -432,6 +433,7 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
             onCommit: _onMultiSelectCommit,
             onSkip: _advance,
             onActivityTapped: _onActivityTapped,
+            onActivityUntapped: _onActivityUntapped,
           ),
         ),
         Expanded(
@@ -456,13 +458,51 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
   }
 
   Widget _buildOpenEndedBody(SurveyQuestion q) {
-    return OpenEndedQuestionOverlay(
-      key: ValueKey('oe_${q.id}'),
-      question: q,
-      voice: _voice,
-      audioMode: _audioMode,
-      onCommit: _onOpenEndedCommit,
-      onSkip: _advance,
+    // Keep the basket world mounted during open-ended so the
+    // end-of-survey snapshot has marbles to capture. The
+    // open-ended overlay sits on top of an Offstage basket —
+    // the kid sees the STT UI fullscreen, but the basket's
+    // RepaintBoundary is still in the widget tree (and still
+    // paintable, because Offstage's renderObject keeps a layer
+    // when `offstage: false` was already set this frame for the
+    // capture; we set it false transiently when capturing).
+    return Stack(
+      children: [
+        // Basket sits at the bottom of the stack, mounted but
+        // hidden behind the overlay. It's NOT offstage — the
+        // overlay just covers it visually. This keeps the
+        // RepaintBoundary in the layer tree so toImage() works
+        // when the survey-complete handler captures it.
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 200,
+          child: RepaintBoundary(
+            key: _worldSnapshotKey,
+            child: BasketWorldWidget(
+              key: _worldKey,
+              glow: false,
+              onWillAccept: () => false,
+              onLeave: () {},
+              onAccept: (_) {},
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: ColoredBox(
+            color: Theme.of(context).colorScheme.surface,
+            child: OpenEndedQuestionOverlay(
+              key: ValueKey('oe_${q.id}'),
+              question: q,
+              voice: _voice,
+              audioMode: _audioMode,
+              onCommit: _onOpenEndedCommit,
+              onSkip: _advance,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -470,15 +510,51 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
   SurveyAudioMode get _audioMode =>
       _survey?.audioMode ?? SurveyAudioMode.full;
 
-  /// Called when the kid taps an activity card during a multi-
-  /// select question. Adds a happy (`stronglyAgree`) marble to
-  /// the basket so the kid sees their selection register
-  /// physically. Pure visual feedback — the actual answer is
-  /// recorded on commit.
+  /// Tracks which marble each activity dropped — so untap can
+  /// remove the *exact* marble that went in for that activity.
+  /// Cleared on advance to the next question.
+  final Map<String, MarbleBody> _activityMarbles =
+      <String, MarbleBody>{};
+
+  /// Cycle pointer for picking which mood-color the next dropped
+  /// activity-marble wears. Each tap rotates through all 5 moods
+  /// so the basket fills with a colorful mix instead of a wall
+  /// of identical happy faces.
+  int _activityMarbleCursor = 0;
+
+  /// Pleasant order through the 5 moods — starts on the happy
+  /// end so the first marble feels celebratory, then rotates.
+  static const List<FaceMood> _activityMoodCycle = <FaceMood>[
+    FaceMood.stronglyAgree,
+    FaceMood.agree,
+    FaceMood.notSure,
+    FaceMood.disagree,
+    FaceMood.stronglyDisagree,
+  ];
+
+  /// Called when the kid taps an activity card. Drops a marble
+  /// into the basket with a different mood color than the
+  /// previous tap so the pile has visual variety.
   void _onActivityTapped(String activityId) {
     final state = _worldKey.currentState;
     if (state == null) return;
-    state.world.addMarble(FaceMood.stronglyAgree);
+    final mood = _activityMoodCycle[
+        _activityMarbleCursor % _activityMoodCycle.length];
+    _activityMarbleCursor += 1;
+    final body = state.world.addMarble(mood);
+    _activityMarbles[activityId] = body;
+  }
+
+  /// Called when the kid un-checks an activity. Removes the
+  /// exact marble the matching tap dropped, so the basket pile
+  /// stays in sync with the selection set.
+  void _onActivityUntapped(String activityId) {
+    final state = _worldKey.currentState;
+    if (state == null) return;
+    final body = _activityMarbles.remove(activityId);
+    if (body != null) {
+      state.world.removeMarble(body);
+    }
   }
 
   Future<void> _onMultiSelectCommit(List<String> selectedIds) async {
@@ -536,6 +612,11 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
   /// drag-end physics path).
   void _advance() {
     if (_transitioning) return;
+    // Activity-marble bookkeeping is per-question — once we move
+    // off a multi-select question, the previous activity → marble
+    // map shouldn't follow us into the next one.
+    _activityMarbles.clear();
+    _activityMarbleCursor = 0;
     setState(() => _transitioning = true);
     if (_index + 1 >= _questions.length) {
       unawaited(_onSurveyComplete());
