@@ -42,6 +42,7 @@ class CalendarTileDraft {
     this.theme,
     this.description,
     this.notes,
+    this.groupName,
     this.confidence,
   });
 
@@ -54,6 +55,13 @@ class CalendarTileDraft {
   final String? theme;
   final String? description;
   final String? notes;
+
+  /// The group name the model picked from the roster, when the
+  /// teacher mentioned one ("...with the sunflowers"). The screen
+  /// resolves this back to a group id and may override the active
+  /// filter so the new tile lands visibly. Null = use the active
+  /// group filter (no override).
+  final String? groupName;
 
   /// 0.0..1.0, the model's self-rated confidence. Used by the
   /// preview to decide whether to ask the teacher to look closely
@@ -95,6 +103,13 @@ class CalendarLlmService {
   /// the LLM can DEFAULT to that when the user is ambiguous —
   /// the brainstorm's "filter is the type discriminator" rule.
   ///
+  /// [availableGroups] is the full roster of group names the
+  /// teacher could mean. The model picks one when the user names
+  /// it ("with the sunflowers") and falls through to the active
+  /// group otherwise. Without this, "sunflowers" in the input
+  /// would silently land the tile on whatever filter happened to
+  /// be active — exactly the bug the user reported.
+  ///
   /// [today] is injected so tests can pin a date; production
   /// passes `DateTime.now()`.
   static Future<CalendarTileDraft> draftFromText({
@@ -102,6 +117,7 @@ class CalendarLlmService {
     required DateTime today,
     required CalendarTileType activeType,
     required String activeGroupName,
+    required List<String> availableGroups,
   }) async {
     final trimmed = input.trim();
     if (trimmed.isEmpty) {
@@ -119,6 +135,7 @@ class CalendarLlmService {
             today: today,
             activeType: activeType,
             activeGroupName: activeGroupName,
+            availableGroups: availableGroups,
           ),
         },
         {'role': 'user', 'content': trimmed},
@@ -146,8 +163,12 @@ class CalendarLlmService {
     required DateTime today,
     required CalendarTileType activeType,
     required String activeGroupName,
+    required List<String> availableGroups,
   }) {
     final todayStr = DateFormat('EEEE, MMMM d, y').format(today);
+    final groupRoster = availableGroups.isEmpty
+        ? '(none)'
+        : availableGroups.map((g) => '"$g"').join(', ');
     return '''
 You convert short natural-language fragments from an early-childhood teacher
 into structured BASECamp calendar tiles.
@@ -156,6 +177,7 @@ Context:
   Today is $todayStr.
   Active group filter: $activeGroupName.
   Default tile type when the user is ambiguous: ${activeType.name}.
+  All groups in this program: $groupRoster.
 
 A "tile" is one of three kinds:
   trip     — an outing somewhere (has a destination)
@@ -202,6 +224,12 @@ Optional keys (omit or use empty string when not in the input):
   "theme":       short theme line — only for dayPlan, can match title
   "description": one short sentence
   "notes":       longer teacher notes (usually empty)
+  "groupName":   one of the names in the roster above, EXACT spelling
+                 (no abbreviations, no plural/singular swaps), if and
+                 only if the user named that group. Omit / empty
+                 string when the user didn't name a group, OR when
+                 they only mentioned the active group ($activeGroupName)
+                 — there's nothing to override in that case.
   "confidence":  number 0.0..1.0, your self-rated confidence
 
 Inference rules:
@@ -210,8 +238,13 @@ Inference rules:
   * Otherwise default to the active type ($activeType.name).
   * Times like "8 to 3" mean 08:00 to 15:00 (school hours, PM bias).
   * Times like "9 to 11" stay AM (within school morning).
+  * "with the sunflowers" / "for sunflowers" / "sunflowers' " etc.
+    → set groupName to the matching roster entry. Match leniently
+    (case-insensitive, plural/singular tolerant) but RETURN the
+    name with the roster's exact spelling.
   * Don't invent a destination if the user didn't mention one.
   * Don't invent times if the user didn't mention any.
+  * Don't invent a group if the user didn't mention one.
 
 Return ONLY the JSON. No markdown, no commentary.
 ''';
@@ -259,6 +292,7 @@ Return ONLY the JSON. No markdown, no commentary.
       theme: str('theme'),
       description: str('description'),
       notes: str('notes'),
+      groupName: str('groupName'),
       confidence: (json['confidence'] as num?)?.toDouble(),
     );
   }

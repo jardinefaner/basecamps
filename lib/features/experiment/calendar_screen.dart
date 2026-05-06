@@ -238,6 +238,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         today: DateTime.now(),
         activeType: _activeType ?? CalendarTileType.dayPlan,
         activeGroupName: groupName,
+        availableGroups: groups.map((g) => g.name).toList(),
       );
       if (!mounted) return;
       setState(() {
@@ -256,13 +257,18 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
   void _onDropConfirm() {
     final draft = _dropDraft;
-    final groupId = _activeGroupId;
-    if (draft == null || groupId == null) return;
+    if (draft == null) return;
+    // Resolve the group: the model's nominated `groupName` wins
+    // over the active filter when it matches a real group on the
+    // roster. Otherwise fall back to the active filter so the
+    // tile lands SOMEWHERE rather than dropping silently.
+    final resolvedGroupId = _resolveGroupId(draft.groupName);
+    if (resolvedGroupId == null) return;
     final tile = _CalendarTile(
       id: _newId(),
       type: draft.type,
       date: _dayKey(draft.date),
-      groupId: groupId,
+      groupId: resolvedGroupId,
       title: draft.title,
     )
       ..destination = draft.destination ?? ''
@@ -275,22 +281,48 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       _tiles[tile.id] = tile;
       _dropDraft = null;
       _dropError = null;
-      // Snap the calendar to the month the new tile lands in so
-      // the teacher sees their creation immediately.
+      // Switch the filter to the tile's group + its month so the
+      // teacher sees their creation land. Without this the tile
+      // is invisible if the model picked a different group than
+      // the active filter — which is exactly when the override
+      // matters most.
+      _activeGroupId = resolvedGroupId;
       _anchorMonth = DateTime(tile.date.year, tile.date.month);
     });
   }
 
+  /// Map a model-emitted group name back to a real group id.
+  /// Lenient match — case-insensitive, trims whitespace, falls
+  /// through to the active filter when nothing matches (or when
+  /// the model didn't name a group at all). Returns null only
+  /// when no group is available, which the caller treats as a
+  /// no-op.
+  String? _resolveGroupId(String? name) {
+    final groups =
+        ref.read(groupsProvider).asData?.value ?? const <Group>[];
+    if (name != null && name.trim().isNotEmpty) {
+      final needle = name.trim().toLowerCase();
+      final match = groups.where(
+        (g) => g.name.trim().toLowerCase() == needle,
+      );
+      if (match.isNotEmpty) return match.first.id;
+    }
+    return _activeGroupId ??
+        (groups.isNotEmpty ? groups.first.id : null);
+  }
+
   Future<void> _onDropTweak() async {
     final draft = _dropDraft;
-    final groupId = _activeGroupId;
-    if (draft == null || groupId == null) return;
+    if (draft == null) return;
     // Convert the draft into a real tile, drop the preview, then
     // open the expand sheet so the teacher can correct anything
     // the model got wrong before the tile is "official."
     _onDropConfirm();
     final created = _tiles.values
-        .where((t) => t.title == draft.title && t.date == _dayKey(draft.date))
+        .where(
+          (t) =>
+              t.title == draft.title && t.date == _dayKey(draft.date),
+        )
         .lastOrNull;
     if (created != null) {
       await _openTile(created);
