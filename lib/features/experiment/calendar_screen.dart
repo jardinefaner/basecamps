@@ -961,19 +961,31 @@ class _TilePill extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          // Cross-align to start so a wrapping title doesn't push the
+          // icon to the middle — the icon stays anchored to the
+          // first line. The row uses IntrinsicHeight cells (see
+          // `_MonthGrid`), so taller tiles just grow their row;
+          // nothing gets cropped.
           child: Row(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(tile.type.icon, size: 12, color: color),
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Icon(tile.type.icon, size: 12, color: color),
+              ),
               const SizedBox(width: 4),
-              Flexible(
+              Expanded(
                 child: Text(
                   tile.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  // No maxLines / no ellipsis — titles wrap as
+                  // many lines as they need. The user explicitly
+                  // wants nothing cropped.
+                  softWrap: true,
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: theme.colorScheme.onSurface,
                     fontWeight: FontWeight.w600,
+                    height: 1.25,
                   ),
                 ),
               ),
