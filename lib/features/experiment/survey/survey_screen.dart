@@ -2210,59 +2210,30 @@ class FacePainter {
   // ════════════════════════════════════════════════════════════
 
   void _paintVariantOverlay(Canvas canvas, double s, FacePalette p) {
+    // The per-mood paint methods (above) already draw eyes that
+    // match the reference grid — vertical-oval ink pupils with a
+    // tiny body-color highlight dot for F1, filled circles for
+    // F2/F3/F4, arched smiling strokes for F5. The variant
+    // overlay used to MASK + redraw those eyes (closed crescents
+    // / wide darting / pinched-shut Xs) but that fought the per-
+    // mood designs and looked scary. Now the overlay only adds
+    // NON-EYE accents on top — eyes always stay true to mood.
+    //
+    // Variant signal comes from layered animation, not drawing
+    // overrides:
+    //   * idle      — base mood + Layer 1 vertical bob
+    //   * breathing — base mood + Layer 1 scale pulse
+    //   * fidget    — base mood + Layer 1 slow body sway + sweat
+    //   * emote     — base mood + Layer 1 squash + emote particle
     switch (variant) {
       case MarbleVariant.idle:
-        return;
       case MarbleVariant.breathing:
-        _drawEyesClosedCrescents(canvas, s, p);
+        return;
       case MarbleVariant.fidget:
-        _drawEyesGentleGaze(canvas, s, p);
         _drawSweatDrop(canvas, s, p);
       case MarbleVariant.emote:
-        _drawEyesPinchedShut(canvas, s, p);
         _drawMoodEmoteParticle(canvas, s, p);
     }
-  }
-
-  void _drawEyesClosedCrescents(Canvas canvas, double s, FacePalette p) {
-    // Mask the existing eyes with body-color circles, then draw
-    // closed-crescent arcs (eyes shut, peaceful).
-    final mask = Paint()..color = p.body;
-    canvas
-      ..drawCircle(Offset(-12 * s, 0), 8 * s, mask)
-      ..drawCircle(Offset(12 * s, 0), 8 * s, mask);
-    final ink = Paint()
-      ..color = p.ink
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..strokeCap = StrokeCap.round;
-    final left = Path()
-      ..moveTo(-17 * s, 0)
-      ..quadraticBezierTo(-12 * s, -5 * s, -7 * s, 0);
-    final right = Path()
-      ..moveTo(7 * s, 0)
-      ..quadraticBezierTo(12 * s, -5 * s, 17 * s, 0);
-    canvas
-      ..drawPath(left, ink)
-      ..drawPath(right, ink);
-  }
-
-  void _drawEyesGentleGaze(Canvas canvas, double s, FacePalette p) {
-    // Simple emoji-style filled dots — matches the look of 🙂
-    // and 😐. NO white sclera + small pupil (that paired
-    // sclera+pupil-dart combination read as scary/uncanny to
-    // kids — like a hyper-attentive doll). Two flat ink dots
-    // that drift slowly left-right so the marble appears to be
-    // gently looking around the room.
-    final mask = Paint()..color = p.body;
-    canvas
-      ..drawCircle(Offset(-12 * s, 0), 8 * s, mask)
-      ..drawCircle(Offset(12 * s, 0), 8 * s, mask);
-    final dx = math.sin((t / 1.8) * math.pi * 2) * 1.0 * s;
-    final fill = Paint()..color = p.ink;
-    canvas
-      ..drawCircle(Offset(-12 * s + dx, 0), 2.6 * s, fill)
-      ..drawCircle(Offset(12 * s + dx, 0), 2.6 * s, fill);
   }
 
   void _drawSweatDrop(Canvas canvas, double s, FacePalette p) {
@@ -2287,34 +2258,6 @@ class FacePainter {
       ..drawPath(path, stroke);
   }
 
-  void _drawEyesPinchedShut(Canvas canvas, double s, FacePalette p) {
-    // **Happy closed eyes** (concave-up arches, like ^ ^), NOT
-    // the universal "dead/KO'd" X-eye trope. The X-eyes paired
-    // with a smiling mouth read as "dead but smiling" to a kid
-    // — uncanny and unsettling. These are the same arch shape
-    // as the breathing variant's closed crescents but mirrored
-    // (concave up, like a smile shape) so an emote-variant
-    // marble at peak feeling looks like it's eyes-shut-grinning,
-    // not unconscious.
-    final mask = Paint()..color = p.body;
-    canvas
-      ..drawCircle(Offset(-12 * s, 0), 8 * s, mask)
-      ..drawCircle(Offset(12 * s, 0), 8 * s, mask);
-    final ink = Paint()
-      ..color = p.ink
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.8
-      ..strokeCap = StrokeCap.round;
-    final left = Path()
-      ..moveTo(-17 * s, 1 * s)
-      ..quadraticBezierTo(-12 * s, -4 * s, -7 * s, 1 * s);
-    final right = Path()
-      ..moveTo(7 * s, 1 * s)
-      ..quadraticBezierTo(12 * s, -4 * s, 17 * s, 1 * s);
-    canvas
-      ..drawPath(left, ink)
-      ..drawPath(right, ink);
-  }
 
   /// Per-mood "I really feel this!" particle. The big visual
   /// hammer for the emote variant — readable from any distance.
