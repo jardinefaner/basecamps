@@ -18,6 +18,8 @@
 
 import 'dart:math' as math;
 
+import 'package:basecamp/features/experiment/basket_survey/basket_world.dart'
+    show BasketGeometry;
 import 'package:flutter/material.dart';
 
 class BasketPainter extends CustomPainter {
@@ -41,16 +43,22 @@ class BasketPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
-    final h = size.height;
+    // ignore: unused_local_variable
+    final h = size.height; // referenced by some callers; kept for API.
     final rng = math.Random(seed); // stable per-instance jitter
 
     // Basket geometry: trapezoid — wider at top than bottom, with
-    // a rounded base. Top opening sits at ~12% inset from canvas
-    // top (leaves room for the rim band).
+    // a rounded base. Sourced from `BasketGeometry` so the painted
+    // basket lines up exactly with the physics walls + floor —
+    // marbles settle on the floor at the physics y, and the
+    // painted basket bottom is at the same y. Without this we
+    // get the "basket floating above the marble pile" bug:
+    // bumping worldH for headroom shifted the relative ratios
+    // and the painter drifted ~45px below physics.
     final basketLeft = w * 0.06;
     final basketRight = w * 0.94;
-    final basketTop = h * 0.18;
-    final basketBottom = h * 0.94;
+    final basketTop = BasketGeometry.rimY;
+    final basketBottom = BasketGeometry.basketFloorY;
     final baseInset = w * 0.08;
 
     // ——— Warm halo behind the basket when active —————————————

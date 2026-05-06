@@ -34,21 +34,33 @@ class BasketGeometry {
 
   /// Width / height of the world.
   ///
-  /// Height includes ~40 px of HEADROOM above the basket rim so
-  /// marbles piling above the rim (centers at y ≈ 10..50, radius
-  /// 33) aren't clipped at the top of the captured snapshot. The
-  /// basket itself still sits at rimY=50 / floorY=218 — only the
-  /// world canvas got taller.
+  /// Height includes ~50 px of HEADROOM above the basket rim so
+  /// marbles piling above the rim (centers at y ≈ 50..90, radius
+  /// 33) keep their top edge inside [0, worldH] and aren't
+  /// clipped by the snapshot RepaintBoundary. The basket
+  /// geometry as a whole shifted down 40 px (rim 50 → 90,
+  /// floor 218 → 258) to make room.
   static const double worldW = 320;
   static const double worldH = 280;
 
   /// Top opening (rim) — the visual edge of the woven body.
-  static const double rimY = 50;
+  /// Shifted down 40 px from the original (50 → 90) when
+  /// [worldH] grew from 240 → 280. The extra 40 px lives ABOVE
+  /// the rim now so marbles piling over the rim (centers 50..90,
+  /// radius 33) keep their top edge inside the world canvas.
+  /// Without the shift, over-rim marble tops landed at y ≈ −23,
+  /// outside the SizedBox, and the snapshot RepaintBoundary
+  /// clipped them.
+  static const double rimY = 90;
   static const double leftRimX = 54;
   static const double rightRimX = 266;
 
   /// Bottom of the basket (floor of the woven container).
-  static const double basketFloorY = 218;
+  /// Shifted down 40 px from 218 → 258 (with [rimY]) so the
+  /// basket geometry as a whole moves into the lower portion of
+  /// the now-taller world. Floor still sits ~22 px above the
+  /// world bottom — same visual margin as before.
+  static const double basketFloorY = 258;
   static const double leftBaseX = 76;
   static const double rightBaseX = 244;
 
@@ -57,14 +69,13 @@ class BasketGeometry {
 
   /// World ground (where overspill marbles settle). Aligned with
   /// `basketFloorY` so a marble overflowing the basket lands on
-  /// the same visual floor level as the marbles inside it — the
-  /// audit caught a 14px mismatch where overspill marbles
-  /// floated above the basket's painted base.
+  /// the same visual floor level as the marbles inside it.
   static const double groundY = basketFloorY;
 
   /// Rim threshold — once a settled marble inside has its centre
   /// below this y, it's considered "in the pile" for capacity.
-  static const double settledCutoffY = 130;
+  /// Shifted by 40 px with the rest of the geometry.
+  static const double settledCutoffY = 170;
 
   /// Marble radius (must match the painter's r).
   static const double marbleR = 33;
@@ -83,21 +94,21 @@ class BasketGeometry {
   /// walls up to here so marbles piling above the rim have
   /// something to lean against. Kids see marbles peeking over
   /// the basket edge naturally without rolling off the sides.
-  static const double physicsWallTopY = 10;
+  /// Shifted from 10 → 50 along with [rimY] to preserve the same
+  /// 40 px over-rim "stack zone" while keeping marble tops
+  /// inside the world (a marble centered at y=50 has its top
+  /// edge at y=17, well inside [0, worldH]).
+  static const double physicsWallTopY = 50;
 
   /// Left wall of the basket as a line segment. The visible
   /// woven body ends at [rimY] but the collision wall reaches
   /// up to [physicsWallTopY]. We linearly extrapolate the wall
-  /// slope so the over-rim section keeps the same outward taper
-  /// — a marble piling above is leaning against the same
-  /// imaginary line, just higher.
+  /// slope so the over-rim section keeps the same outward taper.
   ///
-  /// The wall opens outward going DOWN (from rim x=54 to base
-  /// x=76, so the basket gets narrower toward the bottom):
+  /// Wall slope (constant — only the y endpoints shifted):
   ///   |slope| = (leftBaseX - leftRimX) / (basketFloorY - rimY)
-  ///           = (76 - 54) / (218 - 50) = 0.131
-  ///   Going UP from the rim, the wall opens outward (smaller
-  ///   x on the left). At physicsWallTopY = 10 (40px above rim):
+  ///           = (76 - 54) / (258 - 90) = 0.131
+  ///   x at physicsWallTopY (40 px above rim):
   ///     x = leftRimX - |slope| * (rimY - physicsWallTopY)
   ///       = 54 - 0.131 * 40
   ///       ≈ 48.76
