@@ -33,8 +33,14 @@ class BasketGeometry {
   const BasketGeometry._();
 
   /// Width / height of the world.
+  ///
+  /// Height includes ~40 px of HEADROOM above the basket rim so
+  /// marbles piling above the rim (centers at y ≈ 10..50, radius
+  /// 33) aren't clipped at the top of the captured snapshot. The
+  /// basket itself still sits at rimY=50 / floorY=218 — only the
+  /// world canvas got taller.
   static const double worldW = 320;
-  static const double worldH = 240;
+  static const double worldH = 280;
 
   /// Top opening (rim) — the visual edge of the woven body.
   static const double rimY = 50;

@@ -92,16 +92,25 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
   /// honoured implicitly through the audio service's gating.
   SurveyVoice get _voice => _survey?.voice ?? SurveyVoice.asteria;
 
-  /// Mood-only questions. In kiosk mode pulls from the saved
-  /// survey config; sandbox uses the canonical list.
   /// All questions in the survey, in reading order. The basket
   /// kiosk now handles every type:
-  ///   * mood       — drag-thumb-into-basket flow
-  ///   * multiSelect — activity grid; each tap drops a happy
-  ///                   marble; commit advances
-  ///   * openEnded  — Deepgram realtime STT overlay
+  ///   * mood        — drag-thumb-into-basket flow (incl. the
+  ///                   2-point Yes/No activity-recall block)
+  ///   * multiSelect — legacy: activity grid (still supported
+  ///                   for any non-canonical custom survey)
+  ///   * openEnded   — Deepgram realtime STT overlay
+  ///
+  /// **Always re-derived from the canonical list keyed by age
+  /// band.** The frozen `survey.questions` snapshot is ignored:
+  /// it goes stale every time we evolve the canonical question
+  /// set (e.g. splitting the multi-select activity question into
+  /// 7 yes/no questions), which would otherwise leave running
+  /// kiosks rendering the old shape forever. Sandbox mode falls
+  /// through to the TK-3 list since there's no age band to key on.
   List<SurveyQuestion> get _questions {
-    return _survey?.questions ?? kBasecampCanonicalQuestions;
+    final survey = _survey;
+    if (survey == null) return kBasecampCanonicalQuestions;
+    return canonicalQuestionsForBand(survey.ageBand);
   }
 
   int _index = 0;

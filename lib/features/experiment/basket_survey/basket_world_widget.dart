@@ -138,7 +138,7 @@ class BasketWorldWidgetState extends State<BasketWorldWidget>
         widget.onAccept(details.data.mood);
       },
       builder: (context, _, _) {
-        // FittedBox(BoxFit.contain) shrinks the 320×240 world to
+        // FittedBox(BoxFit.contain) shrinks the 320×280 world to
         // fit whatever room the parent gives us — without it,
         // tall-but-narrow allocations (e.g. the bottom 200px slot
         // during open-ended) clip the basket floor + the overflow
