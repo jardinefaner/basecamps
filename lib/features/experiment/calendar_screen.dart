@@ -258,70 +258,92 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   void _onDropConfirm() {
     final draft = _dropDraft;
     if (draft == null) return;
-    // Resolve the group: the model's nominated `groupName` wins
-    // over the active filter when it matches a real group on the
-    // roster. Otherwise fall back to the active filter so the
-    // tile lands SOMEWHERE rather than dropping silently.
-    final resolvedGroupId = _resolveGroupId(draft.groupName);
-    if (resolvedGroupId == null) return;
-    final tile = _CalendarTile(
-      id: _newId(),
-      type: draft.type,
-      date: _dayKey(draft.date),
-      groupId: resolvedGroupId,
-      title: draft.title,
-    )
-      ..destination = draft.destination ?? ''
-      ..startTime = draft.startTime
-      ..endTime = draft.endTime
-      ..theme = draft.theme ?? ''
-      ..description = draft.description ?? ''
-      ..notes = draft.notes ?? '';
+    // Resolve the group(s): the model can nominate one OR several,
+    // so a single sentence "field trip aquarium for sunflowers and
+    // acorns tuesday" mints TWO tiles (same date / title / fields,
+    // different groupId). When the model named no groups, fall
+    // through to the active filter so the tile lands somewhere.
+    final resolvedIds = _resolveGroupIds(draft.groupNames);
+    if (resolvedIds.isEmpty) return;
+    final created = <_CalendarTile>[];
+    for (final groupId in resolvedIds) {
+      final tile = _CalendarTile(
+        id: _newId(),
+        type: draft.type,
+        date: _dayKey(draft.date),
+        groupId: groupId,
+        title: draft.title,
+      )
+        ..destination = draft.destination ?? ''
+        ..startTime = draft.startTime
+        ..endTime = draft.endTime
+        ..theme = draft.theme ?? ''
+        ..description = draft.description ?? ''
+        ..notes = draft.notes ?? '';
+      created.add(tile);
+    }
     setState(() {
-      _tiles[tile.id] = tile;
+      for (final t in created) {
+        _tiles[t.id] = t;
+      }
       _dropDraft = null;
       _dropError = null;
-      // Switch the filter to the tile's group + its month so the
-      // teacher sees their creation land. Without this the tile
-      // is invisible if the model picked a different group than
-      // the active filter — which is exactly when the override
-      // matters most.
-      _activeGroupId = resolvedGroupId;
-      _anchorMonth = DateTime(tile.date.year, tile.date.month);
+      // Switch the filter to the FIRST resolved group + its month
+      // so at least one of the new tiles lands visibly. Without
+      // this the fan-out is invisible when the active filter
+      // didn't include any of the resolved groups. The other
+      // groups' tiles are reachable via the filter chips.
+      _activeGroupId = resolvedIds.first;
+      _anchorMonth =
+          DateTime(created.first.date.year, created.first.date.month);
     });
   }
 
-  /// Map a model-emitted group name back to a real group id.
-  /// Lenient match — case-insensitive, trims whitespace, falls
-  /// through to the active filter when nothing matches (or when
-  /// the model didn't name a group at all). Returns null only
-  /// when no group is available, which the caller treats as a
-  /// no-op.
-  String? _resolveGroupId(String? name) {
+  /// Map a list of model-emitted group names back to real group
+  /// ids. Lenient match — case-insensitive, trim, dedupe ids so a
+  /// model regression that named the same group twice doesn't
+  /// create two identical tiles. Falls through to a single-element
+  /// list with the active filter (or first available group) when
+  /// nothing in [names] resolved.
+  List<String> _resolveGroupIds(List<String> names) {
     final groups =
         ref.read(groupsProvider).asData?.value ?? const <Group>[];
-    if (name != null && name.trim().isNotEmpty) {
+    final out = <String>[];
+    final seen = <String>{};
+    for (final name in names) {
       final needle = name.trim().toLowerCase();
+      if (needle.isEmpty) continue;
       final match = groups.where(
         (g) => g.name.trim().toLowerCase() == needle,
       );
-      if (match.isNotEmpty) return match.first.id;
+      if (match.isEmpty) continue;
+      final id = match.first.id;
+      if (seen.add(id)) out.add(id);
     }
-    return _activeGroupId ??
-        (groups.isNotEmpty ? groups.first.id : null);
+    if (out.isNotEmpty) return out;
+    final fallback =
+        _activeGroupId ?? (groups.isNotEmpty ? groups.first.id : null);
+    return fallback == null ? const <String>[] : <String>[fallback];
   }
 
   Future<void> _onDropTweak() async {
     final draft = _dropDraft;
     if (draft == null) return;
-    // Convert the draft into a real tile, drop the preview, then
-    // open the expand sheet so the teacher can correct anything
-    // the model got wrong before the tile is "official."
+    // Convert the draft into one (or more) real tiles, drop the
+    // preview, then open the expand sheet for the tile in the
+    // group `_onDropConfirm` snapped the filter to. With a
+    // fan-out we don't open every new tile — the teacher tweaks
+    // the visible one; if it ends up shared (most fan-out cases),
+    // the tweak applies cleanly because the tiles share their
+    // title + date + fields and only differ by groupId.
     _onDropConfirm();
+    final visibleGroupId = _activeGroupId;
     final created = _tiles.values
         .where(
           (t) =>
-              t.title == draft.title && t.date == _dayKey(draft.date),
+              t.title == draft.title &&
+              t.date == _dayKey(draft.date) &&
+              t.groupId == visibleGroupId,
         )
         .lastOrNull;
     if (created != null) {

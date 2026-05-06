@@ -42,7 +42,7 @@ class CalendarTileDraft {
     this.theme,
     this.description,
     this.notes,
-    this.groupName,
+    this.groupNames = const <String>[],
     this.confidence,
   });
 
@@ -56,12 +56,13 @@ class CalendarTileDraft {
   final String? description;
   final String? notes;
 
-  /// The group name the model picked from the roster, when the
-  /// teacher mentioned one ("...with the sunflowers"). The screen
-  /// resolves this back to a group id and may override the active
-  /// filter so the new tile lands visibly. Null = use the active
-  /// group filter (no override).
-  final String? groupName;
+  /// Group names the model picked from the roster — empty when
+  /// the teacher didn't mention any group, one when they named a
+  /// single group ("...with the sunflowers"), MULTIPLE when they
+  /// named several ("...for sunflowers and acorns"). The screen
+  /// fans out one tile per resolved group on confirm; the active
+  /// filter is the fallback when this list is empty.
+  final List<String> groupNames;
 
   /// 0.0..1.0, the model's self-rated confidence. Used by the
   /// preview to decide whether to ask the teacher to look closely
@@ -79,6 +80,13 @@ class CalendarTileDraft {
     }
     if (destination != null && destination!.isNotEmpty) {
       parts.add(destination!);
+    }
+    if (groupNames.isNotEmpty) {
+      // Surface the fan-out so the teacher sees BEFORE confirming
+      // that this single sentence will mint multiple tiles. The
+      // preview chip says "...for Sunflowers + Acorns" instead
+      // of silently splitting on confirm.
+      parts.add('for ${groupNames.join(' + ')}');
     }
     return parts.join(' · ');
   }
@@ -224,12 +232,19 @@ Optional keys (omit or use empty string when not in the input):
   "theme":       short theme line — only for dayPlan, can match title
   "description": one short sentence
   "notes":       longer teacher notes (usually empty)
-  "groupName":   one of the names in the roster above, EXACT spelling
-                 (no abbreviations, no plural/singular swaps), if and
-                 only if the user named that group. Omit / empty
-                 string when the user didn't name a group, OR when
-                 they only mentioned the active group ($activeGroupName)
-                 — there's nothing to override in that case.
+  "groupNames":  array of zero or more group names from the roster
+                 above, EXACT spelling (no abbreviations, no
+                 plural/singular swaps). Use this when the user
+                 names one or MORE groups: "for sunflowers" → one
+                 entry; "for sunflowers and acorns" → two entries.
+                 Empty array (or omit) when the user didn't name a
+                 group AT ALL, OR when they only mentioned the
+                 active group ($activeGroupName) — there's nothing
+                 to override in that case. The screen fans out one
+                 tile per group when this list has more than one
+                 entry, so a single sentence "field trip aquarium
+                 for sunflowers and acorns tuesday" creates TWO
+                 tiles, both on Tuesday, both for the aquarium.
   "confidence":  number 0.0..1.0, your self-rated confidence
 
 Inference rules:
@@ -239,7 +254,9 @@ Inference rules:
   * Times like "8 to 3" mean 08:00 to 15:00 (school hours, PM bias).
   * Times like "9 to 11" stay AM (within school morning).
   * "with the sunflowers" / "for sunflowers" / "sunflowers' " etc.
-    → set groupName to the matching roster entry. Match leniently
+    → groupNames: ["Sunflowers"]. "for sunflowers AND acorns" /
+    "with sunflowers + acorns" / "the sunflowers and acorns are
+    going" → groupNames: ["Sunflowers", "Acorns"]. Match leniently
     (case-insensitive, plural/singular tolerant) but RETURN the
     name with the roster's exact spelling.
   * Don't invent a destination if the user didn't mention one.
@@ -292,9 +309,39 @@ Return ONLY the JSON. No markdown, no commentary.
       theme: str('theme'),
       description: str('description'),
       notes: str('notes'),
-      groupName: str('groupName'),
+      groupNames: _parseGroupNames(json),
       confidence: (json['confidence'] as num?)?.toDouble(),
     );
+  }
+
+  /// Accept either an array (the new schema) or a single string
+  /// (defensive — gpt-4o-mini occasionally regresses to
+  /// `"groupName": "Sunflowers"` despite the prompt). Strip
+  /// blanks, dedupe, preserve order so "sunflowers and acorns"
+  /// stays in the order the teacher said.
+  static List<String> _parseGroupNames(Map<String, dynamic> json) {
+    final out = <String>[];
+    final seen = <String>{};
+    void add(String? raw) {
+      if (raw == null) return;
+      final t = raw.trim();
+      if (t.isEmpty) return;
+      final key = t.toLowerCase();
+      if (seen.add(key)) out.add(t);
+    }
+
+    final arr = json['groupNames'];
+    if (arr is List) {
+      for (final v in arr) {
+        if (v is String) add(v);
+      }
+    } else if (arr is String) {
+      add(arr);
+    }
+    // Defensive: legacy `groupName` (singular) field.
+    final legacy = json['groupName'];
+    if (legacy is String) add(legacy);
+    return out;
   }
 
   static CalendarTileType? _parseType(String? raw) {
