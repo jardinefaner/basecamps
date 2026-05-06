@@ -340,6 +340,20 @@ Optional keys (omit or use empty string when not in the input):
                  plural/singular swaps). Use this when the user
                  names one or MORE groups: "for sunflowers" → one
                  entry; "for sunflowers and acorns" → two entries.
+
+                 SPECIAL CASE — when the user says "all groups",
+                 "everyone", "everybody", "all classes", "all kids",
+                 "all of them", "for all", "with all", "with the
+                 whole school", "everyone is going" — return the
+                 ENTIRE roster (every name listed in "All groups in
+                 this program" above). Don't return an empty array;
+                 don't return just one. The teacher is telling you
+                 to fan out across every group.
+
+                 SPECIAL CASE — "both groups" / "both classes" →
+                 return both names IF AND ONLY IF the roster has
+                 exactly two groups; otherwise fall back to empty.
+
                  Empty array (or omit) when the user didn't name a
                  group AT ALL, OR when they only mentioned the
                  active group ($activeGroupName) — there's nothing

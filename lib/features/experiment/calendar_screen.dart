@@ -266,8 +266,15 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         availableGroups: groups.map((g) => g.name).toList(),
       );
       if (!mounted) return;
+      // Belt-and-suspenders: even with the prompt teaching the
+      // model to expand "all groups" / "everyone" to the full
+      // roster, gpt-4o-mini occasionally returns an empty array.
+      // Detect the pattern in the raw input and override the
+      // draft so a teacher's "field trip aquarium for everyone"
+      // never silently lands on a single group.
+      final overridden = _maybeExpandAllGroups(draft, input, groups);
       setState(() {
-        _dropDraft = draft;
+        _dropDraft = overridden;
         _dropLoading = false;
       });
     } on Object catch (e) {
@@ -322,6 +329,52 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       _anchorMonth =
           DateTime(created.first.date.year, created.first.date.month);
     });
+  }
+
+  /// Detect "all groups" / "everyone" / "all classes" patterns in
+  /// the raw user input and, if found, override the draft's
+  /// `groupNames` with the full roster. Belt-and-suspenders for
+  /// the prompt — the model is supposed to do this expansion
+  /// itself, but gpt-4o-mini occasionally returns an empty array
+  /// even when the prompt is explicit. The check runs whether or
+  /// not the model already populated `groupNames` so the user's
+  /// "everyone" wins over a model that picked just one group.
+  CalendarTileDraft _maybeExpandAllGroups(
+    CalendarTileDraft draft,
+    String input,
+    List<Group> groups,
+  ) {
+    if (groups.isEmpty) return draft;
+    final lowered = input.toLowerCase();
+    // Word-boundary matches so we don't trip on "all classes" inside
+    // a longer phrase like "smaller classes are coming."
+    final patterns = <RegExp>[
+      RegExp(r'\ball\s+groups?\b'),
+      RegExp(r'\ball\s+classes\b'),
+      RegExp(r'\ball\s+kids\b'),
+      RegExp(r'\ball\s+the\s+kids\b'),
+      RegExp(r'\beveryone\b'),
+      RegExp(r'\beverybody\b'),
+      RegExp(r'\bfor\s+all\b'),
+      RegExp(r'\bwith\s+all\b'),
+      RegExp(r'\bwhole\s+(school|program|class)\b'),
+    ];
+    final matched = patterns.any((re) => re.hasMatch(lowered));
+    if (!matched) return draft;
+    // Replace with the full roster, in roster order.
+    return CalendarTileDraft(
+      type: draft.type,
+      date: draft.date,
+      title: draft.title,
+      destination: draft.destination,
+      startTime: draft.startTime,
+      endTime: draft.endTime,
+      theme: draft.theme,
+      description: draft.description,
+      notes: draft.notes,
+      groupNames: groups.map((g) => g.name).toList(),
+      confidence: draft.confidence,
+    );
   }
 
   /// Map a list of model-emitted group names back to real group
@@ -1633,14 +1686,29 @@ class _ItinerarySection extends StatelessWidget {
               ],
             ),
           )
-        else if (blocks.isEmpty)
+        else if (blocks.isEmpty) ...[
           // Empty state — single primary button. Uses the auto-
           // awesome icon to telegraph "AI" without needing words.
+          // Disabled with a hint when the OpenAI proxy isn't
+          // reachable (no Supabase session) so the teacher knows
+          // why nothing happens, instead of tapping a ghost
+          // button.
           OutlinedButton.icon(
-            onPressed: onGenerate,
+            onPressed: OpenAiClient.isAvailable ? onGenerate : null,
             icon: const Icon(Icons.auto_awesome_outlined, size: 18),
             label: Text(_generateLabel),
-          )
+          ),
+          if (!OpenAiClient.isAvailable)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Sign in to use AI scaffolding.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+        ]
         else
           Column(
             children: [
