@@ -169,13 +169,37 @@ Return a single JSON object. Required keys:
            Resolve relative phrases like "next tuesday" against the
            "today" above. If the user is silent on the date, default to
            tomorrow.
-  "title": short tile label, max 6 words, capitalised like a headline.
+  "title": JUST the subject — bare and short.
+
+The TITLE is the most important thing to get right. The UI already
+shows the type icon, the type label ("TRIP" / "EVENT" / "DAY PLAN"),
+the date, and the destination as separate fields — so the title must
+NOT repeat any of those. The title is just the subject of the tile.
+
+Good titles:
+  Input "field trip to the aquarium tuesday" → title "Aquarium"
+  Input "pajama day friday"                  → title "Pajama Day"
+  Input "pizza party 11:30"                  → title "Pizza Party"
+  Input "ocean theme thursday"               → title "Ocean"
+  Input "trip to the zoo with the sunflowers"→ title "Zoo"
+
+Bad titles (don't do these):
+  "Field Trip to Aquarium"     ← "Field Trip to" is redundant
+  "Pajama Day on Friday"       ← "on Friday" is redundant
+  "Trip — Aquarium"            ← prefix is redundant
+  "Aquarium Field Trip"        ← suffix is redundant
+  "Aquarium (Sunflowers)"      ← group is shown elsewhere
+
+Strip phrases like "field trip to", "trip to", "going to",
+"event:", "day:", and trailing dates / group names. Keep just the
+proper-noun-ish subject, capitalised like a headline, max 4 words.
 
 Optional keys (omit or use empty string when not in the input):
-  "destination": where the trip goes — only for trips
+  "destination": where the trip goes — only for trips. Same noun
+                 as the title is fine ("Aquarium" / "Aquarium").
   "startTime":   "HH:MM" 24-hour
   "endTime":     "HH:MM" 24-hour
-  "theme":       short theme line — only for dayPlan
+  "theme":       short theme line — only for dayPlan, can match title
   "description": one short sentence
   "notes":       longer teacher notes (usually empty)
   "confidence":  number 0.0..1.0, your self-rated confidence
@@ -204,9 +228,18 @@ Return ONLY the JSON. No markdown, no commentary.
     final dateStr = (json['date'] as String?)?.trim();
     final date = _parseDate(dateStr) ?? today.add(const Duration(days: 1));
 
-    final title = (json['title'] as String?)?.trim() ?? '';
+    var title = (json['title'] as String?)?.trim() ?? '';
     if (title.isEmpty) {
       throw const CalendarLlmException('Model produced no title');
+    }
+    // Belt-and-suspenders: even with the strict prompt, gpt-4o-mini
+    // occasionally regresses to "Field Trip to X" or "X on Friday".
+    // Strip the obvious prefixes/suffixes here so the rendered tile
+    // is always clean. Idempotent — runs cheaply on already-clean
+    // titles.
+    title = _stripRedundantTitleParts(title);
+    if (title.isEmpty) {
+      throw const CalendarLlmException('Title was all redundant phrasing');
     }
 
     String? str(String key) {
@@ -265,5 +298,65 @@ Return ONLY the JSON. No markdown, no commentary.
     if (h == null || min == null) return null;
     if (h < 0 || h > 23 || min < 0 || min > 59) return null;
     return TimeOfDay(hour: h, minute: min);
+  }
+
+  /// Trim the prefixes and suffixes the prompt already tells the
+  /// model to omit, but that gpt-4o-mini sometimes still emits.
+  /// Cleans titles like "Field Trip to Aquarium" → "Aquarium" and
+  /// "Pajama Day on Friday" → "Pajama Day".
+  ///
+  /// Strips, in order:
+  ///   1. Type-prefix phrases — "field trip to", "trip to",
+  ///      "going to", "outing to", "event:", "day:", etc.
+  ///   2. Trailing day-of-week or month-name suffixes —
+  ///      "... on Friday", "... May 12", "... next Tuesday".
+  ///   3. Trailing parenthesised qualifiers — "(Sunflowers)".
+  ///   4. Trailing dashes / colons / pipes left over from #1+#2.
+  static String _stripRedundantTitleParts(String input) {
+    var s = input.trim();
+
+    // 1. Type-prefix phrases. Anchor at start, case-insensitive.
+    //    Note ordering: longer prefixes first so "field trip to"
+    //    doesn't get half-matched by "trip to".
+    final prefixes = <RegExp>[
+      RegExp(r'^field\s*trip\s*(to\s*|—\s*|-\s*|:\s*)?', caseSensitive: false),
+      RegExp(r'^class\s*trip\s*(to\s*|—\s*|-\s*|:\s*)?', caseSensitive: false),
+      RegExp(r'^trip\s*(to\s*|—\s*|-\s*|:\s*)?', caseSensitive: false),
+      RegExp(r'^outing\s*(to\s*|—\s*|-\s*|:\s*)?', caseSensitive: false),
+      RegExp(r'^visit\s*(to\s*|—\s*|-\s*|:\s*)?', caseSensitive: false),
+      RegExp(r'^going\s*to\s*', caseSensitive: false),
+      RegExp(r'^event\s*[:—-]\s*', caseSensitive: false),
+      RegExp(r'^day\s*[:—-]\s*', caseSensitive: false),
+      RegExp(r'^theme\s*[:—-]\s*', caseSensitive: false),
+    ];
+    for (final re in prefixes) {
+      s = s.replaceFirst(re, '');
+      s = s.trim();
+    }
+
+    // 2. Trailing day-of-week / "next X" / "this X" / "on X".
+    final daySuffix = RegExp(
+      r'\s+(on\s+)?(next\s+|this\s+|last\s+)?(mon|tue|wed|thu|fri|sat|sun)'
+      r'(day)?$',
+      caseSensitive: false,
+    );
+    s = s.replaceFirst(daySuffix, '').trim();
+
+    // 3. Trailing month + day ("May 12", "May 12, 2026").
+    final dateSuffix = RegExp(
+      r'\s+(on\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)'
+      r'[a-z]*\s+\d{1,2}(,\s*\d{4})?$',
+      caseSensitive: false,
+    );
+    s = s.replaceFirst(dateSuffix, '').trim();
+
+    // 4. Trailing parenthesised qualifier — "(Sunflowers)".
+    final parenSuffix = RegExp(r'\s*\([^)]*\)$');
+    s = s.replaceFirst(parenSuffix, '').trim();
+
+    // 5. Trailing dashes / pipes / colons left as a residue.
+    s = s.replaceFirst(RegExp(r'[\s\-—|:]+$'), '').trim();
+
+    return s;
   }
 }
