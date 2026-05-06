@@ -30,8 +30,10 @@
 //     bit) — comes after the surface itself feels right.
 
 import 'package:basecamp/database/database.dart' show Group;
+import 'package:basecamp/features/ai/openai_client.dart';
 import 'package:basecamp/features/children/children_repository.dart'
     show groupsProvider;
+import 'package:basecamp/features/experiment/calendar_llm_service.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/adaptive_sheet.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -126,6 +128,15 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   final TextEditingController _inlineCtrl = TextEditingController();
   final FocusNode _inlineFocus = FocusNode();
 
+  /// Drop-bar state — the LLM-driven create flow.
+  /// `_dropDraft` is the pending preview shown after a successful
+  /// model call; `_dropLoading` is the in-flight spinner; the
+  /// error string surfaces parse failures + network blips as a
+  /// short red note under the bar.
+  CalendarTileDraft? _dropDraft;
+  bool _dropLoading = false;
+  String? _dropError;
+
   @override
   void initState() {
     super.initState();
@@ -200,6 +211,99 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     if (_inlineFocus.hasFocus) _inlineFocus.unfocus();
   }
 
+  // ——— Drop bar (LLM create) ——————————————————————————————————
+
+  /// Send raw text to the LLM, surface a draft for the teacher
+  /// to confirm or tweak. The active type filter (or DayPlan as
+  /// a sane fallback) is the type the model defaults to when the
+  /// user is ambiguous; the active group is what the new tile
+  /// gets stamped with.
+  Future<void> _onDropSubmitted(String input) async {
+    final groupId = _activeGroupId;
+    if (groupId == null) return;
+    final groups =
+        ref.read(groupsProvider).asData?.value ?? const <Group>[];
+    final match = groups.where((g) => g.id == groupId).toList();
+    final groupName = match.isNotEmpty
+        ? match.first.name
+        : (groups.isNotEmpty ? groups.first.name : 'group');
+    setState(() {
+      _dropLoading = true;
+      _dropError = null;
+      _dropDraft = null;
+    });
+    try {
+      final draft = await CalendarLlmService.draftFromText(
+        input: input,
+        today: DateTime.now(),
+        activeType: _activeType ?? CalendarTileType.dayPlan,
+        activeGroupName: groupName,
+      );
+      if (!mounted) return;
+      setState(() {
+        _dropDraft = draft;
+        _dropLoading = false;
+      });
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _dropLoading = false;
+        _dropError = "Couldn't parse that — try rephrasing.";
+      });
+      debugPrint('[calendar drop] $e');
+    }
+  }
+
+  void _onDropConfirm() {
+    final draft = _dropDraft;
+    final groupId = _activeGroupId;
+    if (draft == null || groupId == null) return;
+    final tile = _CalendarTile(
+      id: _newId(),
+      type: draft.type,
+      date: _dayKey(draft.date),
+      groupId: groupId,
+      title: draft.title,
+    )
+      ..destination = draft.destination ?? ''
+      ..startTime = draft.startTime
+      ..endTime = draft.endTime
+      ..theme = draft.theme ?? ''
+      ..description = draft.description ?? ''
+      ..notes = draft.notes ?? '';
+    setState(() {
+      _tiles[tile.id] = tile;
+      _dropDraft = null;
+      _dropError = null;
+      // Snap the calendar to the month the new tile lands in so
+      // the teacher sees their creation immediately.
+      _anchorMonth = DateTime(tile.date.year, tile.date.month);
+    });
+  }
+
+  Future<void> _onDropTweak() async {
+    final draft = _dropDraft;
+    final groupId = _activeGroupId;
+    if (draft == null || groupId == null) return;
+    // Convert the draft into a real tile, drop the preview, then
+    // open the expand sheet so the teacher can correct anything
+    // the model got wrong before the tile is "official."
+    _onDropConfirm();
+    final created = _tiles.values
+        .where((t) => t.title == draft.title && t.date == _dayKey(draft.date))
+        .lastOrNull;
+    if (created != null) {
+      await _openTile(created);
+    }
+  }
+
+  void _onDropDismiss() {
+    setState(() {
+      _dropDraft = null;
+      _dropError = null;
+    });
+  }
+
   // ——— Expand sheet ———————————————————————————————————————————
 
   Future<void> _openTile(_CalendarTile tile) async {
@@ -251,6 +355,16 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           }
           return Column(
             children: [
+              _DropBar(
+                enabled: OpenAiClient.isAvailable && _activeGroupId != null,
+                loading: _dropLoading,
+                draft: _dropDraft,
+                error: _dropError,
+                onSubmit: _onDropSubmitted,
+                onConfirm: _onDropConfirm,
+                onTweak: _onDropTweak,
+                onDismiss: _onDropDismiss,
+              ),
               _FilterBar(
                 groups: groups,
                 activeGroupId: _activeGroupId,
@@ -1260,6 +1374,222 @@ class _ChipButton extends StatelessWidget {
             color: theme.colorScheme.onSurface,
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// Drop bar (LLM create)
+// ═════════════════════════════════════════════════════════════════
+
+/// One-line natural-language input that turns short fragments
+/// like "field trip aquarium next tuesday 8 to 3" into a preview
+/// tile. Two visual states stack vertically:
+///
+///   1. The TEXT INPUT row — always visible (when [enabled]).
+///      Disabled with a hint when no Supabase session is signed
+///      in (the proxy needs a JWT) or no group is selected (a
+///      tile must belong to a group).
+///   2. The PREVIEW row — appears below the input when the LLM
+///      returns a draft. Shows the parsed tile with confirm /
+///      tweak / dismiss controls.
+class _DropBar extends StatefulWidget {
+  const _DropBar({
+    required this.enabled,
+    required this.loading,
+    required this.draft,
+    required this.error,
+    required this.onSubmit,
+    required this.onConfirm,
+    required this.onTweak,
+    required this.onDismiss,
+  });
+
+  final bool enabled;
+  final bool loading;
+  final CalendarTileDraft? draft;
+  final String? error;
+  final ValueChanged<String> onSubmit;
+  final VoidCallback onConfirm;
+  final VoidCallback onTweak;
+  final VoidCallback onDismiss;
+
+  @override
+  State<_DropBar> createState() => _DropBarState();
+}
+
+class _DropBarState extends State<_DropBar> {
+  final _ctrl = TextEditingController();
+  final _focus = FocusNode();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final text = _ctrl.text.trim();
+    if (text.isEmpty || widget.loading) return;
+    widget.onSubmit(text);
+    _ctrl.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final draft = widget.draft;
+    return Container(
+      color: theme.colorScheme.surfaceContainerHighest,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.md,
+        AppSpacing.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Input row.
+          Row(
+            children: [
+              Icon(
+                Icons.auto_awesome_outlined,
+                size: 18,
+                color: widget.enabled
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: TextField(
+                  controller: _ctrl,
+                  focusNode: _focus,
+                  enabled: widget.enabled && !widget.loading,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _submit(),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    hintText: widget.enabled
+                        ? '"field trip aquarium next tues 8 to 3"'
+                        : 'Sign in + pick a group to use AI create',
+                    hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
+              if (widget.loading)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                IconButton(
+                  tooltip: 'Send',
+                  icon: const Icon(Icons.arrow_forward),
+                  onPressed: widget.enabled ? _submit : null,
+                ),
+            ],
+          ),
+          // Error row — short red note when the LLM call failed.
+          if (widget.error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                widget.error!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ),
+          // Preview row — visible when the model returned a draft.
+          if (draft != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _DraftPreview(
+              draft: draft,
+              onConfirm: widget.onConfirm,
+              onTweak: widget.onTweak,
+              onDismiss: widget.onDismiss,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DraftPreview extends StatelessWidget {
+  const _DraftPreview({
+    required this.draft,
+    required this.onConfirm,
+    required this.onTweak,
+    required this.onDismiss,
+  });
+
+  final CalendarTileDraft draft;
+  final VoidCallback onConfirm;
+  final VoidCallback onTweak;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = _accentFor(theme, draft.type);
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.10),
+        border: Border.all(color: accent.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(draft.type.icon, color: accent, size: 20),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${draft.type.singularLabel.toUpperCase()} · ${draft.title}',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  draft.summaryFor(context),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Buttons — confirm / tweak / dismiss.
+          IconButton(
+            tooltip: 'Tweak before adding',
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            onPressed: onTweak,
+          ),
+          IconButton(
+            tooltip: 'Dismiss',
+            icon: const Icon(Icons.close, size: 18),
+            onPressed: onDismiss,
+          ),
+          FilledButton.icon(
+            onPressed: onConfirm,
+            icon: const Icon(Icons.check, size: 18),
+            label: const Text('Add'),
+          ),
+        ],
       ),
     );
   }
