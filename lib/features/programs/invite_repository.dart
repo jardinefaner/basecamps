@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:basecamp/database/database.dart';
@@ -218,7 +219,25 @@ class InviteRepository {
           'supabase functions deploy accept-invite',
         );
       }
-      rethrow;
+      // 400 / 401 / 500 — the function returned a structured
+      // error body (`{ error: 'invalid_code' | 'expired' | ... }`).
+      // Extract the code from `e.details` and run it through the
+      // same humaniser the success path uses, so the user sees
+      // "That code has expired" instead of a raw FunctionException.
+      // Without this branch, every non-200 except 404 was leaking
+      // through as a stack trace in the UI.
+      final code = _extractErrorCode(e.details);
+      if (code != null) {
+        throw RedeemError(code, _humanize(code));
+      }
+      // Unknown shape — fall through to a generic message but
+      // keep the status code in the technical field so a
+      // developer-mode UI can still surface the raw response.
+      throw RedeemError(
+        'server_${e.status}',
+        'Couldn’t join — the server returned an error '
+        '(status ${e.status}). Try again in a moment.',
+      );
     } on Object catch (e) {
       // Network-level / load-failed errors don't come through as
       // FunctionException — they bubble up as ClientException,
@@ -393,6 +412,37 @@ class InviteRepository {
       buf.write(_alphabet[_rng.nextInt(_alphabet.length)]);
     }
     return buf.toString();
+  }
+
+  /// Pull `error` out of a `FunctionException.details` payload.
+  ///
+  /// Supabase's edge function client gives us `details` as
+  /// EITHER a parsed `Map<String, dynamic>` (when the response is
+  /// well-formed JSON) OR a raw `String` (when content-type
+  /// isn't application/json, or when the function crashed before
+  /// it could format a body). We handle both: parse strings as
+  /// JSON if they look like an object, otherwise pull the `error`
+  /// key from a Map directly. Returns null when the body is
+  /// shapeless — the caller falls back to a generic status-code
+  /// message.
+  static String? _extractErrorCode(Object? details) {
+    if (details == null) return null;
+    Map<String, dynamic>? map;
+    if (details is Map) {
+      map = Map<String, dynamic>.from(details);
+    } else if (details is String) {
+      final trimmed = details.trim();
+      if (!trimmed.startsWith('{')) return null;
+      try {
+        final decoded = jsonDecode(trimmed);
+        if (decoded is Map) map = Map<String, dynamic>.from(decoded);
+      } on FormatException {
+        return null;
+      }
+    }
+    if (map == null) return null;
+    final raw = map['error'];
+    return raw is String && raw.isNotEmpty ? raw : null;
   }
 
   static String _humanize(String? errorCode) {
