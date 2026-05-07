@@ -28,6 +28,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:basecamp/config/env.dart';
@@ -79,6 +80,16 @@ class SurveyAudioService {
   /// same phrase) or a fully-resolved local path string.
   final Map<String, Future<String?>> _inflightFetches =
       <String, Future<String?>>{};
+
+  /// **Web-only** runtime cache. The native build writes to
+  /// `<docs>/survey_audio_cache/...` after a Deepgram fetch, but
+  /// web has no filesystem — without this cache, every replay hit
+  /// the network and (worse) the bytes were just thrown away
+  /// because the resolver returned null. Now the bytes live here
+  /// for the lifetime of the session, keyed by phrase hash, and
+  /// `_stopAndPlay` feeds them to `BytesSource` (which
+  /// audioplayers wraps in a blob URL on web).
+  final Map<String, Uint8List> _webBytesCache = <String, Uint8List>{};
 
   /// Deepgram TTS endpoint — proxied via Bearer JWT from the
   /// `deepgram-token` Supabase edge function. We use **Aura-2**
@@ -230,7 +241,14 @@ class SurveyAudioService {
     SurveyVoice voice,
     String text,
   ) async {
-    if (kIsWeb) return null; // no docs folder on web; fetch every play
+    if (kIsWeb) {
+      // Web has no filesystem, but `_webBytesCache` keeps fetched
+      // MP3s in memory for the session. Return a sentinel so
+      // `_stopAndPlay` knows to look up bytes; native still gets
+      // a real filesystem path.
+      final key = _webCacheKey(voice, text);
+      return _webBytesCache.containsKey(key) ? _Source.bytes(key) : null;
+    }
     final docs = await getApplicationDocumentsDirectory();
     final filePath = p.join(
       docs.path,
@@ -256,10 +274,14 @@ class SurveyAudioService {
       return null;
     }
     if (kIsWeb) {
-      // No filesystem on web; would need a blob-URL strategy.
-      // Skip caching for now — web audio fetches every play, with
-      // the browser's HTTP cache as the safety net.
-      return null;
+      // Stash the MP3 bytes in the in-memory cache; the resolver
+      // returns a `bytes:<key>` sentinel that `_stopAndPlay`
+      // recognises and feeds to audioplayers' `BytesSource`
+      // (audioplayers wraps that in a blob URL on web). Subsequent
+      // plays hit the cache without re-fetching.
+      final key = _webCacheKey(voice, text);
+      _webBytesCache[key] = response.bodyBytes;
+      return _Source.bytes(key);
     }
     final docs = await getApplicationDocumentsDirectory();
     final dir = Directory(p.join(docs.path, 'survey_audio_cache', voice.code));
@@ -269,6 +291,9 @@ class SurveyAudioService {
     await file.writeAsBytes(response.bodyBytes);
     return filePath;
   }
+
+  String _webCacheKey(SurveyVoice voice, String text) =>
+      '${voice.code}:${_phraseHash(text)}';
 
   /// Hit the existing `deepgram-token` Supabase edge function.
   /// Same auth flow as observations/voice_service.dart's STT —
@@ -313,6 +338,16 @@ class SurveyAudioService {
       // AssetSource expects a path relative to the assets/ root.
       final relative = source.substring(_assetPrefix.length);
       await _player.play(AssetSource(relative));
+    } else if (source.startsWith(_bytesPrefix)) {
+      // Web tier: in-memory MP3 bytes. audioplayers turns
+      // BytesSource into a blob URL on web and passes it to the
+      // <audio> element. The bytes were stashed by `_fetchAndCache`
+      // (or persisted across `ensureCached` calls) and live here
+      // until the page reloads.
+      final key = source.substring(_bytesPrefix.length);
+      final bytes = _webBytesCache[key];
+      if (bytes == null) return; // race — cache evicted
+      await _player.play(BytesSource(bytes));
     } else {
       await _player.play(DeviceFileSource(source));
     }
@@ -340,14 +375,16 @@ class SurveyAudioService {
   }
 }
 
-/// Tag prefix on `_resolvePath`'s asset-tier return so
-/// `_stopAndPlay` can route between AssetSource + DeviceFileSource.
-/// Kept lean — just check `startsWith('asset:')` instead of
-/// invoking a fileExists per play.
+/// Tag prefixes on `_resolvePath`'s tier returns so `_stopAndPlay`
+/// can route between AssetSource / BytesSource / DeviceFileSource.
+/// Kept lean — just check `startsWith('asset:')` / `'bytes:'`
+/// instead of invoking a fileExists per play.
 const String _assetPrefix = 'asset:';
+const String _bytesPrefix = 'bytes:';
 
 class _Source {
   static String asset(String path) => '$_assetPrefix$path';
+  static String bytes(String key) => '$_bytesPrefix$key';
 }
 
 /// Result of a `prewarmForSurvey` call — surfaces totals so the
