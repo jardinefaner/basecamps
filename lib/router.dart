@@ -12,6 +12,7 @@ import 'package:basecamp/features/curriculum/curriculum_screen.dart';
 import 'package:basecamp/features/experiment/basket_survey/basket_survey_screen.dart';
 import 'package:basecamp/features/experiment/calendar_screen.dart';
 import 'package:basecamp/features/experiment/experiment_screen.dart';
+import 'package:basecamp/features/experiment/late_pickup_screen.dart';
 import 'package:basecamp/features/experiment/monthly_plan_screen.dart';
 import 'package:basecamp/features/experiment/survey/survey_screen.dart';
 import 'package:basecamp/features/forms/forms_hub_screen.dart';
@@ -31,10 +32,10 @@ import 'package:basecamp/features/programs/program_detail_screen.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/programs/programs_screen.dart';
 import 'package:basecamp/features/programs/sync_diagnostics_screen.dart';
-import 'package:basecamp/features/programs/welcome_screen.dart';
-import 'package:basecamp/features/roles/roles_screen.dart';
 import 'package:basecamp/features/prints/print_detail_screen.dart';
 import 'package:basecamp/features/prints/prints_screen.dart';
+import 'package:basecamp/features/programs/welcome_screen.dart';
+import 'package:basecamp/features/roles/roles_screen.dart';
 import 'package:basecamp/features/rooms/rooms_screen.dart';
 import 'package:basecamp/features/schedule/schedule_editor_screen.dart';
 import 'package:basecamp/features/settings/program_settings_screen.dart';
@@ -523,6 +524,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/calendar',
         builder: (_, _) => const CalendarScreen(),
+      ),
+      // Late-pickup log experiment — sheet-style table with the
+      // chat-style drop bar pattern. Same LLM-create grammar as
+      // the Calendar; rows are autofilled from the children
+      // roster + the signed-in adult + wall-clock time. Lab
+      // proof; in-memory only.
+      GoRoute(
+        path: '/late-pickup',
+        builder: (_, _) => const LatePickupScreen(),
       ),
       GoRoute(
         path: '/more/sequences',

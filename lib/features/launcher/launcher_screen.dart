@@ -1265,6 +1265,16 @@ class _DestinationData {
       path: '/calendar',
       category: _DestCategory.lab,
     ),
+    // Late-pickup log — chat-style natural language → sheet row.
+    // Type "phillip is late, gave reminder card" and the LLM fills
+    // in date / time / parent / staff from context. Same drop-bar
+    // grammar as the Calendar.
+    _DestinationData(
+      label: 'Late pickup log',
+      icon: Icons.access_time_outlined,
+      path: '/late-pickup',
+      category: _DestCategory.lab,
+    ),
   ];
 }
 
