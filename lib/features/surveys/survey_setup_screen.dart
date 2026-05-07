@@ -38,6 +38,13 @@ class _SurveySetupScreenState extends ConsumerState<SurveySetupScreen> {
   SurveyVoice _voice = SurveyVoice.asteria;
   SurveyStyle _style = SurveyStyle.marbleJar;
 
+  /// Pre-configured school list for the pre-flight gate's
+  /// dropdown. KIPP seeded by default (the canonical fast path);
+  /// teacher can add / remove rows freely. Saved as JSON on the
+  /// survey row at create time.
+  final List<String> _schools = <String>['KIPP'];
+  final TextEditingController _schoolDraftCtrl = TextEditingController();
+
   bool _saving = false;
 
   @override
@@ -46,7 +53,28 @@ class _SurveySetupScreenState extends ConsumerState<SurveySetupScreen> {
     _classroomCtrl.dispose();
     _pinCtrl.dispose();
     _pinConfirmCtrl.dispose();
+    _schoolDraftCtrl.dispose();
     super.dispose();
+  }
+
+  void _addSchool() {
+    final raw = _schoolDraftCtrl.text.trim();
+    if (raw.isEmpty) return;
+    if (_schools.any((s) => s.toLowerCase() == raw.toLowerCase())) {
+      // Already in the list — silently de-dupe.
+      _schoolDraftCtrl.clear();
+      return;
+    }
+    setState(() {
+      _schools.add(raw);
+      _schoolDraftCtrl.clear();
+    });
+  }
+
+  void _removeSchool(String name) {
+    setState(() {
+      _schools.removeWhere((s) => s == name);
+    });
   }
 
   Future<void> _onStart() async {
@@ -68,6 +96,10 @@ class _SurveySetupScreenState extends ConsumerState<SurveySetupScreen> {
         // time, so any later edit to the canonical lists doesn't
         // disturb in-flight surveys.
         questions: canonicalQuestionsForBand(_ageBand),
+        // The pre-flight gate dropdown is built from this list.
+        // Empty → gate falls back to free-text. Order is preserved
+        // so the most common school can sit at the top.
+        schools: _schools,
       );
       // Pre-warm the audio cache so the kiosk doesn't pause on the
       // first question while it fetches an MP3. Best-effort —
@@ -134,6 +166,22 @@ class _SurveySetupScreenState extends ConsumerState<SurveySetupScreen> {
               value: _ageBand,
               onChanged: (b) => setState(() => _ageBand = b),
               theme: theme,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+
+            _SectionLabel(
+              text: 'Schools',
+              theme: theme,
+              subtitle:
+                  'Each kid picks from this list before starting. KIPP is '
+                  'the default fast-path; add others as needed.',
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _SchoolListEditor(
+              schools: _schools,
+              draftCtrl: _schoolDraftCtrl,
+              onAdd: _addSchool,
+              onRemove: _removeSchool,
             ),
             const SizedBox(height: AppSpacing.lg),
 
@@ -592,6 +640,78 @@ class _StyleCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Chip-input for the survey's `schools` list. Each entry is a
+/// removable chip; the row at the bottom adds a new entry on
+/// Enter / submit. Saves into [SurveyConfig.schools] verbatim
+/// (order preserved, exact spelling), which the kiosk's pre-
+/// flight gate uses as the dropdown options.
+class _SchoolListEditor extends StatelessWidget {
+  const _SchoolListEditor({
+    required this.schools,
+    required this.draftCtrl,
+    required this.onAdd,
+    required this.onRemove,
+  });
+
+  final List<String> schools;
+  final TextEditingController draftCtrl;
+  final VoidCallback onAdd;
+  final ValueChanged<String> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (schools.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final s in schools)
+                  InputChip(
+                    label: Text(s),
+                    onDeleted: () => onRemove(s),
+                    deleteIconColor: theme.colorScheme.onSurfaceVariant,
+                    backgroundColor: theme.colorScheme.surfaceContainerHigh,
+                    side: BorderSide(
+                      color: theme.colorScheme.outlineVariant,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: draftCtrl,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => onAdd(),
+                decoration: const InputDecoration(
+                  labelText: 'Add a school',
+                  hintText: 'Cesar Chavez Elementary',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            FilledButton.tonalIcon(
+              onPressed: onAdd,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Add'),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

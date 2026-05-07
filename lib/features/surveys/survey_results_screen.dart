@@ -36,7 +36,19 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
-class SurveyResultsScreen extends ConsumerWidget {
+/// Two view modes for the wide-screen results display:
+///   * `rich`  — the original grid with mood chips, multi-select
+///               icons, action hints. Easier to scan a single
+///               kid's session at a glance.
+///   * `sheet` — dense spreadsheet view. All metadata columns up
+///               front (Site / Classroom / Grade / School / etc.),
+///               tight rows, monospace numbers. Looks like Excel
+///               and exports to Excel by copy-paste cleanly.
+/// Narrow screens always use the card list (sheet is unusable
+/// at phone widths regardless of mode).
+enum _ResultsViewMode { rich, sheet }
+
+class SurveyResultsScreen extends ConsumerStatefulWidget {
   const SurveyResultsScreen({required this.surveyId, super.key});
 
   final String surveyId;
@@ -46,15 +58,53 @@ class SurveyResultsScreen extends ConsumerWidget {
   static const double _gridMinWidth = 700;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SurveyResultsScreen> createState() =>
+      _SurveyResultsScreenState();
+}
+
+class _SurveyResultsScreenState extends ConsumerState<SurveyResultsScreen> {
+  _ResultsViewMode _mode = _ResultsViewMode.rich;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final surveyAsync = ref.watch(surveyByIdProvider(surveyId));
-    final resultsAsync = ref.watch(surveyResultsProvider(surveyId));
+    final surveyAsync = ref.watch(surveyByIdProvider(widget.surveyId));
+    final resultsAsync = ref.watch(surveyResultsProvider(widget.surveyId));
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Results'),
         actions: [
+          // View-mode toggle (only meaningful on wide screens — on
+          // phones the card list always wins, so the segmented
+          // control just sits inert there).
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: 6,
+            ),
+            child: SegmentedButton<_ResultsViewMode>(
+              segments: const [
+                ButtonSegment(
+                  value: _ResultsViewMode.rich,
+                  icon: Icon(Icons.view_agenda_outlined),
+                  tooltip: 'Cards',
+                ),
+                ButtonSegment(
+                  value: _ResultsViewMode.sheet,
+                  icon: Icon(Icons.table_chart_outlined),
+                  tooltip: 'Sheet',
+                ),
+              ],
+              selected: {_mode},
+              showSelectedIcon: false,
+              onSelectionChanged: (s) =>
+                  setState(() => _mode = s.first),
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
           surveyAsync.maybeWhen(
             data: (survey) => survey == null
                 ? const SizedBox.shrink()
@@ -103,18 +153,26 @@ class SurveyResultsScreen extends ConsumerWidget {
                       ? _EmptyState(theme: theme)
                       : LayoutBuilder(
                           builder: (context, constraints) {
-                            if (constraints.maxWidth < _gridMinWidth) {
+                            if (constraints.maxWidth <
+                                SurveyResultsScreen._gridMinWidth) {
                               return _CardList(
                                 survey: survey,
                                 rows: rows,
                                 theme: theme,
                               );
                             }
-                            return _ResultsGrid(
-                              survey: survey,
-                              rows: rows,
-                              theme: theme,
-                            );
+                            return switch (_mode) {
+                              _ResultsViewMode.rich => _ResultsGrid(
+                                  survey: survey,
+                                  rows: rows,
+                                  theme: theme,
+                                ),
+                              _ResultsViewMode.sheet => _SheetView(
+                                  survey: survey,
+                                  rows: rows,
+                                  theme: theme,
+                                ),
+                            };
                           },
                         ),
                 ),
@@ -614,6 +672,16 @@ class _GridDataRow extends StatelessWidget {
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
+                      if ((row.session.school ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          row.session.school!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                       if (incomplete) ...[
                         const SizedBox(height: 2),
                         Text(
@@ -1037,6 +1105,335 @@ class _ErrorView extends StatelessWidget {
           message,
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodyMedium,
+        ),
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// Sheet view — dense spreadsheet rendering
+// ═════════════════════════════════════════════════════════════════
+
+/// Excel-like view of the same data the rich grid shows. Rules:
+///   * Metadata columns up front: Site · Classroom · Grade ·
+///     School · Child # · Started · Status. Match the CSV
+///     exporter so a screenshot of the sheet view ≈ the CSV.
+///   * Question columns mirror the CSV — one column per mood
+///     question, one Yes/No column per multi-select option, one
+///     transcript column per open-ended.
+///   * Tight rows (32dp). Light cell borders. Tabular figures
+///     for numbers. Header row sticks to the top.
+///   * Tap a row to fall through to the same handler the rich
+///     grid uses (resume incomplete; jar print on complete).
+class _SheetView extends StatelessWidget {
+  const _SheetView({
+    required this.survey,
+    required this.rows,
+    required this.theme,
+  });
+
+  final SurveyConfig survey;
+  final List<SurveyResultRow> rows;
+  final ThemeData theme;
+
+  static const double _rowHeight = 32;
+  static const double _headerHeight = 36;
+  static const double _metaWidth = 130;
+  static const double _moodWidth = 110;
+  static const double _ynWidth = 70;
+  static const double _openWidth = 240;
+
+  List<_SheetCol> _columns() {
+    final cols = <_SheetCol>[
+      _SheetCol(label: 'Site', width: _metaWidth, type: _ColType.text),
+      _SheetCol(label: 'Classroom', width: _metaWidth, type: _ColType.text),
+      _SheetCol(label: 'Grade', width: 80, type: _ColType.text),
+      _SheetCol(label: 'School', width: 110, type: _ColType.text),
+      _SheetCol(label: 'Child #', width: 60, type: _ColType.numericLike),
+      _SheetCol(label: 'Started', width: 130, type: _ColType.text),
+      _SheetCol(label: 'Status', width: 100, type: _ColType.text),
+    ];
+    for (final q in survey.questions) {
+      switch (q.type) {
+        case SurveyQuestionType.mood:
+          cols.add(_SheetCol(
+            label: q.prompt,
+            width: _moodWidth,
+            type: _ColType.text,
+          ));
+        case SurveyQuestionType.multiSelect:
+          for (final opt in q.options) {
+            cols.add(_SheetCol(
+              label: opt.label,
+              width: _ynWidth,
+              type: _ColType.text,
+            ));
+          }
+        case SurveyQuestionType.openEnded:
+          cols.add(_SheetCol(
+            label: q.prompt,
+            width: _openWidth,
+            type: _ColType.text,
+          ));
+      }
+    }
+    return cols;
+  }
+
+  String _statusFor(SurveySession s) {
+    if (s.endedAt == null) return 'In progress';
+    return s.childCount >= 1 ? 'Completed' : 'Incomplete';
+  }
+
+  /// Decode a multi-select response's selectionsJson into a Set
+  /// of option ids. Mirrors the CSV exporter's helper — kept local
+  /// to avoid pulling the exporter as a dep.
+  Set<String> _decodeSelections(String? raw) {
+    if (raw == null || raw.isEmpty) return const <String>{};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return decoded.whereType<String>().toSet();
+      }
+    } on FormatException {
+      // tolerate corrupt JSON
+    }
+    return const <String>{};
+  }
+
+  /// Build the row of cell strings for one session, in the same
+  /// order as `_columns()`.
+  List<String> _cellsFor(SurveyResultRow row, int childNumber) {
+    final session = row.session;
+    final dateFmt = DateFormat.Md().add_jm();
+    final cells = <String>[
+      survey.siteName,
+      survey.classroom,
+      survey.ageBand.label,
+      session.school ?? '',
+      '$childNumber',
+      dateFmt.format(session.startedAt.toLocal()),
+      _statusFor(session),
+    ];
+    for (final q in survey.questions) {
+      final response = row.responsesByQuestionId[q.id];
+      switch (q.type) {
+        case SurveyQuestionType.mood:
+          if (response == null) {
+            cells.add('');
+          } else {
+            final v = response.moodValue;
+            final labels = q.scale.labels;
+            cells.add(
+              v == null || v < 0 || v >= labels.length ? '' : labels[v],
+            );
+          }
+        case SurveyQuestionType.multiSelect:
+          final selected = _decodeSelections(response?.selectionsJson);
+          for (final opt in q.options) {
+            if (response == null) {
+              cells.add('');
+            } else {
+              cells.add(selected.contains(opt.id) ? 'Yes' : 'No');
+            }
+          }
+        case SurveyQuestionType.openEnded:
+          cells.add(response?.transcription ?? '');
+      }
+    }
+    return cells;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cols = _columns();
+    final totalWidth = cols.fold<double>(0, (s, c) => s + c.width);
+    return Scrollbar(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          width: totalWidth,
+          child: Column(
+            children: [
+              _SheetHeader(cols: cols, theme: theme, height: _headerHeight),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: rows.length,
+                  itemBuilder: (context, i) {
+                    final row = rows[i];
+                    final childNumber = rows.length - i;
+                    return _SheetRow(
+                      cols: cols,
+                      cells: _cellsFor(row, childNumber),
+                      height: _rowHeight,
+                      theme: theme,
+                      onTap: () => _onChildRowTapped(
+                        context: context,
+                        survey: survey,
+                        row: row,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetCol {
+  const _SheetCol({
+    required this.label,
+    required this.width,
+    required this.type,
+  });
+  final String label;
+  final double width;
+  final _ColType type;
+}
+
+enum _ColType { text, numericLike }
+
+class _SheetHeader extends StatelessWidget {
+  const _SheetHeader({
+    required this.cols,
+    required this.theme,
+    required this.height,
+  });
+
+  final List<_SheetCol> cols;
+  final ThemeData theme;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        border: Border(
+          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      child: Row(
+        children: [
+          for (final col in cols)
+            Container(
+              width: col.width,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: 4,
+              ),
+              decoration: BoxDecoration(
+                border: Border(
+                  right: BorderSide(
+                    color: theme.colorScheme.outlineVariant
+                        .withValues(alpha: 0.4),
+                  ),
+                ),
+              ),
+              alignment: Alignment.centerLeft,
+              child: Text(
+                col.label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SheetRow extends StatelessWidget {
+  const _SheetRow({
+    required this.cols,
+    required this.cells,
+    required this.height,
+    required this.theme,
+    required this.onTap,
+  });
+
+  final List<_SheetCol> cols;
+  final List<String> cells;
+  final double height;
+  final ThemeData theme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          height: height,
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              for (var i = 0; i < cols.length; i++)
+                _SheetCell(
+                  col: cols[i],
+                  text: i < cells.length ? cells[i] : '',
+                  theme: theme,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetCell extends StatelessWidget {
+  const _SheetCell({
+    required this.col,
+    required this.text,
+    required this.theme,
+  });
+
+  final _SheetCol col;
+  final String text;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final tabular = col.type == _ColType.numericLike;
+    return Container(
+      width: col.width,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 4,
+      ),
+      decoration: BoxDecoration(
+        border: Border(
+          right: BorderSide(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+          ),
+        ),
+      ),
+      alignment: Alignment.centerLeft,
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurface,
+          fontFeatures: tabular ? const [FontFeature.tabularFigures()] : null,
         ),
       ),
     );

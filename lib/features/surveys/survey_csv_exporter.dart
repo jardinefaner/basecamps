@@ -60,7 +60,18 @@ class SurveyCsvExporter {
     List<SurveyResultRow> rows, {
     SurveyCsvExportOptions options = const SurveyCsvExportOptions(),
   }) {
+    // Per-row metadata columns FIRST so an analyst can pivot on
+    // them without scrolling past the question wall. Site,
+    // classroom, and grade come from the survey config (same for
+    // every row in this CSV); school is per-session (set by the
+    // pre-flight KIPP/Other gate). Putting them up front makes
+    // CSVs from multiple surveys easy to concatenate later — the
+    // metadata columns line up by name.
     final headers = <String>[
+      'Site',
+      'Classroom',
+      'Grade',
+      'School',
       'Child #',
       'Started',
       'Ended',
@@ -109,7 +120,14 @@ class SurveyCsvExporter {
       } else {
         status = 'Incomplete';
       }
+      // _csvRow runs _csvText on every cell, so pass raw strings
+      // here — pre-escaping would double-quote anything with a
+      // comma in it.
       final cells = <String>[
+        survey.siteName,
+        survey.classroom,
+        survey.ageBand.label,
+        session.school ?? '',
         '${i + 1}',
         session.startedAt.toUtc().toIso8601String(),
         session.endedAt?.toUtc().toIso8601String() ?? '',

@@ -24068,6 +24068,18 @@ class $SurveysTable extends Surveys with TableInfo<$SurveysTable, Survey> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _schoolsJsonMeta = const VerificationMeta(
+    'schoolsJson',
+  );
+  @override
+  late final GeneratedColumn<String> schoolsJson = GeneratedColumn<String>(
+    'schools_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -24115,6 +24127,7 @@ class $SurveysTable extends Surveys with TableInfo<$SurveysTable, Survey> {
     voiceId,
     style,
     questionsJson,
+    schoolsJson,
     createdAt,
     updatedAt,
     deletedAt,
@@ -24203,6 +24216,15 @@ class $SurveysTable extends Surveys with TableInfo<$SurveysTable, Survey> {
     } else if (isInserting) {
       context.missing(_questionsJsonMeta);
     }
+    if (data.containsKey('schools_json')) {
+      context.handle(
+        _schoolsJsonMeta,
+        schoolsJson.isAcceptableOrUnknown(
+          data['schools_json']!,
+          _schoolsJsonMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -24270,6 +24292,10 @@ class $SurveysTable extends Surveys with TableInfo<$SurveysTable, Survey> {
         DriftSqlType.string,
         data['${effectivePrefix}questions_json'],
       )!,
+      schoolsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}schools_json'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -24326,6 +24352,15 @@ class Survey extends DataClass implements Insertable<Survey> {
   /// / options / isPractice fields. JSON-blob keeps the migration
   /// simple — we don't need to query individual questions.
   final String questionsJson;
+
+  /// Optional list of school names the teacher pre-configures for
+  /// this survey. JSON array of strings — `["KIPP","Mission Prep",
+  /// "Cesar Chavez Elementary"]`. Drives the pre-flight gate's
+  /// dropdown so kids pick from a clean list instead of typing
+  /// (which sprouts inconsistent spellings into the CSV). Empty /
+  /// missing means free-text fallback. Default is empty so
+  /// existing rows are unaffected.
+  final String schoolsJson;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt;
@@ -24340,6 +24375,7 @@ class Survey extends DataClass implements Insertable<Survey> {
     required this.voiceId,
     required this.style,
     required this.questionsJson,
+    required this.schoolsJson,
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
@@ -24359,6 +24395,7 @@ class Survey extends DataClass implements Insertable<Survey> {
     map['voice_id'] = Variable<String>(voiceId);
     map['style'] = Variable<String>(style);
     map['questions_json'] = Variable<String>(questionsJson);
+    map['schools_json'] = Variable<String>(schoolsJson);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     if (!nullToAbsent || deletedAt != null) {
@@ -24381,6 +24418,7 @@ class Survey extends DataClass implements Insertable<Survey> {
       voiceId: Value(voiceId),
       style: Value(style),
       questionsJson: Value(questionsJson),
+      schoolsJson: Value(schoolsJson),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       deletedAt: deletedAt == null && nullToAbsent
@@ -24405,6 +24443,7 @@ class Survey extends DataClass implements Insertable<Survey> {
       voiceId: serializer.fromJson<String>(json['voiceId']),
       style: serializer.fromJson<String>(json['style']),
       questionsJson: serializer.fromJson<String>(json['questionsJson']),
+      schoolsJson: serializer.fromJson<String>(json['schoolsJson']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
@@ -24424,6 +24463,7 @@ class Survey extends DataClass implements Insertable<Survey> {
       'voiceId': serializer.toJson<String>(voiceId),
       'style': serializer.toJson<String>(style),
       'questionsJson': serializer.toJson<String>(questionsJson),
+      'schoolsJson': serializer.toJson<String>(schoolsJson),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
@@ -24441,6 +24481,7 @@ class Survey extends DataClass implements Insertable<Survey> {
     String? voiceId,
     String? style,
     String? questionsJson,
+    String? schoolsJson,
     DateTime? createdAt,
     DateTime? updatedAt,
     Value<DateTime?> deletedAt = const Value.absent(),
@@ -24455,6 +24496,7 @@ class Survey extends DataClass implements Insertable<Survey> {
     voiceId: voiceId ?? this.voiceId,
     style: style ?? this.style,
     questionsJson: questionsJson ?? this.questionsJson,
+    schoolsJson: schoolsJson ?? this.schoolsJson,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
@@ -24473,6 +24515,9 @@ class Survey extends DataClass implements Insertable<Survey> {
       questionsJson: data.questionsJson.present
           ? data.questionsJson.value
           : this.questionsJson,
+      schoolsJson: data.schoolsJson.present
+          ? data.schoolsJson.value
+          : this.schoolsJson,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
@@ -24492,6 +24537,7 @@ class Survey extends DataClass implements Insertable<Survey> {
           ..write('voiceId: $voiceId, ')
           ..write('style: $style, ')
           ..write('questionsJson: $questionsJson, ')
+          ..write('schoolsJson: $schoolsJson, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt')
@@ -24511,6 +24557,7 @@ class Survey extends DataClass implements Insertable<Survey> {
     voiceId,
     style,
     questionsJson,
+    schoolsJson,
     createdAt,
     updatedAt,
     deletedAt,
@@ -24529,6 +24576,7 @@ class Survey extends DataClass implements Insertable<Survey> {
           other.voiceId == this.voiceId &&
           other.style == this.style &&
           other.questionsJson == this.questionsJson &&
+          other.schoolsJson == this.schoolsJson &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt);
@@ -24545,6 +24593,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
   final Value<String> voiceId;
   final Value<String> style;
   final Value<String> questionsJson;
+  final Value<String> schoolsJson;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> deletedAt;
@@ -24560,6 +24609,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
     this.voiceId = const Value.absent(),
     this.style = const Value.absent(),
     this.questionsJson = const Value.absent(),
+    this.schoolsJson = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
@@ -24576,6 +24626,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
     this.voiceId = const Value.absent(),
     this.style = const Value.absent(),
     required String questionsJson,
+    this.schoolsJson = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
@@ -24597,6 +24648,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
     Expression<String>? voiceId,
     Expression<String>? style,
     Expression<String>? questionsJson,
+    Expression<String>? schoolsJson,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? deletedAt,
@@ -24613,6 +24665,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
       if (voiceId != null) 'voice_id': voiceId,
       if (style != null) 'style': style,
       if (questionsJson != null) 'questions_json': questionsJson,
+      if (schoolsJson != null) 'schools_json': schoolsJson,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
@@ -24631,6 +24684,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
     Value<String>? voiceId,
     Value<String>? style,
     Value<String>? questionsJson,
+    Value<String>? schoolsJson,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<DateTime?>? deletedAt,
@@ -24647,6 +24701,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
       voiceId: voiceId ?? this.voiceId,
       style: style ?? this.style,
       questionsJson: questionsJson ?? this.questionsJson,
+      schoolsJson: schoolsJson ?? this.schoolsJson,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
@@ -24687,6 +24742,9 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
     if (questionsJson.present) {
       map['questions_json'] = Variable<String>(questionsJson.value);
     }
+    if (schoolsJson.present) {
+      map['schools_json'] = Variable<String>(schoolsJson.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -24715,6 +24773,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
           ..write('voiceId: $voiceId, ')
           ..write('style: $style, ')
           ..write('questionsJson: $questionsJson, ')
+          ..write('schoolsJson: $schoolsJson, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
@@ -24785,6 +24844,15 @@ class $SurveySessionsTable extends SurveySessions
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _schoolMeta = const VerificationMeta('school');
+  @override
+  late final GeneratedColumn<String> school = GeneratedColumn<String>(
+    'school',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -24792,6 +24860,7 @@ class $SurveySessionsTable extends SurveySessions
     startedAt,
     endedAt,
     childCount,
+    school,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -24836,6 +24905,12 @@ class $SurveySessionsTable extends SurveySessions
         childCount.isAcceptableOrUnknown(data['child_count']!, _childCountMeta),
       );
     }
+    if (data.containsKey('school')) {
+      context.handle(
+        _schoolMeta,
+        school.isAcceptableOrUnknown(data['school']!, _schoolMeta),
+      );
+    }
     return context;
   }
 
@@ -24865,6 +24940,10 @@ class $SurveySessionsTable extends SurveySessions
         DriftSqlType.int,
         data['${effectivePrefix}child_count'],
       )!,
+      school: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}school'],
+      ),
     );
   }
 
@@ -24883,12 +24962,23 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
   /// How many children completed the question set during this
   /// session. Increments on each "All done!" beat.
   final int childCount;
+
+  /// School the kid identifies with — "KIPP" if they tapped Yes
+  /// on the pre-flight gate, otherwise the typed name. Captured
+  /// per session because a single classroom may include kids from
+  /// multiple schools (visiting / mixed-cohort programs); per-
+  /// session lets us compare KIPP vs. non-KIPP cleanly in the CSV
+  /// even when they sit in the same classroom. Nullable because
+  /// older sessions (created before the gate landed) won't have
+  /// it; the CSV renders an empty cell for those.
+  final String? school;
   const SurveySession({
     required this.id,
     required this.surveyId,
     required this.startedAt,
     this.endedAt,
     required this.childCount,
+    this.school,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -24900,6 +24990,9 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
       map['ended_at'] = Variable<DateTime>(endedAt);
     }
     map['child_count'] = Variable<int>(childCount);
+    if (!nullToAbsent || school != null) {
+      map['school'] = Variable<String>(school);
+    }
     return map;
   }
 
@@ -24912,6 +25005,9 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
           ? const Value.absent()
           : Value(endedAt),
       childCount: Value(childCount),
+      school: school == null && nullToAbsent
+          ? const Value.absent()
+          : Value(school),
     );
   }
 
@@ -24926,6 +25022,7 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
       startedAt: serializer.fromJson<DateTime>(json['startedAt']),
       endedAt: serializer.fromJson<DateTime?>(json['endedAt']),
       childCount: serializer.fromJson<int>(json['childCount']),
+      school: serializer.fromJson<String?>(json['school']),
     );
   }
   @override
@@ -24937,6 +25034,7 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
       'startedAt': serializer.toJson<DateTime>(startedAt),
       'endedAt': serializer.toJson<DateTime?>(endedAt),
       'childCount': serializer.toJson<int>(childCount),
+      'school': serializer.toJson<String?>(school),
     };
   }
 
@@ -24946,12 +25044,14 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
     DateTime? startedAt,
     Value<DateTime?> endedAt = const Value.absent(),
     int? childCount,
+    Value<String?> school = const Value.absent(),
   }) => SurveySession(
     id: id ?? this.id,
     surveyId: surveyId ?? this.surveyId,
     startedAt: startedAt ?? this.startedAt,
     endedAt: endedAt.present ? endedAt.value : this.endedAt,
     childCount: childCount ?? this.childCount,
+    school: school.present ? school.value : this.school,
   );
   SurveySession copyWithCompanion(SurveySessionsCompanion data) {
     return SurveySession(
@@ -24962,6 +25062,7 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
       childCount: data.childCount.present
           ? data.childCount.value
           : this.childCount,
+      school: data.school.present ? data.school.value : this.school,
     );
   }
 
@@ -24972,13 +25073,15 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
           ..write('surveyId: $surveyId, ')
           ..write('startedAt: $startedAt, ')
           ..write('endedAt: $endedAt, ')
-          ..write('childCount: $childCount')
+          ..write('childCount: $childCount, ')
+          ..write('school: $school')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, surveyId, startedAt, endedAt, childCount);
+  int get hashCode =>
+      Object.hash(id, surveyId, startedAt, endedAt, childCount, school);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -24987,7 +25090,8 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
           other.surveyId == this.surveyId &&
           other.startedAt == this.startedAt &&
           other.endedAt == this.endedAt &&
-          other.childCount == this.childCount);
+          other.childCount == this.childCount &&
+          other.school == this.school);
 }
 
 class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
@@ -24996,6 +25100,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
   final Value<DateTime> startedAt;
   final Value<DateTime?> endedAt;
   final Value<int> childCount;
+  final Value<String?> school;
   final Value<int> rowid;
   const SurveySessionsCompanion({
     this.id = const Value.absent(),
@@ -25003,6 +25108,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     this.startedAt = const Value.absent(),
     this.endedAt = const Value.absent(),
     this.childCount = const Value.absent(),
+    this.school = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SurveySessionsCompanion.insert({
@@ -25011,6 +25117,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     this.startedAt = const Value.absent(),
     this.endedAt = const Value.absent(),
     this.childCount = const Value.absent(),
+    this.school = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        surveyId = Value(surveyId);
@@ -25020,6 +25127,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     Expression<DateTime>? startedAt,
     Expression<DateTime>? endedAt,
     Expression<int>? childCount,
+    Expression<String>? school,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -25028,6 +25136,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
       if (startedAt != null) 'started_at': startedAt,
       if (endedAt != null) 'ended_at': endedAt,
       if (childCount != null) 'child_count': childCount,
+      if (school != null) 'school': school,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -25038,6 +25147,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     Value<DateTime>? startedAt,
     Value<DateTime?>? endedAt,
     Value<int>? childCount,
+    Value<String?>? school,
     Value<int>? rowid,
   }) {
     return SurveySessionsCompanion(
@@ -25046,6 +25156,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
       startedAt: startedAt ?? this.startedAt,
       endedAt: endedAt ?? this.endedAt,
       childCount: childCount ?? this.childCount,
+      school: school ?? this.school,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -25068,6 +25179,9 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     if (childCount.present) {
       map['child_count'] = Variable<int>(childCount.value);
     }
+    if (school.present) {
+      map['school'] = Variable<String>(school.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -25082,6 +25196,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
           ..write('startedAt: $startedAt, ')
           ..write('endedAt: $endedAt, ')
           ..write('childCount: $childCount, ')
+          ..write('school: $school, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -50160,6 +50275,7 @@ typedef $$SurveysTableCreateCompanionBuilder =
       Value<String> voiceId,
       Value<String> style,
       required String questionsJson,
+      Value<String> schoolsJson,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
@@ -50177,6 +50293,7 @@ typedef $$SurveysTableUpdateCompanionBuilder =
       Value<String> voiceId,
       Value<String> style,
       Value<String> questionsJson,
+      Value<String> schoolsJson,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
@@ -50239,6 +50356,11 @@ class $$SurveysTableFilterComposer
 
   ColumnFilters<String> get questionsJson => $composableBuilder(
     column: $table.questionsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get schoolsJson => $composableBuilder(
+    column: $table.schoolsJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -50317,6 +50439,11 @@ class $$SurveysTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get schoolsJson => $composableBuilder(
+    column: $table.schoolsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -50374,6 +50501,11 @@ class $$SurveysTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get schoolsJson => $composableBuilder(
+    column: $table.schoolsJson,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -50422,6 +50554,7 @@ class $$SurveysTableTableManager
                 Value<String> voiceId = const Value.absent(),
                 Value<String> style = const Value.absent(),
                 Value<String> questionsJson = const Value.absent(),
+                Value<String> schoolsJson = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
@@ -50437,6 +50570,7 @@ class $$SurveysTableTableManager
                 voiceId: voiceId,
                 style: style,
                 questionsJson: questionsJson,
+                schoolsJson: schoolsJson,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
@@ -50454,6 +50588,7 @@ class $$SurveysTableTableManager
                 Value<String> voiceId = const Value.absent(),
                 Value<String> style = const Value.absent(),
                 required String questionsJson,
+                Value<String> schoolsJson = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
@@ -50469,6 +50604,7 @@ class $$SurveysTableTableManager
                 voiceId: voiceId,
                 style: style,
                 questionsJson: questionsJson,
+                schoolsJson: schoolsJson,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
@@ -50503,6 +50639,7 @@ typedef $$SurveySessionsTableCreateCompanionBuilder =
       Value<DateTime> startedAt,
       Value<DateTime?> endedAt,
       Value<int> childCount,
+      Value<String?> school,
       Value<int> rowid,
     });
 typedef $$SurveySessionsTableUpdateCompanionBuilder =
@@ -50512,6 +50649,7 @@ typedef $$SurveySessionsTableUpdateCompanionBuilder =
       Value<DateTime> startedAt,
       Value<DateTime?> endedAt,
       Value<int> childCount,
+      Value<String?> school,
       Value<int> rowid,
     });
 
@@ -50546,6 +50684,11 @@ class $$SurveySessionsTableFilterComposer
 
   ColumnFilters<int> get childCount => $composableBuilder(
     column: $table.childCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get school => $composableBuilder(
+    column: $table.school,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -50583,6 +50726,11 @@ class $$SurveySessionsTableOrderingComposer
     column: $table.childCount,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get school => $composableBuilder(
+    column: $table.school,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SurveySessionsTableAnnotationComposer
@@ -50610,6 +50758,9 @@ class $$SurveySessionsTableAnnotationComposer
     column: $table.childCount,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get school =>
+      $composableBuilder(column: $table.school, builder: (column) => column);
 }
 
 class $$SurveySessionsTableTableManager
@@ -50650,6 +50801,7 @@ class $$SurveySessionsTableTableManager
                 Value<DateTime> startedAt = const Value.absent(),
                 Value<DateTime?> endedAt = const Value.absent(),
                 Value<int> childCount = const Value.absent(),
+                Value<String?> school = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SurveySessionsCompanion(
                 id: id,
@@ -50657,6 +50809,7 @@ class $$SurveySessionsTableTableManager
                 startedAt: startedAt,
                 endedAt: endedAt,
                 childCount: childCount,
+                school: school,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -50666,6 +50819,7 @@ class $$SurveySessionsTableTableManager
                 Value<DateTime> startedAt = const Value.absent(),
                 Value<DateTime?> endedAt = const Value.absent(),
                 Value<int> childCount = const Value.absent(),
+                Value<String?> school = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SurveySessionsCompanion.insert(
                 id: id,
@@ -50673,6 +50827,7 @@ class $$SurveySessionsTableTableManager
                 startedAt: startedAt,
                 endedAt: endedAt,
                 childCount: childCount,
+                school: school,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

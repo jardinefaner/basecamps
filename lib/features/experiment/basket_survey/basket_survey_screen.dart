@@ -38,6 +38,7 @@ import 'package:basecamp/features/surveys/canonical_questions.dart';
 import 'package:basecamp/features/surveys/kiosk_exit_pin_modal.dart';
 import 'package:basecamp/features/surveys/multi_select_overlay.dart';
 import 'package:basecamp/features/surveys/open_ended_overlay.dart';
+import 'package:basecamp/features/surveys/preflight_school_gate.dart';
 import 'package:basecamp/features/surveys/survey_audio_service.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
 import 'package:basecamp/features/surveys/survey_repository.dart';
@@ -80,6 +81,12 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
 
   /// Active `survey_sessions.id` for kiosk mode — null in sandbox.
   String? _sessionId;
+
+  /// Has the kid completed the pre-flight school gate? Sandbox
+  /// + resumed sessions skip it (sandbox has no session row;
+  /// resumed sessions already carry a `school` value from the
+  /// first run). Fresh kiosk sessions show the gate before Q1.
+  bool _preflightDone = false;
 
   /// Triple-tap-on-title timestamps for the kiosk-exit gesture
   /// (3 taps within 800ms → PIN modal, same as marble kiosk).
@@ -175,6 +182,7 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
     final resumeId = widget.resumeSessionId;
     String sessionId;
     var startIndex = 0;
+    var preflightAlreadyDone = false;
     if (resumeId != null) {
       final existing = await repo.getSession(resumeId);
       if (existing != null && existing.surveyId == survey.id) {
@@ -191,6 +199,9 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
           if (i == survey.questions.length - 1) startIndex = i;
         }
         sessionId = resumeId;
+        // Resumed sessions already passed the gate on their first
+        // run — don't make the kid pick a school again.
+        preflightAlreadyDone = true;
       } else {
         sessionId = await repo.startSession(survey.id);
       }
@@ -204,7 +215,26 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
       _sessionId = sessionId;
       _index = startIndex;
       _sessionStartedAt = DateTime.now();
+      _preflightDone = preflightAlreadyDone;
     });
+    // Only kick the question-prompt audio if the kid is past the
+    // gate. The gate has its own (silent) UX and shouldn't get
+    // a Deepgram-rendered prompt over it.
+    if (_preflightDone) {
+      _playCurrentQuestionAudio();
+    }
+  }
+
+  /// Pre-flight gate handler — the kid picked a school. Stamp
+  /// the session, mark the gate done, and let the regular
+  /// question flow take over.
+  Future<void> _onPreflightSchoolPicked(String school) async {
+    final sessionId = _sessionId;
+    if (sessionId != null) {
+      await _surveyRepoCached.setSessionSchool(sessionId, school);
+    }
+    if (!mounted) return;
+    setState(() => _preflightDone = true);
     _playCurrentQuestionAudio();
   }
 
@@ -717,7 +747,7 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
                 surveyId: widget.surveyId,
                 sessionId: _sessionId,
               )
-            : _buildQuestionBody(),
+            : _buildBeforeQuestions() ?? _buildQuestionBody(),
       ),
     );
     // Kiosk mode wraps in PopScope so the system back gesture
@@ -725,6 +755,22 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
     // the teacher's PIN-gated triple-tap on the title.
     if (!_isKiosk) return scaffold;
     return PopScope(canPop: false, child: scaffold);
+  }
+
+  /// Pre-question gates. Returns the first non-null gate widget
+  /// in priority order, or null when the kid is ready for Q1.
+  /// Currently just the school gate; future gates (consent,
+  /// orientation video, etc.) plug in here.
+  Widget? _buildBeforeQuestions() {
+    final survey = _survey;
+    if (!_isKiosk || survey == null) return null;
+    if (!_preflightDone) {
+      return PreflightSchoolGate(
+        config: survey,
+        onSchoolPicked: _onPreflightSchoolPicked,
+      );
+    }
+    return null;
   }
 
   /// Kiosk title: site name on top, classroom subtitle below —

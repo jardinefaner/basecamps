@@ -1762,6 +1762,16 @@ class Surveys extends Table {
   /// simple — we don't need to query individual questions.
   TextColumn get questionsJson => text()();
 
+  /// Optional list of school names the teacher pre-configures for
+  /// this survey. JSON array of strings — `["KIPP","Mission Prep",
+  /// "Cesar Chavez Elementary"]`. Drives the pre-flight gate's
+  /// dropdown so kids pick from a clean list instead of typing
+  /// (which sprouts inconsistent spellings into the CSV). Empty /
+  /// missing means free-text fallback. Default is empty so
+  /// existing rows are unaffected.
+  TextColumn get schoolsJson =>
+      text().withDefault(const Constant('[]'))();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -1790,6 +1800,16 @@ class SurveySessions extends Table {
   /// How many children completed the question set during this
   /// session. Increments on each "All done!" beat.
   IntColumn get childCount => integer().withDefault(const Constant(0))();
+
+  /// School the kid identifies with — "KIPP" if they tapped Yes
+  /// on the pre-flight gate, otherwise the typed name. Captured
+  /// per session because a single classroom may include kids from
+  /// multiple schools (visiting / mixed-cohort programs); per-
+  /// session lets us compare KIPP vs. non-KIPP cleanly in the CSV
+  /// even when they sit in the same classroom. Nullable because
+  /// older sessions (created before the gate landed) won't have
+  /// it; the CSV renders an empty cell for those.
+  TextColumn get school => text().nullable()();
 
   @override
   Set<Column<Object>> get primaryKey => {id};

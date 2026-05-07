@@ -375,6 +375,7 @@ class SurveyConfig {
     required this.questions,
     required this.createdAt,
     required this.updatedAt,
+    this.schools = const <String>[],
   });
 
   final String id;
@@ -392,6 +393,12 @@ class SurveyConfig {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  /// Pre-configured school names that populate the kiosk's
+  /// pre-flight gate dropdown. Empty = free-text fallback.
+  /// Order is the teacher's order (no auto-sort) so the most
+  /// common school can sit at the top.
+  final List<String> schools;
+
   String questionsJson() => jsonEncode(
         questions.map((q) => q.toJson()).toList(),
       );
@@ -401,5 +408,22 @@ class SurveyConfig {
     return decoded
         .map((q) => SurveyQuestion.fromJson(q as Map<String, dynamic>))
         .toList();
+  }
+
+  String schoolsJsonString() => jsonEncode(schools);
+
+  static List<String> parseSchools(String json) {
+    if (json.trim().isEmpty) return const <String>[];
+    try {
+      final decoded = jsonDecode(json);
+      if (decoded is! List) return const <String>[];
+      return decoded
+          .whereType<String>()
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+    } on FormatException {
+      return const <String>[];
+    }
   }
 }

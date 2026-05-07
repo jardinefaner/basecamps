@@ -68,6 +68,7 @@ class SurveyRepository {
     required SurveyVoice voice,
     SurveyStyle style = SurveyStyle.marbleJar,
     List<SurveyQuestion>? questions,
+    List<String> schools = const <String>[],
   }) async {
     final id = newId();
     final now = DateTime.now().toUtc();
@@ -84,6 +85,10 @@ class SurveyRepository {
       questions: qs,
       createdAt: now,
       updatedAt: now,
+      schools: schools
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList(),
     );
     await _db.into(_db.surveys).insert(_toCompanion(config));
     return config;
@@ -139,16 +144,49 @@ class SurveyRepository {
   /// Open a fresh session for a child going through the kiosk.
   /// Returns the session id for the caller to pass back when
   /// recording responses + closing.
-  Future<String> startSession(String surveyId) async {
+  ///
+  /// [school] is the kiosk's pre-flight gate answer — `'KIPP'`
+  /// when the kid tapped Yes on the KIPP? prompt, otherwise the
+  /// school name they typed. Null is allowed (resume / sandbox
+  /// callers) but production kiosk callers always pass it.
+  Future<String> startSession(
+    String surveyId, {
+    String? school,
+  }) async {
     final id = newId();
+    final cleanSchool = school?.trim();
     await _db.into(_db.surveySessions).insert(
           SurveySessionsCompanion(
             id: Value(id),
             surveyId: Value(surveyId),
             startedAt: Value(DateTime.now().toUtc()),
+            school: cleanSchool == null || cleanSchool.isEmpty
+                ? const Value<String?>(null)
+                : Value<String?>(cleanSchool),
           ),
         );
     return id;
+  }
+
+  /// Stamp the kiosk's pre-flight gate answer onto an already-
+  /// open session. Called the moment the kid taps Yes on the
+  /// KIPP? prompt, or hits Continue after typing a school name.
+  /// Empty / whitespace-only strings clear the field rather than
+  /// writing blanks.
+  Future<void> setSessionSchool(
+    String sessionId,
+    String school,
+  ) async {
+    final cleaned = school.trim();
+    await (_db.update(_db.surveySessions)
+          ..where((s) => s.id.equals(sessionId)))
+        .write(
+      SurveySessionsCompanion(
+        school: cleaned.isEmpty
+            ? const Value<String?>(null)
+            : Value<String?>(cleaned),
+      ),
+    );
   }
 
   /// Close a session. `completed = true` when the child reached
@@ -330,6 +368,7 @@ class SurveyRepository {
       questions: SurveyConfig.parseQuestions(row.questionsJson),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
+      schools: SurveyConfig.parseSchools(row.schoolsJson),
     );
   }
 
@@ -343,6 +382,7 @@ class SurveyRepository {
         voiceId: Value(config.voice.code),
         style: Value(config.style.code),
         questionsJson: Value(config.questionsJson()),
+        schoolsJson: Value(config.schoolsJsonString()),
         createdAt: Value(config.createdAt),
         updatedAt: Value(config.updatedAt),
       );

@@ -80,7 +80,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 60;
+  int get schemaVersion => 62;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -139,6 +139,29 @@ class AppDatabase extends _$AppDatabase {
               'fresh at schema 25. This only affects devs who have '
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
+            );
+          }
+          if (from < 62) {
+            // v62: surveys.schools_json — JSON array of school names
+            // the teacher configures at survey-create time. Powers
+            // the pre-flight gate's dropdown so kids pick from a
+            // clean list. Default '[]' so existing surveys read back
+            // as "no preset list" (gate falls back to text input).
+            await _runSilent(
+              'ALTER TABLE "surveys" ADD COLUMN "schools_json" TEXT NOT NULL '
+              "DEFAULT '[]'",
+            );
+          }
+          if (from < 61) {
+            // v61: survey_sessions.school — captured per-session by
+            // the kiosk's pre-flight "KIPP? Yes / No → enter school"
+            // gate. Per-session because a single classroom may mix
+            // KIPP + non-KIPP kids; per-session keeps the discriminator
+            // attached to the right rows in the CSV. Nullable so older
+            // sessions (created before the gate landed) read back as
+            // empty; the exporter renders an empty cell for those.
+            await _runSilent(
+              'ALTER TABLE "survey_sessions" ADD COLUMN "school" TEXT NULL',
             );
           }
           if (from < 60) {
