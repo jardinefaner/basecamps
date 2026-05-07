@@ -71,6 +71,15 @@ class _OpenEndedQuestionOverlayState
 
   bool _recording = false;
   bool _busy = false; // true while starting / stopping
+
+  /// `true` once recording has stopped with a non-empty transcript.
+  /// In this phase the overlay shows a REVIEW screen: the captured
+  /// transcript front-and-center, plus "Re-record" and "Done"
+  /// buttons. Nothing commits until the kid (or the teacher
+  /// helping them) taps Done — auto-commit on stop was the old
+  /// behaviour and the user reported wanting a beat to confirm.
+  bool _reviewing = false;
+
   Duration _elapsed = Duration.zero;
   Timer? _ticker;
   // Nullable on purpose — unset until the kid taps record.
@@ -195,19 +204,39 @@ class _OpenEndedQuestionOverlayState
     _errorSub = null;
     if (!mounted) return;
     final transcript = _composeTranscript();
-    final duration = _elapsed.inMilliseconds;
     setState(() {
       _busy = false;
       _recording = false;
       _ticker = null;
+      // Empty transcript → fall back to the idle screen so the
+      // kid can try again. They can also tap Skip if they're
+      // genuinely stuck. Auto-skipping on empty was surprising.
+      _reviewing = transcript.isNotEmpty;
     });
+  }
+
+  /// "Done" tap from the review screen — finalise the transcript
+  /// and let the parent advance the survey.
+  void _commitReview() {
+    final transcript = _composeTranscript();
     if (transcript.isEmpty) {
-      // Nothing transcribed — treat as a skip rather than
-      // saving an empty row.
       widget.onSkip();
-    } else {
-      widget.onCommit(transcript, duration);
+      return;
     }
+    widget.onCommit(transcript, _elapsed.inMilliseconds);
+  }
+
+  /// "Re-record" tap — wipe the captured transcript and the
+  /// elapsed clock so the kid can try again from scratch. Stays
+  /// on this screen; they tap the mic to start the next take.
+  void _restartReview() {
+    setState(() {
+      _reviewing = false;
+      _finals.clear();
+      _partial = '';
+      _elapsed = Duration.zero;
+      _errorText = null;
+    });
   }
 
   String _composeTranscript() {
@@ -241,43 +270,132 @@ class _OpenEndedQuestionOverlayState
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const SizedBox.shrink(),
-              _Prompt(
-                prompt: widget.question.prompt,
-                hint: _hintText(),
-                error: _errorText,
-                theme: theme,
-              ),
-              _TranscriptPreview(
-                finals: _finals,
-                partial: _partial,
-                theme: theme,
-              ),
-              _MicButton(
-                recording: _recording,
-                busy: _busy,
-                elapsed: _elapsed,
-                maxSeconds: _maxRecordingSec,
-                onTap: _toggle,
-                theme: theme,
-              ),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: _recording || _busy ? null : widget.onSkip,
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52),
-                  ),
-                  child: const Text('Skip'),
-                ),
-              ),
-            ],
-          ),
+          // Review and capture share the prompt header but diverge
+          // on the bottom half — review puts the transcript
+          // front-and-centre with confirm / re-record buttons,
+          // capture keeps the live mic.
+          child: _reviewing
+              ? _buildReview(theme)
+              : _buildCapture(theme),
         ),
       ),
+    );
+  }
+
+  Widget _buildCapture(ThemeData theme) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const SizedBox.shrink(),
+        _Prompt(
+          prompt: widget.question.prompt,
+          hint: _hintText(),
+          error: _errorText,
+          theme: theme,
+        ),
+        _TranscriptPreview(
+          finals: _finals,
+          partial: _partial,
+          theme: theme,
+        ),
+        _MicButton(
+          recording: _recording,
+          busy: _busy,
+          elapsed: _elapsed,
+          maxSeconds: _maxRecordingSec,
+          onTap: _toggle,
+          theme: theme,
+        ),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            onPressed: _recording || _busy ? null : widget.onSkip,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(52),
+            ),
+            child: const Text('Skip'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReview(ThemeData theme) {
+    final transcript = _composeTranscript();
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const SizedBox.shrink(),
+        _Prompt(
+          prompt: widget.question.prompt,
+          hint: "Here's what we heard. Read it through.",
+          error: _errorText,
+          theme: theme,
+        ),
+        // Captured transcript — large, centered, scrollable. This
+        // is the THING TO READ — bigger than the live preview was
+        // because the kid (or the teacher reading along) is
+        // checking it before committing.
+        Container(
+          width: double.infinity,
+          constraints: const BoxConstraints(maxHeight: 280),
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest
+                .withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: theme.colorScheme.outlineVariant,
+              width: 0.5,
+            ),
+          ),
+          child: SingleChildScrollView(
+            child: Text(
+              transcript,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleLarge?.copyWith(
+                height: 1.4,
+                color: theme.colorScheme.onSurface,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+        // Bottom action stack — Done is primary (advance), Re-
+        // record is secondary (start over). Done is tall enough
+        // (60dp) to feel like the obvious tap; the smaller
+        // outlined button under it doesn't compete.
+        Column(
+          children: [
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _commitReview,
+                icon: const Icon(Icons.check_rounded),
+                label: const Text('Done'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(60),
+                  textStyle: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _restartReview,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Re-record'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
