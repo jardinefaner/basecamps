@@ -3,18 +3,27 @@
 // transitions, nudges, and voice samples all flow through this
 // one service.
 //
-// **Three-tier cache**, in order:
+// **Four-tier cache**, in order:
 //   1. `assets/audio/<voice>/<hash>.mp3` — committed bundle.
 //      Empty by default; populated by `tool/generate_voices.dart`
 //      if a developer wants to ship audio with the binary.
-//   2. App docs runtime cache:
-//      `<docs>/survey_audio_cache/<voice>/<hash>.mp3`. Populated
-//      by `ensureCached(...)` the first time a phrase is needed
-//      on this device.
-//   3. Deepgram TTS via the existing `deepgram-token` Supabase
+//   2. Per-device runtime cache. On native: `<docs>/survey_audio_
+//      cache/<voice>/<hash>.mp3`. On web: in-memory bytes cache
+//      keyed by `<voice>:<hash>`. Fast (no network), but only
+//      populated by THIS device.
+//   3. **Shared Supabase Storage cache** (`survey-audio` bucket,
+//      `<voice>/<hash>.mp3`). Public-read, authenticated-write.
+//      Every device that pays for a Deepgram fetch uploads the
+//      bytes here, so the next device — different platform,
+//      different program, doesn't matter — skips Deepgram and
+//      pulls from this shared cache instead. First device pays;
+//      everyone else benefits.
+//   4. Deepgram TTS via the existing `deepgram-token` Supabase
 //      edge function (same auth pattern STT uses). Long-lived
 //      project key never leaves Supabase secrets; the client gets
-//      a 30-second JWT that's enough to grab the MP3.
+//      a 30-second JWT that's enough to grab the MP3. The bytes
+//      then populate tiers 2 + 3 so this fetch is the LAST one
+//      that ever happens for this phrase.
 //
 // **Pre-warm at survey creation.** The setup-form's Save & Start
 // calls `prewarmForSurvey(...)` so the cache is hot before a kid
@@ -35,7 +44,7 @@ import 'package:basecamp/config/env.dart';
 import 'package:basecamp/features/surveys/canonical_questions.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
 import 'package:crypto/crypto.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
@@ -225,15 +234,28 @@ class SurveyAudioService {
   }
 
   Future<String?> _resolvePath(SurveyVoice voice, String text) async {
-    // Tier 1: bundled asset.
+    // Tier 1: bundled asset (shipped with the app, not regenerated).
     final assetPath = surveyAudioAssetPath(voice, text);
     if (await _assetExists(assetPath)) return _Source.asset(assetPath);
 
-    // Tier 2: runtime cache.
+    // Tier 2: per-device runtime cache (filesystem on native,
+    // in-memory on web). Fast — no network — but only populated
+    // by THIS device.
     final cached = await _localPathForCachedPhrase(voice, text);
     if (cached != null) return cached;
 
-    // Tier 3: fetch + cache.
+    // Tier 3: shared Supabase Storage cache. Populated by every
+    // device that has ever paid for a Deepgram fetch of this
+    // phrase, so a fresh kiosk on a new device hits this and
+    // skips the Deepgram round-trip entirely. Public-read bucket,
+    // no auth required — keeps the cold-start path snappy on
+    // devices that aren't signed in yet.
+    final shared = await _supabaseSharedFetch(voice, text);
+    if (shared != null) return shared;
+
+    // Tier 4: pay Deepgram. Populates tiers 2 + 3 for everyone
+    // else. This should ideally only fire once per (phrase,
+    // voice) combination across the entire program lifetime.
     return _fetchAndCache(voice, text);
   }
 
@@ -273,14 +295,29 @@ class SurveyAudioService {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       return null;
     }
+    final bytes = response.bodyBytes;
+    // Best-effort upload to the shared Supabase cache so the
+    // next device (different kiosk, different platform) doesn't
+    // pay Deepgram again. Awaited but failure is non-fatal —
+    // we still play locally.
+    unawaited(_supabaseSharedUpload(voice, text, bytes));
+    return _writeLocalCache(voice, text, bytes);
+  }
+
+  /// Persist [bytes] to the platform-appropriate local cache
+  /// and return the source string `_stopAndPlay` should consume.
+  /// Native: filesystem path. Web: an in-memory bytes sentinel.
+  Future<String> _writeLocalCache(
+    SurveyVoice voice,
+    String text,
+    Uint8List bytes,
+  ) async {
     if (kIsWeb) {
       // Stash the MP3 bytes in the in-memory cache; the resolver
       // returns a `bytes:<key>` sentinel that `_stopAndPlay`
-      // recognises and feeds to audioplayers' `BytesSource`
-      // (audioplayers wraps that in a blob URL on web). Subsequent
-      // plays hit the cache without re-fetching.
+      // recognises and feeds to audioplayers' `BytesSource`.
       final key = _webCacheKey(voice, text);
-      _webBytesCache[key] = response.bodyBytes;
+      _webBytesCache[key] = bytes;
       return _Source.bytes(key);
     }
     final docs = await getApplicationDocumentsDirectory();
@@ -288,12 +325,96 @@ class SurveyAudioService {
     if (!dir.existsSync()) dir.createSync(recursive: true);
     final filePath = p.join(dir.path, '${_phraseHash(text)}.mp3');
     final file = File(filePath);
-    await file.writeAsBytes(response.bodyBytes);
+    await file.writeAsBytes(bytes);
     return filePath;
   }
 
   String _webCacheKey(SurveyVoice voice, String text) =>
       '${voice.code}:${_phraseHash(text)}';
+
+  // ——— Shared Supabase cache ——————————————————————————————————
+
+  /// Bucket name + path layout for the shared cache. Matches
+  /// the migration in `supabase/migrations/0036_*.sql`. Public
+  /// read, authenticated write.
+  static const String _sharedAudioBucket = 'survey-audio';
+  String _sharedAudioPath(SurveyVoice voice, String text) =>
+      '${voice.code}/${_phraseHash(text)}.mp3';
+
+  /// Try the shared Supabase cache for this phrase. Downloads
+  /// the bytes, writes them to the local cache (so subsequent
+  /// plays on this device don't even hit Supabase), and returns
+  /// the local source string. Null on any failure path —
+  /// resolver falls through to Deepgram.
+  ///
+  /// No-op when Supabase isn't initialised (test env). Public
+  /// bucket so a missing JWT doesn't block the read; the bucket
+  /// policy in the migration is `select: using bucket_id=...`
+  /// with no auth requirement.
+  Future<String?> _supabaseSharedFetch(
+    SurveyVoice voice,
+    String text,
+  ) async {
+    final client = _maybeSupabaseClient();
+    if (client == null) return null;
+    final path = _sharedAudioPath(voice, text);
+    try {
+      final bytes = await client.storage
+          .from(_sharedAudioBucket)
+          .download(path);
+      if (bytes.isEmpty) return null;
+      // Hot the local cache too — next play on this device skips
+      // the Supabase round-trip.
+      return _writeLocalCache(voice, text, bytes);
+    } on Object {
+      // Most common case: file doesn't exist (404). Returning
+      // null lets the resolver continue to Deepgram, which will
+      // populate the bucket on success.
+      return null;
+    }
+  }
+
+  /// Upload Deepgram-fetched bytes to the shared bucket so other
+  /// devices can skip Deepgram. Best-effort — failure (offline,
+  /// unauthenticated, bucket policy denies) is logged via
+  /// debugPrint and otherwise ignored. The local play succeeded
+  /// regardless.
+  Future<void> _supabaseSharedUpload(
+    SurveyVoice voice,
+    String text,
+    Uint8List bytes,
+  ) async {
+    final client = _maybeSupabaseClient();
+    if (client == null) return;
+    final session = client.auth.currentSession;
+    if (session == null) return; // bucket requires auth for write
+    final path = _sharedAudioPath(voice, text);
+    try {
+      await client.storage.from(_sharedAudioBucket).uploadBinary(
+            path,
+            bytes,
+            fileOptions: const FileOptions(
+              upsert: true,
+              contentType: 'audio/mpeg',
+              cacheControl: '31536000', // 1 year — phrase hash is stable
+            ),
+          );
+    } on Object catch (e, st) {
+      debugPrint('survey-audio shared upload skipped: $e\n$st');
+    }
+  }
+
+  /// Returns the Supabase client iff the app initialised it.
+  /// Tests that don't bring up `Supabase.initialize()` get null
+  /// here so the audio service falls through gracefully without
+  /// throwing on `Supabase.instance`.
+  SupabaseClient? _maybeSupabaseClient() {
+    try {
+      return Supabase.instance.client;
+    } on Object {
+      return null;
+    }
+  }
 
   /// Hit the existing `deepgram-token` Supabase edge function.
   /// Same auth flow as observations/voice_service.dart's STT —
