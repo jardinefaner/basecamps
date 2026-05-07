@@ -4,12 +4,13 @@
 // learned about being healthy is..." — TK-3rd grade kids can't
 // reasonably type, so we capture their voice. **Live Deepgram
 // streaming**: as the kid speaks, partials appear as faint gray
-// text and finals lock in solid black. On stop, the concatenated
-// finals are saved as the response's transcription.
+// text and finals lock in solid black. On stop, the captured
+// transcript appears in a REVIEW screen with Re-record / Done
+// buttons; nothing commits until the kid taps Done.
 //
-// Mobile-only — `record`'s streaming bridge isn't available on
-// the browser yet (same caveat as observations/voice_service.dart).
-// On web we show a graceful "use a tablet" hint.
+// Cross-platform — native uses the `record` package; web uses
+// the browser's MediaRecorder via `mic_capture.dart`'s
+// conditional export. Same UI both ways.
 //
 // Cost: live streaming is ~$0.0048/minute (Nova-2). 30-second
 // answer ≈ 0.24¢. A 30-child classroom = ~7¢ per survey day.
@@ -20,7 +21,6 @@ import 'package:basecamp/features/observations/voice_service.dart';
 import 'package:basecamp/features/surveys/survey_audio_service.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
 import 'package:basecamp/theme/spacing.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -258,13 +258,6 @@ class _OpenEndedQuestionOverlayState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    if (kIsWeb) {
-      return _WebUnsupported(
-        prompt: widget.question.prompt,
-        onSkip: widget.onSkip,
-        theme: theme,
-      );
-    }
     return ColoredBox(
       color: theme.colorScheme.surface.withValues(alpha: 0.97),
       child: SafeArea(
@@ -611,60 +604,4 @@ class _MicButton extends StatelessWidget {
   }
 }
 
-class _WebUnsupported extends StatelessWidget {
-  const _WebUnsupported({
-    required this.prompt,
-    required this.onSkip,
-    required this.theme,
-  });
 
-  final String prompt;
-  final VoidCallback onSkip;
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: theme.colorScheme.surface.withValues(alpha: 0.97),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xxxl),
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.mic_off_outlined,
-                  size: 56,
-                  color: theme.colorScheme.outlineVariant,
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                Text(
-                  prompt,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Text(
-                  "Voice answers aren't supported in the web build yet. "
-                  'Use the iPad app to record this one.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xl),
-                FilledButton(
-                  onPressed: onSkip,
-                  child: const Text('Skip for now'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

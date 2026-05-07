@@ -2,9 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:basecamp/config/env.dart';
-import 'package:flutter/foundation.dart';
+import 'package:basecamp/features/observations/mic_capture.dart';
 import 'package:http/http.dart' as http;
-import 'package:record/record.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -16,11 +15,11 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 ///   the UI as a preview but not be committed to the note yet.
 /// - [finals] emit confirmed chunks that should be appended to the note.
 class DeepgramVoiceSession {
-  DeepgramVoiceSession() : _recorder = AudioRecorder();
+  DeepgramVoiceSession() : _mic = MicCapture();
 
-  final AudioRecorder _recorder;
+  final MicCapture _mic;
   WebSocketChannel? _channel;
-  StreamSubscription<List<int>>? _audioSub;
+  StreamSubscription<Object>? _audioSub;
   StreamSubscription<dynamic>? _socketSub;
 
   final _partialController = StreamController<String>.broadcast();
@@ -34,26 +33,21 @@ class DeepgramVoiceSession {
   bool get isActive => _channel != null;
 
   /// Starts recording and opens the Deepgram socket. Throws
-  /// [VoiceUnsupportedError] if the platform doesn't support streaming
-  /// capture (currently: web) or [VoicePermissionError] / [VoiceConfigError]
-  /// on setup failures.
+  /// [VoicePermissionError] / [VoiceConfigError] on setup failures.
+  ///
+  /// Web vs. native: the platform-specific [MicCapture] reports
+  /// what audio shape it'll emit; we build the Deepgram WebSocket
+  /// URL accordingly. Native streams 16 kHz linear16 PCM (passes
+  /// `encoding=linear16&sample_rate=16000&channels=1`); web sends
+  /// WebM/Opus from MediaRecorder and lets Deepgram auto-detect
+  /// from the container header (URL omits those params).
   Future<void> start() async {
-    if (kIsWeb) {
-      // The `record` package's audio capture isn't supported on web
-      // yet (no MediaRecorder bridge). Voice stays mobile-only until
-      // we wire a web-specific recorder. The Deepgram side is now
-      // fine on web — temp tokens come from the edge function — but
-      // recording the mic from a browser is the missing piece.
-      throw const VoiceUnsupportedError(
-        'Live voice input is mobile-only for now.',
-      );
-    }
     if (Supabase.instance.client.auth.currentSession == null) {
       throw const VoiceConfigError(
         'Sign in to use live voice input.',
       );
     }
-    if (!await _recorder.hasPermission()) {
+    if (!await _mic.hasPermission()) {
       throw const VoicePermissionError('Microphone permission denied.');
     }
 
@@ -63,17 +57,7 @@ class DeepgramVoiceSession {
     // session before granting.
     final tempToken = await _fetchDeepgramTempToken();
 
-    final uri = Uri.parse(
-      'wss://api.deepgram.com/v1/listen'
-      '?model=nova-2'
-      '&encoding=linear16'
-      '&sample_rate=16000'
-      '&channels=1'
-      '&smart_format=true'
-      '&interim_results=true'
-      '&endpointing=350'
-      '&punctuate=true',
-    );
+    final uri = Uri.parse(_buildSocketUrl());
 
     // Deepgram's grant endpoint returns a JWT; the realtime
     // socket accepts it via the same `Bearer` subprotocol the
@@ -96,23 +80,54 @@ class DeepgramVoiceSession {
       cancelOnError: false,
     );
 
-    final audio = await _recorder.startStream(
-      const RecordConfig(
-        encoder: AudioEncoder.pcm16bits,
-        sampleRate: 16000,
-        numChannels: 1,
-      ),
-    );
-    _audioSub = audio.listen(
-      (chunk) {
-        final ch = _channel;
-        if (ch == null) return;
-        ch.sink.add(chunk);
-      },
-      onError: (Object err, StackTrace st) {
-        _errorController.add(err);
-      },
-    );
+    try {
+      final audio = await _mic.startStream();
+      _audioSub = audio.listen(
+        (chunk) {
+          final ch = _channel;
+          if (ch == null) return;
+          ch.sink.add(chunk);
+        },
+        onError: (Object err, StackTrace st) {
+          _errorController.add(err);
+        },
+      );
+    } on Object catch (e) {
+      // Most common case on web: user clicked "Block" on the
+      // browser mic prompt, getUserMedia rejects with NotAllowed.
+      // Surface as a permission error so the UI shows the right
+      // hint.
+      final msg = e.toString();
+      if (msg.contains('NotAllowed') ||
+          msg.contains('permission') ||
+          msg.contains('Permission')) {
+        throw const VoicePermissionError(
+          'Microphone permission denied. Allow mic access in your browser.',
+        );
+      }
+      rethrow;
+    }
+  }
+
+  /// Build the Deepgram WebSocket URL. Native + web differ on the
+  /// `encoding` / `sample_rate` / `channels` params; everything
+  /// else (model, smart_format, interim_results, endpointing,
+  /// punctuate) is shared.
+  String _buildSocketUrl() {
+    final params = <String, String>{
+      'model': 'nova-2',
+      'smart_format': 'true',
+      'interim_results': 'true',
+      'endpointing': '350',
+      'punctuate': 'true',
+    };
+    // Each platform stamps its own audio-shape params (native
+    // adds encoding/sample_rate/channels for linear16; web adds
+    // nothing and lets Deepgram auto-detect from the WebM header).
+    _mic.applyToSocketParams(params);
+    final query =
+        params.entries.map((e) => '${e.key}=${e.value}').join('&');
+    return 'wss://api.deepgram.com/v1/listen?$query';
   }
 
   void _onSocketMessage(dynamic raw) {
@@ -144,7 +159,7 @@ class DeepgramVoiceSession {
     await _audioSub?.cancel();
     _audioSub = null;
     try {
-      await _recorder.stop();
+      await _mic.stop();
     } on Object {
       // best-effort
     }
@@ -166,7 +181,7 @@ class DeepgramVoiceSession {
     await _partialController.close();
     await _finalController.close();
     await _errorController.close();
-    await _recorder.dispose();
+    await _mic.dispose();
   }
 
   /// POSTs to our `deepgram-token` Edge Function with the user's
