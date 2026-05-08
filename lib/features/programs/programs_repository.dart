@@ -292,6 +292,27 @@ class ProgramsRepository {
         );
         totalUpdated += rowsAffected;
       }
+      // Cascade tables with a denormalised `program_id` aren't in
+      // `kSyncedTableNames` (they sync via their parent's spec, not
+      // as independent roots), but their column still needs filling
+      // or the sync engine treats the rows as program-unscoped and
+      // skips them on push. JOIN-based UPDATE: pull the parent's
+      // program_id by FK, fill in.
+      const cascadeBackfills = [
+        ('survey_sessions', 'survey_id', 'surveys'),
+        ('survey_responses', 'survey_id', 'surveys'),
+      ];
+      for (final (child, parentCol, parent) in cascadeBackfills) {
+        final rowsAffected = await _db.customUpdate(
+          'UPDATE "$child" '
+          'SET "program_id" = ( '
+          'SELECT "$parent"."program_id" FROM "$parent" '
+          'WHERE "$parent"."id" = "$child"."$parentCol" '
+          ') '
+          'WHERE "program_id" IS NULL',
+        );
+        totalUpdated += rowsAffected;
+      }
     });
     return totalUpdated;
   }

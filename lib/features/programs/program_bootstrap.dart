@@ -492,7 +492,22 @@ class ProgramAuthBootstrap {
     ProgramsRepository repo, {
     required String programId,
   }) async {
-    final flagKey = 'program_${programId}_backfill_v42_done';
+    // The flag key carries a schema-marker so a backfill done on an
+    // older schema doesn't lock out backfill for tables added in
+    // later migrations.
+    //
+    // History:
+    //   v42_done — original backfill, root-only tables.
+    //   v64_done — adds survey cascade backfill (sessions +
+    //              responses) and re-stamps any rows the original
+    //              pass missed (e.g. surveys created before v63's
+    //              program_id column landed).
+    //
+    // Devices that previously had `_v42_done = true` re-run backfill
+    // ONCE on next launch, after which `_v64_done` is set and the
+    // pass stays cheap. backfillUntaggedRows itself is idempotent —
+    // only touches rows where program_id IS NULL.
+    final flagKey = 'program_${programId}_backfill_v64_done';
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getBool(flagKey) ?? false) return;
     final updated = await repo.backfillUntaggedRows(programId: programId);
