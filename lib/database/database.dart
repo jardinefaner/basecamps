@@ -143,6 +143,21 @@ class AppDatabase extends _$AppDatabase {
               'has ever seen schema < 25.',
             );
           }
+          // Belt-and-suspenders prelude: ensure every table that
+          // any subsequent ALTER references actually exists. The
+          // heal functions below are idempotent (`CREATE TABLE IF
+          // NOT EXISTS`) and safe to call at any schema version.
+          //
+          // Why we need this in `onUpgrade` (not just `beforeOpen`):
+          // `onUpgrade` runs FIRST, then `beforeOpen`. Devices
+          // upgrading from a pre-surveys schema (`from < 59`) hit
+          // the v60 ALTER `surveys ADD COLUMN style` before the
+          // v59 heal in `beforeOpen` could create the table.
+          // Reported error: "no such table: surveys" during the
+          // accept-invite flow on a fresh-but-upgraded device.
+          await _healV55MonthlyPlanTables();
+          await _healV56MonthlyActivitiesTable();
+          await _healV59SurveyTables();
           if (from < 64) {
             // v64: calendar_tiles + late_pickups (lab graduated to
             // persistence). New tables; just create them. Cloud
