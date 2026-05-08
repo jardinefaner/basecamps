@@ -109,6 +109,26 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     super.initState();
     final now = DateTime.now();
     _anchorMonth = DateTime(now.year, now.month);
+
+    // If the user just landed here after creating tiles via
+    // Command Center, the store may already hold rows the
+    // current filters can't see. Auto-snap to the most recently
+    // added one on the next frame so navigation from /command
+    // doesn't dump the user onto an empty grid.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final tiles = ref.read(calendarTilesProvider);
+      if (tiles.isEmpty) return;
+      // Pick the newest tile by insertion order (Dart hash maps
+      // preserve insertion order).
+      final newest = tiles.values.last;
+      if (_isVisibleUnderCurrentFilters(newest)) return;
+      setState(() {
+        _activeGroupId = newest.groupId ?? _activeGroupId;
+        _activeType = newest.type;
+        _anchorMonth = DateTime(newest.date.year, newest.date.month);
+      });
+    });
   }
 
   @override
@@ -402,10 +422,39 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     final groupsAsync = ref.watch(groupsProvider);
     // Subscribe to the tile store so writes from elsewhere
     // (Command Center, eventually persisted variants) trigger a
-    // rebuild. The internal `_tiles` getter is a `ref.read` for
-    // inline call-site brevity — this watch is what actually
-    // wires reactivity.
+    // rebuild.
     ref.watch(calendarTilesProvider);
+
+    // Auto-snap filters to a newly-added tile that's NOT visible
+    // under the current filters. Without this, a tile created
+    // from the Command Center lands on a different group / type /
+    // month than the calendar is showing and silently disappears
+    // — the user reported "I added it, calendar's empty." We
+    // listen to the provider and, when the map's keyset GROWS
+    // (a new tile id appeared), check whether it's visible. If
+    // not, snap group/type/month to its values so it shows up.
+    ref.listen<Map<String, CalendarTile>>(
+      calendarTilesProvider,
+      (previous, next) {
+        if (previous == null) return;
+        if (next.length <= previous.length) return;
+        final newIds = next.keys.toSet().difference(previous.keys.toSet());
+        if (newIds.isEmpty) return;
+        // Take the most recently added tile (last in iteration
+        // order — `Map`-of-spread literal preserves insertion
+        // order for Dart's hash maps). Snap to it.
+        final tile = next[newIds.last];
+        if (tile == null) return;
+        final visibleNow =
+            _isVisibleUnderCurrentFilters(tile);
+        if (visibleNow) return;
+        setState(() {
+          _activeGroupId = tile.groupId ?? _activeGroupId;
+          _activeType = tile.type;
+          _anchorMonth = DateTime(tile.date.year, tile.date.month);
+        });
+      },
+    );
     return Scaffold(
       appBar: AppBar(
         title: Text(DateFormat.yMMMM().format(_anchorMonth)),
@@ -491,6 +540,21 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   /// Tiles visible under the current filter. "All" type shows
   /// everything for the active group; a specific type narrows
   /// to that type only.
+  /// True iff [tile] would render under the current filter
+  /// state. Used by the auto-snap logic when a new tile arrives
+  /// from outside the screen — if it'd be hidden, we snap to it
+  /// so the user actually sees what they just created.
+  bool _isVisibleUnderCurrentFilters(CalendarTile tile) {
+    if (tile.groupId != _activeGroupId) return false;
+    if (_activeType != null && tile.type != _activeType) return false;
+    final monthStart = _anchorMonth;
+    final monthEnd = DateTime(_anchorMonth.year, _anchorMonth.month + 1);
+    if (tile.date.isBefore(monthStart) || !tile.date.isBefore(monthEnd)) {
+      return false;
+    }
+    return true;
+  }
+
   Map<String, List<CalendarTile>> _visibleTiles() {
     final out = <String, List<CalendarTile>>{};
     for (final t in _tiles.values) {
