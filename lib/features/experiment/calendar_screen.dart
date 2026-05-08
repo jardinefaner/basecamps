@@ -34,6 +34,7 @@ import 'package:basecamp/features/ai/openai_client.dart';
 import 'package:basecamp/features/children/children_repository.dart'
     show groupsProvider;
 import 'package:basecamp/features/experiment/calendar_llm_service.dart';
+import 'package:basecamp/features/experiment/calendar_tile_store.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/adaptive_sheet.dart';
 import 'package:basecamp/ui/app_card.dart';
@@ -41,78 +42,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-// ═════════════════════════════════════════════════════════════════
-// Tile model
-// ═════════════════════════════════════════════════════════════════
-
-/// Three flavors today. Each one surfaces a different field set
-/// in the expand sheet, but they share the same storage shape —
-/// optional fields, populated on demand. This is the "one
-/// primitive with optional fields" model the brainstorm landed
-/// on.
-enum CalendarTileType {
-  trip('Trips', Icons.directions_bus_filled_outlined, 'trip'),
-  event('Events', Icons.celebration_outlined, 'event'),
-  dayPlan('Day plans', Icons.wb_sunny_outlined, 'day plan');
-
-  const CalendarTileType(this.pluralLabel, this.icon, this.singularLabel);
-
-  final String pluralLabel;
-  final IconData icon;
-  final String singularLabel;
-}
-
-class _CalendarTile {
-  _CalendarTile({
-    required this.id,
-    required this.type,
-    required this.date,
-    required this.groupId,
-    required this.title,
-  });
-
-  final String id;
-  final CalendarTileType type;
-  DateTime date; // day key (UTC midnight)
-  final String? groupId; // null = "all groups"
-  String title;
-
-  // Optional fields — populated by the expand sheet on demand.
-  // Empty/null means "the user hasn't set this." Keeping them as
-  // mutable fields (not constructor args) reflects the design:
-  // create with just a title, fill in the rest when needed.
-  String description = '';
-  String destination = ''; // trips
-  TimeOfDay? startTime; // trips, events
-  TimeOfDay? endTime; // trips, events
-  String theme = ''; // day plans
-  String notes = ''; // any
-
-  /// AI-scaffolded body: a list of timed blocks. For TRIPS, this is
-  /// the itinerary (8:00 leave, 8:30 arrive, 9–11 jellies + sharks,
-  /// …). For DAY PLANS, this is the day's schedule (8:30 morning
-  /// circle, 9:00 art, …). Empty until the teacher hits "generate";
-  /// editable in place after.
-  List<_ItineraryBlock> itinerary = <_ItineraryBlock>[];
-}
-
-/// One row in [_CalendarTile.itinerary]. Times are local (no
-/// timezone — the parent tile carries the date). All fields except
-/// id are user-editable; id is stable so the regenerate flow can
-/// dedupe rather than wipe.
-class _ItineraryBlock {
-  _ItineraryBlock({
-    required this.id,
-    required this.time,
-    required this.title,
-    this.description = '',
-  });
-
-  final String id;
-  TimeOfDay time;
-  String title;
-  String description;
-}
+// Tile model lives in `calendar_tile_store.dart` (public + Riverpod-
+// backed) so the Command Center can write tiles too. The screen
+// here just consumes the store.
 
 DateTime _dayKey(DateTime d) => DateTime.utc(d.year, d.month, d.day);
 
@@ -144,8 +76,18 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   /// Anchor month (always set to the first of the month).
   late DateTime _anchorMonth;
 
-  /// In-memory tile store. Keyed by id. Filtered for display.
-  final Map<String, _CalendarTile> _tiles = <String, _CalendarTile>{};
+  /// Tile store reads from the Riverpod-backed
+  /// `calendarTilesProvider`. The notifier owns the map; this
+  /// getter is a read-through. Build methods that need to
+  /// rebuild on changes call `ref.watch(...)` directly.
+  Map<String, CalendarTile> get _tiles =>
+      ref.read(calendarTilesProvider);
+
+  /// Write pipe — every place that used to do `_tiles[t.id] = t`
+  /// now goes through the notifier so all screens (including
+  /// the Command Center) see the change.
+  CalendarTilesNotifier get _tilesNotifier =>
+      ref.read(calendarTilesProvider.notifier);
 
   /// Inline-create tracking. When non-null, the matching cell
   /// renders a TextField in place of the "+ trip" affordance.
@@ -217,7 +159,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       _exitInlineEdit();
       return;
     }
-    final tile = _CalendarTile(
+    final tile = CalendarTile(
       id: _newId(),
       type: type,
       date: _dayKey(day),
@@ -225,7 +167,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       title: raw,
     );
     setState(() {
-      _tiles[tile.id] = tile;
+      _tilesNotifier.put(tile);
       _exitInlineEdit();
     });
   }
@@ -297,9 +239,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     // through to the active filter so the tile lands somewhere.
     final resolvedIds = _resolveGroupIds(draft.groupNames);
     if (resolvedIds.isEmpty) return;
-    final created = <_CalendarTile>[];
+    final created = <CalendarTile>[];
     for (final groupId in resolvedIds) {
-      final tile = _CalendarTile(
+      final tile = CalendarTile(
         id: _newId(),
         type: draft.type,
         date: _dayKey(draft.date),
@@ -316,7 +258,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     }
     setState(() {
       for (final t in created) {
-        _tiles[t.id] = t;
+        _tilesNotifier.put(t);
       }
       _dropDraft = null;
       _dropError = null;
@@ -442,13 +384,13 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
   // ——— Expand sheet ———————————————————————————————————————————
 
-  Future<void> _openTile(_CalendarTile tile) async {
+  Future<void> _openTile(CalendarTile tile) async {
     await showAdaptiveSheet<void>(
       context: context,
       builder: (_) => _TileEditorSheet(
         tile: tile,
         onChanged: () => setState(() {}),
-        onDelete: () => setState(() => _tiles.remove(tile.id)),
+        onDelete: () => setState(() => _tilesNotifier.remove(tile.id)),
       ),
     );
   }
@@ -458,6 +400,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   @override
   Widget build(BuildContext context) {
     final groupsAsync = ref.watch(groupsProvider);
+    // Subscribe to the tile store so writes from elsewhere
+    // (Command Center, eventually persisted variants) trigger a
+    // rebuild. The internal `_tiles` getter is a `ref.read` for
+    // inline call-site brevity — this watch is what actually
+    // wires reactivity.
+    ref.watch(calendarTilesProvider);
     return Scaffold(
       appBar: AppBar(
         title: Text(DateFormat.yMMMM().format(_anchorMonth)),
@@ -543,8 +491,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   /// Tiles visible under the current filter. "All" type shows
   /// everything for the active group; a specific type narrows
   /// to that type only.
-  Map<String, List<_CalendarTile>> _visibleTiles() {
-    final out = <String, List<_CalendarTile>>{};
+  Map<String, List<CalendarTile>> _visibleTiles() {
+    final out = <String, List<CalendarTile>>{};
     for (final t in _tiles.values) {
       if (t.groupId != _activeGroupId) continue;
       if (_activeType != null && t.type != _activeType) continue;
@@ -766,7 +714,7 @@ class _MonthGrid extends StatelessWidget {
   });
 
   final DateTime anchorMonth;
-  final Map<String, List<_CalendarTile>> tiles;
+  final Map<String, List<CalendarTile>> tiles;
   final String? inlineCellKey;
   final TextEditingController inlineCtrl;
   final FocusNode inlineFocus;
@@ -775,7 +723,7 @@ class _MonthGrid extends StatelessWidget {
   final ValueChanged<DateTime> onTapEmpty;
   final ValueChanged<DateTime> onSubmitInline;
   final VoidCallback onCancelInline;
-  final ValueChanged<_CalendarTile> onTapTile;
+  final ValueChanged<CalendarTile> onTapTile;
 
   // Min cell width — keeps each day readable on a phone. The
   // grid scrolls horizontally when the viewport is narrower than
@@ -914,7 +862,7 @@ class _Cell extends StatelessWidget {
 
   final DateTime day;
   final bool inMonth;
-  final List<_CalendarTile> tiles;
+  final List<CalendarTile> tiles;
   final bool isInlineEditing;
   final TextEditingController inlineCtrl;
   final FocusNode inlineFocus;
@@ -923,7 +871,7 @@ class _Cell extends StatelessWidget {
   final ValueChanged<DateTime> onTapEmpty;
   final ValueChanged<DateTime> onSubmitInline;
   final VoidCallback onCancelInline;
-  final ValueChanged<_CalendarTile> onTapTile;
+  final ValueChanged<CalendarTile> onTapTile;
 
   bool get _isToday {
     final now = DateTime.now();
@@ -1050,7 +998,7 @@ class _DayNumber extends StatelessWidget {
 class _TilePill extends StatelessWidget {
   const _TilePill({required this.tile, required this.onTap});
 
-  final _CalendarTile tile;
+  final CalendarTile tile;
   final VoidCallback onTap;
 
   @override
@@ -1178,7 +1126,7 @@ class _TileEditorSheet extends StatefulWidget {
     required this.onDelete,
   });
 
-  final _CalendarTile tile;
+  final CalendarTile tile;
   final VoidCallback onChanged;
   final VoidCallback onDelete;
 
@@ -1263,7 +1211,7 @@ class _TileEditorSheetState extends State<_TileEditorSheet> {
         t.itinerary
           ..clear()
           ..addAll(drafts.map(
-            (d) => _ItineraryBlock(
+            (d) => ItineraryBlock(
               id: _newId(),
               time: d.time,
               title: d.title,
@@ -1384,7 +1332,7 @@ class _TileEditorSheetState extends State<_TileEditorSheet> {
     );
   }
 
-  List<Widget> _typeSpecificFields(ThemeData theme, _CalendarTile t) {
+  List<Widget> _typeSpecificFields(ThemeData theme, CalendarTile t) {
     final itinerarySection = _ItinerarySection(
       tile: t,
       loading: _itineraryLoading,
@@ -1501,7 +1449,7 @@ class _TimeWindowRow extends StatelessWidget {
     required this.onChanged,
   });
 
-  final _CalendarTile tile;
+  final CalendarTile tile;
   final VoidCallback onChanged;
 
   Future<void> _pick({
@@ -1615,7 +1563,7 @@ class _ItinerarySection extends StatelessWidget {
     required this.onRemoveBlock,
   });
 
-  final _CalendarTile tile;
+  final CalendarTile tile;
   final bool loading;
   final String? error;
   final Future<void> Function() onGenerate;
@@ -1744,7 +1692,7 @@ class _ItineraryRow extends StatelessWidget {
     required this.onRemove,
   });
 
-  final _ItineraryBlock block;
+  final ItineraryBlock block;
   final VoidCallback onRemove;
 
   @override

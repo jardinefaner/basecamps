@@ -28,7 +28,9 @@ import 'package:basecamp/features/adults/adults_repository.dart'
 import 'package:basecamp/features/ai/openai_client.dart';
 import 'package:basecamp/features/children/children_repository.dart'
     show childrenProvider, groupsProvider;
+import 'package:basecamp/features/experiment/calendar_tile_store.dart';
 import 'package:basecamp/features/experiment/command_llm_service.dart';
+import 'package:basecamp/features/experiment/late_pickup_store.dart';
 import 'package:basecamp/features/experiment/late_pickup_llm_service.dart';
 import 'package:basecamp/features/observations/observations_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
@@ -157,6 +159,18 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
           ),
         );
       });
+      // Visual confirmation — the observation went to the cloud-
+      // synced repo so it's reachable from the Observations tab.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Observation saved.'),
+          action: SnackBarAction(
+            label: 'View',
+            onPressed: () => context.push('/observations'),
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
     } on Object catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -166,10 +180,34 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
   }
 
   void _commitCalendarTile(CalendarTileCommandDraft d) {
-    // The calendar tile doesn't persist (in-memory lab); we
-    // still surface it on the feed and link to /calendar so the
-    // teacher can finish there if they want a real tile.
     final c = d.calendar;
+    // Resolve a groupId for the new tile. The Command Center
+    // doesn't have a group filter today; default to the first
+    // group on the roster (matches the `/calendar` no-active-
+    // group fallback in `_resolveGroupIds`).
+    final groups = ref.read(groupsProvider).asData?.value ?? const [];
+    final groupId = groups.isEmpty ? null : groups.first.id;
+
+    // Push into the SHARED tile store so `/calendar` picks the
+    // tile up. The store rebuilds the calendar via `ref.watch`,
+    // so the moment the user navigates over they'll see it.
+    final tile = CalendarTile(
+      id: '${DateTime.now().microsecondsSinceEpoch}-${UniqueKey().hashCode}',
+      type: c.type,
+      date: DateTime.utc(c.date.year, c.date.month, c.date.day),
+      groupId: groupId,
+      title: c.title,
+    )
+      ..destination = c.destination ?? ''
+      ..startTime = c.startTime
+      ..endTime = c.endTime
+      ..theme = c.theme ?? ''
+      ..description = c.description ?? ''
+      ..notes = c.notes ?? '';
+    ref.read(calendarTilesProvider.notifier).put(tile);
+
+    // Surface it on the feed too so the teacher gets immediate
+    // visual feedback without having to nav.
     final timeFmt = DateFormat('h:mm a');
     final dateFmt = DateFormat.MMMEd();
     final summary = StringBuffer()..write(dateFmt.format(c.date));
@@ -201,6 +239,22 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
 
   void _commitLatePickup(LatePickupCommandDraft d) {
     final l = d.latePickup;
+
+    // Push into the shared late-entries store so `/late-pickup`
+    // sees the new row.
+    final entry = LateEntry(
+      id: '${DateTime.now().microsecondsSinceEpoch}-${UniqueKey().hashCode}',
+      date: l.date,
+      pickupTime: l.pickupTime,
+      childId: l.childId,
+      childName: l.childName,
+      parentName: l.parentName,
+      reminderCardGiven: l.reminderCardGiven,
+      staffName: l.staffName,
+      notes: l.notes ?? '',
+    );
+    ref.read(lateEntriesProvider.notifier).add(entry);
+
     final timeLabel = l.pickupTime.format(context);
     final summary = StringBuffer()..write(timeLabel);
     if (l.parentName.isNotEmpty) {

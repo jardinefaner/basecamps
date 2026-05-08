@@ -25,6 +25,7 @@ import 'package:basecamp/features/ai/openai_client.dart';
 import 'package:basecamp/features/children/children_repository.dart'
     show childrenProvider;
 import 'package:basecamp/features/experiment/late_pickup_llm_service.dart';
+import 'package:basecamp/features/experiment/late_pickup_store.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,29 +36,8 @@ import 'package:intl/intl.dart';
 // Entry model + screen
 // ═════════════════════════════════════════════════════════════════
 
-class _LateEntry {
-  _LateEntry({
-    required this.id,
-    required this.date,
-    required this.pickupTime,
-    required this.childId,
-    required this.childName,
-    required this.parentName,
-    required this.reminderCardGiven,
-    required this.staffName,
-    required this.notes,
-  });
-
-  final String id;
-  DateTime date;
-  TimeOfDay pickupTime;
-  String? childId;
-  String childName;
-  String parentName;
-  bool reminderCardGiven;
-  String staffName;
-  String notes;
-}
+// LateEntry lives in `late_pickup_store.dart` — public + Riverpod-
+// backed so the Command Center can add rows the screen will see.
 
 String _newId() =>
     '${DateTime.now().microsecondsSinceEpoch}-${UniqueKey().hashCode}';
@@ -70,7 +50,16 @@ class LatePickupScreen extends ConsumerStatefulWidget {
 }
 
 class _LatePickupScreenState extends ConsumerState<LatePickupScreen> {
-  final List<_LateEntry> _entries = <_LateEntry>[];
+  /// Read-through to the Riverpod-backed entries store. The
+  /// notifier owns the list; this getter is for inline call-site
+  /// brevity. The `build` method calls `ref.watch(...)` so changes
+  /// from elsewhere (Command Center) trigger a rebuild.
+  List<LateEntry> get _entries => ref.read(lateEntriesProvider);
+
+  /// Mutation pipe — every place that used to mutate the local
+  /// list goes through the notifier instead.
+  LateEntriesNotifier get _entriesNotifier =>
+      ref.read(lateEntriesProvider.notifier);
 
   // Drop-bar state. `_loading` while the LLM call is in flight;
   // `_draft` is the preview chip the teacher confirms or tweaks;
@@ -131,21 +120,20 @@ class _LatePickupScreenState extends ConsumerState<LatePickupScreen> {
   void _onConfirm() {
     final draft = _draft;
     if (draft == null) return;
+    _entriesNotifier.add(
+      LateEntry(
+        id: _newId(),
+        date: draft.date,
+        pickupTime: draft.pickupTime,
+        childId: draft.childId,
+        childName: draft.childName,
+        parentName: draft.parentName,
+        reminderCardGiven: draft.reminderCardGiven,
+        staffName: draft.staffName,
+        notes: draft.notes ?? '',
+      ),
+    );
     setState(() {
-      _entries.insert(
-        0,
-        _LateEntry(
-          id: _newId(),
-          date: draft.date,
-          pickupTime: draft.pickupTime,
-          childId: draft.childId,
-          childName: draft.childName,
-          parentName: draft.parentName,
-          reminderCardGiven: draft.reminderCardGiven,
-          staffName: draft.staffName,
-          notes: draft.notes ?? '',
-        ),
-      );
       _draft = null;
       _error = null;
     });
@@ -158,23 +146,23 @@ class _LatePickupScreenState extends ConsumerState<LatePickupScreen> {
     });
   }
 
-  void _onToggleReminder(_LateEntry e) {
-    setState(() {
-      e.reminderCardGiven = !e.reminderCardGiven;
-    });
+  void _onToggleReminder(LateEntry e) {
+    e.reminderCardGiven = !e.reminderCardGiven;
+    _entriesNotifier.touch();
   }
 
-  Future<void> _onEditNotes(_LateEntry e) async {
+  Future<void> _onEditNotes(LateEntry e) async {
     final newNotes = await showDialog<String>(
       context: context,
       builder: (ctx) => _NotesDialog(initial: e.notes),
     );
     if (newNotes == null) return;
-    setState(() => e.notes = newNotes);
+    e.notes = newNotes;
+    _entriesNotifier.touch();
   }
 
-  void _onDelete(_LateEntry e) {
-    setState(() => _entries.removeWhere((x) => x.id == e.id));
+  void _onDelete(LateEntry e) {
+    _entriesNotifier.remove(e.id);
   }
 
   // ——— Build ————————————————————————————————————————————————————
@@ -182,6 +170,9 @@ class _LatePickupScreenState extends ConsumerState<LatePickupScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Subscribe so writes from elsewhere (Command Center)
+    // rebuild this screen.
+    ref.watch(lateEntriesProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Late pickup log'),
@@ -262,10 +253,10 @@ class _LateLogSheet extends StatelessWidget {
     required this.onDelete,
   });
 
-  final List<_LateEntry> entries;
-  final ValueChanged<_LateEntry> onToggleReminder;
-  final ValueChanged<_LateEntry> onEditNotes;
-  final ValueChanged<_LateEntry> onDelete;
+  final List<LateEntry> entries;
+  final ValueChanged<LateEntry> onToggleReminder;
+  final ValueChanged<LateEntry> onEditNotes;
+  final ValueChanged<LateEntry> onDelete;
 
   static const double _rowHeight = 36;
   static const double _headerHeight = 36;
@@ -393,7 +384,7 @@ class _LateRow extends StatelessWidget {
     required this.onDelete,
   });
 
-  final _LateEntry entry;
+  final LateEntry entry;
   final List<_LateCol> cols;
   final double height;
   final ThemeData theme;
