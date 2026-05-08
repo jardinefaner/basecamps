@@ -29,6 +29,8 @@
 //   * AI scaffolding behind tiles (the day-plan-becomes-schedule
 //     bit) — comes after the surface itself feels right.
 
+import 'dart:async';
+
 import 'package:basecamp/database/database.dart' show Group;
 import 'package:basecamp/features/ai/openai_client.dart';
 import 'package:basecamp/features/children/children_repository.dart'
@@ -76,18 +78,21 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   /// Anchor month (always set to the first of the month).
   late DateTime _anchorMonth;
 
-  /// Tile store reads from the Riverpod-backed
-  /// `calendarTilesProvider`. The notifier owns the map; this
-  /// getter is a read-through. Build methods that need to
-  /// rebuild on changes call `ref.watch(...)` directly.
+  /// Tile store reads from the Drift-backed `calendarTilesProvider`
+  /// (StreamProvider). The repo owns the map; this getter is a
+  /// read-through that returns the latest emitted snapshot
+  /// (empty while the first emission is in flight). Build
+  /// methods that need to rebuild on changes call
+  /// `ref.watch(...)` directly.
   Map<String, CalendarTile> get _tiles =>
-      ref.read(calendarTilesProvider);
+      ref.read(calendarTilesProvider).asData?.value ??
+      const <String, CalendarTile>{};
 
-  /// Write pipe — every place that used to do `_tiles[t.id] = t`
-  /// now goes through the notifier so all screens (including
-  /// the Command Center) see the change.
-  CalendarTilesNotifier get _tilesNotifier =>
-      ref.read(calendarTilesProvider.notifier);
+  /// Write pipe — every place that used to mutate the in-memory
+  /// notifier now writes through the Drift-backed repo. The
+  /// stream provider re-emits, watchers rebuild.
+  CalendarTilesRepository get _tilesRepo =>
+      ref.read(calendarTilesRepoProvider);
 
   /// Inline-create tracking. When non-null, the matching cell
   /// renders a TextField in place of the "+ trip" affordance.
@@ -117,7 +122,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     // doesn't dump the user onto an empty grid.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final tiles = ref.read(calendarTilesProvider);
+      final tiles = ref.read(calendarTilesProvider).asData?.value ??
+          const <String, CalendarTile>{};
       if (tiles.isEmpty) return;
       // Pick the newest tile by insertion order (Dart hash maps
       // preserve insertion order).
@@ -187,7 +193,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       title: raw,
     );
     setState(() {
-      _tilesNotifier.put(tile);
+      unawaited(_tilesRepo.put(tile));
       _exitInlineEdit();
     });
   }
@@ -278,7 +284,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     }
     setState(() {
       for (final t in created) {
-        _tilesNotifier.put(t);
+        unawaited(_tilesRepo.put(t));
       }
       _dropDraft = null;
       _dropError = null;
@@ -410,7 +416,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       builder: (_) => _TileEditorSheet(
         tile: tile,
         onChanged: () => setState(() {}),
-        onDelete: () => setState(() => _tilesNotifier.remove(tile.id)),
+        onDelete: () => unawaited(_tilesRepo.remove(tile.id)),
       ),
     );
   }
@@ -433,21 +439,18 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     // listen to the provider and, when the map's keyset GROWS
     // (a new tile id appeared), check whether it's visible. If
     // not, snap group/type/month to its values so it shows up.
-    ref.listen<Map<String, CalendarTile>>(
+    ref.listen<AsyncValue<Map<String, CalendarTile>>>(
       calendarTilesProvider,
       (previous, next) {
-        if (previous == null) return;
-        if (next.length <= previous.length) return;
-        final newIds = next.keys.toSet().difference(previous.keys.toSet());
+        final prev = previous?.asData?.value;
+        final cur = next.asData?.value;
+        if (prev == null || cur == null) return;
+        if (cur.length <= prev.length) return;
+        final newIds = cur.keys.toSet().difference(prev.keys.toSet());
         if (newIds.isEmpty) return;
-        // Take the most recently added tile (last in iteration
-        // order — `Map`-of-spread literal preserves insertion
-        // order for Dart's hash maps). Snap to it.
-        final tile = next[newIds.last];
+        final tile = cur[newIds.last];
         if (tile == null) return;
-        final visibleNow =
-            _isVisibleUnderCurrentFilters(tile);
-        if (visibleNow) return;
+        if (_isVisibleUnderCurrentFilters(tile)) return;
         setState(() {
           _activeGroupId = tile.groupId ?? _activeGroupId;
           _activeType = tile.type;

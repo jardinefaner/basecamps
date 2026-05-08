@@ -26774,6 +26774,1683 @@ class PrintsCompanion extends UpdateCompanion<PrintRow> {
   }
 }
 
+class $CalendarTilesTableTable extends CalendarTilesTable
+    with TableInfo<$CalendarTilesTableTable, CalendarTileRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CalendarTilesTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _typeMeta = const VerificationMeta('type');
+  @override
+  late final GeneratedColumn<String> type = GeneratedColumn<String>(
+    'type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _dateMeta = const VerificationMeta('date');
+  @override
+  late final GeneratedColumn<DateTime> date = GeneratedColumn<DateTime>(
+    'date',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _groupIdMeta = const VerificationMeta(
+    'groupId',
+  );
+  @override
+  late final GeneratedColumn<String> groupId = GeneratedColumn<String>(
+    'group_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _destinationMeta = const VerificationMeta(
+    'destination',
+  );
+  @override
+  late final GeneratedColumn<String> destination = GeneratedColumn<String>(
+    'destination',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _startMinutesMeta = const VerificationMeta(
+    'startMinutes',
+  );
+  @override
+  late final GeneratedColumn<int> startMinutes = GeneratedColumn<int>(
+    'start_minutes',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _endMinutesMeta = const VerificationMeta(
+    'endMinutes',
+  );
+  @override
+  late final GeneratedColumn<int> endMinutes = GeneratedColumn<int>(
+    'end_minutes',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _themeMeta = const VerificationMeta('theme');
+  @override
+  late final GeneratedColumn<String> theme = GeneratedColumn<String>(
+    'theme',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+    'notes',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _itineraryJsonMeta = const VerificationMeta(
+    'itineraryJson',
+  );
+  @override
+  late final GeneratedColumn<String> itineraryJson = GeneratedColumn<String>(
+    'itinerary_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _programIdMeta = const VerificationMeta(
+    'programId',
+  );
+  @override
+  late final GeneratedColumn<String> programId = GeneratedColumn<String>(
+    'program_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    type,
+    date,
+    groupId,
+    title,
+    description,
+    destination,
+    startMinutes,
+    endMinutes,
+    theme,
+    notes,
+    itineraryJson,
+    programId,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'calendar_tiles';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CalendarTileRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('type')) {
+      context.handle(
+        _typeMeta,
+        type.isAcceptableOrUnknown(data['type']!, _typeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_typeMeta);
+    }
+    if (data.containsKey('date')) {
+      context.handle(
+        _dateMeta,
+        date.isAcceptableOrUnknown(data['date']!, _dateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dateMeta);
+    }
+    if (data.containsKey('group_id')) {
+      context.handle(
+        _groupIdMeta,
+        groupId.isAcceptableOrUnknown(data['group_id']!, _groupIdMeta),
+      );
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('destination')) {
+      context.handle(
+        _destinationMeta,
+        destination.isAcceptableOrUnknown(
+          data['destination']!,
+          _destinationMeta,
+        ),
+      );
+    }
+    if (data.containsKey('start_minutes')) {
+      context.handle(
+        _startMinutesMeta,
+        startMinutes.isAcceptableOrUnknown(
+          data['start_minutes']!,
+          _startMinutesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('end_minutes')) {
+      context.handle(
+        _endMinutesMeta,
+        endMinutes.isAcceptableOrUnknown(data['end_minutes']!, _endMinutesMeta),
+      );
+    }
+    if (data.containsKey('theme')) {
+      context.handle(
+        _themeMeta,
+        theme.isAcceptableOrUnknown(data['theme']!, _themeMeta),
+      );
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+        _notesMeta,
+        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
+      );
+    }
+    if (data.containsKey('itinerary_json')) {
+      context.handle(
+        _itineraryJsonMeta,
+        itineraryJson.isAcceptableOrUnknown(
+          data['itinerary_json']!,
+          _itineraryJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('program_id')) {
+      context.handle(
+        _programIdMeta,
+        programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CalendarTileRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CalendarTileRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      type: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}type'],
+      )!,
+      date: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}date'],
+      )!,
+      groupId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}group_id'],
+      ),
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      )!,
+      destination: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}destination'],
+      )!,
+      startMinutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_minutes'],
+      ),
+      endMinutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_minutes'],
+      ),
+      theme: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}theme'],
+      )!,
+      notes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes'],
+      )!,
+      itineraryJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}itinerary_json'],
+      )!,
+      programId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}program_id'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $CalendarTilesTableTable createAlias(String alias) {
+    return $CalendarTilesTableTable(attachedDatabase, alias);
+  }
+}
+
+class CalendarTileRow extends DataClass implements Insertable<CalendarTileRow> {
+  final String id;
+
+  /// 'trip' | 'event' | 'dayPlan' — the lab's `CalendarTileType`
+  /// enum's `name`.
+  final String type;
+
+  /// UTC midnight of the day the tile lands on.
+  final DateTime date;
+
+  /// Owning group. Nullable so a tile can be unowned during
+  /// freshly-loaded states; production callers always stamp a
+  /// real id.
+  final String? groupId;
+  final String title;
+  final String description;
+  final String destination;
+
+  /// Optional time window. Stored as minutes since midnight
+  /// (0..1439) so SQLite stays happy without a TimeOfDay type.
+  final int? startMinutes;
+  final int? endMinutes;
+  final String theme;
+  final String notes;
+
+  /// JSON array of itinerary blocks. Each entry has `id`,
+  /// `time` (HH:MM), `title`, `description`. Empty array
+  /// (`[]`) when the AI scaffold hasn't been generated.
+  final String itineraryJson;
+
+  /// Program scope for cloud sync (cloud migration 0038).
+  final String? programId;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  const CalendarTileRow({
+    required this.id,
+    required this.type,
+    required this.date,
+    this.groupId,
+    required this.title,
+    required this.description,
+    required this.destination,
+    this.startMinutes,
+    this.endMinutes,
+    required this.theme,
+    required this.notes,
+    required this.itineraryJson,
+    this.programId,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['type'] = Variable<String>(type);
+    map['date'] = Variable<DateTime>(date);
+    if (!nullToAbsent || groupId != null) {
+      map['group_id'] = Variable<String>(groupId);
+    }
+    map['title'] = Variable<String>(title);
+    map['description'] = Variable<String>(description);
+    map['destination'] = Variable<String>(destination);
+    if (!nullToAbsent || startMinutes != null) {
+      map['start_minutes'] = Variable<int>(startMinutes);
+    }
+    if (!nullToAbsent || endMinutes != null) {
+      map['end_minutes'] = Variable<int>(endMinutes);
+    }
+    map['theme'] = Variable<String>(theme);
+    map['notes'] = Variable<String>(notes);
+    map['itinerary_json'] = Variable<String>(itineraryJson);
+    if (!nullToAbsent || programId != null) {
+      map['program_id'] = Variable<String>(programId);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  CalendarTilesTableCompanion toCompanion(bool nullToAbsent) {
+    return CalendarTilesTableCompanion(
+      id: Value(id),
+      type: Value(type),
+      date: Value(date),
+      groupId: groupId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(groupId),
+      title: Value(title),
+      description: Value(description),
+      destination: Value(destination),
+      startMinutes: startMinutes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(startMinutes),
+      endMinutes: endMinutes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endMinutes),
+      theme: Value(theme),
+      notes: Value(notes),
+      itineraryJson: Value(itineraryJson),
+      programId: programId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(programId),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory CalendarTileRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CalendarTileRow(
+      id: serializer.fromJson<String>(json['id']),
+      type: serializer.fromJson<String>(json['type']),
+      date: serializer.fromJson<DateTime>(json['date']),
+      groupId: serializer.fromJson<String?>(json['groupId']),
+      title: serializer.fromJson<String>(json['title']),
+      description: serializer.fromJson<String>(json['description']),
+      destination: serializer.fromJson<String>(json['destination']),
+      startMinutes: serializer.fromJson<int?>(json['startMinutes']),
+      endMinutes: serializer.fromJson<int?>(json['endMinutes']),
+      theme: serializer.fromJson<String>(json['theme']),
+      notes: serializer.fromJson<String>(json['notes']),
+      itineraryJson: serializer.fromJson<String>(json['itineraryJson']),
+      programId: serializer.fromJson<String?>(json['programId']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'type': serializer.toJson<String>(type),
+      'date': serializer.toJson<DateTime>(date),
+      'groupId': serializer.toJson<String?>(groupId),
+      'title': serializer.toJson<String>(title),
+      'description': serializer.toJson<String>(description),
+      'destination': serializer.toJson<String>(destination),
+      'startMinutes': serializer.toJson<int?>(startMinutes),
+      'endMinutes': serializer.toJson<int?>(endMinutes),
+      'theme': serializer.toJson<String>(theme),
+      'notes': serializer.toJson<String>(notes),
+      'itineraryJson': serializer.toJson<String>(itineraryJson),
+      'programId': serializer.toJson<String?>(programId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  CalendarTileRow copyWith({
+    String? id,
+    String? type,
+    DateTime? date,
+    Value<String?> groupId = const Value.absent(),
+    String? title,
+    String? description,
+    String? destination,
+    Value<int?> startMinutes = const Value.absent(),
+    Value<int?> endMinutes = const Value.absent(),
+    String? theme,
+    String? notes,
+    String? itineraryJson,
+    Value<String?> programId = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => CalendarTileRow(
+    id: id ?? this.id,
+    type: type ?? this.type,
+    date: date ?? this.date,
+    groupId: groupId.present ? groupId.value : this.groupId,
+    title: title ?? this.title,
+    description: description ?? this.description,
+    destination: destination ?? this.destination,
+    startMinutes: startMinutes.present ? startMinutes.value : this.startMinutes,
+    endMinutes: endMinutes.present ? endMinutes.value : this.endMinutes,
+    theme: theme ?? this.theme,
+    notes: notes ?? this.notes,
+    itineraryJson: itineraryJson ?? this.itineraryJson,
+    programId: programId.present ? programId.value : this.programId,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  CalendarTileRow copyWithCompanion(CalendarTilesTableCompanion data) {
+    return CalendarTileRow(
+      id: data.id.present ? data.id.value : this.id,
+      type: data.type.present ? data.type.value : this.type,
+      date: data.date.present ? data.date.value : this.date,
+      groupId: data.groupId.present ? data.groupId.value : this.groupId,
+      title: data.title.present ? data.title.value : this.title,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      destination: data.destination.present
+          ? data.destination.value
+          : this.destination,
+      startMinutes: data.startMinutes.present
+          ? data.startMinutes.value
+          : this.startMinutes,
+      endMinutes: data.endMinutes.present
+          ? data.endMinutes.value
+          : this.endMinutes,
+      theme: data.theme.present ? data.theme.value : this.theme,
+      notes: data.notes.present ? data.notes.value : this.notes,
+      itineraryJson: data.itineraryJson.present
+          ? data.itineraryJson.value
+          : this.itineraryJson,
+      programId: data.programId.present ? data.programId.value : this.programId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CalendarTileRow(')
+          ..write('id: $id, ')
+          ..write('type: $type, ')
+          ..write('date: $date, ')
+          ..write('groupId: $groupId, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('destination: $destination, ')
+          ..write('startMinutes: $startMinutes, ')
+          ..write('endMinutes: $endMinutes, ')
+          ..write('theme: $theme, ')
+          ..write('notes: $notes, ')
+          ..write('itineraryJson: $itineraryJson, ')
+          ..write('programId: $programId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    type,
+    date,
+    groupId,
+    title,
+    description,
+    destination,
+    startMinutes,
+    endMinutes,
+    theme,
+    notes,
+    itineraryJson,
+    programId,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CalendarTileRow &&
+          other.id == this.id &&
+          other.type == this.type &&
+          other.date == this.date &&
+          other.groupId == this.groupId &&
+          other.title == this.title &&
+          other.description == this.description &&
+          other.destination == this.destination &&
+          other.startMinutes == this.startMinutes &&
+          other.endMinutes == this.endMinutes &&
+          other.theme == this.theme &&
+          other.notes == this.notes &&
+          other.itineraryJson == this.itineraryJson &&
+          other.programId == this.programId &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class CalendarTilesTableCompanion extends UpdateCompanion<CalendarTileRow> {
+  final Value<String> id;
+  final Value<String> type;
+  final Value<DateTime> date;
+  final Value<String?> groupId;
+  final Value<String> title;
+  final Value<String> description;
+  final Value<String> destination;
+  final Value<int?> startMinutes;
+  final Value<int?> endMinutes;
+  final Value<String> theme;
+  final Value<String> notes;
+  final Value<String> itineraryJson;
+  final Value<String?> programId;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const CalendarTilesTableCompanion({
+    this.id = const Value.absent(),
+    this.type = const Value.absent(),
+    this.date = const Value.absent(),
+    this.groupId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.description = const Value.absent(),
+    this.destination = const Value.absent(),
+    this.startMinutes = const Value.absent(),
+    this.endMinutes = const Value.absent(),
+    this.theme = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.itineraryJson = const Value.absent(),
+    this.programId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CalendarTilesTableCompanion.insert({
+    required String id,
+    required String type,
+    required DateTime date,
+    this.groupId = const Value.absent(),
+    required String title,
+    this.description = const Value.absent(),
+    this.destination = const Value.absent(),
+    this.startMinutes = const Value.absent(),
+    this.endMinutes = const Value.absent(),
+    this.theme = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.itineraryJson = const Value.absent(),
+    this.programId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       type = Value(type),
+       date = Value(date),
+       title = Value(title);
+  static Insertable<CalendarTileRow> custom({
+    Expression<String>? id,
+    Expression<String>? type,
+    Expression<DateTime>? date,
+    Expression<String>? groupId,
+    Expression<String>? title,
+    Expression<String>? description,
+    Expression<String>? destination,
+    Expression<int>? startMinutes,
+    Expression<int>? endMinutes,
+    Expression<String>? theme,
+    Expression<String>? notes,
+    Expression<String>? itineraryJson,
+    Expression<String>? programId,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (type != null) 'type': type,
+      if (date != null) 'date': date,
+      if (groupId != null) 'group_id': groupId,
+      if (title != null) 'title': title,
+      if (description != null) 'description': description,
+      if (destination != null) 'destination': destination,
+      if (startMinutes != null) 'start_minutes': startMinutes,
+      if (endMinutes != null) 'end_minutes': endMinutes,
+      if (theme != null) 'theme': theme,
+      if (notes != null) 'notes': notes,
+      if (itineraryJson != null) 'itinerary_json': itineraryJson,
+      if (programId != null) 'program_id': programId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CalendarTilesTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? type,
+    Value<DateTime>? date,
+    Value<String?>? groupId,
+    Value<String>? title,
+    Value<String>? description,
+    Value<String>? destination,
+    Value<int?>? startMinutes,
+    Value<int?>? endMinutes,
+    Value<String>? theme,
+    Value<String>? notes,
+    Value<String>? itineraryJson,
+    Value<String?>? programId,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return CalendarTilesTableCompanion(
+      id: id ?? this.id,
+      type: type ?? this.type,
+      date: date ?? this.date,
+      groupId: groupId ?? this.groupId,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      destination: destination ?? this.destination,
+      startMinutes: startMinutes ?? this.startMinutes,
+      endMinutes: endMinutes ?? this.endMinutes,
+      theme: theme ?? this.theme,
+      notes: notes ?? this.notes,
+      itineraryJson: itineraryJson ?? this.itineraryJson,
+      programId: programId ?? this.programId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (type.present) {
+      map['type'] = Variable<String>(type.value);
+    }
+    if (date.present) {
+      map['date'] = Variable<DateTime>(date.value);
+    }
+    if (groupId.present) {
+      map['group_id'] = Variable<String>(groupId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (destination.present) {
+      map['destination'] = Variable<String>(destination.value);
+    }
+    if (startMinutes.present) {
+      map['start_minutes'] = Variable<int>(startMinutes.value);
+    }
+    if (endMinutes.present) {
+      map['end_minutes'] = Variable<int>(endMinutes.value);
+    }
+    if (theme.present) {
+      map['theme'] = Variable<String>(theme.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
+    if (itineraryJson.present) {
+      map['itinerary_json'] = Variable<String>(itineraryJson.value);
+    }
+    if (programId.present) {
+      map['program_id'] = Variable<String>(programId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CalendarTilesTableCompanion(')
+          ..write('id: $id, ')
+          ..write('type: $type, ')
+          ..write('date: $date, ')
+          ..write('groupId: $groupId, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('destination: $destination, ')
+          ..write('startMinutes: $startMinutes, ')
+          ..write('endMinutes: $endMinutes, ')
+          ..write('theme: $theme, ')
+          ..write('notes: $notes, ')
+          ..write('itineraryJson: $itineraryJson, ')
+          ..write('programId: $programId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LatePickupsTableTable extends LatePickupsTable
+    with TableInfo<$LatePickupsTableTable, LatePickupRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LatePickupsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _dateMeta = const VerificationMeta('date');
+  @override
+  late final GeneratedColumn<DateTime> date = GeneratedColumn<DateTime>(
+    'date',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pickupMinutesMeta = const VerificationMeta(
+    'pickupMinutes',
+  );
+  @override
+  late final GeneratedColumn<int> pickupMinutes = GeneratedColumn<int>(
+    'pickup_minutes',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _childIdMeta = const VerificationMeta(
+    'childId',
+  );
+  @override
+  late final GeneratedColumn<String> childId = GeneratedColumn<String>(
+    'child_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _childNameMeta = const VerificationMeta(
+    'childName',
+  );
+  @override
+  late final GeneratedColumn<String> childName = GeneratedColumn<String>(
+    'child_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _parentNameMeta = const VerificationMeta(
+    'parentName',
+  );
+  @override
+  late final GeneratedColumn<String> parentName = GeneratedColumn<String>(
+    'parent_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _reminderCardGivenMeta = const VerificationMeta(
+    'reminderCardGiven',
+  );
+  @override
+  late final GeneratedColumn<bool> reminderCardGiven = GeneratedColumn<bool>(
+    'reminder_card_given',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("reminder_card_given" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _staffNameMeta = const VerificationMeta(
+    'staffName',
+  );
+  @override
+  late final GeneratedColumn<String> staffName = GeneratedColumn<String>(
+    'staff_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+    'notes',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _programIdMeta = const VerificationMeta(
+    'programId',
+  );
+  @override
+  late final GeneratedColumn<String> programId = GeneratedColumn<String>(
+    'program_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    date,
+    pickupMinutes,
+    childId,
+    childName,
+    parentName,
+    reminderCardGiven,
+    staffName,
+    notes,
+    programId,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'late_pickups';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LatePickupRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('date')) {
+      context.handle(
+        _dateMeta,
+        date.isAcceptableOrUnknown(data['date']!, _dateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dateMeta);
+    }
+    if (data.containsKey('pickup_minutes')) {
+      context.handle(
+        _pickupMinutesMeta,
+        pickupMinutes.isAcceptableOrUnknown(
+          data['pickup_minutes']!,
+          _pickupMinutesMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_pickupMinutesMeta);
+    }
+    if (data.containsKey('child_id')) {
+      context.handle(
+        _childIdMeta,
+        childId.isAcceptableOrUnknown(data['child_id']!, _childIdMeta),
+      );
+    }
+    if (data.containsKey('child_name')) {
+      context.handle(
+        _childNameMeta,
+        childName.isAcceptableOrUnknown(data['child_name']!, _childNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_childNameMeta);
+    }
+    if (data.containsKey('parent_name')) {
+      context.handle(
+        _parentNameMeta,
+        parentName.isAcceptableOrUnknown(data['parent_name']!, _parentNameMeta),
+      );
+    }
+    if (data.containsKey('reminder_card_given')) {
+      context.handle(
+        _reminderCardGivenMeta,
+        reminderCardGiven.isAcceptableOrUnknown(
+          data['reminder_card_given']!,
+          _reminderCardGivenMeta,
+        ),
+      );
+    }
+    if (data.containsKey('staff_name')) {
+      context.handle(
+        _staffNameMeta,
+        staffName.isAcceptableOrUnknown(data['staff_name']!, _staffNameMeta),
+      );
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+        _notesMeta,
+        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
+      );
+    }
+    if (data.containsKey('program_id')) {
+      context.handle(
+        _programIdMeta,
+        programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  LatePickupRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LatePickupRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      date: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}date'],
+      )!,
+      pickupMinutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}pickup_minutes'],
+      )!,
+      childId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}child_id'],
+      ),
+      childName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}child_name'],
+      )!,
+      parentName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}parent_name'],
+      )!,
+      reminderCardGiven: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}reminder_card_given'],
+      )!,
+      staffName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}staff_name'],
+      )!,
+      notes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes'],
+      )!,
+      programId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}program_id'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $LatePickupsTableTable createAlias(String alias) {
+    return $LatePickupsTableTable(attachedDatabase, alias);
+  }
+}
+
+class LatePickupRow extends DataClass implements Insertable<LatePickupRow> {
+  final String id;
+
+  /// UTC midnight of the day the pickup happened.
+  final DateTime date;
+
+  /// Pickup time stored as minutes since midnight.
+  final int pickupMinutes;
+  final String? childId;
+  final String childName;
+  final String parentName;
+  final bool reminderCardGiven;
+  final String staffName;
+  final String notes;
+
+  /// Program scope for cloud sync.
+  final String? programId;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  const LatePickupRow({
+    required this.id,
+    required this.date,
+    required this.pickupMinutes,
+    this.childId,
+    required this.childName,
+    required this.parentName,
+    required this.reminderCardGiven,
+    required this.staffName,
+    required this.notes,
+    this.programId,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['date'] = Variable<DateTime>(date);
+    map['pickup_minutes'] = Variable<int>(pickupMinutes);
+    if (!nullToAbsent || childId != null) {
+      map['child_id'] = Variable<String>(childId);
+    }
+    map['child_name'] = Variable<String>(childName);
+    map['parent_name'] = Variable<String>(parentName);
+    map['reminder_card_given'] = Variable<bool>(reminderCardGiven);
+    map['staff_name'] = Variable<String>(staffName);
+    map['notes'] = Variable<String>(notes);
+    if (!nullToAbsent || programId != null) {
+      map['program_id'] = Variable<String>(programId);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  LatePickupsTableCompanion toCompanion(bool nullToAbsent) {
+    return LatePickupsTableCompanion(
+      id: Value(id),
+      date: Value(date),
+      pickupMinutes: Value(pickupMinutes),
+      childId: childId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(childId),
+      childName: Value(childName),
+      parentName: Value(parentName),
+      reminderCardGiven: Value(reminderCardGiven),
+      staffName: Value(staffName),
+      notes: Value(notes),
+      programId: programId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(programId),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory LatePickupRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LatePickupRow(
+      id: serializer.fromJson<String>(json['id']),
+      date: serializer.fromJson<DateTime>(json['date']),
+      pickupMinutes: serializer.fromJson<int>(json['pickupMinutes']),
+      childId: serializer.fromJson<String?>(json['childId']),
+      childName: serializer.fromJson<String>(json['childName']),
+      parentName: serializer.fromJson<String>(json['parentName']),
+      reminderCardGiven: serializer.fromJson<bool>(json['reminderCardGiven']),
+      staffName: serializer.fromJson<String>(json['staffName']),
+      notes: serializer.fromJson<String>(json['notes']),
+      programId: serializer.fromJson<String?>(json['programId']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'date': serializer.toJson<DateTime>(date),
+      'pickupMinutes': serializer.toJson<int>(pickupMinutes),
+      'childId': serializer.toJson<String?>(childId),
+      'childName': serializer.toJson<String>(childName),
+      'parentName': serializer.toJson<String>(parentName),
+      'reminderCardGiven': serializer.toJson<bool>(reminderCardGiven),
+      'staffName': serializer.toJson<String>(staffName),
+      'notes': serializer.toJson<String>(notes),
+      'programId': serializer.toJson<String?>(programId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  LatePickupRow copyWith({
+    String? id,
+    DateTime? date,
+    int? pickupMinutes,
+    Value<String?> childId = const Value.absent(),
+    String? childName,
+    String? parentName,
+    bool? reminderCardGiven,
+    String? staffName,
+    String? notes,
+    Value<String?> programId = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => LatePickupRow(
+    id: id ?? this.id,
+    date: date ?? this.date,
+    pickupMinutes: pickupMinutes ?? this.pickupMinutes,
+    childId: childId.present ? childId.value : this.childId,
+    childName: childName ?? this.childName,
+    parentName: parentName ?? this.parentName,
+    reminderCardGiven: reminderCardGiven ?? this.reminderCardGiven,
+    staffName: staffName ?? this.staffName,
+    notes: notes ?? this.notes,
+    programId: programId.present ? programId.value : this.programId,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  LatePickupRow copyWithCompanion(LatePickupsTableCompanion data) {
+    return LatePickupRow(
+      id: data.id.present ? data.id.value : this.id,
+      date: data.date.present ? data.date.value : this.date,
+      pickupMinutes: data.pickupMinutes.present
+          ? data.pickupMinutes.value
+          : this.pickupMinutes,
+      childId: data.childId.present ? data.childId.value : this.childId,
+      childName: data.childName.present ? data.childName.value : this.childName,
+      parentName: data.parentName.present
+          ? data.parentName.value
+          : this.parentName,
+      reminderCardGiven: data.reminderCardGiven.present
+          ? data.reminderCardGiven.value
+          : this.reminderCardGiven,
+      staffName: data.staffName.present ? data.staffName.value : this.staffName,
+      notes: data.notes.present ? data.notes.value : this.notes,
+      programId: data.programId.present ? data.programId.value : this.programId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LatePickupRow(')
+          ..write('id: $id, ')
+          ..write('date: $date, ')
+          ..write('pickupMinutes: $pickupMinutes, ')
+          ..write('childId: $childId, ')
+          ..write('childName: $childName, ')
+          ..write('parentName: $parentName, ')
+          ..write('reminderCardGiven: $reminderCardGiven, ')
+          ..write('staffName: $staffName, ')
+          ..write('notes: $notes, ')
+          ..write('programId: $programId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    date,
+    pickupMinutes,
+    childId,
+    childName,
+    parentName,
+    reminderCardGiven,
+    staffName,
+    notes,
+    programId,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LatePickupRow &&
+          other.id == this.id &&
+          other.date == this.date &&
+          other.pickupMinutes == this.pickupMinutes &&
+          other.childId == this.childId &&
+          other.childName == this.childName &&
+          other.parentName == this.parentName &&
+          other.reminderCardGiven == this.reminderCardGiven &&
+          other.staffName == this.staffName &&
+          other.notes == this.notes &&
+          other.programId == this.programId &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class LatePickupsTableCompanion extends UpdateCompanion<LatePickupRow> {
+  final Value<String> id;
+  final Value<DateTime> date;
+  final Value<int> pickupMinutes;
+  final Value<String?> childId;
+  final Value<String> childName;
+  final Value<String> parentName;
+  final Value<bool> reminderCardGiven;
+  final Value<String> staffName;
+  final Value<String> notes;
+  final Value<String?> programId;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const LatePickupsTableCompanion({
+    this.id = const Value.absent(),
+    this.date = const Value.absent(),
+    this.pickupMinutes = const Value.absent(),
+    this.childId = const Value.absent(),
+    this.childName = const Value.absent(),
+    this.parentName = const Value.absent(),
+    this.reminderCardGiven = const Value.absent(),
+    this.staffName = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.programId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  LatePickupsTableCompanion.insert({
+    required String id,
+    required DateTime date,
+    required int pickupMinutes,
+    this.childId = const Value.absent(),
+    required String childName,
+    this.parentName = const Value.absent(),
+    this.reminderCardGiven = const Value.absent(),
+    this.staffName = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.programId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       date = Value(date),
+       pickupMinutes = Value(pickupMinutes),
+       childName = Value(childName);
+  static Insertable<LatePickupRow> custom({
+    Expression<String>? id,
+    Expression<DateTime>? date,
+    Expression<int>? pickupMinutes,
+    Expression<String>? childId,
+    Expression<String>? childName,
+    Expression<String>? parentName,
+    Expression<bool>? reminderCardGiven,
+    Expression<String>? staffName,
+    Expression<String>? notes,
+    Expression<String>? programId,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (date != null) 'date': date,
+      if (pickupMinutes != null) 'pickup_minutes': pickupMinutes,
+      if (childId != null) 'child_id': childId,
+      if (childName != null) 'child_name': childName,
+      if (parentName != null) 'parent_name': parentName,
+      if (reminderCardGiven != null) 'reminder_card_given': reminderCardGiven,
+      if (staffName != null) 'staff_name': staffName,
+      if (notes != null) 'notes': notes,
+      if (programId != null) 'program_id': programId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  LatePickupsTableCompanion copyWith({
+    Value<String>? id,
+    Value<DateTime>? date,
+    Value<int>? pickupMinutes,
+    Value<String?>? childId,
+    Value<String>? childName,
+    Value<String>? parentName,
+    Value<bool>? reminderCardGiven,
+    Value<String>? staffName,
+    Value<String>? notes,
+    Value<String?>? programId,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return LatePickupsTableCompanion(
+      id: id ?? this.id,
+      date: date ?? this.date,
+      pickupMinutes: pickupMinutes ?? this.pickupMinutes,
+      childId: childId ?? this.childId,
+      childName: childName ?? this.childName,
+      parentName: parentName ?? this.parentName,
+      reminderCardGiven: reminderCardGiven ?? this.reminderCardGiven,
+      staffName: staffName ?? this.staffName,
+      notes: notes ?? this.notes,
+      programId: programId ?? this.programId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (date.present) {
+      map['date'] = Variable<DateTime>(date.value);
+    }
+    if (pickupMinutes.present) {
+      map['pickup_minutes'] = Variable<int>(pickupMinutes.value);
+    }
+    if (childId.present) {
+      map['child_id'] = Variable<String>(childId.value);
+    }
+    if (childName.present) {
+      map['child_name'] = Variable<String>(childName.value);
+    }
+    if (parentName.present) {
+      map['parent_name'] = Variable<String>(parentName.value);
+    }
+    if (reminderCardGiven.present) {
+      map['reminder_card_given'] = Variable<bool>(reminderCardGiven.value);
+    }
+    if (staffName.present) {
+      map['staff_name'] = Variable<String>(staffName.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
+    if (programId.present) {
+      map['program_id'] = Variable<String>(programId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LatePickupsTableCompanion(')
+          ..write('id: $id, ')
+          ..write('date: $date, ')
+          ..write('pickupMinutes: $pickupMinutes, ')
+          ..write('childId: $childId, ')
+          ..write('childName: $childName, ')
+          ..write('parentName: $parentName, ')
+          ..write('reminderCardGiven: $reminderCardGiven, ')
+          ..write('staffName: $staffName, ')
+          ..write('notes: $notes, ')
+          ..write('programId: $programId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -26848,6 +28525,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $PrintsTable prints = $PrintsTable(this);
+  late final $CalendarTilesTableTable calendarTilesTable =
+      $CalendarTilesTableTable(this);
+  late final $LatePickupsTableTable latePickupsTable = $LatePickupsTableTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -26897,6 +28579,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     surveySessions,
     surveyResponses,
     prints,
+    calendarTilesTable,
+    latePickupsTable,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -51675,6 +53359,802 @@ typedef $$PrintsTableProcessedTableManager =
       PrintRow,
       PrefetchHooks Function()
     >;
+typedef $$CalendarTilesTableTableCreateCompanionBuilder =
+    CalendarTilesTableCompanion Function({
+      required String id,
+      required String type,
+      required DateTime date,
+      Value<String?> groupId,
+      required String title,
+      Value<String> description,
+      Value<String> destination,
+      Value<int?> startMinutes,
+      Value<int?> endMinutes,
+      Value<String> theme,
+      Value<String> notes,
+      Value<String> itineraryJson,
+      Value<String?> programId,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$CalendarTilesTableTableUpdateCompanionBuilder =
+    CalendarTilesTableCompanion Function({
+      Value<String> id,
+      Value<String> type,
+      Value<DateTime> date,
+      Value<String?> groupId,
+      Value<String> title,
+      Value<String> description,
+      Value<String> destination,
+      Value<int?> startMinutes,
+      Value<int?> endMinutes,
+      Value<String> theme,
+      Value<String> notes,
+      Value<String> itineraryJson,
+      Value<String?> programId,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$CalendarTilesTableTableFilterComposer
+    extends Composer<_$AppDatabase, $CalendarTilesTableTable> {
+  $$CalendarTilesTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get groupId => $composableBuilder(
+    column: $table.groupId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get destination => $composableBuilder(
+    column: $table.destination,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startMinutes => $composableBuilder(
+    column: $table.startMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endMinutes => $composableBuilder(
+    column: $table.endMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get theme => $composableBuilder(
+    column: $table.theme,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get itineraryJson => $composableBuilder(
+    column: $table.itineraryJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get programId => $composableBuilder(
+    column: $table.programId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CalendarTilesTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $CalendarTilesTableTable> {
+  $$CalendarTilesTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get groupId => $composableBuilder(
+    column: $table.groupId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get destination => $composableBuilder(
+    column: $table.destination,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startMinutes => $composableBuilder(
+    column: $table.startMinutes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endMinutes => $composableBuilder(
+    column: $table.endMinutes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get theme => $composableBuilder(
+    column: $table.theme,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get itineraryJson => $composableBuilder(
+    column: $table.itineraryJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get programId => $composableBuilder(
+    column: $table.programId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CalendarTilesTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CalendarTilesTableTable> {
+  $$CalendarTilesTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get date =>
+      $composableBuilder(column: $table.date, builder: (column) => column);
+
+  GeneratedColumn<String> get groupId =>
+      $composableBuilder(column: $table.groupId, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get destination => $composableBuilder(
+    column: $table.destination,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get startMinutes => $composableBuilder(
+    column: $table.startMinutes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get endMinutes => $composableBuilder(
+    column: $table.endMinutes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get theme =>
+      $composableBuilder(column: $table.theme, builder: (column) => column);
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<String> get itineraryJson => $composableBuilder(
+    column: $table.itineraryJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get programId =>
+      $composableBuilder(column: $table.programId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$CalendarTilesTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CalendarTilesTableTable,
+          CalendarTileRow,
+          $$CalendarTilesTableTableFilterComposer,
+          $$CalendarTilesTableTableOrderingComposer,
+          $$CalendarTilesTableTableAnnotationComposer,
+          $$CalendarTilesTableTableCreateCompanionBuilder,
+          $$CalendarTilesTableTableUpdateCompanionBuilder,
+          (
+            CalendarTileRow,
+            BaseReferences<
+              _$AppDatabase,
+              $CalendarTilesTableTable,
+              CalendarTileRow
+            >,
+          ),
+          CalendarTileRow,
+          PrefetchHooks Function()
+        > {
+  $$CalendarTilesTableTableTableManager(
+    _$AppDatabase db,
+    $CalendarTilesTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CalendarTilesTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CalendarTilesTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CalendarTilesTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> type = const Value.absent(),
+                Value<DateTime> date = const Value.absent(),
+                Value<String?> groupId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> description = const Value.absent(),
+                Value<String> destination = const Value.absent(),
+                Value<int?> startMinutes = const Value.absent(),
+                Value<int?> endMinutes = const Value.absent(),
+                Value<String> theme = const Value.absent(),
+                Value<String> notes = const Value.absent(),
+                Value<String> itineraryJson = const Value.absent(),
+                Value<String?> programId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CalendarTilesTableCompanion(
+                id: id,
+                type: type,
+                date: date,
+                groupId: groupId,
+                title: title,
+                description: description,
+                destination: destination,
+                startMinutes: startMinutes,
+                endMinutes: endMinutes,
+                theme: theme,
+                notes: notes,
+                itineraryJson: itineraryJson,
+                programId: programId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String type,
+                required DateTime date,
+                Value<String?> groupId = const Value.absent(),
+                required String title,
+                Value<String> description = const Value.absent(),
+                Value<String> destination = const Value.absent(),
+                Value<int?> startMinutes = const Value.absent(),
+                Value<int?> endMinutes = const Value.absent(),
+                Value<String> theme = const Value.absent(),
+                Value<String> notes = const Value.absent(),
+                Value<String> itineraryJson = const Value.absent(),
+                Value<String?> programId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CalendarTilesTableCompanion.insert(
+                id: id,
+                type: type,
+                date: date,
+                groupId: groupId,
+                title: title,
+                description: description,
+                destination: destination,
+                startMinutes: startMinutes,
+                endMinutes: endMinutes,
+                theme: theme,
+                notes: notes,
+                itineraryJson: itineraryJson,
+                programId: programId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CalendarTilesTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CalendarTilesTableTable,
+      CalendarTileRow,
+      $$CalendarTilesTableTableFilterComposer,
+      $$CalendarTilesTableTableOrderingComposer,
+      $$CalendarTilesTableTableAnnotationComposer,
+      $$CalendarTilesTableTableCreateCompanionBuilder,
+      $$CalendarTilesTableTableUpdateCompanionBuilder,
+      (
+        CalendarTileRow,
+        BaseReferences<
+          _$AppDatabase,
+          $CalendarTilesTableTable,
+          CalendarTileRow
+        >,
+      ),
+      CalendarTileRow,
+      PrefetchHooks Function()
+    >;
+typedef $$LatePickupsTableTableCreateCompanionBuilder =
+    LatePickupsTableCompanion Function({
+      required String id,
+      required DateTime date,
+      required int pickupMinutes,
+      Value<String?> childId,
+      required String childName,
+      Value<String> parentName,
+      Value<bool> reminderCardGiven,
+      Value<String> staffName,
+      Value<String> notes,
+      Value<String?> programId,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$LatePickupsTableTableUpdateCompanionBuilder =
+    LatePickupsTableCompanion Function({
+      Value<String> id,
+      Value<DateTime> date,
+      Value<int> pickupMinutes,
+      Value<String?> childId,
+      Value<String> childName,
+      Value<String> parentName,
+      Value<bool> reminderCardGiven,
+      Value<String> staffName,
+      Value<String> notes,
+      Value<String?> programId,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$LatePickupsTableTableFilterComposer
+    extends Composer<_$AppDatabase, $LatePickupsTableTable> {
+  $$LatePickupsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get pickupMinutes => $composableBuilder(
+    column: $table.pickupMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get childId => $composableBuilder(
+    column: $table.childId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get childName => $composableBuilder(
+    column: $table.childName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get parentName => $composableBuilder(
+    column: $table.parentName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get reminderCardGiven => $composableBuilder(
+    column: $table.reminderCardGiven,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get staffName => $composableBuilder(
+    column: $table.staffName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get programId => $composableBuilder(
+    column: $table.programId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$LatePickupsTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $LatePickupsTableTable> {
+  $$LatePickupsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get pickupMinutes => $composableBuilder(
+    column: $table.pickupMinutes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get childId => $composableBuilder(
+    column: $table.childId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get childName => $composableBuilder(
+    column: $table.childName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get parentName => $composableBuilder(
+    column: $table.parentName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get reminderCardGiven => $composableBuilder(
+    column: $table.reminderCardGiven,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get staffName => $composableBuilder(
+    column: $table.staffName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get programId => $composableBuilder(
+    column: $table.programId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$LatePickupsTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $LatePickupsTableTable> {
+  $$LatePickupsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get date =>
+      $composableBuilder(column: $table.date, builder: (column) => column);
+
+  GeneratedColumn<int> get pickupMinutes => $composableBuilder(
+    column: $table.pickupMinutes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get childId =>
+      $composableBuilder(column: $table.childId, builder: (column) => column);
+
+  GeneratedColumn<String> get childName =>
+      $composableBuilder(column: $table.childName, builder: (column) => column);
+
+  GeneratedColumn<String> get parentName => $composableBuilder(
+    column: $table.parentName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get reminderCardGiven => $composableBuilder(
+    column: $table.reminderCardGiven,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get staffName =>
+      $composableBuilder(column: $table.staffName, builder: (column) => column);
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<String> get programId =>
+      $composableBuilder(column: $table.programId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$LatePickupsTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $LatePickupsTableTable,
+          LatePickupRow,
+          $$LatePickupsTableTableFilterComposer,
+          $$LatePickupsTableTableOrderingComposer,
+          $$LatePickupsTableTableAnnotationComposer,
+          $$LatePickupsTableTableCreateCompanionBuilder,
+          $$LatePickupsTableTableUpdateCompanionBuilder,
+          (
+            LatePickupRow,
+            BaseReferences<
+              _$AppDatabase,
+              $LatePickupsTableTable,
+              LatePickupRow
+            >,
+          ),
+          LatePickupRow,
+          PrefetchHooks Function()
+        > {
+  $$LatePickupsTableTableTableManager(
+    _$AppDatabase db,
+    $LatePickupsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LatePickupsTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$LatePickupsTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$LatePickupsTableTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> date = const Value.absent(),
+                Value<int> pickupMinutes = const Value.absent(),
+                Value<String?> childId = const Value.absent(),
+                Value<String> childName = const Value.absent(),
+                Value<String> parentName = const Value.absent(),
+                Value<bool> reminderCardGiven = const Value.absent(),
+                Value<String> staffName = const Value.absent(),
+                Value<String> notes = const Value.absent(),
+                Value<String?> programId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LatePickupsTableCompanion(
+                id: id,
+                date: date,
+                pickupMinutes: pickupMinutes,
+                childId: childId,
+                childName: childName,
+                parentName: parentName,
+                reminderCardGiven: reminderCardGiven,
+                staffName: staffName,
+                notes: notes,
+                programId: programId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required DateTime date,
+                required int pickupMinutes,
+                Value<String?> childId = const Value.absent(),
+                required String childName,
+                Value<String> parentName = const Value.absent(),
+                Value<bool> reminderCardGiven = const Value.absent(),
+                Value<String> staffName = const Value.absent(),
+                Value<String> notes = const Value.absent(),
+                Value<String?> programId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LatePickupsTableCompanion.insert(
+                id: id,
+                date: date,
+                pickupMinutes: pickupMinutes,
+                childId: childId,
+                childName: childName,
+                parentName: parentName,
+                reminderCardGiven: reminderCardGiven,
+                staffName: staffName,
+                notes: notes,
+                programId: programId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$LatePickupsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $LatePickupsTableTable,
+      LatePickupRow,
+      $$LatePickupsTableTableFilterComposer,
+      $$LatePickupsTableTableOrderingComposer,
+      $$LatePickupsTableTableAnnotationComposer,
+      $$LatePickupsTableTableCreateCompanionBuilder,
+      $$LatePickupsTableTableUpdateCompanionBuilder,
+      (
+        LatePickupRow,
+        BaseReferences<_$AppDatabase, $LatePickupsTableTable, LatePickupRow>,
+      ),
+      LatePickupRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -51779,4 +54259,8 @@ class $AppDatabaseManager {
       $$SurveyResponsesTableTableManager(_db, _db.surveyResponses);
   $$PrintsTableTableManager get prints =>
       $$PrintsTableTableManager(_db, _db.prints);
+  $$CalendarTilesTableTableTableManager get calendarTilesTable =>
+      $$CalendarTilesTableTableTableManager(_db, _db.calendarTilesTable);
+  $$LatePickupsTableTableTableManager get latePickupsTable =>
+      $$LatePickupsTableTableTableManager(_db, _db.latePickupsTable);
 }

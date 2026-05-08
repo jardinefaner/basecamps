@@ -56,4 +56,9 @@ const List<String> kSyncedTableNames = <String>[
   // tagged independently (they piggyback on the parent's program
   // scope through the FK chain).
   'surveys',
+  // v64 (cloud migration 0038) — Lab features graduated to
+  // persistence + cross-device. Both program_id-scoped; no
+  // cascades.
+  'calendar_tiles',
+  'late_pickups',
 ];

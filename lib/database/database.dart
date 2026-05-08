@@ -72,6 +72,8 @@ QueryExecutor _openConnection() {
     SurveySessions,
     SurveyResponses,
     Prints,
+    CalendarTilesTable,
+    LatePickupsTable,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -80,7 +82,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 63;
+  int get schemaVersion => 64;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -140,6 +142,13 @@ class AppDatabase extends _$AppDatabase {
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
             );
+          }
+          if (from < 64) {
+            // v64: calendar_tiles + late_pickups (lab graduated to
+            // persistence). New tables; just create them. Cloud
+            // parity: migration 0038.
+            await m.createTable(calendarTilesTable);
+            await m.createTable(latePickupsTable);
           }
           if (from < 63) {
             // v63: program_id columns on surveys / survey_sessions /

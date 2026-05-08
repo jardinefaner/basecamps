@@ -1952,3 +1952,103 @@ class Prints extends Table {
   @override
   String? get tableName => 'prints';
 }
+
+/// v64 — Calendar tiles (lab graduated to persistence).
+///
+/// One row per scheduled item — trip, event, or day-plan. Used
+/// to live as in-memory `Map<String, CalendarTile>` in the
+/// lab's Riverpod notifier; promoted to Drift so creates from
+/// the Command Center survive an app restart.
+///
+/// Itinerary blocks live as a JSON column (not a separate
+/// cascade table). Querying within itineraries is rare and the
+/// blob is small (5-10 entries × ~120 chars). When that
+/// changes, split into `calendar_tile_itinerary` later.
+@DataClassName('CalendarTileRow')
+class CalendarTilesTable extends Table {
+  TextColumn get id => text()();
+
+  /// 'trip' | 'event' | 'dayPlan' — the lab's `CalendarTileType`
+  /// enum's `name`.
+  TextColumn get type => text()();
+
+  /// UTC midnight of the day the tile lands on.
+  DateTimeColumn get date => dateTime()();
+
+  /// Owning group. Nullable so a tile can be unowned during
+  /// freshly-loaded states; production callers always stamp a
+  /// real id.
+  TextColumn get groupId => text().nullable()();
+
+  TextColumn get title => text()();
+  TextColumn get description => text().withDefault(const Constant(''))();
+  TextColumn get destination => text().withDefault(const Constant(''))();
+
+  /// Optional time window. Stored as minutes since midnight
+  /// (0..1439) so SQLite stays happy without a TimeOfDay type.
+  IntColumn get startMinutes => integer().nullable()();
+  IntColumn get endMinutes => integer().nullable()();
+
+  TextColumn get theme => text().withDefault(const Constant(''))();
+  TextColumn get notes => text().withDefault(const Constant(''))();
+
+  /// JSON array of itinerary blocks. Each entry has `id`,
+  /// `time` (HH:MM), `title`, `description`. Empty array
+  /// (`[]`) when the AI scaffold hasn't been generated.
+  TextColumn get itineraryJson =>
+      text().withDefault(const Constant('[]'))();
+
+  /// Program scope for cloud sync (cloud migration 0038).
+  TextColumn get programId => text().nullable()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  String? get tableName => 'calendar_tiles';
+}
+
+/// v64 — Late-pickup log entries (lab graduated to persistence).
+///
+/// One row per kid picked up after closing. Same fields as the
+/// in-memory `LateEntry` lab class; persists so a busy week's
+/// entries survive an app restart and sync across devices.
+@DataClassName('LatePickupRow')
+class LatePickupsTable extends Table {
+  TextColumn get id => text()();
+
+  /// UTC midnight of the day the pickup happened.
+  DateTimeColumn get date => dateTime()();
+
+  /// Pickup time stored as minutes since midnight.
+  IntColumn get pickupMinutes => integer()();
+
+  TextColumn get childId => text().nullable()();
+  TextColumn get childName => text()();
+  TextColumn get parentName => text().withDefault(const Constant(''))();
+  BoolColumn get reminderCardGiven =>
+      boolean().withDefault(const Constant(false))();
+  TextColumn get staffName => text().withDefault(const Constant(''))();
+  TextColumn get notes => text().withDefault(const Constant(''))();
+
+  /// Program scope for cloud sync.
+  TextColumn get programId => text().nullable()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  String? get tableName => 'late_pickups';
+}

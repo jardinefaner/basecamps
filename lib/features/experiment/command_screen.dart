@@ -354,7 +354,7 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
     // Mint one tile per resolved group. They share date / title /
     // fields and only differ on groupId — same fan-out shape as
     // /calendar's `_onDropConfirm`.
-    final notifier = ref.read(calendarTilesProvider.notifier);
+    final repo = ref.read(calendarTilesRepoProvider);
     final committedGroupNames = <String>[];
     for (final groupId in resolvedIds) {
       final tile = CalendarTile(
@@ -371,7 +371,7 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
         ..theme = c.theme ?? ''
         ..description = c.description ?? ''
         ..notes = c.notes ?? '';
-      notifier.put(tile);
+      unawaited(repo.put(tile));
       final groupName = groups
           .where((g) => g.id == groupId)
           .map((g) => g.name)
@@ -433,7 +433,7 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
       staffName: l.staffName,
       notes: l.notes ?? '',
     );
-    ref.read(lateEntriesProvider.notifier).add(entry);
+    unawaited(ref.read(latePickupsRepoProvider).add(entry));
 
     final timeLabel = l.pickupTime.format(context);
     final summary = StringBuffer()..write(timeLabel);

@@ -50,16 +50,18 @@ class LatePickupScreen extends ConsumerStatefulWidget {
 }
 
 class _LatePickupScreenState extends ConsumerState<LatePickupScreen> {
-  /// Read-through to the Riverpod-backed entries store. The
-  /// notifier owns the list; this getter is for inline call-site
-  /// brevity. The `build` method calls `ref.watch(...)` so changes
-  /// from elsewhere (Command Center) trigger a rebuild.
-  List<LateEntry> get _entries => ref.read(lateEntriesProvider);
+  /// Read-through to the Drift-backed entries stream. Returns
+  /// the latest emission or an empty list while the first one is
+  /// in flight. `build` calls `ref.watch(...)` so changes from
+  /// elsewhere (Command Center, sync from another device)
+  /// rebuild this screen.
+  List<LateEntry> get _entries =>
+      ref.read(lateEntriesProvider).asData?.value ?? const <LateEntry>[];
 
-  /// Mutation pipe — every place that used to mutate the local
-  /// list goes through the notifier instead.
-  LateEntriesNotifier get _entriesNotifier =>
-      ref.read(lateEntriesProvider.notifier);
+  /// Mutation pipe — writes go through the Drift-backed repo;
+  /// the stream provider re-emits on commit.
+  LatePickupsRepository get _entriesRepo =>
+      ref.read(latePickupsRepoProvider);
 
   // Drop-bar state. `_loading` while the LLM call is in flight;
   // `_draft` is the preview chip the teacher confirms or tweaks;
@@ -120,17 +122,19 @@ class _LatePickupScreenState extends ConsumerState<LatePickupScreen> {
   void _onConfirm() {
     final draft = _draft;
     if (draft == null) return;
-    _entriesNotifier.add(
-      LateEntry(
-        id: _newId(),
-        date: draft.date,
-        pickupTime: draft.pickupTime,
-        childId: draft.childId,
-        childName: draft.childName,
-        parentName: draft.parentName,
-        reminderCardGiven: draft.reminderCardGiven,
-        staffName: draft.staffName,
-        notes: draft.notes ?? '',
+    unawaited(
+      _entriesRepo.add(
+        LateEntry(
+          id: _newId(),
+          date: draft.date,
+          pickupTime: draft.pickupTime,
+          childId: draft.childId,
+          childName: draft.childName,
+          parentName: draft.parentName,
+          reminderCardGiven: draft.reminderCardGiven,
+          staffName: draft.staffName,
+          notes: draft.notes ?? '',
+        ),
       ),
     );
     setState(() {
@@ -148,7 +152,7 @@ class _LatePickupScreenState extends ConsumerState<LatePickupScreen> {
 
   void _onToggleReminder(LateEntry e) {
     e.reminderCardGiven = !e.reminderCardGiven;
-    _entriesNotifier.touch();
+    unawaited(_entriesRepo.update(e));
   }
 
   Future<void> _onEditNotes(LateEntry e) async {
@@ -158,11 +162,11 @@ class _LatePickupScreenState extends ConsumerState<LatePickupScreen> {
     );
     if (newNotes == null) return;
     e.notes = newNotes;
-    _entriesNotifier.touch();
+    unawaited(_entriesRepo.update(e));
   }
 
   void _onDelete(LateEntry e) {
-    _entriesNotifier.remove(e.id);
+    unawaited(_entriesRepo.remove(e.id));
   }
 
   // ——— Build ————————————————————————————————————————————————————
@@ -170,8 +174,8 @@ class _LatePickupScreenState extends ConsumerState<LatePickupScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // Subscribe so writes from elsewhere (Command Center)
-    // rebuild this screen.
+    // Subscribe so writes from elsewhere (Command Center,
+    // sync from another device) rebuild this screen.
     ref.watch(lateEntriesProvider);
     return Scaffold(
       appBar: AppBar(

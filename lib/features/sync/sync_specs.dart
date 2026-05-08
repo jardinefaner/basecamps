@@ -234,6 +234,23 @@ const surveysSpec = TableSpec(
   ],
 );
 
+/// Calendar tiles — lab graduated. Trip / event / day-plan rows
+/// authored from the Calendar screen + Command Center. Single
+/// table, no cascades; itinerary blocks travel as a JSON column.
+/// Cloud parity: migration 0038.
+const calendarTilesSpec = TableSpec(
+  table: 'calendar_tiles',
+  dateColumns: {'date', 'created_at', 'updated_at'},
+);
+
+/// Late pickups — lab graduated. One row per kid picked up after
+/// closing. Single table, no cascades. Cloud parity: migration
+/// 0038.
+const latePickupsSpec = TableSpec(
+  table: 'late_pickups',
+  dateColumns: {'date', 'created_at', 'updated_at'},
+);
+
 /// Every spec, organized into FK-ordered tiers. Each tier may pull
 /// in parallel (no FKs between siblings); tiers run sequentially so
 /// FK targets land before dependents. Bootstrap and Sync Now both
@@ -275,6 +292,8 @@ const List<List<TableSpec>> kSpecTiers = [
     observationsSpec,
     formSubmissionsSpec,
     surveysSpec,
+    calendarTilesSpec,
+    latePickupsSpec,
   ],
 ];
 
