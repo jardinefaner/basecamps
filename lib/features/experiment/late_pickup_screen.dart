@@ -233,8 +233,18 @@ class _LatePickupScreenState extends ConsumerState<LatePickupScreen> {
     }
     await Clipboard.setData(ClipboardData(text: buf.toString()));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Copied to clipboard. Paste in Excel.')),
+    // Clear any pending toasts and show this one floating + brief.
+    // Default snackbars QUEUE behind any in-flight one and run for
+    // 4 seconds each — repeated copies pile multi-second sheets on
+    // top of the docked drop bar.
+    final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Copied to clipboard. Paste in Excel.'),
+        duration: Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.fromLTRB(12, 0, 12, 80),
+      ),
     );
   }
 }

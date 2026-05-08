@@ -39,6 +39,34 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+/// Show a brief toast that doesn't queue and doesn't block the
+/// docked input bar. Three behaviors that diverge from Flutter's
+/// defaults:
+///   1. `clearSnackBars()` first so a flurry of Adds doesn't
+///      stack toasts (default queues them and runs each for the
+///      full duration).
+///   2. 3-second duration (default is 4) — enough to read,
+///      short enough to not feel sticky.
+///   3. `SnackBarBehavior.floating` with a margin above the
+///      bottom edge so it sits above the Command Bar instead of
+///      covering it.
+void _showToast(
+  BuildContext context,
+  String message, {
+  SnackBarAction? action,
+}) {
+  final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text(message),
+      action: action,
+      duration: const Duration(seconds: 3),
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 80),
+    ),
+  );
+}
+
 class CommandScreen extends ConsumerStatefulWidget {
   const CommandScreen({super.key});
 
@@ -161,21 +189,20 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
       });
       // Visual confirmation — the observation went to the cloud-
       // synced repo so it's reachable from the Observations tab.
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Observation saved.'),
-          action: SnackBarAction(
-            label: 'View',
-            onPressed: () => context.push('/observations'),
-          ),
-          duration: const Duration(seconds: 3),
+      // Clear any queued snackbars first so a flurry of Adds doesn't
+      // pile up multi-second toasts on top of each other; show a
+      // floating 3-second one that doesn't cover the input bar.
+      _showToast(
+        context,
+        'Observation saved.',
+        action: SnackBarAction(
+          label: 'View',
+          onPressed: () => context.push('/observations'),
         ),
       );
     } on Object catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save observation: $e')),
-      );
+      _showToast(context, 'Could not save observation: $e');
     }
   }
 
