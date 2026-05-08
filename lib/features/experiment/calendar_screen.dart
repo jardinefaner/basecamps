@@ -321,11 +321,15 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       _dropDraft = null;
       _dropError = null;
       // Switch the filter to the FIRST resolved group + its month
-      // so at least one of the new tiles lands visibly. Without
-      // this the fan-out is invisible when the active filter
-      // didn't include any of the resolved groups. The other
-      // groups' tiles are reachable via the filter chips.
+      // so at least one of the new tiles lands visibly. Also snap
+      // the TYPE filter to the new tile's type — without this,
+      // the bar happily creates a Day plan while the user has the
+      // Trips filter active, and the tile is invisible. Reported
+      // bug: "I added something, it didn't show up." The fan-out
+      // semantics for type are simpler than for groups: there's
+      // only ever one type per draft, so we snap to it.
       _activeGroupId = resolvedIds.first;
+      _activeType = created.first.type;
       _anchorMonth =
           DateTime(created.first.date.year, created.first.date.month);
     });
