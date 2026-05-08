@@ -1,16 +1,22 @@
-// Survey repository (Slice 1) — local-only persistence for the
-// new BASECamp Student Survey tool. CRUD on `surveys`, plus
-// helpers for the kiosk + the results sheet (slice 5).
+// Survey repository — local Drift + cloud sync for the BASECamp
+// Student Survey. CRUD on `surveys`, plus helpers for the kiosk
+// + the results sheet.
 //
-// Sync wiring isn't included yet — surveys are device-local until
-// the feature graduates from experiment. When we promote, register
-// `surveys` / `survey_sessions` / `survey_responses` in
-// sync_specs.dart and the existing engine handles realtime + push.
+// Cloud sync (cloud migration 0037 / Drift v63):
+//   * Each row's program_id is stamped from
+//     `activeProgramIdProvider` at insert time. The sync engine
+//     pushes/pulls every program-scoped row through `surveysSpec`
+//     (see sync_specs.dart).
+//   * Cascades — survey_sessions, survey_responses — denormalise
+//     program_id onto the row so the engine + RLS don't have to
+//     JOIN through the parent.
 
 import 'dart:convert';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/program_scope.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/surveys/canonical_questions.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
 import 'package:crypto/crypto.dart';
@@ -30,15 +36,28 @@ class SurveyResultRow {
 }
 
 class SurveyRepository {
-  SurveyRepository(this._db);
+  SurveyRepository(this._db, this._ref);
 
   final AppDatabase _db;
+  final Ref _ref;
 
-  /// All non-deleted surveys, newest first. Wraps Drift's row →
-  /// `SurveyConfig` mapping so the UI gets in-memory objects.
+  /// Current program id from the bootstrap. Null when there's no
+  /// active program (sandbox / pre-bootstrap state); rows inserted
+  /// then stay local-only and the engine skips them on push.
+  String? get _programId => _ref.read(activeProgramIdProvider);
+
+  /// All non-deleted surveys for the active program, newest
+  /// first. Wraps Drift's row → `SurveyConfig` mapping so the UI
+  /// gets in-memory objects. Includes null-program rows too
+  /// (legacy / sandbox state) so a switched-out user doesn't lose
+  /// pre-bootstrap entries.
   Stream<List<SurveyConfig>> watchAll() {
     final query = _db.select(_db.surveys)
-      ..where((s) => s.deletedAt.isNull())
+      ..where(
+        (s) =>
+            s.deletedAt.isNull() &
+            matchesActiveProgram(s.programId, _programId),
+      )
       ..orderBy([
         (s) => OrderingTerm(expression: s.createdAt, mode: OrderingMode.desc),
       ]);
@@ -163,6 +182,7 @@ class SurveyRepository {
             school: cleanSchool == null || cleanSchool.isEmpty
                 ? const Value<String?>(null)
                 : Value<String?>(cleanSchool),
+            programId: Value(_programId),
           ),
         );
     return id;
@@ -231,6 +251,7 @@ class SurveyRepository {
             reactionTimeMs: Value(reactionTimeMs),
             durationMs: Value(reactionTimeMs),
             isPractice: Value(isPractice),
+            programId: Value(_programId),
             createdAt: Value(DateTime.now().toUtc()),
           ),
         );
@@ -257,6 +278,7 @@ class SurveyRepository {
             selectionsJson: Value(jsonEncode(selectedOptionIds)),
             durationMs: Value(durationMs),
             isPractice: Value(isPractice),
+            programId: Value(_programId),
             createdAt: Value(DateTime.now().toUtc()),
           ),
         );
@@ -290,6 +312,7 @@ class SurveyRepository {
             transcription: Value(transcription),
             durationMs: Value(durationMs),
             isPractice: Value(isPractice),
+            programId: Value(_programId),
             createdAt: Value(DateTime.now().toUtc()),
           ),
         );
@@ -383,6 +406,7 @@ class SurveyRepository {
         style: Value(config.style.code),
         questionsJson: Value(config.questionsJson()),
         schoolsJson: Value(config.schoolsJsonString()),
+        programId: Value(_programId),
         createdAt: Value(config.createdAt),
         updatedAt: Value(config.updatedAt),
       );
@@ -399,8 +423,10 @@ class SurveyRepository {
 /// Riverpod provider for `SurveyRepository`. Reads the shared
 /// `databaseProvider` so all features see the same DB.
 final surveyRepositoryProvider = Provider<SurveyRepository>((ref) {
+  // ref is captured in the repo so insert-time `activeProgramIdProvider`
+  // reads stamp the current program onto fresh rows.
   final db = ref.watch(databaseProvider);
-  return SurveyRepository(db);
+  return SurveyRepository(db, ref);
 });
 
 /// Live list of surveys (non-deleted, newest first). Watches the

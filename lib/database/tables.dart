@@ -1772,6 +1772,10 @@ class Surveys extends Table {
   TextColumn get schoolsJson =>
       text().withDefault(const Constant('[]'))();
 
+  // (program_id already declared at the top of this table — v42
+  // blanket migration. The repo started stamping it for cloud
+  // sync in v63; cloud parity in migration 0037.)
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
@@ -1810,6 +1814,13 @@ class SurveySessions extends Table {
   /// older sessions (created before the gate landed) won't have
   /// it; the CSV renders an empty cell for those.
   TextColumn get school => text().nullable()();
+
+  /// v63 — denormalised program scope for cloud sync. Stamped by
+  /// the repository on `startSession` from `activeProgramIdProvider`.
+  /// Carrying it on the row (instead of joining through surveys)
+  /// keeps the RLS policy + sync engine's pull query a single
+  /// index scan. Nullable for sessions created before v63.
+  TextColumn get programId => text().nullable()();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -1864,6 +1875,12 @@ class SurveyResponses extends Table {
 
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
+
+  /// v63 — denormalised program scope. Stamped on insert by every
+  /// `record*Answer` helper. Same rationale as
+  /// [SurveySessions.programId] — denormalising avoids a JOIN on
+  /// every row read.
+  TextColumn get programId => text().nullable()();
 
   @override
   Set<Column<Object>> get primaryKey => {id};

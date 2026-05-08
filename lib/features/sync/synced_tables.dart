@@ -50,4 +50,10 @@ const List<String> kSyncedTableNames = <String>[
   // The polymorphic form_submissions row with form_type='parent_concern'
   // replaces it; see definitions/parent_concern.dart.
   'form_submissions',
+  // v63 (cloud migration 0037) — Student Survey kiosk parent
+  // table. Cascades to survey_sessions + survey_responses; only
+  // the parent is listed here because cascades aren't program-id
+  // tagged independently (they piggyback on the parent's program
+  // scope through the FK chain).
+  'surveys',
 ];

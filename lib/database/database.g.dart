@@ -24853,6 +24853,17 @@ class $SurveySessionsTable extends SurveySessions
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _programIdMeta = const VerificationMeta(
+    'programId',
+  );
+  @override
+  late final GeneratedColumn<String> programId = GeneratedColumn<String>(
+    'program_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -24861,6 +24872,7 @@ class $SurveySessionsTable extends SurveySessions
     endedAt,
     childCount,
     school,
+    programId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -24911,6 +24923,12 @@ class $SurveySessionsTable extends SurveySessions
         school.isAcceptableOrUnknown(data['school']!, _schoolMeta),
       );
     }
+    if (data.containsKey('program_id')) {
+      context.handle(
+        _programIdMeta,
+        programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
+      );
+    }
     return context;
   }
 
@@ -24944,6 +24962,10 @@ class $SurveySessionsTable extends SurveySessions
         DriftSqlType.string,
         data['${effectivePrefix}school'],
       ),
+      programId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}program_id'],
+      ),
     );
   }
 
@@ -24972,6 +24994,13 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
   /// older sessions (created before the gate landed) won't have
   /// it; the CSV renders an empty cell for those.
   final String? school;
+
+  /// v63 — denormalised program scope for cloud sync. Stamped by
+  /// the repository on `startSession` from `activeProgramIdProvider`.
+  /// Carrying it on the row (instead of joining through surveys)
+  /// keeps the RLS policy + sync engine's pull query a single
+  /// index scan. Nullable for sessions created before v63.
+  final String? programId;
   const SurveySession({
     required this.id,
     required this.surveyId,
@@ -24979,6 +25008,7 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
     this.endedAt,
     required this.childCount,
     this.school,
+    this.programId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -24992,6 +25022,9 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
     map['child_count'] = Variable<int>(childCount);
     if (!nullToAbsent || school != null) {
       map['school'] = Variable<String>(school);
+    }
+    if (!nullToAbsent || programId != null) {
+      map['program_id'] = Variable<String>(programId);
     }
     return map;
   }
@@ -25008,6 +25041,9 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
       school: school == null && nullToAbsent
           ? const Value.absent()
           : Value(school),
+      programId: programId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(programId),
     );
   }
 
@@ -25023,6 +25059,7 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
       endedAt: serializer.fromJson<DateTime?>(json['endedAt']),
       childCount: serializer.fromJson<int>(json['childCount']),
       school: serializer.fromJson<String?>(json['school']),
+      programId: serializer.fromJson<String?>(json['programId']),
     );
   }
   @override
@@ -25035,6 +25072,7 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
       'endedAt': serializer.toJson<DateTime?>(endedAt),
       'childCount': serializer.toJson<int>(childCount),
       'school': serializer.toJson<String?>(school),
+      'programId': serializer.toJson<String?>(programId),
     };
   }
 
@@ -25045,6 +25083,7 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
     Value<DateTime?> endedAt = const Value.absent(),
     int? childCount,
     Value<String?> school = const Value.absent(),
+    Value<String?> programId = const Value.absent(),
   }) => SurveySession(
     id: id ?? this.id,
     surveyId: surveyId ?? this.surveyId,
@@ -25052,6 +25091,7 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
     endedAt: endedAt.present ? endedAt.value : this.endedAt,
     childCount: childCount ?? this.childCount,
     school: school.present ? school.value : this.school,
+    programId: programId.present ? programId.value : this.programId,
   );
   SurveySession copyWithCompanion(SurveySessionsCompanion data) {
     return SurveySession(
@@ -25063,6 +25103,7 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
           ? data.childCount.value
           : this.childCount,
       school: data.school.present ? data.school.value : this.school,
+      programId: data.programId.present ? data.programId.value : this.programId,
     );
   }
 
@@ -25074,14 +25115,22 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
           ..write('startedAt: $startedAt, ')
           ..write('endedAt: $endedAt, ')
           ..write('childCount: $childCount, ')
-          ..write('school: $school')
+          ..write('school: $school, ')
+          ..write('programId: $programId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, surveyId, startedAt, endedAt, childCount, school);
+  int get hashCode => Object.hash(
+    id,
+    surveyId,
+    startedAt,
+    endedAt,
+    childCount,
+    school,
+    programId,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -25091,7 +25140,8 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
           other.startedAt == this.startedAt &&
           other.endedAt == this.endedAt &&
           other.childCount == this.childCount &&
-          other.school == this.school);
+          other.school == this.school &&
+          other.programId == this.programId);
 }
 
 class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
@@ -25101,6 +25151,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
   final Value<DateTime?> endedAt;
   final Value<int> childCount;
   final Value<String?> school;
+  final Value<String?> programId;
   final Value<int> rowid;
   const SurveySessionsCompanion({
     this.id = const Value.absent(),
@@ -25109,6 +25160,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     this.endedAt = const Value.absent(),
     this.childCount = const Value.absent(),
     this.school = const Value.absent(),
+    this.programId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SurveySessionsCompanion.insert({
@@ -25118,6 +25170,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     this.endedAt = const Value.absent(),
     this.childCount = const Value.absent(),
     this.school = const Value.absent(),
+    this.programId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        surveyId = Value(surveyId);
@@ -25128,6 +25181,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     Expression<DateTime>? endedAt,
     Expression<int>? childCount,
     Expression<String>? school,
+    Expression<String>? programId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -25137,6 +25191,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
       if (endedAt != null) 'ended_at': endedAt,
       if (childCount != null) 'child_count': childCount,
       if (school != null) 'school': school,
+      if (programId != null) 'program_id': programId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -25148,6 +25203,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     Value<DateTime?>? endedAt,
     Value<int>? childCount,
     Value<String?>? school,
+    Value<String?>? programId,
     Value<int>? rowid,
   }) {
     return SurveySessionsCompanion(
@@ -25157,6 +25213,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
       endedAt: endedAt ?? this.endedAt,
       childCount: childCount ?? this.childCount,
       school: school ?? this.school,
+      programId: programId ?? this.programId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -25182,6 +25239,9 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     if (school.present) {
       map['school'] = Variable<String>(school.value);
     }
+    if (programId.present) {
+      map['program_id'] = Variable<String>(programId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -25197,6 +25257,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
           ..write('endedAt: $endedAt, ')
           ..write('childCount: $childCount, ')
           ..write('school: $school, ')
+          ..write('programId: $programId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -25355,6 +25416,17 @@ class $SurveyResponsesTable extends SurveyResponses
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _programIdMeta = const VerificationMeta(
+    'programId',
+  );
+  @override
+  late final GeneratedColumn<String> programId = GeneratedColumn<String>(
+    'program_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -25370,6 +25442,7 @@ class $SurveyResponsesTable extends SurveyResponses
     durationMs,
     isPractice,
     createdAt,
+    programId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -25480,6 +25553,12 @@ class $SurveyResponsesTable extends SurveyResponses
         createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
       );
     }
+    if (data.containsKey('program_id')) {
+      context.handle(
+        _programIdMeta,
+        programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
+      );
+    }
     return context;
   }
 
@@ -25541,6 +25620,10 @@ class $SurveyResponsesTable extends SurveyResponses
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      programId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}program_id'],
+      ),
     );
   }
 
@@ -25589,6 +25672,12 @@ class SurveyResponse extends DataClass implements Insertable<SurveyResponse> {
   /// the default CSV summary.
   final bool isPractice;
   final DateTime createdAt;
+
+  /// v63 — denormalised program scope. Stamped on insert by every
+  /// `record*Answer` helper. Same rationale as
+  /// [SurveySessions.programId] — denormalising avoids a JOIN on
+  /// every row read.
+  final String? programId;
   const SurveyResponse({
     required this.id,
     required this.surveyId,
@@ -25603,6 +25692,7 @@ class SurveyResponse extends DataClass implements Insertable<SurveyResponse> {
     this.durationMs,
     required this.isPractice,
     required this.createdAt,
+    this.programId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -25632,6 +25722,9 @@ class SurveyResponse extends DataClass implements Insertable<SurveyResponse> {
     }
     map['is_practice'] = Variable<bool>(isPractice);
     map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || programId != null) {
+      map['program_id'] = Variable<String>(programId);
+    }
     return map;
   }
 
@@ -25662,6 +25755,9 @@ class SurveyResponse extends DataClass implements Insertable<SurveyResponse> {
           : Value(durationMs),
       isPractice: Value(isPractice),
       createdAt: Value(createdAt),
+      programId: programId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(programId),
     );
   }
 
@@ -25684,6 +25780,7 @@ class SurveyResponse extends DataClass implements Insertable<SurveyResponse> {
       durationMs: serializer.fromJson<int?>(json['durationMs']),
       isPractice: serializer.fromJson<bool>(json['isPractice']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      programId: serializer.fromJson<String?>(json['programId']),
     );
   }
   @override
@@ -25703,6 +25800,7 @@ class SurveyResponse extends DataClass implements Insertable<SurveyResponse> {
       'durationMs': serializer.toJson<int?>(durationMs),
       'isPractice': serializer.toJson<bool>(isPractice),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'programId': serializer.toJson<String?>(programId),
     };
   }
 
@@ -25720,6 +25818,7 @@ class SurveyResponse extends DataClass implements Insertable<SurveyResponse> {
     Value<int?> durationMs = const Value.absent(),
     bool? isPractice,
     DateTime? createdAt,
+    Value<String?> programId = const Value.absent(),
   }) => SurveyResponse(
     id: id ?? this.id,
     surveyId: surveyId ?? this.surveyId,
@@ -25742,6 +25841,7 @@ class SurveyResponse extends DataClass implements Insertable<SurveyResponse> {
     durationMs: durationMs.present ? durationMs.value : this.durationMs,
     isPractice: isPractice ?? this.isPractice,
     createdAt: createdAt ?? this.createdAt,
+    programId: programId.present ? programId.value : this.programId,
   );
   SurveyResponse copyWithCompanion(SurveyResponsesCompanion data) {
     return SurveyResponse(
@@ -25774,6 +25874,7 @@ class SurveyResponse extends DataClass implements Insertable<SurveyResponse> {
           ? data.isPractice.value
           : this.isPractice,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      programId: data.programId.present ? data.programId.value : this.programId,
     );
   }
 
@@ -25792,7 +25893,8 @@ class SurveyResponse extends DataClass implements Insertable<SurveyResponse> {
           ..write('reactionTimeMs: $reactionTimeMs, ')
           ..write('durationMs: $durationMs, ')
           ..write('isPractice: $isPractice, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('programId: $programId')
           ..write(')'))
         .toString();
   }
@@ -25812,6 +25914,7 @@ class SurveyResponse extends DataClass implements Insertable<SurveyResponse> {
     durationMs,
     isPractice,
     createdAt,
+    programId,
   );
   @override
   bool operator ==(Object other) =>
@@ -25829,7 +25932,8 @@ class SurveyResponse extends DataClass implements Insertable<SurveyResponse> {
           other.reactionTimeMs == this.reactionTimeMs &&
           other.durationMs == this.durationMs &&
           other.isPractice == this.isPractice &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.programId == this.programId);
 }
 
 class SurveyResponsesCompanion extends UpdateCompanion<SurveyResponse> {
@@ -25846,6 +25950,7 @@ class SurveyResponsesCompanion extends UpdateCompanion<SurveyResponse> {
   final Value<int?> durationMs;
   final Value<bool> isPractice;
   final Value<DateTime> createdAt;
+  final Value<String?> programId;
   final Value<int> rowid;
   const SurveyResponsesCompanion({
     this.id = const Value.absent(),
@@ -25861,6 +25966,7 @@ class SurveyResponsesCompanion extends UpdateCompanion<SurveyResponse> {
     this.durationMs = const Value.absent(),
     this.isPractice = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.programId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SurveyResponsesCompanion.insert({
@@ -25877,6 +25983,7 @@ class SurveyResponsesCompanion extends UpdateCompanion<SurveyResponse> {
     this.durationMs = const Value.absent(),
     this.isPractice = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.programId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        surveyId = Value(surveyId),
@@ -25897,6 +26004,7 @@ class SurveyResponsesCompanion extends UpdateCompanion<SurveyResponse> {
     Expression<int>? durationMs,
     Expression<bool>? isPractice,
     Expression<DateTime>? createdAt,
+    Expression<String>? programId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -25913,6 +26021,7 @@ class SurveyResponsesCompanion extends UpdateCompanion<SurveyResponse> {
       if (durationMs != null) 'duration_ms': durationMs,
       if (isPractice != null) 'is_practice': isPractice,
       if (createdAt != null) 'created_at': createdAt,
+      if (programId != null) 'program_id': programId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -25931,6 +26040,7 @@ class SurveyResponsesCompanion extends UpdateCompanion<SurveyResponse> {
     Value<int?>? durationMs,
     Value<bool>? isPractice,
     Value<DateTime>? createdAt,
+    Value<String?>? programId,
     Value<int>? rowid,
   }) {
     return SurveyResponsesCompanion(
@@ -25947,6 +26057,7 @@ class SurveyResponsesCompanion extends UpdateCompanion<SurveyResponse> {
       durationMs: durationMs ?? this.durationMs,
       isPractice: isPractice ?? this.isPractice,
       createdAt: createdAt ?? this.createdAt,
+      programId: programId ?? this.programId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -25993,6 +26104,9 @@ class SurveyResponsesCompanion extends UpdateCompanion<SurveyResponse> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (programId.present) {
+      map['program_id'] = Variable<String>(programId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -26015,6 +26129,7 @@ class SurveyResponsesCompanion extends UpdateCompanion<SurveyResponse> {
           ..write('durationMs: $durationMs, ')
           ..write('isPractice: $isPractice, ')
           ..write('createdAt: $createdAt, ')
+          ..write('programId: $programId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -50640,6 +50755,7 @@ typedef $$SurveySessionsTableCreateCompanionBuilder =
       Value<DateTime?> endedAt,
       Value<int> childCount,
       Value<String?> school,
+      Value<String?> programId,
       Value<int> rowid,
     });
 typedef $$SurveySessionsTableUpdateCompanionBuilder =
@@ -50650,6 +50766,7 @@ typedef $$SurveySessionsTableUpdateCompanionBuilder =
       Value<DateTime?> endedAt,
       Value<int> childCount,
       Value<String?> school,
+      Value<String?> programId,
       Value<int> rowid,
     });
 
@@ -50689,6 +50806,11 @@ class $$SurveySessionsTableFilterComposer
 
   ColumnFilters<String> get school => $composableBuilder(
     column: $table.school,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get programId => $composableBuilder(
+    column: $table.programId,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -50731,6 +50853,11 @@ class $$SurveySessionsTableOrderingComposer
     column: $table.school,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get programId => $composableBuilder(
+    column: $table.programId,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SurveySessionsTableAnnotationComposer
@@ -50761,6 +50888,9 @@ class $$SurveySessionsTableAnnotationComposer
 
   GeneratedColumn<String> get school =>
       $composableBuilder(column: $table.school, builder: (column) => column);
+
+  GeneratedColumn<String> get programId =>
+      $composableBuilder(column: $table.programId, builder: (column) => column);
 }
 
 class $$SurveySessionsTableTableManager
@@ -50802,6 +50932,7 @@ class $$SurveySessionsTableTableManager
                 Value<DateTime?> endedAt = const Value.absent(),
                 Value<int> childCount = const Value.absent(),
                 Value<String?> school = const Value.absent(),
+                Value<String?> programId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SurveySessionsCompanion(
                 id: id,
@@ -50810,6 +50941,7 @@ class $$SurveySessionsTableTableManager
                 endedAt: endedAt,
                 childCount: childCount,
                 school: school,
+                programId: programId,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -50820,6 +50952,7 @@ class $$SurveySessionsTableTableManager
                 Value<DateTime?> endedAt = const Value.absent(),
                 Value<int> childCount = const Value.absent(),
                 Value<String?> school = const Value.absent(),
+                Value<String?> programId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SurveySessionsCompanion.insert(
                 id: id,
@@ -50828,6 +50961,7 @@ class $$SurveySessionsTableTableManager
                 endedAt: endedAt,
                 childCount: childCount,
                 school: school,
+                programId: programId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -50870,6 +51004,7 @@ typedef $$SurveyResponsesTableCreateCompanionBuilder =
       Value<int?> durationMs,
       Value<bool> isPractice,
       Value<DateTime> createdAt,
+      Value<String?> programId,
       Value<int> rowid,
     });
 typedef $$SurveyResponsesTableUpdateCompanionBuilder =
@@ -50887,6 +51022,7 @@ typedef $$SurveyResponsesTableUpdateCompanionBuilder =
       Value<int?> durationMs,
       Value<bool> isPractice,
       Value<DateTime> createdAt,
+      Value<String?> programId,
       Value<int> rowid,
     });
 
@@ -50961,6 +51097,11 @@ class $$SurveyResponsesTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get programId => $composableBuilder(
+    column: $table.programId,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -51038,6 +51179,11 @@ class $$SurveyResponsesTableOrderingComposer
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get programId => $composableBuilder(
+    column: $table.programId,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SurveyResponsesTableAnnotationComposer
@@ -51103,6 +51249,9 @@ class $$SurveyResponsesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get programId =>
+      $composableBuilder(column: $table.programId, builder: (column) => column);
 }
 
 class $$SurveyResponsesTableTableManager
@@ -51155,6 +51304,7 @@ class $$SurveyResponsesTableTableManager
                 Value<int?> durationMs = const Value.absent(),
                 Value<bool> isPractice = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> programId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SurveyResponsesCompanion(
                 id: id,
@@ -51170,6 +51320,7 @@ class $$SurveyResponsesTableTableManager
                 durationMs: durationMs,
                 isPractice: isPractice,
                 createdAt: createdAt,
+                programId: programId,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -51187,6 +51338,7 @@ class $$SurveyResponsesTableTableManager
                 Value<int?> durationMs = const Value.absent(),
                 Value<bool> isPractice = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> programId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SurveyResponsesCompanion.insert(
                 id: id,
@@ -51202,6 +51354,7 @@ class $$SurveyResponsesTableTableManager
                 durationMs: durationMs,
                 isPractice: isPractice,
                 createdAt: createdAt,
+                programId: programId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

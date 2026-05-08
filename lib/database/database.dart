@@ -80,7 +80,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 62;
+  int get schemaVersion => 63;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -139,6 +139,25 @@ class AppDatabase extends _$AppDatabase {
               'fresh at schema 25. This only affects devs who have '
               'been running the app through old schemas; no end-user '
               'has ever seen schema < 25.',
+            );
+          }
+          if (from < 63) {
+            // v63: program_id columns on surveys / survey_sessions /
+            // survey_responses for cloud sync. The sync engine reads
+            // program_id off each row to scope cloud rows to the
+            // current member's program; nullable on the local side
+            // because rows created before the migration won't have
+            // a program stamped (the engine skips those on push, so
+            // they stay local until the user touches them again).
+            // Cloud parity: migration 0037.
+            await _runSilent(
+              'ALTER TABLE "surveys" ADD COLUMN "program_id" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "survey_sessions" ADD COLUMN "program_id" TEXT NULL',
+            );
+            await _runSilent(
+              'ALTER TABLE "survey_responses" ADD COLUMN "program_id" TEXT NULL',
             );
           }
           if (from < 62) {

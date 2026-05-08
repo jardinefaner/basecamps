@@ -213,6 +213,27 @@ const formSubmissionsSpec = TableSpec(
   dateColumns: {'submitted_at', 'review_due_at', 'created_at', 'updated_at'},
 );
 
+/// Surveys — config row + per-kid sessions + per-question
+/// responses. Three tables, parent + two cascades. Mirrors
+/// observations' shape (parent has soft-delete; cascades hard-
+/// delete via FK). Cloud parity: migration 0037.
+const surveysSpec = TableSpec(
+  table: 'surveys',
+  dateColumns: {'created_at', 'updated_at'},
+  cascades: [
+    CascadeSpec(
+      table: 'survey_sessions',
+      parentColumn: 'survey_id',
+      dateColumns: {'started_at', 'ended_at', 'created_at', 'updated_at'},
+    ),
+    CascadeSpec(
+      table: 'survey_responses',
+      parentColumn: 'survey_id',
+      dateColumns: {'created_at'},
+    ),
+  ],
+);
+
 /// Every spec, organized into FK-ordered tiers. Each tier may pull
 /// in parallel (no FKs between siblings); tiers run sequentially so
 /// FK targets land before dependents. Bootstrap and Sync Now both
@@ -253,6 +274,7 @@ const List<List<TableSpec>> kSpecTiers = [
     scheduleEntriesSpec,
     observationsSpec,
     formSubmissionsSpec,
+    surveysSpec,
   ],
 ];
 
