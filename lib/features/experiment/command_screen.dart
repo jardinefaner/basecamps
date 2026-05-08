@@ -86,6 +86,17 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
   /// have somewhere to surface from this screen.
   final List<_FeedEntry> _feed = <_FeedEntry>[];
 
+  /// Recent observations the user just created in this session,
+  /// newest first. Capped to a small window — both for prompt
+  /// budget reasons and because "recent" loses meaning past a
+  /// handful of items in a single session. Drives the append-to-
+  /// last detection: when the next utterance looks like a
+  /// continuation of one of these, the LLM merges into it
+  /// instead of minting a new row.
+  final List<RecentObservation> _recentObservations =
+      <RecentObservation>[];
+  static const int _recentObservationCap = 5;
+
   // ——— Submission ———————————————————————————————————————————————
 
   Future<void> _onSubmit(String input) async {
@@ -120,6 +131,7 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
                 ),
               )
               .toList(),
+          recentObservations: _recentObservations,
         ),
       );
       if (!mounted) return;
@@ -143,6 +155,8 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
     switch (draft) {
       case ObservationCommandDraft():
         await _commitObservation(draft);
+      case AppendObservationCommandDraft():
+        await _commitAppendObservation(draft);
       case CalendarTileCommandDraft():
         _commitCalendarTile(draft);
       case LatePickupCommandDraft():
@@ -186,6 +200,25 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
             payload: id,
           ),
         );
+        // Track this observation so the next utterance can be
+        // recognised as a continuation. Newest first; cap so the
+        // prompt stays small.
+        _recentObservations.insert(
+          0,
+          RecentObservation(
+            id: id,
+            note: d.note,
+            childIds: d.childIds,
+            childNames: d.childNames,
+            createdAt: DateTime.now(),
+          ),
+        );
+        if (_recentObservations.length > _recentObservationCap) {
+          _recentObservations.removeRange(
+            _recentObservationCap,
+            _recentObservations.length,
+          );
+        }
       });
       // Visual confirmation — the observation went to the cloud-
       // synced repo so it's reachable from the Observations tab.
@@ -206,35 +239,150 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
     }
   }
 
+  /// Append the model-produced text to an existing observation's
+  /// note + merge any new kid ids in. Reads the current row,
+  /// builds the merged versions, calls `updateObservation`. Also
+  /// updates the local recent-window so the merged note is what
+  /// the next round of classifier context sees.
+  Future<void> _commitAppendObservation(
+    AppendObservationCommandDraft d,
+  ) async {
+    final repo = ref.read(observationsRepositoryProvider);
+    try {
+      // The recent window keeps a copy we can use for the merge —
+      // saves a DB round-trip + handles the "in-flight while
+      // syncing" case where the cloud row hasn't echoed back yet.
+      final i = _recentObservations.indexWhere(
+        (r) => r.id == d.observationId,
+      );
+      if (i < 0) {
+        // Should never happen — `_classifyIntent` validates ids
+        // against this same window — but degrade gracefully.
+        _showToast(
+          context,
+          "Couldn't find the observation to append to.",
+        );
+        return;
+      }
+      final existing = _recentObservations[i];
+      final mergedNote =
+          '${existing.note} ${d.appendNote}'.replaceAll(
+        RegExp(r'\s+'),
+        ' ',
+      ).trim();
+      final mergedChildIds = <String>{
+        ...existing.childIds,
+        ...d.addChildIds,
+      }.toList();
+
+      await repo.updateObservation(
+        id: d.observationId,
+        note: mergedNote,
+        childIds: mergedChildIds,
+      );
+      if (!mounted) return;
+      setState(() {
+        // Update the recent-window entry so subsequent classifier
+        // calls see the latest text.
+        _recentObservations[i] = RecentObservation(
+          id: existing.id,
+          note: mergedNote,
+          childIds: mergedChildIds,
+          childNames: <String>{
+            ...existing.childNames,
+            ...d.addChildNames,
+          }.toList(),
+          createdAt: DateTime.now(),
+        );
+        // Surface the append on the feed so the user sees that
+        // it modified an existing row instead of creating one.
+        _feed.insert(
+          0,
+          _FeedEntry(
+            kind: _FeedKind.observation,
+            timestamp: DateTime.now(),
+            title: '+ ${d.appendNote}',
+            subtitle: 'Appended to: '
+                '"${existing.note.length > 60 ? '${existing.note.substring(0, 60)}…' : existing.note}"',
+            destinationPath: '/observations',
+            payload: existing.id,
+          ),
+        );
+      });
+      _showToast(
+        context,
+        'Appended to the previous observation.',
+        action: SnackBarAction(
+          label: 'View',
+          onPressed: () => context.push('/observations'),
+        ),
+      );
+    } on Object catch (e) {
+      if (!mounted) return;
+      _showToast(context, "Couldn't append: $e");
+    }
+  }
+
   void _commitCalendarTile(CalendarTileCommandDraft d) {
     final c = d.calendar;
-    // Resolve a groupId for the new tile. The Command Center
-    // doesn't have a group filter today; default to the first
-    // group on the roster (matches the `/calendar` no-active-
-    // group fallback in `_resolveGroupIds`).
     final groups = ref.read(groupsProvider).asData?.value ?? const [];
-    final groupId = groups.isEmpty ? null : groups.first.id;
 
-    // Push into the SHARED tile store so `/calendar` picks the
-    // tile up. The store rebuilds the calendar via `ref.watch`,
-    // so the moment the user navigates over they'll see it.
-    final tile = CalendarTile(
-      id: '${DateTime.now().microsecondsSinceEpoch}-${UniqueKey().hashCode}',
-      type: c.type,
-      date: DateTime.utc(c.date.year, c.date.month, c.date.day),
-      groupId: groupId,
-      title: c.title,
-    )
-      ..destination = c.destination ?? ''
-      ..startTime = c.startTime
-      ..endTime = c.endTime
-      ..theme = c.theme ?? ''
-      ..description = c.description ?? ''
-      ..notes = c.notes ?? '';
-    ref.read(calendarTilesProvider.notifier).put(tile);
+    // Resolve the LLM's nominated group names against the roster
+    // (case-insensitive, trimmed, deduped). Fan out one tile per
+    // resolved group — same semantics the /calendar drop bar
+    // uses. Without this fan-out, "santa cruz trip wednesday for
+    // pandas and bears" was producing a single tile on whatever
+    // group sat first on the roster (reported bug).
+    //
+    // Fallback when the LLM didn't name any group: a single tile
+    // on the first group, just so the create lands SOMEWHERE.
+    final resolvedIds = <String>[];
+    final seen = <String>{};
+    for (final name in c.groupNames) {
+      final needle = name.trim().toLowerCase();
+      if (needle.isEmpty) continue;
+      final match = groups
+          .where((g) => g.name.trim().toLowerCase() == needle)
+          .toList();
+      if (match.isEmpty) continue;
+      if (seen.add(match.first.id)) resolvedIds.add(match.first.id);
+    }
+    if (resolvedIds.isEmpty && groups.isNotEmpty) {
+      resolvedIds.add(groups.first.id);
+    }
 
-    // Surface it on the feed too so the teacher gets immediate
-    // visual feedback without having to nav.
+    // Mint one tile per resolved group. They share date / title /
+    // fields and only differ on groupId — same fan-out shape as
+    // /calendar's `_onDropConfirm`.
+    final notifier = ref.read(calendarTilesProvider.notifier);
+    final committedGroupNames = <String>[];
+    for (final groupId in resolvedIds) {
+      final tile = CalendarTile(
+        id: '${DateTime.now().microsecondsSinceEpoch}-'
+            '${UniqueKey().hashCode}',
+        type: c.type,
+        date: DateTime.utc(c.date.year, c.date.month, c.date.day),
+        groupId: groupId,
+        title: c.title,
+      )
+        ..destination = c.destination ?? ''
+        ..startTime = c.startTime
+        ..endTime = c.endTime
+        ..theme = c.theme ?? ''
+        ..description = c.description ?? ''
+        ..notes = c.notes ?? '';
+      notifier.put(tile);
+      final groupName = groups
+          .where((g) => g.id == groupId)
+          .map((g) => g.name)
+          .firstOrNull;
+      if (groupName != null) committedGroupNames.add(groupName);
+    }
+
+    // Surface it on the feed so the teacher gets immediate visual
+    // feedback. The subtitle now includes WHICH groups got tiles,
+    // so a fan-out fan-out is visible at a glance ("for Pandas +
+    // Bears") instead of looking like a single create.
     final timeFmt = DateFormat('h:mm a');
     final dateFmt = DateFormat.MMMEd();
     final summary = StringBuffer()..write(dateFmt.format(c.date));
@@ -249,6 +397,11 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
       summary
         ..write(' · ')
         ..write(c.destination);
+    }
+    if (committedGroupNames.isNotEmpty) {
+      summary
+        ..write(' · for ')
+        ..write(committedGroupNames.join(' + '));
     }
     setState(() {
       _feed.insert(
@@ -682,6 +835,20 @@ class _DraftPreview extends StatelessWidget {
           badge: 'OBSERVATION',
           title: note,
           subtitle: '$kids · ${domain.code} · ${sentiment.name}',
+          accent: theme.colorScheme.primary,
+        );
+      case AppendObservationCommandDraft(
+          :final appendNote,
+          :final addChildNames,
+        ):
+        final addNote = addChildNames.isEmpty
+            ? 'Append to last observation'
+            : 'Append + tag ${addChildNames.join(' + ')}';
+        return (
+          icon: Icons.note_add_outlined,
+          badge: 'APPEND',
+          title: appendNote,
+          subtitle: addNote,
           accent: theme.colorScheme.primary,
         );
       case CalendarTileCommandDraft(:final calendar):

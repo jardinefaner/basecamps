@@ -354,6 +354,16 @@ Optional keys (omit or use empty string when not in the input):
                  return both names IF AND ONLY IF the roster has
                  exactly two groups; otherwise fall back to empty.
 
+                 SPECIAL CASE — "ONLY pandas and bears" / "JUST
+                 sunflowers and acorns" / "the X and Y are coming"
+                 → return the exact set of named groups, NOT the
+                 active filter. The word "only" / "just" is
+                 narrowing language: the teacher is excluding
+                 every other group. This is the OPPOSITE of "all" —
+                 same idea (an explicit set), different intent.
+                 If a name doesn't match the roster (typo, slang),
+                 omit it; never substitute the active group.
+
                  Empty array (or omit) when the user didn't name a
                  group AT ALL, OR when they only mentioned the
                  active group ($activeGroupName) — there's nothing
