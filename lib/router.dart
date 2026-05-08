@@ -11,6 +11,7 @@ import 'package:basecamp/features/curriculum/curriculum_hub_screen.dart';
 import 'package:basecamp/features/curriculum/curriculum_screen.dart';
 import 'package:basecamp/features/experiment/basket_survey/basket_survey_screen.dart';
 import 'package:basecamp/features/experiment/calendar_screen.dart';
+import 'package:basecamp/features/experiment/command_screen.dart';
 import 'package:basecamp/features/experiment/experiment_screen.dart';
 import 'package:basecamp/features/experiment/late_pickup_screen.dart';
 import 'package:basecamp/features/experiment/monthly_plan_screen.dart';
@@ -29,11 +30,11 @@ import 'package:basecamp/features/planning/week_plan_screen.dart';
 import 'package:basecamp/features/programs/join_with_code_sheet.dart';
 import 'package:basecamp/features/programs/program_bootstrap.dart';
 import 'package:basecamp/features/programs/program_detail_screen.dart';
+import 'package:basecamp/features/prints/print_detail_screen.dart';
+import 'package:basecamp/features/prints/prints_screen.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/programs/programs_screen.dart';
 import 'package:basecamp/features/programs/sync_diagnostics_screen.dart';
-import 'package:basecamp/features/prints/print_detail_screen.dart';
-import 'package:basecamp/features/prints/prints_screen.dart';
 import 'package:basecamp/features/programs/welcome_screen.dart';
 import 'package:basecamp/features/roles/roles_screen.dart';
 import 'package:basecamp/features/rooms/rooms_screen.dart';
@@ -533,6 +534,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/late-pickup',
         builder: (_, _) => const LatePickupScreen(),
+      ),
+      // Command Center — voice-first single-surface experiment.
+      // One bar at the bottom routes any utterance to the right
+      // tool (observation / calendar tile / late pickup) via an
+      // LLM intent classifier. Lab proof for the "typeless"
+      // architecture conversation.
+      GoRoute(
+        path: '/command',
+        builder: (_, _) => const CommandScreen(),
       ),
       GoRoute(
         path: '/more/sequences',

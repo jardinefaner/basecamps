@@ -1275,6 +1275,16 @@ class _DestinationData {
       path: '/late-pickup',
       category: _DestCategory.lab,
     ),
+    // Command Center — voice-first single-surface experiment. One
+    // bar, any verb. The LLM picks the right tool (observation,
+    // calendar tile, late pickup) and the result lands in the
+    // right place. The proof for "single-surface app" thinking.
+    _DestinationData(
+      label: 'Command Center',
+      icon: Icons.auto_awesome_outlined,
+      path: '/command',
+      category: _DestCategory.lab,
+    ),
   ];
 }
 
