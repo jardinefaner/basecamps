@@ -704,6 +704,11 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
       _transitioning = false;
       _basketSnapshot = null;
       _sessionStartedAt = DateTime.now();
+      // Reset the pre-flight gate so the next kid is asked their
+      // school first — without this the next kid silently
+      // inherits the previous kid's school answer because the
+      // gate is skipped.
+      _preflightDone = false;
       if (newSessionId != null) _sessionId = newSessionId;
     });
     _playCurrentQuestionAudio();

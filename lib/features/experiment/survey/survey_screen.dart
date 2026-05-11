@@ -4557,8 +4557,13 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
   @override
   void dispose() {
     // If the teacher exits mid-flow, mark the session abandoned.
+    // BUT: skip the write when the survey reached the "All done"
+    // beat. Otherwise this dispose-time `completed: false` races
+    // and overwrites the `completed: true` write that the
+    // all-done handler just made, leaving the session forever
+    // stuck in "Incomplete" on the results screen.
     final sessionId = _sessionId;
-    if (sessionId != null && _isKiosk) {
+    if (sessionId != null && _isKiosk && !_showingAllDone) {
       // Best-effort cleanup; if the app is being torn down the
       // write may not flush.
       unawaited(
