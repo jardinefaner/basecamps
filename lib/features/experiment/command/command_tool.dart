@@ -32,6 +32,7 @@ class CommandContext {
     this.route,
     this.activeProgramId,
     this.selectedRecordId,
+    this.recentRecords = const <RecentCommandRecord>[],
   });
 
   /// Route the bar fired from. `/command` from the Lab,
@@ -40,6 +41,39 @@ class CommandContext {
   final String? route;
   final String? activeProgramId;
   final String? selectedRecordId;
+
+  /// Most-recently created records this session, newest first.
+  /// Drives anaphora ("and they were laughing" → previous obs)
+  /// and append-to-last routing. Capped to a small window by
+  /// the screen so the prompt stays small.
+  final List<RecentCommandRecord> recentRecords;
+}
+
+/// One row in the recent-records window. The dispatcher renders
+/// these into the system prompt so the LLM can pick an id when
+/// routing to append / edit tools. Different from the per-tool
+/// extraction context — this is the universal `what just
+/// happened` slice every tool can see.
+class RecentCommandRecord {
+  const RecentCommandRecord({
+    required this.id,
+    required this.type,
+    required this.summary,
+    required this.createdAt,
+  });
+
+  final String id;
+
+  /// 'observation' | 'calendarTile' | 'latePickup' — matches
+  /// the kind the corresponding tool creates.
+  final String type;
+
+  /// Short label the LLM sees ("Phillip helped Maya tie his
+  /// shoe", "Aquarium trip Tuesday", "Phillip late 6:15 pm").
+  /// Keep under ~120 chars.
+  final String summary;
+
+  final DateTime createdAt;
 }
 
 /// Discriminated outcome from `CommandTool.execute`. Lets the

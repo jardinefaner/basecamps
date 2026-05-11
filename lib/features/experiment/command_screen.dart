@@ -1,38 +1,39 @@
 // Command Center — voice-first single-surface experiment.
 //
-// One screen. One bar at the bottom. A feed at the top showing
-// what's been created today. The bar accepts any short fragment
-// — observations, calendar tiles, late-pickup rows — and the
-// LLM picks the right tool from the verb in the sentence.
+// One screen. One bar at the bottom. A feed at the top of what
+// the user just did. The bar accepts any short fragment — the
+// dispatcher routes to the right tool, executes immediately,
+// surfaces the result in the feed + a toast.
 //
-// What this proves: that voice-first is a viable replacement
-// for "navigate to a screen, find a button, fill out a form."
-// If teachers naturally fall into the bar instead of the
-// per-feature drop bars, we promote this pattern, dock the bar
-// at the bottom of every screen, and consolidate.
+// Architectural shape (current):
+//   * Anchored input ("note, ..." / "trip, ...") → registry's
+//     `matchAnchor` strips the prefix + force-routes to the
+//     matched tool via `tool_choice` in the LLM call. One
+//     round-trip, deterministic.
+//   * Unanchored input → context-filtered tool list, LLM picks
+//     + extracts args in one round-trip via OpenAI tool-calling.
+//   * Tool's `execute(args, ref)` runs immediately, writes to
+//     the cloud-synced repo, returns a `CommandResult`.
+//   * The bar inserts a feed row + shows a toast with a "View"
+//     action linking to the source screen.
 //
-// What this doesn't do (yet):
-//   * no voice input — text only for v0; Deepgram plug-in is
-//     trivial once the loop is proven
-//   * no append-to-last — every utterance is a fresh action
-//   * no cross-program / cross-time queries — feed is "today"
-//   * no editing inline — feed entries link to the source screen
-//
-// Lab proof. Real if we promote.
+// Compared to the prior 2-pass classifier:
+//   * 1 LLM round-trip instead of 2 — half the latency.
+//   * Tool schemas enforce arg shape — no JSON parsing failures.
+//   * Adding a new tool is one `registry.register(...)` call;
+//     no central classifier prompt to maintain.
+//   * Provider-abstracted — swap OpenAI → Anthropic / local
+//     later by writing one more `LlmProvider`.
+//   * Recent-records context window drives anaphora (append-to-
+//     last) for any tool that needs it.
 
 import 'dart:async';
 
-import 'package:basecamp/database/database.dart' show Child;
-import 'package:basecamp/features/adults/adults_repository.dart'
-    show currentAdultProvider;
 import 'package:basecamp/features/ai/openai_client.dart';
-import 'package:basecamp/features/children/children_repository.dart'
-    show childrenProvider, groupsProvider;
-import 'package:basecamp/features/experiment/calendar_tile_store.dart';
-import 'package:basecamp/features/experiment/command_llm_service.dart';
-import 'package:basecamp/features/experiment/late_pickup_store.dart';
-import 'package:basecamp/features/experiment/late_pickup_llm_service.dart';
-import 'package:basecamp/features/observations/observations_repository.dart';
+import 'package:basecamp/features/experiment/command/command_tool.dart';
+import 'package:basecamp/features/experiment/command/dispatcher/command_dispatcher.dart';
+import 'package:basecamp/features/programs/programs_repository.dart'
+    show activeProgramIdProvider;
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,16 +41,9 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 /// Show a brief toast that doesn't queue and doesn't block the
-/// docked input bar. Three behaviors that diverge from Flutter's
-/// defaults:
-///   1. `clearSnackBars()` first so a flurry of Adds doesn't
-///      stack toasts (default queues them and runs each for the
-///      full duration).
-///   2. 3-second duration (default is 4) — enough to read,
-///      short enough to not feel sticky.
-///   3. `SnackBarBehavior.floating` with a margin above the
-///      bottom edge so it sits above the Command Bar instead of
-///      covering it.
+/// docked input bar. `clearSnackBars()` first so repeated Adds
+/// replace instead of stack; 3-second duration; floating
+/// behavior with bottom margin so it sits above the bar.
 void _showToast(
   BuildContext context,
   String message, {
@@ -75,396 +69,111 @@ class CommandScreen extends ConsumerStatefulWidget {
 }
 
 class _CommandScreenState extends ConsumerState<CommandScreen> {
-  CommandDraft? _draft;
   bool _loading = false;
   String? _error;
 
-  /// Local feed of items committed THIS session. Observations
-  /// are also persisted to the cloud-synced repo, but we keep
-  /// the local feed for fast rendering + so calendar/late-pickup
-  /// drafts (which today land in their own in-memory lab models)
-  /// have somewhere to surface from this screen.
+  /// Recent results, newest first. Drives the feed view + the
+  /// `recentRecords` window the dispatcher passes to the LLM
+  /// for anaphora resolution.
   final List<_FeedEntry> _feed = <_FeedEntry>[];
 
-  /// Recent observations the user just created in this session,
-  /// newest first. Capped to a small window — both for prompt
-  /// budget reasons and because "recent" loses meaning past a
-  /// handful of items in a single session. Drives the append-to-
-  /// last detection: when the next utterance looks like a
-  /// continuation of one of these, the LLM merges into it
-  /// instead of minting a new row.
-  final List<RecentObservation> _recentObservations =
-      <RecentObservation>[];
-  static const int _recentObservationCap = 5;
-
-  // ——— Submission ———————————————————————————————————————————————
+  /// Window of recent-record summaries the dispatcher includes
+  /// in the system prompt so the LLM can route "and they were
+  /// laughing" to an `append` tool with the right target id.
+  static const int _recentCap = 5;
+  List<RecentCommandRecord> get _recentRecords {
+    return _feed
+        .where((e) => e.recordId != null)
+        .take(_recentCap)
+        .map(
+          (e) => RecentCommandRecord(
+            id: e.recordId!,
+            type: e.recordType,
+            summary: e.title,
+            createdAt: e.timestamp,
+          ),
+        )
+        .toList();
+  }
 
   Future<void> _onSubmit(String input) async {
+    if (input.trim().isEmpty || _loading) return;
     setState(() {
       _loading = true;
       _error = null;
-      _draft = null;
     });
+    final ctx = CommandContext(
+      route: '/command',
+      activeProgramId: ref.read(activeProgramIdProvider),
+      recentRecords: _recentRecords,
+    );
     try {
-      final children = ref.read(childrenProvider).asData?.value ??
-          const <Child>[];
-      final groups = ref.read(groupsProvider).asData?.value ?? const [];
-      final adult = ref.read(currentAdultProvider).asData?.value;
-      final staffName = (adult?.name.trim() ?? '').isEmpty
-          ? 'Staff'
-          : adult!.name.trim();
-      final activeGroupName = groups.isEmpty ? 'group' : groups.first.name;
-      final draft = await CommandLlmService.draftFromText(
-        input: input,
-        now: DateTime.now(),
-        roster: CommandRoster(
-          staffName: staffName,
-          activeGroupName: activeGroupName,
-          availableGroups: groups.map((g) => g.name).toList(),
-          children: children
-              .map(
-                (c) => LatePickupRosterChild(
-                  id: c.id,
-                  firstName: c.firstName,
-                  lastName: c.lastName,
-                  parentName: c.parentName,
-                ),
-              )
-              .toList(),
-          recentObservations: _recentObservations,
-        ),
-      );
+      final dispatcher = ref.read(commandDispatcherProvider);
+      final results = await dispatcher.submit(input: input, ctx: ctx);
       if (!mounted) return;
       setState(() {
-        _draft = draft;
         _loading = false;
+        for (final r in results) {
+          _feed.insert(
+            0,
+            _FeedEntry(
+              recordId: r.recordId,
+              recordType: _inferType(r.badge),
+              title: r.title,
+              subtitle: r.subtitle,
+              badge: r.badge,
+              icon: r.icon,
+              destinationPath: r.destinationPath,
+              timestamp: DateTime.now(),
+            ),
+          );
+        }
+      });
+      // Combined toast — covers single and multi-tool results.
+      final first = results.first;
+      final extras = results.length - 1;
+      final message = extras == 0
+          ? '${first.badge}: ${first.title}'
+          : '${first.badge}: ${first.title} (+$extras more)';
+      _showToast(
+        context,
+        message,
+        action: first.destinationPath != null
+            ? SnackBarAction(
+                label: 'View',
+                onPressed: () => context.push(first.destinationPath!),
+              )
+            : null,
+      );
+    } on CommandDispatcherException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.message;
       });
     } on Object catch (e) {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = "Couldn't parse — try rephrasing.";
+        _error = "Couldn't run that — try again.";
       });
       debugPrint('[command] $e');
     }
   }
 
-  Future<void> _onConfirm() async {
-    final draft = _draft;
-    if (draft == null) return;
-    switch (draft) {
-      case ObservationCommandDraft():
-        await _commitObservation(draft);
-      case AppendObservationCommandDraft():
-        await _commitAppendObservation(draft);
-      case CalendarTileCommandDraft():
-        _commitCalendarTile(draft);
-      case LatePickupCommandDraft():
-        _commitLatePickup(draft);
+  /// Infer the recent-record `type` slug from the tool's badge.
+  /// Used so the LLM's classifier sees a consistent vocabulary
+  /// for "what is this" when the recent-records context block
+  /// goes into the system prompt.
+  String _inferType(String badge) {
+    final upper = badge.toUpperCase();
+    if (upper.startsWith('OBSERVATION') || upper == 'APPEND') {
+      return 'observation';
     }
-    if (!mounted) return;
-    setState(() {
-      _draft = null;
-      _error = null;
-    });
+    if (upper.startsWith('CALENDAR')) return 'calendarTile';
+    if (upper.startsWith('LATE')) return 'latePickup';
+    return 'record';
   }
-
-  Future<void> _commitObservation(ObservationCommandDraft d) async {
-    final repo = ref.read(observationsRepositoryProvider);
-    try {
-      final id = await repo.addObservation(
-        domains: [d.domain],
-        sentiment: d.sentiment,
-        note: d.note,
-        childIds: d.childIds,
-        // The current adult's name flows in via `_authorName` on the
-        // repo, but addObservation also accepts an explicit string —
-        // pass it so the row lights up "Logged by ..." even when the
-        // adult provider is mid-load on a fresh launch.
-        authorName: ref
-            .read(currentAdultProvider)
-            .asData
-            ?.value
-            ?.name,
-      );
-      if (!mounted) return;
-      setState(() {
-        _feed.insert(
-          0,
-          _FeedEntry(
-            kind: _FeedKind.observation,
-            timestamp: DateTime.now(),
-            title: d.note,
-            subtitle: d.summary(),
-            destinationPath: '/observations',
-            payload: id,
-          ),
-        );
-        // Track this observation so the next utterance can be
-        // recognised as a continuation. Newest first; cap so the
-        // prompt stays small.
-        _recentObservations.insert(
-          0,
-          RecentObservation(
-            id: id,
-            note: d.note,
-            childIds: d.childIds,
-            childNames: d.childNames,
-            createdAt: DateTime.now(),
-          ),
-        );
-        if (_recentObservations.length > _recentObservationCap) {
-          _recentObservations.removeRange(
-            _recentObservationCap,
-            _recentObservations.length,
-          );
-        }
-      });
-      // Visual confirmation — the observation went to the cloud-
-      // synced repo so it's reachable from the Observations tab.
-      // Clear any queued snackbars first so a flurry of Adds doesn't
-      // pile up multi-second toasts on top of each other; show a
-      // floating 3-second one that doesn't cover the input bar.
-      _showToast(
-        context,
-        'Observation saved.',
-        action: SnackBarAction(
-          label: 'View',
-          onPressed: () => context.push('/observations'),
-        ),
-      );
-    } on Object catch (e) {
-      if (!mounted) return;
-      _showToast(context, 'Could not save observation: $e');
-    }
-  }
-
-  /// Append the model-produced text to an existing observation's
-  /// note + merge any new kid ids in. Reads the current row,
-  /// builds the merged versions, calls `updateObservation`. Also
-  /// updates the local recent-window so the merged note is what
-  /// the next round of classifier context sees.
-  Future<void> _commitAppendObservation(
-    AppendObservationCommandDraft d,
-  ) async {
-    final repo = ref.read(observationsRepositoryProvider);
-    try {
-      // The recent window keeps a copy we can use for the merge —
-      // saves a DB round-trip + handles the "in-flight while
-      // syncing" case where the cloud row hasn't echoed back yet.
-      final i = _recentObservations.indexWhere(
-        (r) => r.id == d.observationId,
-      );
-      if (i < 0) {
-        // Should never happen — `_classifyIntent` validates ids
-        // against this same window — but degrade gracefully.
-        _showToast(
-          context,
-          "Couldn't find the observation to append to.",
-        );
-        return;
-      }
-      final existing = _recentObservations[i];
-      final mergedNote =
-          '${existing.note} ${d.appendNote}'.replaceAll(
-        RegExp(r'\s+'),
-        ' ',
-      ).trim();
-      final mergedChildIds = <String>{
-        ...existing.childIds,
-        ...d.addChildIds,
-      }.toList();
-
-      await repo.updateObservation(
-        id: d.observationId,
-        note: mergedNote,
-        childIds: mergedChildIds,
-      );
-      if (!mounted) return;
-      setState(() {
-        // Update the recent-window entry so subsequent classifier
-        // calls see the latest text.
-        _recentObservations[i] = RecentObservation(
-          id: existing.id,
-          note: mergedNote,
-          childIds: mergedChildIds,
-          childNames: <String>{
-            ...existing.childNames,
-            ...d.addChildNames,
-          }.toList(),
-          createdAt: DateTime.now(),
-        );
-        // Surface the append on the feed so the user sees that
-        // it modified an existing row instead of creating one.
-        _feed.insert(
-          0,
-          _FeedEntry(
-            kind: _FeedKind.observation,
-            timestamp: DateTime.now(),
-            title: '+ ${d.appendNote}',
-            subtitle: 'Appended to: '
-                '"${existing.note.length > 60 ? '${existing.note.substring(0, 60)}…' : existing.note}"',
-            destinationPath: '/observations',
-            payload: existing.id,
-          ),
-        );
-      });
-      _showToast(
-        context,
-        'Appended to the previous observation.',
-        action: SnackBarAction(
-          label: 'View',
-          onPressed: () => context.push('/observations'),
-        ),
-      );
-    } on Object catch (e) {
-      if (!mounted) return;
-      _showToast(context, "Couldn't append: $e");
-    }
-  }
-
-  void _commitCalendarTile(CalendarTileCommandDraft d) {
-    final c = d.calendar;
-    final groups = ref.read(groupsProvider).asData?.value ?? const [];
-
-    // Resolve the LLM's nominated group names against the roster
-    // (case-insensitive, trimmed, deduped). Fan out one tile per
-    // resolved group — same semantics the /calendar drop bar
-    // uses. Without this fan-out, "santa cruz trip wednesday for
-    // pandas and bears" was producing a single tile on whatever
-    // group sat first on the roster (reported bug).
-    //
-    // Fallback when the LLM didn't name any group: a single tile
-    // on the first group, just so the create lands SOMEWHERE.
-    final resolvedIds = <String>[];
-    final seen = <String>{};
-    for (final name in c.groupNames) {
-      final needle = name.trim().toLowerCase();
-      if (needle.isEmpty) continue;
-      final match = groups
-          .where((g) => g.name.trim().toLowerCase() == needle)
-          .toList();
-      if (match.isEmpty) continue;
-      if (seen.add(match.first.id)) resolvedIds.add(match.first.id);
-    }
-    if (resolvedIds.isEmpty && groups.isNotEmpty) {
-      resolvedIds.add(groups.first.id);
-    }
-
-    // Mint one tile per resolved group. They share date / title /
-    // fields and only differ on groupId — same fan-out shape as
-    // /calendar's `_onDropConfirm`.
-    final repo = ref.read(calendarTilesRepoProvider);
-    final committedGroupNames = <String>[];
-    for (final groupId in resolvedIds) {
-      final tile = CalendarTile(
-        id: '${DateTime.now().microsecondsSinceEpoch}-'
-            '${UniqueKey().hashCode}',
-        type: c.type,
-        date: DateTime.utc(c.date.year, c.date.month, c.date.day),
-        groupId: groupId,
-        title: c.title,
-      )
-        ..destination = c.destination ?? ''
-        ..startTime = c.startTime
-        ..endTime = c.endTime
-        ..theme = c.theme ?? ''
-        ..description = c.description ?? ''
-        ..notes = c.notes ?? '';
-      unawaited(repo.put(tile));
-      final groupName = groups
-          .where((g) => g.id == groupId)
-          .map((g) => g.name)
-          .firstOrNull;
-      if (groupName != null) committedGroupNames.add(groupName);
-    }
-
-    // Surface it on the feed so the teacher gets immediate visual
-    // feedback. The subtitle now includes WHICH groups got tiles,
-    // so a fan-out fan-out is visible at a glance ("for Pandas +
-    // Bears") instead of looking like a single create.
-    final timeFmt = DateFormat('h:mm a');
-    final dateFmt = DateFormat.MMMEd();
-    final summary = StringBuffer()..write(dateFmt.format(c.date));
-    if (c.startTime != null) {
-      summary
-        ..write(' · ')
-        ..write(timeFmt.format(
-          DateTime(0, 1, 1, c.startTime!.hour, c.startTime!.minute),
-        ));
-    }
-    if (c.destination != null && c.destination!.isNotEmpty) {
-      summary
-        ..write(' · ')
-        ..write(c.destination);
-    }
-    if (committedGroupNames.isNotEmpty) {
-      summary
-        ..write(' · for ')
-        ..write(committedGroupNames.join(' + '));
-    }
-    setState(() {
-      _feed.insert(
-        0,
-        _FeedEntry(
-          kind: _FeedKind.calendarTile,
-          timestamp: DateTime.now(),
-          title: c.title,
-          subtitle: summary.toString(),
-          destinationPath: '/calendar',
-        ),
-      );
-    });
-  }
-
-  void _commitLatePickup(LatePickupCommandDraft d) {
-    final l = d.latePickup;
-
-    // Push into the shared late-entries store so `/late-pickup`
-    // sees the new row.
-    final entry = LateEntry(
-      id: '${DateTime.now().microsecondsSinceEpoch}-${UniqueKey().hashCode}',
-      date: l.date,
-      pickupTime: l.pickupTime,
-      childId: l.childId,
-      childName: l.childName,
-      parentName: l.parentName,
-      reminderCardGiven: l.reminderCardGiven,
-      staffName: l.staffName,
-      notes: l.notes ?? '',
-    );
-    unawaited(ref.read(latePickupsRepoProvider).add(entry));
-
-    final timeLabel = l.pickupTime.format(context);
-    final summary = StringBuffer()..write(timeLabel);
-    if (l.parentName.isNotEmpty) {
-      summary
-        ..write(' · ')
-        ..write(l.parentName);
-    }
-    if (l.reminderCardGiven) summary.write(' · 📩 reminder card');
-    setState(() {
-      _feed.insert(
-        0,
-        _FeedEntry(
-          kind: _FeedKind.latePickup,
-          timestamp: DateTime.now(),
-          title: l.childName,
-          subtitle: summary.toString(),
-          destinationPath: '/late-pickup',
-        ),
-      );
-    });
-  }
-
-  void _onDismiss() {
-    setState(() {
-      _draft = null;
-      _error = null;
-    });
-  }
-
-  // ——— Build ————————————————————————————————————————————————————
 
   @override
   Widget build(BuildContext context) {
@@ -481,11 +190,8 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
           _CommandBar(
             enabled: OpenAiClient.isAvailable,
             loading: _loading,
-            draft: _draft,
             error: _error,
             onSubmit: _onSubmit,
-            onConfirm: _onConfirm,
-            onDismiss: _onDismiss,
           ),
         ],
       ),
@@ -497,42 +203,32 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
 // Feed
 // ═════════════════════════════════════════════════════════════════
 
-enum _FeedKind { observation, calendarTile, latePickup }
-
 class _FeedEntry {
   const _FeedEntry({
-    required this.kind,
-    required this.timestamp,
     required this.title,
     required this.subtitle,
-    required this.destinationPath,
-    this.payload,
+    required this.badge,
+    required this.icon,
+    required this.timestamp,
+    required this.recordType,
+    this.recordId,
+    this.destinationPath,
   });
 
-  final _FeedKind kind;
-  final DateTime timestamp;
+  final String? recordId;
+  final String recordType;
   final String title;
   final String subtitle;
-  final String destinationPath;
-  final Object? payload;
+  final String badge;
+  final IconData icon;
+  final DateTime timestamp;
+  final String? destinationPath;
 }
 
 class _Feed extends StatelessWidget {
   const _Feed({required this.entries});
 
   final List<_FeedEntry> entries;
-
-  IconData _iconFor(_FeedKind k) => switch (k) {
-        _FeedKind.observation => Icons.edit_note_outlined,
-        _FeedKind.calendarTile => Icons.calendar_today_outlined,
-        _FeedKind.latePickup => Icons.access_time_outlined,
-      };
-
-  String _badgeFor(_FeedKind k) => switch (k) {
-        _FeedKind.observation => 'OBSERVATION',
-        _FeedKind.calendarTile => 'CALENDAR',
-        _FeedKind.latePickup => 'LATE PICKUP',
-      };
 
   @override
   Widget build(BuildContext context) {
@@ -553,7 +249,9 @@ class _Feed extends StatelessWidget {
           color: theme.colorScheme.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(12),
           child: InkWell(
-            onTap: () => context.push(e.destinationPath),
+            onTap: e.destinationPath == null
+                ? null
+                : () => context.push(e.destinationPath!),
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.md),
@@ -561,9 +259,10 @@ class _Feed extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.only(top: 2, right: AppSpacing.sm),
+                    padding:
+                        const EdgeInsets.only(top: 2, right: AppSpacing.sm),
                     child: Icon(
-                      _iconFor(e.kind),
+                      e.icon,
                       size: 20,
                       color: theme.colorScheme.primary,
                     ),
@@ -575,7 +274,7 @@ class _Feed extends StatelessWidget {
                         Row(
                           children: [
                             Text(
-                              _badgeFor(e.kind),
+                              e.badge,
                               style: theme.textTheme.labelSmall?.copyWith(
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 0.5,
@@ -594,6 +293,8 @@ class _Feed extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           e.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodyLarge?.copyWith(
                             fontWeight: FontWeight.w600,
                             height: 1.3,
@@ -602,6 +303,8 @@ class _Feed extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           e.subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -609,11 +312,12 @@ class _Feed extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Icon(
-                    Icons.chevron_right,
-                    size: 18,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+                  if (e.destinationPath != null)
+                    Icon(
+                      Icons.chevron_right,
+                      size: 18,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                 ],
               ),
             ),
@@ -649,10 +353,10 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Type below — the LLM picks the right tool.\n\n'
-              '"Phillip helped Maya tie her shoe today" → observation\n'
-              '"Field trip aquarium next tuesday" → calendar\n'
-              '"Phillip is late, gave reminder card" → late pickup',
+              'Type or anchor — the LLM picks the right tool.\n\n'
+              '"Note, Phillip helped Maya tie his shoe"\n'
+              '"Trip, aquarium next tuesday for sunflowers"\n'
+              '"Late pickup, Phillip 6:15 reminder card"',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
@@ -674,20 +378,14 @@ class _CommandBar extends StatefulWidget {
   const _CommandBar({
     required this.enabled,
     required this.loading,
-    required this.draft,
     required this.error,
     required this.onSubmit,
-    required this.onConfirm,
-    required this.onDismiss,
   });
 
   final bool enabled;
   final bool loading;
-  final CommandDraft? draft;
   final String? error;
   final ValueChanged<String> onSubmit;
-  final VoidCallback onConfirm;
-  final VoidCallback onDismiss;
 
   @override
   State<_CommandBar> createState() => _CommandBarState();
@@ -737,14 +435,6 @@ class _CommandBarState extends State<_CommandBar> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (widget.draft != null) ...[
-                _DraftPreview(
-                  draft: widget.draft!,
-                  onConfirm: widget.onConfirm,
-                  onDismiss: widget.onDismiss,
-                ),
-                const SizedBox(height: AppSpacing.sm),
-              ],
               if (widget.error != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
@@ -802,149 +492,6 @@ class _CommandBarState extends State<_CommandBar> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _DraftPreview extends StatelessWidget {
-  const _DraftPreview({
-    required this.draft,
-    required this.onConfirm,
-    required this.onDismiss,
-  });
-
-  final CommandDraft draft;
-  final VoidCallback onConfirm;
-  final VoidCallback onDismiss;
-
-  ({IconData icon, String badge, String title, String subtitle, Color accent})
-      _content(BuildContext context) {
-    final theme = Theme.of(context);
-    switch (draft) {
-      case ObservationCommandDraft(
-          :final note,
-          :final domain,
-          :final sentiment,
-          :final childNames
-        ):
-        final kids =
-            childNames.isEmpty ? 'no child tagged' : childNames.join(' + ');
-        return (
-          icon: Icons.edit_note_outlined,
-          badge: 'OBSERVATION',
-          title: note,
-          subtitle: '$kids · ${domain.code} · ${sentiment.name}',
-          accent: theme.colorScheme.primary,
-        );
-      case AppendObservationCommandDraft(
-          :final appendNote,
-          :final addChildNames,
-        ):
-        final addNote = addChildNames.isEmpty
-            ? 'Append to last observation'
-            : 'Append + tag ${addChildNames.join(' + ')}';
-        return (
-          icon: Icons.note_add_outlined,
-          badge: 'APPEND',
-          title: appendNote,
-          subtitle: addNote,
-          accent: theme.colorScheme.primary,
-        );
-      case CalendarTileCommandDraft(:final calendar):
-        final timeFmt = DateFormat('h:mm a');
-        final dateFmt = DateFormat.MMMEd();
-        final pieces = <String>[dateFmt.format(calendar.date)];
-        if (calendar.startTime != null) {
-          pieces.add(timeFmt.format(DateTime(
-            0,
-            1,
-            1,
-            calendar.startTime!.hour,
-            calendar.startTime!.minute,
-          )));
-        }
-        if (calendar.destination != null && calendar.destination!.isNotEmpty) {
-          pieces.add(calendar.destination!);
-        }
-        return (
-          icon: calendar.type.icon,
-          badge: 'CALENDAR · ${calendar.type.singularLabel.toUpperCase()}',
-          title: calendar.title,
-          subtitle: pieces.join(' · '),
-          accent: theme.colorScheme.secondary,
-        );
-      case LatePickupCommandDraft(:final latePickup):
-        final timeLabel = latePickup.pickupTime.format(context);
-        final pieces = <String>[timeLabel];
-        if (latePickup.parentName.isNotEmpty) pieces.add(latePickup.parentName);
-        if (latePickup.reminderCardGiven) pieces.add('📩 reminder card');
-        return (
-          icon: Icons.access_time,
-          badge: 'LATE PICKUP',
-          title: latePickup.childName,
-          subtitle: pieces.join(' · '),
-          accent: theme.colorScheme.tertiary,
-        );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final c = _content(context);
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: c.accent.withValues(alpha: 0.10),
-        border: Border.all(color: c.accent.withValues(alpha: 0.4)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(c.icon, color: c.accent, size: 20),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  c.badge,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  c.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  c.subtitle,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            tooltip: 'Dismiss',
-            icon: const Icon(Icons.close, size: 18),
-            onPressed: onDismiss,
-          ),
-          FilledButton.icon(
-            onPressed: onConfirm,
-            icon: const Icon(Icons.check, size: 18),
-            label: const Text('Add'),
-          ),
-        ],
       ),
     );
   }

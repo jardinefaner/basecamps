@@ -9,21 +9,23 @@
 // automatically (no central classifier prompt to maintain).
 
 import 'package:basecamp/features/experiment/command/command_tool.dart';
+import 'package:basecamp/features/experiment/command/tools/append_observation_tool.dart';
+import 'package:basecamp/features/experiment/command/tools/calendar_tile_tool.dart';
+import 'package:basecamp/features/experiment/command/tools/late_pickup_tool.dart';
 import 'package:basecamp/features/experiment/command/tools/observation_tool.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Side-effecting library — when imported, swaps the registry
 /// loader callback to use the real registration list.
-/// `command_screen.dart` (and any future Command Center entry
-/// point) imports this file at the top of its imports to wire
-/// up the registry.
+/// `main.dart` imports this and calls `wireCommandToolRegistry()`
+/// at startup, before any consumer reads the provider.
 void registerBuiltIns(CommandToolRegistry registry, Ref ref) {
-  // Phase 0: the four existing intents converted to tools.
-  // Today only `create_observation` lives here as the proof —
-  // append / calendar / late-pickup will follow as they're
-  // ported. Until then the bar's old 2-pass classifier still
-  // handles them; this registry just stands ready.
+  // Order doesn't affect routing — the registry just lists them
+  // for the LLM. Keep them grouped by domain for readability.
   registry.register(const CreateObservationTool());
+  registry.register(const AppendObservationTool());
+  registry.register(const CreateCalendarTileTool());
+  registry.register(const CreateLatePickupTool());
 }
 
 /// Call this once at app start (e.g. main.dart, after Riverpod
