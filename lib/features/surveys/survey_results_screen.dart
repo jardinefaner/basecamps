@@ -18,6 +18,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:basecamp/core/share_origin.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/surveys/canonical_questions.dart';
 import 'package:basecamp/features/surveys/feelings_jar_card.dart';
@@ -340,6 +341,12 @@ Future<void> _exportCsv(
     final filePath = p.join(docs.path, filename);
     await File(filePath).writeAsString(csv);
     debugPrint('[csv] wrote $filePath');
+    // iPadOS share sheet is a popover that REQUIRES an anchor
+    // rect — without it share_plus throws PlatformException
+    // ("copy fail" / "presented popover does not have anchor").
+    // Compute from the tap source (the export IconButton in the
+    // AppBar) so the popover arrow points at the button.
+    final sharePositionOrigin = shareOriginFromContext(context);
     try {
       final result = await SharePlus.instance.share(
         ShareParams(
@@ -350,6 +357,7 @@ Future<void> _exportCsv(
           text: '$filename — ${rows.length} '
               'response${rows.length == 1 ? '' : 's'} from '
               '${survey.classroom}.',
+          sharePositionOrigin: sharePositionOrigin,
         ),
       );
       debugPrint('[csv] share result: ${result.status}');

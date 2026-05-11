@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:basecamp/core/format/text.dart';
+import 'package:basecamp/core/share_origin.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/programs/invite_repository.dart';
@@ -664,6 +665,7 @@ class _InvitesCard extends ConsumerWidget {
         text:
             'Join my Basecamp program with this code: ${invite.code} '
             '(expires ${DateFormat.yMMMd().format(invite.expiresAt)})',
+        sharePositionOrigin: shareOriginFromContext(context),
       ),
     );
   }

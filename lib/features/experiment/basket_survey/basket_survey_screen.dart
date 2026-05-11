@@ -28,6 +28,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:basecamp/core/share_origin.dart';
 import 'package:basecamp/features/experiment/basket_survey/basket_session_store.dart';
 import 'package:basecamp/features/experiment/basket_survey/basket_world.dart';
 import 'package:basecamp/features/experiment/basket_survey/basket_world_widget.dart';
@@ -1213,12 +1214,14 @@ class _CsvSheet extends ConsumerWidget {
                           ? null
                           : () => _copy(context, csv),
                     ),
-                    FilledButton.icon(
-                      icon: const Icon(Icons.share_outlined),
-                      label: const Text('Share'),
-                      onPressed: sessions.isEmpty
-                          ? null
-                          : () => _share(csv),
+                    Builder(
+                      builder: (btnCtx) => FilledButton.icon(
+                        icon: const Icon(Icons.share_outlined),
+                        label: const Text('Share'),
+                        onPressed: sessions.isEmpty
+                            ? null
+                            : () => _share(csv, btnCtx),
+                      ),
                     ),
                   ],
                 ),
@@ -1238,11 +1241,12 @@ class _CsvSheet extends ConsumerWidget {
     );
   }
 
-  Future<void> _share(String csv) async {
+  Future<void> _share(String csv, BuildContext anchorCtx) async {
     await SharePlus.instance.share(
       ShareParams(
         text: csv,
         subject: 'Basket Survey — sessions',
+        sharePositionOrigin: shareOriginFromContext(anchorCtx),
       ),
     );
   }

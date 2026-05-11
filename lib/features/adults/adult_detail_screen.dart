@@ -1,5 +1,6 @@
 import 'package:basecamp/config/env.dart';
 import 'package:basecamp/core/format/date.dart';
+import 'package:basecamp/core/share_origin.dart';
 import 'package:basecamp/core/format/text.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adult_timeline_repository.dart';
@@ -458,6 +459,7 @@ class _InviteDialog extends StatelessWidget {
         // Subject lands in email targets; warmer than the previous
         // "<program> invite for <name>" tag.
         subject: _shareSubject,
+        sharePositionOrigin: shareOriginFromContext(context),
       ),
     );
   }

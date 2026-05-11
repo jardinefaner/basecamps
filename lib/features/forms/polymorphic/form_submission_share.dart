@@ -1,3 +1,4 @@
+import 'package:basecamp/core/share_origin.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
@@ -104,11 +105,13 @@ Future<void> showFormSubmissionShareSheet(
               'Send via Messages, Mail, or any sharing app',
             ),
             onTap: () async {
+              final origin = shareOriginFromContext(ctx);
               Navigator.of(ctx).pop();
               await SharePlus.instance.share(
                 ShareParams(
                   text: text,
                   subject: definition.title,
+                  sharePositionOrigin: origin,
                 ),
               );
             },

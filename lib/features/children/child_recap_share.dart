@@ -1,4 +1,5 @@
 import 'package:basecamp/core/format/date.dart';
+import 'package:basecamp/core/share_origin.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/attendance/attendance_repository.dart';
 import 'package:basecamp/features/forms/polymorphic/form_submission_repository.dart';
@@ -93,11 +94,13 @@ Future<void> showChildRecapShareSheet(
               'Send via Messages, Mail, or any sharing app',
             ),
             onTap: () async {
+              final origin = shareOriginFromContext(ctx);
               Navigator.of(ctx).pop();
               await SharePlus.instance.share(
                 ShareParams(
                   text: recap.text,
                   subject: "${child.firstName}'s day at program",
+                  sharePositionOrigin: origin,
                 ),
               );
             },
