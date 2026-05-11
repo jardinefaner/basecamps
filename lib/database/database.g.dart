@@ -26215,6 +26215,17 @@ class $PrintsTable extends Prints with TableInfo<$PrintsTable, PrintRow> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _programIdMeta = const VerificationMeta(
+    'programId',
+  );
+  @override
+  late final GeneratedColumn<String> programId = GeneratedColumn<String>(
+    'program_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -26259,6 +26270,7 @@ class $PrintsTable extends Prints with TableInfo<$PrintsTable, PrintRow> {
     kind,
     snapshotPath,
     metadataJson,
+    programId,
     createdAt,
     updatedAt,
     deletedAt,
@@ -26326,6 +26338,12 @@ class $PrintsTable extends Prints with TableInfo<$PrintsTable, PrintRow> {
         ),
       );
     }
+    if (data.containsKey('program_id')) {
+      context.handle(
+        _programIdMeta,
+        programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -26381,6 +26399,10 @@ class $PrintsTable extends Prints with TableInfo<$PrintsTable, PrintRow> {
         DriftSqlType.string,
         data['${effectivePrefix}metadata_json'],
       ),
+      programId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}program_id'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -26431,6 +26453,12 @@ class PrintRow extends DataClass implements Insertable<PrintRow> {
   /// snapshot, etc.). Optional — null for kinds that don't
   /// carry extra metadata.
   final String? metadataJson;
+
+  /// v65 — program scope for cloud sync. Stamped by
+  /// `PrintsRepository.save` from `activeProgramIdProvider`.
+  /// Pre-v65 rows have NULL and the engine skips them on push;
+  /// the existing backfill stamps them on next launch.
+  final String? programId;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -26446,6 +26474,7 @@ class PrintRow extends DataClass implements Insertable<PrintRow> {
     required this.kind,
     required this.snapshotPath,
     this.metadataJson,
+    this.programId,
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
@@ -26465,6 +26494,9 @@ class PrintRow extends DataClass implements Insertable<PrintRow> {
     map['snapshot_path'] = Variable<String>(snapshotPath);
     if (!nullToAbsent || metadataJson != null) {
       map['metadata_json'] = Variable<String>(metadataJson);
+    }
+    if (!nullToAbsent || programId != null) {
+      map['program_id'] = Variable<String>(programId);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -26489,6 +26521,9 @@ class PrintRow extends DataClass implements Insertable<PrintRow> {
       metadataJson: metadataJson == null && nullToAbsent
           ? const Value.absent()
           : Value(metadataJson),
+      programId: programId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(programId),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       deletedAt: deletedAt == null && nullToAbsent
@@ -26510,6 +26545,7 @@ class PrintRow extends DataClass implements Insertable<PrintRow> {
       kind: serializer.fromJson<String>(json['kind']),
       snapshotPath: serializer.fromJson<String>(json['snapshotPath']),
       metadataJson: serializer.fromJson<String?>(json['metadataJson']),
+      programId: serializer.fromJson<String?>(json['programId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
@@ -26526,6 +26562,7 @@ class PrintRow extends DataClass implements Insertable<PrintRow> {
       'kind': serializer.toJson<String>(kind),
       'snapshotPath': serializer.toJson<String>(snapshotPath),
       'metadataJson': serializer.toJson<String?>(metadataJson),
+      'programId': serializer.toJson<String?>(programId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
@@ -26540,6 +26577,7 @@ class PrintRow extends DataClass implements Insertable<PrintRow> {
     String? kind,
     String? snapshotPath,
     Value<String?> metadataJson = const Value.absent(),
+    Value<String?> programId = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
     Value<DateTime?> deletedAt = const Value.absent(),
@@ -26551,6 +26589,7 @@ class PrintRow extends DataClass implements Insertable<PrintRow> {
     kind: kind ?? this.kind,
     snapshotPath: snapshotPath ?? this.snapshotPath,
     metadataJson: metadataJson.present ? metadataJson.value : this.metadataJson,
+    programId: programId.present ? programId.value : this.programId,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
@@ -26568,6 +26607,7 @@ class PrintRow extends DataClass implements Insertable<PrintRow> {
       metadataJson: data.metadataJson.present
           ? data.metadataJson.value
           : this.metadataJson,
+      programId: data.programId.present ? data.programId.value : this.programId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
@@ -26584,6 +26624,7 @@ class PrintRow extends DataClass implements Insertable<PrintRow> {
           ..write('kind: $kind, ')
           ..write('snapshotPath: $snapshotPath, ')
           ..write('metadataJson: $metadataJson, ')
+          ..write('programId: $programId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt')
@@ -26600,6 +26641,7 @@ class PrintRow extends DataClass implements Insertable<PrintRow> {
     kind,
     snapshotPath,
     metadataJson,
+    programId,
     createdAt,
     updatedAt,
     deletedAt,
@@ -26615,6 +26657,7 @@ class PrintRow extends DataClass implements Insertable<PrintRow> {
           other.kind == this.kind &&
           other.snapshotPath == this.snapshotPath &&
           other.metadataJson == this.metadataJson &&
+          other.programId == this.programId &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt);
@@ -26628,6 +26671,7 @@ class PrintsCompanion extends UpdateCompanion<PrintRow> {
   final Value<String> kind;
   final Value<String> snapshotPath;
   final Value<String?> metadataJson;
+  final Value<String?> programId;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> deletedAt;
@@ -26640,6 +26684,7 @@ class PrintsCompanion extends UpdateCompanion<PrintRow> {
     this.kind = const Value.absent(),
     this.snapshotPath = const Value.absent(),
     this.metadataJson = const Value.absent(),
+    this.programId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
@@ -26653,6 +26698,7 @@ class PrintsCompanion extends UpdateCompanion<PrintRow> {
     required String kind,
     required String snapshotPath,
     this.metadataJson = const Value.absent(),
+    this.programId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
@@ -26668,6 +26714,7 @@ class PrintsCompanion extends UpdateCompanion<PrintRow> {
     Expression<String>? kind,
     Expression<String>? snapshotPath,
     Expression<String>? metadataJson,
+    Expression<String>? programId,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? deletedAt,
@@ -26681,6 +26728,7 @@ class PrintsCompanion extends UpdateCompanion<PrintRow> {
       if (kind != null) 'kind': kind,
       if (snapshotPath != null) 'snapshot_path': snapshotPath,
       if (metadataJson != null) 'metadata_json': metadataJson,
+      if (programId != null) 'program_id': programId,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
@@ -26696,6 +26744,7 @@ class PrintsCompanion extends UpdateCompanion<PrintRow> {
     Value<String>? kind,
     Value<String>? snapshotPath,
     Value<String?>? metadataJson,
+    Value<String?>? programId,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<DateTime?>? deletedAt,
@@ -26709,6 +26758,7 @@ class PrintsCompanion extends UpdateCompanion<PrintRow> {
       kind: kind ?? this.kind,
       snapshotPath: snapshotPath ?? this.snapshotPath,
       metadataJson: metadataJson ?? this.metadataJson,
+      programId: programId ?? this.programId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
@@ -26740,6 +26790,9 @@ class PrintsCompanion extends UpdateCompanion<PrintRow> {
     if (metadataJson.present) {
       map['metadata_json'] = Variable<String>(metadataJson.value);
     }
+    if (programId.present) {
+      map['program_id'] = Variable<String>(programId.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -26765,6 +26818,7 @@ class PrintsCompanion extends UpdateCompanion<PrintRow> {
           ..write('kind: $kind, ')
           ..write('snapshotPath: $snapshotPath, ')
           ..write('metadataJson: $metadataJson, ')
+          ..write('programId: $programId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
@@ -53075,6 +53129,7 @@ typedef $$PrintsTableCreateCompanionBuilder =
       required String kind,
       required String snapshotPath,
       Value<String?> metadataJson,
+      Value<String?> programId,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
@@ -53089,6 +53144,7 @@ typedef $$PrintsTableUpdateCompanionBuilder =
       Value<String> kind,
       Value<String> snapshotPath,
       Value<String?> metadataJson,
+      Value<String?> programId,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
@@ -53136,6 +53192,11 @@ class $$PrintsTableFilterComposer
 
   ColumnFilters<String> get metadataJson => $composableBuilder(
     column: $table.metadataJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get programId => $composableBuilder(
+    column: $table.programId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -53199,6 +53260,11 @@ class $$PrintsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get programId => $composableBuilder(
+    column: $table.programId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -53249,6 +53315,9 @@ class $$PrintsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get programId =>
+      $composableBuilder(column: $table.programId, builder: (column) => column);
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -53294,6 +53363,7 @@ class $$PrintsTableTableManager
                 Value<String> kind = const Value.absent(),
                 Value<String> snapshotPath = const Value.absent(),
                 Value<String?> metadataJson = const Value.absent(),
+                Value<String?> programId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
@@ -53306,6 +53376,7 @@ class $$PrintsTableTableManager
                 kind: kind,
                 snapshotPath: snapshotPath,
                 metadataJson: metadataJson,
+                programId: programId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
@@ -53320,6 +53391,7 @@ class $$PrintsTableTableManager
                 required String kind,
                 required String snapshotPath,
                 Value<String?> metadataJson = const Value.absent(),
+                Value<String?> programId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
@@ -53332,6 +53404,7 @@ class $$PrintsTableTableManager
                 kind: kind,
                 snapshotPath: snapshotPath,
                 metadataJson: metadataJson,
+                programId: programId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,

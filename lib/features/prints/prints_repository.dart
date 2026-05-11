@@ -15,6 +15,8 @@ import 'dart:typed_data';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
+import 'package:basecamp/features/programs/program_scope.dart';
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -81,9 +83,12 @@ class SavedPrint {
 }
 
 class PrintsRepository {
-  PrintsRepository(this._db);
+  PrintsRepository(this._db, this._ref);
 
   final AppDatabase _db;
+  final Ref _ref;
+
+  String? get _programId => _ref.read(activeProgramIdProvider);
 
   static const String _printsSubdir = 'prints';
 
@@ -102,23 +107,33 @@ class PrintsRepository {
     Map<String, dynamic> metadata = const <String, dynamic>{},
   }) async {
     final id = newId();
-    final relPath = '$_printsSubdir/$id.png';
-    String storedPath;
-    if (kIsWeb) {
-      // Web fallback — embed bytes as a data URL. Limits:
-      // ~1MB per print (above that the PRAGMA-prepared statement
-      // bound to a TEXT column starts feeling sluggish). For the
-      // print card snapshots that's fine.
-      storedPath = 'data:image/png;base64,${base64Encode(snapshot)}';
-    } else {
-      final dir = await getApplicationDocumentsDirectory();
-      final printDir = Directory(p.join(dir.path, _printsSubdir));
-      if (!printDir.existsSync()) {
-        printDir.createSync(recursive: true);
+    // EVERY platform now embeds the PNG as a `data:` URL in
+    // `snapshot_path`. Previously native wrote the file to disk
+    // and stored a relative path; that broke cross-device sync
+    // because the path on Device A meant nothing on Device B.
+    // Data URLs ARE the bytes — they travel as a string through
+    // the sync engine without a separate Storage round-trip.
+    // Thank-you-card snapshots are ~50-100KB; Postgres TEXT
+    // toasts these automatically. For a per-program volume of
+    // a few hundred prints, total storage is a couple MB.
+    //
+    // Native still also writes the file to disk as a
+    // best-effort cache so existing read paths
+    // (`_resolveAbsolutePath`) keep working for already-printed
+    // local rows; new rows just decode from the data URL.
+    final dataUrl = 'data:image/png;base64,${base64Encode(snapshot)}';
+    if (!kIsWeb) {
+      try {
+        final dir = await getApplicationDocumentsDirectory();
+        final printDir = Directory(p.join(dir.path, _printsSubdir));
+        if (!printDir.existsSync()) {
+          printDir.createSync(recursive: true);
+        }
+        final absPath = p.join(dir.path, '$_printsSubdir/$id.png');
+        await File(absPath).writeAsBytes(snapshot);
+      } on Object {
+        // Best-effort local cache. The data URL is authoritative.
       }
-      final absPath = p.join(dir.path, relPath);
-      await File(absPath).writeAsBytes(snapshot);
-      storedPath = relPath;
     }
     final now = DateTime.now().toUtc();
     await _db.into(_db.prints).insert(
@@ -128,15 +143,16 @@ class PrintsRepository {
             sessionId: Value(sessionId),
             childName: Value(childName),
             kind: Value(kind.code),
-            snapshotPath: Value(storedPath),
+            snapshotPath: Value(dataUrl),
             metadataJson: Value(
               metadata.isEmpty ? null : jsonEncode(metadata),
             ),
+            programId: Value(_programId),
             createdAt: Value(now),
             updatedAt: Value(now),
           ),
         );
-    final absSnapshotPath = await _resolveAbsolutePath(storedPath);
+    final absSnapshotPath = await _resolveAbsolutePath(dataUrl);
     return SavedPrint(
       id: id,
       surveyId: surveyId,
@@ -154,7 +170,11 @@ class PrintsRepository {
   /// rows filtered out.
   Stream<List<SavedPrint>> watchAll() {
     final query = _db.select(_db.prints)
-      ..where((p) => p.deletedAt.isNull())
+      ..where(
+        (p) =>
+            p.deletedAt.isNull() &
+            matchesActiveProgram(p.programId, _programId),
+      )
       ..orderBy([
         (p) => OrderingTerm(expression: p.createdAt, mode: OrderingMode.desc),
       ]);
@@ -216,7 +236,7 @@ class PrintsRepository {
 
 final printsRepositoryProvider = Provider<PrintsRepository>((ref) {
   final db = ref.watch(databaseProvider);
-  return PrintsRepository(db);
+  return PrintsRepository(db, ref);
 });
 
 final printsListProvider = StreamProvider<List<SavedPrint>>((ref) {

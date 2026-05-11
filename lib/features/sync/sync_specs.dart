@@ -251,6 +251,16 @@ const latePickupsSpec = TableSpec(
   dateColumns: {'date', 'created_at', 'updated_at'},
 );
 
+/// Prints — thank-you card snapshots saved at the end of every
+/// kiosk session. PNG is embedded as a `data:` URL in
+/// `snapshot_path`, so the row alone is enough to render the
+/// card on any device the user signs in to. Cloud parity:
+/// migration 0039.
+const printsSpec = TableSpec(
+  table: 'prints',
+  dateColumns: {'created_at', 'updated_at'},
+);
+
 /// Every spec, organized into FK-ordered tiers. Each tier may pull
 /// in parallel (no FKs between siblings); tiers run sequentially so
 /// FK targets land before dependents. Bootstrap and Sync Now both
@@ -294,6 +304,7 @@ const List<List<TableSpec>> kSpecTiers = [
     surveysSpec,
     calendarTilesSpec,
     latePickupsSpec,
+    printsSpec,
   ],
 ];
 

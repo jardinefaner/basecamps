@@ -82,7 +82,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 64;
+  int get schemaVersion => 65;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -158,6 +158,16 @@ class AppDatabase extends _$AppDatabase {
           await _healV55MonthlyPlanTables();
           await _healV56MonthlyActivitiesTable();
           await _healV59SurveyTables();
+          if (from < 65) {
+            // v65: prints.program_id for cloud sync. Pre-v65 rows
+            // (created locally before sync landed) read back as
+            // NULL and the engine skips them on push; the
+            // backfill helper stamps them on next launch via the
+            // `_backfill_v64_done` flag bump in 0037.
+            await _runSilent(
+              'ALTER TABLE "prints" ADD COLUMN "program_id" TEXT NULL',
+            );
+          }
           if (from < 64) {
             // v64: calendar_tiles + late_pickups (lab graduated to
             // persistence). New tables; just create them. Cloud

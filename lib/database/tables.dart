@@ -1936,6 +1936,12 @@ class Prints extends Table {
   /// carry extra metadata.
   TextColumn get metadataJson => text().nullable()();
 
+  /// v65 — program scope for cloud sync. Stamped by
+  /// `PrintsRepository.save` from `activeProgramIdProvider`.
+  /// Pre-v65 rows have NULL and the engine skips them on push;
+  /// the existing backfill stamps them on next launch.
+  TextColumn get programId => text().nullable()();
+
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>

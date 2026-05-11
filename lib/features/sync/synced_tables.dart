@@ -61,4 +61,8 @@ const List<String> kSyncedTableNames = <String>[
   // cascades.
   'calendar_tiles',
   'late_pickups',
+  // v65 (cloud migration 0039) — Thank-you card prints. PNG
+  // travels as an inline data URL in `snapshot_path`; no
+  // separate Storage bucket. Saved by every kiosk completion.
+  'prints',
 ];
