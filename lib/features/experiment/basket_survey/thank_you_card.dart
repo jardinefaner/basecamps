@@ -37,6 +37,14 @@ const Color _ink = Color(0xFF1A1A1A);
 const Color _inkSoft = Color(0xFF555555);
 const Color _inkLight = Color(0xFF999999);
 
+/// Single source of truth for thank-you-card width across both
+/// kiosk styles. Phones fill to viewport (~360-420px) and shrink
+/// the card to fit; iPads + web get a 560px centered card so it
+/// reads as a printed keepsake rather than a postage stamp.
+/// Marble-jar + basket cards both honor this constant so the two
+/// kiosks present a consistent proportion regardless of device.
+const double kThankYouCardDesignWidth = 560;
+
 /// "2024 – 2025" → "2024 – 2025" given today's date — picks the
 /// academic year that contains today.
 String _academicYear({DateTime? now}) {
@@ -161,7 +169,9 @@ class _BasketThankYouCardState extends ConsumerState<BasketThankYouCard> {
             padding: const EdgeInsets.fromLTRB(20, 28, 20, 40),
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
+                constraints: const BoxConstraints(
+                  maxWidth: kThankYouCardDesignWidth,
+                ),
                 child: Column(
                   children: [
                     // ——— Tiny celebration line above the card ——

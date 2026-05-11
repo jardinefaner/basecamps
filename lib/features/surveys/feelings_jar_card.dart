@@ -19,6 +19,8 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:basecamp/features/experiment/basket_survey/thank_you_card.dart'
+    show kThankYouCardDesignWidth;
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -168,7 +170,18 @@ class _FeelingsJarCardState extends State<FeelingsJarCard> {
             horizontal: AppSpacing.xl,
             vertical: AppSpacing.lg,
           ),
-          child: Column(
+          // Shared design width with the basket kiosk so both
+          // thank-you cards present at the same proportion across
+          // phones, iPads, and web. Without this the marble card
+          // stretched edge-to-edge on iPads (oversized) while the
+          // basket card capped at 420px (tiny). See
+          // `kThankYouCardDesignWidth` in basket thank_you_card.dart.
+          child: Center(
+              child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: kThankYouCardDesignWidth,
+            ),
+            child: Column(
             children: [
               // Repaint boundary wraps everything that should appear
               // in the PDF — chrome (buttons, scaffold) sits OUTSIDE
@@ -252,6 +265,7 @@ class _FeelingsJarCardState extends State<FeelingsJarCard> {
               ),
             ],
           ),
+          )),
         ),
       ),
     );
