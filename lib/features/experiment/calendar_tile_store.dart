@@ -21,6 +21,8 @@ import 'dart:convert';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -203,6 +205,7 @@ class CalendarTilesRepository {
       updatedAt: Value(DateTime.now().toUtc()),
     );
     await _db.into(_db.calendarTilesTable).insertOnConflictUpdate(companion);
+    _push(tile.id);
   }
 
   /// Bump `updated_at` on a tile so re-emit semantics fire when
@@ -216,6 +219,7 @@ class CalendarTilesRepository {
         updatedAt: Value(DateTime.now().toUtc()),
       ),
     );
+    _push(id);
   }
 
   /// Soft-delete. Other devices learn about the delete on next
@@ -229,6 +233,16 @@ class CalendarTilesRepository {
         deletedAt: Value(DateTime.now().toUtc()),
         updatedAt: Value(DateTime.now().toUtc()),
       ),
+    );
+    _push(id);
+  }
+
+  /// Fire-and-forget cloud push. Without this the sync engine never
+  /// learns about the mutation and other devices never see the
+  /// tile — same gap the survey repo had before pushRow was wired.
+  void _push(String id) {
+    unawaited(
+      _ref.read(syncEngineProvider).pushRow(calendarTilesSpec, id),
     );
   }
 }

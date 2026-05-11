@@ -160,9 +160,23 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
       });
     } on Object catch (e) {
       if (!mounted) return;
+      // Surface the underlying error rather than a generic "try
+      // again" — a 500 from the `openai-chat` edge function (most
+      // commonly OPENAI_API_KEY not set on the project) used to be
+      // indistinguishable from a network blip. Showing the
+      // message + status code at least tells you which side
+      // is broken. Capped at 200 chars so a HTTP body / stack
+      // line doesn't overflow the toast on narrow phones.
+      final asString = e.toString();
+      final summary =
+          asString.length > 200 ? '${asString.substring(0, 197)}…' : asString;
+      final isAiProxy = asString.contains('openai-chat') ||
+          asString.contains('OpenAiClientException');
       setState(() {
         _loading = false;
-        _error = "Couldn't run that — try again.";
+        _error = isAiProxy
+            ? 'AI proxy error — $summary'
+            : "Couldn't run that — $summary";
       });
       debugPrint('[command] $e');
     }

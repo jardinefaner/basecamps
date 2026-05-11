@@ -9,6 +9,8 @@ import 'dart:async';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -97,8 +99,10 @@ class LatePickupsRepository {
             staffName: Value(e.staffName),
             notes: Value(e.notes),
             programId: Value(_programId),
+            updatedAt: Value(DateTime.now().toUtc()),
           ),
         );
+    _push(e.id);
   }
 
   /// Update mutable fields on an existing row. Used by the
@@ -119,6 +123,7 @@ class LatePickupsRepository {
         updatedAt: Value(DateTime.now().toUtc()),
       ),
     );
+    _push(e.id);
   }
 
   Future<void> remove(String id) async {
@@ -129,6 +134,13 @@ class LatePickupsRepository {
         deletedAt: Value(DateTime.now().toUtc()),
         updatedAt: Value(DateTime.now().toUtc()),
       ),
+    );
+    _push(id);
+  }
+
+  void _push(String id) {
+    unawaited(
+      _ref.read(syncEngineProvider).pushRow(latePickupsSpec, id),
     );
   }
 }

@@ -9,6 +9,7 @@
 // list / detail screens render the snapshot identically; the kind
 // just labels what flavor of card it is.
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -16,6 +17,8 @@ import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -152,6 +155,7 @@ class PrintsRepository {
           ),
         );
     final absSnapshotPath = await _resolveAbsolutePath(dataUrl);
+    _push(id);
     return SavedPrint(
       id: id,
       surveyId: surveyId,
@@ -207,6 +211,7 @@ class PrintsRepository {
         updatedAt: Value(DateTime.now().toUtc()),
       ),
     );
+    _push(id);
   }
 
   /// Soft-delete: mark the row deleted. The PNG file stays put
@@ -219,6 +224,15 @@ class PrintsRepository {
         updatedAt: Value(DateTime.now().toUtc()),
       ),
     );
+    _push(id);
+  }
+
+  /// Fan out the row to the cloud. Mirrors the pattern used by the
+  /// survey + calendar + late-pickup repos — without it the sync
+  /// engine never learns about the mutation and other devices
+  /// never see the print.
+  void _push(String id) {
+    unawaited(_ref.read(syncEngineProvider).pushRow(printsSpec, id));
   }
 
   Future<SavedPrint> _rowToSaved(PrintRow row) async {

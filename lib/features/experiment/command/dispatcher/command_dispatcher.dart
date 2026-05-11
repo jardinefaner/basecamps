@@ -115,6 +115,7 @@ class CommandDispatcher {
 
     final registry = _ref.read(commandToolRegistryProvider);
     final results = <CommandResult>[];
+    final failures = <String>[];
     for (final call in response.toolCalls) {
       final tool = registry.byName(call.toolName);
       if (tool == null) {
@@ -123,22 +124,29 @@ class CommandDispatcher {
         debugPrint(
           '[command-dispatch] unknown tool ${call.toolName}; skipped',
         );
+        failures.add('${call.toolName}: not registered');
         continue;
       }
       try {
         final result = await tool.execute(call.args, _ref);
         results.add(result);
       } on Object catch (e, st) {
-        // One bad tool execution shouldn't kill sibling calls.
+        // One bad tool execution shouldn't kill sibling calls,
+        // but we DO want to surface the name + first line of the
+        // error to the user so a misconfigured tool doesn't fail
+        // silently as "Couldn't run that".
         debugPrint(
           '[command-dispatch] ${call.toolName} threw: $e\n$st',
         );
+        final summary = e.toString().split('\n').first;
+        failures.add('${call.toolName}: $summary');
       }
     }
     if (results.isEmpty) {
-      throw const CommandDispatcherException(
-        "Couldn't run that — try rephrasing.",
-      );
+      final detail = failures.isEmpty
+          ? 'try rephrasing.'
+          : failures.join('; ');
+      throw CommandDispatcherException("Couldn't run that — $detail");
     }
     return results;
   }

@@ -875,6 +875,14 @@ class _QuickActionData {
       },
     ),
     _QuickActionData(
+      id: 'command-center',
+      label: 'Command Center',
+      icon: Icons.mic_none_outlined,
+      onTap: (ctx, _) async {
+        _navigateTo(ctx, '/command');
+      },
+    ),
+    _QuickActionData(
       id: 'new-activity',
       label: 'New activity',
       icon: Icons.add,
