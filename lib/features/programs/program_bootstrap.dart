@@ -546,6 +546,16 @@ class ProgramAuthBootstrap {
     await engine.unsubscribeFromRealtime();
     await _ref.read(activeProgramIdProvider.notifier).set(newProgramId);
     await _pullAllTables(programId: newProgramId);
+    // Backfill any pre-program-model rows the user might have on
+    // this device that should belong to the newly-active program.
+    // Bootstrap fires this on cold start; switchProgram (join,
+    // multi-program nav) used to skip it — leaving legacy rows
+    // orphaned until a relaunch. Idempotent; guarded by per-program
+    // SharedPreferences flag.
+    await _maybeBackfillUntaggedRows(
+      _ref.read(programsRepositoryProvider),
+      programId: newProgramId,
+    );
     await engine.subscribeToRealtime(
       programId: newProgramId,
       specs: kAllSpecs,

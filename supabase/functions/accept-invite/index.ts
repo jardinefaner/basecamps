@@ -132,6 +132,8 @@ serve(async (req) => {
   //    in the same program already claims this user — keeps the
   //    "one bind per program" soft invariant honored without a
   //    schema-level UNIQUE constraint.
+  let adultBound: string | null = null;
+  let adultBindWarning: string | null = null;
   if (invite.adult_id) {
     const { data: existingBind } = await supabase
       .from("adults")
@@ -140,17 +142,36 @@ serve(async (req) => {
       .eq("auth_user_id", userId)
       .neq("id", invite.adult_id)
       .maybeSingle();
-    if (!existingBind) {
-      await supabase
+    if (existingBind) {
+      // The user is already bound to a different adult in this
+      // program. Don't overwrite — surface a warning so the
+      // client can show a "your historical profile lives on a
+      // different account; ask the admin to reconcile" hint
+      // instead of silently leaving the historical data orphaned.
+      adultBindWarning =
+        "existing_bind:" + (existingBind.id as string);
+    } else {
+      const { data: updated, error: updateErr } = await supabase
         .from("adults")
         .update({ auth_user_id: userId })
         .eq("id", invite.adult_id)
-        .eq("program_id", invite.program_id);
+        .eq("program_id", invite.program_id)
+        .select("id")
+        .maybeSingle();
+      if (updateErr) {
+        // Cloud-level update error — log via the warning so the
+        // client knows the bind didn't take. Doesn't fail the
+        // join (membership already landed).
+        adultBindWarning = "update_error:" + updateErr.message;
+      } else if (!updated) {
+        // The adult row matched neither id nor program — most
+        // likely was deleted between invite creation and
+        // redemption. Same warning treatment.
+        adultBindWarning = "adult_not_found";
+      } else {
+        adultBound = updated.id as string;
+      }
     }
-    // If existingBind is set, we silently skip the stamp — the
-    // user is already bound to a different adult in this program;
-    // surfacing that as an error would block the join. Admin can
-    // reconcile later.
   }
 
   // 4. Mark the invite consumed. Single-use semantics: stamp
@@ -185,6 +206,14 @@ serve(async (req) => {
     program_id: invite.program_id,
     program_name: program.name as string,
     role: existingMember?.role ?? invite.role,
+    // Adult-bind status — null when the invite didn't carry an
+    // adult_id (regular program join). `adult_bound` is the
+    // Adult row id when the stamp landed. `adult_bind_warning`
+    // is non-null when the stamp DIDN'T land for a reason the
+    // client should explain to the user (already bound elsewhere,
+    // adult row deleted, etc.).
+    adult_bound: adultBound,
+    adult_bind_warning: adultBindWarning,
   }, 200);
 });
 

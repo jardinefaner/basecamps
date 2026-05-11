@@ -118,12 +118,35 @@ class WelcomeScreen extends ConsumerWidget {
       builder: (_) => const JoinWithCodeSheet(),
     );
     if (result != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Joined "${result.programName}"'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      final warning = result.adultBindUserMessage;
+      if (warning != null) {
+        // Show a longer-form dialog because the warning carries
+        // recovery instructions the user needs time to read.
+        unawaited(showDialog<void>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: Text('Joined "${result.programName}"'),
+            content: Text(warning),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        ));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.adultBoundId != null
+                  ? 'Joined "${result.programName}" + linked your profile'
+                  : 'Joined "${result.programName}"',
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
       // The router's active-program redirect will bounce us off
       // /welcome once the bootstrap finishes setting active.
     }

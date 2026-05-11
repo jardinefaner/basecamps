@@ -285,6 +285,8 @@ class InviteRepository {
       programId: map['program_id'] as String,
       programName: map['program_name'] as String? ?? 'Program',
       role: map['role'] as String? ?? 'teacher',
+      adultBoundId: map['adult_bound'] as String?,
+      adultBindWarning: map['adult_bind_warning'] as String?,
     );
   }
 
@@ -527,11 +529,50 @@ class RedeemResult {
     required this.programId,
     required this.programName,
     required this.role,
+    this.adultBoundId,
+    this.adultBindWarning,
   });
 
   final String programId;
   final String programName;
   final String role;
+
+  /// When the invite carried an `adult_id`, this is the Adult row
+  /// the user got bound to (after a successful stamp). Null when
+  /// the invite was a regular program-join with no adult linkage.
+  final String? adultBoundId;
+
+  /// Non-null when the edge function tried to bind to an Adult
+  /// row but couldn't. Values:
+  ///   * `"existing_bind:<adultId>"` — user is already bound to a
+  ///     different adult in this program. Admin needs to reconcile.
+  ///   * `"adult_not_found"` — adult row was deleted between
+  ///     invite creation and redemption.
+  ///   * `"update_error:<message>"` — cloud update threw.
+  /// The join itself still succeeded; the warning is a hint the
+  /// UI surfaces so the user knows historical data may be
+  /// orphaned.
+  final String? adultBindWarning;
+
+  /// Friendly version of [adultBindWarning], or null when there's
+  /// nothing to surface.
+  String? get adultBindUserMessage {
+    final raw = adultBindWarning;
+    if (raw == null) return null;
+    if (raw.startsWith('existing_bind:')) {
+      return 'You\'re already linked to another profile in this '
+          'program. Ask an admin to merge them so your historical '
+          'observations and schedule travel with you.';
+    }
+    if (raw == 'adult_not_found') {
+      return 'Joined the program, but the staff profile this code '
+          'was tied to is no longer there. Ask the admin to create '
+          'a fresh code.';
+    }
+    return 'Joined the program. Couldn\'t link to your pre-created '
+        'staff profile (server reported: $raw). Ask the admin to '
+        'help you re-link.';
+  }
 }
 
 /// Thrown by [InviteRepository.redeemCode] when redemption fails.
@@ -607,23 +648,38 @@ Future<RedeemResult> redeemAndSwitch({
       'Sign in expired. Please sign in again and try the code.',
     );
   }
-  await ref.read(programsRepositoryProvider).hydrateCloudProgramsForUser(
-        userId: user.id,
-        supabase: Supabase.instance.client,
-      );
-  // Verify the membership actually landed locally — defensive
-  // against a partial hydrate (network blip mid-pull). Without
-  // this check, switchProgram would silently set active to a
-  // program that doesn't exist locally.
-  final memberships =
-      await ref.read(programsRepositoryProvider).programsForUser(user.id);
-  if (!memberships.any((p) => p.id == result.programId)) {
-    throw const RedeemError(
-      'server',
-      'Joined the program but the data didn’t finish syncing. '
-          'Try again in a moment.',
-    );
+  // Hydrate with retry. The original code did a single hydrate +
+  // assertion-or-throw, which deadlocked the user when a transient
+  // network blip made `programsForUser` return empty: the invite
+  // was already consumed cloud-side (the edge function succeeded),
+  // so retrying from the join sheet wouldn't help, and the user
+  // had to relaunch to recover. Now: retry the hydrate up to three
+  // times with backoff. If still no local membership after that,
+  // PROCEED to `switchProgram` anyway — `switchProgram` itself does
+  // a tier-by-tier pull that re-populates everything; in the worst
+  // case the user lands on an empty program for a few seconds
+  // while the pull finishes, instead of being stuck behind a
+  // dead spinner.
+  Future<bool> hydrateAndCheck() async {
+    await ref.read(programsRepositoryProvider).hydrateCloudProgramsForUser(
+          userId: user.id,
+          supabase: Supabase.instance.client,
+        );
+    final memberships = await ref
+        .read(programsRepositoryProvider)
+        .programsForUser(user.id);
+    return memberships.any((p) => p.id == result.programId);
   }
+
+  var landed = await hydrateAndCheck();
+  for (var attempt = 1; !landed && attempt < 3; attempt++) {
+    await Future<void>.delayed(Duration(milliseconds: 250 * attempt));
+    landed = await hydrateAndCheck();
+  }
+  // No `landed` check that throws — soldier on. switchProgram's
+  // pull is the actual source of truth; the local membership row
+  // will reach Drift via that pull even if the hydrate missed.
+
   await ref.read(programAuthBootstrapProvider).switchProgram(result.programId);
   return result;
 }
