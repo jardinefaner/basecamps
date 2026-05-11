@@ -31,14 +31,28 @@ class PrintDetailScreen extends ConsumerWidget {
           asyncPrint.maybeWhen(
             data: (saved) => saved == null
                 ? const SizedBox.shrink()
-                : IconButton(
-                    tooltip: 'Delete',
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: () => _confirmDelete(
-                      context: context,
-                      ref: ref,
-                      printId: saved.id,
-                    ),
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Edit name',
+                        icon: const Icon(Icons.edit_outlined),
+                        onPressed: () => _editName(
+                          context: context,
+                          ref: ref,
+                          saved: saved,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Delete',
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () => _confirmDelete(
+                          context: context,
+                          ref: ref,
+                          printId: saved.id,
+                        ),
+                      ),
+                    ],
                   ),
             orElse: () => const SizedBox.shrink(),
           ),
@@ -145,6 +159,50 @@ class PrintDetailScreen extends ConsumerWidget {
       ),
     );
     return doc.save();
+  }
+
+  Future<void> _editName({
+    required BuildContext context,
+    required WidgetRef ref,
+    required SavedPrint saved,
+  }) async {
+    final controller = TextEditingController(text: saved.childName);
+    try {
+      final newName = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text("Edit kid's name"),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Name on the card',
+              hintText: 'e.g. Maya',
+            ),
+            onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(ctx).pop(controller.text.trim()),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      );
+      if (newName == null) return;
+      if (newName == saved.childName) return;
+      await ref
+          .read(printsRepositoryProvider)
+          .updateChildName(saved.id, newName);
+    } finally {
+      controller.dispose();
+    }
   }
 
   Future<void> _confirmDelete({

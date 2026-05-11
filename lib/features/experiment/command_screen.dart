@@ -32,6 +32,7 @@ import 'dart:async';
 import 'package:basecamp/features/ai/openai_client.dart';
 import 'package:basecamp/features/experiment/command/command_tool.dart';
 import 'package:basecamp/features/experiment/command/dispatcher/command_dispatcher.dart';
+import 'package:basecamp/features/observations/voice_service.dart';
 import 'package:basecamp/features/programs/programs_repository.dart'
     show activeProgramIdProvider;
 import 'package:basecamp/theme/spacing.dart';
@@ -135,13 +136,19 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
       final message = extras == 0
           ? '${first.badge}: ${first.title}'
           : '${first.badge}: ${first.title} (+$extras more)';
+      // Capture the router now, while the widget is still mounted.
+      // The SnackBarAction's onPressed runs much later (and can
+      // fire after this widget unmounts since the messenger is
+      // app-scoped), so closing over `context` would explode then.
+      final router = GoRouter.of(context);
+      final destination = first.destinationPath;
       _showToast(
         context,
         message,
-        action: first.destinationPath != null
+        action: destination != null
             ? SnackBarAction(
                 label: 'View',
-                onPressed: () => context.push(first.destinationPath!),
+                onPressed: () => router.push(destination),
               )
             : null,
       );
@@ -395,11 +402,38 @@ class _CommandBarState extends State<_CommandBar> {
   final _ctrl = TextEditingController();
   final _focus = FocusNode();
 
+  // ——— Voice state ——————————————————————————————————————————
+  //
+  // Tapping the mic spins up a `DeepgramVoiceSession`. Partials
+  // stream into `_voicePartial` so the field shows live
+  // transcription; finals accumulate into `_voiceFinals` so the
+  // final composed transcript survives mid-utterance pauses
+  // (Deepgram closes/reopens the partial on natural breaks).
+  // Tapping the stop button submits the composed transcript.
+
+  DeepgramVoiceSession? _voiceSession;
+  StreamSubscription<String>? _voicePartialSub;
+  StreamSubscription<String>? _voiceFinalSub;
+  StreamSubscription<Object>? _voiceErrorSub;
+  final List<String> _voiceFinals = <String>[];
+  String _voicePartial = '';
+  bool _voiceRecording = false;
+  bool _voiceStarting = false;
+  String? _voiceError;
+
   @override
   void dispose() {
     _ctrl.dispose();
     _focus.dispose();
+    unawaited(_tearDownVoice());
     super.dispose();
+  }
+
+  String get _composedVoiceText {
+    final parts = <String>[..._voiceFinals];
+    final p = _voicePartial.trim();
+    if (p.isNotEmpty) parts.add(p);
+    return parts.join(' ').trim();
   }
 
   void _submit() {
@@ -409,9 +443,113 @@ class _CommandBarState extends State<_CommandBar> {
     _ctrl.clear();
   }
 
+  Future<void> _toggleVoice() async {
+    if (_voiceRecording) {
+      await _stopAndSubmit();
+    } else {
+      await _startVoice();
+    }
+  }
+
+  Future<void> _startVoice() async {
+    if (_voiceStarting || _voiceRecording) return;
+    setState(() {
+      _voiceStarting = true;
+      _voiceError = null;
+      _voiceFinals.clear();
+      _voicePartial = '';
+      _ctrl.clear();
+    });
+    final session = DeepgramVoiceSession();
+    _voicePartialSub = session.partials.listen((p) {
+      if (!mounted) return;
+      setState(() => _voicePartial = p);
+    });
+    _voiceFinalSub = session.finals.listen((f) {
+      if (!mounted) return;
+      setState(() {
+        final t = f.trim();
+        if (t.isNotEmpty) _voiceFinals.add(t);
+        _voicePartial = '';
+      });
+    });
+    _voiceErrorSub = session.errors.listen((e) {
+      if (!mounted) return;
+      setState(() => _voiceError = e.toString());
+    });
+    try {
+      await session.start();
+      if (!mounted) {
+        await session.stop();
+        await session.dispose();
+        return;
+      }
+      _voiceSession = session;
+      setState(() {
+        _voiceStarting = false;
+        _voiceRecording = true;
+      });
+    } on VoicePermissionError catch (e) {
+      await session.dispose();
+      _failVoice(e.message);
+    } on VoiceUnsupportedError catch (e) {
+      await session.dispose();
+      _failVoice(e.message);
+    } on VoiceConfigError catch (e) {
+      await session.dispose();
+      _failVoice(e.message);
+    } on Object catch (e) {
+      await session.dispose();
+      _failVoice("Couldn't start voice: $e");
+    }
+  }
+
+  Future<void> _stopAndSubmit() async {
+    final transcript = _composedVoiceText;
+    await _tearDownVoice();
+    if (!mounted) return;
+    setState(() {
+      _voiceRecording = false;
+      _voicePartial = '';
+      _voiceFinals.clear();
+    });
+    if (transcript.isEmpty) return;
+    widget.onSubmit(transcript);
+  }
+
+  Future<void> _tearDownVoice() async {
+    final session = _voiceSession;
+    _voiceSession = null;
+    await _voicePartialSub?.cancel();
+    await _voiceFinalSub?.cancel();
+    await _voiceErrorSub?.cancel();
+    _voicePartialSub = null;
+    _voiceFinalSub = null;
+    _voiceErrorSub = null;
+    if (session != null) {
+      try {
+        await session.stop();
+      } on Object {/* best-effort */}
+      await session.dispose();
+    }
+  }
+
+  void _failVoice(String message) {
+    if (!mounted) return;
+    setState(() {
+      _voiceStarting = false;
+      _voiceRecording = false;
+      _voicePartial = '';
+      _voiceFinals.clear();
+      _voiceError = message;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final voiceTranscript = _composedVoiceText;
+    final showingVoice = _voiceRecording || _voiceStarting;
     return Container(
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
@@ -435,6 +573,16 @@ class _CommandBarState extends State<_CommandBar> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (_voiceError != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    _voiceError!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ),
               if (widget.error != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
@@ -447,33 +595,50 @@ class _CommandBarState extends State<_CommandBar> {
                 ),
               Row(
                 children: [
-                  Icon(
-                    Icons.auto_awesome_outlined,
-                    size: 18,
-                    color: widget.enabled
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: TextField(
-                      controller: _ctrl,
-                      focusNode: _focus,
-                      enabled: widget.enabled && !widget.loading,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _submit(),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        border: InputBorder.none,
-                        hintText: widget.enabled
-                            ? 'Say or type anything…'
-                            : 'Sign in to use AI commands',
-                        hintStyle: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      style: theme.textTheme.bodyMedium,
+                  // Voice toggle. Lights up red while recording so
+                  // the user has unambiguous state.
+                  IconButton(
+                    tooltip: showingVoice ? 'Stop + send' : 'Voice input',
+                    onPressed:
+                        widget.enabled && !widget.loading ? _toggleVoice : null,
+                    icon: Icon(
+                      showingVoice ? Icons.stop_rounded : Icons.mic_rounded,
+                      color: showingVoice
+                          ? theme.colorScheme.error
+                          : (widget.enabled
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.onSurfaceVariant),
                     ),
+                  ),
+                  Expanded(
+                    child: showingVoice
+                        ? _LiveTranscript(
+                            text: voiceTranscript.isEmpty
+                                ? (_voiceStarting
+                                    ? 'Connecting…'
+                                    : 'Listening — say it')
+                                : voiceTranscript,
+                            italic: voiceTranscript.isEmpty,
+                            theme: theme,
+                          )
+                        : TextField(
+                            controller: _ctrl,
+                            focusNode: _focus,
+                            enabled: widget.enabled && !widget.loading,
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) => _submit(),
+                            decoration: InputDecoration(
+                              isDense: true,
+                              border: InputBorder.none,
+                              hintText: widget.enabled
+                                  ? 'Say or type anything…'
+                                  : 'Sign in to use AI commands',
+                              hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            style: theme.textTheme.bodyMedium,
+                          ),
                   ),
                   if (widget.loading)
                     const SizedBox(
@@ -481,7 +646,7 @@ class _CommandBarState extends State<_CommandBar> {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  else
+                  else if (!showingVoice)
                     IconButton(
                       tooltip: 'Send',
                       icon: const Icon(Icons.arrow_upward),
@@ -491,6 +656,40 @@ class _CommandBarState extends State<_CommandBar> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Live transcript view shown in place of the TextField while
+/// the mic is recording. Finals render solid; the active
+/// partial trails them in italic so the user can see Deepgram
+/// catching up to them in real time.
+class _LiveTranscript extends StatelessWidget {
+  const _LiveTranscript({
+    required this.text,
+    required this.italic,
+    required this.theme,
+  });
+
+  final String text;
+  final bool italic;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+      child: Text(
+        text,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          fontStyle: italic ? FontStyle.italic : FontStyle.normal,
+          color: italic
+              ? theme.colorScheme.onSurfaceVariant
+              : theme.colorScheme.onSurface,
         ),
       ),
     );

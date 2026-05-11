@@ -195,6 +195,21 @@ class PrintsRepository {
     return _rowToSaved(row);
   }
 
+  /// Edit the kid's name on a saved print. Useful when the
+  /// kid typed it wrong on the kiosk and a teacher needs to
+  /// correct it after the fact. The snapshot PNG itself was
+  /// already captured with the original name baked in — we
+  /// don't re-render the image, just update the column the
+  /// detail screen / CSV export reads.
+  Future<void> updateChildName(String id, String childName) async {
+    await (_db.update(_db.prints)..where((p) => p.id.equals(id))).write(
+      PrintsCompanion(
+        childName: Value(childName.trim()),
+        updatedAt: Value(DateTime.now().toUtc()),
+      ),
+    );
+  }
+
   /// Soft-delete: mark the row deleted. The PNG file stays put
   /// so an "undo" is still possible — purgeSoftDeleted() actually
   /// removes the bytes when we want to reclaim space.
