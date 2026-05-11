@@ -282,13 +282,46 @@ class ProgramsRepository {
     // Reads from kSyncedTableNames — same single source of truth
     // the schema-heal and the cloud sync layer use. Adding a new
     // synced table updates this backfill automatically.
+    //
+    // Two non-obvious requirements for the sync engine to actually
+    // push the backfilled rows to cloud:
+    //
+    //   1. We MUST bump `updated_at` here. Push is gated by
+    //      `(program_id, updated_at)` — if updated_at stays at the
+    //      row's original timestamp, the watermark logic treats
+    //      these as ancient rows the sync engine has already
+    //      considered. Bumping to now() puts them at the head of
+    //      the next push.
+    //
+    //   2. We MUST pass `updates: {table}` to customUpdate. Without
+    //      it, Drift's change stream stays silent and the sync
+    //      engine's debounced "row changed → push" trigger never
+    //      fires. That's the difference between "rows in local DB"
+    //      and "rows in cloud" for every device after backfill.
+    //
+    // These two were missing before, which is why surveys created
+    // pre-program-stamping never made it to cloud even after the
+    // bootstrap backfill ran on the originating device.
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+    // Look up TableInfo by SQL name so we can pass typed `updates:`
+    // sets into customUpdate. Drift uses these to fire the change-
+    // stream notifications the sync engine listens on; raw SQL with
+    // an empty `updates:` set is silent.
+    final tablesByName = <String, TableInfo<Table, dynamic>>{
+      for (final t in _db.allTables) t.actualTableName: t,
+    };
     var totalUpdated = 0;
     await _db.transaction(() async {
       for (final table in kSyncedTableNames) {
+        final info = tablesByName[table];
+        if (info == null) continue;
         final rowsAffected = await _db.customUpdate(
-          'UPDATE "$table" SET "program_id" = ? '
+          'UPDATE "$table" '
+          'SET "program_id" = ?, "updated_at" = ? '
           'WHERE "program_id" IS NULL',
-          variables: [Variable<String>(programId)],
+          variables: [Variable<String>(programId), Variable<String>(nowIso)],
+          updates: {info},
+          updateKind: UpdateKind.update,
         );
         totalUpdated += rowsAffected;
       }
@@ -303,13 +336,18 @@ class ProgramsRepository {
         ('survey_responses', 'survey_id', 'surveys'),
       ];
       for (final (child, parentCol, parent) in cascadeBackfills) {
+        final info = tablesByName[child];
+        if (info == null) continue;
         final rowsAffected = await _db.customUpdate(
           'UPDATE "$child" '
           'SET "program_id" = ( '
           'SELECT "$parent"."program_id" FROM "$parent" '
           'WHERE "$parent"."id" = "$child"."$parentCol" '
-          ') '
+          '), "updated_at" = ? '
           'WHERE "program_id" IS NULL',
+          variables: [Variable<String>(nowIso)],
+          updates: {info},
+          updateKind: UpdateKind.update,
         );
         totalUpdated += rowsAffected;
       }

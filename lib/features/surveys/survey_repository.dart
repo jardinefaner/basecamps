@@ -11,6 +11,7 @@
 //     program_id onto the row so the engine + RLS don't have to
 //     JOIN through the parent.
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:basecamp/core/id.dart';
@@ -19,8 +20,11 @@ import 'package:basecamp/features/programs/program_scope.dart';
 import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/surveys/canonical_questions.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// One row in the results sheet — a single child's run through
@@ -45,6 +49,27 @@ class SurveyRepository {
   /// active program (sandbox / pre-bootstrap state); rows inserted
   /// then stay local-only and the engine skips them on push.
   String? get _programId => _ref.read(activeProgramIdProvider);
+
+  /// Trigger a debounced cloud push for [surveyId]. The sync
+  /// engine's `pushRow` fans out the survey + its cascades
+  /// (sessions, responses). Every mutating method below funnels
+  /// through here — without it, local writes never reach cloud
+  /// and other devices see nothing.
+  ///
+  /// Also bumps the parent survey's `updated_at` so the cascade
+  /// fingerprint changes and the engine actually pushes the new
+  /// session/response rows (cascade push short-circuits when the
+  /// parent's fingerprint hasn't moved).
+  Future<void> _pushSurvey(String surveyId) async {
+    try {
+      await (_db.update(_db.surveys)
+            ..where((s) => s.id.equals(surveyId)))
+          .write(SurveysCompanion(updatedAt: Value(DateTime.now().toUtc())));
+      unawaited(_ref.read(syncEngineProvider).pushRow(surveysSpec, surveyId));
+    } on Object catch (e, st) {
+      debugPrint('[survey-repo] push trigger failed for $surveyId: $e\n$st');
+    }
+  }
 
   /// All non-deleted surveys for the active program, newest
   /// first. Wraps Drift's row → `SurveyConfig` mapping so the UI
@@ -110,6 +135,9 @@ class SurveyRepository {
           .toList(),
     );
     await _db.into(_db.surveys).insert(_toCompanion(config));
+    unawaited(
+      _ref.read(syncEngineProvider).pushRow(surveysSpec, id),
+    );
     return config;
   }
 
@@ -158,6 +186,8 @@ class SurveyRepository {
         childCount: Value<int>(0),
       ),
     );
+    final session = await getSession(sessionId);
+    if (session != null) await _pushSurvey(session.surveyId);
   }
 
   /// Open a fresh session for a child going through the kiosk.
@@ -185,6 +215,7 @@ class SurveyRepository {
             programId: Value(_programId),
           ),
         );
+    await _pushSurvey(surveyId);
     return id;
   }
 
@@ -207,6 +238,8 @@ class SurveyRepository {
             : Value<String?>(cleaned),
       ),
     );
+    final session = await getSession(sessionId);
+    if (session != null) await _pushSurvey(session.surveyId);
   }
 
   /// Close a session. `completed = true` when the child reached
@@ -224,6 +257,8 @@ class SurveyRepository {
         childCount: Value(completed ? 1 : 0),
       ),
     );
+    final session = await getSession(sessionId);
+    if (session != null) await _pushSurvey(session.surveyId);
   }
 
   // ——— Responses ————————————————————————————————————————————————
@@ -255,6 +290,7 @@ class SurveyRepository {
             createdAt: Value(DateTime.now().toUtc()),
           ),
         );
+    await _pushSurvey(surveyId);
   }
 
   /// Record a multi-select answer (the activities checkbox
@@ -282,6 +318,7 @@ class SurveyRepository {
             createdAt: Value(DateTime.now().toUtc()),
           ),
         );
+    await _pushSurvey(surveyId);
   }
 
   /// Record an open-ended answer. Either or both of
@@ -316,16 +353,27 @@ class SurveyRepository {
             createdAt: Value(DateTime.now().toUtc()),
           ),
         );
+    await _pushSurvey(surveyId);
     return id;
   }
 
   /// Patch in a transcription on a previously-recorded open-ended
   /// answer. Called from the background STT task once Deepgram
-  /// returns a transcript.
-  Future<void> updateTranscription(String responseId, String text) async {
+  /// returns a transcript, and from the results screen when a
+  /// teacher corrects the transcript manually.
+  ///
+  /// [surveyId] is required so we can fan out the cloud push
+  /// without a TOCTOU read-back. The caller already has it (the
+  /// response carries it on the row).
+  Future<void> updateTranscription({
+    required String responseId,
+    required String surveyId,
+    required String text,
+  }) async {
     await (_db.update(_db.surveyResponses)
           ..where((r) => r.id.equals(responseId)))
         .write(SurveyResponsesCompanion(transcription: Value(text)));
+    await _pushSurvey(surveyId);
   }
 
   // ——— Results (Slice 5) ———————————————————————————————————
@@ -374,6 +422,7 @@ class SurveyRepository {
         updatedAt: Value(DateTime.now().toUtc()),
       ),
     );
+    unawaited(_ref.read(syncEngineProvider).pushRow(surveysSpec, id));
   }
 
   // ——— Mappings ——————————————————————————————————————————————

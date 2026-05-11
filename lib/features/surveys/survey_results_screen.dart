@@ -753,7 +753,13 @@ class _AnswerCell extends StatelessWidget {
     }
     switch (question.type) {
       case SurveyQuestionType.mood:
-        return Center(child: _MoodCell(response: response!, theme: theme));
+        return Center(
+          child: _MoodCell(
+            question: question,
+            response: response!,
+            theme: theme,
+          ),
+        );
       case SurveyQuestionType.multiSelect:
         return _MultiSelectCell(response: response!, theme: theme);
       case SurveyQuestionType.openEnded:
@@ -763,20 +769,24 @@ class _AnswerCell extends StatelessWidget {
 }
 
 class _MoodCell extends StatelessWidget {
-  const _MoodCell({required this.response, required this.theme});
+  const _MoodCell({
+    required this.question,
+    required this.response,
+    required this.theme,
+  });
 
+  final SurveyQuestion question;
   final SurveyResponse response;
   final ThemeData theme;
 
   @override
   Widget build(BuildContext context) {
     final v = response.moodValue ?? -1;
-    final (label, color) = switch (v) {
-      0 => ('Disagree', const Color(0xFFA32D2D)),
-      1 => ('Kind of', const Color(0xFF854F0B)),
-      2 => ('Agree', const Color(0xFF27500A)),
-      _ => ('?', theme.colorScheme.outline),
-    };
+    final scale = question.scale;
+    final labels = scale.labels;
+    final (label, color) = (v >= 0 && v < labels.length)
+        ? (labels[v], _colorForPosition(v, labels.length))
+        : ('?', theme.colorScheme.outline);
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.sm,
@@ -795,6 +805,20 @@ class _MoodCell extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Interpolate negative → positive across the scale. Two-point
+  /// scales jump directly from red to green; three- and five-point
+  /// scales pass through the warm midrange so "kind of" reads as
+  /// hesitant rather than wrong.
+  static Color _colorForPosition(int v, int count) {
+    if (count <= 1) return const Color(0xFF27500A);
+    const cold = Color(0xFFA32D2D);
+    const warm = Color(0xFF854F0B);
+    const warmer = Color(0xFF27500A);
+    final t = v / (count - 1);
+    if (t <= 0.5) return Color.lerp(cold, warm, t * 2) ?? warm;
+    return Color.lerp(warm, warmer, (t - 0.5) * 2) ?? warmer;
   }
 }
 
@@ -864,14 +888,21 @@ class _MultiSelectCell extends StatelessWidget {
   }
 }
 
-class _OpenEndedCell extends StatelessWidget {
+class _OpenEndedCell extends ConsumerStatefulWidget {
   const _OpenEndedCell({required this.response, required this.theme});
 
   final SurveyResponse response;
   final ThemeData theme;
 
   @override
+  ConsumerState<_OpenEndedCell> createState() => _OpenEndedCellState();
+}
+
+class _OpenEndedCellState extends ConsumerState<_OpenEndedCell> {
+  @override
   Widget build(BuildContext context) {
+    final response = widget.response;
+    final theme = widget.theme;
     final transcript = response.transcription;
     final hasAudio = response.audioFilePath != null;
     return Padding(
@@ -895,24 +926,82 @@ class _OpenEndedCell extends StatelessWidget {
               visualDensity: VisualDensity.compact,
             ),
           Expanded(
-            child: Text(
-              transcript ??
-                  (hasAudio
-                      ? '[audio recorded — transcription pending]'
-                      : '—'),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontStyle: transcript == null ? FontStyle.italic : null,
-                color: transcript == null
-                    ? theme.colorScheme.onSurfaceVariant
-                    : theme.colorScheme.onSurface,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(4),
+              onTap: () => _editTranscript(transcript),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Text(
+                  transcript ??
+                      (hasAudio
+                          ? '[audio recorded — transcription pending]'
+                          : '— tap to add'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontStyle: transcript == null ? FontStyle.italic : null,
+                    color: transcript == null
+                        ? theme.colorScheme.onSurfaceVariant
+                        : theme.colorScheme.onSurface,
+                  ),
+                ),
               ),
             ),
+          ),
+          IconButton(
+            onPressed: () => _editTranscript(transcript),
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            tooltip: transcript == null ? 'Add transcript' : 'Edit transcript',
+            visualDensity: VisualDensity.compact,
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _editTranscript(String? current) async {
+    final controller = TextEditingController(text: current ?? '');
+    try {
+      final result = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(current == null ? 'Add transcript' : 'Edit transcript'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            minLines: 3,
+            maxLines: 8,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'What the kid said',
+              hintText: 'Type or correct the transcription…',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(ctx).pop(controller.text.trim()),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      );
+      if (result == null) return;
+      if (result == (current ?? '')) return;
+      if (!mounted) return;
+      await ref.read(surveyRepositoryProvider).updateTranscription(
+            responseId: widget.response.id,
+            surveyId: widget.response.surveyId,
+            text: result,
+          );
+    } finally {
+      controller.dispose();
+    }
   }
 }
 

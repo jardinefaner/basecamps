@@ -209,14 +209,16 @@ class _BasketWorldPainter extends CustomPainter {
       _paintMarble(canvas, m);
     }
 
-    // 2. Woven basket — translucent so back-row marbles bleed
-    //    through the weave.
-    canvas.saveLayer(
-      Offset.zero & size,
-      Paint()..color = Colors.white.withValues(alpha: 0.78),
-    );
+    // 2. Woven basket — drawn opaque. We used to wrap this in a
+    //    `saveLayer` with a tinted Paint to make the weave
+    //    translucent so back-row marbles bleed through. Skia
+    //    composited that fine, but CanvasKit (Flutter web) drops
+    //    the tinted layer during `RepaintBoundary.toImage`, which
+    //    made the basket invisible in thank-you-card snapshots.
+    //    Opaque is cross-platform-safe and the back-row marbles
+    //    still read because they're drawn first (and marbles
+    //    piling over the rim show on top).
     BasketPainter(glow: glow).paint(canvas, size);
-    canvas.restore();
 
     // 3. Front-row inside marbles.
     for (final m in frontInside) {

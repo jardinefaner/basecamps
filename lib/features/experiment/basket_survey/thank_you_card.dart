@@ -22,6 +22,8 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:basecamp/features/experiment/basket_survey/basket_world.dart'
+    show BasketGeometry;
 import 'package:basecamp/features/experiment/basket_survey/thank_you_card_helpers.dart';
 import 'package:basecamp/features/prints/prints_repository.dart';
 import 'package:flutter/material.dart';
@@ -338,8 +340,15 @@ class _BasketSnapshotFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Match the basket world's native aspect (320 / 280 ≈ 1.143).
+    // Earlier this frame was AspectRatio(1.4), which letterboxed
+    // the snapshot left + right inside a wider container — and the
+    // ribbon overlay (painted relative to the frame, not the image)
+    // floated wider than the basket. Aligning the frame with the
+    // snapshot's aspect makes the ribbon heuristic land on the
+    // actual basket.
     return AspectRatio(
-      aspectRatio: 1.4,
+      aspectRatio: BasketGeometry.worldW / BasketGeometry.worldH,
       child: Stack(
         fit: StackFit.expand,
         children: [

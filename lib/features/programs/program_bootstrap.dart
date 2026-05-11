@@ -505,12 +505,20 @@ class ProgramAuthBootstrap {
     //   v65_done — covers prints.program_id (added in v65). Bumped
     //              again so devices that already ran v64 re-run
     //              once more to stamp existing print rows.
+    //   v66_done — backfill now bumps `updated_at` + fires Drift
+    //              change-stream updates. Previous passes stamped
+    //              `program_id` locally but never triggered a push
+    //              (silent change → engine unaware → cloud never
+    //              received the rows). Re-running once forces the
+    //              already-stamped rows back into the push queue
+    //              so surveys created pre-program-stamping
+    //              finally reach the cloud + other devices.
     //
     // Devices that previously had `_v64_done = true` re-run backfill
-    // ONCE on next launch, after which `_v65_done` is set and the
+    // ONCE on next launch, after which `_v66_done` is set and the
     // pass stays cheap. backfillUntaggedRows itself is idempotent —
     // only touches rows where program_id IS NULL.
-    final flagKey = 'program_${programId}_backfill_v65_done';
+    final flagKey = 'program_${programId}_backfill_v66_done';
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getBool(flagKey) ?? false) return;
     final updated = await repo.backfillUntaggedRows(programId: programId);
