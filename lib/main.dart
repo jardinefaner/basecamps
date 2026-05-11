@@ -1,5 +1,6 @@
 import 'package:basecamp/app.dart';
 import 'package:basecamp/config/env.dart';
+import 'package:basecamp/features/experiment/command/command_tools_registration.dart';
 // Conditional import — the stub is a no-op on every native build,
 // the web file calls window.history.replaceState. Without the
 // conditional, `package:web` (which is web-only) would be pulled
@@ -97,6 +98,10 @@ void main() async {
     }
   }
 
+  // Wire the Command Center tool registry. Pure setter call —
+  // swaps the registry's loader to use the built-in list so the
+  // first `ref.read(commandToolRegistryProvider)` resolves.
+  wireCommandToolRegistry();
   runApp(const ProviderScope(child: BasecampApp()));
 }
 
