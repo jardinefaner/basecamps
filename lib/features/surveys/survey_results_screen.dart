@@ -19,6 +19,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:basecamp/core/share_origin.dart';
+import 'package:basecamp/core/web_file_download.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/surveys/canonical_questions.dart';
 import 'package:basecamp/features/surveys/feelings_jar_card.dart';
@@ -320,16 +321,36 @@ Future<void> _exportCsv(
         '${csv.length} chars');
 
     if (kIsWeb) {
-      // Web fallback — clipboard. share_plus's web build only
-      // supports text shares, not file shares from a plain
-      // browser tab. Pasting into Sheets / Excel works fine.
-      await Clipboard.setData(ClipboardData(text: csv));
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Copied $filename to clipboard. '
-              'Paste into Sheets or Excel.'),
-        ),
-      );
+      // Web: trigger a real file download. We used to
+      // `Clipboard.setData` here, but Safari rejects clipboard
+      // writes that don't fire synchronously inside a user-
+      // gesture handler — and the export has multiple awaits
+      // (stream pull, CSV build) before we can write. The
+      // download is a passive operation that doesn't need
+      // user-activation, so it works after any async gap.
+      // The user gets a real .csv that opens in Sheets / Excel.
+      try {
+        downloadTextFile(
+          filename: filename,
+          mimeType: 'text/csv;charset=utf-8',
+          content: csv,
+        );
+        messenger.showSnackBar(
+          SnackBar(content: Text('Downloaded $filename.')),
+        );
+      } on Object catch (e, st) {
+        debugPrint('[csv] web download failed, falling back '
+            'to clipboard: $e\n$st');
+        // Last-ditch fallback: try clipboard. Safari will likely
+        // throw again, but Chrome/Firefox might succeed.
+        await Clipboard.setData(ClipboardData(text: csv));
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Copied $filename to clipboard '
+                '(download blocked). Paste into Sheets.'),
+          ),
+        );
+      }
       return;
     }
 
