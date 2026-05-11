@@ -82,7 +82,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 66;
+  int get schemaVersion => 67;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -158,6 +158,17 @@ class AppDatabase extends _$AppDatabase {
           await _healV55MonthlyPlanTables();
           await _healV56MonthlyActivitiesTable();
           await _healV59SurveyTables();
+          if (from < 67) {
+            // v67: programs.schools_json — program-level list of
+            // partner schools so the kiosk pre-flight gate doesn't
+            // make a teacher retype them on every new survey.
+            // Defaults to '[]' so existing programs read as empty.
+            // Cloud parity: migration 0041.
+            await _runSilent(
+              'ALTER TABLE "programs" ADD COLUMN '
+              '"schools_json" TEXT NOT NULL DEFAULT \'[]\'',
+            );
+          }
           if (from < 66) {
             // v66: survey_sessions.deleted_at — soft-delete a
             // mistaken kiosk run (kid pressed through twice, etc)

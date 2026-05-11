@@ -1501,6 +1501,15 @@ class Programs extends Table {
   DateTimeColumn get updatedAt =>
       dateTime().withDefault(currentDateAndTime)();
 
+  /// v67 — program-level list of partner schools. The survey kiosk's
+  /// pre-flight gate reads this so a teacher doesn't have to retype
+  /// the same schools on every new survey. JSON array of strings,
+  /// stored as TEXT for cross-platform Drift parity. Populated /
+  /// edited via the survey setup screen + a future programs settings
+  /// surface.
+  TextColumn get schoolsJson =>
+      text().withDefault(const Constant('[]'))();
+
   @override
   Set<Column<Object>> get primaryKey => {id};
 }

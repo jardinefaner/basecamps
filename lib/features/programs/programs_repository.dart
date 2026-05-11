@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:basecamp/core/id.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/sync/synced_tables.dart';
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -195,6 +197,9 @@ class ProgramsRepository {
                 createdBy: row['created_by'] as String,
                 createdAt: Value(_parseTs(row['created_at'])),
                 updatedAt: Value(_parseTs(row['updated_at'])),
+                schoolsJson: Value(
+                  row['schools_json'] as String? ?? '[]',
+                ),
               ),
             );
         written++;
@@ -257,6 +262,69 @@ class ProgramsRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+  }
+
+  /// Watch the partner-schools list for the active program. The
+  /// kiosk pre-flight gate + the survey setup screen both consume
+  /// this so a teacher configures schools once per program and
+  /// every survey inherits.
+  Stream<List<String>> watchSchools(String programId) {
+    return (_db.select(_db.programs)
+          ..where((p) => p.id.equals(programId)))
+        .watchSingleOrNull()
+        .map((row) => _decodeSchools(row?.schoolsJson));
+  }
+
+  /// Replace the partner-schools list on the active program.
+  /// Pushes to cloud via the existing programs upsert path so
+  /// every device sees the new list within a sync tick.
+  Future<void> setSchools({
+    required String programId,
+    required List<String> schools,
+  }) async {
+    final clean = <String>[];
+    final seen = <String>{};
+    for (final raw in schools) {
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty) continue;
+      final fingerprint = trimmed.toLowerCase();
+      if (!seen.add(fingerprint)) continue;
+      clean.add(trimmed);
+    }
+    final encoded = jsonEncode(clean);
+    final now = DateTime.now().toUtc();
+    await (_db.update(_db.programs)
+          ..where((p) => p.id.equals(programId)))
+        .write(
+      ProgramsCompanion(
+        schoolsJson: Value(encoded),
+        updatedAt: Value(now),
+      ),
+    );
+    // Programs sync bespoke (not via sync_engine.pushRow), so push
+    // through Supabase directly. Cloud RLS validates that this user
+    // is a member of the program.
+    try {
+      await Supabase.instance.client.from('programs').update({
+        'schools_json': encoded,
+        'updated_at': now.toIso8601String(),
+      }).eq('id', programId);
+    } on Object catch (e, st) {
+      debugPrint('[programs] schools push failed: $e\n$st');
+    }
+  }
+
+  static List<String> _decodeSchools(String? json) {
+    if (json == null || json.isEmpty) return const <String>[];
+    try {
+      final decoded = jsonDecode(json);
+      if (decoded is List) {
+        return decoded.whereType<String>().toList(growable: false);
+      }
+    } on FormatException {
+      // Tolerate corrupt JSON — show empty.
+    }
+    return const <String>[];
   }
 
   /// Member list for [programId]. Used by the (future) program
@@ -358,6 +426,15 @@ class ProgramsRepository {
 
 final programsRepositoryProvider = Provider<ProgramsRepository>((ref) {
   return ProgramsRepository(ref.read(databaseProvider));
+});
+
+/// Partner schools for the active program. Empty list when no
+/// program is active. Survey setup + the kiosk pre-flight gate
+/// both watch this so changes propagate live across the app.
+final programSchoolsProvider = StreamProvider<List<String>>((ref) {
+  final programId = ref.watch(activeProgramIdProvider);
+  if (programId == null) return Stream<List<String>>.value(const []);
+  return ref.watch(programsRepositoryProvider).watchSchools(programId);
 });
 
 /// Active program id, persisted in SharedPreferences. Resolves to

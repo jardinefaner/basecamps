@@ -20638,6 +20638,18 @@ class $ProgramsTable extends Programs with TableInfo<$ProgramsTable, Program> {
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _schoolsJsonMeta = const VerificationMeta(
+    'schoolsJson',
+  );
+  @override
+  late final GeneratedColumn<String> schoolsJson = GeneratedColumn<String>(
+    'schools_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -20645,6 +20657,7 @@ class $ProgramsTable extends Programs with TableInfo<$ProgramsTable, Program> {
     createdBy,
     createdAt,
     updatedAt,
+    schoolsJson,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -20691,6 +20704,15 @@ class $ProgramsTable extends Programs with TableInfo<$ProgramsTable, Program> {
         updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
       );
     }
+    if (data.containsKey('schools_json')) {
+      context.handle(
+        _schoolsJsonMeta,
+        schoolsJson.isAcceptableOrUnknown(
+          data['schools_json']!,
+          _schoolsJsonMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -20720,6 +20742,10 @@ class $ProgramsTable extends Programs with TableInfo<$ProgramsTable, Program> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
+      schoolsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}schools_json'],
+      )!,
     );
   }
 
@@ -20743,12 +20769,21 @@ class Program extends DataClass implements Insertable<Program> {
   final String createdBy;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  /// v67 — program-level list of partner schools. The survey kiosk's
+  /// pre-flight gate reads this so a teacher doesn't have to retype
+  /// the same schools on every new survey. JSON array of strings,
+  /// stored as TEXT for cross-platform Drift parity. Populated /
+  /// edited via the survey setup screen + a future programs settings
+  /// surface.
+  final String schoolsJson;
   const Program({
     required this.id,
     required this.name,
     required this.createdBy,
     required this.createdAt,
     required this.updatedAt,
+    required this.schoolsJson,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -20758,6 +20793,7 @@ class Program extends DataClass implements Insertable<Program> {
     map['created_by'] = Variable<String>(createdBy);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['schools_json'] = Variable<String>(schoolsJson);
     return map;
   }
 
@@ -20768,6 +20804,7 @@ class Program extends DataClass implements Insertable<Program> {
       createdBy: Value(createdBy),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
+      schoolsJson: Value(schoolsJson),
     );
   }
 
@@ -20782,6 +20819,7 @@ class Program extends DataClass implements Insertable<Program> {
       createdBy: serializer.fromJson<String>(json['createdBy']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      schoolsJson: serializer.fromJson<String>(json['schoolsJson']),
     );
   }
   @override
@@ -20793,6 +20831,7 @@ class Program extends DataClass implements Insertable<Program> {
       'createdBy': serializer.toJson<String>(createdBy),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'schoolsJson': serializer.toJson<String>(schoolsJson),
     };
   }
 
@@ -20802,12 +20841,14 @@ class Program extends DataClass implements Insertable<Program> {
     String? createdBy,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? schoolsJson,
   }) => Program(
     id: id ?? this.id,
     name: name ?? this.name,
     createdBy: createdBy ?? this.createdBy,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    schoolsJson: schoolsJson ?? this.schoolsJson,
   );
   Program copyWithCompanion(ProgramsCompanion data) {
     return Program(
@@ -20816,6 +20857,9 @@ class Program extends DataClass implements Insertable<Program> {
       createdBy: data.createdBy.present ? data.createdBy.value : this.createdBy,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      schoolsJson: data.schoolsJson.present
+          ? data.schoolsJson.value
+          : this.schoolsJson,
     );
   }
 
@@ -20826,13 +20870,15 @@ class Program extends DataClass implements Insertable<Program> {
           ..write('name: $name, ')
           ..write('createdBy: $createdBy, ')
           ..write('createdAt: $createdAt, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('schoolsJson: $schoolsJson')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, createdBy, createdAt, updatedAt);
+  int get hashCode =>
+      Object.hash(id, name, createdBy, createdAt, updatedAt, schoolsJson);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -20841,7 +20887,8 @@ class Program extends DataClass implements Insertable<Program> {
           other.name == this.name &&
           other.createdBy == this.createdBy &&
           other.createdAt == this.createdAt &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.schoolsJson == this.schoolsJson);
 }
 
 class ProgramsCompanion extends UpdateCompanion<Program> {
@@ -20850,6 +20897,7 @@ class ProgramsCompanion extends UpdateCompanion<Program> {
   final Value<String> createdBy;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
+  final Value<String> schoolsJson;
   final Value<int> rowid;
   const ProgramsCompanion({
     this.id = const Value.absent(),
@@ -20857,6 +20905,7 @@ class ProgramsCompanion extends UpdateCompanion<Program> {
     this.createdBy = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.schoolsJson = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ProgramsCompanion.insert({
@@ -20865,6 +20914,7 @@ class ProgramsCompanion extends UpdateCompanion<Program> {
     required String createdBy,
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.schoolsJson = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -20875,6 +20925,7 @@ class ProgramsCompanion extends UpdateCompanion<Program> {
     Expression<String>? createdBy,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
+    Expression<String>? schoolsJson,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -20883,6 +20934,7 @@ class ProgramsCompanion extends UpdateCompanion<Program> {
       if (createdBy != null) 'created_by': createdBy,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (schoolsJson != null) 'schools_json': schoolsJson,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -20893,6 +20945,7 @@ class ProgramsCompanion extends UpdateCompanion<Program> {
     Value<String>? createdBy,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
+    Value<String>? schoolsJson,
     Value<int>? rowid,
   }) {
     return ProgramsCompanion(
@@ -20901,6 +20954,7 @@ class ProgramsCompanion extends UpdateCompanion<Program> {
       createdBy: createdBy ?? this.createdBy,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      schoolsJson: schoolsJson ?? this.schoolsJson,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -20923,6 +20977,9 @@ class ProgramsCompanion extends UpdateCompanion<Program> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (schoolsJson.present) {
+      map['schools_json'] = Variable<String>(schoolsJson.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -20937,6 +20994,7 @@ class ProgramsCompanion extends UpdateCompanion<Program> {
           ..write('createdBy: $createdBy, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('schoolsJson: $schoolsJson, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -50238,6 +50296,7 @@ typedef $$ProgramsTableCreateCompanionBuilder =
       required String createdBy,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
+      Value<String> schoolsJson,
       Value<int> rowid,
     });
 typedef $$ProgramsTableUpdateCompanionBuilder =
@@ -50247,6 +50306,7 @@ typedef $$ProgramsTableUpdateCompanionBuilder =
       Value<String> createdBy,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
+      Value<String> schoolsJson,
       Value<int> rowid,
     });
 
@@ -50310,6 +50370,11 @@ class $$ProgramsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get schoolsJson => $composableBuilder(
+    column: $table.schoolsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
   Expression<bool> programMembersRefs(
     Expression<bool> Function($$ProgramMembersTableFilterComposer f) f,
   ) {
@@ -50369,6 +50434,11 @@ class $$ProgramsTableOrderingComposer
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get schoolsJson => $composableBuilder(
+    column: $table.schoolsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ProgramsTableAnnotationComposer
@@ -50394,6 +50464,11 @@ class $$ProgramsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get schoolsJson => $composableBuilder(
+    column: $table.schoolsJson,
+    builder: (column) => column,
+  );
 
   Expression<T> programMembersRefs<T extends Object>(
     Expression<T> Function($$ProgramMembersTableAnnotationComposer a) f,
@@ -50454,6 +50529,7 @@ class $$ProgramsTableTableManager
                 Value<String> createdBy = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> schoolsJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ProgramsCompanion(
                 id: id,
@@ -50461,6 +50537,7 @@ class $$ProgramsTableTableManager
                 createdBy: createdBy,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                schoolsJson: schoolsJson,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -50470,6 +50547,7 @@ class $$ProgramsTableTableManager
                 required String createdBy,
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> schoolsJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ProgramsCompanion.insert(
                 id: id,
@@ -50477,6 +50555,7 @@ class $$ProgramsTableTableManager
                 createdBy: createdBy,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                schoolsJson: schoolsJson,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

@@ -699,10 +699,25 @@ class ProgramAuthBootstrap {
     var total = 0;
     for (final tier in kSpecTiers) {
       // Parallel within the tier; sequential between tiers.
+      //
+      // `force: true` skips the 30s pull debounce. This is the
+      // single line that decides whether a user signing in on a
+      // second device sees the data already on the cloud. Without
+      // it, a device that pulled within the last 30 seconds
+      // (e.g. signed out then back in, or app-resumed after the
+      // OS killed it) would silently skip the pull and the new
+      // realtime subscription is the only path data can travel
+      // — fragile on flaky networks. Sign-in / program-switch is
+      // exactly when you want to ignore local timing and ask
+      // cloud for the latest state.
       final results = await Future.wait([
         for (final spec in tier)
           engine
-              .pullTable(spec: spec, programId: programId)
+              .pullTable(
+                spec: spec,
+                programId: programId,
+                force: true,
+              )
               .then<int>((applied) {
             if (applied > 0) {
               debugPrint('Pulled $applied ${spec.table} for $programId.');

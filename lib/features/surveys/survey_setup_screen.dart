@@ -9,6 +9,7 @@
 
 import 'dart:async';
 
+import 'package:basecamp/features/programs/programs_repository.dart';
 import 'package:basecamp/features/surveys/canonical_questions.dart';
 import 'package:basecamp/features/surveys/survey_audio_service.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
@@ -39,10 +40,13 @@ class _SurveySetupScreenState extends ConsumerState<SurveySetupScreen> {
   SurveyStyle _style = SurveyStyle.marbleJar;
 
   /// Pre-configured school list for the pre-flight gate's
-  /// dropdown. KIPP seeded by default (the canonical fast path);
-  /// teacher can add / remove rows freely. Saved as JSON on the
-  /// survey row at create time.
-  final List<String> _schools = <String>['KIPP'];
+  /// dropdown. Seeded from `programSchoolsProvider` on first build,
+  /// so a teacher who already set up schools on a previous survey
+  /// (or on another device — schools live on the program now)
+  /// doesn't have to retype them. Edits here are persisted back to
+  /// the program on save so every future survey inherits the latest.
+  final List<String> _schools = <String>[];
+  bool _seededFromProgram = false;
   final TextEditingController _schoolDraftCtrl = TextEditingController();
 
   bool _saving = false;
@@ -81,6 +85,16 @@ class _SurveySetupScreenState extends ConsumerState<SurveySetupScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
+      // Persist the (possibly edited) schools list back to the
+      // program so every future survey + every other device
+      // inherits without retyping. Best-effort — failure to push
+      // shouldn't block the survey create itself.
+      final programId = ref.read(activeProgramIdProvider);
+      if (programId != null) {
+        await ref
+            .read(programsRepositoryProvider)
+            .setSchools(programId: programId, schools: _schools);
+      }
       final repo = ref.read(surveyRepositoryProvider);
       final survey = await repo.create(
         siteName: _siteCtrl.text,
@@ -126,6 +140,26 @@ class _SurveySetupScreenState extends ConsumerState<SurveySetupScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Seed the schools list from the program once it's available.
+    // Guarded by `_seededFromProgram` so a later edit by the
+    // teacher isn't clobbered by a re-emit of the provider. The
+    // mutation has to run AFTER build (post-frame) because
+    // setState during build is a framework violation — without
+    // that, the chip list would silently fail to render.
+    final programSchools = ref.watch(programSchoolsProvider).asData?.value;
+    if (!_seededFromProgram && programSchools != null) {
+      _seededFromProgram = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _schools
+            ..clear()
+            ..addAll(
+              programSchools.isEmpty ? const ['KIPP'] : programSchools,
+            );
+        });
+      });
+    }
     return Scaffold(
       appBar: AppBar(title: const Text('New Survey')),
       body: Form(
