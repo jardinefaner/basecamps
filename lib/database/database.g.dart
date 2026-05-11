@@ -24864,6 +24864,17 @@ class $SurveySessionsTable extends SurveySessions
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -24873,6 +24884,7 @@ class $SurveySessionsTable extends SurveySessions
     childCount,
     school,
     programId,
+    deletedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -24929,6 +24941,12 @@ class $SurveySessionsTable extends SurveySessions
         programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
       );
     }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -24966,6 +24984,10 @@ class $SurveySessionsTable extends SurveySessions
         DriftSqlType.string,
         data['${effectivePrefix}program_id'],
       ),
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
     );
   }
 
@@ -25001,6 +25023,11 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
   /// keeps the RLS policy + sync engine's pull query a single
   /// index scan. Nullable for sessions created before v63.
   final String? programId;
+
+  /// v66 — soft-delete a mistaken kiosk run. Cleared rows still
+  /// live in the DB so historical responses keep resolving the
+  /// parent survey, but the results sheet filters them out.
+  final DateTime? deletedAt;
   const SurveySession({
     required this.id,
     required this.surveyId,
@@ -25009,6 +25036,7 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
     required this.childCount,
     this.school,
     this.programId,
+    this.deletedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -25025,6 +25053,9 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
     }
     if (!nullToAbsent || programId != null) {
       map['program_id'] = Variable<String>(programId);
+    }
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
     }
     return map;
   }
@@ -25044,6 +25075,9 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
       programId: programId == null && nullToAbsent
           ? const Value.absent()
           : Value(programId),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
     );
   }
 
@@ -25060,6 +25094,7 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
       childCount: serializer.fromJson<int>(json['childCount']),
       school: serializer.fromJson<String?>(json['school']),
       programId: serializer.fromJson<String?>(json['programId']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
     );
   }
   @override
@@ -25073,6 +25108,7 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
       'childCount': serializer.toJson<int>(childCount),
       'school': serializer.toJson<String?>(school),
       'programId': serializer.toJson<String?>(programId),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
     };
   }
 
@@ -25084,6 +25120,7 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
     int? childCount,
     Value<String?> school = const Value.absent(),
     Value<String?> programId = const Value.absent(),
+    Value<DateTime?> deletedAt = const Value.absent(),
   }) => SurveySession(
     id: id ?? this.id,
     surveyId: surveyId ?? this.surveyId,
@@ -25092,6 +25129,7 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
     childCount: childCount ?? this.childCount,
     school: school.present ? school.value : this.school,
     programId: programId.present ? programId.value : this.programId,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
   SurveySession copyWithCompanion(SurveySessionsCompanion data) {
     return SurveySession(
@@ -25104,6 +25142,7 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
           : this.childCount,
       school: data.school.present ? data.school.value : this.school,
       programId: data.programId.present ? data.programId.value : this.programId,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
 
@@ -25116,7 +25155,8 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
           ..write('endedAt: $endedAt, ')
           ..write('childCount: $childCount, ')
           ..write('school: $school, ')
-          ..write('programId: $programId')
+          ..write('programId: $programId, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
@@ -25130,6 +25170,7 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
     childCount,
     school,
     programId,
+    deletedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -25141,7 +25182,8 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
           other.endedAt == this.endedAt &&
           other.childCount == this.childCount &&
           other.school == this.school &&
-          other.programId == this.programId);
+          other.programId == this.programId &&
+          other.deletedAt == this.deletedAt);
 }
 
 class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
@@ -25152,6 +25194,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
   final Value<int> childCount;
   final Value<String?> school;
   final Value<String?> programId;
+  final Value<DateTime?> deletedAt;
   final Value<int> rowid;
   const SurveySessionsCompanion({
     this.id = const Value.absent(),
@@ -25161,6 +25204,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     this.childCount = const Value.absent(),
     this.school = const Value.absent(),
     this.programId = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SurveySessionsCompanion.insert({
@@ -25171,6 +25215,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     this.childCount = const Value.absent(),
     this.school = const Value.absent(),
     this.programId = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        surveyId = Value(surveyId);
@@ -25182,6 +25227,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     Expression<int>? childCount,
     Expression<String>? school,
     Expression<String>? programId,
+    Expression<DateTime>? deletedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -25192,6 +25238,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
       if (childCount != null) 'child_count': childCount,
       if (school != null) 'school': school,
       if (programId != null) 'program_id': programId,
+      if (deletedAt != null) 'deleted_at': deletedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -25204,6 +25251,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     Value<int>? childCount,
     Value<String?>? school,
     Value<String?>? programId,
+    Value<DateTime?>? deletedAt,
     Value<int>? rowid,
   }) {
     return SurveySessionsCompanion(
@@ -25214,6 +25262,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
       childCount: childCount ?? this.childCount,
       school: school ?? this.school,
       programId: programId ?? this.programId,
+      deletedAt: deletedAt ?? this.deletedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -25242,6 +25291,9 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     if (programId.present) {
       map['program_id'] = Variable<String>(programId.value);
     }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -25258,6 +25310,7 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
           ..write('childCount: $childCount, ')
           ..write('school: $school, ')
           ..write('programId: $programId, ')
+          ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -26443,9 +26496,20 @@ class PrintRow extends DataClass implements Insertable<PrintRow> {
   /// expected. Today: `'feelings_basket'` | `'marble_jar'`.
   final String kind;
 
-  /// Path of the captured PNG, **relative to** the app docs
-  /// directory (e.g. `prints/abc123.png`). The repository
-  /// resolves to absolute paths on read.
+  /// PNG payload. Dual-mode depending on when the row was
+  /// written:
+  ///   * v65+ — `data:image/png;base64,<...>` data URL.
+  ///     The bytes ARE the column value; the row alone is
+  ///     enough to render the card on any device. Cross-device
+  ///     sync handles transport for free.
+  ///   * Legacy (pre-v65) — relative path under the app docs
+  ///     directory (e.g. `prints/abc123.png`). Only resolvable
+  ///     on the originating device. The `PrintsRepository.
+  ///     _resolveAbsolutePath` helper handles both schemes.
+  ///
+  /// New code reads should NEVER assume a file path — always
+  /// branch on `startsWith('data:')` first, OR call the repo's
+  /// resolver / readBytes helper.
   final String snapshotPath;
 
   /// JSON-encoded extra layout data the print needs at render
@@ -52494,6 +52558,7 @@ typedef $$SurveySessionsTableCreateCompanionBuilder =
       Value<int> childCount,
       Value<String?> school,
       Value<String?> programId,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 typedef $$SurveySessionsTableUpdateCompanionBuilder =
@@ -52505,6 +52570,7 @@ typedef $$SurveySessionsTableUpdateCompanionBuilder =
       Value<int> childCount,
       Value<String?> school,
       Value<String?> programId,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 
@@ -52549,6 +52615,11 @@ class $$SurveySessionsTableFilterComposer
 
   ColumnFilters<String> get programId => $composableBuilder(
     column: $table.programId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -52596,6 +52667,11 @@ class $$SurveySessionsTableOrderingComposer
     column: $table.programId,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SurveySessionsTableAnnotationComposer
@@ -52629,6 +52705,9 @@ class $$SurveySessionsTableAnnotationComposer
 
   GeneratedColumn<String> get programId =>
       $composableBuilder(column: $table.programId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 }
 
 class $$SurveySessionsTableTableManager
@@ -52671,6 +52750,7 @@ class $$SurveySessionsTableTableManager
                 Value<int> childCount = const Value.absent(),
                 Value<String?> school = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SurveySessionsCompanion(
                 id: id,
@@ -52680,6 +52760,7 @@ class $$SurveySessionsTableTableManager
                 childCount: childCount,
                 school: school,
                 programId: programId,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -52691,6 +52772,7 @@ class $$SurveySessionsTableTableManager
                 Value<int> childCount = const Value.absent(),
                 Value<String?> school = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SurveySessionsCompanion.insert(
                 id: id,
@@ -52700,6 +52782,7 @@ class $$SurveySessionsTableTableManager
                 childCount: childCount,
                 school: school,
                 programId: programId,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

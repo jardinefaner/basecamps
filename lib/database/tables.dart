@@ -1822,6 +1822,11 @@ class SurveySessions extends Table {
   /// index scan. Nullable for sessions created before v63.
   TextColumn get programId => text().nullable()();
 
+  /// v66 — soft-delete a mistaken kiosk run. Cleared rows still
+  /// live in the DB so historical responses keep resolving the
+  /// parent survey, but the results sheet filters them out.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
   @override
   Set<Column<Object>> get primaryKey => {id};
 

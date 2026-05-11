@@ -82,7 +82,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 65;
+  int get schemaVersion => 66;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -158,6 +158,17 @@ class AppDatabase extends _$AppDatabase {
           await _healV55MonthlyPlanTables();
           await _healV56MonthlyActivitiesTable();
           await _healV59SurveyTables();
+          if (from < 66) {
+            // v66: survey_sessions.deleted_at — soft-delete a
+            // mistaken kiosk run (kid pressed through twice, etc)
+            // without losing the parent survey's history. Same
+            // soft-delete pattern surveys already use on the
+            // parent. Cloud parity: migration 0040.
+            await _runSilent(
+              'ALTER TABLE "survey_sessions" ADD COLUMN '
+              '"deleted_at" INTEGER NULL',
+            );
+          }
           if (from < 65) {
             // v65: prints.program_id for cloud sync. Pre-v65 rows
             // (created locally before sync landed) read back as

@@ -178,6 +178,12 @@ class SurveyRepository {
   /// in to resume from the results sheet). Clears `endedAt` and
   /// `childCount` so a fresh "complete" can land later.
   Future<void> reopenSession(String sessionId) async {
+    // Soft-deleted sessions stay deleted — a bookmarked
+    // `/surveys/:id/play?resume=<id>` URL or a race between the
+    // results-screen filter and a tap could otherwise silently
+    // un-delete them by clearing endedAt below.
+    final existing = await getSession(sessionId);
+    if (existing == null || existing.deletedAt != null) return;
     await (_db.update(_db.surveySessions)
           ..where((s) => s.id.equals(sessionId)))
         .write(
@@ -186,8 +192,7 @@ class SurveyRepository {
         childCount: Value<int>(0),
       ),
     );
-    final session = await getSession(sessionId);
-    if (session != null) await _pushSurvey(session.surveyId);
+    await _pushSurvey(existing.surveyId);
   }
 
   /// Open a fresh session for a child going through the kiosk.
@@ -383,7 +388,9 @@ class SurveyRepository {
   /// its responses keyed by questionId. Newest sessions first.
   Stream<List<SurveyResultRow>> watchResults(String surveyId) {
     final sessions = _db.select(_db.surveySessions)
-      ..where((s) => s.surveyId.equals(surveyId))
+      ..where(
+        (s) => s.surveyId.equals(surveyId) & s.deletedAt.isNull(),
+      )
       ..orderBy([
         (s) => OrderingTerm(
               expression: s.startedAt,
@@ -423,6 +430,25 @@ class SurveyRepository {
       ),
     );
     unawaited(_ref.read(syncEngineProvider).pushRow(surveysSpec, id));
+  }
+
+  /// Soft-delete a single session (one kid's run through the
+  /// kiosk). The parent survey + its other sessions stay; the
+  /// results sheet filters this one out on next refresh.
+  /// Idempotent — already-deleted sessions just re-stamp the
+  /// timestamp. Restoring a session means setting `deletedAt`
+  /// back to null; not exposed today but easy to add.
+  Future<void> softDeleteSession(String sessionId) async {
+    final session = await getSession(sessionId);
+    if (session == null) return;
+    await (_db.update(_db.surveySessions)
+          ..where((s) => s.id.equals(sessionId)))
+        .write(
+      SurveySessionsCompanion(
+        deletedAt: Value(DateTime.now().toUtc()),
+      ),
+    );
+    await _pushSurvey(session.surveyId);
   }
 
   // ——— Mappings ——————————————————————————————————————————————

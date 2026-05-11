@@ -134,14 +134,14 @@ class _SurveyList extends StatelessWidget {
   }
 }
 
-class _SurveyCard extends StatelessWidget {
+class _SurveyCard extends ConsumerWidget {
   const _SurveyCard({required this.survey, required this.theme});
 
   final SurveyConfig survey;
   final ThemeData theme;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final dateFmt = DateFormat.yMMMd().add_jm();
     return InkWell(
       borderRadius: AppSpacing.cardBorderRadius,
@@ -150,6 +150,7 @@ class _SurveyCard extends StatelessWidget {
       // screen so a teacher always sees what's been captured
       // before handing the device to the next child.
       onTap: () => context.push('/surveys/${survey.id}'),
+      onLongPress: () => _confirmDelete(context, ref),
       child: Container(
         padding: AppSpacing.cardPadding,
         decoration: BoxDecoration(
@@ -203,13 +204,60 @@ class _SurveyCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
-            Icon(
-              Icons.chevron_right,
-              color: theme.colorScheme.onSurfaceVariant,
+            PopupMenuButton<String>(
+              tooltip: 'More',
+              icon: Icon(
+                Icons.more_vert,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              onSelected: (v) {
+                if (v == 'delete') _confirmDelete(context, ref);
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'delete',
+                  child: ListTile(
+                    leading: Icon(Icons.delete_outline),
+                    title: Text('Delete survey'),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete this survey?'),
+        content: Text(
+          "${survey.siteName} · ${survey.classroom} will be hidden from "
+          "the list. Existing kiosk sessions stay in the results sheet "
+          'so historical data is preserved.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await ref.read(surveyRepositoryProvider).softDelete(survey.id);
+    messenger.showSnackBar(
+      SnackBar(content: Text('Deleted ${survey.siteName}')),
     );
   }
 }

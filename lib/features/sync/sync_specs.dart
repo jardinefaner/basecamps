@@ -224,7 +224,13 @@ const surveysSpec = TableSpec(
     CascadeSpec(
       table: 'survey_sessions',
       parentColumn: 'survey_id',
-      dateColumns: {'started_at', 'ended_at', 'created_at', 'updated_at'},
+      dateColumns: {
+        'started_at',
+        'ended_at',
+        'deleted_at',
+        'created_at',
+        'updated_at',
+      },
     ),
     CascadeSpec(
       table: 'survey_responses',

@@ -242,6 +242,45 @@ void _onChildRowTapped({
   );
 }
 
+/// Confirm + soft-delete a single session. The parent survey + its
+/// other sessions stay; the results sheet filters this one out on
+/// next refresh. Used by long-press on a session row in both the
+/// grid and the mobile card list.
+Future<void> _confirmDeleteSession({
+  required BuildContext context,
+  required SurveyResultRow row,
+}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final container = ProviderScope.containerOf(context, listen: false);
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Delete this session?'),
+      content: const Text(
+        'The kid\'s answers will be removed from the results. '
+        'The survey itself and every other session stay put.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text('Delete'),
+        ),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  await container
+      .read(surveyRepositoryProvider)
+      .softDeleteSession(row.session.id);
+  messenger.showSnackBar(
+    const SnackBar(content: Text('Session deleted')),
+  );
+}
+
 /// Build the CSV from the current results stream value, then
 /// hand off to the platform share / save flow.
 ///
@@ -619,6 +658,8 @@ class _GridDataRow extends StatelessWidget {
           survey: survey,
           row: row,
         ),
+        onLongPress: () =>
+            _confirmDeleteSession(context: context, row: row),
         child: Container(
           decoration: BoxDecoration(
             border: Border(
@@ -1044,6 +1085,8 @@ class _CardList extends StatelessWidget {
             survey: survey,
             row: row,
           ),
+          onLongPress: () =>
+              _confirmDeleteSession(context: context, row: row),
           child: Container(
             padding: AppSpacing.cardPadding,
             decoration: BoxDecoration(
@@ -1362,6 +1405,10 @@ class _SheetView extends StatelessWidget {
                         survey: survey,
                         row: row,
                       ),
+                      onLongPress: () => _confirmDeleteSession(
+                        context: context,
+                        row: row,
+                      ),
                     );
                   },
                 ),
@@ -1449,6 +1496,7 @@ class _SheetRow extends StatelessWidget {
     required this.height,
     required this.theme,
     required this.onTap,
+    this.onLongPress,
   });
 
   final List<_SheetCol> cols;
@@ -1456,6 +1504,7 @@ class _SheetRow extends StatelessWidget {
   final double height;
   final ThemeData theme;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -1463,6 +1512,7 @@ class _SheetRow extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Container(
           height: height,
           decoration: BoxDecoration(
