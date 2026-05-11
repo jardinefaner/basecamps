@@ -35,6 +35,8 @@ import 'package:basecamp/features/surveys/open_ended_overlay.dart';
 import 'package:basecamp/features/surveys/survey_audio_service.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
 import 'package:basecamp/features/surveys/survey_repository.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
@@ -4694,19 +4696,28 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
     // celebration overlay would otherwise hide the marbles.
     final snapshot = await _captureJarSnapshot();
     if (!mounted) return;
+    // Close + flush BEFORE flipping `_showingAllDone` — the card
+    // shouldn't render until kid 1's session is fully in cloud,
+    // otherwise a pull racing the in-flight write can revert
+    // endedAt to null and the row reads as Incomplete forever.
+    try {
+      await ref.read(surveyRepositoryProvider).endSession(
+            sessionId,
+            completed: true,
+          );
+      if (!mounted) return;
+      await ref.read(syncEngineProvider).flushPendingPushes(kAllSpecs);
+    } on Object catch (e, st) {
+      debugPrint('[survey] commit-on-complete failed: $e\n$st');
+      // Soldier on — the local write may have committed even if
+      // the push failed; the next foreground sweep will retry.
+    }
+    if (!mounted) return;
     setState(() {
       _jarSnapshot = snapshot;
       _showingAllDone = true;
       _childCount += 1;
     });
-    // Close this child's session. Best effort — UI reset is the
-    // user-visible signal that things are progressing.
-    unawaited(
-      ref.read(surveyRepositoryProvider).endSession(
-            sessionId,
-            completed: true,
-          ),
-    );
   }
 
   /// Snapshot the GameWidget via its RepaintBoundary. Returns null
@@ -4768,6 +4779,12 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
     if (!mounted) return;
     final survey = _survey;
     if (survey == null) return;
+    // Make sure any in-flight pushes from kid 1 (print save, end-
+    // session, etc) reach cloud BEFORE we mint kid 2's session.
+    // Otherwise a pull racing the reset can wipe the brand-new
+    // session row or revert kid 1's complete-state.
+    await ref.read(syncEngineProvider).flushPendingPushes(kAllSpecs);
+    if (!mounted) return;
     final repo = ref.read(surveyRepositoryProvider);
     final newSessionId = await repo.startSession(survey.id);
     if (!mounted) return;

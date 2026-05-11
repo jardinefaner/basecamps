@@ -55,6 +55,7 @@ class CascadeSpec {
     required this.table,
     required this.parentColumn,
     this.dateColumns = const {},
+    this.nonDestructive = false,
   });
 
   final String table;
@@ -67,6 +68,20 @@ class CascadeSpec {
   /// Same role as [TableSpec.dateColumns] for the cascade table.
   /// Most cascades only have `created_at` (or nothing).
   final Set<String> dateColumns;
+
+  /// When true, the pull skips the `DELETE FROM cascade WHERE parent
+  /// IN ids` step and just upserts cloud rows on top of local. Use
+  /// this for cascades where rows are **append-only or soft-deleted**
+  /// (survey_sessions, survey_responses) — destructive pulls there
+  /// silently wipe locally-fresh rows that haven't yet round-tripped
+  /// through cloud, producing the "kid 2's session disappeared"
+  /// and "kid 1's complete session reverted to incomplete" bugs.
+  ///
+  /// Trade-off: a row hard-deleted in cloud won't disappear locally
+  /// on pull. For survey rows that's fine — they have soft-delete
+  /// (sessions) or are immutable (responses) so the deletion path
+  /// never runs that way.
+  final bool nonDestructive;
 }
 
 /// Generic sync engine. Pushes/pulls program-scoped rows and their
@@ -449,10 +464,17 @@ class SyncEngine {
         continue;
       }
 
-      await client
-          .from(cascade.table)
-          .delete()
-          .eq(cascade.parentColumn, id);
+      // Non-destructive cascades skip the cloud-side DELETE so a
+      // local-without-row scenario (e.g. session deleted from
+      // another device's pull) can't accidentally wipe cloud rows
+      // this device hasn't pulled yet. Pure upsert keeps cloud
+      // truthful and trusts soft-delete (deleted_at) for removals.
+      if (!cascade.nonDestructive) {
+        await client
+            .from(cascade.table)
+            .delete()
+            .eq(cascade.parentColumn, id);
+      }
       if (cascadeRows.isNotEmpty) {
         await client.from(cascade.table).upsert([
           for (final r in cascadeRows)
@@ -1130,11 +1152,17 @@ class SyncEngine {
     if (parentIds.isEmpty || cascades.isEmpty) return;
     for (final cascade in cascades) {
       // Wipe locally — cloud is the source of truth for this pull.
-      await _db.customUpdate(
-        'DELETE FROM "${cascade.table}" '
-        'WHERE "${cascade.parentColumn}" IN (${_placeholders(parentIds.length)})',
-        variables: [for (final id in parentIds) Variable<String>(id)],
-      );
+      // Skipped for non-destructive cascades so a pull racing with
+      // a freshly-created local row doesn't silently delete it.
+      // See CascadeSpec.nonDestructive for the full rationale.
+      if (!cascade.nonDestructive) {
+        await _db.customUpdate(
+          'DELETE FROM "${cascade.table}" '
+          'WHERE "${cascade.parentColumn}" IN '
+          '(${_placeholders(parentIds.length)})',
+          variables: [for (final id in parentIds) Variable<String>(id)],
+        );
+      }
 
       // Pull cascade rows in bulk. inFilter keeps it one round-trip
       // for the entire page's parents, regardless of how many.

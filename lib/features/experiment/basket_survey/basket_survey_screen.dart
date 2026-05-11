@@ -41,6 +41,8 @@ import 'package:basecamp/features/surveys/preflight_school_gate.dart';
 import 'package:basecamp/features/surveys/survey_audio_service.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
 import 'package:basecamp/features/surveys/survey_repository.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -339,15 +341,23 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
     // Kiosk-mode: end the session in the cloud-synced table.
     // Sandbox mode: append to the local JSON file the same way
     // it always has, for the in-app CSV viewer.
+    //
+    // CRITICAL: `await` the endSession + flush pending pushes
+    // before we transition to the thank-you card. Earlier this
+    // was `unawaited(...)` and a fast pass-to-next could fire
+    // before the write committed — kid 1's session would
+    // intermittently land back in "Incomplete" because a pull
+    // raced the still-in-flight write. Now: by the time the
+    // thank-you card renders, kid 1's complete state is in
+    // local Drift AND has been pushed to cloud.
     if (_isKiosk) {
       final sessionId = _sessionId;
       if (sessionId != null) {
-        unawaited(
-          ref.read(surveyRepositoryProvider).endSession(
-                sessionId,
-                completed: true,
-              ),
-        );
+        await ref.read(surveyRepositoryProvider).endSession(
+              sessionId,
+              completed: true,
+            );
+        await ref.read(syncEngineProvider).flushPendingPushes(kAllSpecs);
       }
     } else {
       final notifier = ref.read(basketSurveySessionsProvider.notifier);
@@ -688,6 +698,19 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
 
   Future<void> _resetForNextChild() async {
     _worldKey.currentState?.reset();
+    // Belt-and-braces: flush any in-flight pushes from kid 1 (the
+    // print save, the endSession, any cascade updates) so kid 1's
+    // record is fully in cloud BEFORE kid 2's session is created.
+    // Without this a pull racing the reset can blow away the
+    // newly-created kid 2 row, and kid 1's complete-state can be
+    // overwritten by stale cloud state. `_onSurveyComplete` already
+    // flushed for the endSession, but a teacher might tap "Pass to
+    // next" before tapping "Save to Prints" — the print save needs
+    // its own flush window too.
+    if (_isKiosk) {
+      await ref.read(syncEngineProvider).flushPendingPushes(kAllSpecs);
+    }
+    if (!mounted) return;
     String? newSessionId;
     if (_isKiosk) {
       final survey = _survey;

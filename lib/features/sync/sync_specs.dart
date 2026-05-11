@@ -231,11 +231,18 @@ const surveysSpec = TableSpec(
         'created_at',
         'updated_at',
       },
+      // Sessions are created during an active kiosk run and have
+      // soft-delete (deleted_at) for removals. A destructive pull
+      // could race with a fresh local insert (kid 2's session) or
+      // a freshly-updated complete (endedAt). Upsert only.
+      nonDestructive: true,
     ),
     CascadeSpec(
       table: 'survey_responses',
       parentColumn: 'survey_id',
       dateColumns: {'created_at'},
+      // Responses are append-only and never deleted. Upsert only.
+      nonDestructive: true,
     ),
   ],
 );

@@ -26,6 +26,8 @@ import 'package:basecamp/features/experiment/basket_survey/basket_world.dart'
     show BasketGeometry;
 import 'package:basecamp/features/experiment/basket_survey/thank_you_card_helpers.dart';
 import 'package:basecamp/features/prints/prints_repository.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -115,6 +117,13 @@ class _BasketThankYouCardState extends ConsumerState<BasketThankYouCard> {
           'year': _academicYear(),
         },
       );
+      // "Saving to Prints should save all progress and commit
+      // before giving it to another child" — flush every pending
+      // sync push (the print row, the session endedAt, any
+      // last-second cascade updates) so kid 1's record is fully
+      // in cloud before the next kid touches the device.
+      if (!mounted) return;
+      await ref.read(syncEngineProvider).flushPendingPushes(kAllSpecs);
       if (!mounted) return;
       setState(() => _saved = true);
       ScaffoldMessenger.of(context).showSnackBar(
