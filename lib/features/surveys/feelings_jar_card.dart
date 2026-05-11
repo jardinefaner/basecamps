@@ -257,8 +257,15 @@ class _FeelingsJarCardState extends State<FeelingsJarCard> {
                         : const Icon(Icons.print_outlined),
                     label: Text(_printing ? 'Preparing…' : 'Print My Jar'),
                   ),
+                  // Disabled while a print is in flight so a kid /
+                  // teacher can't hand the device to the next kid
+                  // mid-dialog. The survey complete + cloud push
+                  // already landed before the thank-you card
+                  // rendered (see `_onMoodAnswered`), so Done is
+                  // safe to tap *between* prints — the gate is just
+                  // about not interrupting an active print.
                   TextButton(
-                    onPressed: widget.onDone,
+                    onPressed: _printing ? null : widget.onDone,
                     child: Text(widget.doneLabel),
                   ),
                 ],

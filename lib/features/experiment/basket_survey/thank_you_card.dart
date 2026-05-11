@@ -320,18 +320,46 @@ class _BasketThankYouCardState extends ConsumerState<BasketThankYouCard> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    GestureDetector(
-                      onTap: widget.onPassAlong,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 26,
-                          vertical: 10,
-                        ),
-                        child: Text(
-                          'PASS TO NEXT FRIEND',
-                          style: sansLabel.copyWith(
-                            fontSize: 11,
-                            letterSpacing: 1.4,
+                    // "Pass to next friend" gates on the save
+                    // completing. Until the kid has saved the
+                    // card (= until kid 1's record is fully in
+                    // cloud), tapping here would risk handing
+                    // the device away with un-flushed data. The
+                    // disabled state is visually obvious so a
+                    // teacher knows what's left to do.
+                    Opacity(
+                      opacity: _saved ? 1 : 0.35,
+                      child: GestureDetector(
+                        onTap: _saved ? widget.onPassAlong : null,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 26,
+                            vertical: 10,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'PASS TO NEXT FRIEND',
+                                style: sansLabel.copyWith(
+                                  fontSize: 11,
+                                  letterSpacing: 1.4,
+                                ),
+                              ),
+                              if (!_saved) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  _saving
+                                      ? 'saving…'
+                                      : 'save to prints first',
+                                  style: sansLabel.copyWith(
+                                    fontSize: 9,
+                                    letterSpacing: 1,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       ),
