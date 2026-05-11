@@ -82,8 +82,17 @@ jobs:
         # bundle ships without those features until they're proxied
         # through an edge function. See env.dart for the runtime
         # guards that handle the empty-string case.
+        # --no-tree-shake-icons: the Command Center tool registry
+        # builds `IconData(code, fontFamily: family)` dynamically
+        # from per-tool ints in `CommandResult`. Tree-shaking
+        # requires every IconData to be a `const`-construction with
+        # a literal codepoint, which we can't satisfy without
+        # collapsing the registry into a giant switch. Shipping the
+        # full MaterialIcons font (~1.5MB, ~400KB gzipped) is the
+        # cheaper trade-off.
         run: |
           flutter build web --release \
+            --no-tree-shake-icons \
             --base-href "/basecamps/" \
             --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
             --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }} \

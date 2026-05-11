@@ -735,7 +735,7 @@ class _PendingInviteBanner extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '$adultName hasn\'t claimed this profile yet — '
+                  "$adultName hasn't claimed this profile yet — "
                   'code $timing.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: fg,

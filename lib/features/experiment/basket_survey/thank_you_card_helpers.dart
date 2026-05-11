@@ -293,7 +293,7 @@ class JarPainter extends CustomPainter {
       );
 
     // Neck collar (the recessed band below the screw lid).
-    final neckRect = Rect.fromLTWH(48, 30, 94, 28);
+    const neckRect = Rect.fromLTWH(48, 30, 94, 28);
     canvas
       ..drawRRect(
         RRect.fromRectAndRadius(neckRect, const Radius.circular(4)),
@@ -308,7 +308,7 @@ class JarPainter extends CustomPainter {
       );
 
     // Screw lid — drawn in solid ink so it reads as the cap.
-    final lidRect = Rect.fromLTWH(40, 20, 110, 13);
+    const lidRect = Rect.fromLTWH(40, 20, 110, 13);
     canvas
       ..drawRRect(
         RRect.fromRectAndRadius(lidRect, const Radius.circular(4)),

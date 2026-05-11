@@ -135,8 +135,8 @@ NEVER invent times if the user didn't mention any.
     final theme = (args['theme'] as String?)?.trim() ?? '';
     final description = (args['description'] as String?)?.trim() ?? '';
     final notes = (args['notes'] as String?)?.trim() ?? '';
-    final startTime = _parseTime((args['start_time'] as String?));
-    final endTime = _parseTime((args['end_time'] as String?));
+    final startTime = _parseTime(args['start_time'] as String?);
+    final endTime = _parseTime(args['end_time'] as String?);
     final groupNamesRaw = (args['group_names'] as List?)
             ?.whereType<String>()
             .toList() ??

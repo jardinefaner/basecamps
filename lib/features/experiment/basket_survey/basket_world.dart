@@ -206,7 +206,7 @@ class MarbleBody {
   /// animation `t` so two marbles with the same variant + phase
   /// drift apart over time — kills "the whole pile is breathing
   /// in lockstep" creepiness.
-  double timeScale = 1.0;
+  double timeScale = 1;
 
   /// Wall-clock seconds remaining until the next variant swap.
   /// Initialised to a random value in [4, 7]; counts down each
@@ -316,7 +316,7 @@ class BasketWorld {
     // drag ended on the y axis. The drag's x is preserved so the
     // kid still sees "the marble drops where I let go" laterally.
     final spawn = spawnAt == null
-        ? Offset(BasketGeometry.worldW / 2, BasketGeometry.rimY - 10)
+        ? const Offset(BasketGeometry.worldW / 2, BasketGeometry.rimY - 10)
         : Offset(
             spawnAt.dx.clamp(
               BasketGeometry.leftRimX + BasketGeometry.marbleR,
@@ -446,7 +446,7 @@ class BasketWorld {
   static const double _angSleepThreshold = 0.6; // rad/s
   static const int _sleepFrames = 6;
   static const int _maxBounces = 12;
-  static const double _bounceWindow = 1.0; // seconds
+  static const double _bounceWindow = 1; // seconds
   // Energy stays in the marble after each bounce by this factor —
   // 4th bounce is much weaker than the 1st.
   static const double _bounceDecay = 0.85;
@@ -608,7 +608,7 @@ class BasketWorld {
       final dx = other.position.dx - m.position.dx;
       final dy = other.position.dy - m.position.dy;
       final distSq = dx * dx + dy * dy;
-      final r2 = (2 * r + epsilon) * (2 * r + epsilon);
+      const r2 = (2 * r + epsilon) * (2 * r + epsilon);
       if (distSq > r2) continue;
       // Side-by-side neighbour at the same level — doesn't add
       // support but doesn't disqualify; keep looking.

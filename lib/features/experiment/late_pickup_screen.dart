@@ -232,7 +232,7 @@ class _LatePickupScreenState extends ConsumerState<LatePickupScreen> {
         _formatTime(context, e.pickupTime),
         e.childName,
         e.parentName,
-        e.reminderCardGiven ? 'TRUE' : 'FALSE',
+        if (e.reminderCardGiven) 'TRUE' else 'FALSE',
         e.staffName,
         e.notes,
       ].join('\t'));

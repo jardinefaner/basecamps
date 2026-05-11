@@ -518,7 +518,7 @@ const List<SurveyNudge> kBasecampNudges = <SurveyNudge>[
   // pickup
   SurveyNudge(
     id: 'pickup_thinking',
-    text: "Take your time, friend.",
+    text: 'Take your time, friend.',
     category: SurveyNudgeCategory.pickup,
   ),
   SurveyNudge(
@@ -528,13 +528,13 @@ const List<SurveyNudge> kBasecampNudges = <SurveyNudge>[
   ),
   SurveyNudge(
     id: 'pickup_listen',
-    text: "Listen to your gut!",
+    text: 'Listen to your gut!',
     category: SurveyNudgeCategory.pickup,
   ),
   // drop
   SurveyNudge(
     id: 'drop_nice',
-    text: "Nice one!",
+    text: 'Nice one!',
     category: SurveyNudgeCategory.drop,
   ),
   SurveyNudge(
@@ -544,7 +544,7 @@ const List<SurveyNudge> kBasecampNudges = <SurveyNudge>[
   ),
   SurveyNudge(
     id: 'drop_good',
-    text: "Good answer!",
+    text: 'Good answer!',
     category: SurveyNudgeCategory.drop,
   ),
   // switch
@@ -555,7 +555,7 @@ const List<SurveyNudge> kBasecampNudges = <SurveyNudge>[
   ),
   SurveyNudge(
     id: 'switch_take_a_sec',
-    text: "Take a second to think.",
+    text: 'Take a second to think.',
     category: SurveyNudgeCategory.switchMarble,
   ),
   // idle

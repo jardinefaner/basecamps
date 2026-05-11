@@ -260,7 +260,6 @@ class _PrintTile extends StatelessWidget {
           ),
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             if (selectMode) ...[
               Icon(

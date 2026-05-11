@@ -147,8 +147,6 @@ class BasketWorldWidgetState extends State<BasketWorldWidget>
         // on the right physics coordinates after the scale.
         return Center(
           child: FittedBox(
-            fit: BoxFit.contain,
-            alignment: Alignment.center,
             child: AnimatedScale(
               scale: widget.glow ? 1.04 : 1.0,
               duration: const Duration(milliseconds: 220),

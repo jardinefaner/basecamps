@@ -1146,13 +1146,13 @@ class _SheetView extends StatelessWidget {
 
   List<_SheetCol> _columns() {
     final cols = <_SheetCol>[
-      _SheetCol(label: 'Site', width: _metaWidth, type: _ColType.text),
-      _SheetCol(label: 'Classroom', width: _metaWidth, type: _ColType.text),
-      _SheetCol(label: 'Grade', width: 80, type: _ColType.text),
-      _SheetCol(label: 'School', width: 110, type: _ColType.text),
-      _SheetCol(label: 'Child #', width: 60, type: _ColType.numericLike),
-      _SheetCol(label: 'Started', width: 130, type: _ColType.text),
-      _SheetCol(label: 'Status', width: 100, type: _ColType.text),
+      const _SheetCol(label: 'Site', width: _metaWidth, type: _ColType.text),
+      const _SheetCol(label: 'Classroom', width: _metaWidth, type: _ColType.text),
+      const _SheetCol(label: 'Grade', width: 80, type: _ColType.text),
+      const _SheetCol(label: 'School', width: 110, type: _ColType.text),
+      const _SheetCol(label: 'Child #', width: 60, type: _ColType.numericLike),
+      const _SheetCol(label: 'Started', width: 130, type: _ColType.text),
+      const _SheetCol(label: 'Status', width: 100, type: _ColType.text),
     ];
     for (final q in survey.questions) {
       switch (q.type) {

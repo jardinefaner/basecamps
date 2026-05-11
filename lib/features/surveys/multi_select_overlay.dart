@@ -147,7 +147,7 @@ class _MultiSelectQuestionOverlayState
                   // ellipsised.
                   gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                     maxCrossAxisExtent: 320,
-                    childAspectRatio: 3.0,
+                    childAspectRatio: 3,
                     crossAxisSpacing: AppSpacing.md,
                     mainAxisSpacing: AppSpacing.md,
                   ),

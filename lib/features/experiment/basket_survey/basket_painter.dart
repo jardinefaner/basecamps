@@ -57,8 +57,8 @@ class BasketPainter extends CustomPainter {
     // and the painter drifted ~45px below physics.
     final basketLeft = w * 0.06;
     final basketRight = w * 0.94;
-    final basketTop = BasketGeometry.rimY;
-    final basketBottom = BasketGeometry.basketFloorY;
+    const basketTop = BasketGeometry.rimY;
+    const basketBottom = BasketGeometry.basketFloorY;
     final baseInset = w * 0.08;
 
     // ——— Warm halo behind the basket when active —————————————

@@ -560,7 +560,7 @@ class RedeemResult {
     final raw = adultBindWarning;
     if (raw == null) return null;
     if (raw.startsWith('existing_bind:')) {
-      return 'You\'re already linked to another profile in this '
+      return "You're already linked to another profile in this "
           'program. Ask an admin to merge them so your historical '
           'observations and schedule travel with you.';
     }
@@ -569,7 +569,7 @@ class RedeemResult {
           'was tied to is no longer there. Ask the admin to create '
           'a fresh code.';
     }
-    return 'Joined the program. Couldn\'t link to your pre-created '
+    return "Joined the program. Couldn't link to your pre-created "
         'staff profile (server reported: $raw). Ask the admin to '
         'help you re-link.';
   }

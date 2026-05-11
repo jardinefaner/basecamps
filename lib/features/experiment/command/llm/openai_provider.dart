@@ -105,7 +105,7 @@ class OpenAiProvider implements LlmProvider {
         final name = fn['name'] as String? ?? '';
         if (name.isEmpty) continue;
         final argsStr = fn['arguments'] as String? ?? '{}';
-        Map<String, dynamic> args = const <String, dynamic>{};
+        var args = const <String, dynamic>{};
         try {
           final decoded = jsonDecode(argsStr);
           if (decoded is Map) {

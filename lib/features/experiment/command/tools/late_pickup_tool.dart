@@ -64,7 +64,7 @@ the user actually said:
             'type': 'string',
             'description':
                 'Display name fallback when child_id is empty. '
-                'When child_id matches, use that child\'s name.',
+                "When child_id matches, use that child's name.",
           },
           'pickup_time': <String, dynamic>{
             'type': 'string',
@@ -92,9 +92,7 @@ the user actually said:
     final childNameRaw = (args['child_name'] as String?)?.trim() ?? '';
     final pickupTimeRaw = (args['pickup_time'] as String?)?.trim() ?? '';
     final reminderCardGiven =
-        args['reminder_card_given'] is bool
-            ? args['reminder_card_given'] as bool
-            : false;
+        args['reminder_card_given'] is bool && args['reminder_card_given'] as bool;
     final notes = (args['notes'] as String?)?.trim() ?? '';
 
     // Resolve the child + autofill parent.

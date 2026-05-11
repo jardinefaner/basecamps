@@ -66,7 +66,7 @@ behaviour the teacher would flag, "neutral" otherwise.
           'note': <String, dynamic>{
             'type': 'string',
             'description':
-                'Clean, classroom-friendly version of the user\'s '
+                "Clean, classroom-friendly version of the user's "
                 'sentence. 1-2 sentences, past tense.',
           },
           'domain': <String, dynamic>{

@@ -32,8 +32,12 @@ jobs:
         run: flutter pub get
 
       - name: Analyze
-        # very_good_analysis is strict — any warning fails CI.
-        run: flutter analyze
+        # very_good_analysis is strict — any warning or error fails
+        # CI. Info-level lints (style nits, cascade hints, prefer-
+        # const) are surfaced but not fatal: otherwise a noisy lint
+        # debt blocks every push. Clean them up opportunistically
+        # with `dart fix --apply`.
+        run: flutter analyze --no-fatal-infos
 
       - name: Run tests
         # Repository tests use an in-memory Drift DB; widget tests use

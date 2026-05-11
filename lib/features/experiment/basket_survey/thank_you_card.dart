@@ -110,7 +110,6 @@ class _BasketThankYouCardState extends ConsumerState<BasketThankYouCard> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Saved to Prints. Print it later from the Prints tab.'),
-          duration: Duration(seconds: 4),
         ),
       );
     } on Object catch (e, st) {
@@ -148,7 +147,7 @@ class _BasketThankYouCardState extends ConsumerState<BasketThankYouCard> {
     );
     final sansLabel = GoogleFonts.dmSans(
       fontWeight: FontWeight.w800,
-      letterSpacing: 1.0,
+      letterSpacing: 1,
       color: _inkLight,
     );
 
@@ -162,7 +161,6 @@ class _BasketThankYouCardState extends ConsumerState<BasketThankYouCard> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     // ——— Tiny celebration line above the card ——
                     // No more redundant outer title (the card
@@ -171,7 +169,7 @@ class _BasketThankYouCardState extends ConsumerState<BasketThankYouCard> {
                       'All done!',
                       style: serifTitle.copyWith(
                         fontSize: 28,
-                        height: 1.0,
+                        height: 1,
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -192,7 +190,6 @@ class _BasketThankYouCardState extends ConsumerState<BasketThankYouCard> {
                           ),
                           color: Colors.white,
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               Text(
                                 'My Feelings Basket',
