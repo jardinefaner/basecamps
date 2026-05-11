@@ -1925,9 +1925,20 @@ class Prints extends Table {
   /// expected. Today: `'feelings_basket'` | `'marble_jar'`.
   TextColumn get kind => text()();
 
-  /// Path of the captured PNG, **relative to** the app docs
-  /// directory (e.g. `prints/abc123.png`). The repository
-  /// resolves to absolute paths on read.
+  /// PNG payload. Dual-mode depending on when the row was
+  /// written:
+  ///   * v65+ — `data:image/png;base64,<...>` data URL.
+  ///     The bytes ARE the column value; the row alone is
+  ///     enough to render the card on any device. Cross-device
+  ///     sync handles transport for free.
+  ///   * Legacy (pre-v65) — relative path under the app docs
+  ///     directory (e.g. `prints/abc123.png`). Only resolvable
+  ///     on the originating device. The `PrintsRepository.
+  ///     _resolveAbsolutePath` helper handles both schemes.
+  ///
+  /// New code reads should NEVER assume a file path — always
+  /// branch on `startsWith('data:')` first, OR call the repo's
+  /// resolver / readBytes helper.
   TextColumn get snapshotPath => text()();
 
   /// JSON-encoded extra layout data the print needs at render

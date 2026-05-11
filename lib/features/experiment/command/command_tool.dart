@@ -209,12 +209,10 @@ final commandToolRegistryProvider = Provider<CommandToolRegistry>((ref) {
 });
 
 /// Stub — replaced by an import-only sibling file that knows
-/// every feature's tools. Defined here as a `late` callback the
-/// app can override at startup if we ever need tests / variants
-/// to inject a different registration set.
+/// every feature's tools. Default is a no-op (empty registry)
+/// so a test / alternate entry point that hasn't wired the real
+/// registration still gets a working bar with zero tools (the
+/// drop-bar surfaces "no tools available" rather than throwing
+/// an unhandled `AsyncError` in Riverpod).
 void Function(CommandToolRegistry registry, Ref ref)
-    registerBuiltInCommandTools =
-    (_, _) => throw StateError(
-          'registerBuiltInCommandTools not wired — '
-          'import command_tools_registration.dart somewhere.',
-        );
+    registerBuiltInCommandTools = (_, _) {};

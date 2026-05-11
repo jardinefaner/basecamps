@@ -85,7 +85,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   /// methods that need to rebuild on changes call
   /// `ref.watch(...)` directly.
   Map<String, CalendarTile> get _tiles =>
-      ref.read(calendarTilesProvider).asData?.value ??
+      ref.watch(calendarTilesProvider).asData?.value ??
       const <String, CalendarTile>{};
 
   /// Write pipe — every place that used to mutate the in-memory

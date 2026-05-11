@@ -121,6 +121,13 @@ class PrintDetailScreen extends ConsumerWidget {
       final data = Uri.parse(path).data;
       return data?.contentAsBytes() ?? Uint8List(0);
     }
+    if (kIsWeb) {
+      // Legacy relative-path row synced from a native device.
+      // dart:io is unavailable on web — return empty bytes so
+      // the caller can render a placeholder (or skip the
+      // export) rather than throw `UnsupportedError`.
+      return Uint8List(0);
+    }
     return File(path).readAsBytes();
   }
 

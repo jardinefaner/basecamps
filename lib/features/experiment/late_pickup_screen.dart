@@ -51,15 +51,17 @@ class LatePickupScreen extends ConsumerStatefulWidget {
 
 class _LatePickupScreenState extends ConsumerState<LatePickupScreen> {
   /// Read-through to the Drift-backed entries stream. Returns
-  /// the latest emission or an empty list while the first one is
-  /// in flight. `build` calls `ref.watch(...)` so changes from
-  /// elsewhere (Command Center, sync from another device)
-  /// rebuild this screen.
+  /// the latest emission or an empty list while the first one
+  /// is in flight. Uses `ref.watch` so any read in build path
+  /// (including the export `_copyAllAsTsv`) sees the freshest
+  /// snapshot — the previous `ref.read` form returned a stale
+  /// cached value when a remote sync push had just landed.
   List<LateEntry> get _entries =>
-      ref.read(lateEntriesProvider).asData?.value ?? const <LateEntry>[];
+      ref.watch(lateEntriesProvider).asData?.value ?? const <LateEntry>[];
 
   /// Mutation pipe — writes go through the Drift-backed repo;
-  /// the stream provider re-emits on commit.
+  /// the stream provider re-emits on commit. `ref.read` is fine
+  /// here (the repo identity doesn't change between rebuilds).
   LatePickupsRepository get _entriesRepo =>
       ref.read(latePickupsRepoProvider);
 
