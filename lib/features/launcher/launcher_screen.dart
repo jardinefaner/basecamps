@@ -7,6 +7,16 @@ import 'package:basecamp/features/adults/adults_repository.dart';
 import 'package:basecamp/features/ask/ask_screen.dart';
 import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/children/children_repository.dart';
+import 'package:basecamp/features/experiment/calendar_tile_store.dart'
+    show calendarTilesProvider, CalendarTile;
+import 'package:basecamp/features/experiment/late_pickup_store.dart'
+    show lateEntriesProvider, LateEntry;
+import 'package:basecamp/features/observations/observations_repository.dart'
+    show observationsProvider;
+import 'package:basecamp/features/surveys/survey_models.dart'
+    show SurveyConfig;
+import 'package:basecamp/features/surveys/survey_repository.dart'
+    show surveysListProvider;
 import 'package:basecamp/features/forms/polymorphic/definitions/parent_concern.dart';
 import 'package:basecamp/features/forms/polymorphic/generic_form_screen.dart';
 import 'package:basecamp/features/forms/polymorphic/registry.dart';
@@ -271,6 +281,42 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
           )
         : const <Trip>[];
 
+    // Notes / surveys / pickups / calendar tiles — sources the
+    // hint text has been promising. Same filter style as the
+    // tier above: only fires once the query crosses 2 chars so
+    // we don't paint the world on every keystroke. All data
+    // comes from already-watched providers; no new queries.
+    final observationsAsync = ref.watch(observationsProvider);
+    final observationResults = globalSearchOn
+        ? _buildObservationResults(
+            observationsAsync.asData?.value ?? const <Observation>[],
+            _query,
+          )
+        : const <Observation>[];
+    final surveysAsync = ref.watch(surveysListProvider);
+    final surveyResults = globalSearchOn
+        ? _buildSurveyResults(
+            surveysAsync.asData?.value ?? const <SurveyConfig>[],
+            _query,
+          )
+        : const <SurveyConfig>[];
+    final lateEntriesAsync = ref.watch(lateEntriesProvider);
+    final latePickupResults = globalSearchOn
+        ? _buildLatePickupResults(
+            lateEntriesAsync.asData?.value ?? const <LateEntry>[],
+            _query,
+          )
+        : const <LateEntry>[];
+    final calendarTilesAsync = ref.watch(calendarTilesProvider);
+    final calendarTileResults = globalSearchOn
+        ? _buildCalendarTileResults(
+            (calendarTilesAsync.asData?.value ??
+                    const <String, CalendarTile>{})
+                .values,
+            _query,
+          )
+        : const <CalendarTile>[];
+
     final hasAnyResults = _query.isEmpty ||
         pinnedRows.isNotEmpty ||
         unpinnedActions.isNotEmpty ||
@@ -283,7 +329,11 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
         activityResults.isNotEmpty ||
         roomResults.isNotEmpty ||
         vehicleResults.isNotEmpty ||
-        tripResults.isNotEmpty;
+        tripResults.isNotEmpty ||
+        observationResults.isNotEmpty ||
+        surveyResults.isNotEmpty ||
+        latePickupResults.isNotEmpty ||
+        calendarTileResults.isNotEmpty;
 
     // Show the Pinned section whenever pinning is useful — either
     // there are pins already, or there's no search filter masking
@@ -429,6 +479,22 @@ class _LauncherScreenState extends ConsumerState<LauncherScreen> {
                           _VehicleResultRow(vehicle: v),
                         for (final t in tripResults)
                           _TripResultRow(trip: t),
+                        if (observationResults.isNotEmpty)
+                          const _SectionHeader(label: 'Notes'),
+                        for (final o in observationResults)
+                          _ObservationResultRow(observation: o),
+                        if (surveyResults.isNotEmpty)
+                          const _SectionHeader(label: 'Surveys'),
+                        for (final s in surveyResults)
+                          _SurveyResultRow(survey: s),
+                        if (latePickupResults.isNotEmpty)
+                          const _SectionHeader(label: 'Late pickups'),
+                        for (final l in latePickupResults)
+                          _LatePickupResultRow(entry: l),
+                        if (calendarTileResults.isNotEmpty)
+                          const _SectionHeader(label: 'Calendar'),
+                        for (final t in calendarTileResults)
+                          _CalendarTileResultRow(tile: t),
                       ],
                     ),
             ),
@@ -1879,6 +1945,169 @@ class _MinimalAccountRow extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ================================================================
+// Notes / surveys / late pickups / calendar tiles search
+// ================================================================
+//
+// Each builder takes the full list (from a `ref.watch` upstream)
+// and filters by a case-insensitive substring match on the
+// fields a teacher would think to search by. The launcher hint
+// has been promising "notes" for a while; this finally delivers.
+
+List<Observation> _buildObservationResults(
+  List<Observation> rows,
+  String query,
+) {
+  if (query.isEmpty) return const <Observation>[];
+  final needle = query.toLowerCase();
+  return rows
+      .where(
+        (o) =>
+            o.note.toLowerCase().contains(needle) ||
+            (o.noteOriginal ?? '').toLowerCase().contains(needle) ||
+            (o.activityLabel ?? '').toLowerCase().contains(needle),
+      )
+      .take(8)
+      .toList();
+}
+
+List<SurveyConfig> _buildSurveyResults(
+  List<SurveyConfig> surveys,
+  String query,
+) {
+  if (query.isEmpty) return const <SurveyConfig>[];
+  final needle = query.toLowerCase();
+  return surveys
+      .where(
+        (s) =>
+            s.siteName.toLowerCase().contains(needle) ||
+            s.classroom.toLowerCase().contains(needle) ||
+            s.ageBand.label.toLowerCase().contains(needle),
+      )
+      .take(8)
+      .toList();
+}
+
+List<LateEntry> _buildLatePickupResults(
+  List<LateEntry> rows,
+  String query,
+) {
+  if (query.isEmpty) return const <LateEntry>[];
+  final needle = query.toLowerCase();
+  return rows
+      .where(
+        (e) =>
+            e.childName.toLowerCase().contains(needle) ||
+            e.parentName.toLowerCase().contains(needle) ||
+            e.notes.toLowerCase().contains(needle),
+      )
+      .take(8)
+      .toList();
+}
+
+List<CalendarTile> _buildCalendarTileResults(
+  Iterable<CalendarTile> tiles,
+  String query,
+) {
+  if (query.isEmpty) return const <CalendarTile>[];
+  final needle = query.toLowerCase();
+  return tiles
+      .where(
+        (t) =>
+            t.title.toLowerCase().contains(needle) ||
+            t.destination.toLowerCase().contains(needle) ||
+            t.theme.toLowerCase().contains(needle) ||
+            t.description.toLowerCase().contains(needle),
+      )
+      .take(8)
+      .toList();
+}
+
+class _ObservationResultRow extends StatelessWidget {
+  const _ObservationResultRow({required this.observation});
+  final Observation observation;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final preview = observation.note.length > 80
+        ? '${observation.note.substring(0, 80)}…'
+        : observation.note;
+    return ListTile(
+      leading: Icon(
+        Icons.edit_note_outlined,
+        color: theme.colorScheme.primary,
+      ),
+      title: Text(
+        preview,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(observation.domain.toUpperCase()),
+      onTap: () => Navigator.of(context).pushNamed('/observations'),
+    );
+  }
+}
+
+class _SurveyResultRow extends StatelessWidget {
+  const _SurveyResultRow({required this.survey});
+  final SurveyConfig survey;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.poll_outlined),
+      title: Text(survey.classroom),
+      subtitle: Text('${survey.siteName} · ${survey.ageBand.label}'),
+      onTap: () => Navigator.of(context).pushNamed(
+        '/surveys/${survey.id}',
+      ),
+    );
+  }
+}
+
+class _LatePickupResultRow extends StatelessWidget {
+  const _LatePickupResultRow({required this.entry});
+  final LateEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final time = TimeOfDay(
+      hour: entry.pickupTime.hour,
+      minute: entry.pickupTime.minute,
+    ).format(context);
+    return ListTile(
+      leading: const Icon(Icons.access_time),
+      title: Text(entry.childName),
+      subtitle: Text(
+        '$time · ${entry.parentName.isEmpty ? '—' : entry.parentName}'
+        '${entry.reminderCardGiven ? ' · 📩' : ''}',
+      ),
+      onTap: () => Navigator.of(context).pushNamed('/late-pickup'),
+    );
+  }
+}
+
+class _CalendarTileResultRow extends StatelessWidget {
+  const _CalendarTileResultRow({required this.tile});
+  final CalendarTile tile;
+
+  @override
+  Widget build(BuildContext context) {
+    final df = '${tile.date.month}/${tile.date.day}';
+    final extras = <String>[df];
+    if (tile.destination.isNotEmpty) extras.add(tile.destination);
+    return ListTile(
+      leading: Icon(tile.type.icon),
+      title: Text(tile.title),
+      subtitle: Text(
+        '${tile.type.singularLabel} · ${extras.join(' · ')}',
+      ),
+      onTap: () => Navigator.of(context).pushNamed('/calendar'),
     );
   }
 }
