@@ -109,6 +109,15 @@ serve(async (req) => {
     .eq("user_id", userId)
     .maybeSingle();
 
+  // Pull the redeemer's profile metadata so the inserted
+  // membership lands with a real display_name instead of null —
+  // otherwise the program-members card on every other device
+  // shows "Unclaimed teammate" until that user signs in again
+  // and the bootstrap re-stamps. Best-effort: missing metadata
+  // falls back to the email local-part, which is still better
+  // than nothing.
+  const displayName = await fetchDisplayName(supabase, userId);
+
   if (!existingMember) {
     const { error: memberErr } = await supabase
       .from("program_members")
@@ -116,10 +125,20 @@ serve(async (req) => {
         program_id: invite.program_id,
         user_id: userId,
         role: invite.role,
+        display_name: displayName,
       });
     if (memberErr) {
       return json({ error: "server", detail: memberErr.message }, 500);
     }
+  } else if (displayName) {
+    // Idempotent path: existing member, but their display_name
+    // might be null from a pre-v52 row. Heal it now.
+    await supabase
+      .from("program_members")
+      .update({ display_name: displayName })
+      .eq("program_id", invite.program_id)
+      .eq("user_id", userId)
+      .is("display_name", null);
   }
 
   // 3. Identity binding (v54). If the invite carried an adult_id,
@@ -247,4 +266,35 @@ function padBase64(raw: string): string {
   const padded = raw.replace(/-/g, "+").replace(/_/g, "/");
   const mod = padded.length % 4;
   return mod === 0 ? padded : padded + "=".repeat(4 - mod);
+}
+
+/// Resolve a human-readable display name for [userId] from
+/// `auth.users.raw_user_meta_data`. Priority: full_name (Google
+/// identity provider) → name → email local-part → null.
+async function fetchDisplayName(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<string | null> {
+  try {
+    const { data: user } = await supabase.auth.admin.getUserById(userId);
+    if (!user?.user) return null;
+    const meta =
+      (user.user.user_metadata as Record<string, unknown> | null) ?? {};
+    const fullName = meta["full_name"];
+    if (typeof fullName === "string" && fullName.trim().length > 0) {
+      return fullName.trim();
+    }
+    const name = meta["name"];
+    if (typeof name === "string" && name.trim().length > 0) {
+      return name.trim();
+    }
+    const email = user.user.email ?? "";
+    const local = email.split("@")[0]?.trim();
+    return local && local.length > 0 ? local : null;
+  } catch (_err) {
+    // Auth admin lookup failed (network, perms, etc.). Don't
+    // break the join — fall through to null and let the next
+    // bootstrap stamp the name.
+    return null;
+  }
 }

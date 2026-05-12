@@ -380,15 +380,19 @@ class _MemberRow extends ConsumerWidget {
     final theme = Theme.of(context);
     // v52: render the human-readable display_name. Bootstrap
     // populates it from auth.users metadata on every membership
-    // upsert. Falls back to a UUID-prefix label for legacy
-    // (pre-v52) rows that haven't been re-pushed yet.
+    // upsert. Legacy (pre-v52) rows whose display_name never
+    // got backfilled show as "Unclaimed teammate" — that reads
+    // way better than "Teacher · 8e3a-…", which made the
+    // members list look like a debug dump.
+    //
+    // The bootstrap now also calls `_backfillMissingDisplayNames`
+    // every sign-in, so legacy rows heal on the OWNER device's
+    // next session.
     final displayName = member.displayName?.trim();
     final hasName = displayName != null && displayName.isNotEmpty;
     final label = isMe
         ? 'You${hasName ? ' · $displayName' : ''}'
-        : (hasName
-            ? displayName
-            : 'Teacher · ${member.userId.substring(0, 8)}');
+        : (hasName ? displayName : 'Unclaimed teammate');
     return Row(
       children: [
         CircleAvatar(

@@ -139,12 +139,18 @@ class InviteRepository {
         );
       }
       if (e.code == '42501') {
-        // Cloud RLS denied SELECT — the user's `program_members`
-        // row in cloud doesn't reflect admin role even though the
-        // local copy thinks it does. Return empty so the UI
-        // doesn't crash; the next bootstrap re-runs the membership
-        // upsert which fixes the underlying mismatch.
-        return const <InviteRow>[];
+        // Cloud RLS denied SELECT — local `program_members` row
+        // says we're admin but the cloud row doesn't match.
+        // Surface a real error so the UI can show a "membership
+        // out of sync — sign out + back in to reconnect" hint
+        // instead of silently rendering "No codes yet" (which
+        // hid the actual problem and made admins think their
+        // codes were lost).
+        throw const InvitePermissionError(
+          "Your admin membership for this program is out of sync "
+          'with the server. Sign out and back in to reconnect, '
+          'then try again.',
+        );
       }
       rethrow;
     }
@@ -474,6 +480,22 @@ class InviteSetupError implements Exception {
 
   @override
   String toString() => 'InviteSetupError: $message';
+}
+
+/// Cloud rejected SELECT on `program_invites` with RLS 42501.
+/// The user's local copy of `program_members` thinks they're an
+/// admin but the cloud row doesn't match — often residue from a
+/// half-completed `accept-invite` or a pre-fix wipe race. The
+/// UI surfaces this with a "sign out + back in to reconnect"
+/// hint; bootstrap's `_ensureProgramAndMembershipInCloud` heals
+/// the underlying state on next sign-in.
+class InvitePermissionError implements Exception {
+  const InvitePermissionError(this.message);
+
+  final String message;
+
+  @override
+  String toString() => 'InvitePermissionError: $message';
 }
 
 /// One row from `program_invites`.

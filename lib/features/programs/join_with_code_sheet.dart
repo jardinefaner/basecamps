@@ -1,3 +1,4 @@
+import 'package:basecamp/features/auth/auth_repository.dart';
 import 'package:basecamp/features/programs/invite_repository.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
@@ -41,6 +42,18 @@ class _JoinWithCodeSheetState extends ConsumerState<JoinWithCodeSheet> {
     final raw = _code.text.trim();
     if (raw.isEmpty) {
       setState(() => _error = 'Please enter a code.');
+      return;
+    }
+    // Pre-flight: redeeming requires a signed-in session because
+    // the edge function reads `auth.uid()` for the membership
+    // insert. Calling it unauthenticated returned an opaque
+    // 401 that surfaced as "Couldn't join — Exception". Catch
+    // it here so a teacher who lands on `/redeem/:code` while
+    // logged out gets a clear "sign in first" hint instead.
+    if (ref.read(currentSessionProvider) == null) {
+      setState(() => _error =
+          'Sign in to your Basecamp account first, then try the '
+          'code again.');
       return;
     }
     setState(() {
