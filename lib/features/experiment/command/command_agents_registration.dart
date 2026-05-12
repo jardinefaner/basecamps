@@ -4,10 +4,14 @@
 // surface via its primitives list.
 
 import 'package:basecamp/features/experiment/command/agents/calendar_agent.dart';
+import 'package:basecamp/features/experiment/command/agents/late_pickup_agent.dart';
+import 'package:basecamp/features/experiment/command/agents/observations_agent.dart';
 import 'package:basecamp/features/experiment/command/command_agent.dart';
 
 void registerBuiltInAgents(CommandAgentRegistry registry) {
   registry.register(const CalendarAgent());
+  registry.register(const ObservationsAgent());
+  registry.register(const LatePickupAgent());
 }
 
 /// Side-effecting binder — main.dart imports this and calls it

@@ -9,9 +9,6 @@
 // automatically (no central classifier prompt to maintain).
 
 import 'package:basecamp/features/experiment/command/command_tool.dart';
-import 'package:basecamp/features/experiment/command/tools/append_observation_tool.dart';
-import 'package:basecamp/features/experiment/command/tools/late_pickup_tool.dart';
-import 'package:basecamp/features/experiment/command/tools/observation_tool.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Side-effecting library — when imported, swaps the registry
@@ -19,15 +16,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// `main.dart` imports this and calls `wireCommandToolRegistry()`
 /// at startup, before any consumer reads the provider.
 void registerBuiltIns(CommandToolRegistry registry, Ref ref) {
-  // Order doesn't affect routing — the registry just lists them
-  // for the LLM. Keep them grouped by domain for readability.
-  registry.register(const CreateObservationTool());
-  registry.register(const AppendObservationTool());
-  registry.register(const CreateLatePickupTool());
-  // Calendar moved to the new agent-per-domain architecture —
-  // see `command_agents_registration.dart`. CreateCalendarTileTool
-  // and EditCalendarTileTool now live inside `CalendarAgent`'s
-  // primitives list, not in the flat tool registry.
+  // Every domain has migrated to the agent-per-domain
+  // architecture (see `command_agents_registration.dart`). The
+  // flat tool registry is intentionally empty — it stays only
+  // so the dispatcher's "tool fallback" path keeps compiling
+  // and so future ad-hoc tools that don't belong to a domain
+  // (one-off utility actions, time-bounded experiments) have a
+  // home without touching agent code.
 }
 
 /// Call this once at app start (e.g. main.dart, after Riverpod

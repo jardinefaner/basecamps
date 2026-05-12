@@ -114,8 +114,7 @@ Examples:
     final changes = (args['changes'] as Map?)?.cast<String, dynamic>() ??
         const <String, dynamic>{};
 
-    final tilesMap = ref.read(calendarTilesProvider).asData?.value ??
-        const <String, CalendarTile>{};
+    final tilesMap = await ref.read(calendarTilesProvider.future);
 
     CalendarTile? target;
     if (targetId.isNotEmpty) {

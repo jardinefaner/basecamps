@@ -10,7 +10,9 @@
 import 'package:basecamp/features/experiment/command/command_agent.dart';
 import 'package:basecamp/features/experiment/command/command_tool.dart';
 import 'package:basecamp/features/experiment/command/tools/calendar_tile_tool.dart';
+import 'package:basecamp/features/experiment/command/tools/delete_calendar_tile_tool.dart';
 import 'package:basecamp/features/experiment/command/tools/edit_calendar_tile_tool.dart';
+import 'package:basecamp/features/experiment/command/tools/query_calendar_tiles_tool.dart';
 
 class CalendarAgent extends CommandAgent {
   const CalendarAgent();
@@ -35,12 +37,20 @@ class CalendarAgent extends CommandAgent {
         'edit trip',
         'move trip',
         'reschedule',
+        'delete trip',
+        'cancel trip',
+        'cancel event',
+        'remove trip',
+        'show calendar',
+        'whats on',
       ];
 
   @override
   List<CommandTool> get primitives => const [
         CreateCalendarTileTool(),
         EditCalendarTileTool(),
+        DeleteCalendarTileTool(),
+        QueryCalendarTilesTool(),
       ];
 
   @override
