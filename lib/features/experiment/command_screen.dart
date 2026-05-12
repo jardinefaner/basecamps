@@ -28,6 +28,7 @@
 //     last) for any tool that needs it.
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:basecamp/features/ai/openai_client.dart';
 import 'package:basecamp/features/children/children_repository.dart'
@@ -140,6 +141,9 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
               icon: r.icon,
               destinationPath: r.destinationPath,
               timestamp: DateTime.now(),
+              toolName: r.toolName,
+              toolArgs: r.toolArgs,
+              userInput: r.userInput,
             ),
           );
         }
@@ -248,6 +252,9 @@ class _FeedEntry {
     required this.recordType,
     this.recordId,
     this.destinationPath,
+    this.toolName,
+    this.toolArgs,
+    this.userInput,
   });
 
   final String? recordId;
@@ -258,6 +265,9 @@ class _FeedEntry {
   final IconData icon;
   final DateTime timestamp;
   final String? destinationPath;
+  final String? toolName;
+  final Map<String, dynamic>? toolArgs;
+  final String? userInput;
 }
 
 class _Feed extends StatelessWidget {
@@ -267,7 +277,6 @@ class _Feed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final timeFmt = DateFormat.jm();
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(
@@ -278,24 +287,69 @@ class _Feed extends StatelessWidget {
       ),
       itemCount: entries.length,
       separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-      itemBuilder: (context, i) {
-        final e = entries[i];
-        return Material(
-          color: theme.colorScheme.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(12),
-          child: InkWell(
-            onTap: e.destinationPath == null
-                ? null
-                : () => context.push(e.destinationPath!),
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: Row(
+      itemBuilder: (context, i) => _FeedRow(
+        entry: entries[i],
+        timeFmt: timeFmt,
+      ),
+    );
+  }
+}
+
+/// Single feed row with an expandable "Why did it pick that?"
+/// section showing the LLM's actual tool call. Without this, when
+/// the kiosk lands the wrong record there's no way to know whether
+/// the model misread the input or the tool misexecuted — so we
+/// can't tell each other "this is what the model returned for that
+/// input." Now we can.
+class _FeedRow extends StatefulWidget {
+  const _FeedRow({required this.entry, required this.timeFmt});
+
+  final _FeedEntry entry;
+  final DateFormat timeFmt;
+
+  @override
+  State<_FeedRow> createState() => _FeedRowState();
+}
+
+class _FeedRowState extends State<_FeedRow> {
+  bool _expanded = false;
+
+  String _prettyArgs(Map<String, dynamic>? args) {
+    if (args == null || args.isEmpty) return '(no args)';
+    final encoder = const JsonEncoder.withIndent('  ');
+    try {
+      return encoder.convert(args);
+    } on Object {
+      return args.toString();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final e = widget.entry;
+    final hasDebug = e.toolName != null || e.userInput != null;
+    return Material(
+      color: theme.colorScheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: e.destinationPath == null
+            ? null
+            : () => context.push(e.destinationPath!),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Padding(
-                    padding:
-                        const EdgeInsets.only(top: 2, right: AppSpacing.sm),
+                    padding: const EdgeInsets.only(
+                      top: 2,
+                      right: AppSpacing.sm,
+                    ),
                     child: Icon(
                       e.icon,
                       size: 20,
@@ -318,7 +372,7 @@ class _Feed extends StatelessWidget {
                             ),
                             const SizedBox(width: AppSpacing.sm),
                             Text(
-                              timeFmt.format(e.timestamp),
+                              widget.timeFmt.format(e.timestamp),
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant,
                               ),
@@ -355,10 +409,117 @@ class _Feed extends StatelessWidget {
                     ),
                 ],
               ),
+              if (hasDebug) ...[
+                const SizedBox(height: AppSpacing.sm),
+                InkWell(
+                  onTap: () => setState(() => _expanded = !_expanded),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 4,
+                      horizontal: 6,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _expanded
+                              ? Icons.expand_less
+                              : Icons.expand_more,
+                          size: 14,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _expanded ? 'Hide details' : 'Why this?',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (_expanded) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  _DebugBlock(
+                    label: 'YOU SAID',
+                    content: e.userInput ?? '(unknown)',
+                    theme: theme,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  _DebugBlock(
+                    label: 'TOOL',
+                    content: e.toolName ?? '(unknown)',
+                    theme: theme,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  _DebugBlock(
+                    label: 'ARGS',
+                    content: _prettyArgs(e.toolArgs),
+                    theme: theme,
+                  ),
+                ],
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DebugBlock extends StatelessWidget {
+  const _DebugBlock({
+    required this.label,
+    required this.content,
+    required this.theme,
+  });
+
+  final String label;
+  final String content;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant,
+          width: 0.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-        );
-      },
+          const SizedBox(height: 2),
+          SelectableText(
+            content,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontFamily: 'monospace',
+              fontFamilyFallback: const ['Menlo', 'Courier', 'monospace'],
+              height: 1.3,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

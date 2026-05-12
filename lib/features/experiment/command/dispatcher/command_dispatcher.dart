@@ -138,7 +138,21 @@ class CommandDispatcher {
         continue;
       }
       try {
-        final result = await tool.execute(call.args, _ref);
+        final raw = await tool.execute(call.args, _ref);
+        // Decorate the result with diagnostic trail so the feed
+        // entry can expand into "why did it do that?".
+        final result = CommandResult(
+          title: raw.title,
+          subtitle: raw.subtitle,
+          badge: raw.badge,
+          iconCode: raw.iconCode,
+          iconFontFamily: raw.iconFontFamily,
+          destinationPath: raw.destinationPath,
+          recordId: raw.recordId,
+          toolName: call.toolName,
+          toolArgs: call.args,
+          userInput: body,
+        );
         results.add(result);
       } on Object catch (e, st) {
         // One bad tool execution shouldn't kill sibling calls,

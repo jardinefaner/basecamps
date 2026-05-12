@@ -101,6 +101,9 @@ class CommandResult {
     required this.iconFontFamily,
     this.destinationPath,
     this.recordId,
+    this.toolName,
+    this.toolArgs,
+    this.userInput,
   });
 
   /// Big line — usually the new record's title.
@@ -126,6 +129,15 @@ class CommandResult {
   /// Id of the row this tool just created / updated. Drives the
   /// ambient-context window for follow-up "and..." utterances.
   final String? recordId;
+
+  /// Diagnostic trail — name of the tool the LLM picked, the
+  /// args it emitted, and the input the user typed/spoke. Lets
+  /// the feed entry expand into "why did it do that?" so we can
+  /// see exactly what the LLM extracted (and what it missed)
+  /// without combing through console logs.
+  final String? toolName;
+  final Map<String, dynamic>? toolArgs;
+  final String? userInput;
 
   IconData get icon =>
       IconData(iconCode, fontFamily: iconFontFamily ?? 'MaterialIcons');
