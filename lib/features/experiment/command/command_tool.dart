@@ -187,6 +187,34 @@ abstract class CommandTool {
     Ref ref,
   );
 
+  /// One-line summary the stage-1 router shows to the LLM.
+  /// Override to customise; default falls back to the first
+  /// sentence of [description]. The router prompt is intentionally
+  /// terse — only one line per tool — so the LLM can pick fast
+  /// and cheap without ingesting every tool's full spec.
+  String get routerSummary {
+    final firstLine = description.trim().split('\n').first.trim();
+    return firstLine.isEmpty ? name : firstLine;
+  }
+
+  /// System prompt for the stage-2 extractor when this tool is
+  /// the chosen one. Default = the full [description]. Override
+  /// for tools that benefit from focused few-shots / hard rules
+  /// that would just be noise to the router.
+  String extractorSystemPrompt(CommandContext ctx) => description;
+
+  /// Validate the LLM's extracted args against the user's
+  /// [userInput]. Returns a list of human-readable error
+  /// messages — empty list = pass. Each message becomes part of
+  /// a critique sent back to the LLM for one retry. Default = no
+  /// validation; tools opt-in.
+  List<String> validate(
+    String userInput,
+    Map<String, dynamic> args,
+    CommandContext ctx,
+  ) =>
+      const <String>[];
+
   /// Serialise to OpenAI tool-calling format. The bar collects
   /// all tools' `toOpenAiFunction()` outputs into a single array
   /// for the API call.

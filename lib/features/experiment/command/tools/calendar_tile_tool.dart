@@ -93,6 +93,165 @@ NEVER invent times if the user didn't mention any.
 ''';
 
   @override
+  String get routerSummary =>
+      'Schedule a calendar tile — trip, in-program event, or theme day.';
+
+  @override
+  String extractorSystemPrompt(CommandContext ctx) {
+    return '''
+You are extracting arguments for `create_calendar_tile`. The
+router already decided this is the right tool — your only job
+is to fill the slots accurately.
+
+$description
+
+Worked examples specific to this tool:
+
+USER: "trip aquarium tuesday for sunflowers and acorns 8 to 3"
+ARGS: {
+  "tile_type": "trip",
+  "date": "<Tuesday from the lookup>",
+  "title": "Aquarium",
+  "destination": "Aquarium",
+  "start_time": "08:00",
+  "end_time": "15:00",
+  "group_names": ["Sunflowers", "Acorns"]
+}
+
+USER: "pizza party friday 11:30 for everyone"
+ARGS: {
+  "tile_type": "event",
+  "date": "<Friday from the lookup>",
+  "title": "Pizza Party",
+  "start_time": "11:30",
+  "group_names": <every group from the roster, in order>
+}
+
+USER: "ocean day thursday for sunflowers"
+ARGS: {
+  "tile_type": "dayPlan",
+  "date": "<Thursday from the lookup>",
+  "title": "Ocean",
+  "theme": "Ocean day",
+  "group_names": ["Sunflowers"]
+}
+
+Self-check before emitting:
+  1. Date — every weekday word in the user's input maps to the
+     exact ISO date from the lookup. Don't compute.
+  2. Groups — count the groups in the input ("sunflowers and
+     acorns" = 2). `group_names` must include all of them.
+  3. Times — only present when the user said a time.
+  4. Title — bare subject only. No type prefix, no date, no
+     group names.
+''';
+  }
+
+  @override
+  List<String> validate(
+    String userInput,
+    Map<String, dynamic> args,
+    CommandContext ctx,
+  ) {
+    final errors = <String>[];
+    final lower = userInput.toLowerCase();
+
+    // Group fan-out validation: every roster group whose name
+    // appears in the input must be in group_names. This catches
+    // the "for sunflowers and acorns → only Sunflowers" bug
+    // class directly.
+    final emittedGroups = ((args['group_names'] as List?) ?? const [])
+        .whereType<String>()
+        .map((s) => s.trim().toLowerCase())
+        .toSet();
+    final missingGroups = <String>[];
+    for (final g in ctx.groupNames) {
+      final needle = g.trim().toLowerCase();
+      if (needle.isEmpty) continue;
+      if (!_inputMentionsGroup(lower, needle)) continue;
+      if (emittedGroups.contains(needle)) continue;
+      missingGroups.add(g);
+    }
+    if (missingGroups.isNotEmpty) {
+      errors.add(
+        "You missed these groups the user named: ${missingGroups.join(', ')}. "
+        'Re-emit with `group_names` including ALL of them (use the '
+        'exact roster spellings).',
+      );
+    }
+
+    // Weekday validation: if the user said a weekday, the emitted
+    // date should match the lookup for that weekday. Catches the
+    // "said Wednesday, picked Tuesday" bug class.
+    final mentionedWeekday = _mentionedWeekday(lower);
+    final emittedDate = args['date']?.toString() ?? '';
+    if (mentionedWeekday != null && emittedDate.isNotEmpty) {
+      final emittedWeekday = _weekdayOfIsoDate(emittedDate);
+      if (emittedWeekday != null && emittedWeekday != mentionedWeekday) {
+        errors.add(
+          'You returned date=$emittedDate, which is a $emittedWeekday. '
+          'The user said $mentionedWeekday. Pick the matching $mentionedWeekday '
+          'date from the calendar lookup.',
+        );
+      }
+    }
+    return errors;
+  }
+
+  /// True when [lowerInput] mentions [groupName] (lowercased,
+  /// plural-tolerant). Word-boundary match so "sunflower" inside
+  /// "sunflowery" doesn't false-positive.
+  bool _inputMentionsGroup(String lowerInput, String groupName) {
+    if (groupName.isEmpty) return false;
+    final escaped = RegExp.escape(groupName);
+    // Allow optional trailing 's' so "Sunflower" matches "sunflowers".
+    final stem = groupName.endsWith('s')
+        ? groupName.substring(0, groupName.length - 1)
+        : groupName;
+    final escapedStem = RegExp.escape(stem);
+    return RegExp('\\b$escaped\\b').hasMatch(lowerInput) ||
+        RegExp('\\b${escapedStem}s?\\b').hasMatch(lowerInput);
+  }
+
+  /// Find a weekday word in the input, return its name lowercased.
+  /// Returns null when no weekday is mentioned.
+  String? _mentionedWeekday(String lowerInput) {
+    const weekdays = [
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+      'sunday',
+    ];
+    for (final wd in weekdays) {
+      if (RegExp('\\b$wd\\b').hasMatch(lowerInput)) return wd;
+    }
+    return null;
+  }
+
+  /// Parse an ISO date string and return its lowercased weekday
+  /// name, or null on parse failure.
+  String? _weekdayOfIsoDate(String iso) {
+    try {
+      final d = DateTime.parse(iso);
+      const names = [
+        'monday',
+        'tuesday',
+        'wednesday',
+        'thursday',
+        'friday',
+        'saturday',
+        'sunday',
+      ];
+      return names[d.weekday - 1];
+    } on FormatException {
+      return null;
+    }
+  }
+
+  @override
   Map<String, dynamic> get parametersSchema => <String, dynamic>{
         'type': 'object',
         'properties': <String, dynamic>{

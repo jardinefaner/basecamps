@@ -60,275 +60,229 @@ class CommandDispatcher {
     if (trimmed.isEmpty) {
       throw const CommandDispatcherException('Empty input');
     }
-
+    final normalized = _normalizeUserInput(trimmed);
     final registry = _ref.read(commandToolRegistryProvider);
 
-    // 1. Anchor fast-path — strip the anchor word, force the
-    //    matched tool. Still calls the LLM (we need args
-    //    extracted), but `tool_choice` short-circuits routing.
-    final anchor = registry.matchAnchor(trimmed);
+    // ════════════════════════════════════════════════════════════
+    // STAGE 1 — pick the tool
+    //
+    // Anchor fast-path first ("note,", "trip,", "late pickup,"
+    // map directly to a tool with zero LLM cost). If the input
+    // doesn't anchor, fall through to a tiny stage-1 LLM call
+    // that just picks a tool name from a one-line-per-tool menu.
+    // ════════════════════════════════════════════════════════════
+    final anchor = registry.matchAnchor(normalized);
+    CommandTool? selected;
+    String body = normalized;
     if (anchor != null) {
-      return _runWithTools(
-        body: anchor.body.isEmpty ? trimmed : anchor.body,
-        tools: [anchor.tool],
-        forceToolName: anchor.tool.name,
+      selected = anchor.tool;
+      body = anchor.body.isEmpty ? normalized : anchor.body;
+      if (kDebugMode) {
+        debugPrint('[command-dispatch] stage1=anchor tool=${selected.name}');
+      }
+    } else {
+      final tools = registry.forContext(ctx);
+      if (tools.isEmpty) {
+        throw const CommandDispatcherException(
+          'No tools available in this context',
+        );
+      }
+      selected = await _stage1Route(normalized, tools, ctx);
+      if (selected == null) {
+        throw const CommandDispatcherException(
+          "Couldn't tell which tool to use — try rephrasing.",
+        );
+      }
+      if (kDebugMode) {
+        debugPrint('[command-dispatch] stage1=llm tool=${selected.name}');
+      }
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // STAGE 2 — extract slots for the chosen tool
+    //
+    // Tool-specific system prompt + tool-specific few-shots.
+    // Forced to emit exactly this tool via `tool_choice`. Then
+    // validate; if the validator flags missing groups / wrong
+    // date / etc, re-call ONCE with the validator's critique.
+    // ════════════════════════════════════════════════════════════
+    var args = await _stage2Extract(
+      tool: selected,
+      body: body,
+      ctx: ctx,
+      critique: null,
+    );
+
+    final errors = selected.validate(body, args, ctx);
+    if (errors.isNotEmpty) {
+      if (kDebugMode) {
+        debugPrint(
+          '[command-dispatch] stage2 validation failed: ${errors.join(' | ')}',
+        );
+      }
+      args = await _stage2Extract(
+        tool: selected,
+        body: body,
         ctx: ctx,
+        critique: errors,
       );
     }
 
-    // 2. No anchor → context-filtered tool list, model picks.
-    final tools = registry.forContext(ctx);
-    if (tools.isEmpty) {
-      throw const CommandDispatcherException(
-        'No tools available in this context',
+    if (kDebugMode) {
+      debugPrint(
+        '[command-dispatch] in="$input" norm="$normalized" '
+        'tool=${selected.name} args=$args',
       );
     }
-    return _runWithTools(
-      body: trimmed,
-      tools: tools,
-      forceToolName: null,
-      ctx: ctx,
-    );
+
+    // ════════════════════════════════════════════════════════════
+    // EXECUTE
+    // ════════════════════════════════════════════════════════════
+    final CommandResult raw;
+    try {
+      raw = await selected.execute(args, _ref);
+    } on Object catch (e, st) {
+      debugPrint('[command-dispatch] ${selected.name} threw: $e\n$st');
+      final summary = e.toString().split('\n').first;
+      throw CommandDispatcherException(
+        "Couldn't run ${selected.name} — $summary",
+      );
+    }
+    return [
+      CommandResult(
+        title: raw.title,
+        subtitle: raw.subtitle,
+        badge: raw.badge,
+        iconCode: raw.iconCode,
+        iconFontFamily: raw.iconFontFamily,
+        destinationPath: raw.destinationPath,
+        recordId: raw.recordId,
+        toolName: selected.name,
+        toolArgs: args,
+        userInput: input,
+      ),
+    ];
   }
 
-  Future<List<CommandResult>> _runWithTools({
-    required String body,
-    required List<CommandTool> tools,
-    required String? forceToolName,
-    required CommandContext ctx,
-  }) async {
+  /// STAGE 1 — pick exactly one tool. The prompt is a flat menu
+  /// of one-line summaries; the LLM emits the tool name via a
+  /// synthetic `pick_tool` function so we get a structured
+  /// answer back. gpt-4o-mini handles this fine and the prompt
+  /// is tiny.
+  Future<CommandTool?> _stage1Route(
+    String body,
+    List<CommandTool> tools,
+    CommandContext ctx,
+  ) async {
     final provider = _ref.read(llmProviderProvider);
-    final normalizedBody = _normalizeUserInput(body);
+    final pickTool = _PickToolTool(tools);
     final response = await provider.complete(
       messages: [
-        LlmMessage.system(_systemPrompt(ctx)),
-        LlmMessage.user(normalizedBody),
+        LlmMessage.system('''
+You route teacher inputs to the right BASECamp tool. Read the
+fragment and pick the single best match from the menu below.
+Emit ONLY a `pick_tool` function call with the chosen name.
+
+Tools:
+${tools.map((t) => '  • ${t.name} — ${t.routerSummary}').join('\n')}
+
+Tie-breakers:
+  * If the user's fragment continues a recent record (pronouns
+    "he/she/they", connectives "and/then/also"), prefer
+    `append_observation`.
+  * If unsure between create_observation and create_calendar_tile:
+    a date or destination → calendar tile; a child name + behaviour
+    → observation.
+'''),
+        LlmMessage.user(body),
       ],
-      availableTools: tools,
-      forceToolName: forceToolName,
+      availableTools: [pickTool],
+      forceToolName: pickTool.name,
     );
-    if (kDebugMode) {
-      // Surface the raw input → tool call mapping so we can build
-      // a regression eval as users hit weird phrasings. Cheap log
-      // line; production builds skip via kDebugMode.
-      debugPrint(
-        '[command-dispatch] in="$body" norm="$normalizedBody" '
-        'tool_calls=${response.toolCalls.map((c) => '${c.toolName}(${c.args})').join('; ')}',
-      );
-    }
-
-    if (response.toolCalls.isEmpty) {
-      throw const CommandDispatcherException(
-        "Couldn't parse — try rephrasing.",
-      );
-    }
-
-    final registry = _ref.read(commandToolRegistryProvider);
-    final results = <CommandResult>[];
-    final failures = <String>[];
-    for (final call in response.toolCalls) {
-      final tool = registry.byName(call.toolName);
-      if (tool == null) {
-        // Hallucinated tool name. Skip + log; the dispatcher
-        // returns whatever real tools ran.
-        debugPrint(
-          '[command-dispatch] unknown tool ${call.toolName}; skipped',
-        );
-        failures.add('${call.toolName}: not registered');
-        continue;
-      }
-      try {
-        final raw = await tool.execute(call.args, _ref);
-        // Decorate the result with diagnostic trail so the feed
-        // entry can expand into "why did it do that?".
-        final result = CommandResult(
-          title: raw.title,
-          subtitle: raw.subtitle,
-          badge: raw.badge,
-          iconCode: raw.iconCode,
-          iconFontFamily: raw.iconFontFamily,
-          destinationPath: raw.destinationPath,
-          recordId: raw.recordId,
-          toolName: call.toolName,
-          toolArgs: call.args,
-          userInput: body,
-        );
-        results.add(result);
-      } on Object catch (e, st) {
-        // One bad tool execution shouldn't kill sibling calls,
-        // but we DO want to surface the name + first line of the
-        // error to the user so a misconfigured tool doesn't fail
-        // silently as "Couldn't run that".
-        debugPrint(
-          '[command-dispatch] ${call.toolName} threw: $e\n$st',
-        );
-        final summary = e.toString().split('\n').first;
-        failures.add('${call.toolName}: $summary');
-      }
-    }
-    if (results.isEmpty) {
-      final detail = failures.isEmpty
-          ? 'try rephrasing.'
-          : failures.join('; ');
-      throw CommandDispatcherException("Couldn't run that — $detail");
-    }
-    return results;
+    if (response.toolCalls.isEmpty) return null;
+    final picked = response.toolCalls.first.args['tool']?.toString() ?? '';
+    return _ref.read(commandToolRegistryProvider).byName(picked);
   }
 
-  /// System prompt rendered into the LLM call. Carries today's
-  /// date, route bias, and the recent-records window for
-  /// anaphora resolution.
-  String _systemPrompt(CommandContext ctx) {
+  /// STAGE 2 — extract args for the chosen tool. Focused prompt:
+  /// only this tool's description / few-shots, plus the shared
+  /// context (today's date, day lookup, roster). Forced via
+  /// `tool_choice` to emit this exact tool, so we don't pay the
+  /// model to re-route.
+  Future<Map<String, dynamic>> _stage2Extract({
+    required CommandTool tool,
+    required String body,
+    required CommandContext ctx,
+    required List<String>? critique,
+  }) async {
+    final provider = _ref.read(llmProviderProvider);
+    final systemPrompt = _stage2SystemPrompt(tool, ctx);
+    final userMessage = critique == null
+        ? body
+        : '''
+$body
+
+Your previous attempt had these problems — fix them and re-emit:
+${critique.map((e) => '  • $e').join('\n')}
+''';
+    final response = await provider.complete(
+      messages: [
+        LlmMessage.system(systemPrompt),
+        LlmMessage.user(userMessage),
+      ],
+      availableTools: [tool],
+      forceToolName: tool.name,
+    );
+    if (response.toolCalls.isEmpty) {
+      throw const CommandDispatcherException(
+        "Couldn't extract args — try rephrasing.",
+      );
+    }
+    return response.toolCalls.first.args;
+  }
+
+  /// Stage-2 system prompt = shared context (date lookup +
+  /// roster + recent records) + the tool's own extractor
+  /// prompt + a tight self-check footer. Tool-specific examples
+  /// live in `tool.extractorSystemPrompt(ctx)` so they don't
+  /// pollute other tools' prompts.
+  String _stage2SystemPrompt(CommandTool tool, CommandContext ctx) {
     final now = DateTime.now();
     final today = DateFormat('EEEE, MMMM d, y').format(now);
     final timeNow = DateFormat('h:mm a').format(now);
-    final routeLine = ctx.route == null
-        ? '(none — global / drawer entry)'
-        : ctx.route!;
+    final dayLookup = _buildDayLookup(now);
     final recentBlock = ctx.recentRecords.isEmpty
-        ? '(none yet)'
+        ? '  (none yet)'
         : ctx.recentRecords
             .map((r) => '  • [${r.type} id=${r.id}] '
                 '${_summaryWindow(r.summary)} '
                 '— ${_relativeTime(r.createdAt, now)}')
             .join('\n');
-    // Pre-compute the next 14 days as an explicit lookup table.
-    // Without this, gpt-4o-mini routinely picks the wrong day
-    // when the user says "Wednesday" — it has to do weekday→date
-    // math against the single Today line and gets it wrong on
-    // even simple phrasings. Reading off a table eliminates that
-    // class of bug.
-    final dayLookup = _buildDayLookup(now);
     return '''
-You are the BASECamp Command Center. The user is a teacher in
-an early-childhood program. They type or speak short fragments;
-you pick the right tool and call it with the args extracted from
-their words. Pick exactly ONE tool unless the user clearly named
-multiple actions ("create the trip AND email parents") — then
-emit multiple tool calls in parallel.
-
-Context:
+Context for slot extraction:
   Today: $today
   Time now: $timeNow
   Active program: ${ctx.activeProgramId ?? '(none)'}
-  Current screen: $routeLine
-  Selected record: ${ctx.selectedRecordId ?? '(none)'}
 
-Program roster — groups (return EXACT spellings from this list
-when filling group_names; do not invent names):
-${_rosterBlock('Groups', ctx.groupNames)}
-
-Program roster — kids (first names, deduped — return EXACT
-spellings when filling child_name fields):
-${_rosterBlock('Kids', ctx.childNames)}
-
-Calendar lookup (use these EXACT dates — do not compute):
+Calendar lookup (use these EXACT dates — never compute):
 $dayLookup
 
-Rules for date phrases:
-  * "today" → today's date (the row marked TODAY above)
-  * "tomorrow" → today's date + 1 from the table
-  * "<weekday>" with NO modifier → the NEXT occurrence of that
-    weekday. If today is the named weekday, use today.
-  * "next <weekday>" → the occurrence in NEXT WEEK, never the
-    one in this week. So if today is Tuesday and user says
-    "next Wednesday," that's the Wednesday in next week's row.
-  * "this <weekday>" → the occurrence in THIS WEEK (same row as
-    today). If that day has already passed this week, fall
-    back to the upcoming one anyway.
+Program roster — groups (return EXACT spellings):
+${_rosterBlock('Groups', ctx.groupNames)}
 
-Recent records the teacher just created (most recent first):
+Program roster — kids (first names, deduped):
+${_rosterBlock('Kids', ctx.childNames)}
+
+Recent records:
 $recentBlock
 
-If the user's fragment is a CONTINUATION of one of these
-(connectives "and / then / also", pronouns "he / she / they"
-matching a recent record's subject), prefer the matching
-append / edit tool with the record's id from above. If the
-fragment introduces a fresh subject, pick a create tool.
+${tool.extractorSystemPrompt(ctx)}
 
-Each tool's description tells you when it applies + lists its
-ANCHOR WORDS — words the user might open with that map
-directly to that tool ("note,", "trip,", "late pickup,"). When
-in doubt, prefer the most reversible action.
-
-NEVER guess an id that isn't in the recent-records list. Use
-empty strings for unknown fields rather than inventing.
-
-Worked examples — copy the SHAPE of these outputs:
-
-USER: "trip aquarium tuesday for sunflowers and acorns 8 to 3"
-TOOL: create_calendar_tile
-ARGS: {
-  "tile_type": "trip",
-  "date": "<Tuesday from the lookup>",
-  "title": "Aquarium",
-  "destination": "Aquarium",
-  "start_time": "08:00",
-  "end_time": "15:00",
-  "group_names": ["Sunflowers", "Acorns"]
-}
-
-USER: "pizza party friday 11:30 for everyone"
-TOOL: create_calendar_tile
-ARGS: {
-  "tile_type": "event",
-  "date": "<Friday from the lookup>",
-  "title": "Pizza Party",
-  "start_time": "11:30",
-  "group_names": <every group from the roster, in order>
-}
-
-USER: "ocean day thursday"
-TOOL: create_calendar_tile
-ARGS: {
-  "tile_type": "dayPlan",
-  "date": "<Thursday from the lookup>",
-  "title": "Ocean",
-  "theme": "Ocean day",
-  "group_names": []
-}
-
-USER: "note, phillip helped maya with the puzzle today"
-TOOL: create_observation
-ARGS: {
-  "note": "Phillip helped Maya with the puzzle today.",
-  "domain": "SSD3",
-  "sentiment": "positive",
-  "child_ids": ["<phillip id from roster>", "<maya id from roster>"]
-}
-
-USER: "and they were laughing through circle"  (after a recent
-observation about Phillip)
-TOOL: append_observation
-ARGS: {
-  "observation_id": "<id from recent-records>",
-  "append_note": "They were laughing through circle."
-}
-
-USER: "phillip late 5:45 gave reminder card"
-TOOL: create_late_pickup
-ARGS: {
-  "child_name": "Phillip",
-  "child_id": "<phillip id from roster>",
-  "pickup_time": "17:45",
-  "reminder_card_given": true
-}
-
-Before returning your tool call, run this self-check:
-  1. Date — did you USE THE EXACT ISO STRING from the calendar
-     lookup above? Don't compute. Look up.
-  2. Groups — does `group_names` include EVERY group the user
-     named? Split on "and", "&", commas. "everyone" expands to
-     the full roster.
-  3. Kids — does every named child appear in `child_ids` or
-     `child_name`, spelled from the roster (not invented)?
-  4. Times — only present if the user said a time. Don't invent.
-  5. Title — bare subject only, no type prefix, no date, no
-     group names.
-
-If any of those is wrong, fix it before emitting.
+NEVER guess an id that isn't in the recent-records list.
+Use empty strings for unknown fields rather than inventing.
 ''';
   }
+
 
   /// Light pre-processing of the user's input to fix obvious
   /// variants the LLM otherwise has to guess at. Cheap, runs
@@ -408,3 +362,47 @@ If any of those is wrong, fix it before emitting.
 final commandDispatcherProvider = Provider<CommandDispatcher>((ref) {
   return CommandDispatcher(ref);
 });
+
+/// Synthetic tool used only by stage 1 — gives the LLM a single
+/// function to call (`pick_tool`) with an enum-restricted `tool`
+/// parameter so the routing answer comes back as a structured
+/// choice instead of free-form text. Never registered in the
+/// global registry; spun up per-call from the live tool list so
+/// the enum reflects exactly what's available in the current
+/// context.
+class _PickToolTool extends CommandTool {
+  _PickToolTool(this._availableTools);
+
+  final List<CommandTool> _availableTools;
+
+  @override
+  String get name => 'pick_tool';
+
+  @override
+  String get description =>
+      'Pick the single tool that matches the user fragment.';
+
+  @override
+  Map<String, dynamic> get parametersSchema => <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'tool': <String, dynamic>{
+            'type': 'string',
+            'enum': [for (final t in _availableTools) t.name],
+            'description': 'Name of the chosen tool.',
+          },
+        },
+        'required': ['tool'],
+      };
+
+  @override
+  Future<CommandResult> execute(
+    Map<String, dynamic> args,
+    Ref ref,
+  ) async {
+    // Stage 1 never executes — its only job is to return the
+    // picked tool name to the dispatcher. Throw loudly if a
+    // caller accidentally routes through here.
+    throw StateError('_PickToolTool.execute should never be called');
+  }
+}
