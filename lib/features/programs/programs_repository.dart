@@ -254,14 +254,29 @@ class ProgramsRepository {
     required String programId,
     required String newName,
   }) async {
+    final now = DateTime.now().toUtc();
     await (_db.update(_db.programs)
           ..where((p) => p.id.equals(programId)))
         .write(
       ProgramsCompanion(
         name: Value(newName),
-        updatedAt: Value(DateTime.now()),
+        updatedAt: Value(now),
       ),
     );
+    // Programs aren't synced through the generic engine (they're
+    // hydrated via `hydrateCloudProgramsForUser` instead). Without
+    // this direct push, the renamed name lives only locally — other
+    // devices won't learn about it until their next bootstrap /
+    // periodic re-hydrate. Best-effort; failure stays local and the
+    // next bootstrap on this device will reconcile.
+    try {
+      await Supabase.instance.client.from('programs').update({
+        'name': newName,
+        'updated_at': now.toIso8601String(),
+      }).eq('id', programId);
+    } on Object catch (e, st) {
+      debugPrint('[programs] rename push failed: $e\n$st');
+    }
   }
 
   /// Watch the partner-schools list for the active program. The

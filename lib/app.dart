@@ -195,7 +195,10 @@ class _BasecampAppState extends ConsumerState<BasecampApp>
       // it now. The retry timer would also catch this, but
       // foreground is the moment the user is most likely to
       // notice — heal eagerly.
-      unawaited(_pullNow());
+      // force=true on resume: a user coming back from background
+      // wants the LATEST cloud state, even if we polled <30s ago.
+      // The periodic timer respects the debounce; resume bypasses it.
+      unawaited(_pullNow(force: true));
       unawaited(_resubscribeRealtime());
       unawaited(_maybeRerunBootstrap());
       _startPeriodicPull();
@@ -245,7 +248,12 @@ class _BasecampAppState extends ConsumerState<BasecampApp>
   /// silently when there's no signed-in user or no active program
   /// — both are normal states (sign-in screen, program-create
   /// flow) where the timer might still be running.
-  Future<void> _pullNow() async {
+  ///
+  /// When [force] is true, the per-spec 30s pull debounce is
+  /// bypassed. Used on app resume so a user returning to the app
+  /// always sees the freshest cloud state (otherwise resumes
+  /// within 30s of the last poll silently do nothing).
+  Future<void> _pullNow({bool force = false}) async {
     final activeId = ref.read(activeProgramIdProvider);
     if (activeId == null) return;
     final session = ref.read(currentSessionProvider);
@@ -253,13 +261,33 @@ class _BasecampAppState extends ConsumerState<BasecampApp>
     final engine = ref.read(syncEngineProvider);
     for (final spec in kAllSpecs) {
       try {
-        await engine.pullTable(spec: spec, programId: activeId);
+        await engine.pullTable(
+          spec: spec,
+          programId: activeId,
+          force: force,
+        );
       } on Object catch (e) {
         // Single-table failure shouldn't kill the rest of the
         // sweep — RLS blip on one entity, transient network
         // hiccup, etc. Log and continue.
         debugPrint('Periodic pull of ${spec.table} failed: $e');
       }
+    }
+    // Programs table isn't in `kAllSpecs` (it has bespoke hydrate
+    // via `hydrateCloudProgramsForUser`). Without this call,
+    // program-level edits like rename or schools_json changes
+    // from another device would only land on the next sign-in /
+    // bootstrap. Polling every 45s is the same cadence as the
+    // entity sweep and the round-trip is tiny (one program row).
+    try {
+      await ref
+          .read(programsRepositoryProvider)
+          .hydrateCloudProgramsForUser(
+            userId: session.user.id,
+            supabase: Supabase.instance.client,
+          );
+    } on Object catch (e) {
+      debugPrint('Periodic programs re-hydrate failed: $e');
     }
     // Drain any rows whose previous push errored — dirty_fields
     // is the source of truth for "this row has un-pushed local
