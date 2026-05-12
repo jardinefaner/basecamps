@@ -15,14 +15,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class OpenAiProvider implements LlmProvider {
   const OpenAiProvider();
 
-  /// Model id sent to the proxy. `gpt-4o` for production
-  /// routing: small models (mini) routinely flubbed multi-group
-  /// extraction + weekday→date math in real teacher inputs. The
-  /// cost delta at this app's scale is ~$0.005 per call vs
-  /// $0.0001 (mini), which is ~25¢/day for a power user — well
-  /// worth the reliability. Drop back to mini only if a future
-  /// classifier-cascade architecture lands (route → extract).
-  static const String _model = 'gpt-4o';
+  /// Model id sent to the proxy. `gpt-4o-mini` now that the
+  /// pipeline is much more constrained:
+  ///   • routing is a forced enum pick (pick_route / pick_tool)
+  ///   • extraction has pre-resolved dates injected as facts
+  ///   • the roster + recent records are explicit
+  ///   • the auto-patching validator fixes date mismatches
+  ///     deterministically before execute
+  /// So the model is doing string matching, not date math or
+  /// open-ended slot inference. Mini handles that fine and the
+  /// cost delta vs gpt-4o is ~50× (per-call ≈ $0.0001 vs
+  /// $0.005). At 50 submits/day that's <1¢/day vs ~25¢/day.
+  /// Bump back to `gpt-4o` if a specific failure mode points
+  /// to extraction quality being the bottleneck — but with the
+  /// validator auto-patch, that's unlikely.
+  static const String _model = 'gpt-4o-mini';
 
   /// Low temperature — tool routing should be deterministic.
   /// Per-tool extractors that need creativity (the observation

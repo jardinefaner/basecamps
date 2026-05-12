@@ -33,6 +33,7 @@ import 'dart:convert';
 import 'package:basecamp/features/ai/openai_client.dart';
 import 'package:basecamp/features/children/children_repository.dart'
     show childrenProvider, groupsProvider;
+import 'package:basecamp/features/experiment/command/command_feed.dart';
 import 'package:basecamp/features/experiment/command/command_tool.dart';
 import 'package:basecamp/features/experiment/command/dispatcher/command_dispatcher.dart';
 import 'package:basecamp/features/observations/voice_service.dart';
@@ -44,26 +45,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-/// Show a brief toast that doesn't queue and doesn't block the
-/// docked input bar. `clearSnackBars()` first so repeated Adds
-/// replace instead of stack; 3-second duration; floating
-/// behavior with bottom margin so it sits above the bar.
-void _showToast(
-  BuildContext context,
-  String message, {
-  SnackBarAction? action,
-}) {
-  final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
-  messenger.showSnackBar(
-    SnackBar(
-      content: Text(message),
-      action: action,
-      duration: const Duration(seconds: 3),
-      behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 80),
-    ),
-  );
-}
+// _showToast removed — feed entries are the confirmation
+// surface. Earlier snackbars duplicated info AND could persist
+// past a navigation if the user moved away mid-fade.
 
 class CommandScreen extends ConsumerStatefulWidget {
   const CommandScreen({super.key});
@@ -75,18 +59,40 @@ class CommandScreen extends ConsumerStatefulWidget {
 class _CommandScreenState extends ConsumerState<CommandScreen> {
   bool _loading = false;
   String? _error;
+  Timer? _errorAutoDismiss;
 
-  /// Recent results, newest first. Drives the feed view + the
-  /// `recentRecords` window the dispatcher passes to the LLM
-  /// for anaphora resolution.
-  final List<_FeedEntry> _feed = <_FeedEntry>[];
+  /// Set the error banner with an auto-dismiss timer so it
+  /// doesn't linger on screen forever. Cancels any prior timer
+  /// first — overlapping errors replace cleanly.
+  void _setError(String message) {
+    _errorAutoDismiss?.cancel();
+    setState(() => _error = message);
+    _errorAutoDismiss = Timer(const Duration(seconds: 6), () {
+      if (!mounted) return;
+      setState(() => _error = null);
+    });
+  }
+
+  void _clearError() {
+    _errorAutoDismiss?.cancel();
+    _errorAutoDismiss = null;
+    if (_error != null) setState(() => _error = null);
+  }
+
+  @override
+  void dispose() {
+    _errorAutoDismiss?.cancel();
+    super.dispose();
+  }
 
   /// Window of recent-record summaries the dispatcher includes
   /// in the system prompt so the LLM can route "and they were
   /// laughing" to an `append` tool with the right target id.
   static const int _recentCap = 5;
-  List<RecentCommandRecord> get _recentRecords {
-    return _feed
+  List<RecentCommandRecord> _recentRecordsFromFeed(
+    List<CommandFeedEntry> feed,
+  ) {
+    return feed
         .where((e) => e.recordId != null)
         .take(_recentCap)
         .map(
@@ -102,10 +108,8 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
 
   Future<void> _onSubmit(String input) async {
     if (input.trim().isEmpty || _loading) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    _clearError();
+    setState(() => _loading = true);
     // Inject the live roster so the LLM resolves "for sunflowers
     // and acorns" / "phillip helped maya" against REAL names —
     // not invented placeholders. Without this the tool's lookup
@@ -116,10 +120,11 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
     final firstNames = <String>{
       for (final c in children) c.firstName.trim(),
     }..removeWhere((s) => s.isEmpty);
+    final currentFeed = ref.read(commandFeedProvider);
     final ctx = CommandContext(
       route: '/command',
       activeProgramId: ref.read(activeProgramIdProvider),
-      recentRecords: _recentRecords,
+      recentRecords: _recentRecordsFromFeed(currentFeed),
       groupNames: [for (final g in groups) g.name],
       childNames: firstNames.toList(),
     );
@@ -127,75 +132,36 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
       final dispatcher = ref.read(commandDispatcherProvider);
       final results = await dispatcher.submit(input: input, ctx: ctx);
       if (!mounted) return;
-      setState(() {
-        _loading = false;
-        for (final r in results) {
-          _feed.insert(
-            0,
-            _FeedEntry(
-              recordId: r.recordId,
-              recordType: _inferType(r.badge),
-              title: r.title,
-              subtitle: r.subtitle,
-              badge: r.badge,
-              icon: r.icon,
-              destinationPath: r.destinationPath,
-              timestamp: DateTime.now(),
-              toolName: r.toolName,
-              toolArgs: r.toolArgs,
-              userInput: r.userInput,
-            ),
-          );
-        }
-      });
-      // Combined toast — covers single and multi-tool results.
-      final first = results.first;
-      final extras = results.length - 1;
-      final message = extras == 0
-          ? '${first.badge}: ${first.title}'
-          : '${first.badge}: ${first.title} (+$extras more)';
-      // Capture the router now, while the widget is still mounted.
-      // The SnackBarAction's onPressed runs much later (and can
-      // fire after this widget unmounts since the messenger is
-      // app-scoped), so closing over `context` would explode then.
-      final router = GoRouter.of(context);
-      final destination = first.destinationPath;
-      _showToast(
-        context,
-        message,
-        action: destination != null
-            ? SnackBarAction(
-                label: 'View',
-                onPressed: () => router.push(destination),
-              )
-            : null,
-      );
+      setState(() => _loading = false);
+      final feedNotifier = ref.read(commandFeedProvider.notifier);
+      for (final r in results) {
+        feedNotifier.prepend(
+          feedEntryFromResult(r, recordType: _inferType(r.badge)),
+        );
+      }
     } on CommandDispatcherException catch (e) {
       if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = e.message;
-      });
+      setState(() => _loading = false);
+      _setError(e.message);
     } on Object catch (e) {
       if (!mounted) return;
       // Surface the underlying error rather than a generic "try
-      // again" — a 500 from the `openai-chat` edge function (most
-      // commonly OPENAI_API_KEY not set on the project) used to be
-      // indistinguishable from a network blip. Showing the
-      // message + status code at least tells you which side
-      // is broken. Capped at 200 chars so a HTTP body / stack
-      // line doesn't overflow the toast on narrow phones.
+      // again" — a 500 from the `openai-chat` edge function
+      // (commonly missing OPENAI_API_KEY) used to be
+      // indistinguishable from a network blip. Capped at 200
+      // chars so a HTTP body / stack line doesn't overflow on
+      // narrow phones.
       final asString = e.toString();
       final summary =
           asString.length > 200 ? '${asString.substring(0, 197)}…' : asString;
       final isAiProxy = asString.contains('openai-chat') ||
           asString.contains('OpenAiClientException');
-      setState(() {
-        _loading = false;
-        _error = isAiProxy
+      setState(() => _loading = false);
+      _setError(
+        isAiProxy
             ? 'AI proxy error — $summary'
-            : "Couldn't run that — $summary";
-      });
+            : "Couldn't run that — $summary",
+      );
       debugPrint('[command] $e');
     }
   }
@@ -217,14 +183,15 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final feed = ref.watch(commandFeedProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Command Center')),
       body: Column(
         children: [
           Expanded(
-            child: _feed.isEmpty
+            child: feed.isEmpty
                 ? _EmptyState(theme: theme)
-                : _Feed(entries: _feed),
+                : _Feed(entries: feed),
           ),
           _CommandBar(
             enabled: OpenAiClient.isAvailable,
@@ -242,38 +209,10 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
 // Feed
 // ═════════════════════════════════════════════════════════════════
 
-class _FeedEntry {
-  const _FeedEntry({
-    required this.title,
-    required this.subtitle,
-    required this.badge,
-    required this.icon,
-    required this.timestamp,
-    required this.recordType,
-    this.recordId,
-    this.destinationPath,
-    this.toolName,
-    this.toolArgs,
-    this.userInput,
-  });
-
-  final String? recordId;
-  final String recordType;
-  final String title;
-  final String subtitle;
-  final String badge;
-  final IconData icon;
-  final DateTime timestamp;
-  final String? destinationPath;
-  final String? toolName;
-  final Map<String, dynamic>? toolArgs;
-  final String? userInput;
-}
-
 class _Feed extends StatelessWidget {
   const _Feed({required this.entries});
 
-  final List<_FeedEntry> entries;
+  final List<CommandFeedEntry> entries;
 
   @override
   Widget build(BuildContext context) {
@@ -304,7 +243,7 @@ class _Feed extends StatelessWidget {
 class _FeedRow extends StatefulWidget {
   const _FeedRow({required this.entry, required this.timeFmt});
 
-  final _FeedEntry entry;
+  final CommandFeedEntry entry;
   final DateFormat timeFmt;
 
   @override
