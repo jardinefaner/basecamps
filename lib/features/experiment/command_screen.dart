@@ -57,33 +57,10 @@ class CommandScreen extends ConsumerStatefulWidget {
 }
 
 class _CommandScreenState extends ConsumerState<CommandScreen> {
-  bool _loading = false;
-  String? _error;
-  Timer? _errorAutoDismiss;
-
-  /// Set the error banner with an auto-dismiss timer so it
-  /// doesn't linger on screen forever. Cancels any prior timer
-  /// first — overlapping errors replace cleanly.
-  void _setError(String message) {
-    _errorAutoDismiss?.cancel();
-    setState(() => _error = message);
-    _errorAutoDismiss = Timer(const Duration(seconds: 6), () {
-      if (!mounted) return;
-      setState(() => _error = null);
-    });
-  }
-
-  void _clearError() {
-    _errorAutoDismiss?.cancel();
-    _errorAutoDismiss = null;
-    if (_error != null) setState(() => _error = null);
-  }
-
-  @override
-  void dispose() {
-    _errorAutoDismiss?.cancel();
-    super.dispose();
-  }
+  // Global error banner removed — every dispatch failure lives
+  // on its own feed card now, with retry + dismiss actions right
+  // there. The teacher sees what failed AND what they originally
+  // typed, on the same card.
 
   /// Window of recent-record summaries the dispatcher includes
   /// in the system prompt so the LLM can route "and they were
@@ -106,64 +83,107 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
         .toList();
   }
 
-  Future<void> _onSubmit(String input) async {
-    if (input.trim().isEmpty || _loading) return;
-    _clearError();
-    setState(() => _loading = true);
-    // Inject the live roster so the LLM resolves "for sunflowers
-    // and acorns" / "phillip helped maya" against REAL names —
-    // not invented placeholders. Without this the tool's lookup
-    // misses every time the user typed a real kid's or group's
-    // name that doesn't happen to match the LLM's guess.
-    final groups = ref.read(groupsProvider).asData?.value ?? const [];
-    final children = ref.read(childrenProvider).asData?.value ?? const [];
-    final firstNames = <String>{
-      for (final c in children) c.firstName.trim(),
-    }..removeWhere((s) => s.isEmpty);
-    final currentFeed = ref.read(commandFeedProvider);
-    final ctx = CommandContext(
-      route: '/command',
-      activeProgramId: ref.read(activeProgramIdProvider),
-      recentRecords: _recentRecordsFromFeed(currentFeed),
-      groupNames: [for (final g in groups) g.name],
-      childNames: firstNames.toList(),
-    );
+  /// Optimistic submit flow. Prepends a pending card with the
+  /// raw input the moment the user hits send, clears the input
+  /// bar IMMEDIATELY, then dispatches the LLM call detached. The
+  /// pending card morphs into the real result (or a failure
+  /// card with retry) when the future resolves. The user can
+  /// type another command while the previous one is still in
+  /// flight — each in-flight submit gets its own card.
+  void _onSubmit(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return;
+    final pendingId = 'feed-${DateTime.now().microsecondsSinceEpoch}-'
+        '${UniqueKey().hashCode}';
+    final feedNotifier = ref.read(commandFeedProvider.notifier);
+    feedNotifier.prepend(pendingEntryFromInput(trimmed, id: pendingId));
+    unawaited(_dispatchAndResolve(trimmed, pendingId));
+  }
+
+  /// The dispatch + resolve half of the optimistic flow. Runs
+  /// detached from `_onSubmit` so the bar isn't blocked.
+  Future<void> _dispatchAndResolve(String input, String pendingId) async {
+    final feedNotifier = ref.read(commandFeedProvider.notifier);
     try {
+      // Inject the live roster so the LLM resolves "for sunflowers
+      // and acorns" / "phillip helped maya" against REAL names.
+      final groups = ref.read(groupsProvider).asData?.value ?? const [];
+      final children = ref.read(childrenProvider).asData?.value ?? const [];
+      final firstNames = <String>{
+        for (final c in children) c.firstName.trim(),
+      }..removeWhere((s) => s.isEmpty);
+      // Use the feed snapshot BEFORE the optimistic insert went
+      // in — the pending card itself shouldn't show up in the
+      // recent-records anaphora window.
+      final currentFeed = ref
+          .read(commandFeedProvider)
+          .where((e) => e.id != pendingId)
+          .toList();
+      final ctx = CommandContext(
+        route: '/command',
+        activeProgramId: ref.read(activeProgramIdProvider),
+        recentRecords: _recentRecordsFromFeed(currentFeed),
+        groupNames: [for (final g in groups) g.name],
+        childNames: firstNames.toList(),
+      );
       final dispatcher = ref.read(commandDispatcherProvider);
       final results = await dispatcher.submit(input: input, ctx: ctx);
-      if (!mounted) return;
-      setState(() => _loading = false);
-      final feedNotifier = ref.read(commandFeedProvider.notifier);
-      for (final r in results) {
+      // First result replaces the pending card in place; any
+      // extra results (rare; only happens for multi-tool calls)
+      // get prepended as fresh entries with their own ids.
+      if (results.isEmpty) {
+        feedNotifier.markFailed(
+          pendingId,
+          "Couldn't run that — try rephrasing.",
+        );
+        return;
+      }
+      final first = results.first;
+      feedNotifier.replace(
+        pendingId,
+        feedEntryFromResult(
+          first,
+          id: pendingId,
+          recordType: _inferType(first.badge),
+        ),
+      );
+      for (final extra in results.skip(1)) {
         feedNotifier.prepend(
-          feedEntryFromResult(r, recordType: _inferType(r.badge)),
+          feedEntryFromResult(
+            extra,
+            id: 'feed-${DateTime.now().microsecondsSinceEpoch}-'
+                '${UniqueKey().hashCode}',
+            recordType: _inferType(extra.badge),
+          ),
         );
       }
     } on CommandDispatcherException catch (e) {
-      if (!mounted) return;
-      setState(() => _loading = false);
-      _setError(e.message);
-    } on Object catch (e) {
-      if (!mounted) return;
-      // Surface the underlying error rather than a generic "try
-      // again" — a 500 from the `openai-chat` edge function
-      // (commonly missing OPENAI_API_KEY) used to be
-      // indistinguishable from a network blip. Capped at 200
-      // chars so a HTTP body / stack line doesn't overflow on
-      // narrow phones.
+      feedNotifier.markFailed(pendingId, e.message);
+    } on Object catch (e, st) {
       final asString = e.toString();
       final summary =
           asString.length > 200 ? '${asString.substring(0, 197)}…' : asString;
       final isAiProxy = asString.contains('openai-chat') ||
           asString.contains('OpenAiClientException');
-      setState(() => _loading = false);
-      _setError(
-        isAiProxy
-            ? 'AI proxy error — $summary'
-            : "Couldn't run that — $summary",
+      feedNotifier.markFailed(
+        pendingId,
+        isAiProxy ? 'AI proxy error — $summary' : summary,
       );
-      debugPrint('[command] $e');
+      debugPrint('[command] $e\n$st');
     }
+  }
+
+  /// Retry the dispatch for a card that failed earlier. Resets
+  /// the card to pending, kicks off the same flow with the
+  /// original raw input.
+  void _retryEntry(CommandFeedEntry entry) {
+    final input = entry.userInput?.trim() ?? entry.title.trim();
+    if (input.isEmpty) return;
+    ref.read(commandFeedProvider.notifier).replace(
+          entry.id,
+          pendingEntryFromInput(input, id: entry.id),
+        );
+    unawaited(_dispatchAndResolve(input, entry.id));
   }
 
   /// Infer the recent-record `type` slug from the tool's badge.
@@ -191,12 +211,20 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
           Expanded(
             child: feed.isEmpty
                 ? _EmptyState(theme: theme)
-                : _Feed(entries: feed),
+                : _Feed(
+                    entries: feed,
+                    onRetry: _retryEntry,
+                  ),
           ),
           _CommandBar(
             enabled: OpenAiClient.isAvailable,
-            loading: _loading,
-            error: _error,
+            // No global loading flag — each in-flight dispatch
+            // has its own pending card in the feed; the bar
+            // stays usable so the teacher can stack commands.
+            loading: false,
+            // No global error banner either — failures live on
+            // their own feed cards with retry / dismiss.
+            error: null,
             onSubmit: _onSubmit,
           ),
         ],
@@ -210,9 +238,10 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
 // ═════════════════════════════════════════════════════════════════
 
 class _Feed extends StatelessWidget {
-  const _Feed({required this.entries});
+  const _Feed({required this.entries, required this.onRetry});
 
   final List<CommandFeedEntry> entries;
+  final ValueChanged<CommandFeedEntry> onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -229,6 +258,7 @@ class _Feed extends StatelessWidget {
       itemBuilder: (context, i) => _FeedRow(
         entry: entries[i],
         timeFmt: timeFmt,
+        onRetry: onRetry,
       ),
     );
   }
@@ -240,17 +270,22 @@ class _Feed extends StatelessWidget {
 /// the model misread the input or the tool misexecuted — so we
 /// can't tell each other "this is what the model returned for that
 /// input." Now we can.
-class _FeedRow extends StatefulWidget {
-  const _FeedRow({required this.entry, required this.timeFmt});
+class _FeedRow extends ConsumerStatefulWidget {
+  const _FeedRow({
+    required this.entry,
+    required this.timeFmt,
+    required this.onRetry,
+  });
 
   final CommandFeedEntry entry;
   final DateFormat timeFmt;
+  final ValueChanged<CommandFeedEntry> onRetry;
 
   @override
-  State<_FeedRow> createState() => _FeedRowState();
+  ConsumerState<_FeedRow> createState() => _FeedRowState();
 }
 
-class _FeedRowState extends State<_FeedRow> {
+class _FeedRowState extends ConsumerState<_FeedRow> {
   bool _expanded = false;
 
   String _prettyArgs(Map<String, dynamic>? args) {
@@ -268,13 +303,26 @@ class _FeedRowState extends State<_FeedRow> {
     final theme = Theme.of(context);
     final e = widget.entry;
     final hasDebug = e.toolName != null || e.userInput != null;
+    final isPending = e.status == CommandFeedStatus.pending;
+    final isFailed = e.status == CommandFeedStatus.failed;
+    // Card background tints status: pending = soft surface,
+    // failed = errorContainer, done = surfaceContainerHigh.
+    final bgColor = isFailed
+        ? theme.colorScheme.errorContainer.withValues(alpha: 0.55)
+        : theme.colorScheme.surfaceContainerHigh;
+    final accentColor = isFailed
+        ? theme.colorScheme.error
+        : isPending
+            ? theme.colorScheme.outline
+            : theme.colorScheme.primary;
+    // Pending + failed cards aren't tappable for navigation —
+    // they're not pointing at a real record yet.
+    final canTap = !isPending && !isFailed && e.destinationPath != null;
     return Material(
-      color: theme.colorScheme.surfaceContainerHigh,
+      color: bgColor,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        onTap: e.destinationPath == null
-            ? null
-            : () => context.push(e.destinationPath!),
+        onTap: canTap ? () => context.push(e.destinationPath!) : null,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
@@ -289,11 +337,17 @@ class _FeedRowState extends State<_FeedRow> {
                       top: 2,
                       right: AppSpacing.sm,
                     ),
-                    child: Icon(
-                      e.icon,
-                      size: 20,
-                      color: theme.colorScheme.primary,
-                    ),
+                    child: isPending
+                        ? SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation(accentColor),
+                            ),
+                          )
+                        : Icon(e.icon, size: 20, color: accentColor),
                   ),
                   Expanded(
                     child: Column(
@@ -340,7 +394,7 @@ class _FeedRowState extends State<_FeedRow> {
                       ],
                     ),
                   ),
-                  if (e.destinationPath != null)
+                  if (canTap)
                     Icon(
                       Icons.chevron_right,
                       size: 18,
@@ -348,6 +402,41 @@ class _FeedRowState extends State<_FeedRow> {
                     ),
                 ],
               ),
+              // Failed cards: error message + Retry / Dismiss
+              // actions. Keeps the raw user input visible above
+              // (it's in `title`) so the teacher can see what
+              // they tried + decide whether to retry verbatim or
+              // type a fresh command.
+              if (isFailed) ...[
+                if ((e.errorMessage ?? '').isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    e.errorMessage!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.sm),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      onPressed: () => ref
+                          .read(commandFeedProvider.notifier)
+                          .remove(e.id),
+                      icon: const Icon(Icons.close, size: 16),
+                      label: const Text('Dismiss'),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    FilledButton.tonalIcon(
+                      onPressed: () => widget.onRetry(e),
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ],
               if (hasDebug) ...[
                 const SizedBox(height: AppSpacing.sm),
                 InkWell(
