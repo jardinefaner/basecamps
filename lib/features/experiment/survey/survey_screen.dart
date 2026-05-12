@@ -32,6 +32,7 @@ import 'package:basecamp/features/surveys/feelings_jar_card.dart';
 import 'package:basecamp/features/surveys/kiosk_exit_pin_modal.dart';
 import 'package:basecamp/features/surveys/multi_select_overlay.dart';
 import 'package:basecamp/features/surveys/open_ended_overlay.dart';
+import 'package:basecamp/features/surveys/preflight_school_gate.dart';
 import 'package:basecamp/features/surveys/survey_audio_service.dart';
 import 'package:basecamp/features/surveys/survey_models.dart';
 import 'package:basecamp/features/surveys/survey_repository.dart';
@@ -4438,6 +4439,12 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
   DateTime _questionStartedAt = DateTime.now();
   bool _showingAllDone = false;
 
+  /// True once the kid has answered the school pre-flight gate
+  /// for THIS session. Reset to false on every `_resetForNextChild`
+  /// so each new kid is asked. Parity with the basket kiosk's
+  /// `_preflightDone`.
+  bool _preflightDone = false;
+
   /// RepaintBoundary key wrapping the GameWidget. We snapshot the
   /// jar (with all the kid's marbles in their settled positions)
   /// the moment they answer the last question, before any reset
@@ -4794,8 +4801,43 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
       _questionStartedAt = DateTime.now();
       _showingAllDone = false;
       _jarSnapshot = null;
+      // School gate reappears for the next kid — without this
+      // the second kid silently inherits the previous kid's
+      // school answer.
+      _preflightDone = false;
     });
     _playCurrentQuestionAudio();
+  }
+
+  /// Kid picked a school on the pre-flight gate. Stamp it on the
+  /// session row + flip the flag so the gate dismisses and the
+  /// game-canvas takes over.
+  Future<void> _onPreflightSchoolPicked(String school) async {
+    final sessionId = _sessionId;
+    if (sessionId == null) {
+      // The gate should never render before `_initializeKiosk`
+      // mints a session, but if it does the school answer would
+      // be silently lost. Log it so we can spot the race in
+      // production rather than producing CSV exports with a
+      // blank School column.
+      debugPrint(
+        '[survey] _onPreflightSchoolPicked: sessionId is null; '
+        'school "$school" not stamped',
+      );
+    } else {
+      try {
+        await ref
+            .read(surveyRepositoryProvider)
+            .setSessionSchool(sessionId, school);
+      } on Object catch (e, st) {
+        debugPrint('[survey] setSessionSchool failed: $e\n$st');
+        // Soldier on — the kid shouldn't be blocked by a sync
+        // glitch. The local write usually succeeds even when the
+        // push doesn't; the next foreground sweep will retry.
+      }
+    }
+    if (!mounted) return;
+    setState(() => _preflightDone = true);
   }
 
   void _publishPlateBounds(Duration _) {
@@ -4967,6 +5009,27 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
           ),
           // Kiosk-only overlays (no-op in sandbox mode).
           if (_isKiosk) ..._buildKioskOverlays(theme),
+          // Pre-flight school gate. Stays on top of the game
+          // until the kid picks. Parity with the basket kiosk —
+          // every kid is asked for their school first, and the
+          // session row carries that answer for the CSV export.
+          //
+          // The overlay must cover EVERY pre-gate state, including
+          // the brief window when `_survey` is null during
+          // `_initializeKiosk`. Otherwise the Flame canvas is
+          // exposed (and tappable) before a session exists.
+          if (_isKiosk && !_preflightDone && !_showingAllDone)
+            Positioned.fill(
+              child: Container(
+                color: theme.colorScheme.surface,
+                child: _survey == null
+                    ? const Center(child: CircularProgressIndicator())
+                    : PreflightSchoolGate(
+                        config: _survey!,
+                        onSchoolPicked: _onPreflightSchoolPicked,
+                      ),
+              ),
+            ),
         ],
       ),
     );
@@ -5035,6 +5098,13 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
             siteName: survey.siteName,
             classroom: survey.classroom,
             onDone: _resetForNextChild,
+            // Pass the FK references so the card can write a row
+            // in `prints` (program-scoped, synced) — parity with
+            // the basket kiosk. Without these the card falls back
+            // to direct-print (review mode) and skips the saved
+            // print row entirely.
+            surveyId: survey.id,
+            sessionId: _sessionId,
           ),
         ),
       ];

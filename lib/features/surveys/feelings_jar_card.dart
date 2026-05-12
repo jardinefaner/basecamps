@@ -21,9 +21,13 @@ import 'dart:ui' as ui;
 
 import 'package:basecamp/features/experiment/basket_survey/thank_you_card.dart'
     show kThankYouCardDesignWidth;
+import 'package:basecamp/features/prints/prints_repository.dart';
+import 'package:basecamp/features/sync/sync_engine.dart';
+import 'package:basecamp/features/sync/sync_specs.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -50,7 +54,7 @@ String currentAcademicYear({DateTime? now}) {
 ///
 /// Exactly one of the two should be supplied. If both are null,
 /// the card falls back to a plain placeholder rather than crashing.
-class FeelingsJarCard extends StatefulWidget {
+class FeelingsJarCard extends ConsumerStatefulWidget {
   const FeelingsJarCard({
     required this.siteName,
     required this.classroom,
@@ -60,6 +64,8 @@ class FeelingsJarCard extends StatefulWidget {
     this.moodValues,
     this.academicYear,
     this.doneLabel = 'Pass to next friend',
+    this.surveyId,
+    this.sessionId,
   });
 
   /// PNG bytes of the live game canvas at end-of-survey. May be
@@ -89,14 +95,31 @@ class FeelingsJarCard extends StatefulWidget {
   /// reset routine.
   final VoidCallback onDone;
 
+  /// FK references for the saved print. Required for kiosk mode
+  /// (so the basket-parity "Save to Prints" flow can write a
+  /// row in the prints table). Null = review mode (results
+  /// screen looking back at a past session) — no save, Done is
+  /// always enabled.
+  final String? surveyId;
+  final String? sessionId;
+
   @override
-  State<FeelingsJarCard> createState() => _FeelingsJarCardState();
+  ConsumerState<FeelingsJarCard> createState() => _FeelingsJarCardState();
 }
 
-class _FeelingsJarCardState extends State<FeelingsJarCard> {
+class _FeelingsJarCardState extends ConsumerState<FeelingsJarCard> {
   final TextEditingController _nameCtrl = TextEditingController();
   final GlobalKey _cardKey = GlobalKey();
   bool _printing = false;
+  bool _saving = false;
+  bool _saved = false;
+
+  /// True when this card is launched from the live kiosk flow.
+  /// Drives whether we show the Save-to-Prints button and gate
+  /// Done behind a successful save. Review mode (no surveyId)
+  /// is always immediately dismissible.
+  bool get _isKioskFlow =>
+      widget.surveyId != null && widget.sessionId != null;
 
   @override
   void dispose() {
@@ -104,6 +127,51 @@ class _FeelingsJarCardState extends State<FeelingsJarCard> {
     super.dispose();
   }
 
+  /// Save-to-Prints — mirrors the basket kiosk's flow. Captures
+  /// the card, writes a `prints` row (program-scoped + synced),
+  /// then flushes pending pushes so the kid 1 record is fully in
+  /// cloud before the next kid touches the device. Only fired in
+  /// kiosk mode (where `surveyId` + `sessionId` are non-null).
+  Future<void> _onSave() async {
+    if (_saving || _saved) return;
+    setState(() => _saving = true);
+    try {
+      final pngBytes = await _captureCardAsPng();
+      final repo = ref.read(printsRepositoryProvider);
+      await repo.save(
+        snapshot: pngBytes,
+        kind: PrintKind.marbleJar,
+        surveyId: widget.surveyId,
+        sessionId: widget.sessionId,
+        childName: _nameCtrl.text.trim(),
+        metadata: <String, dynamic>{
+          'year': widget.academicYear ?? currentAcademicYear(),
+        },
+      );
+      if (!mounted) return;
+      await ref.read(syncEngineProvider).flushPendingPushes(kAllSpecs);
+      if (!mounted) return;
+      setState(() => _saved = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Saved to Prints. Print it later from the Prints tab.'),
+        ),
+      );
+    } on Object catch (e, st) {
+      debugPrint('[feelings-jar-save] failed: $e\n$st');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save print: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  /// Direct-print fallback — only shown in review mode (results
+  /// screen), where the card is being inspected rather than
+  /// captured live. The kiosk flow's Save-to-Prints button is
+  /// the preferred path.
   Future<void> _onPrint() async {
     if (_printing) return;
     setState(() => _printing = true);
@@ -241,35 +309,72 @@ class _FeelingsJarCardState extends State<FeelingsJarCard> {
               const SizedBox(height: AppSpacing.xl),
               // Action chrome — outside the RepaintBoundary so the
               // print output doesn't include buttons.
+              //
+              // Kiosk flow: Save-to-Prints (writes a row that
+              // travels through cloud sync, batch-printable later
+              // from /prints). Done gated until saved so the next
+              // kid can't take the device with un-flushed data.
+              //
+              // Review flow (no surveyId): direct Print + always-
+              // enabled Done. A teacher inspecting a past session
+              // just wants to print or close.
               Wrap(
                 spacing: AppSpacing.md,
                 runSpacing: AppSpacing.sm,
                 alignment: WrapAlignment.center,
                 children: [
-                  FilledButton.icon(
-                    onPressed: _printing ? null : _onPrint,
-                    icon: _printing
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.print_outlined),
-                    label: Text(_printing ? 'Preparing…' : 'Print My Jar'),
-                  ),
-                  // Disabled while a print is in flight so a kid /
-                  // teacher can't hand the device to the next kid
-                  // mid-dialog. The survey complete + cloud push
-                  // already landed before the thank-you card
-                  // rendered (see `_onMoodAnswered`), so Done is
-                  // safe to tap *between* prints — the gate is just
-                  // about not interrupting an active print.
+                  if (_isKioskFlow)
+                    FilledButton.icon(
+                      onPressed: _saving || _saved ? null : _onSave,
+                      icon: _saving
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(_saved
+                              ? Icons.check_circle_outline
+                              : Icons.bookmark_add_outlined),
+                      label: Text(_saving
+                          ? 'Saving…'
+                          : _saved
+                              ? 'Saved to Prints'
+                              : 'Save to Prints'),
+                    )
+                  else
+                    FilledButton.icon(
+                      onPressed: _printing ? null : _onPrint,
+                      icon: _printing
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.print_outlined),
+                      label:
+                          Text(_printing ? 'Preparing…' : 'Print My Jar'),
+                    ),
+                  // Done: in kiosk flow, gated on _saved so the
+                  // device isn't passed away with un-committed
+                  // data. In review flow, always enabled.
                   TextButton(
-                    onPressed: _printing ? null : widget.onDone,
+                    onPressed: _isKioskFlow
+                        ? (_saved ? widget.onDone : null)
+                        : (_printing ? null : widget.onDone),
                     child: Text(widget.doneLabel),
                   ),
                 ],
               ),
+              if (_isKioskFlow && !_saved) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  _saving ? 'saving…' : 'save to prints first',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ],
           ),
           )),
