@@ -30,6 +30,7 @@
 //   * Provider abstraction means swapping OpenAI for Anthropic
 //     / local later is one line at the provider registration.
 
+import 'package:basecamp/features/experiment/command/command_agent.dart';
 import 'package:basecamp/features/experiment/command/command_tool.dart';
 import 'package:basecamp/features/experiment/command/llm/llm_provider.dart';
 import 'package:basecamp/features/experiment/command/llm/openai_provider.dart';
@@ -61,41 +62,105 @@ class CommandDispatcher {
       throw const CommandDispatcherException('Empty input');
     }
     final normalized = _normalizeUserInput(trimmed);
-    final registry = _ref.read(commandToolRegistryProvider);
+    final toolRegistry = _ref.read(commandToolRegistryProvider);
+    final agentRegistry = _ref.read(commandAgentRegistryProvider);
 
     // ════════════════════════════════════════════════════════════
-    // STAGE 1 — pick the tool
+    // ROUTING — agent OR tool
     //
-    // Anchor fast-path first ("note,", "trip,", "late pickup,"
-    // map directly to a tool with zero LLM cost). If the input
-    // doesn't anchor, fall through to a tiny stage-1 LLM call
-    // that just picks a tool name from a one-line-per-tool menu.
+    // Layered routing (cheapest → most expensive):
+    //   1. Agent anchor match → use that agent's internal router
+    //   2. Tool anchor match  → run that tool directly (legacy
+    //      path while we migrate domains into agents)
+    //   3. Top-level LLM picks an agent OR a still-flat tool
+    //
+    // Agents own multi-primitive domains (calendar = create +
+    // edit + delete + query). Tools are single-action units left
+    // over from the pre-agent architecture; they ride alongside
+    // until each domain has its own agent.
     // ════════════════════════════════════════════════════════════
-    final anchor = registry.matchAnchor(normalized);
     CommandTool? selected;
+    CommandAgent? selectedAgent;
     String body = normalized;
-    if (anchor != null) {
-      selected = anchor.tool;
-      body = anchor.body.isEmpty ? normalized : anchor.body;
+
+    final agentAnchor = agentRegistry.matchAnchor(normalized);
+    if (agentAnchor != null && agentAnchor.isAvailable(ctx)) {
+      selectedAgent = agentAnchor;
+      body = _stripFirstWord(normalized);
       if (kDebugMode) {
-        debugPrint('[command-dispatch] stage1=anchor tool=${selected.name}');
+        debugPrint(
+          '[command-dispatch] stage1=anchor agent=${selectedAgent.name}',
+        );
       }
     } else {
-      final tools = registry.forContext(ctx);
-      if (tools.isEmpty) {
-        throw const CommandDispatcherException(
-          'No tools available in this context',
+      final toolAnchor = toolRegistry.matchAnchor(normalized);
+      if (toolAnchor != null) {
+        selected = toolAnchor.tool;
+        body = toolAnchor.body.isEmpty ? normalized : toolAnchor.body;
+        if (kDebugMode) {
+          debugPrint(
+            '[command-dispatch] stage1=anchor tool=${selected.name}',
+          );
+        }
+      } else {
+        // No anchor — run the top-level LLM router across BOTH
+        // agents and remaining tools.
+        final tools = toolRegistry.forContext(ctx);
+        final agents = agentRegistry.forContext(ctx);
+        if (tools.isEmpty && agents.isEmpty) {
+          throw const CommandDispatcherException(
+            'No tools or agents available in this context',
+          );
+        }
+        final picked = await _stage1RouteUnified(
+          body: normalized,
+          tools: tools,
+          agents: agents,
+          ctx: ctx,
+        );
+        if (picked == null) {
+          throw const CommandDispatcherException(
+            "Couldn't tell which tool to use — try rephrasing.",
+          );
+        }
+        if (picked is CommandAgent) {
+          selectedAgent = picked;
+        } else if (picked is CommandTool) {
+          selected = picked;
+        }
+        if (kDebugMode) {
+          debugPrint(
+            '[command-dispatch] stage1=llm '
+            'agent=${selectedAgent?.name ?? '-'} '
+            'tool=${selected?.name ?? '-'}',
+          );
+        }
+      }
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // AGENT PATH — agent picks its primitive, then we run
+    // stage 2 extractor on that primitive with the agent's shared
+    // context block prepended.
+    // ════════════════════════════════════════════════════════════
+    if (selectedAgent != null) {
+      final primitive = await _pickAgentPrimitive(
+        agent: selectedAgent,
+        body: body,
+        ctx: ctx,
+      );
+      if (primitive == null) {
+        throw CommandDispatcherException(
+          "Couldn't decide which ${selectedAgent.name} action to take.",
         );
       }
-      selected = await _stage1Route(normalized, tools, ctx);
-      if (selected == null) {
-        throw const CommandDispatcherException(
-          "Couldn't tell which tool to use — try rephrasing.",
-        );
-      }
-      if (kDebugMode) {
-        debugPrint('[command-dispatch] stage1=llm tool=${selected.name}');
-      }
+      selected = primitive;
+    }
+
+    if (selected == null) {
+      throw const CommandDispatcherException(
+        "Couldn't decide on a tool.",
+      );
     }
 
     // ════════════════════════════════════════════════════════════
@@ -108,6 +173,7 @@ class CommandDispatcher {
     // ════════════════════════════════════════════════════════════
     var args = await _stage2Extract(
       tool: selected,
+      agent: selectedAgent,
       body: body,
       ctx: ctx,
       critique: null,
@@ -122,6 +188,7 @@ class CommandDispatcher {
       }
       args = await _stage2Extract(
         tool: selected,
+        agent: selectedAgent,
         body: body,
         ctx: ctx,
         critique: errors,
@@ -164,34 +231,42 @@ class CommandDispatcher {
     ];
   }
 
-  /// STAGE 1 — pick exactly one tool. The prompt is a flat menu
-  /// of one-line summaries; the LLM emits the tool name via a
-  /// synthetic `pick_tool` function so we get a structured
-  /// answer back. gpt-4o-mini handles this fine and the prompt
-  /// is tiny.
-  Future<CommandTool?> _stage1Route(
-    String body,
-    List<CommandTool> tools,
-    CommandContext ctx,
-  ) async {
+  /// Unified top-level router: pick an agent OR a still-flat tool.
+  /// Both share the menu so the LLM doesn't have to know about the
+  /// internal taxonomy. Returns the picked agent / tool as the
+  /// caller asked.
+  Future<Object?> _stage1RouteUnified({
+    required String body,
+    required List<CommandTool> tools,
+    required List<CommandAgent> agents,
+    required CommandContext ctx,
+  }) async {
     final provider = _ref.read(llmProviderProvider);
-    final pickTool = _PickToolTool(tools);
+    final pickTool = _PickRouteTool(tools: tools, agents: agents);
+    final agentLines =
+        agents.map((a) => '  • ${a.name} (agent) — ${a.description}');
+    final toolLines =
+        tools.map((t) => '  • ${t.name} — ${t.routerSummary}');
     final response = await provider.complete(
       messages: [
         LlmMessage.system('''
-You route teacher inputs to the right BASECamp tool. Read the
+You route teacher inputs to the right BASECamp handler. Read the
 fragment and pick the single best match from the menu below.
-Emit ONLY a `pick_tool` function call with the chosen name.
+Emit ONLY a `pick_route` function call with the chosen name.
 
-Tools:
-${tools.map((t) => '  • ${t.name} — ${t.routerSummary}').join('\n')}
+Agents own a whole domain (CRUD + query within calendars, etc.).
+Tools are single actions. When in doubt and a relevant agent exists,
+prefer the agent.
+
+Menu:
+${[...agentLines, ...toolLines].join('\n')}
 
 Tie-breakers:
   * If the user's fragment continues a recent record (pronouns
-    "he/she/they", connectives "and/then/also"), prefer
-    `append_observation`.
-  * If unsure between create_observation and create_calendar_tile:
-    a date or destination → calendar tile; a child name + behaviour
+    "he/she/they", connectives "and/then/also"), prefer the
+    relevant agent / append tool.
+  * If unsure between observation and calendar:
+    a date or destination → calendar; a child name + behaviour
     → observation.
 '''),
         LlmMessage.user(body),
@@ -200,8 +275,52 @@ Tie-breakers:
       forceToolName: pickTool.name,
     );
     if (response.toolCalls.isEmpty) return null;
+    final pickedName =
+        response.toolCalls.first.args['name']?.toString() ?? '';
+    final agent = _ref.read(commandAgentRegistryProvider).byName(pickedName);
+    if (agent != null) return agent;
+    return _ref.read(commandToolRegistryProvider).byName(pickedName);
+  }
+
+  /// Agent-internal router — given that the top-level picked
+  /// [agent], decide which of the agent's primitives runs. Same
+  /// shape as the top-level router but scoped to one domain.
+  Future<CommandTool?> _pickAgentPrimitive({
+    required CommandAgent agent,
+    required String body,
+    required CommandContext ctx,
+  }) async {
+    final primitives = agent.primitives;
+    if (primitives.length == 1) {
+      // Trivial case — no need to spend an LLM call.
+      return primitives.first;
+    }
+    final provider = _ref.read(llmProviderProvider);
+    final pickTool = _PickToolTool(primitives);
+    final response = await provider.complete(
+      messages: [
+        LlmMessage.system('''
+You are routing within the ${agent.name} agent. The teacher's
+fragment is already known to be in this domain. Pick ONE
+primitive from the list below.
+
+${primitives.map((p) => '  • ${p.name} — ${p.routerSummary}').join('\n')}
+
+Defaults / tie-breakers:
+  * "create" / "add" / "schedule" / "new" → a create primitive.
+  * "edit" / "change" / "move" / "rename" / "update" → edit.
+  * "delete" / "remove" / "cancel" → delete (if available).
+  * Plain pronouns ("it", "that one", "the one I just made")
+    + a change verb → the edit primitive on the recent record.
+'''),
+        LlmMessage.user(body),
+      ],
+      availableTools: [pickTool],
+      forceToolName: pickTool.name,
+    );
+    if (response.toolCalls.isEmpty) return null;
     final picked = response.toolCalls.first.args['tool']?.toString() ?? '';
-    return _ref.read(commandToolRegistryProvider).byName(picked);
+    return agent.primitiveByName(picked);
   }
 
   /// STAGE 2 — extract args for the chosen tool. Focused prompt:
@@ -211,12 +330,13 @@ Tie-breakers:
   /// model to re-route.
   Future<Map<String, dynamic>> _stage2Extract({
     required CommandTool tool,
+    required CommandAgent? agent,
     required String body,
     required CommandContext ctx,
     required List<String>? critique,
   }) async {
     final provider = _ref.read(llmProviderProvider);
-    final systemPrompt = _stage2SystemPrompt(tool, ctx);
+    final systemPrompt = _stage2SystemPrompt(tool, agent, ctx);
     // Prepend the date to the USER MESSAGE so it's in the model's
     // immediate context for the forced tool call. With `tool_choice`
     // forcing a function emit, the model sometimes rushes args
@@ -256,7 +376,11 @@ ${critique.map((e) => '  • $e').join('\n')}
   /// prompt + a tight self-check footer. Tool-specific examples
   /// live in `tool.extractorSystemPrompt(ctx)` so they don't
   /// pollute other tools' prompts.
-  String _stage2SystemPrompt(CommandTool tool, CommandContext ctx) {
+  String _stage2SystemPrompt(
+    CommandTool tool,
+    CommandAgent? agent,
+    CommandContext ctx,
+  ) {
     final now = DateTime.now();
     final today = DateFormat('EEEE, MMMM d, y').format(now);
     final timeNow = DateFormat('h:mm a').format(now);
@@ -286,11 +410,22 @@ ${_rosterBlock('Kids', ctx.childNames)}
 Recent records:
 $recentBlock
 
+${agent?.sharedExtractorContext(ctx) ?? ''}
+
 ${tool.extractorSystemPrompt(ctx)}
 
 NEVER guess an id that isn't in the recent-records list.
 Use empty strings for unknown fields rather than inventing.
 ''';
+  }
+
+  /// Strip the leading anchor word ("trip", "calendar") from
+  /// [input] so the agent's primitives don't have to re-parse it.
+  String _stripFirstWord(String input) {
+    final match = RegExp(r'^([a-zA-Z][a-zA-Z \-]*[a-zA-Z])\s*[,:.]?\s*')
+        .firstMatch(input);
+    if (match == null) return input;
+    return input.substring(match.end).trim();
   }
 
 
@@ -372,6 +507,53 @@ Use empty strings for unknown fields rather than inventing.
 final commandDispatcherProvider = Provider<CommandDispatcher>((ref) {
   return CommandDispatcher(ref);
 });
+
+/// Synthetic tool used by the unified top-level router — emits
+/// either an agent name or a tool name via an enum-restricted
+/// parameter. The dispatcher resolves the name against both
+/// registries.
+class _PickRouteTool extends CommandTool {
+  _PickRouteTool({
+    required List<CommandTool> tools,
+    required List<CommandAgent> agents,
+  })  : _tools = tools,
+        _agents = agents;
+
+  final List<CommandTool> _tools;
+  final List<CommandAgent> _agents;
+
+  @override
+  String get name => 'pick_route';
+
+  @override
+  String get description =>
+      'Pick the single handler (agent or tool) that matches the input.';
+
+  @override
+  Map<String, dynamic> get parametersSchema => <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'name': <String, dynamic>{
+            'type': 'string',
+            'enum': [
+              for (final a in _agents) a.name,
+              for (final t in _tools) t.name,
+            ],
+            'description':
+                'Name of the chosen agent or tool from the menu.',
+          },
+        },
+        'required': ['name'],
+      };
+
+  @override
+  Future<CommandResult> execute(
+    Map<String, dynamic> args,
+    Ref ref,
+  ) async {
+    throw StateError('_PickRouteTool.execute should never be called');
+  }
+}
 
 /// Synthetic tool used only by stage 1 — gives the LLM a single
 /// function to call (`pick_tool`) with an enum-restricted `tool`

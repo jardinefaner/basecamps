@@ -1,5 +1,6 @@
 import 'package:basecamp/app.dart';
 import 'package:basecamp/config/env.dart';
+import 'package:basecamp/features/experiment/command/command_agents_registration.dart';
 import 'package:basecamp/features/experiment/command/command_tools_registration.dart';
 // Conditional import — the stub is a no-op on every native build,
 // the web file calls window.history.replaceState. Without the
@@ -98,10 +99,11 @@ void main() async {
     }
   }
 
-  // Wire the Command Center tool registry. Pure setter call —
-  // swaps the registry's loader to use the built-in list so the
-  // first `ref.read(commandToolRegistryProvider)` resolves.
+  // Wire the Command Center tool + agent registries. Pure setter
+  // calls — swap the registries' loaders to use the built-in
+  // lists so the first read resolves to the real handlers.
   wireCommandToolRegistry();
+  wireCommandAgentRegistryAtStartup();
   runApp(const ProviderScope(child: BasecampApp()));
 }
 
