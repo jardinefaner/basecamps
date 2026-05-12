@@ -102,6 +102,19 @@ class RoleBlocksRepository {
   String? get _programId => _ref.read(activeProgramIdProvider);
   SyncEngine get _sync => _ref.read(syncEngineProvider);
 
+  /// Bump the parent adults row's `updated_at` + markDirty so the
+  /// cascade push actually propagates. Without the markDirty, the
+  /// engine's "cloud has the parent, no dirty fields → skip parent"
+  /// branch leaves cloud's `adults.updated_at` frozen — other
+  /// devices' watermarked pull never re-fetches the adult, so the
+  /// new/edited role blocks never appear there. Identical trap to
+  /// the survey-responses bug.
+  Future<void> _bumpParent(String adultId) async {
+    await (_db.update(_db.adults)..where((a) => a.id.equals(adultId)))
+        .write(AdultsCompanion(updatedAt: Value(DateTime.now().toUtc())));
+    await _db.markDirty('adults', adultId, <String>['updated_at']);
+  }
+
   // ---- Pattern (weekday) blocks --------------------------------
 
   /// Stream every pattern block for [adultId], sorted by weekday
@@ -140,6 +153,7 @@ class RoleBlocksRepository {
             programId: Value(_programId),
           ),
         );
+    await _bumpParent(adultId);
     unawaited(_sync.pushRow(adultsSpec, adultId));
     return id;
   }
@@ -172,6 +186,7 @@ class RoleBlocksRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+    await _bumpParent(row.adultId);
     unawaited(_sync.pushRow(adultsSpec, row.adultId));
   }
 
@@ -182,6 +197,7 @@ class RoleBlocksRepository {
     if (row == null) return;
     await (_db.delete(_db.adultRoleBlocks)..where((b) => b.id.equals(id)))
         .go();
+    await _bumpParent(row.adultId);
     unawaited(_sync.pushRow(adultsSpec, row.adultId));
   }
 
@@ -229,6 +245,7 @@ class RoleBlocksRepository {
             programId: Value(_programId),
           ),
         );
+    await _bumpParent(adultId);
     unawaited(_sync.pushRow(adultsSpec, adultId));
     return id;
   }
@@ -241,6 +258,7 @@ class RoleBlocksRepository {
     await (_db.delete(_db.adultRoleBlockOverrides)
           ..where((o) => o.id.equals(id)))
         .go();
+    await _bumpParent(row.adultId);
     unawaited(_sync.pushRow(adultsSpec, row.adultId));
   }
 

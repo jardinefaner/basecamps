@@ -48,6 +48,12 @@ const childrenSpec = TableSpec(
       table: 'child_schedule_overrides',
       parentColumn: 'child_id',
       dateColumns: {'date', 'created_at', 'updated_at'},
+      // Append-ish from the UI's perspective — "mom texted, running
+      // late today" entries are added per-day, not bulk-replaced.
+      // Non-destructive avoids the race where a pull from another
+      // device wipes an in-flight local insert (same class of bug
+      // that survey_sessions / survey_responses had).
+      nonDestructive: true,
     ),
     CascadeSpec(
       table: 'attendance',
@@ -91,6 +97,11 @@ const adultsSpec = TableSpec(
       table: 'adult_role_block_overrides',
       parentColumn: 'adult_id',
       dateColumns: {'date', 'created_at', 'updated_at'},
+      // Date-specific overrides are append-ish from the UI's
+      // perspective — a "running late on Friday" entry is added,
+      // not bulk-replaced. Non-destructive avoids the race where
+      // a pull from another device wipes an in-flight local insert.
+      nonDestructive: true,
     ),
   ],
 );

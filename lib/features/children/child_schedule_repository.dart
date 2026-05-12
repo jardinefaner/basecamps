@@ -43,9 +43,17 @@ class ChildScheduleRepository {
 
   /// `child_schedule_overrides` is a cascade of `children` —
   /// pushing the parent rebuilds the cascade and the override
-  /// row rides along. Without this nudge every "mom texted,
-  /// running late" entry stayed local-only.
-  void _pushParentChild(String childId) {
+  /// row rides along. Bumping the parent's `updated_at` + marking
+  /// it dirty is required: without that, the engine's "cloud has
+  /// the parent, no dirty fields → skip parent push" branch leaves
+  /// cloud's `children.updated_at` frozen, and other devices'
+  /// watermarked pull never re-fetches the child so the new
+  /// override never appears there. (Same trap as the survey-
+  /// responses bug.)
+  Future<void> _pushParentChild(String childId) async {
+    await (_db.update(_db.children)..where((c) => c.id.equals(childId)))
+        .write(ChildrenCompanion(updatedAt: Value(DateTime.now().toUtc())));
+    await _db.markDirty('children', childId, <String>['updated_at']);
     unawaited(
       _ref.read(syncEngineProvider).pushRow(childrenSpec, childId),
     );
