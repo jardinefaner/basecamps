@@ -259,7 +259,7 @@ Future<void> _confirmDeleteSession({
     builder: (ctx) => AlertDialog(
       title: const Text('Delete this session?'),
       content: const Text(
-        'The kid\'s answers will be removed from the results. '
+        "The kid's answers will be removed from the results. "
         'The survey itself and every other session stay put.',
       ),
       actions: [
@@ -296,7 +296,16 @@ Future<void> _exportCsv(
   WidgetRef ref,
   SurveyConfig survey,
 ) async {
+  // Capture both BEFORE any awaits — the lint
+  // (`use_build_context_synchronously`) flags reading these
+  // after a suspension because the underlying widget could be
+  // gone. ScaffoldMessenger is rooted; capturing it early is
+  // safe even if the launching IconButton unmounts. Share
+  // origin captured here too so the iPad popover anchor
+  // points at the actual tap source — not whatever the
+  // context resolves to several awaits later.
   final messenger = ScaffoldMessenger.of(context);
+  final sharePositionOrigin = shareOriginFromContext(context);
   try {
     // Read straight from the repository instead of waiting on the
     // StreamProvider's `.future` — that future resolves on the
@@ -362,12 +371,8 @@ Future<void> _exportCsv(
     final filePath = p.join(docs.path, filename);
     await File(filePath).writeAsString(csv);
     debugPrint('[csv] wrote $filePath');
-    // iPadOS share sheet is a popover that REQUIRES an anchor
-    // rect — without it share_plus throws PlatformException
-    // ("copy fail" / "presented popover does not have anchor").
-    // Compute from the tap source (the export IconButton in the
-    // AppBar) so the popover arrow points at the button.
-    final sharePositionOrigin = shareOriginFromContext(context);
+    // sharePositionOrigin captured at the top of this function,
+    // before any awaits — iPadOS share sheet requires it.
     try {
       final result = await SharePlus.instance.share(
         ShareParams(

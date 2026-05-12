@@ -5020,7 +5020,7 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
           // exposed (and tappable) before a session exists.
           if (_isKiosk && !_preflightDone && !_showingAllDone)
             Positioned.fill(
-              child: Container(
+              child: ColoredBox(
                 color: theme.colorScheme.surface,
                 child: _survey == null
                     ? const Center(child: CircularProgressIndicator())
@@ -5109,9 +5109,10 @@ class _SurveyScreenState extends ConsumerState<SurveyScreen> {
         ),
       ];
     }
-    // Non-Likert question? Show a placeholder skip card. The kiosk
-    // currently only handles `mood` questions; multi-select +
-    // open-ended ships in slice 3.5.
+    // Non-Likert question? Hand off to the right overlay. Mood
+    // questions stay on the Flame game canvas (marble drop into
+    // jar); multi-select renders the activity grid; open-ended
+    // hands off to the Deepgram realtime STT overlay.
     final q = survey.questions[_questionIndex];
     if (q.type == SurveyQuestionType.multiSelect) {
       return <Widget>[

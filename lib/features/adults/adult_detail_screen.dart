@@ -1,7 +1,7 @@
 import 'package:basecamp/config/env.dart';
 import 'package:basecamp/core/format/date.dart';
-import 'package:basecamp/core/share_origin.dart';
 import 'package:basecamp/core/format/text.dart';
+import 'package:basecamp/core/share_origin.dart';
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/adults/adult_timeline_repository.dart';
 import 'package:basecamp/features/adults/adults_repository.dart';
@@ -22,7 +22,6 @@ import 'package:basecamp/features/schedule/widgets/new_activity_wizard.dart';
 import 'package:basecamp/theme/spacing.dart';
 import 'package:basecamp/ui/app_card.dart';
 import 'package:basecamp/ui/avatar_picker.dart';
-
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

@@ -1,8 +1,9 @@
-// Survey list screen (Slice 1) — the home of the BASECamp Student
-// Survey tool. Shows every survey configured on this device,
-// grouped by site/classroom, with a primary "+ New survey" action.
-// Tapping a survey row opens the placeholder kiosk for now (slice
-// 2 will wire it to actually capture responses).
+// Survey list screen — the home of the BASECamp Student Survey
+// tool. Shows every survey configured on this device for the
+// active program (cloud-synced), with a primary "+ New survey"
+// action. Tapping a card opens the results sheet for that
+// survey; the kiosk is launched from there via "Start kiosk."
+// Long-press / "⋮ → Delete survey" soft-deletes the row.
 
 import 'package:basecamp/features/surveys/survey_models.dart';
 import 'package:basecamp/features/surveys/survey_repository.dart';
@@ -238,8 +239,8 @@ class _SurveyCard extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Delete this survey?'),
         content: Text(
-          "${survey.siteName} · ${survey.classroom} will be hidden from "
-          "the list. Existing kiosk sessions stay in the results sheet "
+          '${survey.siteName} · ${survey.classroom} will be hidden from '
+          'the list. Existing kiosk sessions stay in the results sheet '
           'so historical data is preserved.',
         ),
         actions: [
