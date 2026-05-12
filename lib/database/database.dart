@@ -82,7 +82,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 67;
+  int get schemaVersion => 68;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -158,6 +158,35 @@ class AppDatabase extends _$AppDatabase {
           await _healV55MonthlyPlanTables();
           await _healV56MonthlyActivitiesTable();
           await _healV59SurveyTables();
+          if (from < 68) {
+            // v68: add audit columns to cascade tables whose local
+            // schema was missing them. The cloud schema (0037,
+            // 0005) carries `created_at` (+ `updated_at` on
+            // survey_sessions) on these rows, but the local
+            // tables.dart definitions didn't — so every cascade
+            // pull from cloud threw "no such column: created_at"
+            // on the `INSERT OR REPLACE …` and the engine marked
+            // dozens of rows as "permanently broken." Adding the
+            // columns here restores the upsert path.
+            //
+            // Defaults: epoch-millis-now via SQLite's `strftime`
+            // so the column is non-null on existing rows.
+            // Subsequent upserts overwrite from cloud's value.
+            const nowExpr =
+                "strftime('%s', 'now')"; // unix seconds (UTC)
+            await _runSilent(
+              'ALTER TABLE "survey_sessions" ADD COLUMN '
+              '"created_at" INTEGER NOT NULL DEFAULT ($nowExpr)',
+            );
+            await _runSilent(
+              'ALTER TABLE "survey_sessions" ADD COLUMN '
+              '"updated_at" INTEGER NOT NULL DEFAULT ($nowExpr)',
+            );
+            await _runSilent(
+              'ALTER TABLE "observation_children" ADD COLUMN '
+              '"created_at" INTEGER NOT NULL DEFAULT ($nowExpr)',
+            );
+          }
           if (from < 67) {
             // v67: programs.schools_json — program-level list of
             // partner schools so the kiosk pre-flight gate doesn't

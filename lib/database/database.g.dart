@@ -4992,8 +4992,20 @@ class $ObservationChildrenTable extends ObservationChildren
       'REFERENCES children (id) ON DELETE CASCADE',
     ),
   );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
   @override
-  List<GeneratedColumn> get $columns => [observationId, childId];
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [observationId, childId, createdAt];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -5025,6 +5037,12 @@ class $ObservationChildrenTable extends ObservationChildren
     } else if (isInserting) {
       context.missing(_childIdMeta);
     }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
     return context;
   }
 
@@ -5045,6 +5063,10 @@ class $ObservationChildrenTable extends ObservationChildren
         DriftSqlType.string,
         data['${effectivePrefix}child_id'],
       )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
     );
   }
 
@@ -5058,15 +5080,24 @@ class ObservationChildrenData extends DataClass
     implements Insertable<ObservationChildrenData> {
   final String observationId;
   final String childId;
+
+  /// v68 — audit column the cloud already had. Local schema
+  /// pre-v68 didn't carry it, so cascade pulls from cloud (which
+  /// include `created_at` in the INSERT payload) hit "no such
+  /// column" and threw "Cascade row marked broken". Defaulted to
+  /// now on insert.
+  final DateTime createdAt;
   const ObservationChildrenData({
     required this.observationId,
     required this.childId,
+    required this.createdAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['observation_id'] = Variable<String>(observationId);
     map['child_id'] = Variable<String>(childId);
+    map['created_at'] = Variable<DateTime>(createdAt);
     return map;
   }
 
@@ -5074,6 +5105,7 @@ class ObservationChildrenData extends DataClass
     return ObservationChildrenCompanion(
       observationId: Value(observationId),
       childId: Value(childId),
+      createdAt: Value(createdAt),
     );
   }
 
@@ -5085,6 +5117,7 @@ class ObservationChildrenData extends DataClass
     return ObservationChildrenData(
       observationId: serializer.fromJson<String>(json['observationId']),
       childId: serializer.fromJson<String>(json['childId']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
   @override
@@ -5093,20 +5126,26 @@ class ObservationChildrenData extends DataClass
     return <String, dynamic>{
       'observationId': serializer.toJson<String>(observationId),
       'childId': serializer.toJson<String>(childId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
     };
   }
 
-  ObservationChildrenData copyWith({String? observationId, String? childId}) =>
-      ObservationChildrenData(
-        observationId: observationId ?? this.observationId,
-        childId: childId ?? this.childId,
-      );
+  ObservationChildrenData copyWith({
+    String? observationId,
+    String? childId,
+    DateTime? createdAt,
+  }) => ObservationChildrenData(
+    observationId: observationId ?? this.observationId,
+    childId: childId ?? this.childId,
+    createdAt: createdAt ?? this.createdAt,
+  );
   ObservationChildrenData copyWithCompanion(ObservationChildrenCompanion data) {
     return ObservationChildrenData(
       observationId: data.observationId.present
           ? data.observationId.value
           : this.observationId,
       childId: data.childId.present ? data.childId.value : this.childId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
 
@@ -5114,45 +5153,52 @@ class ObservationChildrenData extends DataClass
   String toString() {
     return (StringBuffer('ObservationChildrenData(')
           ..write('observationId: $observationId, ')
-          ..write('childId: $childId')
+          ..write('childId: $childId, ')
+          ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(observationId, childId);
+  int get hashCode => Object.hash(observationId, childId, createdAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is ObservationChildrenData &&
           other.observationId == this.observationId &&
-          other.childId == this.childId);
+          other.childId == this.childId &&
+          other.createdAt == this.createdAt);
 }
 
 class ObservationChildrenCompanion
     extends UpdateCompanion<ObservationChildrenData> {
   final Value<String> observationId;
   final Value<String> childId;
+  final Value<DateTime> createdAt;
   final Value<int> rowid;
   const ObservationChildrenCompanion({
     this.observationId = const Value.absent(),
     this.childId = const Value.absent(),
+    this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ObservationChildrenCompanion.insert({
     required String observationId,
     required String childId,
+    this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : observationId = Value(observationId),
        childId = Value(childId);
   static Insertable<ObservationChildrenData> custom({
     Expression<String>? observationId,
     Expression<String>? childId,
+    Expression<DateTime>? createdAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (observationId != null) 'observation_id': observationId,
       if (childId != null) 'child_id': childId,
+      if (createdAt != null) 'created_at': createdAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -5160,11 +5206,13 @@ class ObservationChildrenCompanion
   ObservationChildrenCompanion copyWith({
     Value<String>? observationId,
     Value<String>? childId,
+    Value<DateTime>? createdAt,
     Value<int>? rowid,
   }) {
     return ObservationChildrenCompanion(
       observationId: observationId ?? this.observationId,
       childId: childId ?? this.childId,
+      createdAt: createdAt ?? this.createdAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -5178,6 +5226,9 @@ class ObservationChildrenCompanion
     if (childId.present) {
       map['child_id'] = Variable<String>(childId.value);
     }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -5189,6 +5240,7 @@ class ObservationChildrenCompanion
     return (StringBuffer('ObservationChildrenCompanion(')
           ..write('observationId: $observationId, ')
           ..write('childId: $childId, ')
+          ..write('createdAt: $createdAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -24933,6 +24985,30 @@ class $SurveySessionsTable extends SurveySessions
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -24943,6 +25019,8 @@ class $SurveySessionsTable extends SurveySessions
     school,
     programId,
     deletedAt,
+    createdAt,
+    updatedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -25005,6 +25083,18 @@ class $SurveySessionsTable extends SurveySessions
         deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
       );
     }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -25046,6 +25136,14 @@ class $SurveySessionsTable extends SurveySessions
         DriftSqlType.dateTime,
         data['${effectivePrefix}deleted_at'],
       ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
     );
   }
 
@@ -25086,6 +25184,15 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
   /// live in the DB so historical responses keep resolving the
   /// parent survey, but the results sheet filters them out.
   final DateTime? deletedAt;
+
+  /// v68 — audit columns the cloud schema already had (migration
+  /// 0037) but local was missing. Without them, the cascade pull's
+  /// INSERT OR REPLACE payload (which sends every cloud column,
+  /// including `created_at` and `updated_at`) threw "no such
+  /// column" on every survey-session arrival and the engine
+  /// marked the rows as permanently-broken.
+  final DateTime createdAt;
+  final DateTime updatedAt;
   const SurveySession({
     required this.id,
     required this.surveyId,
@@ -25095,6 +25202,8 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
     this.school,
     this.programId,
     this.deletedAt,
+    required this.createdAt,
+    required this.updatedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -25115,6 +25224,8 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
     if (!nullToAbsent || deletedAt != null) {
       map['deleted_at'] = Variable<DateTime>(deletedAt);
     }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
 
@@ -25136,6 +25247,8 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
       deletedAt: deletedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(deletedAt),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
     );
   }
 
@@ -25153,6 +25266,8 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
       school: serializer.fromJson<String?>(json['school']),
       programId: serializer.fromJson<String?>(json['programId']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
   @override
@@ -25167,6 +25282,8 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
       'school': serializer.toJson<String?>(school),
       'programId': serializer.toJson<String?>(programId),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
 
@@ -25179,6 +25296,8 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
     Value<String?> school = const Value.absent(),
     Value<String?> programId = const Value.absent(),
     Value<DateTime?> deletedAt = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
   }) => SurveySession(
     id: id ?? this.id,
     surveyId: surveyId ?? this.surveyId,
@@ -25188,6 +25307,8 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
     school: school.present ? school.value : this.school,
     programId: programId.present ? programId.value : this.programId,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
   );
   SurveySession copyWithCompanion(SurveySessionsCompanion data) {
     return SurveySession(
@@ -25201,6 +25322,8 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
       school: data.school.present ? data.school.value : this.school,
       programId: data.programId.present ? data.programId.value : this.programId,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
 
@@ -25214,7 +25337,9 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
           ..write('childCount: $childCount, ')
           ..write('school: $school, ')
           ..write('programId: $programId, ')
-          ..write('deletedAt: $deletedAt')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
   }
@@ -25229,6 +25354,8 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
     school,
     programId,
     deletedAt,
+    createdAt,
+    updatedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -25241,7 +25368,9 @@ class SurveySession extends DataClass implements Insertable<SurveySession> {
           other.childCount == this.childCount &&
           other.school == this.school &&
           other.programId == this.programId &&
-          other.deletedAt == this.deletedAt);
+          other.deletedAt == this.deletedAt &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
 }
 
 class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
@@ -25253,6 +25382,8 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
   final Value<String?> school;
   final Value<String?> programId;
   final Value<DateTime?> deletedAt;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
   final Value<int> rowid;
   const SurveySessionsCompanion({
     this.id = const Value.absent(),
@@ -25263,6 +25394,8 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     this.school = const Value.absent(),
     this.programId = const Value.absent(),
     this.deletedAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SurveySessionsCompanion.insert({
@@ -25274,6 +25407,8 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     this.school = const Value.absent(),
     this.programId = const Value.absent(),
     this.deletedAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        surveyId = Value(surveyId);
@@ -25286,6 +25421,8 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     Expression<String>? school,
     Expression<String>? programId,
     Expression<DateTime>? deletedAt,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -25297,6 +25434,8 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
       if (school != null) 'school': school,
       if (programId != null) 'program_id': programId,
       if (deletedAt != null) 'deleted_at': deletedAt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -25310,6 +25449,8 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     Value<String?>? school,
     Value<String?>? programId,
     Value<DateTime?>? deletedAt,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
     Value<int>? rowid,
   }) {
     return SurveySessionsCompanion(
@@ -25321,6 +25462,8 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
       school: school ?? this.school,
       programId: programId ?? this.programId,
       deletedAt: deletedAt ?? this.deletedAt,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -25352,6 +25495,12 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
     if (deletedAt.present) {
       map['deleted_at'] = Variable<DateTime>(deletedAt.value);
     }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -25369,6 +25518,8 @@ class SurveySessionsCompanion extends UpdateCompanion<SurveySession> {
           ..write('school: $school, ')
           ..write('programId: $programId, ')
           ..write('deletedAt: $deletedAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -35822,12 +35973,14 @@ typedef $$ObservationChildrenTableCreateCompanionBuilder =
     ObservationChildrenCompanion Function({
       required String observationId,
       required String childId,
+      Value<DateTime> createdAt,
       Value<int> rowid,
     });
 typedef $$ObservationChildrenTableUpdateCompanionBuilder =
     ObservationChildrenCompanion Function({
       Value<String> observationId,
       Value<String> childId,
+      Value<DateTime> createdAt,
       Value<int> rowid,
     });
 
@@ -35895,6 +36048,11 @@ class $$ObservationChildrenTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$ObservationsTableFilterComposer get observationId {
     final $$ObservationsTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -35951,6 +36109,11 @@ class $$ObservationChildrenTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ObservationsTableOrderingComposer get observationId {
     final $$ObservationsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -36007,6 +36170,9 @@ class $$ObservationChildrenTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
   $$ObservationsTableAnnotationComposer get observationId {
     final $$ObservationsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -36092,20 +36258,24 @@ class $$ObservationChildrenTableTableManager
               ({
                 Value<String> observationId = const Value.absent(),
                 Value<String> childId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ObservationChildrenCompanion(
                 observationId: observationId,
                 childId: childId,
+                createdAt: createdAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
               ({
                 required String observationId,
                 required String childId,
+                Value<DateTime> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ObservationChildrenCompanion.insert(
                 observationId: observationId,
                 childId: childId,
+                createdAt: createdAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -52638,6 +52808,8 @@ typedef $$SurveySessionsTableCreateCompanionBuilder =
       Value<String?> school,
       Value<String?> programId,
       Value<DateTime?> deletedAt,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
       Value<int> rowid,
     });
 typedef $$SurveySessionsTableUpdateCompanionBuilder =
@@ -52650,6 +52822,8 @@ typedef $$SurveySessionsTableUpdateCompanionBuilder =
       Value<String?> school,
       Value<String?> programId,
       Value<DateTime?> deletedAt,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
       Value<int> rowid,
     });
 
@@ -52699,6 +52873,16 @@ class $$SurveySessionsTableFilterComposer
 
   ColumnFilters<DateTime> get deletedAt => $composableBuilder(
     column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -52751,6 +52935,16 @@ class $$SurveySessionsTableOrderingComposer
     column: $table.deletedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SurveySessionsTableAnnotationComposer
@@ -52787,6 +52981,12 @@ class $$SurveySessionsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get deletedAt =>
       $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
 
 class $$SurveySessionsTableTableManager
@@ -52830,6 +53030,8 @@ class $$SurveySessionsTableTableManager
                 Value<String?> school = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SurveySessionsCompanion(
                 id: id,
@@ -52840,6 +53042,8 @@ class $$SurveySessionsTableTableManager
                 school: school,
                 programId: programId,
                 deletedAt: deletedAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -52852,6 +53056,8 @@ class $$SurveySessionsTableTableManager
                 Value<String?> school = const Value.absent(),
                 Value<String?> programId = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SurveySessionsCompanion.insert(
                 id: id,
@@ -52862,6 +53068,8 @@ class $$SurveySessionsTableTableManager
                 school: school,
                 programId: programId,
                 deletedAt: deletedAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

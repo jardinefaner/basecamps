@@ -288,6 +288,14 @@ class ObservationChildren extends Table {
   TextColumn get childId =>
       text().references(Children, #id, onDelete: KeyAction.cascade)();
 
+  /// v68 — audit column the cloud already had. Local schema
+  /// pre-v68 didn't carry it, so cascade pulls from cloud (which
+  /// include `created_at` in the INSERT payload) hit "no such
+  /// column" and threw "Cascade row marked broken". Defaulted to
+  /// now on insert.
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
   @override
   Set<Column<Object>> get primaryKey => {observationId, childId};
 }
@@ -1835,6 +1843,17 @@ class SurveySessions extends Table {
   /// live in the DB so historical responses keep resolving the
   /// parent survey, but the results sheet filters them out.
   DateTimeColumn get deletedAt => dateTime().nullable()();
+
+  /// v68 — audit columns the cloud schema already had (migration
+  /// 0037) but local was missing. Without them, the cascade pull's
+  /// INSERT OR REPLACE payload (which sends every cloud column,
+  /// including `created_at` and `updated_at`) threw "no such
+  /// column" on every survey-session arrival and the engine
+  /// marked the rows as permanently-broken.
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
