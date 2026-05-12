@@ -56,15 +56,28 @@ class SurveyRepository {
   /// through here — without it, local writes never reach cloud
   /// and other devices see nothing.
   ///
-  /// Also bumps the parent survey's `updated_at` so the cascade
-  /// fingerprint changes and the engine actually pushes the new
-  /// session/response rows (cascade push short-circuits when the
-  /// parent's fingerprint hasn't moved).
+  /// Bumps the parent survey's `updated_at` AND marks it dirty.
+  /// Both are required for cross-device propagation:
+  ///   - bumping `updated_at` alone changes the local row but
+  ///     the engine's "no dirty fields → cloud already has it →
+  ///     skip parent push" path means the new `updated_at` never
+  ///     reaches cloud. Cascades push (good), but the parent's
+  ///     cloud-side `updated_at` stays stale → other devices'
+  ///     pulls (filtered by `updated_at > watermark` on the
+  ///     parent) never see this survey as updated → cascade
+  ///     replacement on those devices never runs → new
+  ///     sessions / responses NEVER reach them.
+  ///   - markDirty(['updated_at']) puts the parent in the
+  ///     partial-UPDATE path so the new timestamp travels to
+  ///     cloud. Cloud's parent `updated_at` bumps → other
+  ///     devices pull → cascade upsert lands the new
+  ///     sessions / responses.
   Future<void> _pushSurvey(String surveyId) async {
     try {
       await (_db.update(_db.surveys)
             ..where((s) => s.id.equals(surveyId)))
           .write(SurveysCompanion(updatedAt: Value(DateTime.now().toUtc())));
+      await _db.markDirty('surveys', surveyId, <String>['updated_at']);
       unawaited(_ref.read(syncEngineProvider).pushRow(surveysSpec, surveyId));
     } on Object catch (e, st) {
       debugPrint('[survey-repo] push trigger failed for $surveyId: $e\n$st');
