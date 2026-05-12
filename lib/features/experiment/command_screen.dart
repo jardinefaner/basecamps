@@ -30,6 +30,8 @@
 import 'dart:async';
 
 import 'package:basecamp/features/ai/openai_client.dart';
+import 'package:basecamp/features/children/children_repository.dart'
+    show childrenProvider, groupsProvider;
 import 'package:basecamp/features/experiment/command/command_tool.dart';
 import 'package:basecamp/features/experiment/command/dispatcher/command_dispatcher.dart';
 import 'package:basecamp/features/observations/voice_service.dart';
@@ -103,10 +105,22 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
       _loading = true;
       _error = null;
     });
+    // Inject the live roster so the LLM resolves "for sunflowers
+    // and acorns" / "phillip helped maya" against REAL names —
+    // not invented placeholders. Without this the tool's lookup
+    // misses every time the user typed a real kid's or group's
+    // name that doesn't happen to match the LLM's guess.
+    final groups = ref.read(groupsProvider).asData?.value ?? const [];
+    final children = ref.read(childrenProvider).asData?.value ?? const [];
+    final firstNames = <String>{
+      for (final c in children) c.firstName.trim(),
+    }..removeWhere((s) => s.isEmpty);
     final ctx = CommandContext(
       route: '/command',
       activeProgramId: ref.read(activeProgramIdProvider),
       recentRecords: _recentRecords,
+      groupNames: [for (final g in groups) g.name],
+      childNames: firstNames.toList(),
     );
     try {
       final dispatcher = ref.read(commandDispatcherProvider);

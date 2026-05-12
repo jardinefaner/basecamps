@@ -59,14 +59,34 @@ If silent on date, default to tomorrow.
 TIMES: "HH:MM" 24-hour. "8 to 3" → 08:00 / 15:00 (school hours,
 PM bias). "9 to 11" stays AM (school morning).
 
-GROUPS:
-  * "for sunflowers" / "with acorns" → ["Sunflowers"] / ["Acorns"]
-  * "for sunflowers and acorns" → ["Sunflowers", "Acorns"]
-  * "all groups" / "everyone" / "all classes" → ENTIRE roster.
-  * "only X and Y" / "just X and Y" → exact subset, not active.
-  * No group named → empty array (screen falls back to active).
-Match leniently against the program's roster (case-insensitive,
-plural-tolerant), return EXACT spelling from the roster.
+GROUPS — RETURN EVERY GROUP THE USER NAMED, NOT JUST THE FIRST:
+The `group_names` field is an ARRAY. The kiosk fans out one tile
+per group in this array. If you return only the first group when
+the user named several, the trip will only appear on that one
+group's calendar and the other groups will silently miss it.
+
+Example transformations (verbatim from teacher prompts):
+  • "trip aquarium tuesday for sunflowers and acorns"
+      → group_names: ["Sunflowers", "Acorns"]
+  • "field trip park for sunflowers, acorns, and pandas"
+      → group_names: ["Sunflowers", "Acorns", "Pandas"]
+  • "pizza party friday for everyone" / "all groups"
+      → group_names: <every group on the roster, in order>
+  • "ocean day for sunflowers"
+      → group_names: ["Sunflowers"]
+  • "trip park" (no group mentioned)
+      → group_names: [] (screen falls back to current filter)
+
+How to read the user's phrase:
+  • Split on "and", "&", commas — every named group goes in.
+  • "everyone" / "all groups" / "all classes" / "the whole
+    program" → emit every group on the roster (not an empty
+    array — that means "no group mentioned").
+  • "only X and Y" / "just X and Y" → emit X and Y exactly,
+    no others.
+  • Match leniently against the program's roster (case-
+    insensitive, plural-tolerant). Return the EXACT spelling
+    from the roster.
 
 NEVER invent a destination if the user didn't mention one.
 NEVER invent times if the user didn't mention any.

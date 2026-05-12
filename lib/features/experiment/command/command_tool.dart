@@ -33,6 +33,8 @@ class CommandContext {
     this.activeProgramId,
     this.selectedRecordId,
     this.recentRecords = const <RecentCommandRecord>[],
+    this.groupNames = const <String>[],
+    this.childNames = const <String>[],
   });
 
   /// Route the bar fired from. `/command` from the Lab,
@@ -47,6 +49,17 @@ class CommandContext {
   /// and append-to-last routing. Capped to a small window by
   /// the screen so the prompt stays small.
   final List<RecentCommandRecord> recentRecords;
+
+  /// Live program roster — group names (exact case) — injected so
+  /// the LLM can resolve "for sunflowers and acorns" against
+  /// REAL roster entries, not invented strings. Without this
+  /// the LLM has to guess names and the tool's lookup misses.
+  final List<String> groupNames;
+
+  /// Live program roster — child first names (deduped) — same
+  /// purpose for observation / late-pickup tools that need to
+  /// resolve "phillip" or "maya".
+  final List<String> childNames;
 }
 
 /// One row in the recent-records window. The dispatcher renders

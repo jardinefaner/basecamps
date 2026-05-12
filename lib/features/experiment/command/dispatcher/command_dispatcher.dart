@@ -168,6 +168,13 @@ class CommandDispatcher {
                 '${_summaryWindow(r.summary)} '
                 '— ${_relativeTime(r.createdAt, now)}')
             .join('\n');
+    // Pre-compute the next 14 days as an explicit lookup table.
+    // Without this, gpt-4o-mini routinely picks the wrong day
+    // when the user says "Wednesday" — it has to do weekday→date
+    // math against the single Today line and gets it wrong on
+    // even simple phrasings. Reading off a table eliminates that
+    // class of bug.
+    final dayLookup = _buildDayLookup(now);
     return '''
 You are the BASECamp Command Center. The user is a teacher in
 an early-childhood program. They type or speak short fragments;
@@ -182,6 +189,29 @@ Context:
   Active program: ${ctx.activeProgramId ?? '(none)'}
   Current screen: $routeLine
   Selected record: ${ctx.selectedRecordId ?? '(none)'}
+
+Program roster — groups (return EXACT spellings from this list
+when filling group_names; do not invent names):
+${_rosterBlock('Groups', ctx.groupNames)}
+
+Program roster — kids (first names, deduped — return EXACT
+spellings when filling child_name fields):
+${_rosterBlock('Kids', ctx.childNames)}
+
+Calendar lookup (use these EXACT dates — do not compute):
+$dayLookup
+
+Rules for date phrases:
+  * "today" → today's date (the row marked TODAY above)
+  * "tomorrow" → today's date + 1 from the table
+  * "<weekday>" with NO modifier → the NEXT occurrence of that
+    weekday. If today is the named weekday, use today.
+  * "next <weekday>" → the occurrence in NEXT WEEK, never the
+    one in this week. So if today is Tuesday and user says
+    "next Wednesday," that's the Wednesday in next week's row.
+  * "this <weekday>" → the occurrence in THIS WEEK (same row as
+    today). If that day has already passed this week, fall
+    back to the upcoming one anyway.
 
 Recent records the teacher just created (most recent first):
 $recentBlock
@@ -200,6 +230,36 @@ in doubt, prefer the most reversible action.
 NEVER guess an id that isn't in the recent-records list. Use
 empty strings for unknown fields rather than inventing.
 ''';
+  }
+
+  /// Renders the roster as a single-line bullet list. Returns
+  /// `(none)` when the list is empty so the LLM doesn't try to
+  /// invent names — it'll fall back to whatever the user typed
+  /// verbatim, which the tool's lookup can still handle.
+  String _rosterBlock(String label, List<String> names) {
+    if (names.isEmpty) return '  (none — $label list not loaded)';
+    return names.map((n) => '  • $n').join('\n');
+  }
+
+  /// Render the next 14 days as a weekday-ordered lookup so the
+  /// LLM can pick "Wednesday" → exact ISO date without doing
+  /// any date math. Marks today and tomorrow so relative phrases
+  /// resolve unambiguously.
+  String _buildDayLookup(DateTime now) {
+    final today = DateTime(now.year, now.month, now.day);
+    final iso = DateFormat('yyyy-MM-dd');
+    final pretty = DateFormat('EEE MMM d');
+    final lines = <String>[];
+    for (var i = 0; i < 14; i++) {
+      final d = today.add(Duration(days: i));
+      final tag = i == 0
+          ? ' (TODAY)'
+          : i == 1
+              ? ' (tomorrow)'
+              : '';
+      lines.add('  • ${pretty.format(d)} = ${iso.format(d)}$tag');
+    }
+    return lines.join('\n');
   }
 
   String _summaryWindow(String s) =>
