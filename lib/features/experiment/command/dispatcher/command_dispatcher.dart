@@ -217,7 +217,16 @@ Tie-breakers:
   }) async {
     final provider = _ref.read(llmProviderProvider);
     final systemPrompt = _stage2SystemPrompt(tool, ctx);
-    final userMessage = critique == null
+    // Prepend the date to the USER MESSAGE so it's in the model's
+    // immediate context for the forced tool call. With `tool_choice`
+    // forcing a function emit, the model sometimes rushes args
+    // without re-reading the system prompt — keeping the date right
+    // next to the input it's parsing makes weekday-to-date resolution
+    // a copy-paste away.
+    final now = DateTime.now();
+    final todayLine =
+        'Today is ${DateFormat('EEEE, MMMM d, y').format(now)}.';
+    final base = critique == null
         ? body
         : '''
 $body
@@ -225,6 +234,7 @@ $body
 Your previous attempt had these problems — fix them and re-emit:
 ${critique.map((e) => '  • $e').join('\n')}
 ''';
+    final userMessage = '$todayLine\n\n$base';
     final response = await provider.complete(
       messages: [
         LlmMessage.system(systemPrompt),

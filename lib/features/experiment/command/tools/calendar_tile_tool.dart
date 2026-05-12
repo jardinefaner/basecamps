@@ -105,6 +105,24 @@ is to fill the slots accurately.
 
 $description
 
+Date resolution rules (use these verbatim, do not compute):
+  * "today" → today's row from the calendar lookup above
+  * "tomorrow" → today's row + 1
+  * "<weekday>" with NO modifier → the NEXT occurrence of that
+    weekday. If today IS that weekday, use today.
+  * "this <weekday>" → the occurrence in THIS calendar week.
+    If that day already passed, fall back to next week's row.
+  * "next <weekday>" → the occurrence in NEXT calendar week
+    (strictly after this week's). NEVER today's row.
+
+Group extraction rules:
+  * Split the user's phrase on "and", "&", commas.
+  * Every named group → an entry in `group_names`.
+  * "everyone" / "all groups" / "the whole program" → expand
+    to every group from the roster, in roster order.
+  * If you see two groups joined by "and" and emit only one,
+    your output is wrong.
+
 Worked examples specific to this tool:
 
 USER: "trip aquarium tuesday for sunflowers and acorns 8 to 3"
@@ -321,16 +339,26 @@ Self-check before emitting:
             .toList() ??
         const <String>[];
 
-    // Resolve group names against the roster; fall back to the
-    // first group if nothing matched (same shape /calendar uses).
+    // Resolve group names against the roster. Plural-tolerant
+    // because the LLM (and humans) flip between "Sunflower" and
+    // "Sunflowers" freely — strict equality dropped half the
+    // matches and produced the "only one group got a tile" bug
+    // by falling through to the `first-group` fallback.
     final groups = ref.read(groupsProvider).asData?.value ?? const <Group>[];
     final resolvedIds = <String>[];
     final seen = <String>{};
+    String norm(String s) {
+      final lower = s.trim().toLowerCase();
+      return lower.endsWith('s')
+          ? lower.substring(0, lower.length - 1)
+          : lower;
+    }
+
     for (final name in groupNamesRaw) {
-      final needle = name.trim().toLowerCase();
+      final needle = norm(name);
       if (needle.isEmpty) continue;
       final match = groups
-          .where((g) => g.name.trim().toLowerCase() == needle)
+          .where((g) => norm(g.name) == needle)
           .toList();
       if (match.isEmpty) continue;
       if (seen.add(match.first.id)) resolvedIds.add(match.first.id);
