@@ -98,14 +98,24 @@ class CommandDispatcher {
     required CommandContext ctx,
   }) async {
     final provider = _ref.read(llmProviderProvider);
+    final normalizedBody = _normalizeUserInput(body);
     final response = await provider.complete(
       messages: [
         LlmMessage.system(_systemPrompt(ctx)),
-        LlmMessage.user(body),
+        LlmMessage.user(normalizedBody),
       ],
       availableTools: tools,
       forceToolName: forceToolName,
     );
+    if (kDebugMode) {
+      // Surface the raw input → tool call mapping so we can build
+      // a regression eval as users hit weird phrasings. Cheap log
+      // line; production builds skip via kDebugMode.
+      debugPrint(
+        '[command-dispatch] in="$body" norm="$normalizedBody" '
+        'tool_calls=${response.toolCalls.map((c) => '${c.toolName}(${c.args})').join('; ')}',
+      );
+    }
 
     if (response.toolCalls.isEmpty) {
       throw const CommandDispatcherException(
@@ -229,7 +239,114 @@ in doubt, prefer the most reversible action.
 
 NEVER guess an id that isn't in the recent-records list. Use
 empty strings for unknown fields rather than inventing.
+
+Worked examples — copy the SHAPE of these outputs:
+
+USER: "trip aquarium tuesday for sunflowers and acorns 8 to 3"
+TOOL: create_calendar_tile
+ARGS: {
+  "tile_type": "trip",
+  "date": "<Tuesday from the lookup>",
+  "title": "Aquarium",
+  "destination": "Aquarium",
+  "start_time": "08:00",
+  "end_time": "15:00",
+  "group_names": ["Sunflowers", "Acorns"]
+}
+
+USER: "pizza party friday 11:30 for everyone"
+TOOL: create_calendar_tile
+ARGS: {
+  "tile_type": "event",
+  "date": "<Friday from the lookup>",
+  "title": "Pizza Party",
+  "start_time": "11:30",
+  "group_names": <every group from the roster, in order>
+}
+
+USER: "ocean day thursday"
+TOOL: create_calendar_tile
+ARGS: {
+  "tile_type": "dayPlan",
+  "date": "<Thursday from the lookup>",
+  "title": "Ocean",
+  "theme": "Ocean day",
+  "group_names": []
+}
+
+USER: "note, phillip helped maya with the puzzle today"
+TOOL: create_observation
+ARGS: {
+  "note": "Phillip helped Maya with the puzzle today.",
+  "domain": "SSD3",
+  "sentiment": "positive",
+  "child_ids": ["<phillip id from roster>", "<maya id from roster>"]
+}
+
+USER: "and they were laughing through circle"  (after a recent
+observation about Phillip)
+TOOL: append_observation
+ARGS: {
+  "observation_id": "<id from recent-records>",
+  "append_note": "They were laughing through circle."
+}
+
+USER: "phillip late 5:45 gave reminder card"
+TOOL: create_late_pickup
+ARGS: {
+  "child_name": "Phillip",
+  "child_id": "<phillip id from roster>",
+  "pickup_time": "17:45",
+  "reminder_card_given": true
+}
+
+Before returning your tool call, run this self-check:
+  1. Date — did you USE THE EXACT ISO STRING from the calendar
+     lookup above? Don't compute. Look up.
+  2. Groups — does `group_names` include EVERY group the user
+     named? Split on "and", "&", commas. "everyone" expands to
+     the full roster.
+  3. Kids — does every named child appear in `child_ids` or
+     `child_name`, spelled from the roster (not invented)?
+  4. Times — only present if the user said a time. Don't invent.
+  5. Title — bare subject only, no type prefix, no date, no
+     group names.
+
+If any of those is wrong, fix it before emitting.
 ''';
+  }
+
+  /// Light pre-processing of the user's input to fix obvious
+  /// variants the LLM otherwise has to guess at. Cheap, runs
+  /// before every prompt. Each transform is reversible-ish so a
+  /// bad rewrite at worst forces a retry, not a wrong action.
+  String _normalizeUserInput(String raw) {
+    var s = raw.trim();
+    // Weekday abbreviations that LLMs sometimes mis-resolve.
+    const weekdayAbbrev = {
+      r'\bmon\b': 'Monday',
+      r'\btue\b': 'Tuesday',
+      r'\btues\b': 'Tuesday',
+      r'\bwed\b': 'Wednesday',
+      r'\bweds\b': 'Wednesday',
+      r'\bthu\b': 'Thursday',
+      r'\bthur\b': 'Thursday',
+      r'\bthurs\b': 'Thursday',
+      r'\bfri\b': 'Friday',
+      r'\bsat\b': 'Saturday',
+      r'\bsun\b': 'Sunday',
+    };
+    for (final entry in weekdayAbbrev.entries) {
+      s = s.replaceAllMapped(
+        RegExp(entry.key, caseSensitive: false),
+        (_) => entry.value,
+      );
+    }
+    // List-separator normalisation so the LLM has consistent
+    // signals for "split into multiple groups."
+    s = s.replaceAll('&', ' and ');
+    s = s.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return s;
   }
 
   /// Renders the roster as a single-line bullet list. Returns
