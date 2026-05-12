@@ -32,6 +32,7 @@
 
 import 'package:basecamp/features/experiment/command/command_agent.dart';
 import 'package:basecamp/features/experiment/command/command_tool.dart';
+import 'package:basecamp/features/experiment/command/date_resolver.dart';
 import 'package:basecamp/features/experiment/command/llm/llm_provider.dart';
 import 'package:basecamp/features/experiment/command/llm/openai_provider.dart';
 import 'package:flutter/foundation.dart';
@@ -337,15 +338,23 @@ Defaults / tie-breakers:
   }) async {
     final provider = _ref.read(llmProviderProvider);
     final systemPrompt = _stage2SystemPrompt(tool, agent, ctx);
-    // Prepend the date to the USER MESSAGE so it's in the model's
-    // immediate context for the forced tool call. With `tool_choice`
-    // forcing a function emit, the model sometimes rushes args
-    // without re-reading the system prompt — keeping the date right
-    // next to the input it's parsing makes weekday-to-date resolution
-    // a copy-paste away.
+    // Prepend today's date AND any pre-resolved date phrases to
+    // the USER MESSAGE. We stopped relying on the LLM to do
+    // weekday→ISO date math at all — it kept getting it wrong
+    // no matter how we prompted. Dart-side `DateResolver` parses
+    // every common date phrase in the input ("wednesday",
+    // "tomorrow", "next monday", "may 15", "in 3 days") and
+    // resolves to ISO; the model just copies the matching ISO
+    // string instead of computing.
     final now = DateTime.now();
     final todayLine =
         'Today is ${DateFormat('EEEE, MMMM d, y').format(now)}.';
+    final resolved = kDateResolver.resolve(body, now);
+    final resolvedBlock = resolved.isEmpty
+        ? ''
+        : 'Resolved dates from your input — use these EXACT ISO '
+            'strings:\n${resolved.map((r) => '  • "${r.phrase}" '
+                '= ${r.iso} (${r.weekday})').join('\n')}\n\n';
     final base = critique == null
         ? body
         : '''
@@ -354,7 +363,7 @@ $body
 Your previous attempt had these problems — fix them and re-emit:
 ${critique.map((e) => '  • $e').join('\n')}
 ''';
-    final userMessage = '$todayLine\n\n$base';
+    final userMessage = '$todayLine\n\n$resolvedBlock$base';
     final response = await provider.complete(
       messages: [
         LlmMessage.system(systemPrompt),

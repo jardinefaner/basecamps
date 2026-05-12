@@ -6,6 +6,7 @@ import 'package:basecamp/features/children/children_repository.dart'
     show groupsProvider;
 import 'package:basecamp/features/experiment/calendar_tile_store.dart';
 import 'package:basecamp/features/experiment/command/command_tool.dart';
+import 'package:basecamp/features/experiment/command/date_resolver.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -198,19 +199,39 @@ Self-check before emitting:
       );
     }
 
-    // Weekday validation: if the user said a weekday, the emitted
-    // date should match the lookup for that weekday. Catches the
-    // "said Wednesday, picked Tuesday" bug class.
-    final mentionedWeekday = _mentionedWeekday(lower);
-    final emittedDate = args['date']?.toString() ?? '';
-    if (mentionedWeekday != null && emittedDate.isNotEmpty) {
-      final emittedWeekday = _weekdayOfIsoDate(emittedDate);
-      if (emittedWeekday != null && emittedWeekday != mentionedWeekday) {
-        errors.add(
-          'You returned date=$emittedDate, which is a $emittedWeekday. '
-          'The user said $mentionedWeekday. Pick the matching $mentionedWeekday '
-          'date from the calendar lookup.',
-        );
+    // Date validation — AUTO-PATCH using the Dart-side resolver
+    // when we can. This is the "stop asking the LLM to do date
+    // math" move: if the user said "Wednesday" and the resolver
+    // says that's 2026-05-14, we don't care what the LLM emitted —
+    // we replace `args['date']` with the resolved value and move
+    // on. The model is just a slot-filler for everything else.
+    final resolved = kDateResolver.resolve(userInput, DateTime.now());
+    if (resolved.isNotEmpty) {
+      // First resolved date wins (most teacher inputs only
+      // contain one). Future: pick the resolved phrase the user
+      // emphasised most.
+      final target = resolved.first.iso;
+      final emittedDate = args['date']?.toString() ?? '';
+      if (emittedDate != target) {
+        args['date'] = target;
+        // No error — we just fixed it. The dispatcher proceeds
+        // straight to execute with the patched args. No retry,
+        // no extra LLM call.
+      }
+    } else {
+      // Fallback: if the resolver didn't find a phrase but the
+      // input mentions a weekday word, still demand consistency
+      // (catches edge phrasings the resolver doesn't yet handle).
+      final mentionedWeekday = _mentionedWeekday(lower);
+      final emittedDate = args['date']?.toString() ?? '';
+      if (mentionedWeekday != null && emittedDate.isNotEmpty) {
+        final emittedWeekday = _weekdayOfIsoDate(emittedDate);
+        if (emittedWeekday != null && emittedWeekday != mentionedWeekday) {
+          errors.add(
+            'You returned date=$emittedDate, which is a $emittedWeekday. '
+            'The user said $mentionedWeekday.',
+          );
+        }
       }
     }
     return errors;
