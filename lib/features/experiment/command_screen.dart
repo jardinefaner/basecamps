@@ -30,11 +30,13 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:basecamp/features/ai/openai_client.dart';
 import 'package:basecamp/features/children/children_repository.dart'
     show childrenProvider, groupsProvider;
 import 'package:basecamp/features/experiment/command/command_feed.dart';
 import 'package:basecamp/features/experiment/command/command_tool.dart';
+import 'package:basecamp/features/experiment/command/composer/composer_kind.dart';
+import 'package:basecamp/features/experiment/command/composer/domain_picker_strip.dart';
+import 'package:basecamp/features/experiment/command/composer/quick_observation_card.dart';
 import 'package:basecamp/features/experiment/command/dispatcher/command_dispatcher.dart';
 import 'package:basecamp/features/observations/voice_service.dart';
 import 'package:basecamp/features/programs/programs_repository.dart'
@@ -57,6 +59,27 @@ class CommandScreen extends ConsumerStatefulWidget {
 }
 
 class _CommandScreenState extends ConsumerState<CommandScreen> {
+  // ——— Spotlight composer state ——————————————————————————————
+  //
+  // The bar at the bottom is the entry point. As the teacher types,
+  // we filter `ComposerKind.values` and surface a domain picker
+  // strip above the bar. Picking "Observation" opens a structured
+  // composer card (see `QuickObservationCard`) — typing and voice
+  // still flow into the same controller, so the card stays the
+  // canonical input target while it's open. Other domains fall
+  // back to the existing LLM dispatch.
+  String _searchQuery = '';
+  ComposerKind? _activeComposer;
+  String _composerSeed = '';
+  // Captured once from `_CommandBar` via `onControllerReady` so the
+  // screen can clear / seed the field imperatively when the
+  // composer opens. Survives rebuilds because the controller lives
+  // on `_CommandBarState`. INVARIANT: `_CommandBar` must stay
+  // mounted across the screen's lifetime — if we ever conditionally
+  // remove it from the tree, swap this for a `GlobalKey
+  // <_CommandBarState>` so the re-mount fires a fresh handshake.
+  TextEditingController? _barController;
+
   // Global error banner removed — every dispatch failure lives
   // on its own feed card now, with retry + dismiss actions right
   // there. The teacher sees what failed AND what they originally
@@ -93,6 +116,16 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
   void _onSubmit(String input) {
     final trimmed = input.trim();
     if (trimmed.isEmpty) return;
+    // If the Spotlight composer is open, voice + send become the
+    // dictation path for the card — append the transcript to the
+    // composer's seed text instead of running the LLM dispatcher.
+    // Typing goes directly into the card (the bar's TextField is
+    // greyed via `textInputDisabled`), so this branch only catches
+    // the mic-stop flow.
+    if (_activeComposer != null) {
+      setState(() => _composerSeed = trimmed);
+      return;
+    }
     final pendingId = 'feed-${DateTime.now().microsecondsSinceEpoch}-'
         '${UniqueKey().hashCode}';
     final feedNotifier = ref.read(commandFeedProvider.notifier);
@@ -204,6 +237,15 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final feed = ref.watch(commandFeedProvider);
+    // Picker visibility: always show when no composer is active.
+    // First pass tried to hide it until the bar was focused, but
+    // on web the focus signal was unreliable (and a greyed bar
+    // hid the strip entirely) — leaving the teacher with a blank
+    // surface and no idea what to do. Permanent affordance is
+    // louder but discoverable.
+    final showPicker = _activeComposer == null;
+    final matches =
+        showPicker ? matchComposerKinds(_searchQuery) : const <ComposerKind>[];
     return Scaffold(
       appBar: AppBar(title: const Text('Command Center')),
       body: Column(
@@ -216,8 +258,26 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
                     onRetry: _retryEntry,
                   ),
           ),
+          if (_activeComposer == ComposerKind.observation)
+            QuickObservationCard(
+              seedText: _composerSeed,
+              onSaved: _onComposerSaved,
+              onCancel: _closeComposer,
+            ),
+          DomainPickerStrip(
+            matches: matches,
+            onPick: _onDomainPicked,
+          ),
           _CommandBar(
-            enabled: OpenAiClient.isAvailable,
+            // The bar always lets the teacher type + focus — the
+            // Spotlight composer doesn't need AI, only the LLM
+            // dispatcher path does. The AI gate now lives inside
+            // `_onSubmit`: if no session, free-text submissions
+            // fall back to a feed entry explaining "sign in for
+            // AI commands" instead of greying the whole bar (which
+            // hid the picker on web entirely).
+            enabled: true,
+            textInputDisabled: _activeComposer != null,
             // No global loading flag — each in-flight dispatch
             // has its own pending card in the feed; the bar
             // stays usable so the teacher can stack commands.
@@ -226,10 +286,65 @@ class _CommandScreenState extends ConsumerState<CommandScreen> {
             // their own feed cards with retry / dismiss.
             error: null,
             onSubmit: _onSubmit,
+            onTextChanged: (q) => setState(() => _searchQuery = q),
+            onControllerReady: (c) => _barController = c,
           ),
         ],
       ),
     );
+  }
+
+  /// Picker tap. For domain kinds that have a dedicated composer,
+  /// hand the typed query through as a seed and open the card.
+  /// For domain kinds still routed through the LLM, fall back to
+  /// the original `_onSubmit` path so the existing flow keeps
+  /// working until each composer ships.
+  void _onDomainPicked(ComposerKind kind) {
+    final seed = _barController?.text ?? '';
+    if (kind.routesToComposer) {
+      setState(() {
+        _activeComposer = kind;
+        _composerSeed = seed;
+        _searchQuery = '';
+      });
+      _barController?.clear();
+    } else {
+      // Fallthrough: send the typed query to the existing LLM
+      // dispatcher. Same shape as if the user had pressed enter.
+      if (seed.trim().isNotEmpty) {
+        _onSubmit(seed);
+        _barController?.clear();
+        setState(() => _searchQuery = '');
+      }
+    }
+  }
+
+  void _closeComposer() {
+    setState(() {
+      _activeComposer = null;
+      _composerSeed = '';
+    });
+  }
+
+  void _onComposerSaved(QuickObservationResult result) {
+    // Prepend a finalized feed entry so the teacher sees the new
+    // observation in the same surface they used to compose it —
+    // no separate toast, no surprise navigation.
+    final entry = CommandFeedEntry(
+      id: 'feed-obs-${DateTime.now().microsecondsSinceEpoch}',
+      title: result.preview,
+      subtitle: 'Observation saved',
+      badge: 'OBSERVATION',
+      iconCode: Icons.edit_note_rounded.codePoint,
+      iconFontFamily: Icons.edit_note_rounded.fontFamily,
+      timestamp: DateTime.now(),
+      status: CommandFeedStatus.done,
+      recordId: result.id,
+      recordType: 'observation',
+      destinationPath: '/observations/${result.id}',
+    );
+    ref.read(commandFeedProvider.notifier).prepend(entry);
+    _closeComposer();
   }
 }
 
@@ -604,12 +719,34 @@ class _CommandBar extends StatefulWidget {
     required this.loading,
     required this.error,
     required this.onSubmit,
+    this.textInputDisabled = false,
+    this.onTextChanged,
+    this.onControllerReady,
   });
 
   final bool enabled;
   final bool loading;
   final String? error;
   final ValueChanged<String> onSubmit;
+
+  /// Disables typed input only (mic stays active). Used when the
+  /// Spotlight composer card is open — voice still dictates into
+  /// the bar (the parent forwards the transcript to the card via
+  /// `onSubmit`), but typing is funneled directly into the card's
+  /// own text field instead of through here.
+  final bool textInputDisabled;
+
+  /// Fires on every keystroke so the parent can match the current
+  /// query against the Spotlight-style composer kinds and decide
+  /// whether to show the domain picker strip above the bar.
+  final ValueChanged<String>? onTextChanged;
+
+  /// One-shot hook so the parent can grab the bar's controller for
+  /// imperative ops (clearing on composer open, seeding from voice).
+  /// Lifting the controller up would touch every voice/submit
+  /// callsite — handing it back via callback is the minimal-surface
+  /// move.
+  final ValueChanged<TextEditingController>? onControllerReady;
 
   @override
   State<_CommandBar> createState() => _CommandBarState();
@@ -618,6 +755,24 @@ class _CommandBar extends StatefulWidget {
 class _CommandBarState extends State<_CommandBar> {
   final _ctrl = TextEditingController();
   final _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl.addListener(_emitTextChange);
+    // Hand the controller back to the screen once after the first
+    // frame so it can imperatively clear / seed it. PostFrame keeps
+    // didChangeDependencies from re-firing the callback during
+    // dependency rebuilds.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.onControllerReady?.call(_ctrl);
+    });
+  }
+
+  void _emitTextChange() {
+    widget.onTextChanged?.call(_ctrl.text);
+  }
 
   // ——— Voice state ——————————————————————————————————————————
   //
@@ -640,7 +795,9 @@ class _CommandBarState extends State<_CommandBar> {
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _ctrl
+      ..removeListener(_emitTextChange)
+      ..dispose();
     _focus.dispose();
     unawaited(_tearDownVoice());
     super.dispose();
@@ -841,14 +998,25 @@ class _CommandBarState extends State<_CommandBar> {
                         : TextField(
                             controller: _ctrl,
                             focusNode: _focus,
-                            enabled: widget.enabled && !widget.loading,
+                            enabled: widget.enabled &&
+                                !widget.loading &&
+                                !widget.textInputDisabled,
                             textInputAction: TextInputAction.send,
                             onSubmitted: (_) => _submit(),
+                            // Belt-and-suspenders: the controller's
+                            // listener already fires `_emitTextChange`,
+                            // but on some web text-input paths the
+                            // listener can be late by a frame.
+                            // `onChanged` is synchronous with the
+                            // keystroke, so the picker strip pops
+                            // immediately as the teacher types.
+                            onChanged: (value) =>
+                                widget.onTextChanged?.call(value),
                             decoration: InputDecoration(
                               isDense: true,
                               border: InputBorder.none,
                               hintText: widget.enabled
-                                  ? 'Say or type anything…'
+                                  ? 'Say or type — try "obs" or "trip"'
                                   : 'Sign in to use AI commands',
                               hintStyle: theme.textTheme.bodyMedium?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant,
