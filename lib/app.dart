@@ -556,7 +556,17 @@ class _HoverSidebarState extends State<_HoverSidebar> {
                     if (hasFocus == _hasInteractiveFocus) return;
                     setState(() => _hasInteractiveFocus = hasFocus);
                   },
-                  child: MinimalLauncher(expanded: _expanded),
+                  child: MinimalLauncher(
+                    expanded: _expanded,
+                    // Touch fallback for the hover-expand pattern.
+                    // The account row taps this when the user
+                    // (a mobile-web teacher, an iPad teacher, a
+                    // hover-less trackpad) can't reveal the panel
+                    // any other way.
+                    onExpandRequest: () {
+                      if (!_expanded) setState(() => _expanded = true);
+                    },
+                  ),
                 ),
               ),
             ),

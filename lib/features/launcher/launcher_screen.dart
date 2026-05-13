@@ -1680,12 +1680,23 @@ class _NoResults extends StatelessWidget {
 /// LauncherScreen still ships behind the mobile Drawer; only the
 /// web sidebar uses this minimal variant.
 class MinimalLauncher extends ConsumerStatefulWidget {
-  const MinimalLauncher({required this.expanded, super.key});
+  const MinimalLauncher({
+    required this.expanded,
+    this.onExpandRequest,
+    super.key,
+  });
 
   /// True when the parent (`_HoverSidebar` in app.dart) is showing
   /// the full panel width. Drives whether labels render and whether
   /// the search TextField is rendered at all.
   final bool expanded;
+
+  /// Touch-friendly expand path. The parent normally toggles
+  /// expansion via mouse hover, which doesn't exist on touch
+  /// devices (mobile web, tablets). The account row taps this so
+  /// a touch user can see the email + sign-out controls without a
+  /// physical pointer.
+  final VoidCallback? onExpandRequest;
 
   @override
   ConsumerState<MinimalLauncher> createState() => _MinimalLauncherState();
@@ -1754,7 +1765,10 @@ class _MinimalLauncherState extends ConsumerState<MinimalLauncher> {
           ),
         ),
         divider,
-        _MinimalAccountRow(expanded: widget.expanded),
+        _MinimalAccountRow(
+          expanded: widget.expanded,
+          onExpandRequest: widget.onExpandRequest,
+        ),
       ],
     );
   }
@@ -1882,9 +1896,18 @@ class _SearchRow extends StatelessWidget {
 }
 
 class _MinimalAccountRow extends ConsumerWidget {
-  const _MinimalAccountRow({required this.expanded});
+  const _MinimalAccountRow({
+    required this.expanded,
+    this.onExpandRequest,
+  });
 
   final bool expanded;
+
+  /// Optional tap-target the row uses when [expanded] is false:
+  /// tapping the avatar / email area on a touch device asks the
+  /// parent to expand the rail (since hover isn't a real signal
+  /// on touch). Null = no tap action, row stays static.
+  final VoidCallback? onExpandRequest;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1897,41 +1920,69 @@ class _MinimalAccountRow extends ConsumerWidget {
     final avatarUrl = (meta['avatar_url'] ?? meta['picture']) as String?;
     final fallbackInitial = email.initial;
 
+    final avatarWidget = CircleAvatar(
+      radius: 16,
+      backgroundColor: theme.colorScheme.primaryContainer,
+      foregroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+          ? NetworkImage(avatarUrl)
+          : null,
+      child: Text(
+        fallbackInitial,
+        style: theme.textTheme.labelLarge?.copyWith(
+          color: theme.colorScheme.onPrimaryContainer,
+        ),
+      ),
+    );
+    // When collapsed, the avatar is the only thing visible — make
+    // it tap-to-expand. Without this, touch users (mobile web,
+    // tablets without hover) couldn't open the email + sign-out
+    // controls at all. When expanded, the buttons take taps so
+    // we don't need the wrapping handler.
+    final avatarSlot = SizedBox(
+      width: 64,
+      child: Center(
+        child: !expanded && onExpandRequest != null
+            ? InkWell(
+                onTap: onExpandRequest,
+                customBorder: const CircleBorder(),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: avatarWidget,
+                ),
+              )
+            : avatarWidget,
+      ),
+    );
     return SizedBox(
       height: 56,
       child: Row(
         children: [
-          SizedBox(
-            width: 64,
-            child: Center(
-              child: CircleAvatar(
-                radius: 16,
-                backgroundColor: theme.colorScheme.primaryContainer,
-                foregroundImage:
-                    (avatarUrl != null && avatarUrl.isNotEmpty)
-                        ? NetworkImage(avatarUrl)
-                        : null,
-                child: Text(
-                  fallbackInitial,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: theme.colorScheme.onPrimaryContainer,
-                  ),
-                ),
-              ),
-            ),
-          ),
+          avatarSlot,
           Expanded(
             child: Padding(
               padding: const EdgeInsets.only(right: AppSpacing.sm),
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      email,
-                      style: theme.textTheme.bodyMedium,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    // Email is also tap-to-expand when collapsed —
+                    // makes the whole row a target instead of a
+                    // tiny avatar bullseye.
+                    child: !expanded && onExpandRequest != null
+                        ? InkWell(
+                            onTap: onExpandRequest,
+                            // Fills the row's email slot so any tap
+                            // along it expands the rail — without
+                            // SizedBox.expand the InkWell would
+                            // shrink to zero and only the 1px-tall
+                            // baseline would catch hits.
+                            child: const SizedBox.expand(),
+                          )
+                        : Text(
+                            email,
+                            style: theme.textTheme.bodyMedium,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                   ),
                   IconButton(
                     tooltip: 'Switch program',
