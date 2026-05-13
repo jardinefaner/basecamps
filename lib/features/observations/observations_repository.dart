@@ -264,6 +264,54 @@ class ObservationsRepository {
         .map((rows) => rows.map((r) => r.readTable(_db.children)).toList());
   }
 
+  /// Per-child sidecar (v69). Reads the JSON blob attached to one
+  /// `(observation_id, child_id)` row. Returns null when the link
+  /// doesn't exist or carries no metadata. UI consumers decode the
+  /// JSON into their feature-specific shape — the repository
+  /// intentionally stays schema-agnostic so adding fields (note,
+  /// sentiment, skill codes, captured_at, attachment links, …)
+  /// doesn't require a repo or migration change.
+  Future<String?> getChildMetadata({
+    required String observationId,
+    required String childId,
+  }) async {
+    final row = await (_db.select(_db.observationChildren)
+          ..where((k) =>
+              k.observationId.equals(observationId) &
+              k.childId.equals(childId)))
+        .getSingleOrNull();
+    return row?.metadata;
+  }
+
+  /// Writes raw JSON onto a `(observation_id, child_id)` link row.
+  /// Pass `null` to clear. Touches the parent observation's
+  /// `updated_at` + dirty list so cross-device sync picks up the
+  /// sidecar — without this, a metadata-only edit wouldn't bump
+  /// the parent watermark and other devices would never pull the
+  /// new sidecar value.
+  Future<void> setChildMetadata({
+    required String observationId,
+    required String childId,
+    required String? metadataJson,
+  }) async {
+    final updated = await (_db.update(_db.observationChildren)
+          ..where((k) =>
+              k.observationId.equals(observationId) &
+              k.childId.equals(childId)))
+        .write(ObservationChildrenCompanion(
+      metadata: Value(metadataJson),
+    ));
+    if (updated == 0) return;
+    // Bump parent so sync engine queues the push and other
+    // devices' watermarked pull picks up the change.
+    final now = DateTime.now().toUtc();
+    await (_db.update(_db.observations)
+          ..where((o) => o.id.equals(observationId)))
+        .write(ObservationsCompanion(updatedAt: Value(now)));
+    await _db.markDirty('observations', observationId, ['updated_at']);
+    unawaited(_sync.pushObservation(observationId));
+  }
+
   Future<String> addObservation({
     required List<ObservationDomain> domains,
     required ObservationSentiment sentiment,
@@ -575,6 +623,18 @@ class ObservationsRepository {
       );
 
       if (childIds != null) {
+        // Preserve per-child metadata (v69 sidecar) across the
+        // destructive replace. Read existing rows first; rebuild the
+        // set carrying the metadata for any child that survives the
+        // edit. Without this, unchecking-then-rechecking the same
+        // kid would silently drop their per-child note / sentiment /
+        // skill tags.
+        final existing = await (_db.select(_db.observationChildren)
+              ..where((k) => k.observationId.equals(id)))
+            .get();
+        final metaByChild = <String, String?>{
+          for (final row in existing) row.childId: row.metadata,
+        };
         await (_db.delete(_db.observationChildren)
               ..where((k) => k.observationId.equals(id)))
             .go();
@@ -583,6 +643,7 @@ class ObservationsRepository {
                 ObservationChildrenCompanion.insert(
                   observationId: id,
                   childId: childId,
+                  metadata: Value(metaByChild[childId]),
                 ),
               );
         }

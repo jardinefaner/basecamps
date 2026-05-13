@@ -23,13 +23,17 @@ import 'package:basecamp/features/surveys/survey_repository.dart';
 
 class SurveyCsvExportOptions {
   const SurveyCsvExportOptions({
-    this.includePractice = false,
+    this.includePractice = true,
     this.includeAudioPath = true,
   });
 
-  /// Practice questions are excluded by default — they don't
-  /// belong in the analysis. Toggle on to include them as
-  /// dim-tagged columns.
+  /// Practice questions (the warm-up items like "I like pizza with
+  /// pineapple on it") are INCLUDED in the CSV by default. They're
+  /// real responses — useful as a sanity check that the kid
+  /// understood the scale before the real questions started, and
+  /// the silly-favorite prompts double as a vibe read for younger
+  /// cohorts. Toggle off only when an analyst wants the
+  /// scored-question-only view.
   final bool includePractice;
 
   /// Whether to include the audio file path column for open-

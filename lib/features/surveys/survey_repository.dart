@@ -126,6 +126,7 @@ class SurveyRepository {
     SurveyStyle style = SurveyStyle.marbleJar,
     List<SurveyQuestion>? questions,
     List<String> schools = const <String>[],
+    bool canonicalFaceColors = false,
   }) async {
     final id = newId();
     final now = DateTime.now().toUtc();
@@ -146,6 +147,7 @@ class SurveyRepository {
           .map((s) => s.trim())
           .where((s) => s.isNotEmpty)
           .toList(),
+      canonicalFaceColors: canonicalFaceColors,
     );
     await _db.into(_db.surveys).insert(_toCompanion(config));
     unawaited(
@@ -480,6 +482,7 @@ class SurveyRepository {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       schools: SurveyConfig.parseSchools(row.schoolsJson),
+      canonicalFaceColors: row.canonicalFaceColors,
     );
   }
 
@@ -494,6 +497,7 @@ class SurveyRepository {
         style: Value(config.style.code),
         questionsJson: Value(config.questionsJson()),
         schoolsJson: Value(config.schoolsJsonString()),
+        canonicalFaceColors: Value(config.canonicalFaceColors),
         programId: Value(_programId),
         createdAt: Value(config.createdAt),
         updatedAt: Value(config.updatedAt),

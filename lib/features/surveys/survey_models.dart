@@ -376,6 +376,7 @@ class SurveyConfig {
     required this.createdAt,
     required this.updatedAt,
     this.schools = const <String>[],
+    this.canonicalFaceColors = false,
   });
 
   final String id;
@@ -398,6 +399,13 @@ class SurveyConfig {
   /// Order is the teacher's order (no auto-sort) so the most
   /// common school can sit at the top.
   final List<String> schools;
+
+  /// v70 — basket kiosk display toggle. When true, the 5 faces
+  /// render in canonical emotion colors (red sad → green happy).
+  /// When false (default), the kiosk rotates a random palette per
+  /// question to defeat "tap the green one" pattern bias. Marble
+  /// kiosk ignores this.
+  final bool canonicalFaceColors;
 
   String questionsJson() => jsonEncode(
         questions.map((q) => q.toJson()).toList(),

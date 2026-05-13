@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:basecamp/database/database.dart';
 import 'package:drift/drift.dart';
@@ -1101,9 +1102,45 @@ class SyncEngine {
               isUtc: true,
             ).toIso8601String()
           else
-            entry.key: entry.value,
+            entry.key: _maybeDecodeJsonColumn(table, entry.key, entry.value),
     };
   }
+
+  /// Per-(table, column) hook for columns that Drift stores as TEXT
+  /// but cloud expects as jsonb. We decode the string to a Map (or
+  /// List) so supabase-dart sends a real JSON value instead of a
+  /// quoted string literal — without this, `metadata` would land
+  /// in Postgres as the JSON string `"{\"foo\":1}"` (one big string
+  /// scalar), not as the object `{"foo":1}`.
+  ///
+  /// Conservative: only fires for columns explicitly in [_jsonbColumns].
+  /// Everything else passes through untouched.
+  Object? _maybeDecodeJsonColumn(
+    String table,
+    String column,
+    Object? value,
+  ) {
+    if (value is! String) return value;
+    if (!_jsonbColumns.contains('$table.$column')) return value;
+    if (value.isEmpty) return null;
+    try {
+      return jsonDecode(value);
+    } on Object {
+      // Bad local JSON — let cloud receive the raw string rather
+      // than silently dropping it. Postgres jsonb will reject it
+      // and the engine logs the error, which is the right place
+      // to surface "your local sidecar is corrupt."
+      return value;
+    }
+  }
+
+  /// Allow-list of `<table>.<column>` pairs whose local TEXT
+  /// representation is a JSON-encoded string and whose cloud
+  /// counterpart is a `jsonb` column. Add new entries here when
+  /// introducing JSON sidecar columns.
+  static const Set<String> _jsonbColumns = {
+    'observation_children.metadata',
+  };
 
   /// Upserts a cloud row into local Drift via raw SQL. Date
   /// columns flip back from ISO string to unix seconds (Drift's
@@ -1124,6 +1161,10 @@ class SyncEngine {
         projected[entry.key] =
             DateTime.parse(entry.value as String).millisecondsSinceEpoch ~/
                 1000;
+      } else if (_jsonbColumns.contains('$table.${entry.key}') &&
+          entry.value != null &&
+          entry.value is! String) {
+        projected[entry.key] = jsonEncode(entry.value);
       } else {
         projected[entry.key] = entry.value;
       }
@@ -1227,6 +1268,12 @@ class SyncEngine {
         projected[entry.key] =
             DateTime.parse(entry.value as String).millisecondsSinceEpoch ~/
                 1000;
+      } else if (_jsonbColumns.contains('$table.${entry.key}') &&
+          entry.value != null &&
+          entry.value is! String) {
+        // jsonb columns come back as Dart Maps/Lists. Drift stores
+        // them as TEXT — re-encode for local insert.
+        projected[entry.key] = jsonEncode(entry.value);
       } else {
         projected[entry.key] = entry.value;
       }

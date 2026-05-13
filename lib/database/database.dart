@@ -82,7 +82,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 68;
+  int get schemaVersion => 70;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -158,6 +158,32 @@ class AppDatabase extends _$AppDatabase {
           await _healV55MonthlyPlanTables();
           await _healV56MonthlyActivitiesTable();
           await _healV59SurveyTables();
+          if (from < 70) {
+            // v70: surveys.canonical_face_colors — teacher toggle
+            // that swaps the basket kiosk's anti-bias color
+            // rotation (default false) for the canonical
+            // emotion→color mapping (red sad → green happy).
+            // Cloud parity: migration 0043. Defaulted to 0 so
+            // existing surveys keep their current rotation
+            // behaviour. SQLite stores booleans as INTEGER.
+            await _runSilent(
+              'ALTER TABLE "surveys" ADD COLUMN '
+              '"canonical_face_colors" INTEGER NOT NULL DEFAULT 0',
+            );
+          }
+          if (from < 69) {
+            // v69: observation_children.metadata — JSON sidecar
+            // future-proofing per-child fields (note, sentiment,
+            // skill codes, attachment links, captured_at) without
+            // further migrations. Cloud parity: migration 0042.
+            // Defaulted to NULL so every existing row reads as
+            // "no per-child data" and falls back to the
+            // observation-level value.
+            await _runSilent(
+              'ALTER TABLE "observation_children" ADD COLUMN '
+              '"metadata" TEXT NULL',
+            );
+          }
           if (from < 68) {
             // v68: add audit columns to cascade tables whose local
             // schema was missing them. The cloud schema (0037,

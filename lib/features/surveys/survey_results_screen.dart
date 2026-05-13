@@ -324,7 +324,24 @@ Future<void> _exportCsv(
       );
       return;
     }
-    final csv = kSurveyCsvExporter.exportToCsv(survey, rows);
+    // Always include the practice items (e.g. "I like pizza with
+    // pineapple on it.") in the export — the kid's answer is real
+    // data, and analysts use the practice rows as a sanity-read on
+    // whether the scale was understood before the scored questions
+    // started. The exporter's default also flips this to true post-
+    // 2026-05-13, but passing explicitly makes the intent obvious
+    // at the call site and survives a future refactor of the
+    // defaults.
+    final csv = kSurveyCsvExporter.exportToCsv(
+      survey,
+      rows,
+      // The default already includes practice, but stating it
+      // explicitly makes the contract obvious at the call site
+      // (so a future defaults-flip doesn't silently drop the
+      // pineapple-on-pizza rows from the export again).
+      // ignore: avoid_redundant_argument_values
+      options: const SurveyCsvExportOptions(includePractice: true),
+    );
     final filename = kSurveyCsvExporter.fileName(survey);
     debugPrint('[csv] $filename · ${rows.length} sessions · '
         '${csv.length} chars');

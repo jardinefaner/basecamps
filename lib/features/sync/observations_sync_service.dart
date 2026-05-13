@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:basecamp/database/database.dart';
 import 'package:basecamp/features/sync/sync_engine.dart';
@@ -235,10 +236,23 @@ class ObservationsSyncService {
     );
 
     for (final row in children) {
+      // Cloud's `created_at` was being silently overwritten by Drift's
+      // `withDefault(currentDateAndTime)` on every pull — the bespoke
+      // companion didn't pass it through. Carry it forward so other
+      // devices' pulls preserve the original tag time.
+      final cloudCreatedAt = row['created_at'] as String?;
       await _db.into(_db.observationChildren).insertOnConflictUpdate(
             ObservationChildrenCompanion.insert(
               observationId: row['observation_id'] as String,
               childId: row['child_id'] as String,
+              createdAt: cloudCreatedAt != null
+                  ? Value(DateTime.parse(cloudCreatedAt).toUtc())
+                  : const Value.absent(),
+              // v69: per-child sidecar. Cloud returns the column as
+              // a JSON object (jsonb); Drift stores the raw JSON
+              // string. encode() handles either string-or-map
+              // shape Supabase might hand us.
+              metadata: Value(_encodeMetadata(row['metadata'])),
             ),
           );
     }
@@ -299,6 +313,20 @@ class ObservationsSyncService {
   // rest of the codebase's logging style.
   // ignore: unused_element
   static void _logUnused() => debugPrint('');
+
+  /// Normalizes the cloud-side `metadata` jsonb column to a raw JSON
+  /// string for Drift storage. Supabase deserializes jsonb to a Dart
+  /// Map (or List); some adapters hand it back as a string. Accept
+  /// both shapes so the local column is always the encoded form.
+  static String? _encodeMetadata(Object? raw) {
+    if (raw == null) return null;
+    if (raw is String) return raw.isEmpty ? null : raw;
+    try {
+      return jsonEncode(raw);
+    } on Object {
+      return null;
+    }
+  }
 }
 
 final observationsSyncServiceProvider =

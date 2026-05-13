@@ -460,6 +460,8 @@ class _BasketSurveyScreenState extends ConsumerState<BasketSurveyScreen> {
               question: q,
               onReplay: _playCurrentQuestionAudio,
               transitioning: _transitioning,
+              canonicalFaceColors:
+                  _survey?.canonicalFaceColors ?? false,
             ),
           ),
         ),
@@ -905,11 +907,21 @@ class _QuestionAndChoices extends StatelessWidget {
     required this.question,
     required this.onReplay,
     required this.transitioning,
+    this.canonicalFaceColors = false,
   });
 
   final SurveyQuestion question;
   final VoidCallback onReplay;
   final bool transitioning;
+
+  /// When true, the choice row paints each face in its canonical
+  /// emotion palette (red for stronglyDisagree → green for
+  /// stronglyAgree). Default false keeps the anti-bias rotation:
+  /// expressions stay tied to position (sad-left, happy-right),
+  /// but bodies/rings/cheeks rotate randomly per question so
+  /// pattern-matching ("tap the green one") doesn't shortcut the
+  /// reading of the actual expression.
+  final bool canonicalFaceColors;
 
   @override
   Widget build(BuildContext context) {
@@ -1027,10 +1039,19 @@ class _QuestionAndChoices extends StatelessWidget {
   /// (pink / coral / amber / green / teal) get shuffled and
   /// dealt out across the choice slots. Keyed on question id so
   /// the same question always shows the same colors.
-  List<FacePalette> _colorRotationForQuestion(
+  ///
+  /// When [canonicalFaceColors] is true, the rotation is bypassed
+  /// — each slot returns null so `FacePainter` falls back to the
+  /// canonical per-mood palette (red sad → green happy). This is
+  /// the teacher-set legibility mode; default keeps the anti-bias
+  /// rotation.
+  List<FacePalette?> _colorRotationForQuestion(
     SurveyQuestion q,
     int count,
   ) {
+    if (canonicalFaceColors) {
+      return List<FacePalette?>.filled(count, null);
+    }
     final palettes = FaceMood.values
         .map((m) => kFacePalettes[m]!)
         .toList()

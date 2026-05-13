@@ -36,6 +36,7 @@ class _SurveySetupScreenState extends ConsumerState<SurveySetupScreen> {
 
   SurveyAgeBand _ageBand = SurveyAgeBand.tk;
   SurveyAudioMode _audioMode = SurveyAudioMode.full;
+  bool _canonicalFaceColors = false;
   SurveyVoice _voice = SurveyVoice.asteria;
   SurveyStyle _style = SurveyStyle.marbleJar;
 
@@ -114,6 +115,7 @@ class _SurveySetupScreenState extends ConsumerState<SurveySetupScreen> {
         // Empty → gate falls back to free-text. Order is preserved
         // so the most common school can sit at the top.
         schools: _schools,
+        canonicalFaceColors: _canonicalFaceColors,
       );
       // Pre-warm the audio cache so the kiosk doesn't pause on the
       // first question while it fetches an MP3. Best-effort —
@@ -308,6 +310,40 @@ class _SurveySetupScreenState extends ConsumerState<SurveySetupScreen> {
               onChanged: (s) => setState(() => _style = s),
               theme: theme,
             ),
+            // Display options only matter for the basket kiosk —
+            // the marble jar uses fixed per-mood colors regardless.
+            // Hidden when marble jar is selected to keep the form
+            // tight; appears when the teacher picks basket.
+            if (_style == SurveyStyle.basket) ...[
+              const SizedBox(height: AppSpacing.lg),
+              _SectionLabel(
+                text: 'Face colors',
+                theme: theme,
+                subtitle:
+                    'The basket kiosk normally rotates a random color '
+                    'palette per question so kids read the expression, '
+                    'not the color. Switch on if your cohort needs the '
+                    'canonical mapping (red sad → green happy).',
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              SwitchListTile.adaptive(
+                value: _canonicalFaceColors,
+                onChanged: (v) =>
+                    setState(() => _canonicalFaceColors = v),
+                title: const Text(
+                  'Canonical emotion colors (red→green)',
+                ),
+                subtitle: Text(
+                  _canonicalFaceColors
+                      ? 'Faces show red for sad, green for happy.'
+                      : 'Faces rotate colors per question (anti-bias).',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                contentPadding: EdgeInsets.zero,
+              ),
+            ],
             const SizedBox(height: AppSpacing.xxl),
 
             FilledButton.icon(

@@ -5004,8 +5004,24 @@ class $ObservationChildrenTable extends ObservationChildren
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _metadataMeta = const VerificationMeta(
+    'metadata',
+  );
   @override
-  List<GeneratedColumn> get $columns => [observationId, childId, createdAt];
+  late final GeneratedColumn<String> metadata = GeneratedColumn<String>(
+    'metadata',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    observationId,
+    childId,
+    createdAt,
+    metadata,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -5043,6 +5059,12 @@ class $ObservationChildrenTable extends ObservationChildren
         createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
       );
     }
+    if (data.containsKey('metadata')) {
+      context.handle(
+        _metadataMeta,
+        metadata.isAcceptableOrUnknown(data['metadata']!, _metadataMeta),
+      );
+    }
     return context;
   }
 
@@ -5067,6 +5089,10 @@ class $ObservationChildrenTable extends ObservationChildren
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      metadata: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}metadata'],
+      ),
     );
   }
 
@@ -5087,10 +5113,19 @@ class ObservationChildrenData extends DataClass
   /// column" and threw "Cascade row marked broken". Defaulted to
   /// now on insert.
   final DateTime createdAt;
+
+  /// v69 — per-child sidecar (raw JSON). Future-proofs per-child
+  /// extensions (notes, sentiment, skill codes, attachment links,
+  /// captured_at) without further migrations. Engine round-trips it
+  /// verbatim through the cascade upsert path; UI reads a missing
+  /// key as "not provided" and falls back to the observation-level
+  /// value. Null by default — empty for every existing row.
+  final String? metadata;
   const ObservationChildrenData({
     required this.observationId,
     required this.childId,
     required this.createdAt,
+    this.metadata,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -5098,6 +5133,9 @@ class ObservationChildrenData extends DataClass
     map['observation_id'] = Variable<String>(observationId);
     map['child_id'] = Variable<String>(childId);
     map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || metadata != null) {
+      map['metadata'] = Variable<String>(metadata);
+    }
     return map;
   }
 
@@ -5106,6 +5144,9 @@ class ObservationChildrenData extends DataClass
       observationId: Value(observationId),
       childId: Value(childId),
       createdAt: Value(createdAt),
+      metadata: metadata == null && nullToAbsent
+          ? const Value.absent()
+          : Value(metadata),
     );
   }
 
@@ -5118,6 +5159,7 @@ class ObservationChildrenData extends DataClass
       observationId: serializer.fromJson<String>(json['observationId']),
       childId: serializer.fromJson<String>(json['childId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      metadata: serializer.fromJson<String?>(json['metadata']),
     );
   }
   @override
@@ -5127,6 +5169,7 @@ class ObservationChildrenData extends DataClass
       'observationId': serializer.toJson<String>(observationId),
       'childId': serializer.toJson<String>(childId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'metadata': serializer.toJson<String?>(metadata),
     };
   }
 
@@ -5134,10 +5177,12 @@ class ObservationChildrenData extends DataClass
     String? observationId,
     String? childId,
     DateTime? createdAt,
+    Value<String?> metadata = const Value.absent(),
   }) => ObservationChildrenData(
     observationId: observationId ?? this.observationId,
     childId: childId ?? this.childId,
     createdAt: createdAt ?? this.createdAt,
+    metadata: metadata.present ? metadata.value : this.metadata,
   );
   ObservationChildrenData copyWithCompanion(ObservationChildrenCompanion data) {
     return ObservationChildrenData(
@@ -5146,6 +5191,7 @@ class ObservationChildrenData extends DataClass
           : this.observationId,
       childId: data.childId.present ? data.childId.value : this.childId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      metadata: data.metadata.present ? data.metadata.value : this.metadata,
     );
   }
 
@@ -5154,20 +5200,22 @@ class ObservationChildrenData extends DataClass
     return (StringBuffer('ObservationChildrenData(')
           ..write('observationId: $observationId, ')
           ..write('childId: $childId, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('metadata: $metadata')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(observationId, childId, createdAt);
+  int get hashCode => Object.hash(observationId, childId, createdAt, metadata);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is ObservationChildrenData &&
           other.observationId == this.observationId &&
           other.childId == this.childId &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.metadata == this.metadata);
 }
 
 class ObservationChildrenCompanion
@@ -5175,17 +5223,20 @@ class ObservationChildrenCompanion
   final Value<String> observationId;
   final Value<String> childId;
   final Value<DateTime> createdAt;
+  final Value<String?> metadata;
   final Value<int> rowid;
   const ObservationChildrenCompanion({
     this.observationId = const Value.absent(),
     this.childId = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.metadata = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ObservationChildrenCompanion.insert({
     required String observationId,
     required String childId,
     this.createdAt = const Value.absent(),
+    this.metadata = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : observationId = Value(observationId),
        childId = Value(childId);
@@ -5193,12 +5244,14 @@ class ObservationChildrenCompanion
     Expression<String>? observationId,
     Expression<String>? childId,
     Expression<DateTime>? createdAt,
+    Expression<String>? metadata,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (observationId != null) 'observation_id': observationId,
       if (childId != null) 'child_id': childId,
       if (createdAt != null) 'created_at': createdAt,
+      if (metadata != null) 'metadata': metadata,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -5207,12 +5260,14 @@ class ObservationChildrenCompanion
     Value<String>? observationId,
     Value<String>? childId,
     Value<DateTime>? createdAt,
+    Value<String?>? metadata,
     Value<int>? rowid,
   }) {
     return ObservationChildrenCompanion(
       observationId: observationId ?? this.observationId,
       childId: childId ?? this.childId,
       createdAt: createdAt ?? this.createdAt,
+      metadata: metadata ?? this.metadata,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -5229,6 +5284,9 @@ class ObservationChildrenCompanion
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (metadata.present) {
+      map['metadata'] = Variable<String>(metadata.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -5241,6 +5299,7 @@ class ObservationChildrenCompanion
           ..write('observationId: $observationId, ')
           ..write('childId: $childId, ')
           ..write('createdAt: $createdAt, ')
+          ..write('metadata: $metadata, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -24190,6 +24249,20 @@ class $SurveysTable extends Surveys with TableInfo<$SurveysTable, Survey> {
     requiredDuringInsert: false,
     defaultValue: const Constant('[]'),
   );
+  static const VerificationMeta _canonicalFaceColorsMeta =
+      const VerificationMeta('canonicalFaceColors');
+  @override
+  late final GeneratedColumn<bool> canonicalFaceColors = GeneratedColumn<bool>(
+    'canonical_face_colors',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("canonical_face_colors" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -24238,6 +24311,7 @@ class $SurveysTable extends Surveys with TableInfo<$SurveysTable, Survey> {
     style,
     questionsJson,
     schoolsJson,
+    canonicalFaceColors,
     createdAt,
     updatedAt,
     deletedAt,
@@ -24335,6 +24409,15 @@ class $SurveysTable extends Surveys with TableInfo<$SurveysTable, Survey> {
         ),
       );
     }
+    if (data.containsKey('canonical_face_colors')) {
+      context.handle(
+        _canonicalFaceColorsMeta,
+        canonicalFaceColors.isAcceptableOrUnknown(
+          data['canonical_face_colors']!,
+          _canonicalFaceColorsMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -24406,6 +24489,10 @@ class $SurveysTable extends Surveys with TableInfo<$SurveysTable, Survey> {
         DriftSqlType.string,
         data['${effectivePrefix}schools_json'],
       )!,
+      canonicalFaceColors: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}canonical_face_colors'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -24471,6 +24558,18 @@ class Survey extends DataClass implements Insertable<Survey> {
   /// missing means free-text fallback. Default is empty so
   /// existing rows are unaffected.
   final String schoolsJson;
+
+  /// v70 — Basket-survey display toggle. When TRUE, the 5 faces
+  /// per question render in their canonical emotion colors
+  /// (red for stronglyDisagree → green for stronglyAgree) — easy
+  /// to read but invites the "tap the green one" pattern bias.
+  /// When FALSE (the historical default), the kiosk rotates a
+  /// random color palette across choice slots per question to
+  /// force kids to read the *expression*, not the color.
+  ///
+  /// Teacher-set at survey setup time. The marble-jar style
+  /// ignores this — only the basket kiosk reads it.
+  final bool canonicalFaceColors;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt;
@@ -24486,6 +24585,7 @@ class Survey extends DataClass implements Insertable<Survey> {
     required this.style,
     required this.questionsJson,
     required this.schoolsJson,
+    required this.canonicalFaceColors,
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
@@ -24506,6 +24606,7 @@ class Survey extends DataClass implements Insertable<Survey> {
     map['style'] = Variable<String>(style);
     map['questions_json'] = Variable<String>(questionsJson);
     map['schools_json'] = Variable<String>(schoolsJson);
+    map['canonical_face_colors'] = Variable<bool>(canonicalFaceColors);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     if (!nullToAbsent || deletedAt != null) {
@@ -24529,6 +24630,7 @@ class Survey extends DataClass implements Insertable<Survey> {
       style: Value(style),
       questionsJson: Value(questionsJson),
       schoolsJson: Value(schoolsJson),
+      canonicalFaceColors: Value(canonicalFaceColors),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       deletedAt: deletedAt == null && nullToAbsent
@@ -24554,6 +24656,9 @@ class Survey extends DataClass implements Insertable<Survey> {
       style: serializer.fromJson<String>(json['style']),
       questionsJson: serializer.fromJson<String>(json['questionsJson']),
       schoolsJson: serializer.fromJson<String>(json['schoolsJson']),
+      canonicalFaceColors: serializer.fromJson<bool>(
+        json['canonicalFaceColors'],
+      ),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
@@ -24574,6 +24679,7 @@ class Survey extends DataClass implements Insertable<Survey> {
       'style': serializer.toJson<String>(style),
       'questionsJson': serializer.toJson<String>(questionsJson),
       'schoolsJson': serializer.toJson<String>(schoolsJson),
+      'canonicalFaceColors': serializer.toJson<bool>(canonicalFaceColors),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
@@ -24592,6 +24698,7 @@ class Survey extends DataClass implements Insertable<Survey> {
     String? style,
     String? questionsJson,
     String? schoolsJson,
+    bool? canonicalFaceColors,
     DateTime? createdAt,
     DateTime? updatedAt,
     Value<DateTime?> deletedAt = const Value.absent(),
@@ -24607,6 +24714,7 @@ class Survey extends DataClass implements Insertable<Survey> {
     style: style ?? this.style,
     questionsJson: questionsJson ?? this.questionsJson,
     schoolsJson: schoolsJson ?? this.schoolsJson,
+    canonicalFaceColors: canonicalFaceColors ?? this.canonicalFaceColors,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
@@ -24628,6 +24736,9 @@ class Survey extends DataClass implements Insertable<Survey> {
       schoolsJson: data.schoolsJson.present
           ? data.schoolsJson.value
           : this.schoolsJson,
+      canonicalFaceColors: data.canonicalFaceColors.present
+          ? data.canonicalFaceColors.value
+          : this.canonicalFaceColors,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
@@ -24648,6 +24759,7 @@ class Survey extends DataClass implements Insertable<Survey> {
           ..write('style: $style, ')
           ..write('questionsJson: $questionsJson, ')
           ..write('schoolsJson: $schoolsJson, ')
+          ..write('canonicalFaceColors: $canonicalFaceColors, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt')
@@ -24668,6 +24780,7 @@ class Survey extends DataClass implements Insertable<Survey> {
     style,
     questionsJson,
     schoolsJson,
+    canonicalFaceColors,
     createdAt,
     updatedAt,
     deletedAt,
@@ -24687,6 +24800,7 @@ class Survey extends DataClass implements Insertable<Survey> {
           other.style == this.style &&
           other.questionsJson == this.questionsJson &&
           other.schoolsJson == this.schoolsJson &&
+          other.canonicalFaceColors == this.canonicalFaceColors &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt);
@@ -24704,6 +24818,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
   final Value<String> style;
   final Value<String> questionsJson;
   final Value<String> schoolsJson;
+  final Value<bool> canonicalFaceColors;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> deletedAt;
@@ -24720,6 +24835,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
     this.style = const Value.absent(),
     this.questionsJson = const Value.absent(),
     this.schoolsJson = const Value.absent(),
+    this.canonicalFaceColors = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
@@ -24737,6 +24853,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
     this.style = const Value.absent(),
     required String questionsJson,
     this.schoolsJson = const Value.absent(),
+    this.canonicalFaceColors = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
@@ -24759,6 +24876,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
     Expression<String>? style,
     Expression<String>? questionsJson,
     Expression<String>? schoolsJson,
+    Expression<bool>? canonicalFaceColors,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? deletedAt,
@@ -24776,6 +24894,8 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
       if (style != null) 'style': style,
       if (questionsJson != null) 'questions_json': questionsJson,
       if (schoolsJson != null) 'schools_json': schoolsJson,
+      if (canonicalFaceColors != null)
+        'canonical_face_colors': canonicalFaceColors,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
@@ -24795,6 +24915,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
     Value<String>? style,
     Value<String>? questionsJson,
     Value<String>? schoolsJson,
+    Value<bool>? canonicalFaceColors,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<DateTime?>? deletedAt,
@@ -24812,6 +24933,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
       style: style ?? this.style,
       questionsJson: questionsJson ?? this.questionsJson,
       schoolsJson: schoolsJson ?? this.schoolsJson,
+      canonicalFaceColors: canonicalFaceColors ?? this.canonicalFaceColors,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
@@ -24855,6 +24977,9 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
     if (schoolsJson.present) {
       map['schools_json'] = Variable<String>(schoolsJson.value);
     }
+    if (canonicalFaceColors.present) {
+      map['canonical_face_colors'] = Variable<bool>(canonicalFaceColors.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -24884,6 +25009,7 @@ class SurveysCompanion extends UpdateCompanion<Survey> {
           ..write('style: $style, ')
           ..write('questionsJson: $questionsJson, ')
           ..write('schoolsJson: $schoolsJson, ')
+          ..write('canonicalFaceColors: $canonicalFaceColors, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
@@ -35974,6 +36100,7 @@ typedef $$ObservationChildrenTableCreateCompanionBuilder =
       required String observationId,
       required String childId,
       Value<DateTime> createdAt,
+      Value<String?> metadata,
       Value<int> rowid,
     });
 typedef $$ObservationChildrenTableUpdateCompanionBuilder =
@@ -35981,6 +36108,7 @@ typedef $$ObservationChildrenTableUpdateCompanionBuilder =
       Value<String> observationId,
       Value<String> childId,
       Value<DateTime> createdAt,
+      Value<String?> metadata,
       Value<int> rowid,
     });
 
@@ -36053,6 +36181,11 @@ class $$ObservationChildrenTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get metadata => $composableBuilder(
+    column: $table.metadata,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$ObservationsTableFilterComposer get observationId {
     final $$ObservationsTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -36114,6 +36247,11 @@ class $$ObservationChildrenTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get metadata => $composableBuilder(
+    column: $table.metadata,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ObservationsTableOrderingComposer get observationId {
     final $$ObservationsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -36172,6 +36310,9 @@ class $$ObservationChildrenTableAnnotationComposer
   });
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get metadata =>
+      $composableBuilder(column: $table.metadata, builder: (column) => column);
 
   $$ObservationsTableAnnotationComposer get observationId {
     final $$ObservationsTableAnnotationComposer composer = $composerBuilder(
@@ -36259,11 +36400,13 @@ class $$ObservationChildrenTableTableManager
                 Value<String> observationId = const Value.absent(),
                 Value<String> childId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> metadata = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ObservationChildrenCompanion(
                 observationId: observationId,
                 childId: childId,
                 createdAt: createdAt,
+                metadata: metadata,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -36271,11 +36414,13 @@ class $$ObservationChildrenTableTableManager
                 required String observationId,
                 required String childId,
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> metadata = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ObservationChildrenCompanion.insert(
                 observationId: observationId,
                 childId: childId,
                 createdAt: createdAt,
+                metadata: metadata,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -52442,6 +52587,7 @@ typedef $$SurveysTableCreateCompanionBuilder =
       Value<String> style,
       required String questionsJson,
       Value<String> schoolsJson,
+      Value<bool> canonicalFaceColors,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
@@ -52460,6 +52606,7 @@ typedef $$SurveysTableUpdateCompanionBuilder =
       Value<String> style,
       Value<String> questionsJson,
       Value<String> schoolsJson,
+      Value<bool> canonicalFaceColors,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
@@ -52527,6 +52674,11 @@ class $$SurveysTableFilterComposer
 
   ColumnFilters<String> get schoolsJson => $composableBuilder(
     column: $table.schoolsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get canonicalFaceColors => $composableBuilder(
+    column: $table.canonicalFaceColors,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -52610,6 +52762,11 @@ class $$SurveysTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get canonicalFaceColors => $composableBuilder(
+    column: $table.canonicalFaceColors,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -52672,6 +52829,11 @@ class $$SurveysTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get canonicalFaceColors => $composableBuilder(
+    column: $table.canonicalFaceColors,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -52721,6 +52883,7 @@ class $$SurveysTableTableManager
                 Value<String> style = const Value.absent(),
                 Value<String> questionsJson = const Value.absent(),
                 Value<String> schoolsJson = const Value.absent(),
+                Value<bool> canonicalFaceColors = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
@@ -52737,6 +52900,7 @@ class $$SurveysTableTableManager
                 style: style,
                 questionsJson: questionsJson,
                 schoolsJson: schoolsJson,
+                canonicalFaceColors: canonicalFaceColors,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
@@ -52755,6 +52919,7 @@ class $$SurveysTableTableManager
                 Value<String> style = const Value.absent(),
                 required String questionsJson,
                 Value<String> schoolsJson = const Value.absent(),
+                Value<bool> canonicalFaceColors = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
@@ -52771,6 +52936,7 @@ class $$SurveysTableTableManager
                 style: style,
                 questionsJson: questionsJson,
                 schoolsJson: schoolsJson,
+                canonicalFaceColors: canonicalFaceColors,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,

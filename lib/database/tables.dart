@@ -296,6 +296,14 @@ class ObservationChildren extends Table {
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
 
+  /// v69 — per-child sidecar (raw JSON). Future-proofs per-child
+  /// extensions (notes, sentiment, skill codes, attachment links,
+  /// captured_at) without further migrations. Engine round-trips it
+  /// verbatim through the cascade upsert path; UI reads a missing
+  /// key as "not provided" and falls back to the observation-level
+  /// value. Null by default — empty for every existing row.
+  TextColumn get metadata => text().nullable()();
+
   @override
   Set<Column<Object>> get primaryKey => {observationId, childId};
 }
@@ -1788,6 +1796,19 @@ class Surveys extends Table {
   /// existing rows are unaffected.
   TextColumn get schoolsJson =>
       text().withDefault(const Constant('[]'))();
+
+  /// v70 — Basket-survey display toggle. When TRUE, the 5 faces
+  /// per question render in their canonical emotion colors
+  /// (red for stronglyDisagree → green for stronglyAgree) — easy
+  /// to read but invites the "tap the green one" pattern bias.
+  /// When FALSE (the historical default), the kiosk rotates a
+  /// random color palette across choice slots per question to
+  /// force kids to read the *expression*, not the color.
+  ///
+  /// Teacher-set at survey setup time. The marble-jar style
+  /// ignores this — only the basket kiosk reads it.
+  BoolColumn get canonicalFaceColors =>
+      boolean().withDefault(const Constant(false))();
 
   // (program_id already declared at the top of this table — v42
   // blanket migration. The repo started stamping it for cloud
