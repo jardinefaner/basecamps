@@ -31,6 +31,10 @@ class WelcomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final session = ref.watch(currentSessionProvider);
+    final hydrate = ref.watch(lastCloudHydrateResultProvider);
+    final bootstrapping = ref.watch(programBootstrapInProgressProvider);
+    final email = session?.user.email;
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
@@ -61,6 +65,14 @@ class WelcomeScreen extends ConsumerWidget {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
+                if (email != null) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  _AccountStateBanner(
+                    email: email,
+                    hydrate: hydrate,
+                    bootstrapping: bootstrapping,
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.xxl),
                 _ChoiceCard(
                   icon: Icons.login_outlined,
@@ -82,8 +94,20 @@ class WelcomeScreen extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.xxl),
                 Center(
                   child: Wrap(
+                    alignment: WrapAlignment.center,
                     spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.xs,
                     children: [
+                      TextButton.icon(
+                        icon: const Icon(Icons.refresh, size: 16),
+                        label: const Text('Search the cloud again'),
+                        // Always enabled — the auto-retry timer may
+                        // have the bootstrap flag flipped, but the
+                        // user should still be able to force-retry
+                        // on demand instead of waiting out the
+                        // 5/10/20/45/90s backoff.
+                        onPressed: () => _rerunBootstrap(context, ref),
+                      ),
                       TextButton.icon(
                         icon: const Icon(Icons.logout, size: 16),
                         label: const Text('Sign out'),
@@ -152,6 +176,20 @@ class WelcomeScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _rerunBootstrap(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      await ref.read(programAuthBootstrapProvider).rerunBootstrap();
+    } on Object catch (e) {
+      messenger?.showSnackBar(
+        SnackBar(content: Text('Couldn’t refresh: $e')),
+      );
+    }
+  }
+
   Future<void> _openCreate(BuildContext context, WidgetRef ref) async {
     final session = ref.read(currentSessionProvider);
     if (session == null) return;
@@ -160,6 +198,111 @@ class WelcomeScreen extends ConsumerWidget {
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => _CreateProgramSheet(userId: session.user.id),
+    );
+  }
+}
+
+/// Visible signal of "who you're signed in as + what the cloud
+/// search found." Surfaces the wrong-account case (`session.user.id`
+/// doesn't match any `program_members.user_id` — most often because
+/// the user signed in with a different Google identity than the one
+/// their data is bound to). Without this, the welcome screen reads
+/// identically whether the user has no programs or whether the
+/// cloud just couldn't find any for *this* account.
+class _AccountStateBanner extends StatelessWidget {
+  const _AccountStateBanner({
+    required this.email,
+    required this.hydrate,
+    required this.bootstrapping,
+  });
+
+  final String email;
+  final CloudHydrateResult? hydrate;
+  final bool bootstrapping;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final String headline;
+    final String? subtitle;
+    final Color borderColor;
+    final IconData icon;
+    // Prefer the last recorded hydrate result over the "in progress"
+    // state once we've heard back from the cloud at least once.
+    // Bootstrap auto-retries every 5/10/20/45/90s when it finds no
+    // memberships; flipping the banner to "Searching…" on every retry
+    // looks like the whole screen is constantly loading. After the
+    // first attempt the diagnostic is stable; retries run silently
+    // in the background and only update the banner if the result
+    // actually changes.
+    if (hydrate != null) {
+      if (hydrate!.error != null) {
+        headline = 'Couldn’t reach the cloud';
+        subtitle = 'Signed in as $email\n'
+            'Tap "Search the cloud again" once you’re back online. '
+            'If it keeps failing, open Sync diagnostics and paste '
+            'the error back.';
+        borderColor = theme.colorScheme.error;
+        icon = Icons.cloud_off_outlined;
+      } else if (hydrate!.membershipsFound == 0) {
+        headline = 'No programs found for this account';
+        subtitle = 'Signed in as $email\n'
+            'If you have existing data, you may have signed in with '
+            'a different account. Try signing out and using the '
+            'account you originally signed up with.';
+        borderColor = theme.colorScheme.error;
+        icon = Icons.person_off_outlined;
+      } else {
+        headline = 'Signed in as $email';
+        subtitle = null;
+        borderColor = theme.colorScheme.outlineVariant;
+        icon = Icons.account_circle_outlined;
+      }
+    } else if (bootstrapping) {
+      headline = 'Searching the cloud for your programs…';
+      subtitle = 'Signed in as $email';
+      borderColor = theme.colorScheme.outlineVariant;
+      icon = Icons.hourglass_top_outlined;
+    } else {
+      headline = 'Signed in as $email';
+      subtitle = null;
+      borderColor = theme.colorScheme.outlineVariant;
+      icon = Icons.account_circle_outlined;
+    }
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+        border: Border.all(color: borderColor, width: 0.5),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: borderColor),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  headline,
+                  style: theme.textTheme.titleSmall,
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -428,8 +571,15 @@ Future<void> _showCreateFailureDialog(
           ),
           FilledButton(
             onPressed: () async {
+              // Capture the repository before popping the dialog —
+              // post-pop, `ref` may belong to a Consumer whose widget
+              // has already been disposed by the router (signOut
+              // flips the auth state, the router rebuilds, and
+              // /welcome's element tree is torn down). Reading from
+              // a disposed ref throws in Riverpod 3.
+              final auth = ref.read(authRepositoryProvider);
               Navigator.of(ctx).pop();
-              await ref.read(authRepositoryProvider).signOut();
+              await auth.signOut();
             },
             child: const Text('Sign out & start over'),
           ),
@@ -447,9 +597,12 @@ String _hintFor(Object error) {
   final raw = error.toString();
   if (raw.contains('42501') ||
       raw.contains('row-level security')) {
-    return 'The cloud rejected the save. This usually means '
-        'your sign-in is stale — signing out and back in clears '
-        'the cached token. If that doesn’t help, open '
+    return 'The cloud rejected the save. This is almost always '
+        'because the signed-in account doesn’t match the one your '
+        'existing data is bound to — common when you have multiple '
+        'Google accounts and the browser picked a different one. '
+        'Sign out, then sign back in with the account you '
+        'originally signed up with. If that doesn’t help, open '
         'diagnostics and paste the error back to support.';
   }
   if (raw.contains('Sign-in expired') ||

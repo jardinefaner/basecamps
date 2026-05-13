@@ -622,7 +622,8 @@ final inviteRepositoryProvider = Provider<InviteRepository>((ref) {
 // Riverpod family return type is complex; inference is intentional.
 // ignore: specify_nonobvious_property_types
 final programMembersProvider =
-    StreamProvider.family<List<ProgramMember>, String>((ref, programId) {
+    StreamProvider.autoDispose.family<List<ProgramMember>, String>(
+        (ref, programId) {
   return ref.watch(inviteRepositoryProvider).watchMembers(programId);
 });
 

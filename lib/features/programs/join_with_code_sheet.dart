@@ -4,6 +4,7 @@ import 'package:basecamp/theme/spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 /// Modal sheet for entering an invite code. Used by both
 /// `WelcomeScreen` (zero-program user landing page) and the
@@ -79,9 +80,49 @@ class _JoinWithCodeSheetState extends ConsumerState<JoinWithCodeSheet> {
     }
   }
 
+  Future<void> _switchAccount() async {
+    // Wrong-account guard. Some teachers tap an invite link from an
+    // email opened in a browser already signed in to a personal
+    // Google account; the redemption would bind the adult row to
+    // that personal account instead of their work account. Surface
+    // a "Not you?" affordance: sign out, close the sheet, and let
+    // the router bounce them to /sign-in (which will preserve the
+    // /redeem/:code deep link via the existing `next` param).
+    final navigator = Navigator.of(context);
+    final code = _code.text.trim();
+    await ref.read(authRepositoryProvider).signOut();
+    if (!mounted) return;
+    // Capture the messenger AFTER the await + mounted check. Capturing
+    // before the await is safe-by-contract but `signOut` triggers an
+    // auth-state rebuild that may remount the scaffold tree, so the
+    // pre-await messenger could be detached by the time we use it.
+    // Also show the snackbar BEFORE navigating — `context.go` replaces
+    // the GoRouter stack synchronously and would tear this scaffold
+    // down before the snack ever appears.
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Signed out. Sign in with the account your admin invited.',
+        ),
+      ),
+    );
+    // Re-enter the redeem route so the auth gate re-runs and the
+    // user lands back here once signed in with the right account.
+    // When there's a code, `go` replaces the stack on its own — pop+go
+    // in the same frame races. Pop only the no-code (modal) case.
+    if (code.isNotEmpty) {
+      context.go('/redeem/$code');
+    } else {
+      navigator.pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final session = ref.watch(currentSessionProvider);
+    final signedInEmail = session?.user.email;
     // Canonical keyboard-aware modal pattern: outer padding =
     // viewInsets.bottom (so the modal lifts as the keyboard rises),
     // inner SingleChildScrollView so content can scroll when the
@@ -116,6 +157,61 @@ class _JoinWithCodeSheetState extends ConsumerState<JoinWithCodeSheet> {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+            if (signedInEmail != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              // Wrong-account guard. Redeeming binds memberships
+              // (and any `adult_id` carried on the invite) to the
+              // currently signed-in account. If the user opened the
+              // invite link in a browser session for a personal
+              // account, the bind will land on the wrong user and
+              // the admin will need to reconcile. Surface the email
+              // they're about to redeem under and offer a one-tap
+              // switch.
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  borderRadius:
+                      BorderRadius.circular(AppSpacing.sm),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.account_circle_outlined,
+                      size: 20,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Joining as',
+                            style:
+                                theme.textTheme.labelSmall?.copyWith(
+                              color:
+                                  theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          Text(
+                            signedInEmail,
+                            style: theme.textTheme.bodyMedium,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _busy ? null : _switchAccount,
+                      child: const Text('Not you?'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: AppSpacing.lg),
             TextField(
               controller: _code,

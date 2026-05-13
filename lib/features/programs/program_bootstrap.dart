@@ -82,6 +82,10 @@ class ProgramAuthBootstrap {
         // unsubscribes so we stop streaming for a no-one-signed-in
         // state.
         _ref.read(activeProgramIdProvider.notifier).clearMemory();
+        // Drop the last hydrate snapshot so a subsequent sign-in
+        // doesn't briefly show the previous user's diagnostic
+        // banner before bootstrap re-stamps.
+        _ref.read(lastCloudHydrateResultProvider.notifier).clear();
         unawaited(_ref.read(syncEngineProvider).unsubscribeFromRealtime());
         return;
       }
@@ -125,17 +129,7 @@ class ProgramAuthBootstrap {
       // through to the legacy "create local default" path, which
       // is the same recovery as before — adding this step can't
       // make things worse, only better.
-      try {
-        final hydrated = await repo.hydrateCloudProgramsForUser(
-          userId: userId,
-          supabase: Supabase.instance.client,
-        );
-        if (hydrated > 0) {
-          debugPrint('Hydrated $hydrated cloud program/membership rows.');
-        }
-      } on Object catch (e) {
-        debugPrint('Cloud program hydrate skipped: $e');
-      }
+      await _hydrateAndStamp(repo: repo, userId: userId);
       // Decide which program (if any) to set active. Hard rule:
       // **never auto-create a default program**. A signed-in user
       // with zero memberships belongs on /welcome, where they
@@ -321,10 +315,7 @@ class ProgramAuthBootstrap {
       throw StateError('Not signed in.');
     }
     final repo = _ref.read(programsRepositoryProvider);
-    await repo.hydrateCloudProgramsForUser(
-      userId: session.user.id,
-      supabase: Supabase.instance.client,
-    );
+    await _hydrateAndStamp(repo: repo, userId: session.user.id);
     await switchProgram(programId);
   }
 
@@ -762,14 +753,49 @@ class ProgramAuthBootstrap {
     // user's "I don't see members" complaint.
     final session = _ref.read(currentSessionProvider);
     if (session != null) {
-      try {
-        await _ref.read(programsRepositoryProvider).hydrateCloudProgramsForUser(
-              userId: session.user.id,
-              supabase: Supabase.instance.client,
-            );
-      } on Object catch (e) {
-        debugPrint('Programs/members re-hydrate failed: $e');
+      await _hydrateAndStamp(
+        repo: _ref.read(programsRepositoryProvider),
+        userId: session.user.id,
+      );
+    }
+  }
+
+  /// Single entry point for the cloud-membership pull. Records the
+  /// result (count + any error) into [lastCloudHydrateResultProvider]
+  /// so the welcome screen can surface "we found 0 programs for this
+  /// account" instead of an indistinguishable silent stuck state.
+  /// Best-effort: throws are caught and stamped as errors; the
+  /// caller continues either way.
+  Future<void> _hydrateAndStamp({
+    required ProgramsRepository repo,
+    required String userId,
+  }) async {
+    try {
+      final hydrated = await repo.hydrateCloudProgramsForUser(
+        userId: userId,
+        supabase: Supabase.instance.client,
+      );
+      if (hydrated > 0) {
+        debugPrint('Hydrated $hydrated cloud program/membership rows.');
       }
+      _ref.read(lastCloudHydrateResultProvider.notifier).set(
+            CloudHydrateResult(
+              userId: userId,
+              membershipsFound: hydrated,
+              attemptedAt: DateTime.now().toUtc(),
+              error: null,
+            ),
+          );
+    } on Object catch (e) {
+      debugPrint('Cloud program hydrate skipped: $e');
+      _ref.read(lastCloudHydrateResultProvider.notifier).set(
+            CloudHydrateResult(
+              userId: userId,
+              membershipsFound: 0,
+              attemptedAt: DateTime.now().toUtc(),
+              error: e.toString(),
+            ),
+          );
     }
   }
 }
@@ -827,4 +853,46 @@ class _MembershipUpsertFailureNotifier extends Notifier<String?> {
 final membershipUpsertFailureProvider =
     NotifierProvider<_MembershipUpsertFailureNotifier, String?>(
   _MembershipUpsertFailureNotifier.new,
+);
+
+/// Snapshot of the most recent cloud program-hydrate attempt. Surfaced
+/// on /welcome so a signed-in user whose `auth.users.id` doesn't match
+/// any `program_members.user_id` (most often: they signed in with a
+/// different Google identity than the one their data was created
+/// under) can see *why* they're stuck on /welcome instead of getting
+/// the silent "you aren't in a program yet" message. Without this the
+/// app is indistinguishable from a never-joined-anything state.
+class CloudHydrateResult {
+  const CloudHydrateResult({
+    required this.userId,
+    required this.membershipsFound,
+    required this.attemptedAt,
+    required this.error,
+  });
+
+  final String userId;
+  final int membershipsFound;
+  final DateTime attemptedAt;
+  final String? error;
+}
+
+class _CloudHydrateResultNotifier extends Notifier<CloudHydrateResult?> {
+  @override
+  CloudHydrateResult? build() => null;
+
+  // Imperative setter is clearer at the call site than `state = …` for
+  // a single-purpose status notifier.
+  // ignore: use_setters_to_change_properties
+  void set(CloudHydrateResult value) {
+    state = value;
+  }
+
+  void clear() {
+    state = null;
+  }
+}
+
+final lastCloudHydrateResultProvider =
+    NotifierProvider<_CloudHydrateResultNotifier, CloudHydrateResult?>(
+  _CloudHydrateResultNotifier.new,
 );

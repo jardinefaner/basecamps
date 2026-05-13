@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:basecamp/config/env.dart';
 import 'package:basecamp/core/format/date.dart';
 import 'package:basecamp/core/format/text.dart';
@@ -108,19 +110,7 @@ class _AdultDetailScreenState extends ConsumerState<AdultDetailScreen>
                           _openInviteForAdult(context, s),
                     )
                   else
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm,
-                      ),
-                      child: Tooltip(
-                        message: 'Profile claimed by a signed-in user',
-                        child: Icon(
-                          Icons.verified_user_outlined,
-                          color:
-                              Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ),
+                    _ClaimedByChip(authUserId: s.authUserId!),
                   // Edit pencil dropped: the Profile tab's card is
                   // tap-to-edit (and the Schedule tab's per-section
                   // edit affordances handle Schedule edits). The
@@ -3086,5 +3076,112 @@ class _IssueRow extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// AppBar chip shown when an Adult row has been bound to a Supabase
+/// user. Resolves [authUserId] against the active program's member
+/// list to surface "Claimed by Name" — admins were getting a green
+/// verified icon with no signal of *who* claimed it, which masked
+/// "wrong-account claim" cases where a teacher had tapped the invite
+/// link while signed in to a personal Google account by mistake.
+class _ClaimedByChip extends ConsumerWidget {
+  const _ClaimedByChip({required this.authUserId});
+
+  final String authUserId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final programId = ref.watch(activeProgramIdProvider);
+    final membersAsync = programId == null
+        ? const AsyncValue<List<ProgramMember>>.data(<ProgramMember>[])
+        : ref.watch(programMembersProvider(programId));
+    final name = membersAsync.maybeWhen(
+      data: (members) {
+        for (final m in members) {
+          if (m.userId == authUserId) {
+            final n = m.displayName?.trim();
+            if (n != null && n.isNotEmpty) return n;
+          }
+        }
+        return null;
+      },
+      orElse: () => null,
+    );
+    final tooltip = name == null
+        ? 'Profile claimed — but the claimer isn’t a member of this '
+            'program. They may have used the wrong account.'
+        : 'Claimed by $name';
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+      child: Tooltip(
+        message: tooltip,
+        child: InkWell(
+          onTap: () => _showClaimDetails(context, name),
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.xs,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.verified_user_outlined,
+                  size: 18,
+                  color: name == null
+                      ? theme.colorScheme.error
+                      : theme.colorScheme.primary,
+                ),
+                if (name != null) ...[
+                  const SizedBox(width: AppSpacing.xs),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 140),
+                    child: Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showClaimDetails(BuildContext context, String? name) {
+    final theme = Theme.of(context);
+    unawaited(showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(name == null ? 'Profile claimed' : 'Claimed by $name'),
+        content: Text(
+          name == null
+              ? 'This profile is bound to a signed-in user, but that '
+                  'user isn’t a member of this program. They may have '
+                  'used the wrong account when redeeming the invite. '
+                  'Ask an admin to reconcile before issuing a new '
+                  'invite.'
+              : 'This profile is bound to $name’s signed-in account. '
+                  'Future schedule changes, observations they author, '
+                  'and surveys they receive will land on their device.',
+          style: theme.textTheme.bodyMedium,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    ));
   }
 }
